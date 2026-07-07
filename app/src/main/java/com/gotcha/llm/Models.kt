@@ -1,5 +1,7 @@
 package com.gotcha.llm
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -17,6 +19,8 @@ data class ChatMessage(
 @Serializable
 data class ToolCall(
     val id: String,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault
     val type: String = "function",
     val function: FunctionCall
 )
@@ -29,6 +33,8 @@ data class FunctionCall(
 
 @Serializable
 data class ToolDefinition(
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault
     val type: String = "function",
     val function: FunctionDefinition
 )
