@@ -26,7 +26,10 @@ object ToolDefinitions {
 
     val dialNumber = tool(
         "dial_number",
-        "Open the phone dialer pre-filled with a phone number. The user still has to press call.",
+        "Open the dialer pre-filled with a number WITHOUT calling — the user must tap call " +
+            "themselves. Only use this when the user explicitly wants to review the number first " +
+            "(e.g. 'open the dialer with…', 'let me press call'). For a normal 'call X' request, " +
+            "use call_number instead.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("number") {
@@ -196,8 +199,10 @@ object ToolDefinitions {
 
     val callNumber = tool(
         "call_number",
-        "Place a phone call directly (the call starts immediately). Prefer dial_number if the user " +
-            "should press call themselves. Needs the Phone permission.",
+        "Place a phone call directly — the call is dialed immediately. This is the DEFAULT tool for " +
+            "any 'call X' / 'phone X' / 'ring X' request. Resolve names to numbers with find_contact " +
+            "first if needed. Needs the Phone permission. Only fall back to dial_number if the user " +
+            "explicitly wants to press call themselves.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("number") {
