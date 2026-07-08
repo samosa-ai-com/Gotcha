@@ -17,7 +17,12 @@ object ToolRegistry {
      */
     val sensitiveTools: Set<String> = setOf(
         "dial_number", "set_wallpaper", "clear_app_cache",
-        "write_file", "run_command", "set_brightness"
+        "write_file", "run_command", "set_brightness",
+        // Tier 0–2 additions: outbound actions, personal-data reads, and captures.
+        "call_number", "read_call_log", "find_contact", "add_contact",
+        "send_sms", "read_recent_sms", "create_calendar_event", "list_calendar_events",
+        "get_location", "uninstall_app",
+        "take_photo", "start_audio_recording", "stop_audio_recording"
     )
 
     fun allDefinitions(): List<ToolDefinition> = definitions.values.toList()

@@ -52,17 +52,24 @@ class MainActivity : ComponentActivity() {
         settingsRepository = SettingsRepository(this)
 
         // Phase 7: tools report missing permissions; request them here on first use.
+        // "special:*" markers map to per-access Settings deep-links; anything else is a
+        // real runtime permission handled by the single RequestPermission launcher.
         lifecycleScope.launch {
             chatViewModel.permissionRequests.collect { permission ->
-                if (permission == ToolResult.WRITE_SETTINGS) {
-                    startActivity(
+                when (permission) {
+                    ToolResult.WRITE_SETTINGS -> startActivity(
                         Intent(
                             AndroidSettings.ACTION_MANAGE_WRITE_SETTINGS,
                             Uri.parse("package:$packageName")
                         )
                     )
-                } else {
-                    permissionLauncher.launch(permission)
+                    ToolResult.USAGE_ACCESS -> startActivity(
+                        Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS)
+                    )
+                    ToolResult.DND_ACCESS -> startActivity(
+                        Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                    )
+                    else -> permissionLauncher.launch(permission)
                 }
             }
         }

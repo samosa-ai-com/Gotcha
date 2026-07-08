@@ -22,6 +22,15 @@ class ToolExecutor(context: Context) {
     private val fileTool = FileTool(appContext)
     private val terminalTool = TerminalTool()
     private val wallpaperTool = WallpaperTool(appContext)
+    private val contactsTool = ContactsTool(appContext)
+    private val smsTool = SmsTool(appContext)
+    private val calendarTool = CalendarTool(appContext)
+    private val alarmTool = AlarmTool(appContext)
+    private val deviceTool = DeviceTool(appContext)
+    private val locationTool = LocationTool(appContext)
+    private val appsTool = AppsTool(appContext)
+    private val clipboardTool = ClipboardTool(appContext)
+    private val mediaCaptureTool = MediaCaptureTool(appContext)
     private val actionLog = ActionLog(appContext)
 
     suspend fun execute(name: String, args: JsonObject): ToolResult {
@@ -60,12 +69,66 @@ class ToolExecutor(context: Context) {
         "toggle_wifi" -> systemTool.toggleWifi()
         "set_wallpaper" -> wallpaperTool.setWallpaper(args.requireString("url"))
         "run_command" -> terminalTool.runCommand(args.requireString("command") ?: return missing("command"))
+        "call_number" -> phoneTool.callNumber(args.requireString("number") ?: return missing("number"))
+        "read_call_log" -> phoneTool.readCallLog(args.requireInt("limit") ?: 10)
+        "find_contact" -> contactsTool.findContact(args.requireString("name") ?: return missing("name"))
+        "add_contact" -> contactsTool.addContact(
+            name = args.requireString("name") ?: return missing("name"),
+            number = args.requireString("number") ?: return missing("number")
+        )
+        "send_sms" -> smsTool.sendSms(
+            number = args.requireString("number") ?: return missing("number"),
+            message = args.requireString("message") ?: return missing("message")
+        )
+        "read_recent_sms" -> smsTool.readRecentSms(args.requireInt("limit") ?: 10)
+        "list_calendar_events" -> calendarTool.listEvents(args.requireInt("days_ahead") ?: 7)
+        "create_calendar_event" -> calendarTool.createEvent(
+            title = args.requireString("title") ?: return missing("title"),
+            start = args.requireString("start") ?: return missing("start"),
+            end = args.requireString("end"),
+            location = args.requireString("location")
+        )
+        "set_alarm" -> alarmTool.setAlarm(
+            hour = args.requireInt("hour") ?: return missing("hour"),
+            minute = args.requireInt("minute") ?: return missing("minute"),
+            message = args.requireString("message")
+        )
+        "set_timer" -> alarmTool.setTimer(
+            seconds = args.requireInt("seconds") ?: return missing("seconds"),
+            message = args.requireString("message")
+        )
+        "toggle_torch" -> deviceTool.toggleTorch(
+            args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on")
+        )
+        "set_volume" -> deviceTool.setVolume(
+            stream = args.requireString("stream") ?: return missing("stream"),
+            percent = args.requireInt("percent") ?: return missing("percent")
+        )
+        "set_ringer_mode" -> deviceTool.setRingerMode(args.requireString("mode") ?: return missing("mode"))
+        "vibrate" -> deviceTool.vibrate(args.requireInt("duration_ms") ?: 500)
+        "set_dnd" -> deviceTool.setDnd(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
+        "get_location" -> locationTool.getLocation()
+        "list_installed_apps" -> appsTool.listInstalledApps()
+        "uninstall_app" -> appsTool.uninstallApp(args.requireString("package_name") ?: return missing("package_name"))
+        "get_app_usage" -> appsTool.getAppUsage(args.requireInt("days") ?: 7)
+        "get_data_usage" -> appsTool.getDataUsage(args.requireInt("days") ?: 30)
+        "get_clipboard" -> clipboardTool.getClipboard()
+        "set_clipboard" -> clipboardTool.setClipboard(args.requireString("text") ?: return missing("text"))
+        "take_photo" -> mediaCaptureTool.takePhoto()
+        "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
+        "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
         else -> ToolResult.error("Tool '$name' has no executor.")
         }
     }
 
     private fun JsonObject.requireString(key: String): String? =
         this[key]?.jsonPrimitive?.takeIf { it.isString || it.content.isNotEmpty() }?.content
+
+    /** Parse an integer argument; tolerates numbers sent as JSON strings by the LLM. */
+    private fun JsonObject.requireInt(key: String): Int? =
+        this[key]?.jsonPrimitive?.let { it.intOrNull ?: it.content.trim().toIntOrNull() }
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
