@@ -31,6 +31,11 @@ class ToolExecutor(context: Context) {
     private val appsTool = AppsTool(appContext)
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
+    // Tier 3 tools
+    private val accessibilityTool = AccessibilityTool(appContext)
+    private val notificationTool = NotificationTool(appContext)
+    private val overlayTool = OverlayTool(appContext)
+    private val deviceAdminTool = DeviceAdminTool(appContext)
     private val actionLog = ActionLog(appContext)
 
     suspend fun execute(name: String, args: JsonObject): ToolResult {
@@ -119,6 +124,35 @@ class ToolExecutor(context: Context) {
         "take_photo" -> mediaCaptureTool.takePhoto()
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        // ---- Tier 3 ----
+        "read_screen" -> accessibilityTool.readScreen()
+        "tap" -> accessibilityTool.tap(
+            text = args.requireString("text"),
+            x = args.requireInt("x"),
+            y = args.requireInt("y")
+        )
+        "swipe" -> accessibilityTool.swipe(
+            direction = args.requireString("direction"),
+            x1 = args.requireInt("x1"), y1 = args.requireInt("y1"),
+            x2 = args.requireInt("x2"), y2 = args.requireInt("y2")
+        )
+        "input_text" -> accessibilityTool.inputText(args.requireString("text") ?: return missing("text"))
+        "global_action" -> accessibilityTool.globalAction(args.requireString("action") ?: return missing("action"))
+        "read_notifications" -> notificationTool.readNotifications(args.requireInt("limit") ?: 15)
+        "dismiss_notifications" -> notificationTool.dismissNotifications(args.requireString("key"))
+        "media_control" -> notificationTool.mediaControl(args.requireString("action") ?: return missing("action"))
+        "show_overlay" -> overlayTool.showOverlay(
+            text = args.requireString("text") ?: return missing("text"),
+            durationMs = args.requireInt("duration_ms") ?: 4000
+        )
+        "hide_overlay" -> overlayTool.hideOverlay()
+        "lock_screen" -> deviceAdminTool.lockScreen()
+        "disable_camera" -> deviceAdminTool.disableCamera(
+            args["disabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("disabled")
+        )
+        "set_password_policy" -> deviceAdminTool.setPasswordPolicy(
+            args.requireInt("min_length") ?: return missing("min_length")
+        )
         else -> ToolResult.error("Tool '$name' has no executor.")
         }
     }

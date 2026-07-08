@@ -1,7 +1,9 @@
 package com.gotcha
 
+import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings as AndroidSettings
 import android.widget.Toast
@@ -26,6 +28,7 @@ import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.SettingsScreen
@@ -69,6 +72,35 @@ class MainActivity : ComponentActivity() {
                     ToolResult.DND_ACCESS -> startActivity(
                         Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
                     )
+                    ToolResult.ACCESSIBILITY_ACCESS -> startActivity(
+                        Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)
+                    )
+                    ToolResult.NOTIFICATION_LISTENER_ACCESS -> startActivity(
+                        Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                    )
+                    ToolResult.ALL_FILES_ACCESS -> startActivity(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Intent(
+                            AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        ) else Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:$packageName"))
+                    )
+                    ToolResult.OVERLAY_ACCESS -> startActivity(
+                        Intent(
+                            AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                    ToolResult.DEVICE_ADMIN -> startActivity(
+                        Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(
+                            DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                            GotchaDeviceAdminReceiver.componentName(this@MainActivity)
+                        ).putExtra(
+                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            "Gotcha uses device administration to lock the screen, enforce " +
+                                "password policy, and disable the camera when you ask it to."
+                        )
+                    )
                     else -> permissionLauncher.launch(permission)
                 }
             }
@@ -84,6 +116,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        chatViewModel.setForeground(true)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        chatViewModel.setForeground(false)
     }
 
     @Composable

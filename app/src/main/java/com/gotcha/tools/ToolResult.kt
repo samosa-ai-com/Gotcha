@@ -22,6 +22,23 @@ data class ToolResult(
         /** Marker for the "Do Not Disturb access" (notification-policy) special app access. */
         const val DND_ACCESS = "special:dnd_access"
 
+        // ---- Tier 3: component-based / device-wide special access ----
+
+        /** Marker for enabling the AccessibilityService (Settings → Accessibility). */
+        const val ACCESSIBILITY_ACCESS = "special:accessibility_access"
+
+        /** Marker for enabling the NotificationListenerService (Notification access). */
+        const val NOTIFICATION_LISTENER_ACCESS = "special:notification_listener_access"
+
+        /** Marker for the "All files access" (MANAGE_EXTERNAL_STORAGE) special access. */
+        const val ALL_FILES_ACCESS = "special:all_files_access"
+
+        /** Marker for the "Display over other apps" (SYSTEM_ALERT_WINDOW) special access. */
+        const val OVERLAY_ACCESS = "special:overlay_access"
+
+        /** Marker for activating the Device Admin component. */
+        const val DEVICE_ADMIN = "special:device_admin"
+
         fun ok(message: String) = ToolResult(true, message)
         fun error(message: String) = ToolResult(false, message)
         fun permissionNeeded(permission: String, message: String) =

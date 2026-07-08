@@ -113,6 +113,12 @@ Type natural-language requests. Examples:
 - **Sensitive actions** (dial, wallpaper, cache clear, write file, run command,
   set brightness) pop an **Allow / Deny** dialog. You can disable this in
   Settings → *Confirm sensitive actions*.
+- **Confirmations while another app is in front** (e.g. the accessibility tools
+  after `open_app` hands control to Settings): the Allow / Deny prompt is drawn as a
+  **floating overlay on top of that app**, so it stays visible and the agent doesn't
+  block behind it. This needs the **"Display over other apps"** permission — grant it
+  once for Gotcha, otherwise the confirmation falls back to the in-app dialog and,
+  if it can't be shown, times out after 60 s (treated as a decline) rather than hanging.
 - **Permissions** are requested on first use. If you deny one, the assistant
   explains what's needed instead of crashing. Two need manual grants:
   - **Storage** (reading Downloads/Pictures/etc.): a standard runtime prompt.

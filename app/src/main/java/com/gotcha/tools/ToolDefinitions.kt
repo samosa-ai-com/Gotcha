@@ -56,7 +56,8 @@ object ToolDefinitions {
     val listFiles = tool(
         "list_files",
         "List files in an allowed directory. Allowed roots: 'files' (app files), 'cache' (app cache), " +
-            "'external' (app external files), 'downloads', 'pictures', 'dcim', 'documents'. " +
+            "'external' (app external files), 'downloads', 'pictures', 'dcim', 'documents', and " +
+            "'storage' (the whole shared-storage tree, needs All-files access). " +
             "An optional relative sub-path may be appended, e.g. 'downloads/reports'.",
         schema {
             putJsonObject("properties") {
@@ -74,7 +75,8 @@ object ToolDefinitions {
 
     val readFile = tool(
         "read_file",
-        "Read a text file from an allowed directory (same roots as list_files). Output is capped.",
+        "Read a text file from an allowed directory (same roots as list_files, including 'storage' " +
+            "with All-files access). Output is capped.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
@@ -88,7 +90,8 @@ object ToolDefinitions {
 
     val writeFile = tool(
         "write_file",
-        "Write or append a text file inside the app sandbox (roots 'files', 'cache', 'external' only).",
+        "Write or append a text file. Roots 'files', 'cache', 'external' work in the app sandbox; " +
+            "the 'storage' root writes anywhere in shared storage but needs All-files access.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
@@ -551,6 +554,191 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    // ---- Tier 3 additions (component-based / device-wide access) ----
+
+    val readScreen = tool(
+        "read_screen",
+        "Read the visible text of whatever app is currently on screen, using the accessibility " +
+            "service. Use this to 'see' the foreground app before tapping or typing. Needs the " +
+            "Gotcha accessibility service to be enabled.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val tap = tool(
+        "tap",
+        "Tap the screen via the accessibility service — either an on-screen element matching " +
+            "some text/label, or absolute pixel coordinates. Prefer matching by text. Needs the " +
+            "accessibility service enabled.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("description", "Visible text/label of the element to tap (case-insensitive, partial match).")
+                }
+                putJsonObject("x") {
+                    put("type", "integer")
+                    put("description", "Absolute X pixel coordinate (use with y instead of text).")
+                }
+                putJsonObject("y") {
+                    put("type", "integer")
+                    put("description", "Absolute Y pixel coordinate (use with x instead of text).")
+                }
+            }
+        }
+    )
+
+    val swipe = tool(
+        "swipe",
+        "Swipe the screen via the accessibility service — a named direction (up/down/left/right) " +
+            "or explicit start/end coordinates. Use for scrolling and navigation. Needs the " +
+            "accessibility service enabled.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("direction") {
+                    put("type", "string")
+                    put("description", "One of: up, down, left, right.")
+                }
+                putJsonObject("x1") { put("type", "integer"); put("description", "Start X (with y1,x2,y2).") }
+                putJsonObject("y1") { put("type", "integer"); put("description", "Start Y.") }
+                putJsonObject("x2") { put("type", "integer"); put("description", "End X.") }
+                putJsonObject("y2") { put("type", "integer"); put("description", "End Y.") }
+            }
+        }
+    )
+
+    val inputText = tool(
+        "input_text",
+        "Type text into the currently focused input field via the accessibility service. Tap a " +
+            "text field first so it is focused. Needs the accessibility service enabled.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("description", "Text to type into the focused field.")
+                }
+            }
+            putJsonArray("required") { add("text") }
+        }
+    )
+
+    val globalAction = tool(
+        "global_action",
+        "Perform a device-wide navigation gesture via the accessibility service: back, home, " +
+            "recents, notifications, quick_settings, or lock_screen. Needs the accessibility service enabled.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("action") {
+                    put("type", "string")
+                    put("description", "One of: back, home, recents, notifications, quick_settings, lock_screen.")
+                }
+            }
+            putJsonArray("required") { add("action") }
+        }
+    )
+
+    val readNotifications = tool(
+        "read_notifications",
+        "Read the currently active notifications from all apps (app, time, title/text, and a " +
+            "dismiss key). Needs Notification access.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("limit") {
+                    put("type", "integer")
+                    put("description", "How many recent notifications to return (1-50). Default 15.")
+                }
+            }
+        }
+    )
+
+    val dismissNotifications = tool(
+        "dismiss_notifications",
+        "Dismiss a notification by its key (from read_notifications), or all notifications if no " +
+            "key is given. Needs Notification access.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("key") {
+                    put("type", "string")
+                    put("description", "The notification key to dismiss. Omit to dismiss all.")
+                }
+            }
+        }
+    )
+
+    val mediaControl = tool(
+        "media_control",
+        "Control the currently playing media session: play, pause, next, previous, or stop. " +
+            "Needs Notification access.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("action") {
+                    put("type", "string")
+                    put("description", "One of: play, pause, next, previous, stop.")
+                }
+            }
+            putJsonArray("required") { add("action") }
+        }
+    )
+
+    val showOverlay = tool(
+        "show_overlay",
+        "Display a floating text banner on top of other apps. Needs the 'Display over other apps' permission.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("description", "Text to display in the overlay.")
+                }
+                putJsonObject("duration_ms") {
+                    put("type", "integer")
+                    put("description", "How long to show it, in milliseconds (0 = until hidden). Default 4000.")
+                }
+            }
+            putJsonArray("required") { add("text") }
+        }
+    )
+
+    val hideOverlay = tool(
+        "hide_overlay",
+        "Remove the floating overlay shown by show_overlay.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val lockScreen = tool(
+        "lock_screen",
+        "Immediately lock the device screen. Needs Gotcha to be an active device administrator.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val disableCamera = tool(
+        "disable_camera",
+        "Disable or re-enable all device cameras via device-admin policy. Needs Gotcha to be " +
+            "an active device administrator.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("disabled") {
+                    put("type", "boolean")
+                    put("description", "true to disable the camera, false to re-enable it.")
+                }
+            }
+            putJsonArray("required") { add("disabled") }
+        }
+    )
+
+    val setPasswordPolicy = tool(
+        "set_password_policy",
+        "Enforce a minimum unlock-password length via device-admin policy. Needs Gotcha to be " +
+            "an active device administrator.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("min_length") {
+                    put("type", "integer")
+                    put("description", "Minimum password length to enforce (0-16). 0 clears the requirement.")
+                }
+            }
+            putJsonArray("required") { add("min_length") }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         clearAppCache, openApp, toggleDarkMode, setBrightness, toggleWifi,
@@ -560,6 +748,11 @@ object ToolDefinitions {
         listCalendarEvents, createCalendarEvent, setAlarm, setTimer,
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
-        getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording
+        getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // Tier 3 additions
+        readScreen, tap, swipe, inputText, globalAction,
+        readNotifications, dismissNotifications, mediaControl,
+        showOverlay, hideOverlay,
+        lockScreen, disableCamera, setPasswordPolicy
     )
 }

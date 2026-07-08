@@ -12,8 +12,10 @@ import com.gotcha.llm.ToolCall
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.ui.ConfirmationOverlay
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,6 +28,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
 enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
+
+/** Outcome of the sensitive-action confirmation step. */
+private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 
 data class UiMessage(
     val id: Long,
@@ -52,10 +57,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val toolExecutor = ToolExecutor(application)
+    private val confirmationOverlay = ConfirmationOverlay(application)
     private val json = Json { ignoreUnknownKeys = true }
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
+
+    /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
+    @Volatile
+    private var appInForeground = true
 
     /** LLM-shaped history (excludes the system prompt, which is prepended per call). */
     private val llmHistory = mutableListOf<ChatMessage>()
@@ -117,6 +127,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         confirmationGate = null
     }
 
+    /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
+    fun setForeground(foreground: Boolean) {
+        appInForeground = foreground
+    }
+
+    override fun onCleared() {
+        confirmationOverlay.dismiss()
+        super.onCleared()
+    }
+
     fun clearChat() {
         if (_uiState.value.isBusy) return
         llmHistory.clear()
@@ -156,10 +176,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             message.content?.takeIf { it.isNotBlank() }
                 ?.let { appendUi(MessageKind.ASSISTANT, it) }
 
-            val approved = requestConfirmationIfNeeded(toolCalls)
+            val decision = requestConfirmation(toolCalls)
             for (call in toolCalls) {
-                val result = if (approved) executeCall(call)
-                else ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
+                val result = when (decision) {
+                    ConfirmDecision.APPROVED -> executeCall(call)
+                    ConfirmDecision.DENIED ->
+                        ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
+                    ConfirmDecision.TIMED_OUT -> ToolResult.error(
+                        "Confirmation for '${call.function.name}' timed out with no response. " +
+                            "Do not retry automatically; tell the user to ask again when ready."
+                    )
+                }
                 llmHistory += ChatMessage(
                     role = "tool",
                     content = result.message,
@@ -179,25 +206,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private suspend fun requestConfirmationIfNeeded(toolCalls: List<ToolCall>): Boolean {
-        if (!settings.confirmSensitiveActions) return true
+    /**
+     * Gates sensitive tool calls behind user approval. When Gotcha is in the
+     * foreground the in-app Compose dialog is used; when it has been backgrounded (e.g.
+     * after `open_app` launched another app) a floating overlay is shown instead so the
+     * prompt is visible over that app rather than hidden behind it. Either way the wait
+     * is bounded by [CONFIRM_TIMEOUT_MS] so the tool loop can never hang indefinitely.
+     */
+    private suspend fun requestConfirmation(toolCalls: List<ToolCall>): ConfirmDecision {
+        if (!settings.confirmSensitiveActions) return ConfirmDecision.APPROVED
         val sensitive = toolCalls.filter { ToolRegistry.isSensitive(it.function.name) }
-        if (sensitive.isEmpty()) return true
+        if (sensitive.isEmpty()) return ConfirmDecision.APPROVED
+
+        val names = sensitive.map { it.function.name }
+        val description = sensitive.joinToString("\n") { c ->
+            "${c.function.name}(${c.function.arguments.take(200)})"
+        }
 
         val gate = CompletableDeferred<Boolean>()
         confirmationGate = gate
-        _uiState.update {
-            it.copy(
-                activity = null,
-                pendingConfirmation = PendingConfirmation(
-                    toolNames = sensitive.map { c -> c.function.name },
-                    description = sensitive.joinToString("\n") { c ->
-                        "${c.function.name}(${c.function.arguments.take(200)})"
-                    }
-                )
+
+        val useOverlay = !appInForeground && confirmationOverlay.canShow()
+        if (useOverlay) {
+            confirmationOverlay.show(
+                summary = "Allow these actions?\n$description",
+                onAllow = { confirmPendingActions(true) },
+                onDeny = { confirmPendingActions(false) }
             )
+        } else {
+            _uiState.update {
+                it.copy(
+                    activity = null,
+                    pendingConfirmation = PendingConfirmation(names, description)
+                )
+            }
         }
-        return gate.await()
+
+        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() }
+
+        confirmationOverlay.dismiss()
+        _uiState.update { it.copy(pendingConfirmation = null) }
+        confirmationGate = null
+
+        return when (approved) {
+            true -> ConfirmDecision.APPROVED
+            false -> ConfirmDecision.DENIED
+            null -> ConfirmDecision.TIMED_OUT
+        }
     }
 
     private suspend fun executeCall(call: ToolCall): ToolResult {
@@ -262,5 +317,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val MAX_ITERATIONS = 6
         const val MAX_HISTORY_MESSAGES = 40
         const val INTER_CALL_DELAY_MS = 400L
+        const val CONFIRM_TIMEOUT_MS = 60_000L
     }
 }

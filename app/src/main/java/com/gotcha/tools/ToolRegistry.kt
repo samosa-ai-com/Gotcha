@@ -22,7 +22,12 @@ object ToolRegistry {
         "call_number", "read_call_log", "find_contact", "add_contact",
         "send_sms", "read_recent_sms", "create_calendar_event", "list_calendar_events",
         "get_location", "uninstall_app",
-        "take_photo", "start_audio_recording", "stop_audio_recording"
+        "take_photo", "start_audio_recording", "stop_audio_recording",
+        // Tier 3: device-wide / other-app control is always sensitive.
+        "read_screen", "tap", "swipe", "input_text", "global_action",
+        "read_notifications", "dismiss_notifications", "media_control",
+        "show_overlay", "hide_overlay",
+        "lock_screen", "disable_camera", "set_password_policy"
     )
 
     fun allDefinitions(): List<ToolDefinition> = definitions.values.toList()

@@ -31,8 +31,17 @@ class FileTool(private val context: Context) {
         )
     }
 
+    /**
+     * Tier 3 — the whole shared-storage tree, read *and* write, behind
+     * "All files access" (MANAGE_EXTERNAL_STORAGE). Only reachable when the user has
+     * granted that special access; otherwise resolve() returns a permission hint.
+     */
+    private val manageRoots: Map<String, File> by lazy {
+        mapOf("storage" to Environment.getExternalStorageDirectory())
+    }
+
     private val allowedRootNames: String
-        get() = (sandboxRoots.keys + publicRoots.keys).joinToString(", ")
+        get() = (sandboxRoots.keys + publicRoots.keys + manageRoots.keys).joinToString(", ")
 
     fun listFiles(path: String): ToolResult {
         val resolved = resolve(path, writable = false) ?: return badPath(path)
@@ -77,8 +86,8 @@ class FileTool(private val context: Context) {
     fun writeFile(path: String, content: String, append: Boolean): ToolResult {
         val resolved = resolve(path, writable = true)
             ?: return ToolResult.error(
-                "Writing is only allowed under the app sandbox roots (${sandboxRoots.keys.joinToString(", ")}). " +
-                    "Path '$path' is outside them."
+                "Writing is only allowed under the app sandbox roots (${sandboxRoots.keys.joinToString(", ")}) " +
+                    "or the 'storage' root (needs All-files access). Path '$path' is outside them."
             )
         (resolved as? PermissionMissing)?.let { return it.result }
         val file = (resolved as Resolved).file
@@ -106,6 +115,10 @@ class FileTool(private val context: Context) {
 
         val root: File = when {
             sandboxRoots.containsKey(rootName) -> sandboxRoots[rootName] ?: return null
+            manageRoots.containsKey(rootName) -> {
+                checkAllFilesAccess()?.let { return PermissionMissing(it) }
+                manageRoots.getValue(rootName)
+            }
             !writable && publicRoots.containsKey(rootName) -> {
                 checkMediaPermission()?.let { return PermissionMissing(it) }
                 publicRoots.getValue(rootName)
@@ -135,6 +148,24 @@ class FileTool(private val context: Context) {
             "Reading public folders needs a storage permission. I have requested it — " +
                 "please grant it and ask again."
         )
+    }
+
+    /**
+     * Tier 3 gate for the 'storage' root. On API 30+ this is the MANAGE_EXTERNAL_STORAGE
+     * "All files access" special grant; on older devices broad read access falls back to
+     * READ/WRITE_EXTERNAL_STORAGE (handled here as the media permission).
+     */
+    private fun checkAllFilesAccess(): ToolResult? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return if (Environment.isExternalStorageManager()) null
+            else ToolResult.permissionNeeded(
+                ToolResult.ALL_FILES_ACCESS,
+                "Reading or writing all of shared storage needs \"All files access\". I have opened " +
+                    "that settings page — please enable it for Gotcha and ask again."
+            )
+        }
+        // Pre-R: broad shared-storage access rides on the legacy storage permission.
+        return checkMediaPermission()
     }
 
     private fun badPath(path: String) = ToolResult.error(
