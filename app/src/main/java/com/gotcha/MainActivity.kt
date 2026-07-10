@@ -3,6 +3,7 @@ package com.gotcha
 import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.net.Uri
+import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings as AndroidSettings
@@ -101,6 +102,14 @@ class MainActivity : ComponentActivity() {
                                 "password policy, and disable the camera when you ask it to."
                         )
                     )
+                    ToolResult.VPN_CONSENT -> VpnService.prepare(this@MainActivity)?.let {
+                        // Non-null means consent is still needed; launch the system dialog.
+                        startActivity(it)
+                    } ?: Toast.makeText(
+                        this@MainActivity,
+                        "VPN already authorized — ask the assistant again.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     else -> permissionLauncher.launch(permission)
                 }
             }

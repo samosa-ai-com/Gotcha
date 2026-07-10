@@ -39,6 +39,9 @@ data class ToolResult(
         /** Marker for activating the Device Admin component. */
         const val DEVICE_ADMIN = "special:device_admin"
 
+        /** Marker for the one-time system VPN consent dialog (VpnService). */
+        const val VPN_CONSENT = "special:vpn_consent"
+
         fun ok(message: String) = ToolResult(true, message)
         fun error(message: String) = ToolResult(false, message)
         fun permissionNeeded(permission: String, message: String) =

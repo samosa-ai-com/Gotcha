@@ -27,7 +27,11 @@ object ToolRegistry {
         "read_screen", "tap", "swipe", "input_text", "global_action",
         "read_notifications", "dismiss_notifications", "media_control",
         "show_overlay", "hide_overlay",
-        "lock_screen", "disable_camera", "set_password_policy"
+        "lock_screen", "disable_camera", "set_password_policy",
+        // Tier 3: VpnService — enabling cuts all device connectivity.
+        "set_firewall",
+        // Tier 4: privileged root execution.
+        "run_root_command", "write_secure_settings"
     )
 
     fun allDefinitions(): List<ToolDefinition> = definitions.values.toList()

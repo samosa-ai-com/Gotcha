@@ -36,6 +36,9 @@ class ToolExecutor(context: Context) {
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
     private val deviceAdminTool = DeviceAdminTool(appContext)
+    private val vpnTool = VpnTool(appContext)
+    // Tier 4 tools
+    private val rootTool = RootTool()
     private val actionLog = ActionLog(appContext)
 
     suspend fun execute(name: String, args: JsonObject): ToolResult {
@@ -152,6 +155,18 @@ class ToolExecutor(context: Context) {
         )
         "set_password_policy" -> deviceAdminTool.setPasswordPolicy(
             args.requireInt("min_length") ?: return missing("min_length")
+        )
+        "set_firewall" -> vpnTool.setFirewall(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
+        "get_firewall_status" -> vpnTool.getFirewallStatus()
+        // ---- Tier 4 ----
+        "check_root" -> rootTool.checkRoot()
+        "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
+        "write_secure_settings" -> rootTool.writeSecureSetting(
+            namespace = args.requireString("namespace") ?: return missing("namespace"),
+            key = args.requireString("key") ?: return missing("key"),
+            value = args.requireString("value") ?: return missing("value")
         )
         else -> ToolResult.error("Tool '$name' has no executor.")
         }

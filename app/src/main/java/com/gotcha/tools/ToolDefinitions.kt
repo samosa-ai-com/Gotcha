@@ -739,6 +739,85 @@ object ToolDefinitions {
         }
     )
 
+    // ---- Tier 3 addition: VpnService (local traffic firewall) ----
+
+    val setFirewall = tool(
+        "set_firewall",
+        "Enable or disable a local VPN that blocks ALL device network traffic — an on-device " +
+            "internet kill-switch. Nothing is inspected or sent anywhere; while it is on, every " +
+            "packet is dropped so no app can reach the network. Enabling needs a one-time system " +
+            "VPN consent the first time.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("enabled") {
+                    put("type", "boolean")
+                    put("description", "true to block all network traffic, false to restore connectivity.")
+                }
+            }
+            putJsonArray("required") { add("enabled") }
+        }
+    )
+
+    val getFirewallStatus = tool(
+        "get_firewall_status",
+        "Report whether the local traffic-blocking VPN firewall is currently on or off.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    // ---- Tier 4 additions (privileged / rooted execution) ----
+
+    val checkRoot = tool(
+        "check_root",
+        "Check whether this device is rooted (a working `su` shell is available). Use this before " +
+            "attempting run_root_command or write_secure_settings so you can tell the user if root is missing.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val runRootCommand = tool(
+        "run_root_command",
+        "Run a shell command as ROOT via `su` and return its output. Only works on a rooted device; " +
+            "on a normal phone this fails with a clear 'not rooted' message. This is the Tier 4 escape " +
+            "hatch for privileged operations an ordinary app can't do — e.g. silent `pm install`, reading " +
+            "other apps' data, `settings put secure …`. A few irreversible device-wiping commands are blocked.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("command") {
+                    put("type", "string")
+                    put("description", "Shell command line to run as root, e.g. 'pm list packages -s'.")
+                }
+            }
+            putJsonArray("required") { add("command") }
+        }
+    )
+
+    val writeSecureSettings = tool(
+        "write_secure_settings",
+        "Write an Android setting in the system/secure/global namespace (the WRITE_SECURE_SETTINGS " +
+            "capability, e.g. Settings.Secure). Uses root under the hood, so it needs a rooted device. " +
+            "Example: namespace='secure', key='location_mode', value='3'.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("namespace") {
+                    put("type", "string")
+                    put("description", "One of: system, secure, global.")
+                }
+                putJsonObject("key") {
+                    put("type", "string")
+                    put("description", "Setting key, e.g. 'location_mode'.")
+                }
+                putJsonObject("value") {
+                    put("type", "string")
+                    put("description", "Value to write.")
+                }
+            }
+            putJsonArray("required") {
+                add("namespace")
+                add("key")
+                add("value")
+            }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         clearAppCache, openApp, toggleDarkMode, setBrightness, toggleWifi,
@@ -753,6 +832,10 @@ object ToolDefinitions {
         readScreen, tap, swipe, inputText, globalAction,
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,
-        lockScreen, disableCamera, setPasswordPolicy
+        lockScreen, disableCamera, setPasswordPolicy,
+        // Tier 3 addition: VpnService firewall
+        setFirewall, getFirewallStatus,
+        // Tier 4 additions: privileged / rooted execution
+        checkRoot, runRootCommand, writeSecureSettings
     )
 }
