@@ -1,0 +1,184 @@
+package com.gotcha.tools
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
+
+/**
+ * Single dispatch point for all tool side effects. Validates args, checks
+ * preconditions (executors return permission errors instead of crashing),
+ * and records every execution in the [ActionLog].
+ */
+class ToolExecutor(context: Context) {
+
+    private val appContext = context.applicationContext
+    private val phoneTool = PhoneTool(appContext)
+    private val systemTool = SystemTool(appContext)
+    private val storageTool = StorageTool(appContext)
+    private val fileTool = FileTool(appContext)
+    private val terminalTool = TerminalTool()
+    private val wallpaperTool = WallpaperTool(appContext)
+    private val contactsTool = ContactsTool(appContext)
+    private val smsTool = SmsTool(appContext)
+    private val calendarTool = CalendarTool(appContext)
+    private val alarmTool = AlarmTool(appContext)
+    private val deviceTool = DeviceTool(appContext)
+    private val locationTool = LocationTool(appContext)
+    private val appsTool = AppsTool(appContext)
+    private val clipboardTool = ClipboardTool(appContext)
+    private val mediaCaptureTool = MediaCaptureTool(appContext)
+    // Tier 3 tools
+    private val accessibilityTool = AccessibilityTool(appContext)
+    private val notificationTool = NotificationTool(appContext)
+    private val overlayTool = OverlayTool(appContext)
+    private val deviceAdminTool = DeviceAdminTool(appContext)
+    private val vpnTool = VpnTool(appContext)
+    // Tier 4 tools
+    private val rootTool = RootTool()
+    private val actionLog = ActionLog(appContext)
+
+    suspend fun execute(name: String, args: JsonObject): ToolResult {
+        if (!ToolRegistry.contains(name)) {
+            return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
+        }
+        val result = try {
+            withContext(Dispatchers.IO) { dispatch(name, args) }
+        } catch (e: Exception) {
+            ToolResult.error("Tool '$name' failed: ${e.message}")
+        }
+        actionLog.record(name, args.toString(), result)
+        return result
+    }
+
+    private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
+        return when (name) {
+        "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
+        "get_storage_info" -> storageTool.getStorageInfo()
+        "get_battery_info" -> systemTool.getBatteryInfo()
+        "clear_app_cache" -> storageTool.clearAppCache()
+        "list_files" -> fileTool.listFiles(args.requireString("path") ?: return missing("path"))
+        "read_file" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
+        "write_file" -> fileTool.writeFile(
+            path = args.requireString("path") ?: return missing("path"),
+            content = args.requireString("content") ?: return missing("content"),
+            append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false
+        )
+        "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
+        "toggle_dark_mode" -> systemTool.toggleDarkMode(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
+        "set_brightness" -> systemTool.setBrightness(
+            args["percent"]?.jsonPrimitive?.intOrNull ?: return missing("percent")
+        )
+        "toggle_wifi" -> systemTool.toggleWifi()
+        "set_wallpaper" -> wallpaperTool.setWallpaper(args.requireString("url"))
+        "run_command" -> terminalTool.runCommand(args.requireString("command") ?: return missing("command"))
+        "call_number" -> phoneTool.callNumber(args.requireString("number") ?: return missing("number"))
+        "read_call_log" -> phoneTool.readCallLog(args.requireInt("limit") ?: 10)
+        "find_contact" -> contactsTool.findContact(args.requireString("name") ?: return missing("name"))
+        "add_contact" -> contactsTool.addContact(
+            name = args.requireString("name") ?: return missing("name"),
+            number = args.requireString("number") ?: return missing("number")
+        )
+        "send_sms" -> smsTool.sendSms(
+            number = args.requireString("number") ?: return missing("number"),
+            message = args.requireString("message") ?: return missing("message")
+        )
+        "read_recent_sms" -> smsTool.readRecentSms(args.requireInt("limit") ?: 10)
+        "list_calendar_events" -> calendarTool.listEvents(args.requireInt("days_ahead") ?: 7)
+        "create_calendar_event" -> calendarTool.createEvent(
+            title = args.requireString("title") ?: return missing("title"),
+            start = args.requireString("start") ?: return missing("start"),
+            end = args.requireString("end"),
+            location = args.requireString("location")
+        )
+        "set_alarm" -> alarmTool.setAlarm(
+            hour = args.requireInt("hour") ?: return missing("hour"),
+            minute = args.requireInt("minute") ?: return missing("minute"),
+            message = args.requireString("message")
+        )
+        "set_timer" -> alarmTool.setTimer(
+            seconds = args.requireInt("seconds") ?: return missing("seconds"),
+            message = args.requireString("message")
+        )
+        "toggle_torch" -> deviceTool.toggleTorch(
+            args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on")
+        )
+        "set_volume" -> deviceTool.setVolume(
+            stream = args.requireString("stream") ?: return missing("stream"),
+            percent = args.requireInt("percent") ?: return missing("percent")
+        )
+        "set_ringer_mode" -> deviceTool.setRingerMode(args.requireString("mode") ?: return missing("mode"))
+        "vibrate" -> deviceTool.vibrate(args.requireInt("duration_ms") ?: 500)
+        "set_dnd" -> deviceTool.setDnd(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
+        "get_location" -> locationTool.getLocation()
+        "list_installed_apps" -> appsTool.listInstalledApps()
+        "uninstall_app" -> appsTool.uninstallApp(args.requireString("package_name") ?: return missing("package_name"))
+        "get_app_usage" -> appsTool.getAppUsage(args.requireInt("days") ?: 7)
+        "get_data_usage" -> appsTool.getDataUsage(args.requireInt("days") ?: 30)
+        "get_clipboard" -> clipboardTool.getClipboard()
+        "set_clipboard" -> clipboardTool.setClipboard(args.requireString("text") ?: return missing("text"))
+        "take_photo" -> mediaCaptureTool.takePhoto()
+        "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
+        "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        // ---- Tier 3 ----
+        "read_screen" -> accessibilityTool.readScreen()
+        "tap" -> accessibilityTool.tap(
+            text = args.requireString("text"),
+            x = args.requireInt("x"),
+            y = args.requireInt("y")
+        )
+        "swipe" -> accessibilityTool.swipe(
+            direction = args.requireString("direction"),
+            x1 = args.requireInt("x1"), y1 = args.requireInt("y1"),
+            x2 = args.requireInt("x2"), y2 = args.requireInt("y2")
+        )
+        "input_text" -> accessibilityTool.inputText(args.requireString("text") ?: return missing("text"))
+        "global_action" -> accessibilityTool.globalAction(args.requireString("action") ?: return missing("action"))
+        "read_notifications" -> notificationTool.readNotifications(args.requireInt("limit") ?: 15)
+        "dismiss_notifications" -> notificationTool.dismissNotifications(args.requireString("key"))
+        "media_control" -> notificationTool.mediaControl(args.requireString("action") ?: return missing("action"))
+        "show_overlay" -> overlayTool.showOverlay(
+            text = args.requireString("text") ?: return missing("text"),
+            durationMs = args.requireInt("duration_ms") ?: 4000
+        )
+        "hide_overlay" -> overlayTool.hideOverlay()
+        "lock_screen" -> deviceAdminTool.lockScreen()
+        "disable_camera" -> deviceAdminTool.disableCamera(
+            args["disabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("disabled")
+        )
+        "set_password_policy" -> deviceAdminTool.setPasswordPolicy(
+            args.requireInt("min_length") ?: return missing("min_length")
+        )
+        "set_firewall" -> vpnTool.setFirewall(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
+        "get_firewall_status" -> vpnTool.getFirewallStatus()
+        // ---- Tier 4 ----
+        "check_root" -> rootTool.checkRoot()
+        "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
+        "write_secure_settings" -> rootTool.writeSecureSetting(
+            namespace = args.requireString("namespace") ?: return missing("namespace"),
+            key = args.requireString("key") ?: return missing("key"),
+            value = args.requireString("value") ?: return missing("value")
+        )
+        else -> ToolResult.error("Tool '$name' has no executor.")
+        }
+    }
+
+    private fun JsonObject.requireString(key: String): String? =
+        this[key]?.jsonPrimitive?.takeIf { it.isString || it.content.isNotEmpty() }?.content
+
+    /** Parse an integer argument; tolerates numbers sent as JSON strings by the LLM. */
+    private fun JsonObject.requireInt(key: String): Int? =
+        this[key]?.jsonPrimitive?.let { it.intOrNull ?: it.content.trim().toIntOrNull() }
+
+    private fun missing(param: String) =
+        ToolResult.error("Missing or invalid required parameter '$param'.")
+}

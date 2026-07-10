@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Gotcha</string>
+    <string name="accessibility_service_description">Lets Gotcha read on-screen content and perform taps, swipes and text input on your behalf, so the assistant can operate other apps for you.</string>
+    <string name="device_admin_description">Lets Gotcha lock the screen, enforce password policy and disable the camera when you ask it to.</string>
 </resources>
