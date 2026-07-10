@@ -14,7 +14,9 @@ import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ConfirmationOverlay
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,6 +73,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val llmHistory = mutableListOf<ChatMessage>()
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
+    private var agentJob: Job? = null
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -110,15 +113,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         llmHistory += ChatMessage(role = "user", content = trimmed)
         appendUi(MessageKind.USER, trimmed)
-        viewModelScope.launch {
+        agentJob = viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true) }
             try {
                 runToolLoop()
+            } catch (e: CancellationException) {
+                appendUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
                 historyRepository.save(llmHistory)
                 _uiState.update { it.copy(isBusy = false, activity = null) }
+                agentJob = null
             }
         }
+    }
+
+    fun stopAgent() {
+        agentJob?.cancel()
     }
 
     fun confirmPendingActions(approved: Boolean) {
@@ -147,7 +157,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun runToolLoop() {
         val llm = client ?: return
-        repeat(MAX_ITERATIONS) { iteration ->
+        repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS) // throttle (PRD §11.2 #7)
             _uiState.update { it.copy(activity = "Thinking…") }
 
@@ -202,7 +212,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         appendUi(
             MessageKind.ERROR,
-            "Stopped after $MAX_ITERATIONS tool rounds to avoid an infinite loop."
+            "Stopped after ${settings.maxToolRounds} tool rounds to avoid an infinite loop."
         )
     }
 
@@ -314,7 +324,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
-        const val MAX_ITERATIONS = 6
         const val MAX_HISTORY_MESSAGES = 40
         const val INTER_CALL_DELAY_MS = 400L
         const val CONFIRM_TIMEOUT_MS = 60_000L

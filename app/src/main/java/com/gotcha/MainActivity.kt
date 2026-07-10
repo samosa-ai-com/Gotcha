@@ -165,6 +165,7 @@ class MainActivity : ComponentActivity() {
             ChatScreen(
                 state = state,
                 onSend = chatViewModel::sendMessage,
+                onStop = chatViewModel::stopAgent,
                 onConfirm = chatViewModel::confirmPendingActions,
                 onClearChat = chatViewModel::clearChat,
                 onOpenSettings = { showSettings = true }

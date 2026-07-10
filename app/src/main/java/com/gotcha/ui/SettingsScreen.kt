@@ -26,6 +26,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -45,6 +47,7 @@ fun SettingsScreen(
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
     var model by remember { mutableStateOf(initial.model) }
     var confirmSensitive by remember { mutableStateOf(initial.confirmSensitiveActions) }
+    var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
@@ -54,7 +57,8 @@ fun SettingsScreen(
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
-        confirmSensitiveActions = confirmSensitive
+        confirmSensitiveActions = confirmSensitive,
+        maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30
     )
 
     Scaffold(
@@ -99,6 +103,14 @@ fun SettingsScreen(
                 onValueChange = { model = it },
                 label = { Text("Model name") },
                 singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxToolRounds,
+                onValueChange = { maxToolRounds = it },
+                label = { Text("Max tool rounds") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
 

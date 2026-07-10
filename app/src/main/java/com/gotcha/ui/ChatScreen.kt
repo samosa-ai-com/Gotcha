@@ -36,6 +36,7 @@ import com.gotcha.agent.ChatUiState
 fun ChatScreen(
     state: ChatUiState,
     onSend: (String) -> Unit,
+    onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
     onClearChat: () -> Unit,
     onOpenSettings: () -> Unit
@@ -103,14 +104,20 @@ fun ChatScreen(
                     maxLines = 4
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        onSend(input)
-                        input = ""
-                    },
-                    enabled = !state.isBusy && state.isConfigured && input.isNotBlank()
-                ) {
-                    Text("Send")
+                if (state.isBusy) {
+                    Button(onClick = onStop) {
+                        Text("Stop")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            onSend(input)
+                            input = ""
+                        },
+                        enabled = state.isConfigured && input.isNotBlank()
+                    ) {
+                        Text("Send")
+                    }
                 }
             }
         }

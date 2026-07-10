@@ -9,7 +9,8 @@ data class Settings(
     val apiKey: String = "",
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
-    val confirmSensitiveActions: Boolean = true
+    val confirmSensitiveActions: Boolean = true,
+    val maxToolRounds: Int = 30
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank()
 
@@ -40,7 +41,8 @@ class SettingsRepository(context: Context) {
         baseUrl = prefs.getString(KEY_BASE_URL, Settings.DEFAULT_BASE_URL)
             ?: Settings.DEFAULT_BASE_URL,
         model = prefs.getString(KEY_MODEL, Settings.DEFAULT_MODEL) ?: Settings.DEFAULT_MODEL,
-        confirmSensitiveActions = prefs.getBoolean(KEY_CONFIRM_SENSITIVE, true)
+        confirmSensitiveActions = prefs.getBoolean(KEY_CONFIRM_SENSITIVE, true),
+        maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 30)
     )
 
     fun save(settings: Settings) {
@@ -49,6 +51,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_BASE_URL, settings.baseUrl)
             .putString(KEY_MODEL, settings.model)
             .putBoolean(KEY_CONFIRM_SENSITIVE, settings.confirmSensitiveActions)
+            .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
             .apply()
     }
 
@@ -57,5 +60,6 @@ class SettingsRepository(context: Context) {
         const val KEY_BASE_URL = "base_url"
         const val KEY_MODEL = "model"
         const val KEY_CONFIRM_SENSITIVE = "confirm_sensitive"
+        const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"
     }
 }
