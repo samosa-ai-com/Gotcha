@@ -286,11 +286,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
 
-    /** Keeps the prompt bounded (PRD §11.2 #6) without splitting a tool-call/result pair. */
+    /** Keeps the prompt bounded (PRD §11.2 #6) without splitting a tool-call/result pair,
+     *  and ensures the history begins with a user message to satisfy strict model templates. */
     private fun trimmedHistory(): List<ChatMessage> {
         if (llmHistory.size <= MAX_HISTORY_MESSAGES) return llmHistory
         var start = llmHistory.size - MAX_HISTORY_MESSAGES
-        while (start < llmHistory.size && llmHistory[start].role == "tool") start++
+        while (start < llmHistory.size && llmHistory[start].role != "user") start++
         return llmHistory.subList(start, llmHistory.size)
     }
 
