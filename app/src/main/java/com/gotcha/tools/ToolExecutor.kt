@@ -52,9 +52,19 @@ class ToolExecutor(context: Context) {
     private val rootTool = RootTool()
     private val actionLog = ActionLog(appContext)
 
-    suspend fun execute(name: String, args: JsonObject): ToolResult {
+    /**
+     * Execute [name] with [args] on behalf of the given [agent].
+     * Returns an error without running the tool if the agent mode disallows it.
+     */
+    suspend fun execute(name: String, args: JsonObject, agent: AgentMode = AgentMode.OPERATOR): ToolResult {
         if (!ToolRegistry.contains(name)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
+        }
+        if (!ToolRegistry.isAllowedForAgent(name, agent)) {
+            return ToolResult.error(
+                "This action is not available in ${agent.name} mode. " +
+                "Switch to Operator mode if you need to perform this action."
+            )
         }
         val result = try {
             withContext(Dispatchers.IO) { dispatch(name, args) }

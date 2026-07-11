@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -50,6 +51,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.PendingQuestion
+import com.gotcha.tools.AgentMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +63,8 @@ fun ChatScreen(
     onAnswer: (String?) -> Unit,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
-    onPickImage: (Uri) -> String?
+    onPickImage: (Uri) -> String?,
+    onSwitchAgent: () -> Unit
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
@@ -93,6 +96,12 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    FilterChip(
+                        selected = state.activeAgent == AgentMode.OPERATOR,
+                        onClick = onSwitchAgent,
+                        label = { Text(state.activeAgent.name) },
+                        enabled = !state.isBusy
+                    )
                     TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )

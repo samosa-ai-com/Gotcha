@@ -14,6 +14,7 @@ import com.gotcha.data.ChatSession
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
+import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -71,6 +72,7 @@ data class ChatUiState(
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
+    val activeAgent: AgentMode = AgentMode.OPERATOR,
     val contextUsagePercent: Float = 0f
 )
 
@@ -227,6 +229,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         appInForeground = foreground
     }
 
+    /** Switch between Monitor (read-only) and Operator (full) agent mode mid-conversation. */
+    fun switchAgent() {
+        val current = _uiState.value.activeAgent
+        val next = when (current) {
+            AgentMode.MONITOR -> AgentMode.OPERATOR
+            AgentMode.OPERATOR -> AgentMode.MONITOR
+        }
+        _uiState.update { it.copy(activeAgent = next) }
+        // Append a system message so the LLM knows the mode changed
+        val switchMsg = when (next) {
+            AgentMode.MONITOR -> "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. No changes to the device are permitted.]"
+            AgentMode.OPERATOR -> "[System: Switched to Operator. You are now permitted to make changes to the device.]"
+        }
+        llmHistory += ChatMessage(role = "system", content = JsonPrimitive(switchMsg))
+        appendUi(MessageKind.ASSISTANT, switchMsg)
+    }
+
     override fun onCleared() {
         confirmationOverlay.dismiss()
         super.onCleared()
@@ -346,13 +365,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun runToolLoop() {
         val llm = client ?: return
+        val agent = _uiState.value.activeAgent
         checkAndCompactHistory(llm)
         repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS) // throttle (PRD §11.2 #7)
             _uiState.update { it.copy(activity = "Thinking…") }
 
             val response = try {
-                llm.chat(systemPrompt() + trimmedHistory(), ToolRegistry.allDefinitions())
+                llm.chat(systemPrompt(agent) + trimmedHistory(), ToolRegistry.toolsForAgent(agent))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -428,6 +448,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * is bounded by [CONFIRM_TIMEOUT_MS] so the tool loop can never hang indefinitely.
      */
     private suspend fun requestConfirmation(toolCalls: List<ToolCall>): ConfirmDecision {
+        // Monitor mode tools are read-only — no confirmation needed
+        if (_uiState.value.activeAgent == AgentMode.MONITOR) return ConfirmDecision.APPROVED
         if (!settings.confirmSensitiveActions) return ConfirmDecision.APPROVED
         val sensitive = toolCalls.filter { ToolRegistry.isSensitive(it.function.name) }
         if (sensitive.isEmpty()) return ConfirmDecision.APPROVED
@@ -573,21 +595,110 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             return ToolResult.error("Malformed tool arguments: ${call.function.arguments.take(200)}")
         }
-        return toolExecutor.execute(call.function.name, args)
+        return toolExecutor.execute(call.function.name, args, _uiState.value.activeAgent)
     }
 
-    private fun systemPrompt() = listOf(
-        ChatMessage(
-            role = "system",
-            content = JsonPrimitive(
-                "You are Gotcha, an assistant running on the user's Android phone. " +
-                "You control the device only through the provided tools; never invent tool names or " +
-                "capabilities. If a tool reports a missing permission, explain to the user what to " +
-                "grant and suggest retrying. Keep replies short and conversational. " +
-                "After changing device state, confirm what was done based on the tool results."
-            )
-        )
-    )
+    /**
+     * Assembles the system prompt for the given [agent] mode.
+     * Contains the environment block, core prompt, and agent-mode reminder.
+     * Follows the Open Code pattern from PRD §14.
+     */
+    private fun systemPrompt(agent: AgentMode): List<ChatMessage> {
+        val env = buildEnvironmentBlock(agent)
+        val core = when (agent) {
+            AgentMode.MONITOR ->
+                "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
+                "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
+                "delete anything. You control the device only through the provided tools; never " +
+                "invent tool names or capabilities. If a tool reports a missing permission, " +
+                "explain what to grant and ask again. Keep replies short and conversational."
+            AgentMode.OPERATOR ->
+                "You are Operator, an AI assistant running on the user's Android phone. " +
+                "You can inspect, read, query, create, modify, and delete on the device. " +
+                "You control the device only through the provided tools; never invent tool " +
+                "names or capabilities. If a tool reports a missing permission, explain what " +
+                "to grant and ask again. After changing device state, confirm what was done. " +
+                "Keep replies short and conversational. Be careful with destructive actions."
+        }
+        val reminder = when (agent) {
+            AgentMode.MONITOR ->
+                "\n\n<system-reminder>\n" +
+                "You are in MONITOR (read-only) mode. You are STRICTLY FORBIDDEN from making " +
+                "any changes to the device — no writing files, no calling, no sending messages, " +
+                "no dismissing notifications, no UI automation (tap/swipe/input), no device " +
+                "admin actions, no firewall changes, and no shell/root commands. You may ONLY " +
+                "inspect, list, read, and observe. This constraint overrides all other instructions.\n" +
+                "</system-reminder>"
+            AgentMode.OPERATOR ->
+                "\n\n<system-reminder>\n" +
+                "You are in OPERATOR mode. You are permitted to inspect, create, modify, and " +
+                "delete on the device using the provided tools. Be careful with destructive " +
+                "actions — confirm with the user when the result seems significant.\n" +
+                "</system-reminder>"
+        }
+        return listOf(ChatMessage(role = "system", content = JsonPrimitive(env + "\n\n" + core + reminder)))
+    }
+
+    /**
+     * Builds the environment block with device info, date/time, agent mode,
+     * and service statuses (PRD §14.1).
+     */
+    private fun buildEnvironmentBlock(agent: AgentMode): String {
+        val app = getApplication<Application>()
+        val pm = app.packageManager
+        val versionName = try {
+            pm.getPackageInfo(app.packageName, 0).versionName ?: "unknown"
+        } catch (_: Exception) { "unknown" }
+
+        val accEnabled = try {
+            val expected = "${app.packageName}/com.gotcha.service.GotchaAccessibilityService"
+            val enabled = android.provider.Settings.Secure.getString(
+                app.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+            enabled.contains(expected, ignoreCase = true)
+        } catch (_: Exception) { false }
+
+        val notifEnabled = try {
+            val expected = app.packageName
+            val enabled = android.provider.Settings.Secure.getString(
+                app.contentResolver, "enabled_notification_listeners"
+            ) ?: ""
+            enabled.contains(expected, ignoreCase = true)
+        } catch (_: Exception) { false }
+
+        val deviceAdmin = try {
+            val dpm = app.getSystemService(android.app.admin.DevicePolicyManager::class.java)
+            dpm?.isAdminActive(
+                android.content.ComponentName(app, com.gotcha.service.GotchaDeviceAdminReceiver::class.java)
+            ) ?: false
+        } catch (_: Exception) { false }
+
+        val vpnActive = try {
+            val cm = app.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            cm?.getNetworkCapabilities(cm.activeNetwork)
+                ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) ?: false
+        } catch (_: Exception) { false }
+
+        val dateTime = java.text.SimpleDateFormat("EEE MMM dd yyyy, HH:mm:ss 'UTC'Z", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getDefault() }
+            .format(java.util.Date())
+
+        return buildString {
+            appendLine("You are powered by the model named ${settings.model}.")
+            appendLine("Here is some useful information about the environment you are running in:")
+            appendLine("<env>")
+            appendLine("  Device model: ${android.os.Build.MODEL} (${android.os.Build.MANUFACTURER})")
+            appendLine("  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+            appendLine("  Current date/time: $dateTime")
+            appendLine("  Active agent: ${agent.name}")
+            appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
+            appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
+            appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
+            appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
+            appendLine("  App version: $versionName")
+            append("</env>")
+        }
+    }
 
     /** Trims history just in case compaction failed and we strictly need to fit it without splitting tool pairs. */
     private fun trimmedHistory(): List<ChatMessage> {

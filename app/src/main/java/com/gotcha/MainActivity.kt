@@ -198,7 +198,8 @@ class MainActivity : ComponentActivity() {
                         currentRoute = Route.SESSIONS 
                     },
                     onOpenSettings = { currentRoute = Route.SETTINGS },
-                    onPickImage = { uri -> chatViewModel.loadImageBase64(uri) }
+                    onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
+                    onSwitchAgent = chatViewModel::switchAgent
                 )
             }
         }
