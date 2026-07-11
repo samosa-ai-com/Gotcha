@@ -265,7 +265,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (preserveLast != null) {
                     llmHistory.add(preserveLast)
                 }
-                activeSessionTokenCount = response.usage?.totalTokens ?: 0
+                // The new token count is roughly the size of the summary + preserved message
+                val newTokensApprox = (summary.length / 4) + ((preserveLast?.content?.length ?: 0) / 4)
+                activeSessionTokenCount = newTokensApprox
                 updateContextUsage()
                 // Show the compacted message in the chat UI as an assistant message
                 appendUi(MessageKind.ASSISTANT, "[System: History Compacted]\n$summary")
@@ -435,7 +437,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         if (start < 0) start = 0
         
-        while (start < llmHistory.size && llmHistory[start].role != "user") start++
+        // Skip leading tool messages so we don't have an orphaned tool result
+        while (start < llmHistory.size && llmHistory[start].role == "tool") start++
         return llmHistory.subList(start, llmHistory.size)
     }
 
