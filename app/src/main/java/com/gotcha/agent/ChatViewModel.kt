@@ -262,15 +262,45 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _uiState.update { it.copy(isListening = true) }
             val transcript = when (settings.sttProvider) {
-                AudioProvider.ANDROID -> sttEngine.listenAndroid()
-                AudioProvider.API -> {
-                    val audioFile = sttEngine.recordAudio(5000)
-                    if (audioFile != null && settings.sttApiModel.isNotBlank()) {
-                        sttEngine.transcribeApi(audioFile, settings.sttApiModel)
-                            .getOrDefault("")
-                    } else ""
+                AudioProvider.ANDROID -> {
+                    val perm = android.Manifest.permission.RECORD_AUDIO
+                    val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getApplication(), perm
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        _permissionRequests.tryEmit(perm)
+                        appendUi(MessageKind.ERROR, "Microphone permission needed for speech input.")
+                        ""
+                    } else {
+                        sttEngine.listenAndroid()
+                    }
                 }
-                AudioProvider.NONE -> ""
+                AudioProvider.API -> {
+                    if (settings.sttApiBaseUrl.isBlank()) {
+                        appendUi(MessageKind.ERROR, "No STT API URL configured in settings.")
+                        ""
+                    } else if (settings.sttApiModel.isBlank()) {
+                        appendUi(MessageKind.ERROR, "No STT model selected. Refresh audio models in settings.")
+                        ""
+                    } else {
+                        appendUi(MessageKind.ASSISTANT, "[Listening for 5 seconds…]")
+                        val audioFile = sttEngine.recordAudio(5000)
+                        if (audioFile == null) {
+                            appendUi(MessageKind.ERROR, "Failed to record audio.")
+                            ""
+                        } else {
+                            sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                                .onFailure { e ->
+                                    appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}")
+                                }
+                                .getOrDefault("")
+                        }
+                    }
+                }
+                AudioProvider.NONE -> {
+                    appendUi(MessageKind.ERROR, "No STT provider configured. Enable one in settings.")
+                    ""
+                }
             }
             _uiState.update { it.copy(isListening = false) }
             if (transcript.isNotBlank()) {

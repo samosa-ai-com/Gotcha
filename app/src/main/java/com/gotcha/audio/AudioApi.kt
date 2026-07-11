@@ -1,5 +1,6 @@
 package com.gotcha.audio
 
+import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,30 +33,40 @@ class AudioApi(
             .writeTimeout(timeoutSeconds * 2, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .addHeader("Authorization", "Bearer $apiKey")
-                    .build()
-                chain.proceed(request)
+                // Only add auth header if a real API key is provided
+                if (apiKey.isNotBlank()) {
+                    request.addHeader("Authorization", "Bearer $apiKey")
+                }
+                chain.proceed(request.build())
             }
             .addInterceptor(logging)
             .build()
     }
 
-    /** Fetch available models from the API and categorize them. */
+    /** Fetch available models from the API and categorize them by the `task` field. */
     fun listAudioModels(): List<AudioModel> {
         return try {
             val url = "${baseUrl.trimEnd('/')}/models"
+            Log.d("AudioApi", "Fetching models from: $url")
             val request = Request.Builder().url(url).get().build()
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return emptyList()
+            if (!response.isSuccessful) {
+                Log.w("AudioApi", "Models request failed: HTTP ${response.code}")
+                return emptyList()
+            }
             val body = response.body?.string() ?: return emptyList()
+            Log.d("AudioApi", "Models response (first 200 chars): ${body.take(200)}")
             val json = JSONObject(body)
             val data = json.optJSONArray("data") ?: return emptyList()
             (0 until data.length()).mapNotNull { i ->
                 val obj = data.optJSONObject(i) ?: return@mapNotNull null
                 val id = obj.optString("id", "") ?: return@mapNotNull null
-                AudioModel(id, AudioModel.categorize(id))
+                // Parse the task field — this is the most reliable signal
+                val task = obj.optString("task", null)
+                AudioModel(id, AudioModel.categorize(id, task))
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("AudioApi", "Failed to list models", e)
             emptyList()
         }
     }

@@ -22,8 +22,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -182,16 +185,6 @@ fun ChatScreen(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (state.isListening) {
-                    CircularProgressIndicator(modifier = Modifier.size(36.dp).padding(4.dp))
-                } else {
-                    IconButton(
-                        onClick = onStartListening,
-                        enabled = !state.isBusy && state.isConfigured
-                    ) {
-                        Text("🎤", style = MaterialTheme.typography.titleLarge)
-                    }
-                }
                 IconButton(
                     onClick = { imagePickerLauncher.launch("image/*") },
                     enabled = !state.isBusy && state.isConfigured
@@ -204,14 +197,29 @@ fun ChatScreen(
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Ask me to do something…") },
                     enabled = !state.isBusy && state.isConfigured,
-                    maxLines = 4
+                    maxLines = 1,
+                    singleLine = true
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 if (state.isBusy) {
                     Button(onClick = onStop) {
                         Text("Stop")
                     }
+                } else if (input.isBlank() && pendingImageBase64 == null) {
+                    // No text typed — show STT mic button (same size as send)
+                    if (state.isListening) {
+                        CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                    } else {
+                        IconButton(
+                            onClick = onStartListening,
+                            enabled = state.isConfigured
+                        ) {
+                            Icon(Icons.Default.Mic, contentDescription = "Voice input",
+                                tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
                 } else {
+                    // Text or image attached — show send button
                     Button(
                         onClick = {
                             onSend(input, pendingImageBase64)
@@ -221,7 +229,7 @@ fun ChatScreen(
                         },
                         enabled = state.isConfigured && (input.isNotBlank() || pendingImageBase64 != null)
                     ) {
-                        Text("Send")
+                        Icon(Icons.Default.Send, contentDescription = "Send")
                     }
                 }
             }

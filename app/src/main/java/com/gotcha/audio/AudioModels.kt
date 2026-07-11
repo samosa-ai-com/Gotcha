@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 enum class AudioProvider { ANDROID, API, NONE }
 
 /**
- * Response from GET /v1/models (OpenAI-compatible format).
+ * Response from GET /v1/models (OpenAI-compatible format with extra fields).
  */
 @Serializable
 data class ModelListResponse(
@@ -19,7 +19,9 @@ data class ModelInfo(
     val id: String,
     val objectType: String = "model",
     @SerialName("owned_by")
-    val ownedBy: String = ""
+    val ownedBy: String = "",
+    /** Task type: "text-to-speech", "automatic-speech-recognition", etc. */
+    val task: String? = null
 )
 
 /** Categorization of a model from the API. */
@@ -31,8 +33,20 @@ data class AudioModel(
     val category: ModelCategory
 ) {
     companion object {
-        /** Categorize a model ID by its name heuristics. */
-        fun categorize(id: String): ModelCategory {
+        /**
+         * Categorize a model by its [task] field (from the API) and fall back
+         * to name heuristics when the task field is absent.
+         */
+        fun categorize(id: String, task: String? = null): ModelCategory {
+            // Prefer the API task field when available
+            if (task != null) {
+                val t = task.lowercase().trim()
+                when {
+                    t == "text-to-speech" || t == "tts" -> return ModelCategory.TTS
+                    t == "automatic-speech-recognition" || t == "stt" || t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
+                }
+            }
+            // Fallback: name heuristics
             val lower = id.lowercase()
             return when {
                 lower.contains("whisper") -> ModelCategory.STT
