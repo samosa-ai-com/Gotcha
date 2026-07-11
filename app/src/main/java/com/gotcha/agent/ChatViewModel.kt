@@ -7,6 +7,7 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
+import com.gotcha.data.ChatSession
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.tools.ToolExecutor
@@ -51,7 +52,9 @@ data class ChatUiState(
     val isBusy: Boolean = false,
     val activity: String? = null, // e.g. "Running: toggle_dark_mode…"
     val pendingConfirmation: PendingConfirmation? = null,
-    val isConfigured: Boolean = false
+    val isConfigured: Boolean = false,
+    val activeSessionId: String? = null,
+    val contextUsagePercent: Float = 0f
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -70,7 +73,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var appInForeground = true
 
     /** LLM-shaped history (excludes the system prompt, which is prepended per call). */
-    private val llmHistory = mutableListOf<ChatMessage>()
+    private var llmHistory = mutableListOf<ChatMessage>()
+    private var activeSessionId: String? = null
+    private var activeSessionTokenCount: Int = 0
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var agentJob: Job? = null
@@ -85,9 +90,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     init {
         refreshSettings()
         viewModelScope.launch {
-            llmHistory.addAll(historyRepository.load())
+            val sessions = historyRepository.listSessions()
+            if (sessions.isNotEmpty()) {
+                val latest = sessions.first()
+                activeSessionId = latest.id
+                activeSessionTokenCount = latest.tokenCount
+                llmHistory.addAll(latest.messages)
+            } else {
+                activeSessionId = java.util.UUID.randomUUID().toString()
+                activeSessionTokenCount = 0
+            }
+            _uiState.update { it.copy(activeSessionId = activeSessionId) }
+            updateContextUsage()
             rebuildUiMessages()
         }
+    }
+
+    private fun updateContextUsage() {
+        val limit = settings.maxContextTokens.toFloat()
+        val percent = if (limit > 0) activeSessionTokenCount.toFloat() / limit else 0f
+        _uiState.update { it.copy(contextUsagePercent = percent.coerceIn(0f, 1f)) }
     }
 
     /** Re-reads settings; call after the settings screen saves. */
@@ -120,7 +142,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 appendUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
-                historyRepository.save(llmHistory)
+                saveCurrentSession()
                 _uiState.update { it.copy(isBusy = false, activity = null) }
                 agentJob = null
             }
@@ -151,12 +173,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (_uiState.value.isBusy) return
         llmHistory.clear()
         nextId = 0
-        _uiState.update { it.copy(messages = emptyList()) }
-        viewModelScope.launch { historyRepository.clear() }
+        activeSessionId = java.util.UUID.randomUUID().toString()
+        activeSessionTokenCount = 0
+        _uiState.update { it.copy(messages = emptyList(), activeSessionId = activeSessionId) }
+        updateContextUsage()
+    }
+
+    private suspend fun saveCurrentSession() {
+        val id = activeSessionId ?: return
+        val title = llmHistory.firstOrNull { it.role == "user" }?.content?.take(30) ?: "New Chat"
+        historyRepository.saveSession(ChatSession(id, title, System.currentTimeMillis(), llmHistory.toList(), activeSessionTokenCount))
+    }
+
+    private suspend fun checkAndCompactHistory(llm: LLMClient) {
+        val threshold = (settings.maxContextTokens * 0.8).toInt()
+        if (activeSessionTokenCount <= threshold) return
+
+        _uiState.update { it.copy(activity = "Compacting history…") }
+        val compactionSystem = ChatMessage(
+            role = "system",
+            content = "You are an advanced context compaction agent. Your task is to compress the preceding conversation history into a highly dense, structured continuation summary. You must preserve critical context, decisions, and codebase states while eliminating conversational filler and repetitive tool logs.\n\nGenerate a structured summary containing exactly the following sections:\n1. **Goal**: What is the ultimate objective of this engineering session?\n2. **Instructions & Constraints**: What specific guidelines, patterns, user preferences, or technical limitations have been established?\n3. **Discoveries & Architecture**: What have we learned about the codebase? Detail any symbol mappings, logic structures, or debugging conclusions.\n4. **Accomplished**: What changes have already been completely implemented, verified, or fixed?\n5. **Relevant Files**: Which files are currently being modified or are active in the workspace?\n\nCRITICAL: Do not lose technical specifics, user-stated constraints, or deep investigation states.\n\nContinue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+        )
+
+        try {
+            val response = llm.chat(listOf(compactionSystem) + llmHistory)
+            val summary = response.choices.firstOrNull()?.message?.content
+            if (!summary.isNullOrBlank()) {
+                llmHistory.clear()
+                llmHistory.add(ChatMessage(role = "assistant", content = summary))
+                activeSessionTokenCount = response.usage?.totalTokens ?: 0
+                updateContextUsage()
+                // Keep the UI messages intact for the user, but history is wiped for the agent
+            }
+        } catch (e: Exception) {
+            // If compaction fails, we just continue with normal truncated history
+        }
     }
 
     private suspend fun runToolLoop() {
         val llm = client ?: return
+        checkAndCompactHistory(llm)
         repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS) // throttle (PRD §11.2 #7)
             _uiState.update { it.copy(activity = "Thinking…") }
@@ -166,6 +222,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 appendUi(MessageKind.ERROR, friendlyError(e))
                 return
+            }
+            
+            response.usage?.totalTokens?.let {
+                activeSessionTokenCount = it
+                updateContextUsage()
             }
 
             val message = response.choices.firstOrNull()?.message
@@ -208,7 +269,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 result.needsPermission?.let { _permissionRequests.tryEmit(it) }
             }
-            historyRepository.save(llmHistory)
+            saveCurrentSession()
         }
         appendUi(
             MessageKind.ERROR,
@@ -286,11 +347,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
 
-    /** Keeps the prompt bounded (PRD §11.2 #6) without splitting a tool-call/result pair,
-     *  and ensures the history begins with a user message to satisfy strict model templates. */
+    /** Trims history just in case compaction failed and we strictly need to fit it without splitting tool pairs. */
     private fun trimmedHistory(): List<ChatMessage> {
-        if (llmHistory.size <= MAX_HISTORY_MESSAGES) return llmHistory
-        var start = llmHistory.size - MAX_HISTORY_MESSAGES
+        // Fallback approximation since exact token counts of subsets are unknown
+        val maxTokens = settings.maxContextTokens
+        var currentTokens = 0
+        var start = llmHistory.size - 1
+        
+        while (start >= 0) {
+            currentTokens += (llmHistory[start].content?.length ?: 0) / 4
+            if (currentTokens > maxTokens) {
+                start++
+                break
+            }
+            start--
+        }
+        
+        if (start < 0) start = 0
+        
         while (start < llmHistory.size && llmHistory[start].role != "user") start++
         return llmHistory.subList(start, llmHistory.size)
     }
@@ -325,7 +399,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
-        const val MAX_HISTORY_MESSAGES = 40
         const val INTER_CALL_DELAY_MS = 400L
         const val CONFIRM_TIMEOUT_MS = 60_000L
     }

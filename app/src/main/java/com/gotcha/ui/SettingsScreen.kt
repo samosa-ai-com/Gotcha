@@ -48,6 +48,7 @@ fun SettingsScreen(
     var model by remember { mutableStateOf(initial.model) }
     var confirmSensitive by remember { mutableStateOf(initial.confirmSensitiveActions) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
+    var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
@@ -58,7 +59,8 @@ fun SettingsScreen(
         baseUrl = baseUrl.trim(),
         model = model.trim(),
         confirmSensitiveActions = confirmSensitive,
-        maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30
+        maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
+        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000
     )
 
     Scaffold(
@@ -109,6 +111,14 @@ fun SettingsScreen(
                 value = maxToolRounds,
                 onValueChange = { maxToolRounds = it },
                 label = { Text("Max tool rounds") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxContextTokens,
+                onValueChange = { maxContextTokens = it },
+                label = { Text("Max context tokens") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()

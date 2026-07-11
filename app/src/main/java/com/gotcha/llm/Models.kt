@@ -56,7 +56,15 @@ data class ChatRequest(
 
 @Serializable
 data class ChatResponse(
-    val choices: List<Choice>
+    val choices: List<Choice>,
+    val usage: Usage? = null
+)
+
+@Serializable
+data class Usage(
+    @SerialName("prompt_tokens") val promptTokens: Int = 0,
+    @SerialName("completion_tokens") val completionTokens: Int = 0,
+    @SerialName("total_tokens") val totalTokens: Int = 0
 )
 
 @Serializable
