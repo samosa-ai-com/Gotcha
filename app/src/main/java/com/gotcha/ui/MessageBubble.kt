@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -57,18 +61,20 @@ fun MessageBubble(
         Surface(
             color = container,
             contentColor = contentColor,
+            shadowElevation = 2.dp,
             shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (isUser) 16.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 16.dp
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = if (isUser) 20.dp else 4.dp,
+                bottomEnd = if (isUser) 4.dp else 20.dp
             )
         ) {
             Column(
                 modifier = Modifier
-                    .widthIn(max = 300.dp)
+                    .widthIn(max = 320.dp)
+                    .animateContentSize()
                     .then(if (isTool) Modifier.clickable { expanded.value = !expanded.value } else Modifier)
-                    .padding(12.dp)
+                    .padding(16.dp)
             ) {
                 message.imageBase64?.let { base64 ->
                     val bitmap = try {
@@ -124,11 +130,13 @@ fun MessageBubble(
                     ) {
                         IconButton(
                             onClick = { onSpeak(message.text) },
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Text(
-                                "🔊",
-                                style = MaterialTheme.typography.labelSmall
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
+                                contentDescription = "Speak",
+                                modifier = Modifier.size(18.dp),
+                                tint = contentColor.copy(alpha = 0.7f)
                             )
                         }
                     }

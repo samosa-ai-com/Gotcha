@@ -201,6 +201,7 @@ fun ChatScreen(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
+                    shape = CircleShape,
                     placeholder = { Text("Ask me to do something…") },
                     enabled = !state.isBusy && state.isConfigured,
                     maxLines = 1,
