@@ -2,10 +2,15 @@ package com.gotcha.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.graphics.Bitmap
 import android.graphics.Path
 import android.os.Build
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.annotation.RequiresApi
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * Tier 3 — AccessibilityService.
@@ -42,6 +47,41 @@ class GotchaAccessibilityService : AccessibilityService() {
     }
 
     // ---- Capabilities used by AccessibilityTool ----
+
+    /**
+     * Capture a screenshot of the default display via the AccessibilityService screenshot
+     * API (API 30+, non-root). Returns a software [Bitmap] or null on failure. The caller
+     * is responsible for downscaling/compressing. Used by the assistive-ball "screen share"
+     * flow to give the LLM vision context alongside [dumpScreenText].
+     */
+    @RequiresApi(Build.VERSION_CODES.R)
+    suspend fun takeScreenshotBitmap(): Bitmap? = suspendCancellableCoroutine { cont ->
+        try {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : AccessibilityService.TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                        val bitmap = try {
+                            Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
+                                ?.copy(Bitmap.Config.ARGB_8888, false)
+                        } catch (_: Exception) {
+                            null
+                        } finally {
+                            screenshot.hardwareBuffer.close()
+                        }
+                        if (cont.isActive) cont.resume(bitmap)
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        if (cont.isActive) cont.resume(null)
+                    }
+                }
+            )
+        } catch (_: Exception) {
+            if (cont.isActive) cont.resume(null)
+        }
+    }
 
     /** Recursively collect visible, non-blank text/content-descriptions from the active window. */
     fun dumpScreenText(limit: Int = 200): List<String> {

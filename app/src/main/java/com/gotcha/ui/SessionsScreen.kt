@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Adjust
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,7 +27,9 @@ fun SessionsScreen(
     onSessionClick: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     onNewChat: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    assistiveBallEnabled: Boolean = false,
+    onToggleAssistiveBall: (Boolean) -> Unit = {}
 ) {
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
 
@@ -35,6 +38,16 @@ fun SessionsScreen(
             TopAppBar(
                 title = { Text("Chats") },
                 actions = {
+                    IconButton(onClick = { onToggleAssistiveBall(!assistiveBallEnabled) }) {
+                        Icon(
+                            Icons.Outlined.Adjust,
+                            contentDescription = if (assistiveBallEnabled)
+                                "Turn off assistive ball" else "Turn on assistive ball",
+                            tint = if (assistiveBallEnabled)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }

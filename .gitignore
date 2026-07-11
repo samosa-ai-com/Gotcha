@@ -3,6 +3,10 @@
 *.ap_
 *.aab
 
+# Signing keys — never commit these
+*.jks
+*.keystore
+
 # Files for the ART/Dalvik VM
 *.dex
 

@@ -40,6 +40,13 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Assistive ball: records audio (STT) from the foreground service and runs as a
+         floating overlay assistant. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Android 13+: shows the assistive-ball foreground-service notification (service runs
+         regardless of grant). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Needed on API 30+ so open_app can see other launchable apps. -->
     <queries>
@@ -91,6 +98,17 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Assistive ball: floating overlay assistant hosted in a foreground service.
+             Records audio for STT (microphone type) and is a persistent overlay (specialUse). -->
+        <service
+            android:name=".service.AssistiveBallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="floating_assistant_overlay" />
         </service>
 
         <!-- Tier 3: NotificationListenerService — reads/dismisses notifications, media control. -->

@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import kotlinx.serialization.json.JsonPrimitive
+import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
@@ -51,6 +52,9 @@ class MainActivity : ComponentActivity() {
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
 
+    /** Set when launched from the assistive ball's "Open Chat" option. */
+    private var openChatRequested by mutableStateOf(false)
+
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             Toast.makeText(
@@ -64,6 +68,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settingsRepository = SettingsRepository(this)
+        openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
 
         // Phase 7: tools report missing permissions; request them here on first use.
         // "special:*" markers map to per-access Settings deep-links; anything else is a
@@ -137,9 +142,54 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_CHAT, false)) {
+            openChatRequested = true
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         chatViewModel.setForeground(true)
+    }
+
+    /**
+     * Start or stop the assistive-ball foreground service. Returns the resulting
+     * enabled state. When enabling without the overlay permission, deep-links the user
+     * to grant it and leaves the ball disabled (they can toggle again afterwards).
+     */
+    private fun setAssistiveBall(enabled: Boolean): Boolean {
+        if (enabled) {
+            if (!AndroidSettings.canDrawOverlays(this)) {
+                startActivity(
+                    Intent(
+                        AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+                Toast.makeText(
+                    this,
+                    "Allow \"Display over other apps\", then turn the ball on again.",
+                    Toast.LENGTH_LONG
+                ).show()
+                persistAssistiveBall(false)
+                return false
+            }
+            startForegroundService(AssistiveBallService.startIntent(this))
+            persistAssistiveBall(true)
+            return true
+        } else {
+            startService(AssistiveBallService.stopIntent(this))
+            persistAssistiveBall(false)
+            return false
+        }
+    }
+
+    private fun persistAssistiveBall(enabled: Boolean) {
+        val current = settingsRepository.load()
+        settingsRepository.save(current.copy(assistiveBallEnabled = enabled))
     }
 
     override fun onStop() {
@@ -156,8 +206,17 @@ class MainActivity : ComponentActivity() {
             mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS) 
         }
         var previousRoute by remember { mutableStateOf(Route.SESSIONS) }
+        var assistiveBallOn by remember { mutableStateOf(settingsRepository.load().assistiveBallEnabled) }
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
+
+        // Honor the assistive ball's "Open Chat" option.
+        LaunchedEffect(openChatRequested) {
+            if (openChatRequested) {
+                currentRoute = Route.CHAT
+                openChatRequested = false
+            }
+        }
 
         when (currentRoute) {
             Route.SETTINGS -> {
@@ -196,7 +255,7 @@ class MainActivity : ComponentActivity() {
             Route.SESSIONS -> {
                 SessionsScreen(
                     sessions = sessions,
-                    onSessionClick = { id -> 
+                    onSessionClick = { id ->
                         chatViewModel.openSession(id)
                         currentRoute = Route.CHAT
                     },
@@ -208,6 +267,10 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = {
                         previousRoute = Route.SESSIONS
                         currentRoute = Route.SETTINGS
+                    },
+                    assistiveBallEnabled = assistiveBallOn,
+                    onToggleAssistiveBall = { enabled ->
+                        assistiveBallOn = setAssistiveBall(enabled)
                     }
                 )
             }
@@ -254,5 +317,10 @@ class MainActivity : ComponentActivity() {
             temperature = 0f
         )
         response.choices.firstOrNull()?.message?.textContent?.take(60) ?: "empty response"
+    }
+
+    companion object {
+        /** Intent extra: when true, launch straight into the chat screen. */
+        const val EXTRA_OPEN_CHAT = "com.gotcha.OPEN_CHAT"
     }
 }
