@@ -439,7 +439,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         
         // Skip leading tool messages so we don't have an orphaned tool result
         while (start < llmHistory.size && llmHistory[start].role == "tool") start++
-        return llmHistory.subList(start, llmHistory.size)
+        
+        val trimmed = llmHistory.subList(start, llmHistory.size)
+        // Many LLM APIs strictly require history to start with a user message.
+        // If our truncation or compaction leaves an assistant message first, prepend a dummy user message.
+        if (trimmed.isNotEmpty() && trimmed.first().role == "assistant") {
+            return listOf(ChatMessage(role = "user", content = "[System Note: Conversation context restored from previous turn]")) + trimmed
+        }
+        return trimmed
     }
 
     private fun friendlyError(e: Exception): String = when {
