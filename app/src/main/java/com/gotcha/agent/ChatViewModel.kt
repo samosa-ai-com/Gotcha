@@ -1,6 +1,9 @@
 package com.gotcha.agent
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.data.ChatHistoryRepository
@@ -10,6 +13,7 @@ import com.gotcha.llm.ChatMessage
 import com.gotcha.data.ChatSession
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
+import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -18,6 +22,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +35,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import java.io.ByteArrayOutputStream
 
 enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
 
@@ -38,7 +46,8 @@ private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 data class UiMessage(
     val id: Long,
     val kind: MessageKind,
-    val text: String
+    val text: String,
+    val imageBase64: String? = null
 )
 
 /** A batch of tool calls waiting for the user's confirm/deny (Phase 7). */
@@ -131,15 +140,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
     }
 
-    fun sendMessage(text: String) {
+    fun sendMessage(text: String, imageBase64: String? = null) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty() || _uiState.value.isBusy) return
+        if (trimmed.isEmpty() && imageBase64 == null) return
+        if (_uiState.value.isBusy) return
         if (client == null) {
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        llmHistory += ChatMessage(role = "user", content = trimmed)
-        appendUi(MessageKind.USER, trimmed)
+        val msg = if (imageBase64 != null) {
+            visionUserMessage(trimmed, imageBase64)
+        } else {
+            ChatMessage(role = "user", content = JsonPrimitive(trimmed))
+        }
+        llmHistory += msg
+        appendUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, imageBase64)
         agentJob = viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true) }
             try {
@@ -147,12 +162,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 appendUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                withContext(NonCancellable) {
                     saveCurrentSession()
                     _uiState.update { it.copy(isBusy = false, activity = null) }
                     agentJob = null
                 }
             }
+        }
+    }
+
+    /** Load an image from a content:// URI, downscale, and return base64. */
+    fun loadImageBase64(uri: Uri, maxDimension: Int = 1024): String? {
+        return try {
+            val resolver = getApplication<Application>().contentResolver
+            val inputStream = resolver.openInputStream(uri) ?: return null
+            val bytes = inputStream.use { it.readBytes() }
+
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+
+            val (w, h) = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
+                val ratio = minOf(maxDimension.toFloat() / bitmap.width, maxDimension.toFloat() / bitmap.height)
+                (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
+            } else bitmap.width to bitmap.height
+
+            val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
+            if (scaled != bitmap) bitmap.recycle()
+
+            val output = ByteArrayOutputStream()
+            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output)
+            scaled.recycle()
+            android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -224,7 +265,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun saveCurrentSession() {
         val id = activeSessionId ?: return
-        val title = llmHistory.firstOrNull { it.role == "user" }?.content?.take(30) ?: "New Chat"
+        val title = llmHistory.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
         historyRepository.saveSession(ChatSession(id, title, System.currentTimeMillis(), llmHistory.toList(), activeSessionTokenCount))
     }
 
@@ -242,33 +283,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(activity = "Compacting history…") }
         val compactionSystem = ChatMessage(
             role = "system",
-            content = "You are an advanced context compaction agent. Your task is to compress the preceding conversation history into a highly dense, structured continuation summary. You must preserve critical context, decisions, and codebase states while eliminating conversational filler and repetitive tool logs.\n\nGenerate a structured summary containing exactly the following sections:\n1. **Goal**: What is the ultimate objective of this engineering session?\n2. **Instructions & Constraints**: What specific guidelines, patterns, user preferences, or technical limitations have been established?\n3. **Discoveries & Architecture**: What have we learned about the codebase? Detail any symbol mappings, logic structures, or debugging conclusions.\n4. **Accomplished**: What changes have already been completely implemented, verified, or fixed?\n5. **Relevant Files**: Which files are currently being modified or are active in the workspace?\n\nCRITICAL: Do not lose technical specifics, user-stated constraints, or deep investigation states.\n\nContinue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+            content = JsonPrimitive("You are an advanced context compaction agent. Your task is to compress the preceding conversation history into a highly dense, structured continuation summary. You must preserve critical context, decisions, and codebase states while eliminating conversational filler and repetitive tool logs.\n\nGenerate a structured summary containing exactly the following sections:\n1. **Goal**: What is the ultimate objective of this engineering session?\n2. **Instructions & Constraints**: What specific guidelines, patterns, user preferences, or technical limitations have been established?\n3. **Discoveries & Architecture**: What have we learned about the codebase? Detail any symbol mappings, logic structures, or debugging conclusions.\n4. **Accomplished**: What changes have already been completely implemented, verified, or fixed?\n5. **Relevant Files**: Which files are currently being modified or are active in the workspace?\n\nCRITICAL: Do not lose technical specifics, user-stated constraints, or deep investigation states.\n\nContinue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.")
         )
 
         val historyText = trimmedHistory().joinToString("\n\n") { msg ->
             val role = msg.role.uppercase()
-            val content = msg.content ?: if (!msg.toolCalls.isNullOrEmpty()) {
-                "Called tools: " + msg.toolCalls.joinToString(", ") { it.function.name }
-            } else ""
-            "[$role]: $content"
+            val text = msg.textContent.ifEmpty {
+                if (!msg.toolCalls.isNullOrEmpty()) {
+                    "Called tools: " + msg.toolCalls.joinToString(", ") { it.function.name }
+                } else ""
+            }
+            "[$role]: $text"
         }
 
         val requestMessage = ChatMessage(
             role = "user",
-            content = "Please summarize the following conversation history according to the system prompt instructions:\n\n$historyText"
+            content = JsonPrimitive("Please summarize the following conversation history according to the system prompt instructions:\n\n$historyText")
         )
 
         try {
             val response = llm.chat(listOf(compactionSystem, requestMessage))
-            val summary = response.choices.firstOrNull()?.message?.content
+            val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 llmHistory.clear()
-                llmHistory.add(ChatMessage(role = "assistant", content = summary))
+                llmHistory.add(ChatMessage(role = "assistant", content = JsonPrimitive(summary)))
                 if (preserveLast != null) {
                     llmHistory.add(preserveLast)
                 }
                 // The new token count is roughly the size of the summary + preserved message
-                val newTokensApprox = (summary.length / 4) + ((preserveLast?.content?.length ?: 0) / 4)
+                val newTokensApprox = (summary.length / 4) + ((preserveLast?.textContent?.length ?: 0) / 4)
                 activeSessionTokenCount = newTokensApprox
                 updateContextUsage()
                 // Show the compacted message in the chat UI as an assistant message
@@ -315,15 +358,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             val toolCalls = message.toolCalls.orEmpty()
             if (toolCalls.isEmpty()) {
-                val content = message.content ?: "(no reply)"
-                llmHistory += ChatMessage(role = "assistant", content = content)
+                val content = message.textContent.ifEmpty { "(no reply)" }
+                llmHistory += ChatMessage(role = "assistant", content = JsonPrimitive(content))
                 appendUi(MessageKind.ASSISTANT, content)
                 return
             }
 
             llmHistory += message
-            message.content?.takeIf { it.isNotBlank() }
-                ?.let { appendUi(MessageKind.ASSISTANT, it) }
+            if (message.hasText) {
+                appendUi(MessageKind.ASSISTANT, message.textContent)
+            }
 
             val decision = requestConfirmation(toolCalls)
             for (call in toolCalls) {
@@ -338,7 +382,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 llmHistory += ChatMessage(
                     role = "tool",
-                    content = result.message,
+                    content = JsonPrimitive(result.message),
                     toolCallId = call.id
                 )
                 appendUi(
@@ -417,11 +461,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun systemPrompt() = listOf(
         ChatMessage(
             role = "system",
-            content = "You are Gotcha, an assistant running on the user's Android phone. " +
+            content = JsonPrimitive(
+                "You are Gotcha, an assistant running on the user's Android phone. " +
                 "You control the device only through the provided tools; never invent tool names or " +
                 "capabilities. If a tool reports a missing permission, explain to the user what to " +
                 "grant and suggest retrying. Keep replies short and conversational. " +
                 "After changing device state, confirm what was done based on the tool results."
+            )
         )
     )
 
@@ -433,7 +479,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         var start = llmHistory.size - 1
         
         while (start >= 0) {
-            currentTokens += (llmHistory[start].content?.length ?: 0) / 4
+            currentTokens += llmHistory[start].textContent.length / 4
             if (currentTokens > maxTokens) {
                 start++
                 break
@@ -450,7 +496,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Many LLM APIs strictly require history to start with a user message.
         // If our truncation or compaction leaves an assistant message first, prepend a dummy user message.
         if (trimmed.isNotEmpty() && trimmed.first().role == "assistant") {
-            return listOf(ChatMessage(role = "user", content = "[System Note: Conversation context restored from previous turn]")) + trimmed
+            return listOf(ChatMessage(role = "user", content = JsonPrimitive("[System Note: Conversation context restored from previous turn]"))) + trimmed
         }
         return trimmed
     }
@@ -465,19 +511,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         else -> "Something went wrong: ${e.message}"
     }
 
-    private fun appendUi(kind: MessageKind, text: String) {
+    private fun appendUi(kind: MessageKind, text: String, imageBase64: String? = null) {
         _uiState.update {
-            it.copy(messages = it.messages + UiMessage(nextId++, kind, text))
+            it.copy(messages = it.messages + UiMessage(nextId++, kind, text, imageBase64))
         }
     }
 
     private fun rebuildUiMessages() {
         val rebuilt = llmHistory.mapNotNull { msg ->
             when {
-                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, msg.content ?: "")
-                msg.role == "assistant" && !msg.content.isNullOrBlank() ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, msg.content)
-                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, msg.content ?: "")
+                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" })
+                msg.role == "assistant" && msg.hasText ->
+                    UiMessage(nextId++, MessageKind.ASSISTANT, msg.textContent)
+                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, msg.textContent.ifEmpty { "(no result)" })
                 else -> null
             }
         }

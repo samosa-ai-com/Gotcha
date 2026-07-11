@@ -29,6 +29,7 @@ import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import kotlinx.serialization.json.JsonPrimitive
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
@@ -188,14 +189,15 @@ class MainActivity : ComponentActivity() {
             Route.CHAT -> {
                 ChatScreen(
                     state = state,
-                    onSend = chatViewModel::sendMessage,
+                    onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
                     onStop = chatViewModel::stopAgent,
                     onConfirm = chatViewModel::confirmPendingActions,
                     onBack = { 
                         chatViewModel.refreshSessions()
                         currentRoute = Route.SESSIONS 
                     },
-                    onOpenSettings = { currentRoute = Route.SETTINGS }
+                    onOpenSettings = { currentRoute = Route.SETTINGS },
+                    onPickImage = { uri -> chatViewModel.loadImageBase64(uri) }
                 )
             }
         }
@@ -211,9 +213,9 @@ class MainActivity : ComponentActivity() {
             apiTimeoutSeconds = settings.apiTimeoutSeconds
         )
         val response = client.chat(
-            messages = listOf(ChatMessage(role = "user", content = "Reply with the single word: pong")),
+            messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
             temperature = 0f
         )
-        response.choices.firstOrNull()?.message?.content?.take(60) ?: "empty response"
+        response.choices.firstOrNull()?.message?.textContent?.take(60) ?: "empty response"
     }
 }

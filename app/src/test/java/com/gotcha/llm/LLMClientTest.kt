@@ -1,6 +1,7 @@
 package com.gotcha.llm
 
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.mockwebserver.MockResponse
@@ -71,7 +72,7 @@ class LLMClientTest {
         )
 
         val response = client.chat(
-            messages = listOf(ChatMessage(role = "user", content = "Call mom")),
+            messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Call mom"))),
             tools = listOf(dummyTool)
         )
 
@@ -90,10 +91,10 @@ class LLMClientTest {
         )
 
         val response = client.chat(
-            messages = listOf(ChatMessage(role = "user", content = "Hello"))
+            messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Hello")))
         )
 
-        assertEquals("Hi there", response.choices.single().message.content)
+        assertEquals("Hi there", response.choices.single().message.textContent)
     }
 
     @Test
@@ -104,13 +105,13 @@ class LLMClientTest {
             ).setHeader("Content-Type", "application/json")
         )
 
-        val messages = listOf(ChatMessage(role = "user", content = "What is 2+2?"))
+        val messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("What is 2+2?")))
 
         val first = client.chat(messages = messages)
         val second = client.chat(messages = messages)
 
-        assertEquals("cached answer", first.choices.single().message.content)
-        assertEquals(first.choices.single().message.content, second.choices.single().message.content)
+        assertEquals("cached answer", first.choices.single().message.textContent)
+        assertEquals(first.choices.single().message.textContent, second.choices.single().message.textContent)
         assertEquals(1, server.requestCount)
     }
 
@@ -137,7 +138,7 @@ class LLMClientTest {
         server.enqueue(MockResponse().setBody(toolCallBody).setHeader("Content-Type", "application/json"))
         server.enqueue(MockResponse().setBody(toolCallBody).setHeader("Content-Type", "application/json"))
 
-        val messages = listOf(ChatMessage(role = "user", content = "Call mom"))
+        val messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Call mom")))
 
         client.chat(messages = messages, tools = listOf(dummyTool))
         client.chat(messages = messages, tools = listOf(dummyTool))

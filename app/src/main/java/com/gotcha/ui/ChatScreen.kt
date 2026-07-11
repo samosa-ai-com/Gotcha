@@ -1,20 +1,30 @@
 package com.gotcha.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image as ComposeImage
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,6 +43,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
 
@@ -40,14 +53,26 @@ import com.gotcha.agent.ChatUiState
 @Composable
 fun ChatScreen(
     state: ChatUiState,
-    onSend: (String) -> Unit,
+    onSend: (String, String?) -> Unit,
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
     onBack: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onPickImage: (Uri) -> String?
 ) {
     var input by rememberSaveable { mutableStateOf("") }
+    var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            pendingImageUri = uri
+            pendingImageBase64 = onPickImage(uri)
+        }
+    }
 
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
@@ -105,10 +130,50 @@ fun ChatScreen(
                 }
             }
 
+            // Image attachment preview
+            if (pendingImageBase64 != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    val bitmap = try {
+                        val bytes = android.util.Base64.decode(pendingImageBase64, android.util.Base64.DEFAULT)
+                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } catch (_: Exception) { null }
+                    if (bitmap != null) {
+                        ComposeImage(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Attached image",
+                            modifier = Modifier
+                                .height(120.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            pendingImageUri = null
+                            pendingImageBase64 = null
+                        },
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Remove image")
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    enabled = !state.isBusy && state.isConfigured
+                ) {
+                    Text("+", style = MaterialTheme.typography.titleLarge)
+                }
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -125,10 +190,12 @@ fun ChatScreen(
                 } else {
                     Button(
                         onClick = {
-                            onSend(input)
+                            onSend(input, pendingImageBase64)
                             input = ""
+                            pendingImageUri = null
+                            pendingImageBase64 = null
                         },
-                        enabled = state.isConfigured && input.isNotBlank()
+                        enabled = state.isConfigured && (input.isNotBlank() || pendingImageBase64 != null)
                     ) {
                         Text("Send")
                     }
