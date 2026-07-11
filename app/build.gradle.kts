@@ -70,6 +70,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Lifecycle + ViewModel Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
@@ -84,6 +85,13 @@ dependencies {
 
     // Secure storage
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // HTML parsing for webfetch tool
+    implementation("org.jsoup:jsoup:1.17.2")
+
+    // Markdown rendering
+    implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
+    implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

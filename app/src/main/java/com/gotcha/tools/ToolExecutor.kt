@@ -3,9 +3,12 @@ package com.gotcha.tools
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -32,6 +35,14 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val webSearchTool = WebSearchTool()
+    private val webFetchTool = WebFetchTool()
+    private val questionTool = QuestionTool()
+    private val todoTool = TodoTool()
+    private val editTool = EditTool(appContext)
+    private val globTool = GlobTool(appContext)
+    private val grepTool = GrepTool(appContext)
+    private val visionTool = VisionTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
@@ -41,9 +52,19 @@ class ToolExecutor(context: Context) {
     private val rootTool = RootTool()
     private val actionLog = ActionLog(appContext)
 
-    suspend fun execute(name: String, args: JsonObject): ToolResult {
+    /**
+     * Execute [name] with [args] on behalf of the given [agent].
+     * Returns an error without running the tool if the agent mode disallows it.
+     */
+    suspend fun execute(name: String, args: JsonObject, agent: AgentMode = AgentMode.OPERATOR): ToolResult {
         if (!ToolRegistry.contains(name)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
+        }
+        if (!ToolRegistry.isAllowedForAgent(name, agent)) {
+            return ToolResult.error(
+                "This action is not available in ${agent.name} mode. " +
+                "Switch to Operator mode if you need to perform this action."
+            )
         }
         val result = try {
             withContext(Dispatchers.IO) { dispatch(name, args) }
@@ -60,6 +81,12 @@ class ToolExecutor(context: Context) {
         "get_storage_info" -> storageTool.getStorageInfo()
         "get_battery_info" -> systemTool.getBatteryInfo()
         "clear_app_cache" -> storageTool.clearAppCache()
+        "edit" -> editTool.edit(
+            path = args.requireString("path") ?: return missing("path"),
+            oldString = args.requireString("oldString") ?: return missing("oldString"),
+            newString = args.requireString("newString") ?: return missing("newString"),
+            replaceAll = args["replaceAll"]?.jsonPrimitive?.booleanOrNull ?: false
+        )
         "list_files" -> fileTool.listFiles(args.requireString("path") ?: return missing("path"))
         "read_file" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
         "write_file" -> fileTool.writeFile(
@@ -127,6 +154,32 @@ class ToolExecutor(context: Context) {
         "take_photo" -> mediaCaptureTool.takePhoto()
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        "question" -> questionTool.ask(
+            question = args.requireString("question") ?: return missing("question"),
+            options = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
+            allowCustom = args["allowCustom"]?.jsonPrimitive?.booleanOrNull ?: true
+        )
+        "websearch" -> webSearchTool.search(
+            query = args.requireString("query") ?: return missing("query"),
+            numResults = args.requireInt("numResults") ?: 5
+        )
+        "webfetch" -> webFetchTool.fetch(
+            url = args.requireString("url") ?: return missing("url"),
+            format = args.requireString("format")
+        )
+        "todowrite" -> todoTool.todowrite(
+            parseTodoItems(args["items"]) ?: return missing("items")
+        )
+        "read_image" -> visionTool.readImage(args.requireString("path") ?: return missing("path"))
+        "glob" -> globTool.glob(
+            path = args.requireString("path") ?: return missing("path"),
+            pattern = args.requireString("pattern") ?: return missing("pattern")
+        )
+        "grep" -> grepTool.grep(
+            path = args.requireString("path") ?: return missing("path"),
+            pattern = args.requireString("pattern") ?: return missing("pattern"),
+            include = args.requireString("include")
+        )
         // ---- Tier 3 ----
         "read_screen" -> accessibilityTool.readScreen()
         "tap" -> accessibilityTool.tap(
@@ -181,4 +234,23 @@ class ToolExecutor(context: Context) {
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
+
+    private fun parseTodoItems(element: JsonElement?): List<TodoItem>? {
+        val array = element as? JsonArray ?: return null
+        return array.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val content = obj["content"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            val statusStr = obj["status"]?.jsonPrimitive?.content ?: "pending"
+            val status = parseTodoStatus(statusStr)
+            val priority = obj["priority"]?.jsonPrimitive?.content
+            TodoItem(content = content, status = status, priority = priority)
+        }.toList().ifEmpty { null }
+    }
+
+    private fun parseTodoStatus(s: String): TodoStatus = when (s.lowercase().trim()) {
+        "in_progress", "in progress", "inprogress" -> TodoStatus.IN_PROGRESS
+        "completed", "done", "complete" -> TodoStatus.COMPLETED
+        "cancelled", "canceled", "cancelled" -> TodoStatus.CANCELLED
+        else -> TodoStatus.PENDING
+    }
 }

@@ -10,6 +10,7 @@ import android.provider.Settings as AndroidSettings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,10 +26,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
+import com.gotcha.audio.AudioApi
+import com.gotcha.audio.AudioModel
+import com.gotcha.audio.ModelCategory
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import kotlinx.serialization.json.JsonPrimitive
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
@@ -148,11 +155,13 @@ class MainActivity : ComponentActivity() {
         var currentRoute by remember { 
             mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS) 
         }
+        var previousRoute by remember { mutableStateOf(Route.SESSIONS) }
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
         when (currentRoute) {
             Route.SETTINGS -> {
+                BackHandler { currentRoute = previousRoute }
                 SettingsScreen(
                     initial = settingsRepository.load(),
                     onSave = { settings ->
@@ -167,7 +176,21 @@ class MainActivity : ComponentActivity() {
                             context = this@MainActivity
                         ).clearCache()
                     },
-                    onBack = { currentRoute = Route.SESSIONS }
+                    onBack = { currentRoute = previousRoute },
+                    onRefreshAudioModels = { s ->
+                        withContext(Dispatchers.IO) {
+                            val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
+                            val ttsAll = ttsApi.listAudioModels()
+                            val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
+                            val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
+                                val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
+                                sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
+                            } else {
+                                ttsAll.filter { it.category == ModelCategory.STT }
+                            }
+                            Pair(ttsModels, sttModels)
+                        }
+                    }
                 )
             }
             Route.SESSIONS -> {
@@ -182,20 +205,36 @@ class MainActivity : ComponentActivity() {
                         chatViewModel.openSession(null)
                         currentRoute = Route.CHAT
                     },
-                    onOpenSettings = { currentRoute = Route.SETTINGS }
+                    onOpenSettings = {
+                        previousRoute = Route.SESSIONS
+                        currentRoute = Route.SETTINGS
+                    }
                 )
             }
             Route.CHAT -> {
+                BackHandler {
+                    chatViewModel.refreshSessions()
+                    currentRoute = Route.SESSIONS
+                }
                 ChatScreen(
                     state = state,
-                    onSend = chatViewModel::sendMessage,
+                    onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
                     onStop = chatViewModel::stopAgent,
                     onConfirm = chatViewModel::confirmPendingActions,
+                    onAnswer = chatViewModel::submitAnswer,
                     onBack = { 
                         chatViewModel.refreshSessions()
                         currentRoute = Route.SESSIONS 
                     },
-                    onOpenSettings = { currentRoute = Route.SETTINGS }
+                    onOpenSettings = {
+                        previousRoute = Route.CHAT
+                        currentRoute = Route.SETTINGS
+                    },
+                    onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
+                    onSwitchAgent = chatViewModel::switchAgent,
+                    onSpeak = chatViewModel::speak,
+                    onStartListening = chatViewModel::startListening,
+                    onStopRecording = chatViewModel::stopRecording
                 )
             }
         }
@@ -211,9 +250,9 @@ class MainActivity : ComponentActivity() {
             apiTimeoutSeconds = settings.apiTimeoutSeconds
         )
         val response = client.chat(
-            messages = listOf(ChatMessage(role = "user", content = "Reply with the single word: pong")),
+            messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
             temperature = 0f
         )
-        response.choices.firstOrNull()?.message?.content?.take(60) ?: "empty response"
+        response.choices.firstOrNull()?.message?.textContent?.take(60) ?: "empty response"
     }
 }

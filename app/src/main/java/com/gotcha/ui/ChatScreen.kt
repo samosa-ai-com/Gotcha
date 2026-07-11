@@ -1,22 +1,40 @@
 package com.gotcha.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image as ComposeImage
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -29,29 +47,53 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
+import com.gotcha.agent.PendingQuestion
+import com.gotcha.tools.AgentMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     state: ChatUiState,
-    onSend: (String) -> Unit,
+    onSend: (String, String?) -> Unit,
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
+    onAnswer: (String?) -> Unit,
     onBack: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onPickImage: (Uri) -> String?,
+    onSwitchAgent: () -> Unit,
+    onSpeak: (String) -> Unit = {},
+    onStartListening: () -> Unit = {},
+    onStopRecording: () -> Unit = {}
 ) {
     var input by rememberSaveable { mutableStateOf("") }
+    var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(state.messages.size) {
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            pendingImageUri = uri
+            pendingImageBase64 = onPickImage(uri)
+        }
+    }
+
+    LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text?.length) {
         if (state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.size - 1)
+            listState.scrollToItem(state.messages.size - 1)
         }
     }
 
@@ -65,6 +107,12 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    FilterChip(
+                        selected = state.activeAgent == AgentMode.OPERATOR,
+                        onClick = onSwitchAgent,
+                        label = { Text(state.activeAgent.name) },
+                        enabled = !state.isBusy
+                    )
                     TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )
@@ -81,7 +129,7 @@ fun ChatScreen(
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
                 items(state.messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+                    MessageBubble(message = message, onSpeak = onSpeak)
                 }
             }
 
@@ -105,32 +153,114 @@ fun ChatScreen(
                 }
             }
 
+            // Image attachment preview
+            if (pendingImageBase64 != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    val bitmap = try {
+                        val bytes = android.util.Base64.decode(pendingImageBase64, android.util.Base64.DEFAULT)
+                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } catch (_: Exception) { null }
+                    if (bitmap != null) {
+                        ComposeImage(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Attached image",
+                            modifier = Modifier
+                                .height(120.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            pendingImageUri = null
+                            pendingImageBase64 = null
+                        },
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Remove image")
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    enabled = !state.isBusy && state.isConfigured
+                ) {
+                    Text("+", style = MaterialTheme.typography.titleLarge)
+                }
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
+                    shape = CircleShape,
                     placeholder = { Text("Ask me to do something…") },
                     enabled = !state.isBusy && state.isConfigured,
-                    maxLines = 4
+                    maxLines = 1,
+                    singleLine = true
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                if (state.isBusy) {
-                    Button(onClick = onStop) {
-                        Text("Stop")
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            onSend(input)
-                            input = ""
-                        },
-                        enabled = state.isConfigured && input.isNotBlank()
-                    ) {
-                        Text("Send")
+                // All action buttons use the same 40dp box so the layout never resizes
+                Box(modifier = Modifier.size(40.dp)) {
+                    when {
+                        state.isBusy -> {
+                            Button(
+                                onClick = onStop,
+                                modifier = Modifier.size(40.dp),
+                                contentPadding = ButtonDefaults.TextButtonContentPadding,
+                                shape = CircleShape
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = "Stop",
+                                    modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        state.isRecording || state.isListening -> {
+                            // Recording in progress — show red stop button for both providers
+                            Button(
+                                onClick = onStopRecording,
+                                modifier = Modifier.size(40.dp),
+                                contentPadding = ButtonDefaults.TextButtonContentPadding,
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = "Stop recording",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = Color.White)
+                            }
+                        }
+                        input.isBlank() && pendingImageBase64 == null -> {
+                            IconButton(
+                                onClick = onStartListening,
+                                modifier = Modifier.size(40.dp),
+                                enabled = state.isConfigured
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = "Voice input")
+                            }
+                        }
+                        else -> {
+                            IconButton(
+                                onClick = {
+                                    onSend(input, pendingImageBase64)
+                                    input = ""
+                                    pendingImageUri = null
+                                    pendingImageBase64 = null
+                                },
+                                modifier = Modifier.size(40.dp),
+                                enabled = state.isConfigured && (input.isNotBlank() || pendingImageBase64 != null)
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = "Send")
+                            }
+                        }
                     }
                 }
             }
@@ -153,6 +283,38 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(onClick = { onConfirm(false) }) { Text("Deny") }
             }
+        )
+    }
+
+    if (state.pendingQuestion != null) {
+        val pending = state.pendingQuestion!!
+        var customAnswer by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { onAnswer(null) },
+            title = { Text(pending.question) },
+            text = {
+                Column {
+                    if (pending.options.isNotEmpty()) {
+                        pending.options.forEach { option ->
+                            Button(onClick = { onAnswer(option) }, modifier = Modifier.fillMaxWidth()) {
+                                Text(option)
+                            }
+                        }
+                    }
+                    if (pending.allowCustom || pending.options.isEmpty()) {
+                        OutlinedTextField(
+                            value = customAnswer,
+                            onValueChange = { customAnswer = it },
+                            label = { Text("Your answer") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(onClick = { onAnswer(customAnswer.trim()) }, enabled = customAnswer.isNotBlank()) {
+                            Text("Submit")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
         )
     }
 }
