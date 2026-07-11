@@ -380,15 +380,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             "Do not retry automatically; tell the user to ask again when ready."
                     )
                 }
-                llmHistory += ChatMessage(
-                    role = "tool",
-                    content = JsonPrimitive(result.message),
-                    toolCallId = call.id
-                )
-                appendUi(
-                    if (result.success) MessageKind.TOOL else MessageKind.ERROR,
-                    "${call.function.name}: ${result.message}"
-                )
+                if (result.success && result.message.startsWith("IMAGE_DATA:")) {
+                    handleImageResult(call, result)
+                } else {
+                    llmHistory += ChatMessage(
+                        role = "tool",
+                        content = JsonPrimitive(result.message),
+                        toolCallId = call.id
+                    )
+                    appendUi(
+                        if (result.success) MessageKind.TOOL else MessageKind.ERROR,
+                        "${call.function.name}: ${result.message}"
+                    )
+                }
                 result.needsPermission?.let { _permissionRequests.tryEmit(it) }
             }
             saveCurrentSession()
@@ -446,6 +450,52 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             false -> ConfirmDecision.DENIED
             null -> ConfirmDecision.TIMED_OUT
         }
+    }
+
+    /**
+     * Handles a tool result that contains an image (prefixed with IMAGE_DATA:).
+     * Injects the image as a vision user message so the LLM can "see" it,
+     * and stores a clean text-only tool result in history for display.
+     *
+     * Format: IMAGE_DATA:<mime>:<width>x<height>:<bytes>:<filename>:<base64>
+     */
+    private fun handleImageResult(call: ToolCall, result: ToolResult) {
+        val parts = result.message.split(":", limit = 6)
+        if (parts.size < 6) {
+            llmHistory += ChatMessage(
+                role = "tool", content = JsonPrimitive("Failed to parse image data."),
+                toolCallId = call.id
+            )
+            appendUi(MessageKind.ERROR, "${call.function.name}: Failed to parse image data.")
+            return
+        }
+        val mime = parts[1]
+        val dimensions = parts[2]
+        val bytesStr = parts[3]
+        val filename = parts[4]
+        val base64 = parts[5]
+        val fileSize = try { bytesStr.toLong() } catch (_: Exception) { 0L }
+        val sizeDisplay = when {
+            fileSize >= 1024 * 1024 -> "${fileSize / (1024 * 1024)} MB"
+            fileSize >= 1024 -> "${fileSize / 1024} KB"
+            else -> "$fileSize B"
+        }
+
+        // Inject vision user message so the model "sees" the image
+        val format = mime.substringAfter("image/")
+        val visionMsg = visionUserMessage(
+            "The assistant read an image file: $filename ($dimensions, $sizeDisplay).",
+            base64, format
+        )
+        llmHistory.add(visionMsg)
+
+        // Store a clean text-only tool result for display/conversation context
+        llmHistory += ChatMessage(
+            role = "tool",
+            content = JsonPrimitive("Read image: $filename ($dimensions, $sizeDisplay)"),
+            toolCallId = call.id
+        )
+        appendUi(MessageKind.TOOL, "${call.function.name}: Read image $filename ($dimensions)")
     }
 
     private suspend fun executeCall(call: ToolCall): ToolResult {

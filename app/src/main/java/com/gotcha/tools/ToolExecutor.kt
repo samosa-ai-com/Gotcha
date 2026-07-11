@@ -32,6 +32,7 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val visionTool = VisionTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
@@ -127,6 +128,7 @@ class ToolExecutor(context: Context) {
         "take_photo" -> mediaCaptureTool.takePhoto()
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        "read_image" -> visionTool.readImage(args.requireString("path") ?: return missing("path"))
         // ---- Tier 3 ----
         "read_screen" -> accessibilityTool.readScreen()
         "tap" -> accessibilityTool.tap(

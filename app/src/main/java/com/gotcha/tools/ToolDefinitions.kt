@@ -554,6 +554,26 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val readImage = tool(
+        "read_image",
+        "Read an image file from an allowed directory and feed its visual content to the " +
+            "vision model. The image appears as if you 'see' it — you can describe, analyze, or " +
+            "read text from it. Use this for photos, screenshots, diagrams, scanned documents, " +
+            "and any image stored on the device. " +
+            "Allowed roots are the same as list_files/read_file: 'files', 'cache', 'external', " +
+            "'downloads', 'pictures', 'dcim', 'documents', and 'storage' (needs All-files access). " +
+            "Supported formats: PNG, JPEG, GIF, WebP, BMP.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "Image file path rooted at an allowed root, e.g. 'downloads/photo.jpg'.")
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
     // ---- Tier 3 additions (component-based / device-wide access) ----
 
     val readScreen = tool(
@@ -828,6 +848,8 @@ object ToolDefinitions {
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // Image reading (available to both Monitor and Operator)
+        readImage,
         // Tier 3 additions
         readScreen, tap, swipe, inputText, globalAction,
         readNotifications, dismissNotifications, mediaControl,
