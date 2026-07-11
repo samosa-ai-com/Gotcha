@@ -554,6 +554,36 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val edit = tool(
+        "edit",
+        "Replace exact text in a file. Use this for surgical edits — changing specific " +
+            "lines, variables, or values — without rewriting the entire file. " +
+            "The oldString must match the existing text exactly, including whitespace and " +
+            "indentation. Set replaceAll=true to replace every occurrence. " +
+            "Only available in the app sandbox (files, cache, external) or 'storage' root.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "File path rooted at a writable root, e.g. 'files/notes.txt'.")
+                }
+                putJsonObject("oldString") {
+                    put("type", "string")
+                    put("description", "Exact text to replace (must match existing content exactly).")
+                }
+                putJsonObject("newString") {
+                    put("type", "string")
+                    put("description", "Replacement text.")
+                }
+                putJsonObject("replaceAll") {
+                    put("type", "boolean")
+                    put("description", "Replace all occurrences instead of just the first. Default false.")
+                }
+            }
+            putJsonArray("required") { add("path"); add("oldString"); add("newString") }
+        }
+    )
+
     val glob = tool(
         "glob",
         "Find files matching a glob pattern within an allowed directory. " +
@@ -895,6 +925,8 @@ object ToolDefinitions {
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // Surgical file editing (Operator only)
+        edit,
         // Content search and file discovery
         glob, grep,
         // Image reading (available to both Monitor and Operator)

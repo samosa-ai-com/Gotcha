@@ -32,6 +32,7 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val editTool = EditTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val visionTool = VisionTool(appContext)
@@ -63,6 +64,12 @@ class ToolExecutor(context: Context) {
         "get_storage_info" -> storageTool.getStorageInfo()
         "get_battery_info" -> systemTool.getBatteryInfo()
         "clear_app_cache" -> storageTool.clearAppCache()
+        "edit" -> editTool.edit(
+            path = args.requireString("path") ?: return missing("path"),
+            oldString = args.requireString("oldString") ?: return missing("oldString"),
+            newString = args.requireString("newString") ?: return missing("newString"),
+            replaceAll = args["replaceAll"]?.jsonPrimitive?.booleanOrNull ?: false
+        )
         "list_files" -> fileTool.listFiles(args.requireString("path") ?: return missing("path"))
         "read_file" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
         "write_file" -> fileTool.writeFile(
