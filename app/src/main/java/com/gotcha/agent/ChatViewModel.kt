@@ -492,6 +492,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         "${call.function.name}: ${result.message}"
                     )
                 }
+                // Automatic screenshot injection: when read_screen succeeds,
+                // capture a screenshot and inject it as vision context so the LLM
+                // can "see" the screen alongside the accessibility text dump.
+                if (result.success && call.function.name == "read_screen") {
+                    val screenshotBase64 = captureScreenshotBase64()
+                    if (screenshotBase64 != null) {
+                        val screenText = result.message.take(500)
+                        val visionMsg = visionUserMessage(
+                            "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
+                                "Use it together with the screen text to understand the current screen.",
+                            screenshotBase64, "png"
+                        )
+                        llmHistory.add(visionMsg)
+                        appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                    }
+                }
                 result.needsPermission?.let { _permissionRequests.tryEmit(it) }
             }
             saveCurrentSession()
@@ -819,6 +835,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         _uiState.update { it.copy(messages = rebuilt) }
+    }
+
+    /**
+     * Capture a screenshot via the `screencap -p` shell command.
+     * Returns the image as a base64-encoded PNG string, or null on failure.
+     * The app runs as an unprivileged uid; on many devices `screencap` requires
+     * the `DUMP` permission or root. This is best-effort.
+     */
+    private suspend fun captureScreenshotBase64(): String? {
+        return try {
+            val bytes = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val process = java.lang.Runtime.getRuntime().exec("screencap -p")
+                val b = process.inputStream.use { it.readBytes() }
+                process.waitFor()
+                b
+            }
+            if (bytes.isEmpty()) return null
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+            val maxDim = 1024
+            val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
+                val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
+                (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
+            } else bitmap.width to bitmap.height
+            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
+            if (scaled != bitmap) bitmap.recycle()
+            val output = java.io.ByteArrayOutputStream()
+            scaled.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, output)
+            scaled.recycle()
+            android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
+        } catch (_: Exception) { null }
     }
 
     private companion object {
