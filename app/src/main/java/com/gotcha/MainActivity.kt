@@ -10,6 +10,7 @@ import android.provider.Settings as AndroidSettings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
@@ -154,11 +155,13 @@ class MainActivity : ComponentActivity() {
         var currentRoute by remember { 
             mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS) 
         }
+        var previousRoute by remember { mutableStateOf(Route.SESSIONS) }
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
         when (currentRoute) {
             Route.SETTINGS -> {
+                BackHandler { currentRoute = previousRoute }
                 SettingsScreen(
                     initial = settingsRepository.load(),
                     onSave = { settings ->
@@ -173,7 +176,7 @@ class MainActivity : ComponentActivity() {
                             context = this@MainActivity
                         ).clearCache()
                     },
-                    onBack = { currentRoute = Route.SESSIONS },
+                    onBack = { currentRoute = previousRoute },
                     onRefreshAudioModels = { s ->
                         withContext(Dispatchers.IO) {
                             val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
@@ -202,10 +205,17 @@ class MainActivity : ComponentActivity() {
                         chatViewModel.openSession(null)
                         currentRoute = Route.CHAT
                     },
-                    onOpenSettings = { currentRoute = Route.SETTINGS }
+                    onOpenSettings = {
+                        previousRoute = Route.SESSIONS
+                        currentRoute = Route.SETTINGS
+                    }
                 )
             }
             Route.CHAT -> {
+                BackHandler {
+                    chatViewModel.refreshSessions()
+                    currentRoute = Route.SESSIONS
+                }
                 ChatScreen(
                     state = state,
                     onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
@@ -216,7 +226,10 @@ class MainActivity : ComponentActivity() {
                         chatViewModel.refreshSessions()
                         currentRoute = Route.SESSIONS 
                     },
-                    onOpenSettings = { currentRoute = Route.SETTINGS },
+                    onOpenSettings = {
+                        previousRoute = Route.CHAT
+                        currentRoute = Route.SETTINGS
+                    },
                     onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
                     onSwitchAgent = chatViewModel::switchAgent,
                     onSpeak = chatViewModel::speak,

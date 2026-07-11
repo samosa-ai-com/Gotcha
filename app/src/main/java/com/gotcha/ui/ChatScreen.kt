@@ -91,9 +91,9 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.messages.size) {
+    LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text?.length) {
         if (state.messages.isNotEmpty()) {
-            listState.animateScrollToItem(state.messages.size - 1)
+            listState.scrollToItem(state.messages.size - 1)
         }
     }
 
