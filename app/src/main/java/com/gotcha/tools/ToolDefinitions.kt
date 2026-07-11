@@ -554,6 +554,195 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val edit = tool(
+        "edit",
+        "Replace exact text in a file. Use this for surgical edits — changing specific " +
+            "lines, variables, or values — without rewriting the entire file. " +
+            "The oldString must match the existing text exactly, including whitespace and " +
+            "indentation. Set replaceAll=true to replace every occurrence. " +
+            "Only available in the app sandbox (files, cache, external) or 'storage' root.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "File path rooted at a writable root, e.g. 'files/notes.txt'.")
+                }
+                putJsonObject("oldString") {
+                    put("type", "string")
+                    put("description", "Exact text to replace (must match existing content exactly).")
+                }
+                putJsonObject("newString") {
+                    put("type", "string")
+                    put("description", "Replacement text.")
+                }
+                putJsonObject("replaceAll") {
+                    put("type", "boolean")
+                    put("description", "Replace all occurrences instead of just the first. Default false.")
+                }
+            }
+            putJsonArray("required") { add("path"); add("oldString"); add("newString") }
+        }
+    )
+
+    val question = tool(
+        "question",
+        "Ask the user a question when you need clarification, a decision, or more information " +
+            "to proceed. Provide clear, concise options when possible. " +
+            "Use this instead of guessing the user's intent.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("question") {
+                    put("type", "string")
+                    put("description", "The question to ask the user.")
+                }
+                putJsonObject("options") {
+                    put("type", "array")
+                    put("description", "Optional predefined answer choices (max 10).")
+                    putJsonObject("items") { put("type", "string") }
+                }
+                putJsonObject("allowCustom") {
+                    put("type", "boolean")
+                    put("description", "Allow the user to type a custom answer. Default true.")
+                }
+            }
+            putJsonArray("required") { add("question") }
+        }
+    )
+
+    val todowrite = tool(
+        "todowrite",
+        "Create and maintain a structured task list for the current session. " +
+            "Use this to plan multi-step tasks, track progress, and check off completed items. " +
+            "Each call replaces the entire list. Status values: pending, in_progress, completed, cancelled. " +
+            "Priority values (optional): high, medium, low.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("items") {
+                    put("type", "array")
+                    put("description", "List of tasks to track.")
+                    putJsonObject("items") {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("content") { put("type", "string"); put("description", "Task description.") }
+                            putJsonObject("status") { put("type", "string"); put("description", "One of: pending, in_progress, completed, cancelled.") }
+                            putJsonObject("priority") { put("type", "string"); put("description", "Optional: high, medium, low.") }
+                        }
+                        putJsonArray("required") { add("content"); add("status") }
+                    }
+                }
+            }
+            putJsonArray("required") { add("items") }
+        }
+    )
+
+    val glob = tool(
+        "glob",
+        "Find files matching a glob pattern within an allowed directory. " +
+            "Use * to match any non-/ characters, ** to match any path recursively, " +
+            "and ? for a single character. Examples: '**/*.txt', 'downloads/*.jpg', " +
+            "'files/**/*.kt'. Returns matching file paths relative to the search root.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("pattern") {
+                    put("type", "string")
+                    put("description", "Glob pattern, e.g. '**/*.txt' or 'downloads/*.jpg'.")
+                }
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
+                }
+            }
+            putJsonArray("required") { add("pattern"); add("path") }
+        }
+    )
+
+    val grep = tool(
+        "grep",
+        "Search file contents by regular expression within an allowed directory. " +
+            "Use a path root (e.g. 'files', 'downloads') to narrow the search, " +
+            "and include to filter files by name pattern (e.g. '*.txt', '*.{kt,java}'). " +
+            "Returns matching file path, line number, and line content. " +
+            "Uses case-insensitive matching.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("pattern") {
+                    put("type", "string")
+                    put("description", "Regular expression pattern to search for (case-insensitive).")
+                }
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
+                }
+                putJsonObject("include") {
+                    put("type", "string")
+                    put("description", "Optional file-name filter glob, e.g. '*.txt', '*.kt', '*.{json,xml}'.")
+                }
+            }
+            putJsonArray("required") { add("pattern"); add("path") }
+        }
+    )
+
+    val webSearch = tool(
+        "websearch",
+        "Search the web for information using a text query. Returns up to 10 results with titles, URLs, and snippets. " +
+            "Use this to find current information, documentation, tutorials, or anything online. " +
+            "The results are from DuckDuckGo — no API key needed. " +
+            "If you need the full content of a specific result, use webfetch on its URL.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("query") {
+                    put("type", "string")
+                    put("description", "Search query (natural language or keywords).")
+                }
+                putJsonObject("numResults") {
+                    put("type", "integer")
+                    put("description", "Number of results to return (1-10). Default 5.")
+                }
+            }
+            putJsonArray("required") { add("query") }
+        }
+    )
+
+    val webFetch = tool(
+        "webfetch",
+        "Fetch content from an HTTP or HTTPS URL and return it as text. " +
+            "Use this to look up documentation, read articles, or gather information from the web. " +
+            "Only text responses (HTML, JSON, XML) are supported; binary content is rejected.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("url") {
+                    put("type", "string")
+                    put("description", "HTTP or HTTPS URL to fetch.")
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put("description", "Optional output format: 'text' (default) or 'markdown'. Currently always returns text.")
+                }
+            }
+            putJsonArray("required") { add("url") }
+        }
+    )
+
+    val readImage = tool(
+        "read_image",
+        "Read an image file from an allowed directory and feed its visual content to the " +
+            "vision model. The image appears as if you 'see' it — you can describe, analyze, or " +
+            "read text from it. Use this for photos, screenshots, diagrams, scanned documents, " +
+            "and any image stored on the device. " +
+            "Allowed roots are the same as list_files/read_file: 'files', 'cache', 'external', " +
+            "'downloads', 'pictures', 'dcim', 'documents', and 'storage' (needs All-files access). " +
+            "Supported formats: PNG, JPEG, GIF, WebP, BMP.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "Image file path rooted at an allowed root, e.g. 'downloads/photo.jpg'.")
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
     // ---- Tier 3 additions (component-based / device-wide access) ----
 
     val readScreen = tool(
@@ -828,6 +1017,18 @@ object ToolDefinitions {
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // User interaction
+        question,
+        // Task tracking
+        todowrite,
+        // Surgical file editing (Operator only)
+        edit,
+        // Content search and file discovery
+        glob, grep,
+        // Web search + fetch
+        webSearch, webFetch,
+        // Image reading (available to both Monitor and Operator)
+        readImage,
         // Tier 3 additions
         readScreen, tap, swipe, inputText, globalAction,
         readNotifications, dismissNotifications, mediaControl,

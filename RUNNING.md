@@ -135,6 +135,31 @@ Type natural-language requests. Examples:
   are unreadable; destructive commands (`rm -r`, `dd`, `reboot`, `su`, …) are
   blocked, with a 15 s timeout and 32 KB output cap.
 
+### Monitor vs Operator modes
+
+The app has two agent modes you can switch between at any time (even mid-conversation):
+
+- **Monitor** (read-only) — can inspect, list, and read; cannot create, modify, or delete.
+  Allowed to open apps and open the dialer (intent hand-offs). Safe for exploration.
+- **Operator** (full permissions) — has access to all 56 tools including write, delete,
+  accessibility automation (tap/swipe/type), SMS, calls, alarms, and root commands.
+
+Switch modes using the toggle in the chat screen header. The agent is informed of its
+current mode via the system prompt on every API call.
+
+### Speech (TTS/STT)
+
+A microphone button next to the input field lets you speak instead of type (Speech-to-Text).
+Each assistant message has a speaker icon to read it aloud (Text-to-Speech). Configure
+the provider (Android built-in vs OpenAI-compatible API) in Settings. An auto-read toggle
+speaks new replies automatically.
+
+### Image reading
+
+When the Accessibility Service is enabled, Monitor and Operator can capture the current
+screen and send it as an image to the LLM for visual understanding. This requires a
+vision-capable model (GPT-4o, Claude 3.5+, Gemini, etc.).
+
 Other controls: **Clear** (top bar) wipes chat history; **Clear LLM cache**
 (Settings) drops cached deterministic responses.
 

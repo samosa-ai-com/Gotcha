@@ -9,7 +9,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +36,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.gotcha.audio.AudioModel
+import com.gotcha.audio.AudioProvider
 import com.gotcha.data.Settings
 import kotlinx.coroutines.launch
 
@@ -41,7 +48,8 @@ fun SettingsScreen(
     onSave: (Settings) -> Unit,
     onTestConnection: suspend (Settings) -> Result<String>,
     onClearLlmCache: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = { Pair(emptyList(), emptyList()) }
 ) {
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
@@ -50,10 +58,28 @@ fun SettingsScreen(
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
+    // TTS / STT
+    var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
+    var ttsApiBaseUrl by remember { mutableStateOf(initial.ttsApiBaseUrl) }
+    var sttProvider by remember { mutableStateOf(initial.sttProvider) }
+    var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
+    var ttsApiModel by remember { mutableStateOf(initial.ttsApiModel) }
+    var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
+    var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
+    // Discovered model lists
+    var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
+    var refreshingModels by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // Dropdown expanded states
+    var ttsProviderExpanded by remember { mutableStateOf(false) }
+    var sttProviderExpanded by remember { mutableStateOf(false) }
+    var ttsModelExpanded by remember { mutableStateOf(false) }
+    var sttModelExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
         apiKey = apiKey.trim(),
@@ -62,7 +88,14 @@ fun SettingsScreen(
         confirmSensitiveActions = confirmSensitive,
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000,
-        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
+        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
+        ttsProvider = ttsProvider,
+        ttsApiBaseUrl = ttsApiBaseUrl.trim(),
+        ttsApiModel = ttsApiModel.trim(),
+        sttProvider = sttProvider,
+        sttApiBaseUrl = sttApiBaseUrl.trim(),
+        sttApiModel = sttApiModel.trim(),
+        autoReadReplies = autoReadReplies
     )
 
     Scaffold(
@@ -142,6 +175,189 @@ fun SettingsScreen(
                 Text("Confirm sensitive actions", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = confirmSensitive, onCheckedChange = { confirmSensitive = it })
             }
+
+            HorizontalDivider(thickness = 1.dp)
+            Text("Speech (TTS / STT)", style = MaterialTheme.typography.titleMedium)
+
+            // TTS provider dropdown
+            ExposedDropdownMenuBox(
+                expanded = ttsProviderExpanded,
+                onExpandedChange = { ttsProviderExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = ttsProvider.name,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("TTS Provider") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsProviderExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = ttsProviderExpanded,
+                    onDismissRequest = { ttsProviderExpanded = false }
+                ) {
+                    AudioProvider.entries.forEach { provider ->
+                        DropdownMenuItem(
+                            text = { Text(provider.name) },
+                            onClick = {
+                                ttsProvider = provider
+                                ttsProviderExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (ttsProvider == AudioProvider.API) {
+                OutlinedTextField(
+                    value = ttsApiBaseUrl,
+                    onValueChange = { ttsApiBaseUrl = it },
+                    label = { Text("TTS API Base URL") },
+                    singleLine = true,
+                    placeholder = { Text("http://10.0.2.2:8969/v1") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // TTS model dropdown (populated after refresh)
+                ExposedDropdownMenuBox(
+                    expanded = ttsModelExpanded,
+                    onExpandedChange = { ttsModelExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = ttsApiModel.ifEmpty { "(select model)" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("TTS Model") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsModelExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = ttsModelExpanded,
+                        onDismissRequest = { ttsModelExpanded = false }
+                    ) {
+                        if (availableTtsModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No models — refresh below") },
+                                onClick = { ttsModelExpanded = false }
+                            )
+                        } else {
+                            availableTtsModels.forEach { audioModel ->
+                                DropdownMenuItem(
+                                    text = { Text(audioModel.id) },
+                                    onClick = {
+                                        ttsApiModel = audioModel.id
+                                        ttsModelExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // STT provider dropdown
+            ExposedDropdownMenuBox(
+                expanded = sttProviderExpanded,
+                onExpandedChange = { sttProviderExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = sttProvider.name,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("STT Provider") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttProviderExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = sttProviderExpanded,
+                    onDismissRequest = { sttProviderExpanded = false }
+                ) {
+                    AudioProvider.entries.forEach { provider ->
+                        DropdownMenuItem(
+                            text = { Text(provider.name) },
+                            onClick = {
+                                sttProvider = provider
+                                sttProviderExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (sttProvider == AudioProvider.API) {
+                OutlinedTextField(
+                    value = sttApiBaseUrl,
+                    onValueChange = { sttApiBaseUrl = it },
+                    label = { Text("STT API Base URL") },
+                    singleLine = true,
+                    placeholder = { Text("http://10.0.2.2:8969/v1") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // STT model dropdown
+                ExposedDropdownMenuBox(
+                    expanded = sttModelExpanded,
+                    onExpandedChange = { sttModelExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = sttApiModel.ifEmpty { "(select model)" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("STT Model") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttModelExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = sttModelExpanded,
+                        onDismissRequest = { sttModelExpanded = false }
+                    ) {
+                        if (availableSttModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No models — refresh below") },
+                                onClick = { sttModelExpanded = false }
+                            )
+                        } else {
+                            availableSttModels.forEach { audioModel ->
+                                DropdownMenuItem(
+                                    text = { Text(audioModel.id) },
+                                    onClick = {
+                                        sttApiModel = audioModel.id
+                                        sttModelExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
+                Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
+            }
+
+            OutlinedButton(
+                onClick = {
+                    refreshingModels = true
+                    status = "Refreshing audio models…"
+                    scope.launch {
+                        val (tts, stt) = onRefreshAudioModels(currentSettings())
+                        availableTtsModels = tts
+                        availableSttModels = stt
+                        status = "Found ${tts.size} TTS, ${stt.size} STT models"
+                        refreshingModels = false
+                    }
+                },
+                enabled = !refreshingModels && (ttsApiBaseUrl.isNotBlank() || sttApiBaseUrl.isNotBlank()),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (refreshingModels) "Refreshing…" else "Refresh audio models") }
+
+            // Save / actions
+            HorizontalDivider(thickness = 1.dp)
 
             Button(
                 onClick = {
