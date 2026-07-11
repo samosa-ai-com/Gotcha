@@ -27,18 +27,21 @@ data class ModelInfo(
 /** Categorization of a model from the API. */
 enum class ModelCategory { TTS, STT, UNKNOWN }
 
-/** A discovered audio model with its category. */
+/** A discovered audio model with its category and default voice (TTS only). */
 data class AudioModel(
     val id: String,
-    val category: ModelCategory
+    val category: ModelCategory,
+    /** Available voice IDs for TTS models; first one is the default. */
+    val voices: List<String> = emptyList()
 ) {
+    val defaultVoice: String get() = voices.firstOrNull() ?: "af_heart"
+
     companion object {
         /**
          * Categorize a model by its [task] field (from the API) and fall back
          * to name heuristics when the task field is absent.
          */
         fun categorize(id: String, task: String? = null): ModelCategory {
-            // Prefer the API task field when available
             if (task != null) {
                 val t = task.lowercase().trim()
                 when {
@@ -46,7 +49,6 @@ data class AudioModel(
                     t == "automatic-speech-recognition" || t == "stt" || t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
                 }
             }
-            // Fallback: name heuristics
             val lower = id.lowercase()
             return when {
                 lower.contains("whisper") -> ModelCategory.STT

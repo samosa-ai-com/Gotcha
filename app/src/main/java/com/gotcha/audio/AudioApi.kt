@@ -33,7 +33,6 @@ class AudioApi(
             .writeTimeout(timeoutSeconds * 2, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                // Only add auth header if a real API key is provided
                 if (apiKey.isNotBlank()) {
                     request.addHeader("Authorization", "Bearer $apiKey")
                 }
@@ -61,9 +60,18 @@ class AudioApi(
             (0 until data.length()).mapNotNull { i ->
                 val obj = data.optJSONObject(i) ?: return@mapNotNull null
                 val id = obj.optString("id", "") ?: return@mapNotNull null
-                // Parse the task field — this is the most reliable signal
                 val task = obj.optString("task", null)
-                AudioModel(id, AudioModel.categorize(id, task))
+                val category = AudioModel.categorize(id, task)
+                // Parse voice list for TTS models
+                val voices = if (category == ModelCategory.TTS) {
+                    val voicesArr = obj.optJSONArray("voices")
+                    if (voicesArr != null) {
+                        (0 until voicesArr.length()).mapNotNull { j ->
+                            voicesArr.optJSONObject(j)?.optString("id", null)
+                        }
+                    } else emptyList()
+                } else emptyList()
+                AudioModel(id, category, voices)
             }
         } catch (e: Exception) {
             Log.e("AudioApi", "Failed to list models", e)
@@ -90,13 +98,16 @@ class AudioApi(
         json.optString("text", "") ?: ""
     }
 
-    /** Text-to-speech: synthesize speech and return audio bytes. */
-    fun synthesize(text: String, model: String, voice: String = ""): Result<ByteArray> = runCatching {
+    /**
+     * Text-to-speech: synthesize speech and return audio bytes.
+     * @param voice must be a valid voice ID from the model's voice list.
+     */
+    fun synthesize(text: String, model: String, voice: String): Result<ByteArray> = runCatching {
         val url = "${baseUrl.trimEnd('/')}/audio/speech"
         val json = JSONObject().apply {
             put("model", model)
             put("input", text)
-            put("voice", voice.ifBlank { "default" })
+            put("voice", voice)
             put("response_format", "wav")
         }
         val requestBody = RequestBody.create(
@@ -107,7 +118,10 @@ class AudioApi(
             .post(requestBody)
             .build()
         val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+        if (!response.isSuccessful) {
+            val errBody = response.body?.string() ?: "no body"
+            throw IOException("HTTP ${response.code}: $errBody")
+        }
         response.body?.bytes() ?: throw IOException("Empty response body")
     }
 

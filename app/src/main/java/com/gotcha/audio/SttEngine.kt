@@ -13,18 +13,24 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Speech-to-Text engine supporting two providers:
- * - Android built-in (SpeechRecognizer API)
- * - API-based (OpenAI-compatible /v1/audio/transcriptions)
+ * Speech-to-Text engine supporting two providers.
+ * Both use a push-to-talk pattern: startRecording() / stopRecording().
+ *
+ * - API provider: records audio via MediaRecorder, transcribes via API
+ * - Android provider: uses SpeechRecognizer (live recognition)
  */
 class SttEngine(
     private val context: Context,
     apiBaseUrl: String = "",
     apiKey: String = ""
 ) {
+    // API STT state
     private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
     private var currentRecorder: MediaRecorder? = null
     private var currentAudioFile: File? = null
+    // Android STT state
+    private var currentRecognizer: SpeechRecognizer? = null
+    private var listenGate: CompletableDeferred<String>? = null
 
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
@@ -43,43 +49,9 @@ class SttEngine(
         audioApi = if (baseUrl.isNotBlank()) AudioApi(baseUrl, apiKey) else null
     }
 
-    /**
-     * Transcribe audio using Android SpeechRecognizer.
-     * Returns the recognized text, or empty string on failure.
-     */
-    suspend fun listenAndroid(): String = withContext(Dispatchers.Main) {
-        val gate = CompletableDeferred<String>()
-        val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
-        val listener = object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onError(error: Int) { gate.complete("") }
-            override fun onResults(results: Bundle?) {
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                gate.complete(matches?.firstOrNull() ?: "")
-            }
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        }
-        recognizer.setRecognitionListener(listener)
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-        }
-        recognizer.startListening(intent)
-        val result = gate.await()
-        recognizer.destroy()
-        result
-    }
+    // ---- API STT (MediaRecorder + transcription) ----
 
-    /**
-     * Start recording audio for API-based STT.
-     * Returns true if recording started successfully.
-     */
+    /** Start recording audio for API-based STT. */
     fun startRecording(): Boolean {
         return try {
             currentAudioFile = File(context.cacheDir, "stt_recording_${System.currentTimeMillis()}.m4a")
@@ -98,16 +70,10 @@ class SttEngine(
         } catch (_: Exception) { false }
     }
 
-    /**
-     * Stop the current recording and return the audio file.
-     * Returns null if no recording was in progress or if an error occurred.
-     */
+    /** Stop recording and return the audio file for API STT. */
     fun stopRecording(): File? {
         return try {
-            currentRecorder?.apply {
-                stop()
-                release()
-            }
+            currentRecorder?.apply { stop(); release() }
             currentRecorder = null
             currentAudioFile
         } catch (_: Exception) {
@@ -116,13 +82,55 @@ class SttEngine(
         }
     }
 
-    /**
-     * Transcribe audio using the API provider.
-     * @param audioFile the recorded audio file to transcribe
-     * @param model the API model ID to use for transcription
-     */
+    /** Transcribe audio using the API provider. */
     suspend fun transcribeApi(audioFile: File, model: String): Result<String> = withContext(Dispatchers.IO) {
         val api = audioApi ?: return@withContext Result.failure(Exception("API not configured"))
         api.transcribe(audioFile, model)
+    }
+
+    // ---- Android STT (SpeechRecognizer) ----
+
+    /** Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening(). */
+    fun startAndroidListening(): Boolean {
+        if (currentRecognizer != null) return false
+        val gate = CompletableDeferred<String>()
+        listenGate = gate
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+        currentRecognizer = recognizer
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                gate.complete("")
+                currentRecognizer?.destroy()
+                currentRecognizer = null
+            }
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                gate.complete(matches?.firstOrNull() ?: "")
+                currentRecognizer?.destroy()
+                currentRecognizer = null
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+        }
+        recognizer.startListening(intent)
+        return true
+    }
+
+    /** Stop Android SpeechRecognizer and return the recognized text. */
+    suspend fun stopAndroidListening(): String {
+        currentRecognizer?.stopListening()
+        // The stopListening() call triggers onResults which completes the gate
+        val result = listenGate?.await() ?: ""
+        listenGate = null
+        return result
     }
 }

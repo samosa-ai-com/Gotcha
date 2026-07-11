@@ -221,8 +221,8 @@ fun ChatScreen(
                                     modifier = Modifier.size(20.dp))
                             }
                         }
-                        state.isRecording -> {
-                            // Recording in progress — show red stop button
+                        state.isRecording || state.isListening -> {
+                            // Recording in progress — show red stop button for both providers
                             Button(
                                 onClick = onStopRecording,
                                 modifier = Modifier.size(40.dp),
@@ -236,9 +236,6 @@ fun ChatScreen(
                                     modifier = Modifier.size(20.dp),
                                     tint = Color.White)
                             }
-                        }
-                        state.isListening -> {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(2.dp))
                         }
                         input.isBlank() && pendingImageBase64 == null -> {
                             IconButton(
