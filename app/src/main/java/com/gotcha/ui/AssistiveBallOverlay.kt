@@ -3,6 +3,7 @@ package com.gotcha.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -13,11 +14,14 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.gotcha.R
 import kotlin.math.abs
 
 /**
@@ -114,18 +118,20 @@ class AssistiveBallOverlay(context: Context) {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun buildBall(): View {
-        val size = dp(56)
-        return TextView(appContext).apply {
-            text = "AI"
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            width = size
-            height = size
-            background = GradientDrawable().apply {
+        return ImageView(appContext).apply {
+            setImageResource(R.mipmap.ic_launcher_round)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            // Clip the square launcher icon into a circular "ball".
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            clipToOutline = true
+            // Subtle rim so the logo reads on any background.
+            foreground = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#6750A4"))
-                setStroke(dp(2), Color.parseColor("#EADDFF"))
+                setStroke(dp(1), Color.parseColor("#66FFFFFF"))
             }
             setOnTouchListener(ballTouchListener())
         }
@@ -340,8 +346,8 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun ballLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            dp(56),
+            dp(56),
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
