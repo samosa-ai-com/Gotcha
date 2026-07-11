@@ -230,6 +230,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val threshold = (settings.maxContextTokens * 0.8).toInt()
         if (activeSessionTokenCount <= threshold) return
 
+        // Pop the latest user message so it isn't lost in the compaction summary
+        val lastMessage = llmHistory.lastOrNull()
+        val preserveLast = if (lastMessage?.role == "user") {
+            llmHistory.removeLast()
+            lastMessage
+        } else null
+
         _uiState.update { it.copy(activity = "Compacting history…") }
         val compactionSystem = ChatMessage(
             role = "system",
@@ -255,13 +262,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (!summary.isNullOrBlank()) {
                 llmHistory.clear()
                 llmHistory.add(ChatMessage(role = "assistant", content = summary))
+                if (preserveLast != null) {
+                    llmHistory.add(preserveLast)
+                }
                 activeSessionTokenCount = response.usage?.totalTokens ?: 0
                 updateContextUsage()
                 // Show the compacted message in the chat UI as an assistant message
                 appendUi(MessageKind.ASSISTANT, "[System: History Compacted]\n$summary")
+            } else if (preserveLast != null) {
+                llmHistory.add(preserveLast)
             }
         } catch (e: Exception) {
-            // If compaction fails, we just continue with normal truncated history
+            // If compaction fails, restore the user message
+            if (preserveLast != null) {
+                llmHistory.add(preserveLast)
+            }
         }
     }
 
