@@ -98,14 +98,52 @@ class AssistiveBallService : Service() {
     // ---- Option 3: open chat ----
 
     private fun openChat() {
-        val intent = Intent(this, MainActivity::class.java)
-            .addFlags(
+        android.util.Log.d("AssistiveBall", "openChat requested")
+        val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP
             )
-            .putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
-        startActivity(intent)
+            putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
+        } ?: Intent(this, MainActivity::class.java).apply {
+            setAction(Intent.ACTION_MAIN)
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+            )
+            putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
+        }
+        
+        try {
+            val pendingIntent = PendingIntent.getActivity(
+                this,
+                1,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val options = android.app.ActivityOptions.makeBasic()
+                options.pendingIntentBackgroundActivityStartMode = 
+                    android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                pendingIntent.send(this, 0, null, null, null, null, options.toBundle())
+                android.util.Log.d("AssistiveBall", "PendingIntent sent with ActivityOptions")
+            } else {
+                pendingIntent.send()
+                android.util.Log.d("AssistiveBall", "PendingIntent sent")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AssistiveBall", "PendingIntent.send() failed", e)
+            try {
+                startActivity(intent)
+                android.util.Log.d("AssistiveBall", "startActivity() called as fallback")
+            } catch (e2: Exception) {
+                android.util.Log.e("AssistiveBall", "startActivity() also failed", e2)
+            }
+        }
     }
 
     // ---- Options 1 & 2: press & talk ----
