@@ -25,6 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
+import com.gotcha.audio.AudioApi
+import com.gotcha.audio.AudioModel
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
@@ -168,7 +170,19 @@ class MainActivity : ComponentActivity() {
                             context = this@MainActivity
                         ).clearCache()
                     },
-                    onBack = { currentRoute = Route.SESSIONS }
+                    onBack = { currentRoute = Route.SESSIONS },
+                    onRefreshAudioModels = { s ->
+                        val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
+                        val ttsAll = ttsApi.listAudioModels()
+                        val ttsModels = ttsAll.filter { it.category == com.gotcha.audio.ModelCategory.TTS }
+                        val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
+                            val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
+                            sttApi.listAudioModels().filter { it.category == com.gotcha.audio.ModelCategory.STT }
+                        } else {
+                            ttsAll.filter { it.category == com.gotcha.audio.ModelCategory.STT }
+                        }
+                        Pair(ttsModels, sttModels)
+                    }
                 )
             }
             Route.SESSIONS -> {
@@ -199,7 +213,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenSettings = { currentRoute = Route.SETTINGS },
                     onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
-                    onSwitchAgent = chatViewModel::switchAgent
+                    onSwitchAgent = chatViewModel::switchAgent,
+                    onSpeak = chatViewModel::speak,
+                    onStartListening = chatViewModel::startListening
                 )
             }
         }

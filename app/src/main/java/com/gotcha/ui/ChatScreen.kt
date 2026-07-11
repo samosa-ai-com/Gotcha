@@ -64,7 +64,9 @@ fun ChatScreen(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onPickImage: (Uri) -> String?,
-    onSwitchAgent: () -> Unit
+    onSwitchAgent: () -> Unit,
+    onSpeak: (String) -> Unit = {},
+    onStartListening: () -> Unit = {}
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
@@ -118,7 +120,7 @@ fun ChatScreen(
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
                 items(state.messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+                    MessageBubble(message = message, onSpeak = onSpeak)
                 }
             }
 
@@ -180,6 +182,16 @@ fun ChatScreen(
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (state.isListening) {
+                    CircularProgressIndicator(modifier = Modifier.size(36.dp).padding(4.dp))
+                } else {
+                    IconButton(
+                        onClick = onStartListening,
+                        enabled = !state.isBusy && state.isConfigured
+                    ) {
+                        Text("🎤", style = MaterialTheme.typography.titleLarge)
+                    }
+                }
                 IconButton(
                     onClick = { imagePickerLauncher.launch("image/*") },
                     enabled = !state.isBusy && state.isConfigured

@@ -6,6 +6,10 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.AudioModel
+import com.gotcha.audio.SttEngine
+import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
@@ -73,7 +77,11 @@ data class ChatUiState(
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.OPERATOR,
-    val contextUsagePercent: Float = 0f
+    val contextUsagePercent: Float = 0f,
+    // TTS / STT state
+    val isListening: Boolean = false,
+    val ttsModels: List<AudioModel> = emptyList(),
+    val sttModels: List<AudioModel> = emptyList()
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -86,6 +94,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
+    private val ttsEngine: TtsEngine = TtsEngine(
+        getApplication(), settings.ttsApiBaseUrl, settings.apiKey
+    )
+    private val sttEngine: SttEngine = SttEngine(
+        getApplication(), settings.sttApiBaseUrl, settings.apiKey
+    )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
     @Volatile
@@ -148,6 +162,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 apiTimeoutSeconds = settings.apiTimeoutSeconds
             )
         } else null
+        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.apiKey)
+        sttEngine.configureApi(settings.sttApiBaseUrl, settings.apiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
     }
 
@@ -227,6 +243,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
     fun setForeground(foreground: Boolean) {
         appInForeground = foreground
+    }
+
+    /** Speak the given text aloud using the configured TTS provider. */
+    fun speak(text: String) {
+        viewModelScope.launch {
+            ttsEngine.speak(
+                text = text,
+                provider = settings.ttsProvider,
+                apiModel = settings.ttsApiModel
+            )
+        }
+    }
+
+    /** Start listening for speech input using the configured STT provider. */
+    fun startListening() {
+        if (_uiState.value.isListening) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isListening = true) }
+            val transcript = when (settings.sttProvider) {
+                AudioProvider.ANDROID -> sttEngine.listenAndroid()
+                AudioProvider.API -> {
+                    val audioFile = sttEngine.recordAudio(5000)
+                    if (audioFile != null && settings.sttApiModel.isNotBlank()) {
+                        sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                            .getOrDefault("")
+                    } else ""
+                }
+                AudioProvider.NONE -> ""
+            }
+            _uiState.update { it.copy(isListening = false) }
+            if (transcript.isNotBlank()) {
+                sendMessage(transcript)
+            }
+        }
+    }
+
+    /** Refresh available TTS/STT models from the API. */
+    fun refreshAudioModels() {
+        viewModelScope.launch {
+            val ttsModels = ttsEngine.refreshApiModels()
+            val sttModels = sttEngine.refreshApiModels()
+            _uiState.update { it.copy(ttsModels = ttsModels, sttModels = sttModels) }
+        }
     }
 
     /** Switch between Monitor (read-only) and Operator (full) agent mode mid-conversation. */
@@ -396,6 +455,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val content = message.textContent.ifEmpty { "(no reply)" }
                 llmHistory += ChatMessage(role = "assistant", content = JsonPrimitive(content))
                 appendUi(MessageKind.ASSISTANT, content)
+                if (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE) {
+                    speak(content)
+                }
                 return
             }
 
