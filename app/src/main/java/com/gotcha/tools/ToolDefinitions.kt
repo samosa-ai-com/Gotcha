@@ -682,6 +682,26 @@ object ToolDefinitions {
         }
     )
 
+    val webFetch = tool(
+        "webfetch",
+        "Fetch content from an HTTP or HTTPS URL and return it as text. " +
+            "Use this to look up documentation, read articles, or gather information from the web. " +
+            "Only text responses (HTML, JSON, XML) are supported; binary content is rejected.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("url") {
+                    put("type", "string")
+                    put("description", "HTTP or HTTPS URL to fetch.")
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put("description", "Optional output format: 'text' (default) or 'markdown'. Currently always returns text.")
+                }
+            }
+            putJsonArray("required") { add("url") }
+        }
+    )
+
     val readImage = tool(
         "read_image",
         "Read an image file from an allowed directory and feed its visual content to the " +
@@ -984,6 +1004,8 @@ object ToolDefinitions {
         edit,
         // Content search and file discovery
         glob, grep,
+        // Web fetching
+        webFetch,
         // Image reading (available to both Monitor and Operator)
         readImage,
         // Tier 3 additions
