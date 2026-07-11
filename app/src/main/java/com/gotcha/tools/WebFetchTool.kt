@@ -19,6 +19,7 @@ class WebFetchTool {
         .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     fun fetch(url: String, format: String?): ToolResult {
@@ -31,7 +32,9 @@ class WebFetchTool {
         return try {
             val request = Request.Builder()
                 .url(trimmed)
-                .header("User-Agent", "Gotcha/0.1.0")
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "en-US,en;q=0.9")
                 .build()
 
             val response = client.newCall(request).execute()
@@ -42,19 +45,18 @@ class WebFetchTool {
             }
 
             val contentType = body.contentType()
-            val mime = contentType?.type?.lowercase() + "/" + contentType?.subtype?.lowercase()
+            val mime = if (contentType != null) {
+                "${contentType.type?.lowercase() ?: "text"}/${contentType.subtype?.lowercase() ?: "html"}"
+            } else "text/html"
 
-            // Reject binary content
-            if (!mime.startsWith("text/") && mime != "application/json" && mime != "application/xml") {
+            // Accept text/*, application/json, application/xml. Reject pure binary.
+            val accepted = mime.startsWith("text/") ||
+                mime in listOf("application/json", "application/xml", "application/xhtml+xml")
+            if (!accepted) {
                 return ToolResult.error("Unsupported content type: $mime. Only text responses are supported.")
             }
 
-            val source = body.source()
-            val buffer = okio.Buffer()
-            source.read(buffer, MAX_RESPONSE_BYTES.toLong())
-            source.close()
-
-            val raw = buffer.readString(Charsets.UTF_8)
+            val raw = body.string()
             val truncated = raw.length > MAX_RESPONSE_BYTES
 
             val output = if (truncated) {
