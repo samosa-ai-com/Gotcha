@@ -584,6 +584,31 @@ object ToolDefinitions {
         }
     )
 
+    val question = tool(
+        "question",
+        "Ask the user a question when you need clarification, a decision, or more information " +
+            "to proceed. Provide clear, concise options when possible. " +
+            "Use this instead of guessing the user's intent.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("question") {
+                    put("type", "string")
+                    put("description", "The question to ask the user.")
+                }
+                putJsonObject("options") {
+                    put("type", "array")
+                    put("description", "Optional predefined answer choices (max 10).")
+                    putJsonObject("items") { put("type", "string") }
+                }
+                putJsonObject("allowCustom") {
+                    put("type", "boolean")
+                    put("description", "Allow the user to type a custom answer. Default true.")
+                }
+            }
+            putJsonArray("required") { add("question") }
+        }
+    )
+
     val todowrite = tool(
         "todowrite",
         "Create and maintain a structured task list for the current session. " +
@@ -951,6 +976,8 @@ object ToolDefinitions {
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // User interaction
+        question,
         // Task tracking
         todowrite,
         // Surgical file editing (Operator only)

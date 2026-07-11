@@ -35,6 +35,7 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val questionTool = QuestionTool()
     private val todoTool = TodoTool()
     private val editTool = EditTool(appContext)
     private val globTool = GlobTool(appContext)
@@ -141,6 +142,11 @@ class ToolExecutor(context: Context) {
         "take_photo" -> mediaCaptureTool.takePhoto()
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        "question" -> questionTool.ask(
+            question = args.requireString("question") ?: return missing("question"),
+            options = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
+            allowCustom = args["allowCustom"]?.jsonPrimitive?.booleanOrNull ?: true
+        )
         "todowrite" -> todoTool.todowrite(
             parseTodoItems(args["items"]) ?: return missing("items")
         )

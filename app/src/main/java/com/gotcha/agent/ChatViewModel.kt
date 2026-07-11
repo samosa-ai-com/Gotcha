@@ -56,11 +56,19 @@ data class PendingConfirmation(
     val description: String
 )
 
+/** A question the agent is asking the user mid-task. */
+data class PendingQuestion(
+    val question: String,
+    val options: List<String> = emptyList(),
+    val allowCustom: Boolean = true
+)
+
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val isBusy: Boolean = false,
     val activity: String? = null, // e.g. "Running: toggle_dark_mode…"
     val pendingConfirmation: PendingConfirmation? = null,
+    val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val contextUsagePercent: Float = 0f
@@ -87,6 +95,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var activeSessionTokenCount: Int = 0
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
+    private var questionGate: CompletableDeferred<String>? = null
     private var agentJob: Job? = null
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -205,6 +214,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(pendingConfirmation = null) }
         confirmationGate?.complete(approved)
         confirmationGate = null
+    }
+
+    fun submitAnswer(answer: String?) {
+        _uiState.update { it.copy(pendingQuestion = null) }
+        questionGate?.complete(answer ?: "")
+        questionGate = null
     }
 
     /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
@@ -382,6 +397,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (result.success && result.message.startsWith("IMAGE_DATA:")) {
                     handleImageResult(call, result)
+                } else if (result.success && result.message.startsWith("QUESTION:")) {
+                    handleQuestionResult(call, result)
                 } else {
                     llmHistory += ChatMessage(
                         role = "tool",
@@ -496,6 +513,57 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             toolCallId = call.id
         )
         appendUi(MessageKind.TOOL, "${call.function.name}: Read image $filename ($dimensions)")
+    }
+
+    /**
+     * Handles a tool result that contains a question (prefixed with QUESTION:).
+     * Shows the question to the user in a dialog, waits for their answer,
+     * and returns the answer as the tool result.
+     *
+     * Format: QUESTION:<question>\n--OPTIONS--\nopt1\nopt2\n--ALLOW_CUSTOM--\ntrue
+     */
+    private suspend fun handleQuestionResult(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("QUESTION:")
+        val question: String
+        val options: List<String>
+        val allowCustom: Boolean
+
+        val optionsMarker = "\n--OPTIONS--\n"
+        val customMarker = "\n--ALLOW_CUSTOM--\n"
+
+        if (body.contains(optionsMarker)) {
+            val before = body.substringBefore(optionsMarker)
+            val after = body.substringAfter(optionsMarker)
+            question = before
+            if (after.contains(customMarker)) {
+                options = after.substringBefore(customMarker).split("\n").filter { it.isNotBlank() }
+                allowCustom = after.substringAfter(customMarker).trim().toBooleanStrictOrNull() ?: true
+            } else {
+                options = after.split("\n").filter { it.isNotBlank() }
+                allowCustom = true
+            }
+        } else {
+            question = body.substringBefore(customMarker)
+            allowCustom = body.substringAfter(customMarker).trim().toBooleanStrictOrNull() ?: true
+            options = emptyList()
+        }
+
+        val gate = CompletableDeferred<String>()
+        questionGate = gate
+        _uiState.update { it.copy(activity = null, pendingQuestion = PendingQuestion(question, options, allowCustom)) }
+
+        val answer = withTimeoutOrNull(120_000L) { gate.await() } ?: ""
+
+        _uiState.update { it.copy(pendingQuestion = null) }
+        questionGate = null
+
+        val displayAnswer = answer.ifBlank { "(no response)" }
+        appendUi(MessageKind.TOOL, "${call.function.name}: User answered: $displayAnswer")
+        llmHistory += ChatMessage(
+            role = "tool",
+            content = JsonPrimitive("The user answered: $displayAnswer"),
+            toolCallId = call.id
+        )
     }
 
     private suspend fun executeCall(call: ToolCall): ToolResult {

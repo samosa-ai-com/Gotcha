@@ -192,6 +192,7 @@ class MainActivity : ComponentActivity() {
                     onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
                     onStop = chatViewModel::stopAgent,
                     onConfirm = chatViewModel::confirmPendingActions,
+                    onAnswer = chatViewModel::submitAnswer,
                     onBack = { 
                         chatViewModel.refreshSessions()
                         currentRoute = Route.SESSIONS 

@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
+import com.gotcha.agent.PendingQuestion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +58,7 @@ fun ChatScreen(
     onSend: (String, String?) -> Unit,
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
+    onAnswer: (String?) -> Unit,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onPickImage: (Uri) -> String?
@@ -220,6 +223,38 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(onClick = { onConfirm(false) }) { Text("Deny") }
             }
+        )
+    }
+
+    if (state.pendingQuestion != null) {
+        val pending = state.pendingQuestion!!
+        var customAnswer by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { onAnswer(null) },
+            title = { Text(pending.question) },
+            text = {
+                Column {
+                    if (pending.options.isNotEmpty()) {
+                        pending.options.forEach { option ->
+                            Button(onClick = { onAnswer(option) }, modifier = Modifier.fillMaxWidth()) {
+                                Text(option)
+                            }
+                        }
+                    }
+                    if (pending.allowCustom || pending.options.isEmpty()) {
+                        OutlinedTextField(
+                            value = customAnswer,
+                            onValueChange = { customAnswer = it },
+                            label = { Text("Your answer") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(onClick = { onAnswer(customAnswer.trim()) }, enabled = customAnswer.isNotBlank()) {
+                            Text("Submit")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
         )
     }
 }
