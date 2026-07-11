@@ -1,8 +1,8 @@
 package com.gotcha.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,11 +14,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
@@ -26,6 +30,7 @@ import com.gotcha.agent.UiMessage
 @Composable
 fun MessageBubble(message: UiMessage) {
     val isUser = message.kind == MessageKind.USER
+    val isTool = message.kind == MessageKind.TOOL
     val colors = MaterialTheme.colorScheme
     val (container, contentColor) = when (message.kind) {
         MessageKind.USER -> colors.primaryContainer to colors.onPrimaryContainer
@@ -33,6 +38,7 @@ fun MessageBubble(message: UiMessage) {
         MessageKind.TOOL -> colors.secondaryContainer to colors.onSecondaryContainer
         MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
     }
+    val expanded = remember { mutableStateOf(!isTool) }
 
     Row(
         modifier = Modifier
@@ -50,8 +56,12 @@ fun MessageBubble(message: UiMessage) {
                 bottomEnd = if (isUser) 4.dp else 16.dp
             )
         ) {
-            Column(modifier = Modifier.widthIn(max = 300.dp).padding(12.dp)) {
-                // Show attached image if present
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .then(if (isTool) Modifier.clickable { expanded.value = !expanded.value } else Modifier)
+                    .padding(12.dp)
+            ) {
                 message.imageBase64?.let { base64 ->
                     val bitmap = try {
                         val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
@@ -70,16 +80,33 @@ fun MessageBubble(message: UiMessage) {
                     }
                 }
                 if (message.text.isNotEmpty()) {
-                    Text(
-                        text = when (message.kind) {
-                            MessageKind.TOOL -> "🔧 ${message.text}"
-                            else -> message.text
-                        },
-                        style = when (message.kind) {
-                            MessageKind.TOOL -> MaterialTheme.typography.bodySmall
-                            else -> MaterialTheme.typography.bodyMedium
+                    val displayText = if (isTool) "🔧 ${message.text}" else message.text
+                    val firstLine = displayText.substringBefore("\n").trimEnd()
+                    val hasMore = displayText.contains("\n")
+
+                    if (isTool && !expanded.value) {
+                        Text(
+                            text = firstLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (hasMore) {
+                            Text(
+                                text = "… tap to expand",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = contentColor.copy(alpha = 0.6f)
+                            )
                         }
-                    )
+                    } else {
+                        Text(
+                            text = displayText,
+                            style = when (message.kind) {
+                                MessageKind.TOOL -> MaterialTheme.typography.bodySmall
+                                else -> MaterialTheme.typography.bodyMedium
+                            }
+                        )
+                    }
                 }
             }
         }
