@@ -32,9 +32,12 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
+import com.gotcha.ui.SessionsScreen
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
 import kotlinx.coroutines.launch
+
+enum class Route { SESSIONS, CHAT, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -140,35 +143,61 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun GotchaApp() {
         val state by chatViewModel.uiState.collectAsState()
-        // Route straight to settings until an API key exists (Phase 6 gating).
-        var showSettings by remember { mutableStateOf(!settingsRepository.load().isConfigured) }
+        val sessions by chatViewModel.sessions.collectAsState()
+        
+        var currentRoute by remember { 
+            mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS) 
+        }
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
-        if (showSettings) {
-            SettingsScreen(
-                initial = settingsRepository.load(),
-                onSave = { settings ->
-                    settingsRepository.save(settings)
-                    chatViewModel.refreshSettings()
-                },
-                onTestConnection = ::testConnection,
-                onClearLlmCache = {
-                    LLMClient(
-                        apiKey = "unused", baseUrl = "http://localhost/",
-                        context = this@MainActivity
-                    ).clearCache()
-                },
-                onBack = { showSettings = false }
-            )
-        } else {
-            ChatScreen(
-                state = state,
-                onSend = chatViewModel::sendMessage,
-                onConfirm = chatViewModel::confirmPendingActions,
-                onClearChat = chatViewModel::clearChat,
-                onOpenSettings = { showSettings = true }
-            )
+        when (currentRoute) {
+            Route.SETTINGS -> {
+                SettingsScreen(
+                    initial = settingsRepository.load(),
+                    onSave = { settings ->
+                        settingsRepository.save(settings)
+                        chatViewModel.refreshSettings()
+                        currentRoute = Route.SESSIONS
+                    },
+                    onTestConnection = ::testConnection,
+                    onClearLlmCache = {
+                        LLMClient(
+                            apiKey = "unused", baseUrl = "http://localhost/",
+                            context = this@MainActivity
+                        ).clearCache()
+                    },
+                    onBack = { currentRoute = Route.SESSIONS }
+                )
+            }
+            Route.SESSIONS -> {
+                SessionsScreen(
+                    sessions = sessions,
+                    onSessionClick = { id -> 
+                        chatViewModel.openSession(id)
+                        currentRoute = Route.CHAT
+                    },
+                    onDeleteSession = chatViewModel::deleteSession,
+                    onNewChat = {
+                        chatViewModel.openSession(null)
+                        currentRoute = Route.CHAT
+                    },
+                    onOpenSettings = { currentRoute = Route.SETTINGS }
+                )
+            }
+            Route.CHAT -> {
+                ChatScreen(
+                    state = state,
+                    onSend = chatViewModel::sendMessage,
+                    onStop = chatViewModel::stopAgent,
+                    onConfirm = chatViewModel::confirmPendingActions,
+                    onBack = { 
+                        chatViewModel.refreshSessions()
+                        currentRoute = Route.SESSIONS 
+                    },
+                    onOpenSettings = { currentRoute = Route.SETTINGS }
+                )
+            }
         }
     }
 
@@ -178,7 +207,8 @@ class MainActivity : ComponentActivity() {
             apiKey = settings.apiKey,
             baseUrl = settings.baseUrl,
             model = settings.model,
-            context = this
+            context = this,
+            apiTimeoutSeconds = settings.apiTimeoutSeconds
         )
         val response = client.chat(
             messages = listOf(ChatMessage(role = "user", content = "Reply with the single word: pong")),

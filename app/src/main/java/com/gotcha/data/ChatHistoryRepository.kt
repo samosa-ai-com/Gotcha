@@ -8,34 +8,63 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
 
+import kotlinx.serialization.Serializable
+import java.util.UUID
+
+@Serializable
+data class ChatSession(
+    val id: String,
+    val title: String,
+    val lastModified: Long,
+    val messages: List<ChatMessage>,
+    val tokenCount: Int = 0
+)
+
 /**
- * Persists the single conversation (LLM-shaped messages, including tool
- * calls/results) as JSON in the app sandbox so history survives restarts.
+ * Persists multiple chat sessions as JSON files in a dedicated 'chats' directory.
  */
 class ChatHistoryRepository(context: Context) {
 
-    private val file = File(context.filesDir, "chat_history.json")
+    private val chatsDir = File(context.filesDir, "chats").apply { mkdirs() }
     private val json = Json { ignoreUnknownKeys = true }
-    private val serializer = ListSerializer(ChatMessage.serializer())
+    private val serializer = ChatSession.serializer()
+    
+    suspend fun listSessions(): List<ChatSession> = withContext(Dispatchers.IO) {
+        chatsDir.listFiles()
+            ?.filter { it.extension == "json" }
+            ?.mapNotNull { file ->
+                try {
+                    val session = json.decodeFromString(serializer, file.readText())
+                    // Only return metadata-light clone if desired, but we just return full for now
+                    session
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            ?.sortedByDescending { it.lastModified }
+            ?: emptyList()
+    }
 
-    suspend fun load(): List<ChatMessage> = withContext(Dispatchers.IO) {
-        if (!file.exists()) return@withContext emptyList()
+    suspend fun loadSession(id: String): ChatSession? = withContext(Dispatchers.IO) {
+        val file = File(chatsDir, "$id.json")
+        if (!file.exists()) return@withContext null
         try {
             json.decodeFromString(serializer, file.readText())
         } catch (e: Exception) {
-            emptyList() // corrupt history is dropped rather than crashing
+            null
         }
     }
 
-    suspend fun save(messages: List<ChatMessage>) = withContext(Dispatchers.IO) {
+    suspend fun saveSession(session: ChatSession) = withContext(Dispatchers.IO) {
         try {
-            file.writeText(json.encodeToString(serializer, messages))
+            val file = File(chatsDir, "${session.id}.json")
+            file.writeText(json.encodeToString(serializer, session.copy(lastModified = System.currentTimeMillis())))
         } catch (_: Exception) {
-            // Persistence is best-effort.
+            // Best-effort
         }
     }
 
-    suspend fun clear() = withContext(Dispatchers.IO) {
-        file.delete()
+    suspend fun deleteSession(id: String) = withContext(Dispatchers.IO) {
+        File(chatsDir, "$id.json").delete()
     }
 }

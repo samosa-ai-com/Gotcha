@@ -13,6 +13,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,8 +41,9 @@ import com.gotcha.agent.ChatUiState
 fun ChatScreen(
     state: ChatUiState,
     onSend: (String) -> Unit,
+    onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
-    onClearChat: () -> Unit,
+    onBack: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     var input by rememberSaveable { mutableStateOf("") }
@@ -53,14 +59,23 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Gotcha") },
+                navigationIcon = {
+                    IconButton(onClick = onBack, enabled = !state.isBusy) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 actions = {
-                    TextButton(onClick = onClearChat, enabled = !state.isBusy) { Text("Clear") }
                     TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LinearProgressIndicator(
+                progress = { state.contextUsagePercent },
+                modifier = Modifier.fillMaxWidth(),
+                color = if (state.contextUsagePercent > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth()
@@ -103,14 +118,20 @@ fun ChatScreen(
                     maxLines = 4
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        onSend(input)
-                        input = ""
-                    },
-                    enabled = !state.isBusy && state.isConfigured && input.isNotBlank()
-                ) {
-                    Text("Send")
+                if (state.isBusy) {
+                    Button(onClick = onStop) {
+                        Text("Stop")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            onSend(input)
+                            input = ""
+                        },
+                        enabled = state.isConfigured && input.isNotBlank()
+                    ) {
+                        Text("Send")
+                    }
                 }
             }
         }
