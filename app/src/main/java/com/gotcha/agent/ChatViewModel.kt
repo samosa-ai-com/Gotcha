@@ -147,9 +147,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 appendUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
-                saveCurrentSession()
-                _uiState.update { it.copy(isBusy = false, activity = null) }
-                agentJob = null
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    saveCurrentSession()
+                    _uiState.update { it.copy(isBusy = false, activity = null) }
+                    agentJob = null
+                }
             }
         }
     }
@@ -274,6 +276,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } else if (preserveLast != null) {
                 llmHistory.add(preserveLast)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // If compaction fails, restore the user message
             if (preserveLast != null) {
@@ -291,6 +295,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
             val response = try {
                 llm.chat(systemPrompt() + trimmedHistory(), ToolRegistry.allDefinitions())
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 appendUi(MessageKind.ERROR, friendlyError(e))
                 return
