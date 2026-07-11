@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -138,18 +139,31 @@ class AssistiveBallService : Service() {
                     overlay.showError("I didn't catch that. Try again.")
                     return@launch
                 }
-                overlay.showThinking()
 
                 var screenshot: String? = null
                 var screenText: String? = null
                 if (withScreen) {
-                    // If neither a screenshot (API 30+) nor on-screen text (accessibility)
-                    // is available, we degrade gracefully to a plain question.
+                    // Screen questions require the accessibility service (it provides both
+                    // the screenshot and the on-screen text). Guide the user if it's off.
+                    if (!quickAsk.isAccessibilityAvailable()) {
+                        overlay.showError(
+                            "I can't see your screen yet. Turn on Gotcha under " +
+                                "Settings ▸ Accessibility, then use Screen Share again. " +
+                                "(For a screen-free question, use the Talk option.)"
+                        )
+                        return@launch
+                    }
+                    // Hide our own overlays so they aren't captured, and let the compositor
+                    // paint a clean frame of the underlying app before we grab it.
+                    overlay.hideChromeForCapture()
+                    delay(350)
                     screenshot = quickAsk.captureScreenBase64()
                     screenText = quickAsk.captureScreenText()
+                    overlay.showChromeAfterCapture()
                 }
 
-                val answer = quickAsk.ask(question, screenshot, screenText)
+                overlay.showThinking()
+                val answer = quickAsk.ask(question, screenshot, screenText, screenRequested = withScreen)
                 overlay.showAnswer(answer)
                 quickAsk.speak(answer)
             } catch (e: Exception) {

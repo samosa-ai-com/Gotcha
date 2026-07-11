@@ -11,6 +11,7 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.service.GotchaAccessibilityService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import java.io.ByteArrayOutputStream
@@ -68,15 +69,26 @@ class QuickAskEngine(
         }
     }
 
+    /** True when the Gotcha accessibility service is enabled and bound. */
+    fun isAccessibilityAvailable(): Boolean = GotchaAccessibilityService.instance != null
+
     /**
      * Capture the current screen as a downscaled JPEG base64 string via the
      * accessibility screenshot API (API 30+). Returns null if unavailable
      * (older API, service not bound, or capture failed).
+     *
+     * The accessibility screenshot API is rate-limited (roughly one call per second),
+     * so a single failure is retried once after a short delay.
      */
     suspend fun captureScreenBase64(): String? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         val service = GotchaAccessibilityService.instance ?: return null
-        val bitmap = service.takeScreenshotBitmap() ?: return null
+        var bitmap = service.takeScreenshotBitmap()
+        if (bitmap == null) {
+            delay(1100) // clear the screenshot rate-limit window, then retry once
+            bitmap = service.takeScreenshotBitmap()
+        }
+        if (bitmap == null) return null
         return withContext(Dispatchers.Default) {
             try {
                 val maxDim = 1024
@@ -106,10 +118,27 @@ class QuickAskEngine(
     /**
      * Run a single LLM turn for [question], optionally grounded in a screenshot and/or
      * on-screen text. Returns the assistant's answer text, or throws on network/API error.
+     *
+     * When [screenRequested] is true but neither a screenshot nor screen text was captured,
+     * the model is told it could not read the screen — so it says so plainly instead of
+     * hallucinating a generic screen.
      */
-    suspend fun ask(question: String, screenshotBase64: String?, screenText: String?): String {
+    suspend fun ask(
+        question: String,
+        screenshotBase64: String?,
+        screenText: String?,
+        screenRequested: Boolean = false
+    ): String {
         val llm = llmProvider() ?: throw IllegalStateException("Not configured")
-        val system = ChatMessage(role = "system", content = JsonPrimitive(SYSTEM_PROMPT))
+
+        val noScreenCaptured = screenshotBase64 == null && screenText.isNullOrBlank()
+        val systemText = if (screenRequested && noScreenCaptured) {
+            SYSTEM_PROMPT + "\n\nNOTE: The user asked about their screen, but no screenshot or " +
+                "on-screen text could be captured this time. Tell them briefly that you " +
+                "couldn't read the screen right now, then help as best you can. Do NOT invent or " +
+                "guess what is on the screen."
+        } else SYSTEM_PROMPT
+        val system = ChatMessage(role = "system", content = JsonPrimitive(systemText))
 
         val userText = buildString {
             if (!screenText.isNullOrBlank()) {

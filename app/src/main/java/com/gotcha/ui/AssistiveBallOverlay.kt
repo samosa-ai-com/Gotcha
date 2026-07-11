@@ -81,6 +81,28 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
+    // ---- Capture chrome ----
+
+    /**
+     * Hide all of our own overlay windows (menu, status card, and the ball) so they are
+     * not baked into a screen capture taken for the "screen share" flow. Call
+     * [showChromeAfterCapture] once the screenshot has been taken.
+     */
+    fun hideChromeForCapture() {
+        mainHandler.post {
+            removeMenu()
+            removeCard()
+            ballView?.visibility = View.GONE
+        }
+    }
+
+    /** Restore the ball after a capture (the status card is shown separately). */
+    fun showChromeAfterCapture() {
+        mainHandler.post {
+            ballView?.visibility = View.VISIBLE
+        }
+    }
+
     // ---- Status / answer card ----
 
     fun showListening() = showCard("Listening… release to send", showClose = false)
