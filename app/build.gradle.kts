@@ -85,6 +85,9 @@ dependencies {
     // Secure storage
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // HTML parsing for webfetch tool
+    implementation("org.jsoup:jsoup:1.17.2")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
