@@ -236,8 +236,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             content = "You are an advanced context compaction agent. Your task is to compress the preceding conversation history into a highly dense, structured continuation summary. You must preserve critical context, decisions, and codebase states while eliminating conversational filler and repetitive tool logs.\n\nGenerate a structured summary containing exactly the following sections:\n1. **Goal**: What is the ultimate objective of this engineering session?\n2. **Instructions & Constraints**: What specific guidelines, patterns, user preferences, or technical limitations have been established?\n3. **Discoveries & Architecture**: What have we learned about the codebase? Detail any symbol mappings, logic structures, or debugging conclusions.\n4. **Accomplished**: What changes have already been completely implemented, verified, or fixed?\n5. **Relevant Files**: Which files are currently being modified or are active in the workspace?\n\nCRITICAL: Do not lose technical specifics, user-stated constraints, or deep investigation states.\n\nContinue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
         )
 
+        val historyText = trimmedHistory().joinToString("\n\n") { msg ->
+            val role = msg.role.uppercase()
+            val content = msg.content ?: if (!msg.toolCalls.isNullOrEmpty()) {
+                "Called tools: " + msg.toolCalls.joinToString(", ") { it.function.name }
+            } else ""
+            "[$role]: $content"
+        }
+
+        val requestMessage = ChatMessage(
+            role = "user",
+            content = "Please summarize the following conversation history according to the system prompt instructions:\n\n$historyText"
+        )
+
         try {
-            val response = llm.chat(listOf(compactionSystem) + trimmedHistory())
+            val response = llm.chat(listOf(compactionSystem, requestMessage))
             val summary = response.choices.firstOrNull()?.message?.content
             if (!summary.isNullOrBlank()) {
                 llmHistory.clear()
