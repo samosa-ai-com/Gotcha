@@ -22,6 +22,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -76,6 +79,7 @@ class AssistiveBallService : Service() {
             else -> {
                 startAsForeground()
                 overlay.show()
+                _isRunning.value = true
             }
         }
         return START_STICKY
@@ -84,6 +88,7 @@ class AssistiveBallService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        _isRunning.value = false
         overlay.dismiss()
         ttsEngine.shutdown()
         scope.cancel()
@@ -177,6 +182,10 @@ class AssistiveBallService : Service() {
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
+        // Keep the persisted toggle in sync when the ball is hidden from its own
+        // menu (not just from the in-app toggle), so the app reopens with it off.
+        settingsRepository.save(settingsRepository.load().copy(assistiveBallEnabled = false))
+        _isRunning.value = false
         overlay.dismiss()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -256,6 +265,10 @@ class AssistiveBallService : Service() {
     companion object {
         const val ACTION_START = "com.gotcha.assistiveball.START"
         const val ACTION_STOP = "com.gotcha.assistiveball.STOP"
+
+        private val _isRunning = MutableStateFlow(false)
+        /** Live running state of the ball, so UI toggles can track "Hide ball" too. */
+        val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
         private const val CHANNEL_ID = "assistive_ball"
         private const val NOTIFICATION_ID = 4711
 

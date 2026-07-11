@@ -210,6 +210,14 @@ class MainActivity : ComponentActivity() {
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
+        // Track the service's real state so the toggle updates when the ball is
+        // hidden from its own overlay menu (which stops the service directly).
+        LaunchedEffect(Unit) {
+            AssistiveBallService.isRunning.collect { running ->
+                assistiveBallOn = running
+            }
+        }
+
         // Honor the assistive ball's "Open Chat" option.
         LaunchedEffect(openChatRequested) {
             if (openChatRequested) {
