@@ -13,6 +13,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +43,7 @@ fun ChatScreen(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
-    onClearChat: () -> Unit,
+    onBack: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     var input by rememberSaveable { mutableStateOf("") }
@@ -55,8 +59,12 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Gotcha") },
+                navigationIcon = {
+                    IconButton(onClick = onBack, enabled = !state.isBusy) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
                 actions = {
-                    TextButton(onClick = onClearChat, enabled = !state.isBusy) { Text("Clear") }
                     TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )

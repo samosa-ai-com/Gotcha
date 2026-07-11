@@ -83,6 +83,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    private val _sessions = MutableStateFlow<List<ChatSession>>(emptyList())
+    val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
+
     /** Permission names (or ToolResult.WRITE_SETTINGS) the Activity should request. */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
@@ -103,6 +106,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(activeSessionId = activeSessionId) }
             updateContextUsage()
             rebuildUiMessages()
+            refreshSessions()
         }
     }
 
@@ -177,6 +181,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         activeSessionTokenCount = 0
         _uiState.update { it.copy(messages = emptyList(), activeSessionId = activeSessionId) }
         updateContextUsage()
+    }
+
+    fun refreshSessions() {
+        viewModelScope.launch {
+            _sessions.value = historyRepository.listSessions()
+        }
+    }
+
+    fun openSession(id: String?) {
+        if (_uiState.value.isBusy) return
+        viewModelScope.launch {
+            if (id == null) {
+                clearChat()
+            } else {
+                val session = historyRepository.loadSession(id)
+                if (session != null) {
+                    llmHistory.clear()
+                    llmHistory.addAll(session.messages)
+                    activeSessionId = session.id
+                    activeSessionTokenCount = session.tokenCount
+                    nextId = 0
+                    updateContextUsage()
+                    rebuildUiMessages()
+                }
+            }
+        }
+    }
+
+    fun deleteSession(id: String) {
+        viewModelScope.launch {
+            historyRepository.deleteSession(id)
+            if (activeSessionId == id) {
+                clearChat()
+            }
+            refreshSessions()
+        }
     }
 
     private suspend fun saveCurrentSession() {
