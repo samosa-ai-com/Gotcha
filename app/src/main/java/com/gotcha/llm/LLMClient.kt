@@ -15,6 +15,7 @@ class LLMClient(
     private val baseUrl: String,
     private val model: String = "gpt-4o",
     context: Context? = null,
+    private val apiTimeoutSeconds: Long = 0L,
     private val cache: LLMCache = LLMCache(context)
 ) {
     companion object {
@@ -37,6 +38,9 @@ class LLMClient(
         }
 
         val okHttpClient = OkHttpClient.Builder()
+            .connectTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")

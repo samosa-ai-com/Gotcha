@@ -124,7 +124,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 apiKey = settings.apiKey,
                 baseUrl = settings.baseUrl,
                 model = settings.model,
-                context = getApplication()
+                context = getApplication(),
+                apiTimeoutSeconds = settings.apiTimeoutSeconds
             )
         } else null
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }

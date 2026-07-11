@@ -49,6 +49,7 @@ fun SettingsScreen(
     var confirmSensitive by remember { mutableStateOf(initial.confirmSensitiveActions) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
+    var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
@@ -60,7 +61,8 @@ fun SettingsScreen(
         model = model.trim(),
         confirmSensitiveActions = confirmSensitive,
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
-        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000
+        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000,
+        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
     )
 
     Scaffold(
@@ -119,6 +121,14 @@ fun SettingsScreen(
                 value = maxContextTokens,
                 onValueChange = { maxContextTokens = it },
                 label = { Text("Max context tokens") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = apiTimeoutSeconds,
+                onValueChange = { apiTimeoutSeconds = it },
+                label = { Text("API Timeout (seconds, 0 for infinite)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()

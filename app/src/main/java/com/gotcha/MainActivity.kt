@@ -207,7 +207,8 @@ class MainActivity : ComponentActivity() {
             apiKey = settings.apiKey,
             baseUrl = settings.baseUrl,
             model = settings.model,
-            context = this
+            context = this,
+            apiTimeoutSeconds = settings.apiTimeoutSeconds
         )
         val response = client.chat(
             messages = listOf(ChatMessage(role = "user", content = "Reply with the single word: pong")),
