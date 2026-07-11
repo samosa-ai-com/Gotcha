@@ -237,14 +237,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         try {
-            val response = llm.chat(listOf(compactionSystem) + llmHistory)
+            val response = llm.chat(listOf(compactionSystem) + trimmedHistory())
             val summary = response.choices.firstOrNull()?.message?.content
             if (!summary.isNullOrBlank()) {
                 llmHistory.clear()
                 llmHistory.add(ChatMessage(role = "assistant", content = summary))
                 activeSessionTokenCount = response.usage?.totalTokens ?: 0
                 updateContextUsage()
-                // Keep the UI messages intact for the user, but history is wiped for the agent
+                // Show the compacted message in the chat UI as an assistant message
+                appendUi(MessageKind.ASSISTANT, "[System: History Compacted]\n$summary")
             }
         } catch (e: Exception) {
             // If compaction fails, we just continue with normal truncated history
