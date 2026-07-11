@@ -3,9 +3,12 @@ package com.gotcha.tools
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -32,6 +35,7 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val todoTool = TodoTool()
     private val editTool = EditTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
@@ -137,6 +141,9 @@ class ToolExecutor(context: Context) {
         "take_photo" -> mediaCaptureTool.takePhoto()
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        "todowrite" -> todoTool.todowrite(
+            parseTodoItems(args["items"]) ?: return missing("items")
+        )
         "read_image" -> visionTool.readImage(args.requireString("path") ?: return missing("path"))
         "glob" -> globTool.glob(
             path = args.requireString("path") ?: return missing("path"),
@@ -201,4 +208,23 @@ class ToolExecutor(context: Context) {
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
+
+    private fun parseTodoItems(element: JsonElement?): List<TodoItem>? {
+        val array = element as? JsonArray ?: return null
+        return array.mapNotNull { item ->
+            val obj = item as? JsonObject ?: return@mapNotNull null
+            val content = obj["content"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            val statusStr = obj["status"]?.jsonPrimitive?.content ?: "pending"
+            val status = parseTodoStatus(statusStr)
+            val priority = obj["priority"]?.jsonPrimitive?.content
+            TodoItem(content = content, status = status, priority = priority)
+        }.toList().ifEmpty { null }
+    }
+
+    private fun parseTodoStatus(s: String): TodoStatus = when (s.lowercase().trim()) {
+        "in_progress", "in progress", "inprogress" -> TodoStatus.IN_PROGRESS
+        "completed", "done", "complete" -> TodoStatus.COMPLETED
+        "cancelled", "canceled", "cancelled" -> TodoStatus.CANCELLED
+        else -> TodoStatus.PENDING
+    }
 }

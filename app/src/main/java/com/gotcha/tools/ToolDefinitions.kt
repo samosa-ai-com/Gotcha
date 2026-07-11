@@ -584,6 +584,32 @@ object ToolDefinitions {
         }
     )
 
+    val todowrite = tool(
+        "todowrite",
+        "Create and maintain a structured task list for the current session. " +
+            "Use this to plan multi-step tasks, track progress, and check off completed items. " +
+            "Each call replaces the entire list. Status values: pending, in_progress, completed, cancelled. " +
+            "Priority values (optional): high, medium, low.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("items") {
+                    put("type", "array")
+                    put("description", "List of tasks to track.")
+                    putJsonObject("items") {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("content") { put("type", "string"); put("description", "Task description.") }
+                            putJsonObject("status") { put("type", "string"); put("description", "One of: pending, in_progress, completed, cancelled.") }
+                            putJsonObject("priority") { put("type", "string"); put("description", "Optional: high, medium, low.") }
+                        }
+                        putJsonArray("required") { add("content"); add("status") }
+                    }
+                }
+            }
+            putJsonArray("required") { add("items") }
+        }
+    )
+
     val glob = tool(
         "glob",
         "Find files matching a glob pattern within an allowed directory. " +
@@ -925,6 +951,8 @@ object ToolDefinitions {
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // Task tracking
+        todowrite,
         // Surgical file editing (Operator only)
         edit,
         // Content search and file discovery
