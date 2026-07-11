@@ -682,6 +682,27 @@ object ToolDefinitions {
         }
     )
 
+    val webSearch = tool(
+        "websearch",
+        "Search the web for information using a text query. Returns up to 10 results with titles, URLs, and snippets. " +
+            "Use this to find current information, documentation, tutorials, or anything online. " +
+            "The results are from DuckDuckGo — no API key needed. " +
+            "If you need the full content of a specific result, use webfetch on its URL.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("query") {
+                    put("type", "string")
+                    put("description", "Search query (natural language or keywords).")
+                }
+                putJsonObject("numResults") {
+                    put("type", "integer")
+                    put("description", "Number of results to return (1-10). Default 5.")
+                }
+            }
+            putJsonArray("required") { add("query") }
+        }
+    )
+
     val webFetch = tool(
         "webfetch",
         "Fetch content from an HTTP or HTTPS URL and return it as text. " +
@@ -1004,8 +1025,8 @@ object ToolDefinitions {
         edit,
         // Content search and file discovery
         glob, grep,
-        // Web fetching
-        webFetch,
+        // Web search + fetch
+        webSearch, webFetch,
         // Image reading (available to both Monitor and Operator)
         readImage,
         // Tier 3 additions

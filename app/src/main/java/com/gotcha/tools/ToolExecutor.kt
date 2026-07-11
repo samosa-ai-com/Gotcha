@@ -35,6 +35,7 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val webSearchTool = WebSearchTool()
     private val webFetchTool = WebFetchTool()
     private val questionTool = QuestionTool()
     private val todoTool = TodoTool()
@@ -147,6 +148,10 @@ class ToolExecutor(context: Context) {
             question = args.requireString("question") ?: return missing("question"),
             options = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
             allowCustom = args["allowCustom"]?.jsonPrimitive?.booleanOrNull ?: true
+        )
+        "websearch" -> webSearchTool.search(
+            query = args.requireString("query") ?: return missing("query"),
+            numResults = args.requireInt("numResults") ?: 5
         )
         "webfetch" -> webFetchTool.fetch(
             url = args.requireString("url") ?: return missing("url"),
