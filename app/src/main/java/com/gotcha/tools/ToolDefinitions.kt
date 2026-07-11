@@ -554,6 +554,32 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val grep = tool(
+        "grep",
+        "Search file contents by regular expression within an allowed directory. " +
+            "Use a path root (e.g. 'files', 'downloads') to narrow the search, " +
+            "and include to filter files by name pattern (e.g. '*.txt', '*.{kt,java}'). " +
+            "Returns matching file path, line number, and line content. " +
+            "Uses case-insensitive matching.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("pattern") {
+                    put("type", "string")
+                    put("description", "Regular expression pattern to search for (case-insensitive).")
+                }
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
+                }
+                putJsonObject("include") {
+                    put("type", "string")
+                    put("description", "Optional file-name filter glob, e.g. '*.txt', '*.kt', '*.{json,xml}'.")
+                }
+            }
+            putJsonArray("required") { add("pattern"); add("path") }
+        }
+    )
+
     val readImage = tool(
         "read_image",
         "Read an image file from an allowed directory and feed its visual content to the " +
@@ -848,6 +874,8 @@ object ToolDefinitions {
         toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        // Content search and file discovery
+        grep,
         // Image reading (available to both Monitor and Operator)
         readImage,
         // Tier 3 additions

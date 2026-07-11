@@ -32,6 +32,7 @@ class ToolExecutor(context: Context) {
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     // Tier 3 tools
+    private val grepTool = GrepTool(appContext)
     private val visionTool = VisionTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
     private val notificationTool = NotificationTool(appContext)
@@ -129,6 +130,11 @@ class ToolExecutor(context: Context) {
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
         "read_image" -> visionTool.readImage(args.requireString("path") ?: return missing("path"))
+        "grep" -> grepTool.grep(
+            path = args.requireString("path") ?: return missing("path"),
+            pattern = args.requireString("pattern") ?: return missing("pattern"),
+            include = args.requireString("include")
+        )
         // ---- Tier 3 ----
         "read_screen" -> accessibilityTool.readScreen()
         "tap" -> accessibilityTool.tap(
