@@ -27,8 +27,11 @@ import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.AudioModel
+import com.gotcha.audio.ModelCategory
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import kotlinx.serialization.json.JsonPrimitive
@@ -172,16 +175,18 @@ class MainActivity : ComponentActivity() {
                     },
                     onBack = { currentRoute = Route.SESSIONS },
                     onRefreshAudioModels = { s ->
-                        val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
-                        val ttsAll = ttsApi.listAudioModels()
-                        val ttsModels = ttsAll.filter { it.category == com.gotcha.audio.ModelCategory.TTS }
-                        val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
-                            val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
-                            sttApi.listAudioModels().filter { it.category == com.gotcha.audio.ModelCategory.STT }
-                        } else {
-                            ttsAll.filter { it.category == com.gotcha.audio.ModelCategory.STT }
+                        withContext(Dispatchers.IO) {
+                            val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
+                            val ttsAll = ttsApi.listAudioModels()
+                            val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
+                            val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
+                                val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
+                                sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
+                            } else {
+                                ttsAll.filter { it.category == ModelCategory.STT }
+                            }
+                            Pair(ttsModels, sttModels)
                         }
-                        Pair(ttsModels, sttModels)
                     }
                 )
             }
@@ -215,7 +220,8 @@ class MainActivity : ComponentActivity() {
                     onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
                     onSwitchAgent = chatViewModel::switchAgent,
                     onSpeak = chatViewModel::speak,
-                    onStartListening = chatViewModel::startListening
+                    onStartListening = chatViewModel::startListening,
+                    onStopRecording = chatViewModel::stopRecording
                 )
             }
         }

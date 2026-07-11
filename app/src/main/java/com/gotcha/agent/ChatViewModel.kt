@@ -79,7 +79,8 @@ data class ChatUiState(
     val activeAgent: AgentMode = AgentMode.OPERATOR,
     val contextUsagePercent: Float = 0f,
     // TTS / STT state
-    val isListening: Boolean = false,
+    val isListening: Boolean = false, // Android STT active
+    val isRecording: Boolean = false, // API STT recording
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
 )
@@ -94,6 +95,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
+    /** True when the most recent user message was sent via voice (STT). */
+    @Volatile
+    private var lastInputWasVoice = false
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(), settings.ttsApiBaseUrl, settings.apiKey
     )
@@ -258,10 +262,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
-        if (_uiState.value.isListening) return
+        if (_uiState.value.isListening || _uiState.value.isRecording) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isListening = true) }
-            val transcript = when (settings.sttProvider) {
+            when (settings.sttProvider) {
                 AudioProvider.ANDROID -> {
                     val perm = android.Manifest.permission.RECORD_AUDIO
                     val granted = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -270,40 +273,54 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     if (!granted) {
                         _permissionRequests.tryEmit(perm)
                         appendUi(MessageKind.ERROR, "Microphone permission needed for speech input.")
-                        ""
-                    } else {
-                        sttEngine.listenAndroid()
+                        return@launch
+                    }
+                    _uiState.update { it.copy(isListening = true) }
+                    val transcript = sttEngine.listenAndroid()
+                    _uiState.update { it.copy(isListening = false) }
+                    if (transcript.isNotBlank()) {
+                        lastInputWasVoice = true
+                        sendMessage(transcript)
                     }
                 }
                 AudioProvider.API -> {
                     if (settings.sttApiBaseUrl.isBlank()) {
                         appendUi(MessageKind.ERROR, "No STT API URL configured in settings.")
-                        ""
-                    } else if (settings.sttApiModel.isBlank()) {
+                        return@launch
+                    }
+                    if (settings.sttApiModel.isBlank()) {
                         appendUi(MessageKind.ERROR, "No STT model selected. Refresh audio models in settings.")
-                        ""
+                        return@launch
+                    }
+                    val started = sttEngine.startRecording()
+                    if (started) {
+                        _uiState.update { it.copy(isRecording = true) }
                     } else {
-                        appendUi(MessageKind.ASSISTANT, "[Listening for 5 seconds…]")
-                        val audioFile = sttEngine.recordAudio(5000)
-                        if (audioFile == null) {
-                            appendUi(MessageKind.ERROR, "Failed to record audio.")
-                            ""
-                        } else {
-                            sttEngine.transcribeApi(audioFile, settings.sttApiModel)
-                                .onFailure { e ->
-                                    appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}")
-                                }
-                                .getOrDefault("")
-                        }
+                        appendUi(MessageKind.ERROR, "Failed to start recording.")
                     }
                 }
                 AudioProvider.NONE -> {
                     appendUi(MessageKind.ERROR, "No STT provider configured. Enable one in settings.")
-                    ""
                 }
             }
-            _uiState.update { it.copy(isListening = false) }
+        }
+    }
+
+    /** Stop an ongoing API recording, transcribe, and send the result. */
+    fun stopRecording() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRecording = false) }
+            val audioFile = sttEngine.stopRecording()
+            if (audioFile == null) {
+                appendUi(MessageKind.ERROR, "Failed to record audio.")
+                return@launch
+            }
+            appendUi(MessageKind.ASSISTANT, "[Transcribing speech…]")
+            val transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                .getOrDefault("")
             if (transcript.isNotBlank()) {
+                lastInputWasVoice = true
                 sendMessage(transcript)
             }
         }
@@ -485,9 +502,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val content = message.textContent.ifEmpty { "(no reply)" }
                 llmHistory += ChatMessage(role = "assistant", content = JsonPrimitive(content))
                 appendUi(MessageKind.ASSISTANT, content)
-                if (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE) {
+                val shouldRead = lastInputWasVoice ||
+                    (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
+                if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
                     speak(content)
                 }
+                lastInputWasVoice = false
                 return
             }
 

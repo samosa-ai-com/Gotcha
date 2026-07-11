@@ -2,6 +2,7 @@ package com.gotcha.audio
 
 import android.content.Context
 import android.content.Intent
+import android.media.MediaRecorder
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -10,7 +11,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 
 /**
  * Speech-to-Text engine supporting two providers:
@@ -23,6 +23,8 @@ class SttEngine(
     apiKey: String = ""
 ) {
     private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
+    private var currentRecorder: MediaRecorder? = null
+    private var currentAudioFile: File? = null
 
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
@@ -75,6 +77,46 @@ class SttEngine(
     }
 
     /**
+     * Start recording audio for API-based STT.
+     * Returns true if recording started successfully.
+     */
+    fun startRecording(): Boolean {
+        return try {
+            currentAudioFile = File(context.cacheDir, "stt_recording_${System.currentTimeMillis()}.m4a")
+            val recorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioChannels(1)
+                setAudioSamplingRate(16000)
+                setOutputFile(currentAudioFile!!.absolutePath)
+                prepare()
+                start()
+            }
+            currentRecorder = recorder
+            true
+        } catch (_: Exception) { false }
+    }
+
+    /**
+     * Stop the current recording and return the audio file.
+     * Returns null if no recording was in progress or if an error occurred.
+     */
+    fun stopRecording(): File? {
+        return try {
+            currentRecorder?.apply {
+                stop()
+                release()
+            }
+            currentRecorder = null
+            currentAudioFile
+        } catch (_: Exception) {
+            currentRecorder = null
+            null
+        }
+    }
+
+    /**
      * Transcribe audio using the API provider.
      * @param audioFile the recorded audio file to transcribe
      * @param model the API model ID to use for transcription
@@ -82,28 +124,5 @@ class SttEngine(
     suspend fun transcribeApi(audioFile: File, model: String): Result<String> = withContext(Dispatchers.IO) {
         val api = audioApi ?: return@withContext Result.failure(Exception("API not configured"))
         api.transcribe(audioFile, model)
-    }
-
-    /**
-     * Record audio from the microphone to a temp file.
-     * Simplified — uses MediaRecorder to record a short clip.
-     */
-    fun recordAudio(durationMs: Long = 5000): File? {
-        return try {
-            val audioFile = File(context.cacheDir, "stt_recording_${System.currentTimeMillis()}.m4a")
-            val recorder = android.media.MediaRecorder().apply {
-                setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
-                setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
-                setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
-                setAudioChannels(1)
-                setAudioSamplingRate(16000)
-                setOutputFile(audioFile.absolutePath)
-                prepare()
-                start()
-            }
-            Thread.sleep(durationMs)
-            recorder.apply { stop(); release() }
-            audioFile
-        } catch (_: Exception) { null }
     }
 }
