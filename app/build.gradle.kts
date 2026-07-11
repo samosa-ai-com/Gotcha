@@ -89,6 +89,10 @@ dependencies {
     // HTML parsing for webfetch tool
     implementation("org.jsoup:jsoup:1.17.2")
 
+    // Markdown rendering
+    implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
+    implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

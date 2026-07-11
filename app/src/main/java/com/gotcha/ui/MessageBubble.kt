@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.material3.Material3RichText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material3.Icon
@@ -113,13 +115,16 @@ fun MessageBubble(
                             )
                         }
                     } else {
-                        Text(
-                            text = displayText,
-                            style = when (message.kind) {
-                                MessageKind.TOOL -> MaterialTheme.typography.bodySmall
-                                else -> MaterialTheme.typography.bodyMedium
+                        if (message.kind == MessageKind.TOOL) {
+                            Text(
+                                text = displayText,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            Material3RichText {
+                                Markdown(displayText)
                             }
-                        )
+                        }
                     }
                 }
                 if (isAssistant && message.text.isNotEmpty()) {
