@@ -554,6 +554,27 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val glob = tool(
+        "glob",
+        "Find files matching a glob pattern within an allowed directory. " +
+            "Use * to match any non-/ characters, ** to match any path recursively, " +
+            "and ? for a single character. Examples: '**/*.txt', 'downloads/*.jpg', " +
+            "'files/**/*.kt'. Returns matching file paths relative to the search root.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("pattern") {
+                    put("type", "string")
+                    put("description", "Glob pattern, e.g. '**/*.txt' or 'downloads/*.jpg'.")
+                }
+                putJsonObject("path") {
+                    put("type", "string")
+                    put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
+                }
+            }
+            putJsonArray("required") { add("pattern"); add("path") }
+        }
+    )
+
     val grep = tool(
         "grep",
         "Search file contents by regular expression within an allowed directory. " +
@@ -875,7 +896,7 @@ object ToolDefinitions {
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
         // Content search and file discovery
-        grep,
+        glob, grep,
         // Image reading (available to both Monitor and Operator)
         readImage,
         // Tier 3 additions
