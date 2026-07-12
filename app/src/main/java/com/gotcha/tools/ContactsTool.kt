@@ -18,7 +18,7 @@ class ContactsTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.READ_CONTACTS,
-                "Looking up contacts needs the Contacts permission. I have requested it — please grant it and ask again."
+                "The Contacts permission is not granted. Go to Settings → Permissions → Contacts and enable it, then ask again."
             )
         }
         return try {
@@ -64,7 +64,7 @@ class ContactsTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.WRITE_CONTACTS,
-                "Adding a contact needs the Contacts permission. I have requested it — please grant it and ask again."
+                "The Contacts permission is not granted. Go to Settings → Permissions → Contacts and enable it, then ask again."
             )
         }
         return try {

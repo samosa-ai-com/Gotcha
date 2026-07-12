@@ -37,8 +37,7 @@ class MediaCaptureTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.CAMERA,
-                "Taking photos needs the Camera permission. I have requested it — " +
-                    "please grant it and ask again."
+                "The Camera permission is not granted. Go to Settings → Permissions → Camera and enable it, then ask again."
             )
         }
         val lifecycleOwner = com.gotcha.MainActivity.lifecycleOwner
@@ -102,7 +101,7 @@ class MediaCaptureTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.RECORD_AUDIO,
-                "Recording audio needs the Microphone permission. I have requested it — please grant it and ask again."
+                "The Microphone permission is not granted. Go to Settings → Permissions → Microphone and enable it, then ask again."
             )
         }
         if (recorder != null) {

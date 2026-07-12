@@ -46,8 +46,7 @@ class PhoneTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.CALL_PHONE,
-                "Placing a call directly needs the Phone permission. I have requested it — " +
-                    "please grant it and ask again."
+                "The Phone permission is not granted. Go to Settings → Permissions → Phone and enable it, then ask again."
             )
         }
         return try {
@@ -59,7 +58,7 @@ class PhoneTool(private val context: Context) {
         } catch (e: SecurityException) {
             ToolResult.permissionNeeded(
                 Manifest.permission.CALL_PHONE,
-                "Placing a call needs the Phone permission. I have requested it — please grant it and ask again."
+                "The Phone permission is not granted. Go to Settings → Permissions → Phone and enable it, then ask again."
             )
         } catch (e: Exception) {
             ToolResult.error("Could not place the call: ${e.message}")
@@ -73,7 +72,7 @@ class PhoneTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.READ_CALL_LOG,
-                "Reading the call log needs the Call log permission. I have requested it — please grant it and ask again."
+                "The Call Log permission is not granted. Go to Settings → Permissions → Call Log and enable it, then ask again."
             )
         }
         val take = limit.coerceIn(1, 50)

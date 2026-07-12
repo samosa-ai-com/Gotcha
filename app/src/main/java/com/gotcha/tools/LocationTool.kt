@@ -18,7 +18,7 @@ class LocationTool(private val context: Context) {
         if (fine != PackageManager.PERMISSION_GRANTED && coarse != PackageManager.PERMISSION_GRANTED) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.ACCESS_FINE_LOCATION,
-                "Reading your location needs the Location permission. I have requested it — please grant it and ask again."
+                "The Location permission is not granted. Go to Settings → Permissions → Location and enable it, then ask again."
             )
         }
         return try {

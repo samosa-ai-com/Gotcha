@@ -35,7 +35,7 @@ data class Settings(
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
 class SettingsRepository(context: Context) {
 
-    private val prefs: SharedPreferences by lazy {
+    val prefs: SharedPreferences by lazy {
         val masterKey = MasterKey.Builder(context.applicationContext)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()

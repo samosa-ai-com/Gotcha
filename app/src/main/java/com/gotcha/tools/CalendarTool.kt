@@ -22,7 +22,7 @@ class CalendarTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.READ_CALENDAR,
-                "Reading the calendar needs the Calendar permission. I have requested it — please grant it and ask again."
+                "The Calendar permission is not granted. Go to Settings → Permissions → Calendar and enable it, then ask again."
             )
         }
         val days = daysAhead.coerceIn(1, 365)

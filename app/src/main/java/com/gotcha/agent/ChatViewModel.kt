@@ -121,7 +121,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var questionGate: CompletableDeferred<String>? = null
-    private var permissionGate: CompletableDeferred<Boolean>? = null
     private var agentJob: Job? = null
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -251,12 +250,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         questionGate = null
     }
 
-    /** Called from MainActivity after the user grants or denies a runtime permission. */
-    fun onPermissionResult(granted: Boolean) {
-        permissionGate?.complete(granted)
-        permissionGate = null
-    }
-
     /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
     fun setForeground(foreground: Boolean) {
         appInForeground = foreground
@@ -287,8 +280,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     getApplication(), perm
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 if (!granted) {
-                    _permissionRequests.tryEmit(perm)
-                    appendUi(MessageKind.ERROR, "Microphone permission needed for speech input.")
+                    appendUi(MessageKind.ERROR, "Microphone permission not granted. Enable it in Settings → Permissions.")
                     return
                 }
                 val started = sttEngine.startAndroidListening()
@@ -555,25 +547,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
-                    // Permission gate: if the tool needs a runtime permission (not a special marker),
-                    // emit the request, suspend until the user responds, and retry if granted.
+                    // Special-access markers: emit the marker and continue.
+                    // Runtime permissions are pre-configured in Settings — the tool
+                    // already returned an error message with guidance if one is missing.
                     val perm = result.needsPermission
-                    if (perm != null && !perm.startsWith("special:")) {
-                        Log.d(TAG, "Permission needed: $perm, waiting for user…")
+                    if (perm != null && perm.startsWith("special:")) {
                         _permissionRequests.tryEmit(perm)
-                        val gate = CompletableDeferred<Boolean>()
-                        permissionGate = gate
-                        val granted = withTimeoutOrNull(120_000L) { gate.await() } ?: false
-                        permissionGate = null
-                        Log.d(TAG, "Permission $perm -> granted=$granted")
-                        if (granted) {
-                            result = executeCall(call)
-                            // If the granted permission was a storage permission,
-                            // ensure the per-chat working directory now exists.
-                            setupWorkingDir(activeSessionId!!)
-                        } else {
-                            result = ToolResult(false, "${result.message} Permission was not granted.")
-                        }
                     }
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {

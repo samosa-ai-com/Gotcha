@@ -24,7 +24,7 @@ class SmsTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.SEND_SMS,
-                "Sending a text needs the SMS permission. I have requested it — please grant it and ask again."
+                "The SMS permission is not granted. Go to Settings → Permissions → SMS and enable it, then ask again."
             )
         }
         return try {
@@ -44,7 +44,7 @@ class SmsTool(private val context: Context) {
         } catch (e: SecurityException) {
             ToolResult.permissionNeeded(
                 Manifest.permission.SEND_SMS,
-                "Sending a text needs the SMS permission. I have requested it — please grant it and ask again."
+                "The SMS permission is not granted. Go to Settings → Permissions → SMS and enable it, then ask again."
             )
         } catch (e: Exception) {
             ToolResult.error("Could not send the text: ${e.message}")
@@ -58,7 +58,7 @@ class SmsTool(private val context: Context) {
         ) {
             return ToolResult.permissionNeeded(
                 Manifest.permission.READ_SMS,
-                "Reading texts needs the SMS permission. I have requested it — please grant it and ask again."
+                "The Read SMS permission is not granted. Go to Settings → Permissions → Read SMS and enable it, then ask again."
             )
         }
         val take = limit.coerceIn(1, 50)

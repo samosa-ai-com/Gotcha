@@ -1,5 +1,7 @@
 package com.gotcha.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,9 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -31,8 +33,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -49,7 +51,8 @@ fun SettingsScreen(
     onTestConnection: suspend (Settings) -> Result<String>,
     onClearLlmCache: () -> Unit,
     onBack: () -> Unit,
-    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = { Pair(emptyList(), emptyList()) }
+    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = { Pair(emptyList(), emptyList()) },
+    packageName: String = ""
 ) {
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
@@ -73,6 +76,9 @@ fun SettingsScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var refreshingModels by remember { mutableStateOf(false) }
+    // Collapsible sections
+    var aiConfigExpanded by remember { mutableStateOf(false) }
+    var speechExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Dropdown expanded states
@@ -114,285 +120,292 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API key") },
-                singleLine = true,
-                visualTransformation = if (showKey) VisualTransformation.None
-                else PasswordVisualTransformation(),
-                trailingIcon = {
-                    TextButton(onClick = { showKey = !showKey }) {
-                        Text(if (showKey) "Hide" else "Show")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
+            // ---- AI Configuration (collapsible, collapsed by default) ----
+            SectionHeader(
+                title = "AI Configuration",
+                expanded = aiConfigExpanded,
+                onToggle = { aiConfigExpanded = !aiConfigExpanded }
             )
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it },
-                label = { Text("Base URL (OpenAI-compatible)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = model,
-                onValueChange = { model = it },
-                label = { Text("Model name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = maxToolRounds,
-                onValueChange = { maxToolRounds = it },
-                label = { Text("Max tool rounds") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = maxContextTokens,
-                onValueChange = { maxContextTokens = it },
-                label = { Text("Max context tokens") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = apiTimeoutSeconds,
-                onValueChange = { apiTimeoutSeconds = it },
-                label = { Text("API Timeout (seconds, 0 for infinite)") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Confirm sensitive actions", style = MaterialTheme.typography.bodyLarge)
-                Switch(checked = confirmSensitive, onCheckedChange = { confirmSensitive = it })
-            }
-
-            HorizontalDivider(thickness = 1.dp)
-            Text("Speech (TTS / STT)", style = MaterialTheme.typography.titleMedium)
-
-            // TTS provider dropdown
-            ExposedDropdownMenuBox(
-                expanded = ttsProviderExpanded,
-                onExpandedChange = { ttsProviderExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = ttsProvider.name,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("TTS Provider") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsProviderExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(
-                    expanded = ttsProviderExpanded,
-                    onDismissRequest = { ttsProviderExpanded = false }
-                ) {
-                    AudioProvider.entries.forEach { provider ->
-                        DropdownMenuItem(
-                            text = { Text(provider.name) },
-                            onClick = {
-                                ttsProvider = provider
-                                ttsProviderExpanded = false
+            AnimatedVisibility(visible = aiConfigExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("API key") },
+                        singleLine = true,
+                        visualTransformation = if (showKey) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            TextButton(onClick = { showKey = !showKey }) {
+                                Text(if (showKey) "Hide" else "Show")
                             }
-                        )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("Base URL (OpenAI-compatible)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = model,
+                        onValueChange = { model = it },
+                        label = { Text("Model name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = maxToolRounds,
+                        onValueChange = { maxToolRounds = it },
+                        label = { Text("Max tool rounds") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = maxContextTokens,
+                        onValueChange = { maxContextTokens = it },
+                        label = { Text("Max context tokens") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = apiTimeoutSeconds,
+                        onValueChange = { apiTimeoutSeconds = it },
+                        label = { Text("API Timeout (seconds, 0 for infinite)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Confirm sensitive actions", style = MaterialTheme.typography.bodyLarge)
+                        Switch(checked = confirmSensitive, onCheckedChange = { confirmSensitive = it })
                     }
+                    Button(
+                        onClick = {
+                            onSave(currentSettings())
+                            status = "Saved."
+                        },
+                        enabled = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save") }
+                    OutlinedButton(
+                        onClick = {
+                            testing = true
+                            status = "Testing connection…"
+                            scope.launch {
+                                val result = onTestConnection(currentSettings())
+                                status = result.fold(
+                                    onSuccess = { "✓ Connected: $it" },
+                                    onFailure = { "✗ Connection failed: ${it.message}" }
+                                )
+                                testing = false
+                            }
+                        },
+                        enabled = !testing && apiKey.isNotBlank() && baseUrl.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Test connection") }
+                    OutlinedButton(
+                        onClick = {
+                            onClearLlmCache()
+                            status = "LLM response cache cleared."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Clear LLM cache") }
                 }
             }
 
-            if (ttsProvider == AudioProvider.API) {
-                OutlinedTextField(
-                    value = ttsApiBaseUrl,
-                    onValueChange = { ttsApiBaseUrl = it },
-                    label = { Text("TTS API Base URL") },
-                    singleLine = true,
-                    placeholder = { Text("http://10.0.2.2:8969/v1") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            HorizontalDivider(thickness = 1.dp)
 
-                // TTS model dropdown (populated after refresh)
-                ExposedDropdownMenuBox(
-                    expanded = ttsModelExpanded,
-                    onExpandedChange = { ttsModelExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = ttsApiModel.ifEmpty { "(select model)" },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("TTS Model") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsModelExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = ttsModelExpanded,
-                        onDismissRequest = { ttsModelExpanded = false }
+            // ---- Permissions (collapsible, expanded by default) ----
+            PermissionsSection(packageName = packageName)
+
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Speech (collapsible, collapsed by default) ----
+            SectionHeader(
+                title = "Speech (TTS / STT)",
+                expanded = speechExpanded,
+                onToggle = { speechExpanded = !speechExpanded }
+            )
+            AnimatedVisibility(visible = speechExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ExposedDropdownMenuBox(
+                        expanded = ttsProviderExpanded,
+                        onExpandedChange = { ttsProviderExpanded = it }
                     ) {
-                        if (availableTtsModels.isEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("No models — refresh below") },
-                                onClick = { ttsModelExpanded = false }
-                            )
-                        } else {
-                            availableTtsModels.forEach { audioModel ->
+                        OutlinedTextField(
+                            value = ttsProvider.name,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("TTS Provider") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsProviderExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = ttsProviderExpanded,
+                            onDismissRequest = { ttsProviderExpanded = false }
+                        ) {
+                            AudioProvider.entries.forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(audioModel.id) },
+                                    text = { Text(provider.name) },
                                     onClick = {
-                                        ttsApiModel = audioModel.id
-                                        ttsModelExpanded = false
+                                        ttsProvider = provider
+                                        ttsProviderExpanded = false
                                     }
                                 )
                             }
                         }
                     }
-                }
-            }
-
-            // STT provider dropdown
-            ExposedDropdownMenuBox(
-                expanded = sttProviderExpanded,
-                onExpandedChange = { sttProviderExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = sttProvider.name,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("STT Provider") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttProviderExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(
-                    expanded = sttProviderExpanded,
-                    onDismissRequest = { sttProviderExpanded = false }
-                ) {
-                    AudioProvider.entries.forEach { provider ->
-                        DropdownMenuItem(
-                            text = { Text(provider.name) },
-                            onClick = {
-                                sttProvider = provider
-                                sttProviderExpanded = false
-                            }
+                    if (ttsProvider == AudioProvider.API) {
+                        OutlinedTextField(
+                            value = ttsApiBaseUrl,
+                            onValueChange = { ttsApiBaseUrl = it },
+                            label = { Text("TTS API Base URL") },
+                            singleLine = true,
+                            placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
                         )
-                    }
-                }
-            }
-
-            if (sttProvider == AudioProvider.API) {
-                OutlinedTextField(
-                    value = sttApiBaseUrl,
-                    onValueChange = { sttApiBaseUrl = it },
-                    label = { Text("STT API Base URL") },
-                    singleLine = true,
-                    placeholder = { Text("http://10.0.2.2:8969/v1") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // STT model dropdown
-                ExposedDropdownMenuBox(
-                    expanded = sttModelExpanded,
-                    onExpandedChange = { sttModelExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = sttApiModel.ifEmpty { "(select model)" },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("STT Model") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttModelExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = sttModelExpanded,
-                        onDismissRequest = { sttModelExpanded = false }
-                    ) {
-                        if (availableSttModels.isEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("No models — refresh below") },
-                                onClick = { sttModelExpanded = false }
+                        ExposedDropdownMenuBox(
+                            expanded = ttsModelExpanded,
+                            onExpandedChange = { ttsModelExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = ttsApiModel.ifEmpty { "(select model)" },
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("TTS Model") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsModelExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
-                        } else {
-                            availableSttModels.forEach { audioModel ->
+                            ExposedDropdownMenu(
+                                expanded = ttsModelExpanded,
+                                onDismissRequest = { ttsModelExpanded = false }
+                            ) {
+                                if (availableTtsModels.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("No models — refresh below") },
+                                        onClick = { ttsModelExpanded = false }
+                                    )
+                                } else {
+                                    availableTtsModels.forEach { audioModel ->
+                                        DropdownMenuItem(
+                                            text = { Text(audioModel.id) },
+                                            onClick = {
+                                                ttsApiModel = audioModel.id
+                                                ttsModelExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    ExposedDropdownMenuBox(
+                        expanded = sttProviderExpanded,
+                        onExpandedChange = { sttProviderExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = sttProvider.name,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("STT Provider") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttProviderExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = sttProviderExpanded,
+                            onDismissRequest = { sttProviderExpanded = false }
+                        ) {
+                            AudioProvider.entries.forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(audioModel.id) },
+                                    text = { Text(provider.name) },
                                     onClick = {
-                                        sttApiModel = audioModel.id
-                                        sttModelExpanded = false
+                                        sttProvider = provider
+                                        sttProviderExpanded = false
                                     }
                                 )
                             }
                         }
                     }
+                    if (sttProvider == AudioProvider.API) {
+                        OutlinedTextField(
+                            value = sttApiBaseUrl,
+                            onValueChange = { sttApiBaseUrl = it },
+                            label = { Text("STT API Base URL") },
+                            singleLine = true,
+                            placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = sttModelExpanded,
+                            onExpandedChange = { sttModelExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = sttApiModel.ifEmpty { "(select model)" },
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("STT Model") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttModelExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = sttModelExpanded,
+                                onDismissRequest = { sttModelExpanded = false }
+                            ) {
+                                if (availableSttModels.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("No models — refresh below") },
+                                        onClick = { sttModelExpanded = false }
+                                    )
+                                } else {
+                                    availableSttModels.forEach { audioModel ->
+                                        DropdownMenuItem(
+                                            text = { Text(audioModel.id) },
+                                            onClick = {
+                                                sttApiModel = audioModel.id
+                                                sttModelExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
+                        Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            refreshingModels = true
+                            status = "Refreshing audio models…"
+                            scope.launch {
+                                val (tts, stt) = onRefreshAudioModels(currentSettings())
+                                availableTtsModels = tts
+                                availableSttModels = stt
+                                status = "Found ${tts.size} TTS, ${stt.size} STT models"
+                                refreshingModels = false
+                            }
+                        },
+                        enabled = !refreshingModels && (ttsApiBaseUrl.isNotBlank() || sttApiBaseUrl.isNotBlank()),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(if (refreshingModels) "Refreshing…" else "Refresh audio models") }
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
-                Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
-            }
-
-            OutlinedButton(
-                onClick = {
-                    refreshingModels = true
-                    status = "Refreshing audio models…"
-                    scope.launch {
-                        val (tts, stt) = onRefreshAudioModels(currentSettings())
-                        availableTtsModels = tts
-                        availableSttModels = stt
-                        status = "Found ${tts.size} TTS, ${stt.size} STT models"
-                        refreshingModels = false
-                    }
-                },
-                enabled = !refreshingModels && (ttsApiBaseUrl.isNotBlank() || sttApiBaseUrl.isNotBlank()),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (refreshingModels) "Refreshing…" else "Refresh audio models") }
-
-            // Save / actions
-            HorizontalDivider(thickness = 1.dp)
-
-            Button(
-                onClick = {
-                    onSave(currentSettings())
-                    status = "Saved."
-                },
-                enabled = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Save") }
-
-            OutlinedButton(
-                onClick = {
-                    testing = true
-                    status = "Testing connection…"
-                    scope.launch {
-                        val result = onTestConnection(currentSettings())
-                        status = result.fold(
-                            onSuccess = { "✓ Connected: $it" },
-                            onFailure = { "✗ Connection failed: ${it.message}" }
-                        )
-                        testing = false
-                    }
-                },
-                enabled = !testing && apiKey.isNotBlank() && baseUrl.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Test connection") }
-
-            OutlinedButton(
-                onClick = {
-                    onClearLlmCache()
-                    status = "LLM response cache cleared."
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Clear LLM cache") }
-
+            // Status text
             status?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium)
             }
@@ -403,5 +416,30 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall
             )
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (expanded) "▼ " else "▶ ",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

@@ -23,16 +23,16 @@ class FileResolver(private val context: Context) {
 
     companion object {
         private const val ALL_FILES_ACCESS_GUIDE =
-            "Reading or writing outside the app sandbox needs \"All files access\". " +
-            "I have opened that settings page — please enable it for Gotcha and try again."
+            "This operation needs \"All files access\" to read or write outside the app sandbox. " +
+            "Go to Settings → Permissions → All Files Access and enable it, then ask again."
 
         private const val READ_STORAGE_GUIDE =
-            "Reading from shared storage needs storage permission. I have requested it — " +
-            "please grant it and ask again."
+            "This operation needs storage read permission. " +
+            "Go to Settings → Permissions → Storage Read and grant it, then ask again."
 
         private const val WRITE_STORAGE_GUIDE =
-            "Writing to shared storage needs storage permission. I have requested it — " +
-            "please grant it and ask again."
+            "This operation needs storage write permission. " +
+            "Go to Settings → Permissions → Storage Write and grant it, then ask again."
 
         var WORKING_DIR_BASE: String = "/storage/emulated/0/Gotcha"
 
