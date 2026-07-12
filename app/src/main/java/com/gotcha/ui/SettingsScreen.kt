@@ -57,7 +57,6 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
     var model by remember { mutableStateOf(initial.model) }
-    var confirmSensitive by remember { mutableStateOf(initial.confirmSensitiveActions) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
@@ -91,7 +90,6 @@ fun SettingsScreen(
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
-        confirmSensitiveActions = confirmSensitive,
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
@@ -180,14 +178,6 @@ fun SettingsScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Confirm sensitive actions", style = MaterialTheme.typography.bodyLarge)
-                        Switch(checked = confirmSensitive, onCheckedChange = { confirmSensitive = it })
-                    }
                     Button(
                         onClick = {
                             onSave(currentSettings())

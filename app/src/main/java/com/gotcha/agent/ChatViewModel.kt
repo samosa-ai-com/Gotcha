@@ -606,54 +606,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Gates sensitive tool calls behind user approval. When Gotcha is in the
-     * foreground the in-app Compose dialog is used; when it has been backgrounded (e.g.
-     * after `open_app` launched another app) a floating overlay is shown instead so the
-     * prompt is visible over that app rather than hidden behind it. Either way the wait
-     * is bounded by [CONFIRM_TIMEOUT_MS] so the tool loop can never hang indefinitely.
+     * Sensitive-action confirmation is disabled. Permissions are pre-configured
+     * in Settings → Permissions. Only destructive tools (e.g. uninstall_app)
+     * have their own dedicated confirmation flow via [executeCall].
      */
-    private suspend fun requestConfirmation(toolCalls: List<ToolCall>): ConfirmDecision {
-        // Monitor mode tools are read-only — no confirmation needed
-        if (_uiState.value.activeAgent == AgentMode.MONITOR) return ConfirmDecision.APPROVED
-        if (!settings.confirmSensitiveActions) return ConfirmDecision.APPROVED
-        val sensitive = toolCalls.filter { ToolRegistry.isSensitive(it.function.name) }
-        if (sensitive.isEmpty()) return ConfirmDecision.APPROVED
-
-        val names = sensitive.map { it.function.name }
-        val description = sensitive.joinToString("\n") { c ->
-            "${c.function.name}(${c.function.arguments.take(200)})"
-        }
-
-        val gate = CompletableDeferred<Boolean>()
-        confirmationGate = gate
-
-        val useOverlay = !appInForeground && confirmationOverlay.canShow()
-        if (useOverlay) {
-            confirmationOverlay.show(
-                summary = "Allow these actions?\n$description",
-                onAllow = { confirmPendingActions(true) },
-                onDeny = { confirmPendingActions(false) }
-            )
-        } else {
-            _uiState.update {
-                it.copy(
-                    activity = null,
-                    pendingConfirmation = PendingConfirmation(names, description)
-                )
-            }
-        }
-
-        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() }
-
-        confirmationOverlay.dismiss()
-        _uiState.update { it.copy(pendingConfirmation = null) }
-        confirmationGate = null
-
-        return when (approved) {
-            true -> ConfirmDecision.APPROVED
-            false -> ConfirmDecision.DENIED
-            null -> ConfirmDecision.TIMED_OUT
-        }
+    private suspend fun requestConfirmation(@Suppress("UNUSED_PARAMETER") toolCalls: List<ToolCall>): ConfirmDecision {
+        return ConfirmDecision.APPROVED
     }
 
     /**
