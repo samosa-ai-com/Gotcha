@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -77,7 +78,8 @@ fun ChatScreen(
     onSwitchAgent: () -> Unit,
     onSpeak: (String) -> Unit = {},
     onStartListening: () -> Unit = {},
-    onStopRecording: () -> Unit = {}
+    onStopRecording: () -> Unit = {},
+    onExportChat: () -> Unit = {}
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
@@ -120,6 +122,9 @@ fun ChatScreen(
                         label = { Text(state.activeAgent.name) },
                         enabled = !state.isBusy
                     )
+                    IconButton(onClick = onExportChat, enabled = !state.isBusy) {
+                        Icon(Icons.Default.Share, contentDescription = "Export chat")
+                    }
                     TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )

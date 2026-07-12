@@ -27,7 +27,8 @@ class SubAgentSession(
     private val settings: Settings,
     private val description: String,
     private val prompt: String,
-    private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> }
+    private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
+    private val sessionId: String? = null
 ) {
     private val TAG = "SubAgentSession"
     private val json = Json { ignoreUnknownKeys = true }
@@ -74,7 +75,7 @@ class SubAgentSession(
             Log.d(TAG, "Sub-agent round ${round + 1}/$maxRounds")
 
             val response = try {
-                subLlm.chat(history.toList(), subAgentTools)
+                subLlm.chat(history.toList(), subAgentTools, sessionId = sessionId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

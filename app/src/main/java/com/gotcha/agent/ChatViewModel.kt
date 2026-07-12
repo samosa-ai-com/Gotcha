@@ -22,6 +22,7 @@ import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.SubAgentSession
+import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
@@ -147,39 +148,89 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
 
+    /** Exported chat markdown content the Activity should share. */
+    private val _exportContent = MutableSharedFlow<String>(extraBufferCapacity = 2)
+    val exportContent: SharedFlow<String> = _exportContent.asSharedFlow()
+
     init {
-        toolExecutor = ToolExecutor(application) { description, prompt ->
-            _uiState.update { it.copy(subAgentRunning = description, subAgentCurrentAction = "starting…") }
-            val steps = mutableListOf<SubAgentStepUi>()
-            val subSession = SubAgentSession(
-                appContext = getApplication(),
-                toolExecutor = toolExecutor,
-                settings = settings,
-                description = description,
-                prompt = prompt,
-                onStep = { action, status, detail ->
-                    steps.add(SubAgentStepUi(action, status, detail))
-                    _uiState.update {
-                        it.copy(
-                            subAgentCurrentAction = when (status) {
-                                "running" -> "→ $action"
-                                "completed" -> if (detail.isNotBlank()) "✓ $action → ${detail.take(60)}"
-                                    else "✓ $action"
-                                else -> "$action: ${detail.take(60)}"
-                            }
-                        )
-                    }
+        toolExecutor = ToolExecutor(
+            application,
+            onTask = { description, prompt ->
+                _uiState.update { it.copy(subAgentRunning = description, subAgentCurrentAction = "starting…") }
+                val steps = mutableListOf<SubAgentStepUi>()
+                val subSession = SubAgentSession(
+                    appContext = getApplication(),
+                    toolExecutor = toolExecutor,
+                    settings = settings,
+                    description = description,
+                    prompt = prompt,
+                    onStep = { action, status, detail ->
+                        steps.add(SubAgentStepUi(action, status, detail))
+                        _uiState.update {
+                            it.copy(
+                                subAgentCurrentAction = when (status) {
+                                    "running" -> "→ $action"
+                                    "completed" -> if (detail.isNotBlank()) "✓ $action → ${detail.take(60)}"
+                                        else "✓ $action"
+                                    else -> "$action: ${detail.take(60)}"
+                                }
+                            )
+                        }
+                    },
+                    sessionId = activeSessionId?.let { "${it}_task" }
+                )
+                val output = subSession.run()
+                val stepsEncoded = output.steps.joinToString("\n")
+                _uiState.update { it.copy(subAgentRunning = null, subAgentCurrentAction = null) }
+                if (output.finalAnswer.startsWith("Task failed") || output.finalAnswer.startsWith("Task exceeded")) {
+                    ToolResult.error(output.finalAnswer)
+                } else {
+                    ToolResult.ok("TASK_RESULT:$description:$stepsEncoded\n|||\n${output.finalAnswer}")
                 }
-            )
-            val output = subSession.run()
-            val stepsEncoded = output.steps.joinToString("\n")
-            _uiState.update { it.copy(subAgentRunning = null, subAgentCurrentAction = null) }
-            if (output.finalAnswer.startsWith("Task failed") || output.finalAnswer.startsWith("Task exceeded")) {
-                ToolResult.error(output.finalAnswer)
-            } else {
-                ToolResult.ok("TASK_RESULT:$description:$stepsEncoded\n|||\n${output.finalAnswer}")
+            },
+            onNavigateApp = { task ->
+                _uiState.update { it.copy(subAgentRunning = "App Navigation", subAgentCurrentAction = "starting…") }
+                val steps = mutableListOf<SubAgentStepUi>()
+                val session = AppNavigatorSession(
+                    appContext = getApplication(),
+                    toolExecutor = toolExecutor,
+                    settings = settings,
+                    task = task,
+                    onStep = { action, status, detail ->
+                        steps.add(SubAgentStepUi(action, status, detail))
+                        _uiState.update {
+                            it.copy(
+                                subAgentCurrentAction = when (status) {
+                                    "running" -> "→ $action"
+                                    "completed" -> if (detail.isNotBlank()) "✓ $action → ${detail.take(60)}"
+                                        else "✓ $action"
+                                    else -> "$action: ${detail.take(60)}"
+                                }
+                            )
+                        }
+                    },
+                    sessionId = activeSessionId?.let { "${it}_nav" }
+                )
+                val output = session.run()
+                val stepsEncoded = output.steps.joinToString("\n")
+                _uiState.update { it.copy(subAgentRunning = null, subAgentCurrentAction = null) }
+                // Auto-return to our app after navigation completes
+                try {
+                    val pkg = getApplication<android.app.Application>().packageName
+                    val launchIntent = getApplication<android.app.Application>()
+                        .packageManager.getLaunchIntentForPackage(pkg)
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        getApplication<android.app.Application>().startActivity(launchIntent)
+                    }
+                } catch (_: Exception) { }
+                if (!output.success) {
+                    ToolResult.error(output.finalAnswer)
+                } else {
+                    ToolResult.ok("TASK_RESULT:App Navigation:$stepsEncoded\n|||\n${output.finalAnswer}")
+                }
             }
-        }
+        )
         refreshSettings()
         viewModelScope.launch {
             val sessions = historyRepository.listSessions()
@@ -1024,6 +1075,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "For example: organizing files, gathering information from multiple sources, " +
                 "or performing a series of device checks. The sub-agent runs in the foreground; " +
                 "you will receive its complete report when done. " +
+                "Use the navigate_app tool to delegate app interaction tasks to the App " +
+                "Navigator sub-agent. For example: opening an app, searching for something, " +
+                "scrolling through results, or reading on-screen information. The navigator " +
+                "will look at the screen, tap, swipe, and type step by step. " +
+                "You will receive its complete report when done. " +
                 "Keep replies short and conversational. Be careful with destructive actions.\n" +
                 "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
                 "When using uninstall_app: after calling it, the system will open a dialog. " +
@@ -1249,6 +1305,86 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
             )
         }
+    }
+
+    fun exportChat() {
+        val sessionId = activeSessionId ?: "unknown"
+        val sb = StringBuilder()
+        sb.appendLine("# Gotcha Chat Export")
+        sb.appendLine("**Session:** $sessionId")
+        sb.appendLine("**Date:** ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
+        sb.appendLine("**Messages:** ${llmHistory.size}")
+        sb.appendLine()
+        sb.appendLine("---")
+        sb.appendLine()
+
+        for (msg in llmHistory) {
+            val role = msg.role
+            val text = msg.textContent
+
+            when (role) {
+                "user" -> {
+                    val isVision = msg.content is JsonArray
+                    sb.appendLine("### User")
+                    if (text.isNotBlank()) sb.appendLine(text)
+                    if (isVision) sb.appendLine("*(Image attached)*")
+                    sb.appendLine()
+                }
+                "assistant" -> {
+                    sb.appendLine("### Assistant")
+                    if (text.isNotBlank()) sb.appendLine(text)
+                    val calls = msg.toolCalls
+                    if (!calls.isNullOrEmpty()) {
+                        sb.appendLine()
+                        sb.appendLine("**Called tools:**")
+                        for (call in calls) {
+                            sb.appendLine("- `${call.function.name}(${call.function.arguments.take(200)})`")
+                        }
+                    }
+                    sb.appendLine()
+                }
+                "tool" -> {
+                    if (text.startsWith("SUBAGENT_STEPS:")) {
+                        val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
+                        val desc = if (descEnd > 0) text.substring("SUBAGENT_STEPS:".length, descEnd)
+                        else text.substring("SUBAGENT_STEPS:".length)
+                        sb.appendLine("### Sub-Agent: $desc")
+                        val rest = if (descEnd > 0) text.substring(descEnd + 1) else ""
+                        val stepsMarker = "── Steps ──\n"
+                        val resultMarker = "\n── Result ──\n"
+                        if (rest.startsWith(stepsMarker)) {
+                            val afterSteps = rest.removePrefix(stepsMarker)
+                            val resIdx = afterSteps.indexOf(resultMarker)
+                            if (resIdx >= 0) {
+                                val steps = afterSteps.substring(0, resIdx).split("\n").filter { it.isNotBlank() }
+                                val answer = afterSteps.substring(resIdx + resultMarker.length)
+                                sb.appendLine()
+                                sb.appendLine("**Steps:**")
+                                for (s in steps) sb.appendLine("- $s")
+                                sb.appendLine()
+                                sb.appendLine("**Result:**")
+                                sb.appendLine(answer)
+                            } else {
+                                sb.appendLine(afterSteps)
+                            }
+                        } else {
+                            sb.appendLine(rest)
+                        }
+                    } else {
+                        sb.appendLine("### Tool Result")
+                        sb.appendLine(text.ifEmpty { "(no result)" })
+                    }
+                    sb.appendLine()
+                }
+                "system" -> {
+                    sb.appendLine("### System")
+                    sb.appendLine(text.ifEmpty { "(system message)" })
+                    sb.appendLine()
+                }
+            }
+        }
+
+        _exportContent.tryEmit(sb.toString())
     }
 
     private companion object {

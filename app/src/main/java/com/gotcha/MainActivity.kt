@@ -139,6 +139,18 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Collect exported chat content and launch a share sheet
+        lifecycleScope.launch {
+            chatViewModel.exportContent.collect { markdown ->
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, markdown)
+                    putExtra(Intent.EXTRA_SUBJECT, "Gotcha Chat Export")
+                }
+                startActivity(Intent.createChooser(shareIntent, "Share Chat Export"))
+            }
+        }
+
         // Auto-request runtime permissions on first launch
         lifecycleScope.launch {
             val prefs = settingsRepository.prefs
@@ -336,7 +348,8 @@ class MainActivity : ComponentActivity() {
                     onSwitchAgent = chatViewModel::switchAgent,
                     onSpeak = chatViewModel::speak,
                     onStartListening = chatViewModel::startListening,
-                    onStopRecording = chatViewModel::stopRecording
+                    onStopRecording = chatViewModel::stopRecording,
+                    onExportChat = chatViewModel::exportChat
                 )
             }
         }

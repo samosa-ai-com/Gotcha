@@ -1253,11 +1253,15 @@ object ToolDefinitions {
                 }
                 putJsonObject("x") {
                     put("type", "integer")
-                    put("description", "Absolute X pixel coordinate (use with y instead of text).")
+                    put("description", "X coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
                 }
                 putJsonObject("y") {
                     put("type", "integer")
-                    put("description", "Absolute Y pixel coordinate (use with x instead of text).")
+                    put("description", "Y coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                }
+                putJsonObject("normalized") {
+                    put("type", "boolean")
+                    put("description", "If true, x and y are in [0, 1000] normalized space. Default false.")
                 }
             }
         }
@@ -1278,7 +1282,67 @@ object ToolDefinitions {
                 putJsonObject("y1") { put("type", "integer"); put("description", "Start Y.") }
                 putJsonObject("x2") { put("type", "integer"); put("description", "End X.") }
                 putJsonObject("y2") { put("type", "integer"); put("description", "End Y.") }
+                putJsonObject("normalized") {
+                    put("type", "boolean")
+                    put("description", "If true, coordinate params are in [0, 1000] normalized space. Default false.")
+                }
+                putJsonObject("distance") {
+                    put("type", "integer")
+                    put("description", "Scroll distance in pixels. Default 0 = full screen (70% of dimension). Ignored when using explicit coordinates.")
+                }
             }
+        }
+    )
+
+    val tapIndex = tool(
+        "tap_index",
+        "Tap a UI element from the numbered elements list shown in the screen observation. " +
+            "The index corresponds to the number shown before each element. " +
+            "Prefer this over raw coordinate tap when possible for precision.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Index of the element to tap (from the ── UI Elements ── list).")
+                }
+            }
+            putJsonArray("required") { add("index") }
+        }
+    )
+
+    val pressKey = tool(
+        "press_key",
+        "Press a system key or perform a navigation action. " +
+            "For entering text, use input_text instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("key") {
+                    put("type", "string")
+                    put("description", "One of: enter, back, home, recents, notifications, quick_settings, lock_screen, delete, tab, escape.")
+                }
+            }
+            putJsonArray("required") { add("key") }
+        }
+    )
+
+    val navigateApp = tool(
+        "navigate_app",
+        "Open apps and navigate them step by step. Provide a detailed description of " +
+            "what to do — the App Navigator will look at the screen, tap, swipe, type, " +
+            "and scroll until the task is done. " +
+            "Only available to Operator mode. Cannot be called from within a sub-agent.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("task") {
+                    put("type", "string")
+                    put("description", "Detailed step-by-step instructions of what to do in the app. " +
+                        "Include the app name, search terms, what to look for, and what the final " +
+                        "summary should contain. " +
+                        "Example: 'Open Google Maps, search for restaurants near me, scroll through " +
+                        "results, and tell me the top 5 with ratings and distances.'")
+                }
+            }
+            putJsonArray("required") { add("task") }
         }
     )
 
@@ -1523,7 +1587,8 @@ object ToolDefinitions {
         webSearch, webFetch,
         // DEPRECATED: readImage excluded from the active catalog — use read_file instead.
         // Tier 3 additions
-        readScreen, readScreenRaw, tap, swipe, inputText, globalAction,
+        readScreen, readScreenRaw, tap, swipe, tapIndex, pressKey, inputText, globalAction,
+        navigateApp,
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,
         lockScreen, disableCamera, setPasswordPolicy,

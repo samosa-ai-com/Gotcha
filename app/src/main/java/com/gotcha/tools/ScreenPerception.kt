@@ -2,6 +2,9 @@ package com.gotcha.tools
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Build
 import android.util.Base64
@@ -35,16 +38,23 @@ object ScreenPerception {
     suspend fun compressScreenshot(
         maxDimension: Int = 2000,
         format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
-        quality: Int = 50
+        quality: Int = 50,
+        drawGrid: Boolean = false
     ): CompressedScreenshot? {
         val bytes = captureRawBytes() ?: return null
         val originalSize = bytes.size.toLong()
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
         val scaled = if (maxDimension > 0) downscale(bitmap, maxDimension) else bitmap
         if (scaled != bitmap) bitmap.recycle()
+        val (forEncoding, recycleForEncoding) = if (drawGrid) {
+            drawCoordinateGrid(scaled) to true
+        } else {
+            scaled to false
+        }
+        if (drawGrid) scaled.recycle()
         val output = ByteArrayOutputStream()
-        scaled.compress(format, quality, output)
-        scaled.recycle()
+        forEncoding.compress(format, quality, output)
+        if (recycleForEncoding) forEncoding.recycle()
         val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
         val fmtName = when (format) {
             Bitmap.CompressFormat.JPEG -> "jpeg"
@@ -85,11 +95,95 @@ object ScreenPerception {
             appendLine(uiTree)
             appendLine("── Coordinate Contract ──")
             appendLine("Screenshot is ${screenshot.width} x ${screenshot.height} pixels.")
+            appendLine("A coordinate grid is overlaid on the screenshot (10x10 divisions).")
             appendLine("UI element bounds below are in native pixel coordinates.")
             appendLine("For coordinate-based actions, use [0, 1000] normalized space:")
             appendLine("  actual_x = (model_x / 1000) * ${screenshot.width}")
             appendLine("  actual_y = (model_y / 1000) * ${screenshot.height}")
         }
+    }
+
+    fun resolveElementByIndex(targetIndex: Int): UiElement? {
+        val service = GotchaAccessibilityService.instance ?: return null
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return null
+        val root = service.rootInActiveWindow ?: return null
+        val container = mutableListOf<UiElement>()
+        collectElements(root, container, 1000)
+        root.recycle()
+        return container.firstOrNull { it.index == targetIndex }
+    }
+
+    fun normalizeToPixel(modelX: Int, modelY: Int, displayW: Int, displayH: Int): Pair<Int, Int> {
+        val actualX = (modelX.toFloat() / 1000f * displayW).toInt().coerceIn(0, displayW)
+        val actualY = (modelY.toFloat() / 1000f * displayH).toInt().coerceIn(0, displayH)
+        return Pair(actualX, actualY)
+    }
+
+    fun denormalizeToModel(pixelX: Int, pixelY: Int, displayW: Int, displayH: Int): Pair<Int, Int> {
+        val modelX = (pixelX.toFloat() / displayW * 1000f).toInt().coerceIn(0, 1000)
+        val modelY = (pixelY.toFloat() / displayH * 1000f).toInt().coerceIn(0, 1000)
+        return Pair(modelX, modelY)
+    }
+
+    fun getScreenDimensions(): Pair<Int, Int> {
+        val service = GotchaAccessibilityService.instance
+        if (service != null) {
+            val root = service.rootInActiveWindow ?: return Pair(1080, 2340)
+            val bounds = Rect()
+            root.getBoundsInScreen(bounds)
+            root.recycle()
+            val w = bounds.right
+            val h = bounds.bottom
+            if (w > 0 && h > 0) return Pair(w, h)
+        }
+        return Pair(1080, 2340)
+    }
+
+    private fun drawCoordinateGrid(bitmap: Bitmap): Bitmap {
+        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return bitmap
+        val canvas = Canvas(result)
+        val w = bitmap.width.toFloat()
+        val h = bitmap.height.toFloat()
+        val divisions = 10
+
+        val linePaint = Paint().apply {
+            color = Color.argb(60, 180, 180, 200)
+            strokeWidth = 1.5f
+            isAntiAlias = true
+        }
+        val labelPaint = Paint().apply {
+            color = Color.argb(160, 255, 255, 255)
+            textSize = 20f
+            isAntiAlias = true
+            setShadowLayer(2f, 1f, 1f, Color.argb(128, 0, 0, 0))
+        }
+
+        for (i in 0..divisions) {
+            val x = w * i / divisions
+            val y = h * i / divisions
+            canvas.drawLine(x, 0f, x, h, linePaint)
+            canvas.drawLine(0f, y, w, y, linePaint)
+
+            val labelX = (i * 100).toString()
+            val labelY = (i * 100).toString()
+            if (i > 0 && i < divisions) {
+                canvas.drawText(labelX, x - 10f, h - 6f, labelPaint)
+                canvas.drawText(labelY, 4f, y - 6f, labelPaint)
+            }
+            canvas.drawText("0", 4f, h - 6f, labelPaint)
+            canvas.drawText("1000", w - 42f, h - 6f, labelPaint)
+            canvas.drawText("1000", 4f, 16f, labelPaint)
+        }
+
+        val centerPaint = Paint().apply {
+            color = Color.argb(100, 255, 200, 50)
+            strokeWidth = 2f
+        }
+        val cx = w / 2
+        val cy = h / 2
+        canvas.drawCircle(cx, cy, 8f, centerPaint)
+
+        return result
     }
 
     private suspend fun captureRawBytes(): ByteArray? {

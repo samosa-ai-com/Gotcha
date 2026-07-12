@@ -36,8 +36,14 @@ object ToolRegistry {
         "check_root"
     )
 
-    /** Full Operator tool set minus task (sub-agents cannot delegate further). */
-    val subAgentTools: Set<String> = definitions.keys - "task"
+    /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */
+    val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app")
+
+    /** Tools available to the App Navigator sub-agent. */
+    val navigatorTools: Set<String> = setOf(
+        "tap", "tap_index", "swipe", "input_text", "press_key",
+        "sleep", "ask_final_answer"
+    )
 
     private val operatorTools: Set<String> = definitions.keys
 
@@ -65,4 +71,7 @@ object ToolRegistry {
 
     fun toolsForSubAgent(): List<ToolDefinition> =
         definitions.filterKeys { it in subAgentTools }.values.toList()
+
+    fun toolsForNavigator(): List<ToolDefinition> =
+        definitions.filterKeys { it in navigatorTools }.values.toList()
 }

@@ -21,7 +21,8 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class ToolExecutor(
     context: Context,
-    val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null
+    val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
+    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null
 ) {
 
     private val TAG = "Gotcha"
@@ -344,16 +345,41 @@ class ToolExecutor(
         // ---- Tier 3 ----
         "read_screen" -> accessibilityTool.readScreen()
         "read_screen_raw" -> accessibilityTool.readScreenRaw()
-        "tap" -> accessibilityTool.tap(
-            text = args.requireString("text"),
-            x = args.requireInt("x"),
-            y = args.requireInt("y")
-        )
+        "tap" -> {
+            var x = args.requireInt("x")
+            var y = args.requireInt("y")
+            val normalized = args.requireBoolean("normalized") ?: false
+            if (normalized && x != null && y != null) {
+                val (w, h) = ScreenPerception.getScreenDimensions()
+                val (nx, ny) = ScreenPerception.normalizeToPixel(x, y, w, h)
+                x = nx; y = ny
+            }
+            accessibilityTool.tap(text = args.requireString("text"), x = x, y = y)
+        }
         "swipe" -> accessibilityTool.swipe(
             direction = args.requireString("direction"),
             x1 = args.requireInt("x1"), y1 = args.requireInt("y1"),
-            x2 = args.requireInt("x2"), y2 = args.requireInt("y2")
+            x2 = args.requireInt("x2"), y2 = args.requireInt("y2"),
+            normalized = args.requireBoolean("normalized") ?: false,
+            distance = args.requireInt("distance")
         )
+        "tap_index" -> {
+            val index = args.requireInt("index") ?: return missing("index")
+            accessibilityTool.tapByIndex(index)
+        }
+        "press_key" -> {
+            val key = args.requireString("key") ?: return missing("key")
+            accessibilityTool.pressKey(key)
+        }
+        "navigate_app" -> {
+            val handler = onNavigateApp
+            if (handler == null) {
+                ToolResult.error("App navigation is not configured.")
+            } else {
+                val task = args.requireString("task") ?: return missing("task")
+                handler(task)
+            }
+        }
         "input_text" -> accessibilityTool.inputText(args.requireString("text") ?: return missing("text"))
         "global_action" -> accessibilityTool.globalAction(args.requireString("action") ?: return missing("action"))
         "read_notifications" -> notificationTool.readNotifications(args.requireInt("limit") ?: 15)
@@ -393,6 +419,9 @@ class ToolExecutor(
     /** Parse an integer argument; tolerates numbers sent as JSON strings by the LLM. */
     private fun JsonObject.requireInt(key: String): Int? =
         this[key]?.jsonPrimitive?.let { it.intOrNull ?: it.content.trim().toIntOrNull() }
+
+    private fun JsonObject.requireBoolean(key: String): Boolean? =
+        this[key]?.jsonPrimitive?.booleanOrNull
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")

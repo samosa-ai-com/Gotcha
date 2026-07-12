@@ -59,6 +59,7 @@ fun SettingsScreen(
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
     var model by remember { mutableStateOf(initial.model) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
+    var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
@@ -91,12 +92,14 @@ fun SettingsScreen(
     var sttModelExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var subAgentModelExpanded by remember { mutableStateOf(false) }
+    var navigatorModelExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
         subAgentModel = subAgentModel.trim(),
+        navigatorModel = navigatorModel.trim(),
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
@@ -227,6 +230,43 @@ fun SettingsScreen(
                                         onClick = {
                                             subAgentModel = m
                                             subAgentModelExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    ExposedDropdownMenuBox(
+                        expanded = navigatorModelExpanded,
+                        onExpandedChange = { navigatorModelExpanded = it }
+                    ) {
+                        val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
+                        OutlinedTextField(
+                            value = navLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Navigator model") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = navigatorModelExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = navigatorModelExpanded,
+                            onDismissRequest = { navigatorModelExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Same as main model") },
+                                onClick = {
+                                    navigatorModel = ""
+                                    navigatorModelExpanded = false
+                                }
+                            )
+                            if (availableChatModels.isNotEmpty()) {
+                                availableChatModels.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(m) },
+                                        onClick = {
+                                            navigatorModel = m
+                                            navigatorModelExpanded = false
                                         }
                                     )
                                 }

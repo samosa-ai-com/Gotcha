@@ -11,6 +11,7 @@ data class Settings(
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
     val subAgentModel: String = "",  // empty = same as main agent
+    val navigatorModel: String = "", // empty = same as main model
     val maxToolRounds: Int = 30,
     val maxContextTokens: Int = 40000,
     val apiTimeoutSeconds: Long = 0L,
@@ -54,6 +55,7 @@ class SettingsRepository(context: Context) {
             ?: Settings.DEFAULT_BASE_URL,
         model = prefs.getString(KEY_MODEL, Settings.DEFAULT_MODEL) ?: Settings.DEFAULT_MODEL,
         subAgentModel = prefs.getString(KEY_SUB_AGENT_MODEL, "") ?: "",
+        navigatorModel = prefs.getString(KEY_NAVIGATOR_MODEL, "") ?: "",
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 30),
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 40000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
@@ -73,6 +75,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_BASE_URL, settings.baseUrl)
             .putString(KEY_MODEL, settings.model)
             .putString(KEY_SUB_AGENT_MODEL, settings.subAgentModel)
+            .putString(KEY_NAVIGATOR_MODEL, settings.navigatorModel)
             .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
             .putInt(KEY_MAX_CONTEXT_TOKENS, settings.maxContextTokens)
             .putLong(KEY_API_TIMEOUT, settings.apiTimeoutSeconds)
@@ -92,6 +95,7 @@ class SettingsRepository(context: Context) {
         const val KEY_BASE_URL = "base_url"
         const val KEY_MODEL = "model"
         const val KEY_SUB_AGENT_MODEL = "sub_agent_model"
+        const val KEY_NAVIGATOR_MODEL = "navigator_model"
         const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"
         const val KEY_MAX_CONTEXT_TOKENS = "max_context_tokens"
         const val KEY_API_TIMEOUT = "api_timeout"
