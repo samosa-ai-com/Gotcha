@@ -22,6 +22,10 @@ class LLMClient(
         private const val DEFAULT_MODEL = "gpt-4o"
     }
 
+    /** Set per-request for the X-Session-Id header. */
+    @Volatile
+    private var pendingSessionId: String? = null
+
     private val apiService: ApiService
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
@@ -42,10 +46,12 @@ class LLMClient(
             .readTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .writeTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
+                val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")
-                    .build()
-                chain.proceed(request)
+                pendingSessionId?.let { sid ->
+                    builder.addHeader("X-Session-Id", sid)
+                }
+                chain.proceed(builder.build())
             }
             .addInterceptor(logging)
             .build()
@@ -64,7 +70,8 @@ class LLMClient(
     suspend fun chat(
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
-        temperature: Float? = null
+        temperature: Float? = null,
+        sessionId: String? = null
     ): ChatResponse {
         val cacheKey = buildCacheKey(model, messages, tools)
 
@@ -72,14 +79,17 @@ class LLMClient(
             cache.get(cacheKey)?.let { return it }
         }
 
+        pendingSessionId = sessionId
         val request = ChatRequest(
             model = model,
             messages = messages,
             tools = tools.ifEmpty { null },
-            temperature = temperature
+            temperature = temperature,
+            promptCacheKey = sessionId
         )
 
         val response = apiService.chat(request)
+        pendingSessionId = null
 
         val shouldCache = (temperature == null || temperature == 0f)
                 && response.choices.isNotEmpty()

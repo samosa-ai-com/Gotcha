@@ -490,13 +490,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun runToolLoop() {
         val llm = client ?: return
         val agent = _uiState.value.activeAgent
+        val sessionId = activeSessionId ?: "unknown"
         checkAndCompactHistory(llm)
         repeat(settings.maxToolRounds) { iteration ->
-            if (iteration > 0) delay(INTER_CALL_DELAY_MS) // throttle (PRD §11.2 #7)
+            if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             _uiState.update { it.copy(activity = "Thinking…") }
 
+            // Build message array optimized for prompt caching:
+            //   1. Base environment block (identical across agent switches
+            //      except for a single "Active agent: X" line)
+            //   2. Full conversation history (unchanged on switch)
+            //   3. Agent instructions at the tail (changes on switch, keeps
+            //      the prefix [base env + history] in the KV cache)
+            val messages = buildList {
+                add(baseEnvironmentBlock(agent))
+                addAll(trimmedHistory())
+                addAll(agentInstructionMessages(agent))
+            }
             val response = try {
-                llm.chat(systemPrompt(agent) + trimmedHistory(), ToolRegistry.toolsForAgent(agent))
+                llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -819,12 +831,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Assembles the system prompt for the given [agent] mode.
-     * Contains the environment block, core prompt, and agent-mode reminder.
-     * Follows the Open Code pattern from PRD §14.
+     * Environment block sent as the first system message.
+     * Only one line ("Active agent: X") differs between Monitor and Operator,
+     * so the server KV cache for this ~300-token prefix is mostly preserved
+     * across agent switches.
      */
-    private fun systemPrompt(agent: AgentMode): List<ChatMessage> {
-        val env = buildEnvironmentBlock(agent)
+    private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
+        return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
+    }
+
+    /**
+     * Agent-specific core prompt + system-reminder, sent at the tail of the
+     * message array (right before the latest user message).  Placing these
+     * after the conversation history ensures the [baseEnvironmentBlock] +
+     * history prefix stays in the KV cache when the user switches agents.
+     */
+    private fun agentInstructionMessages(agent: AgentMode): List<ChatMessage> {
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
@@ -860,14 +882,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "actions — confirm with the user when the result seems significant.\n" +
                 "</system-reminder>"
         }
-        return listOf(ChatMessage(role = "system", content = JsonPrimitive(env + "\n\n" + core + reminder)))
+        return listOf(
+            ChatMessage(role = "system", content = JsonPrimitive(core + reminder))
+        )
     }
 
     /**
-     * Builds the environment block with device info, date/time, agent mode,
-     * and service statuses (PRD §14.1).
+     * Builds the environment info string with device info, date/time, agent mode,
+     * and service statuses (PRD §14.1).  Only varies by a single "Active agent: X" line.
      */
-    private fun buildEnvironmentBlock(agent: AgentMode): String {
+    private fun buildEnvironmentString(agent: AgentMode): String {
         val app = getApplication<Application>()
         val pm = app.packageManager
         val versionName = try {
