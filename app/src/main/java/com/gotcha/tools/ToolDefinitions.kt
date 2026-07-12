@@ -1067,6 +1067,56 @@ object ToolDefinitions {
         }
     )
 
+    val task = tool(
+        "task",
+        "Delegate a multi-step task to a sub-agent. The sub-agent runs independently " +
+            "with full access to all Operator tools and returns a final report. " +
+            "Use this when the work involves many steps whose intermediate details are " +
+            "not important to you — only the final result matters. " +
+            "Available sub-agents: GENERAL — a general-purpose agent that can perform " +
+            "any multi-step operation using all available device tools. " +
+            "Cannot be called from within a sub-agent (no recursive delegation). " +
+            "Only available to Operator mode.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("description") {
+                    put("type", "string")
+                    put("description", "Brief description of what the sub-agent should do " +
+                        "(shown in the UI while it runs).")
+                }
+                putJsonObject("prompt") {
+                    put("type", "string")
+                    put("description", "Detailed instructions for the sub-agent. " +
+                        "Include all context the sub-agent needs to complete the task.")
+                }
+                putJsonObject("subagent_type") {
+                    put("type", "string")
+                    put("description", "Which sub-agent to use. Default: 'general'. " +
+                        "Available: general.")
+                }
+            }
+            putJsonArray("required") { add("description"); add("prompt") }
+        }
+    )
+
+    val ask_final_answer = tool(
+        "ask_final_answer",
+        "Signal that the delegated task is complete and provide the final result. " +
+            "Only available to General sub-agent. " +
+            "Call this once all required steps have been executed and you have the " +
+            "complete answer to report back. " +
+            "Do NOT call this before the work is actually done.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("answer") {
+                    put("type", "string")
+                    put("description", "The complete final result to report back.")
+                }
+            }
+            putJsonArray("required") { add("answer") }
+        }
+    )
+
     val glob = tool(
         "glob",
         "Find files matching a glob pattern within an allowed directory. " +
@@ -1451,6 +1501,9 @@ object ToolDefinitions {
         question,
         // Sleep / delay utility (available to both agents)
         sleep,
+        // Sub-agent delegation (Operator only)
+        task,
+        ask_final_answer,
         // Task tracking
         todowrite,
         // Surgical file editing (Operator only)

@@ -19,7 +19,10 @@ import kotlinx.serialization.json.jsonPrimitive
  * preconditions (executors return permission errors instead of crashing),
  * and records every execution in the [ActionLog].
  */
-class ToolExecutor(context: Context) {
+class ToolExecutor(
+    context: Context,
+    val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null
+) {
 
     private val TAG = "Gotcha"
     private val appContext = context.applicationContext
@@ -59,14 +62,19 @@ class ToolExecutor(context: Context) {
      * Execute [name] with [args] on behalf of the given [agent].
      * Returns an error without running the tool if the agent mode disallows it.
      */
-    suspend fun execute(name: String, args: JsonObject, agent: AgentMode = AgentMode.OPERATOR): ToolResult {
+    suspend fun execute(name: String, args: JsonObject, agent: AgentMode = AgentMode.OPERATOR, isSubAgent: Boolean = false): ToolResult {
         if (!ToolRegistry.contains(name)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
-        if (!ToolRegistry.isAllowedForAgent(name, agent)) {
+        if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
                 "This action is not available in ${agent.name} mode. " +
                 "Switch to Operator mode if you need to perform this action."
+            )
+        }
+        if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(name)) {
+            return ToolResult.error(
+                "Tool '$name' is not available to sub-agents (no recursive delegation)."
             )
         }
         val result = try {
@@ -301,6 +309,19 @@ class ToolExecutor(context: Context) {
         "todowrite" -> todoTool.todowrite(
             parseTodoItems(args["items"]) ?: return missing("items")
         )
+        "ask_final_answer" -> {
+            ToolResult.ok(args.requireString("answer") ?: "(no answer)")
+        }
+        "task" -> {
+            val handler = onTask
+            if (handler == null) {
+                ToolResult.error("Task delegation is not configured.")
+            } else {
+                val description = args.requireString("description") ?: return missing("description")
+                val prompt = args.requireString("prompt") ?: return missing("prompt")
+                handler(description, prompt)
+            }
+        }
         "sleep" -> {
             val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                 ?: return missing("duration_seconds")

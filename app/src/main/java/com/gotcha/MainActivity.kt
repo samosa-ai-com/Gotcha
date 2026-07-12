@@ -276,6 +276,18 @@ class MainActivity : ComponentActivity() {
                             Pair(ttsModels, sttModels)
                         }
                     },
+                    onRefreshChatModels = { s ->
+                        withContext(Dispatchers.IO) {
+                            val client = LLMClient(
+                                apiKey = s.apiKey,
+                                baseUrl = s.baseUrl,
+                                model = s.model,
+                                context = this@MainActivity,
+                                apiTimeoutSeconds = s.apiTimeoutSeconds
+                            )
+                            client.listModels()
+                        }
+                    },
                     packageName = packageName
                 )
             }

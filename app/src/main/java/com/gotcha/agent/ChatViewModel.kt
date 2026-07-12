@@ -21,6 +21,7 @@ import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -47,7 +48,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
-enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
+enum class MessageKind { USER, ASSISTANT, TOOL, ERROR, SUBAGENT }
 
 /** Outcome of the sensitive-action confirmation step. */
 private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
@@ -76,6 +77,7 @@ data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val isBusy: Boolean = false,
     val activity: String? = null, // e.g. "Running: set_brightness…"
+    val subAgentRunning: String? = null, // description while sub-agent is active
     val pendingConfirmation: PendingConfirmation? = null,
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
@@ -83,8 +85,8 @@ data class ChatUiState(
     val activeAgent: AgentMode = AgentMode.OPERATOR,
     val contextUsagePercent: Float = 0f,
     // TTS / STT state
-    val isListening: Boolean = false, // Android STT active
-    val isRecording: Boolean = false, // API STT recording
+    val isListening: Boolean = false,
+    val isRecording: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
 )
@@ -94,7 +96,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val TAG = "Gotcha"
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
-    private val toolExecutor = ToolExecutor(application)
+    private lateinit var toolExecutor: ToolExecutor
     private val confirmationOverlay = ConfirmationOverlay(application)
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -134,6 +136,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
 
     init {
+        toolExecutor = ToolExecutor(application) { description, prompt ->
+            _uiState.update { it.copy(subAgentRunning = description) }
+            val subSession = SubAgentSession(
+                appContext = getApplication(),
+                toolExecutor = toolExecutor,
+                settings = settings,
+                description = description,
+                prompt = prompt
+            )
+            val result = subSession.run()
+            _uiState.update { it.copy(subAgentRunning = null) }
+            if (result.startsWith("Task failed") || result.startsWith("Task exceeded")) {
+                ToolResult.error(result)
+            } else {
+                ToolResult.ok("TASK_RESULT:$description:$result")
+            }
+        }
         refreshSettings()
         viewModelScope.launch {
             val sessions = historyRepository.listSessions()
@@ -177,6 +196,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
     }
 
+    suspend fun refreshChatModels(): Result<List<String>> {
+        val cfg = settings
+        if (!cfg.isConfigured) return Result.failure(Exception("API not configured"))
+        val client = LLMClient(
+            apiKey = cfg.apiKey,
+            baseUrl = cfg.baseUrl,
+            model = cfg.model,
+            context = getApplication(),
+            apiTimeoutSeconds = cfg.apiTimeoutSeconds
+        )
+        return client.listModels()
+    }
+
     fun sendMessage(text: String, imageBase64: String? = null) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && imageBase64 == null) return
@@ -201,7 +233,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 withContext(NonCancellable) {
                     saveCurrentSession()
-                    _uiState.update { it.copy(isBusy = false, activity = null) }
+                    _uiState.update { it.copy(isBusy = false, activity = null, subAgentRunning = null) }
                     agentJob = null
                 }
             }
@@ -573,6 +605,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         handleBinaryResult(call, result)
                     } else if (result.success && result.message.startsWith("QUESTION:")) {
                         handleQuestionResult(call, result)
+                    } else if (result.success && result.message.startsWith("TASK_RESULT:")) {
+                        handleTaskResult(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
                         handleUninstallConfirm(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_ALARM:")) {
@@ -847,8 +881,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * Handles a tool result prefixed with TASK_RESULT:description:result.
+     * Shows the result as a SUBAGENT message bubble and stores a clean
+     * tool result in the LLM history.
+     */
+    private fun handleTaskResult(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("TASK_RESULT:")
+        val colon = body.indexOf(':')
+        if (colon < 0) return
+        val description = body.substring(0, colon)
+        val answer = body.substring(colon + 1)
+        // Show as a styled SUBAGENT bubble in the UI
+        appendUi(MessageKind.SUBAGENT, "$description\n\n$answer")
+        // Store clean text in LLM history
+        llmHistory += ChatMessage(
+            role = "tool",
+            content = JsonPrimitive("Task \"$description\" completed. Result:\n$answer"),
+            toolCallId = call.id
+        )
+    }
+
     private suspend fun executeCall(call: ToolCall): ToolResult {
-        _uiState.update { it.copy(activity = "Running: ${call.function.name}…") }
+        _uiState.update { it.copy(activity = "Running: ${call.function.name}…", subAgentRunning = null) }
         val args: JsonObject = try {
             json.decodeFromString(JsonObject.serializer(), call.function.arguments.ifBlank { "{}" })
         } catch (e: Exception) {

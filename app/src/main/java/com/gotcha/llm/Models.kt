@@ -120,3 +120,18 @@ data class Choice(
     @SerialName("finish_reason")
     val finishReason: String? = null
 )
+
+/** Response from GET /v1/models (OpenAI-compatible). */
+@Serializable
+data class ModelListResponse(
+    val data: List<ModelInfo>
+)
+
+@Serializable
+data class ModelInfo(
+    val id: String,
+    @SerialName("object")
+    val objectType: String = "model",
+    @SerialName("owned_by")
+    val ownedBy: String = ""
+)

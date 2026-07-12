@@ -144,6 +144,27 @@ fun ChatScreen(
                 }
             }
 
+            if (state.subAgentRunning != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1A1A2E), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.width(16.dp),
+                        color = Color(0xFFE0D4FF)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "⚡ ${state.subAgentRunning}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFE0D4FF)
+                    )
+                }
+            }
+
             if (!state.isConfigured) {
                 TextButton(
                     onClick = onOpenSettings,

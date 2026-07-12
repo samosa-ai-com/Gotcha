@@ -97,6 +97,11 @@ class LLMClient(
         cache.clear()
     }
 
+    suspend fun listModels(): Result<List<String>> = runCatching {
+        val response = apiService.listModels()
+        response.data.map { it.id }.sorted()
+    }
+
     private fun buildCacheKey(
         model: String,
         messages: List<ChatMessage>,

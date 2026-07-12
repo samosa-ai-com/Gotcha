@@ -61,6 +61,12 @@ fun MessageBubble(
         MessageKind.ASSISTANT -> colors.surfaceVariant to colors.onSurfaceVariant
         MessageKind.TOOL -> colors.secondaryContainer to colors.onSecondaryContainer
         MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
+        MessageKind.SUBAGENT -> {
+            // Distinct indigo/purple palette for sub-agent messages
+            val bg = androidx.compose.ui.graphics.Color(0xFF1A1A2E)
+            val fg = androidx.compose.ui.graphics.Color(0xFFE0D4FF)
+            bg to fg
+        }
     }
     val expanded = remember { mutableStateOf(!isTool) }
     var showMenu by remember { mutableStateOf(false) }
@@ -115,7 +121,15 @@ fun MessageBubble(
                     }
                 }
                 if (message.text.isNotEmpty()) {
-                    val displayText = if (isTool) "🔧 ${message.text}" else message.text
+                    val displayText = when (message.kind) {
+                        MessageKind.TOOL -> "🔧 ${message.text}"
+                        MessageKind.SUBAGENT -> {
+                            val firstLine = message.text.substringBefore("\n")
+                            val rest = message.text.substringAfter("\n", "")
+                            "⚡ General Agent: $firstLine" + if (rest.isNotBlank()) "\n$rest" else ""
+                        }
+                        else -> message.text
+                    }
                     val firstLine = displayText.substringBefore("\n").trimEnd()
                     val hasMore = displayText.contains("\n")
 
@@ -134,7 +148,7 @@ fun MessageBubble(
                             )
                         }
                     } else {
-                        if (message.kind == MessageKind.TOOL) {
+                        if (message.kind == MessageKind.TOOL || message.kind == MessageKind.SUBAGENT) {
                             Text(
                                 text = displayText,
                                 style = MaterialTheme.typography.bodySmall
