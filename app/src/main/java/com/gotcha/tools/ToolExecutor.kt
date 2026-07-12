@@ -76,7 +76,9 @@ class ToolExecutor(context: Context) {
         } catch (e: Exception) {
             ToolResult.error("Tool '$name' failed: ${e.message}")
         }
-        Log.d(TAG, "execute: $name -> success=${result.success}, msg=${result.message.take(80)}, perm=${result.needsPermission}")
+        // Do not log result.message — tool payloads can contain sensitive user data
+        // (SMS bodies, clipboard text, file contents, location, etc.).
+        Log.d(TAG, "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}")
         actionLog.record(name, args.toString(), result)
         return result
     }

@@ -143,8 +143,12 @@ class SmsTool(private val context: Context) {
                 }
             }
             deliveryReceiver = receiver
-            context.registerReceiver(receiver, IntentFilter("com.gotcha.SMS_SENT"),
-                Context.RECEIVER_EXPORTED
+            // The delivery result is delivered by the system to our own PendingIntent,
+            // so the receiver must not be exported (also avoids the API 33+ overload
+            // crashing on older devices — minSdk is 26).
+            ContextCompat.registerReceiver(
+                context, receiver, IntentFilter("com.gotcha.SMS_SENT"),
+                ContextCompat.RECEIVER_NOT_EXPORTED
             )
         }
         return pi

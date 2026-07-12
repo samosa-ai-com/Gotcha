@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -43,10 +44,9 @@ fun PermissionsSection(packageName: String) {
     var expandedGroups by remember { mutableStateOf(groups.associate { it.name to true }) }
 
     // Trigger recomposition on every activity resume so permission state is re-read from Android
-    val lifecycleOwner = LocalContext.current as? androidx.lifecycle.LifecycleOwner
+    val lifecycleOwner = LocalLifecycleOwner.current
     var resumeSignal by remember { mutableStateOf(0) }
     DisposableEffect(lifecycleOwner) {
-        if (lifecycleOwner == null) return@DisposableEffect onDispose {}
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) resumeSignal++
         }
@@ -55,7 +55,7 @@ fun PermissionsSection(packageName: String) {
     }
 
     val runtimeLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestMultiplePermissions()
     ) { /* permission state is re-read on next ON_RESUME via resumeSignal */ }
 
     Text("Permissions", style = MaterialTheme.typography.titleMedium)
@@ -94,8 +94,8 @@ fun PermissionsSection(packageName: String) {
                         item = item,
                         granted = granted,
                         packageName = packageName,
-                        onRequestRuntime = { perm ->
-                            runtimeLauncher.launch(perm)
+                        onRequestRuntime = { perms ->
+                            runtimeLauncher.launch(perms)
                         }
                     )
                 }
@@ -109,7 +109,7 @@ private fun PermissionRow(
     item: PermissionItem,
     granted: Boolean,
     packageName: String,
-    onRequestRuntime: (String) -> Unit
+    onRequestRuntime: (Array<String>) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -133,7 +133,7 @@ private fun PermissionRow(
             onCheckedChange = { checked ->
                 if (checked) {
                     if (item.androidPermission != null) {
-                        onRequestRuntime(item.androidPermission)
+                        onRequestRuntime((listOf(item.androidPermission) + item.extraPermissions).toTypedArray())
                     } else if (item.specialMarker != null) {
                         openSpecialAccess(context, item.specialMarker, packageName)
                     }

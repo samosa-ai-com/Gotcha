@@ -22,10 +22,6 @@ class LLMClient(
         private const val DEFAULT_MODEL = "gpt-4o"
     }
 
-    /** Set per-request for the X-Session-Id header. */
-    @Volatile
-    private var pendingSessionId: String? = null
-
     private val apiService: ApiService
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
@@ -48,9 +44,6 @@ class LLMClient(
             .addInterceptor { chain ->
                 val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")
-                pendingSessionId?.let { sid ->
-                    builder.addHeader("X-Session-Id", sid)
-                }
                 chain.proceed(builder.build())
             }
             .addInterceptor(logging)
@@ -79,7 +72,6 @@ class LLMClient(
             cache.get(cacheKey)?.let { return it }
         }
 
-        pendingSessionId = sessionId
         val request = ChatRequest(
             model = model,
             messages = messages,
@@ -88,8 +80,7 @@ class LLMClient(
             promptCacheKey = sessionId
         )
 
-        val response = apiService.chat(request)
-        pendingSessionId = null
+        val response = apiService.chat(request, sessionId)
 
         val shouldCache = (temperature == null || temperature == 0f)
                 && response.choices.isNotEmpty()

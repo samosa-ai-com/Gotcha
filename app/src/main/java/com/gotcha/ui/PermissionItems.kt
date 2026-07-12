@@ -21,7 +21,10 @@ data class PermissionItem(
     val description: String,
     val androidPermission: String?,
     val specialMarker: String?,
-    val isGranted: (Context) -> Boolean
+    val isGranted: (Context) -> Boolean,
+    /** Additional runtime permissions requested together with [androidPermission] (e.g. the
+     *  matching WRITE permission for a read/write pair). Requested in the same system dialog. */
+    val extraPermissions: List<String> = emptyList()
 )
 
 fun allPermissionGroups(context: Context): List<PermissionGroup> = listOf(
@@ -51,14 +54,22 @@ fun allPermissionGroups(context: Context): List<PermissionGroup> = listOf(
         PermissionItem(
             "Contacts", "Read and create contacts",
             android.Manifest.permission.READ_CONTACTS, null,
-            { c -> checkPerm(c, android.Manifest.permission.READ_CONTACTS) }
+            { c ->
+                checkPerm(c, android.Manifest.permission.READ_CONTACTS) &&
+                    checkPerm(c, android.Manifest.permission.WRITE_CONTACTS)
+            },
+            extraPermissions = listOf(android.Manifest.permission.WRITE_CONTACTS)
         )
     )),
     PermissionGroup("Calendar", listOf(
         PermissionItem(
             "Calendar", "Read and create calendar events",
             android.Manifest.permission.READ_CALENDAR, null,
-            { c -> checkPerm(c, android.Manifest.permission.READ_CALENDAR) }
+            { c ->
+                checkPerm(c, android.Manifest.permission.READ_CALENDAR) &&
+                    checkPerm(c, android.Manifest.permission.WRITE_CALENDAR)
+            },
+            extraPermissions = listOf(android.Manifest.permission.WRITE_CALENDAR)
         )
     )),
     PermissionGroup("Media & Storage", listOf(

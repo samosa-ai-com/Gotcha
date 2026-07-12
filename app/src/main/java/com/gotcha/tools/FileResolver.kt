@@ -13,11 +13,13 @@ import java.io.File
  * configurable [defaultWorkingDir]. Permission checks are based on the actual
  * canonical path — not on artificial "named roots".
  *
- * Permission model by API level:
- * - API 23-29: READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE (runtime)
- * - API 30-32: MANAGE_EXTERNAL_STORAGE (special access) for broad; READ/WRITE per media dir
- * - API 33+:   READ_MEDIA_IMAGES + MANAGE_EXTERNAL_STORAGE for broad; per-media-dir per type
- * - App sandbox: always readable/writable
+ * Permission model by API level (as implemented here):
+ * - API 23-29: READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE (runtime) for any path
+ *              below external storage.
+ * - API 30+:   MANAGE_EXTERNAL_STORAGE ("All files access") for any path below external
+ *              storage. READ_MEDIA_* / scoped per-media-dir access is not used.
+ * - App sandbox (filesDir, cacheDir, getExternalFilesDir): always readable/writable,
+ *   no permission required on any API level.
  */
 class FileResolver(private val context: Context) {
 

@@ -370,7 +370,9 @@ class MainActivity : ComponentActivity() {
             add(android.Manifest.permission.READ_SMS)
             add(android.Manifest.permission.READ_CALL_LOG)
             add(android.Manifest.permission.READ_CONTACTS)
+            add(android.Manifest.permission.WRITE_CONTACTS)
             add(android.Manifest.permission.READ_CALENDAR)
+            add(android.Manifest.permission.WRITE_CALENDAR)
             if (Build.VERSION.SDK_INT <= 29) {
                 add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
                 add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
