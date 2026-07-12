@@ -21,7 +21,8 @@ data class Settings(
     val sttProvider: AudioProvider = AudioProvider.NONE,
     val sttApiBaseUrl: String = "",
     val sttApiModel: String = "",
-    val autoReadReplies: Boolean = false
+    val autoReadReplies: Boolean = false,
+    val assistiveBallEnabled: Boolean = false
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank()
 
@@ -62,7 +63,8 @@ class SettingsRepository(context: Context) {
         sttProvider = AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "NONE") ?: "NONE"),
         sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
-        autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false)
+        autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
+        assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false)
     )
 
     fun save(settings: Settings) {
@@ -81,6 +83,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_STT_API_URL, settings.sttApiBaseUrl)
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
+            .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .apply()
     }
 
@@ -99,5 +102,6 @@ class SettingsRepository(context: Context) {
         const val KEY_STT_API_URL = "stt_api_url"
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
     }
 }
