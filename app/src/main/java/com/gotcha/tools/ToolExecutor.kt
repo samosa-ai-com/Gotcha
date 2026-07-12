@@ -44,7 +44,6 @@ class ToolExecutor(context: Context) {
     private val editTool = EditTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
-    private val visionTool = VisionTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
@@ -100,12 +99,25 @@ class ToolExecutor(context: Context) {
             newString = args.requireString("newString") ?: return missing("newString"),
             replaceAll = args["replaceAll"]?.jsonPrimitive?.booleanOrNull ?: false
         )
-        "list_files" -> fileTool.listFiles(args.requireString("path") ?: return missing("path"))
-        "read_file" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
+        "list_files" -> fileTool.listFiles(
+            path = args.requireString("path") ?: return missing("path"),
+            recursive = args["recursive"]?.jsonPrimitive?.booleanOrNull ?: false,
+            sortBy = args.requireString("sort_by"),
+            include = args.requireString("include"),
+            exclude = args.requireString("exclude"),
+            maxDepth = args.requireInt("max_depth")
+        )
+        "read_file" -> fileTool.readFile(
+            path = args.requireString("path") ?: return missing("path"),
+            offset = args.requireInt("offset"),
+            limit = args.requireInt("limit"),
+            encoding = args.requireString("encoding")
+        )
         "write_file" -> fileTool.writeFile(
             path = args.requireString("path") ?: return missing("path"),
             content = args.requireString("content") ?: return missing("content"),
-            append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false
+            append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false,
+            binary = args["binary"]?.jsonPrimitive?.booleanOrNull ?: false
         )
         "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
         "set_brightness" -> systemTool.setBrightness(
@@ -115,7 +127,11 @@ class ToolExecutor(context: Context) {
             args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
         )
         "set_wallpaper" -> wallpaperTool.setWallpaper(args.requireString("url"))
-        "run_command" -> terminalTool.runCommand(args.requireString("command") ?: return missing("command"))
+        "run_command" -> terminalTool.runCommand(
+            command = args.requireString("command") ?: return missing("command"),
+            workingDir = args.requireString("working_dir"),
+            timeoutSeconds = args.requireInt("timeout_seconds") ?: 15
+        )
         "call_number" -> phoneTool.callNumber(args.requireString("number") ?: return missing("number"))
         "read_call_log" -> phoneTool.readCallLog(args.requireInt("limit") ?: 10)
         "find_contact" -> contactsTool.findContact(args.requireString("name") ?: return missing("name"))
@@ -189,7 +205,7 @@ class ToolExecutor(context: Context) {
         "todowrite" -> todoTool.todowrite(
             parseTodoItems(args["items"]) ?: return missing("items")
         )
-        "read_image" -> visionTool.readImage(args.requireString("path") ?: return missing("path"))
+        "read_image" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
         "glob" -> globTool.glob(
             path = args.requireString("path") ?: return missing("path"),
             pattern = args.requireString("pattern") ?: return missing("pattern")

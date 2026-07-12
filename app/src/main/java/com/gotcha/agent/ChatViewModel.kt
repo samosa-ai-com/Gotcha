@@ -20,6 +20,7 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
+import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -146,6 +147,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 activeSessionId = java.util.UUID.randomUUID().toString()
                 activeSessionTokenCount = 0
             }
+            setupWorkingDir(activeSessionId!!)
             _uiState.update { it.copy(activeSessionId = activeSessionId) }
             updateContextUsage()
             rebuildUiMessages()
@@ -385,6 +387,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         nextId = 0
         activeSessionId = java.util.UUID.randomUUID().toString()
         activeSessionTokenCount = 0
+        setupWorkingDir(activeSessionId!!)
         _uiState.update { it.copy(messages = emptyList(), activeSessionId = activeSessionId) }
         updateContextUsage()
     }
@@ -408,6 +411,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     activeSessionId = session.id
                     activeSessionTokenCount = session.tokenCount
                     nextId = 0
+                    setupWorkingDir(session.id)
                     updateContextUsage()
                     rebuildUiMessages()
                 }
@@ -564,6 +568,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         Log.d(TAG, "Permission $perm -> granted=$granted")
                         if (granted) {
                             result = executeCall(call)
+                            // If the granted permission was a storage permission,
+                            // ensure the per-chat working directory now exists.
+                            setupWorkingDir(activeSessionId!!)
                         } else {
                             result = ToolResult(false, "${result.message} Permission was not granted.")
                         }
@@ -571,6 +578,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {
                         handleImageResult(call, result)
+                    } else if (result.success && result.message.startsWith("BINARY_DATA:")) {
+                        handleBinaryResult(call, result)
                     } else if (result.success && result.message.startsWith("QUESTION:")) {
                         handleQuestionResult(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
@@ -715,6 +724,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Handles a tool result that contains binary data (prefixed with BINARY_DATA:).
+     * Format: BINARY_DATA:<mime>:<bytes>:<filename>:<base64>
+     * Stores a text summary in history; the raw base64 is available if needed.
+     */
+    private fun handleBinaryResult(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("BINARY_DATA:")
+        val parts = body.split(":", limit = 4)
+        if (parts.size < 4) {
+            llmHistory += ChatMessage(
+                role = "tool", content = JsonPrimitive("Failed to parse binary data."),
+                toolCallId = call.id
+            )
+            return
+        }
+        val mime = parts[0]
+        val bytesStr = parts[1]
+        val filename = parts[2]
+        val fileSize = try { bytesStr.toLong() } catch (_: Exception) { 0L }
+        val sizeDisplay = when {
+            fileSize >= 1024 * 1024 -> "${fileSize / (1024 * 1024)} MB"
+            fileSize >= 1024 -> "${fileSize / 1024} KB"
+            else -> "$fileSize B"
+        }
+        llmHistory += ChatMessage(
+            role = "tool",
+            content = JsonPrimitive("Read binary file: $filename ($mime, $sizeDisplay)"),
+            toolCallId = call.id
+        )
+        appendUi(MessageKind.TOOL, "${call.function.name}: Read $filename ($mime)")
+    }
+
+    /**
      * Handles a tool result that contains a question (prefixed with QUESTION:).
      * Shows the question to the user in a dialog, waits for their answer,
      * and returns the answer as the tool result.
@@ -826,6 +867,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Sets up the per-chat working directory at:
+     *   /storage/emulated/0/Gotcha/chats/{sessionId}/
+     *
+     * Updates [FileResolver.WORKING_DIR_BASE] so file tools resolve relative
+     * paths against this directory.
+     */
+    private fun setupWorkingDir(sessionId: String) {
+        val base = "/storage/emulated/0/Gotcha/chats/$sessionId"
+        val dir = java.io.File(base)
+        if (!dir.exists()) dir.mkdirs()
+        FileResolver.WORKING_DIR_BASE = dir.absolutePath
+        Log.d(TAG, "setupWorkingDir: ${dir.absolutePath}")
+    }
+
+    /**
      * Assembles the system prompt for the given [agent] mode.
      * Contains the environment block, core prompt, and agent-mode reminder.
      * Follows the Open Code pattern from PRD §14.
@@ -927,6 +983,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
             appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
             appendLine("  App version: $versionName")
+            appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
+            appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
             append("</env>")
         }
     }

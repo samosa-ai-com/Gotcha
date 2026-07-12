@@ -55,18 +55,34 @@ object ToolDefinitions {
 
     val listFiles = tool(
         "list_files",
-        "List files in an allowed directory. Allowed roots: 'files' (app files), 'cache' (app cache), " +
-            "'external' (app external files), 'downloads', 'pictures', 'dcim', 'documents', and " +
-            "'storage' (the whole shared-storage tree, needs All-files access). " +
-            "An optional relative sub-path may be appended, e.g. 'downloads/reports'.",
+        "List files and directories at the given path. Accepts absolute paths like " +
+            "'/storage/emulated/0/Download' or paths relative to the working directory. " +
+            "Supports recursive listing, sorting, and filtering.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put(
-                        "description",
-                        "Directory to list: one of the allowed roots optionally followed by a relative sub-path."
-                    )
+                    put("description", "Absolute or relative directory path to list.")
+                }
+                putJsonObject("recursive") {
+                    put("type", "boolean")
+                    put("description", "List recursively (with depth limit). Default false.")
+                }
+                putJsonObject("sort_by") {
+                    put("type", "string")
+                    put("description", "Sort by: 'name' (default), 'date', or 'size'.")
+                }
+                putJsonObject("include") {
+                    put("type", "string")
+                    put("description", "Only show entries whose name contains this substring (case-insensitive).")
+                }
+                putJsonObject("exclude") {
+                    put("type", "string")
+                    put("description", "Exclude entries whose name contains this substring (case-insensitive).")
+                }
+                putJsonObject("max_depth") {
+                    put("type", "integer")
+                    put("description", "Max directory depth for recursive listing (1-20). Default 10.")
                 }
             }
             putJsonArray("required") { add("path") }
@@ -75,13 +91,31 @@ object ToolDefinitions {
 
     val readFile = tool(
         "read_file",
-        "Read a text file from an allowed directory (same roots as list_files, including 'storage' " +
-            "with All-files access). Output is capped.",
+        "Read any file — text, image, archive, or binary — at the given path. Accepts absolute paths " +
+            "like '/storage/emulated/0/notes.txt' or paths relative to the working directory. " +
+            "Automatically detects file type:\n" +
+            "- Text files: returns content line-by-line with offset/limit support\n" +
+            "- Images: feeds visual content to the vision model so you can 'see' them\n" +
+            "- Archives (zip/apk/aar/jar/war): lists contents; supports reading entries via 'archive.zip/path'\n" +
+            "- PDF & other binaries: returns base64 data\n" +
+            "This tool replaces read_image — use read_file for ALL file reading needs.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "File path rooted at an allowed root, e.g. 'files/notes.txt'.")
+                    put("description", "Absolute or relative path to the file or directory to read.")
+                }
+                putJsonObject("offset") {
+                    put("type", "integer")
+                    put("description", "1-indexed line number to start reading from (text files only).")
+                }
+                putJsonObject("limit") {
+                    put("type", "integer")
+                    put("description", "Max number of lines to return (text files only, default 2000).")
+                }
+                putJsonObject("encoding") {
+                    put("type", "string")
+                    put("description", "Text encoding (UTF-8, ISO-8859-1, UTF-16). Default UTF-8.")
                 }
             }
             putJsonArray("required") { add("path") }
@@ -90,21 +124,26 @@ object ToolDefinitions {
 
     val writeFile = tool(
         "write_file",
-        "Write or append a text file. Roots 'files', 'cache', 'external' work in the app sandbox; " +
-            "the 'storage' root writes anywhere in shared storage but needs All-files access.",
+        "Write or append content to a file at the given path. Accepts absolute paths like " +
+            "'/storage/emulated/0/notes.txt' or paths relative to the working directory. " +
+            "Supports both text and binary content. Parent directories are created automatically.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "File path rooted at a sandbox root, e.g. 'files/notes.txt'.")
+                    put("description", "Absolute or relative file path to write to.")
                 }
                 putJsonObject("content") {
                     put("type", "string")
-                    put("description", "Text content to write.")
+                    put("description", "Text content to write (or base64-encoded content when binary=true).")
                 }
                 putJsonObject("append") {
                     put("type", "boolean")
                     put("description", "Append instead of overwrite. Default false.")
+                }
+                putJsonObject("binary") {
+                    put("type", "boolean")
+                    put("description", "If true, content is base64-encoded binary data. Default false.")
                 }
             }
             putJsonArray("required") {
@@ -174,13 +213,21 @@ object ToolDefinitions {
     val runCommand = tool(
         "run_command",
         "Run a shell command as the unprivileged app user and return stdout/stderr/exit code. " +
-            "Useful commands: ls, cat, getprop, pm list packages, df, uptime, date, id, ps. " +
-            "No root; many system paths are unreadable. Output is capped and the command times out.",
+            "Useful commands: ls, cat, find, getprop, pm list packages, df, uptime, date, id, ps. " +
+            "No root; many system paths are unreadable. Output is capped and commands time out.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {
                     put("type", "string")
-                    put("description", "Shell command line, e.g. 'getprop ro.build.version.release'")
+                    put("description", "Shell command to execute, e.g. 'ls -la /storage/emulated/0'")
+                }
+                putJsonObject("working_dir") {
+                    put("type", "string")
+                    put("description", "Working directory for the command (absolute path). Defaults to the app's working directory.")
+                }
+                putJsonObject("timeout_seconds") {
+                    put("type", "integer")
+                    put("description", "Timeout in seconds (1-120). Default 15.")
                 }
             }
             putJsonArray("required") { add("command") }
@@ -767,18 +814,14 @@ object ToolDefinitions {
 
     val readImage = tool(
         "read_image",
-        "Read an image file from an allowed directory and feed its visual content to the " +
-            "vision model. The image appears as if you 'see' it — you can describe, analyze, or " +
-            "read text from it. Use this for photos, screenshots, diagrams, scanned documents, " +
-            "and any image stored on the device. " +
-            "Allowed roots are the same as list_files/read_file: 'files', 'cache', 'external', " +
-            "'downloads', 'pictures', 'dcim', 'documents', and 'storage' (needs All-files access). " +
-            "Supported formats: PNG, JPEG, GIF, WebP, BMP.",
+        "DEPRECATED — use read_file instead which handles images, text, archives, and all other formats. " +
+            "Reads an image file and makes it visible to the vision model. " +
+            "This tool is kept for backward compatibility; new code should call read_file.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "Image file path rooted at an allowed root, e.g. 'downloads/photo.jpg'.")
+                    put("description", "Absolute or relative path to the image file.")
                 }
             }
             putJsonArray("required") { add("path") }
@@ -1069,8 +1112,7 @@ object ToolDefinitions {
         glob, grep,
         // Web search + fetch
         webSearch, webFetch,
-        // Image reading (available to both Monitor and Operator)
-        readImage,
+        // DEPRECATED: readImage excluded from the active catalog — use read_file instead.
         // Tier 3 additions
         readScreen, tap, swipe, inputText, globalAction,
         readNotifications, dismissNotifications, mediaControl,

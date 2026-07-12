@@ -66,7 +66,7 @@ object ToolRegistry {
         // Apps (read-only + intent)
         "open_app", "list_installed_apps",
         // Files & terminal (read-only)
-        "list_files", "read_file", "grep", "glob", "read_image",
+        "list_files", "read_file", "grep", "glob",
         // Task management
         "todowrite",
         // User interaction
