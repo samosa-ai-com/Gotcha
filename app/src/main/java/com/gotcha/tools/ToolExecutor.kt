@@ -88,6 +88,18 @@ class ToolExecutor(context: Context) {
         return result
     }
 
+    suspend fun executeDeleteAlarm(id: Long): ToolResult {
+        return withContext(Dispatchers.IO) { alarmTool.doDeleteAlarm(id) }
+    }
+
+    suspend fun executeDeleteTimer(id: Long): ToolResult {
+        return withContext(Dispatchers.IO) { alarmTool.doDeleteTimer(id) }
+    }
+
+    suspend fun executeDeleteCalendarEvent(eventId: Long): ToolResult {
+        return withContext(Dispatchers.IO) { calendarTool.doDeleteEvent(eventId) }
+    }
+
     private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
         return when (name) {
         "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))

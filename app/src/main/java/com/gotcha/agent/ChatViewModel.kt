@@ -575,6 +575,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         handleQuestionResult(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
                         handleUninstallConfirm(call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_DELETE_ALARM:")) {
+                        handleDeleteConfirm("CONFIRM_DELETE_ALARM:", "alarm", call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_DELETE_TIMER:")) {
+                        handleDeleteConfirm("CONFIRM_DELETE_TIMER:", "timer", call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_DELETE_CALENDAR_EVENT:")) {
+                        handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
                     } else {
                         llmHistory += ChatMessage(
                             role = "tool",
@@ -803,6 +809,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             )
             appendUi(MessageKind.TOOL, "${call.function.name}: $msg")
         }
+    }
+
+    private suspend fun handleDeleteConfirm(confirmPrefix: String, kind: String, call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix(confirmPrefix)
+        val parts = body.split(":", limit = 2)
+        val id = parts[0]
+        val label = parts.getOrElse(1) { kind }
+        val description = "Request to delete $kind \"$label\" (#$id). This action is irreversible."
+        val gate = CompletableDeferred<Boolean>()
+        confirmationGate = gate
+        _uiState.update { it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("delete_$kind"), description)) }
+
+        val approved = withTimeoutOrNull(120_000L) { gate.await() } ?: false
+        confirmationOverlay.dismiss()
+        _uiState.update { it.copy(pendingConfirmation = null) }
+        confirmationGate = null
+
+        val actualResult = if (approved) {
+            when (kind) {
+                "alarm" -> toolExecutor.executeDeleteAlarm(id.toLong())
+                "timer" -> toolExecutor.executeDeleteTimer(id.toLong())
+                "calendar_event" -> toolExecutor.executeDeleteCalendarEvent(id.toLong())
+                else -> return
+            }
+        } else null
+
+        val msg = if (actualResult != null) {
+            actualResult.message
+        } else {
+            "User declined to delete $kind $label."
+        }
+        llmHistory += ChatMessage(role = "tool", content = JsonPrimitive(msg), toolCallId = call.id)
+        appendUi(
+            if (actualResult?.success != false) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: $msg"
+        )
     }
 
     private suspend fun executeCall(call: ToolCall): ToolResult {

@@ -152,6 +152,14 @@ class AlarmTool(private val context: Context) {
     }
 
     fun deleteAlarm(id: Long): ToolResult {
+        val alarms = loadAlarms()
+        if (alarms.none { it.id == id }) return ToolResult.error("Alarm $id not found.")
+        val a = alarms.first { it.id == id }
+        val label = a.label ?: "Alarm at %02d:%02d".format(a.hour, a.minute)
+        return ToolResult.ok("CONFIRM_DELETE_ALARM:$id:$label")
+    }
+
+    fun doDeleteAlarm(id: Long): ToolResult {
         val alarms = loadAlarmsMutable()
         if (alarms.none { it.id == id }) return ToolResult.error("Alarm $id not found.")
         cancelPendingIntent(id.toInt())
@@ -160,6 +168,14 @@ class AlarmTool(private val context: Context) {
     }
 
     fun deleteTimer(id: Long): ToolResult {
+        val timers = loadTimers()
+        if (timers.none { it.id == id }) return ToolResult.error("Timer $id not found.")
+        val t = timers.first { it.id == id }
+        val label = t.label ?: "Timer"
+        return ToolResult.ok("CONFIRM_DELETE_TIMER:$id:$label")
+    }
+
+    fun doDeleteTimer(id: Long): ToolResult {
         val timers = loadTimersMutable()
         if (timers.none { it.id == id }) return ToolResult.error("Timer $id not found.")
         cancelPendingIntent(10000 + id.toInt())

@@ -270,6 +270,10 @@ class CalendarTool(private val context: Context) {
                 "The Calendar permission is not granted. Go to Settings → Permissions → Calendar and enable it, then ask again."
             )
         }
+        return ToolResult.ok("CONFIRM_DELETE_CALENDAR_EVENT:$eventId")
+    }
+
+    fun doDeleteEvent(eventId: Long): ToolResult {
         return try {
             val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
             val rows = context.contentResolver.delete(uri, null, null)
