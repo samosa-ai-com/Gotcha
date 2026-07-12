@@ -30,7 +30,8 @@ object ToolRegistry {
      * to the user before the tool is actually executed.
      */
     val destructiveTools: Set<String> = setOf(
-        "uninstall_app"
+        "uninstall_app",
+        "delete_calendar_event"
     )
 
     /**

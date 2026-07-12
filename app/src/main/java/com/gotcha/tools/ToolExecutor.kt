@@ -186,6 +186,19 @@ class ToolExecutor(context: Context) {
             reminderMinutes = args.requireInt("reminder_minutes"),
             calendarName = args.requireString("calendar_name")
         )
+        "edit_calendar_event" -> calendarTool.editEvent(
+            eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id"),
+            title = args.requireString("title"),
+            start = args.requireString("start"),
+            end = args.requireString("end"),
+            location = args.requireString("location"),
+            description = args.requireString("description"),
+            allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
+            reminderMinutes = args.requireInt("reminder_minutes")
+        )
+        "delete_calendar_event" -> calendarTool.deleteEvent(
+            eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id")
+        )
         "set_alarm" -> alarmTool.setAlarm(
             hour = args.requireInt("hour") ?: return missing("hour"),
             minute = args.requireInt("minute") ?: return missing("minute"),

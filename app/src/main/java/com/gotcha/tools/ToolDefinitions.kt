@@ -489,6 +489,64 @@ object ToolDefinitions {
         }
     )
 
+    val editCalendarEvent = tool(
+        "edit_calendar_event",
+        "Update an existing calendar event. Only the fields you provide will be changed. " +
+            "Get the event ID from list_calendar_events first.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("event_id") {
+                    put("type", "integer")
+                    put("description", "Event ID from list_calendar_events.")
+                }
+                putJsonObject("title") {
+                    put("type", "string")
+                    put("description", "New title. Omit to keep current.")
+                }
+                putJsonObject("start") {
+                    put("type", "string")
+                    put("description", "New start time as 'yyyy-MM-dd HH:mm' or epoch millis. Omit to keep current.")
+                }
+                putJsonObject("end") {
+                    put("type", "string")
+                    put("description", "New end time. Omit to keep current.")
+                }
+                putJsonObject("location") {
+                    put("type", "string")
+                    put("description", "New location. Omit to keep current.")
+                }
+                putJsonObject("description") {
+                    put("type", "string")
+                    put("description", "New description. Omit to keep current.")
+                }
+                putJsonObject("all_day") {
+                    put("type", "boolean")
+                    put("description", "Set or unset all-day. Omit to keep current.")
+                }
+                putJsonObject("reminder_minutes") {
+                    put("type", "integer")
+                    put("description", "New reminder before event in minutes. -1 to remove reminder. Omit to keep current.")
+                }
+            }
+            putJsonArray("required") { add("event_id") }
+        }
+    )
+
+    val deleteCalendarEvent = tool(
+        "delete_calendar_event",
+        "Permanently delete a calendar event. Requires explicit user confirmation (destructive action). " +
+            "Get the event ID from list_calendar_events first.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("event_id") {
+                    put("type", "integer")
+                    put("description", "Event ID from list_calendar_events.")
+                }
+            }
+            putJsonArray("required") { add("event_id") }
+        }
+    )
+
     val setAlarm = tool(
         "set_alarm",
         "Set a clock alarm at a given hour and minute via the device clock app.",
@@ -1217,7 +1275,7 @@ object ToolDefinitions {
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,
-        listCalendarEvents, createCalendarEvent, setAlarm, setTimer,
+        listCalendarEvents, createCalendarEvent, editCalendarEvent, deleteCalendarEvent, setAlarm, setTimer,
         toggleTorch, setVolume, getVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,

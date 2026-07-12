@@ -57,6 +57,7 @@ class CalendarTool(private val context: Context) {
             ContentUris.appendId(builder, rangeEnd)
 
             val projection = arrayOf(
+                CalendarContract.Instances.EVENT_ID,
                 CalendarContract.Instances.TITLE,
                 CalendarContract.Instances.BEGIN,
                 CalendarContract.Instances.END,
@@ -78,6 +79,7 @@ class CalendarTool(private val context: Context) {
                 "${CalendarContract.Instances.BEGIN} ASC"
             ).use { cursor ->
                 if (cursor == null) return ToolResult.error("Could not read the calendar.")
+                val idIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_ID)
                 val titleIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.TITLE)
                 val beginIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.BEGIN)
                 val endIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.END)
@@ -88,6 +90,7 @@ class CalendarTool(private val context: Context) {
                 val out = StringBuilder()
                 var count = 0
                 while (cursor.moveToNext() && count < 50) {
+                    val eventId = cursor.getLong(idIdx)
                     val title = cursor.getString(titleIdx) ?: "(untitled)"
                     val begin = readable.format(Date(cursor.getLong(beginIdx)))
                     val end = readable.format(Date(cursor.getLong(endIdx)))
@@ -101,7 +104,7 @@ class CalendarTool(private val context: Context) {
                     }
                     val calName = cursor.getString(calIdx)
 
-                    out.append("- $begin")
+                    out.append("[id=$eventId]  $begin")
                     if (status != null) out.append(" [$status]")
                     out.append("  $title")
                     if (calName != null) out.append("  📅 $calName")
@@ -193,6 +196,89 @@ class CalendarTool(private val context: Context) {
             ToolResult.ok("Added '$title' on ${readable.format(Date(startMs))}$extras.")
         } catch (e: Exception) {
             ToolResult.error("Could not create the event: ${e.message}")
+        }
+    }
+
+    fun editEvent(
+        eventId: Long,
+        title: String? = null,
+        start: String? = null,
+        end: String? = null,
+        location: String? = null,
+        description: String? = null,
+        allDay: Boolean? = null,
+        reminderMinutes: Int? = null
+    ): ToolResult {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return ToolResult.permissionNeeded(
+                Manifest.permission.WRITE_CALENDAR,
+                "The Calendar permission is not granted. Go to Settings → Permissions → Calendar and enable it, then ask again."
+            )
+        }
+        return try {
+            val values = ContentValues()
+            if (title != null) values.put(CalendarContract.Events.TITLE, title)
+            if (start != null) {
+                val ms = parseWhen(start) ?: return ToolResult.error("Could not understand the start time '$start'.")
+                values.put(CalendarContract.Events.DTSTART, ms)
+            }
+            if (end != null) {
+                val ms = parseWhen(end) ?: return ToolResult.error("Could not understand the end time '$end'.")
+                values.put(CalendarContract.Events.DTEND, ms)
+            }
+            if (location != null) values.put(CalendarContract.Events.EVENT_LOCATION, location)
+            if (description != null) values.put(CalendarContract.Events.DESCRIPTION, description)
+            if (allDay != null) values.put(CalendarContract.Events.ALL_DAY, if (allDay) 1 else 0)
+
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+            val rows = context.contentResolver.update(uri, values, null, null)
+            if (rows == 0) {
+                return ToolResult.error("Event $eventId not found or could not be updated.")
+            }
+
+            // Update reminders: clear existing, add new if requested
+            if (reminderMinutes != null) {
+                context.contentResolver.delete(
+                    CalendarContract.Reminders.CONTENT_URI,
+                    "${CalendarContract.Reminders.EVENT_ID} = ?",
+                    arrayOf(eventId.toString())
+                )
+                if (reminderMinutes >= 0) {
+                    val reminderValues = ContentValues().apply {
+                        put(CalendarContract.Reminders.EVENT_ID, eventId)
+                        put(CalendarContract.Reminders.MINUTES, reminderMinutes)
+                        put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+                    }
+                    context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+                }
+            }
+
+            ToolResult.ok("Updated event $eventId.")
+        } catch (e: Exception) {
+            ToolResult.error("Could not update the event: ${e.message}")
+        }
+    }
+
+    fun deleteEvent(eventId: Long): ToolResult {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return ToolResult.permissionNeeded(
+                Manifest.permission.WRITE_CALENDAR,
+                "The Calendar permission is not granted. Go to Settings → Permissions → Calendar and enable it, then ask again."
+            )
+        }
+        return try {
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
+            val rows = context.contentResolver.delete(uri, null, null)
+            if (rows == 0) {
+                return ToolResult.error("Event $eventId not found or could not be deleted.")
+            }
+            ToolResult.ok("Deleted event $eventId.")
+        } catch (e: Exception) {
+            ToolResult.error("Could not delete the event: ${e.message}")
         }
     }
 
