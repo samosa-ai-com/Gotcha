@@ -17,11 +17,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
 
@@ -40,9 +42,21 @@ fun PermissionsSection(packageName: String) {
     val groups = remember { allPermissionGroups(context) }
     var expandedGroups by remember { mutableStateOf(groups.associate { it.name to true }) }
 
+    // Trigger recomposition on every activity resume so permission state is re-read from Android
+    val lifecycleOwner = LocalContext.current as? androidx.lifecycle.LifecycleOwner
+    var resumeSignal by remember { mutableStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        if (lifecycleOwner == null) return@DisposableEffect onDispose {}
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeSignal++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val runtimeLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* permission state is checked live, no action needed */ }
+    ) { /* permission state is re-read on next ON_RESUME via resumeSignal */ }
 
     Text("Permissions", style = MaterialTheme.typography.titleMedium)
     Text(
@@ -74,10 +88,11 @@ fun PermissionsSection(packageName: String) {
         AnimatedVisibility(visible = expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (item in group.items) {
-                    val granted = remember { item.isGranted(context) }
+                    // Read live permission state from Android, re-checked on every resume
+                    val granted = remember(resumeSignal) { item.isGranted(context) }
                     PermissionRow(
                         item = item,
-                        initiallyGranted = granted,
+                        granted = granted,
                         packageName = packageName,
                         onRequestRuntime = { perm ->
                             runtimeLauncher.launch(perm)
@@ -92,12 +107,11 @@ fun PermissionsSection(packageName: String) {
 @Composable
 private fun PermissionRow(
     item: PermissionItem,
-    initiallyGranted: Boolean,
+    granted: Boolean,
     packageName: String,
     onRequestRuntime: (String) -> Unit
 ) {
     val context = LocalContext.current
-    var granted by remember { mutableStateOf(initiallyGranted) }
 
     Row(
         modifier = Modifier
@@ -120,15 +134,10 @@ private fun PermissionRow(
                 if (checked) {
                     if (item.androidPermission != null) {
                         onRequestRuntime(item.androidPermission)
-                        // Re-check after dialog (user may grant or deny)
-                        granted = item.isGranted(context)
                     } else if (item.specialMarker != null) {
                         openSpecialAccess(context, item.specialMarker, packageName)
-                        // Special-access: user leaves the app; re-check when they return
-                        granted = item.isGranted(context)
                     }
                 } else {
-                    // Cannot programmatically revoke, but navigate to system settings
                     Toast.makeText(
                         context,
                         "Revoke this permission in System Settings → Apps → Gotcha → Permissions",
