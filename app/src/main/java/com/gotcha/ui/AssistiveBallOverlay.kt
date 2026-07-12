@@ -39,6 +39,7 @@ import kotlin.math.abs
  * The ball is touchable (no FLAG_NOT_TOUCHABLE) so it can be dragged and tapped; the
  * two "talk" options are press-and-hold (down = start recording, up = stop & ask).
  */
+@Suppress("TooManyFunctions")
 class AssistiveBallOverlay(context: Context) {
 
     private val appContext = context.applicationContext
@@ -215,13 +216,17 @@ class AssistiveBallOverlay(context: Context) {
         container.addView(menuTitle("Gotcha"))
         container.addView(talkButton("🖥  Screen Share — hold & talk", withScreen = true))
         container.addView(talkButton("🎤  Talk — hold & talk", withScreen = false))
-        container.addView(tapButton("💬  Open Chat") {
-            removeMenu()
-            onOpenChat()
-        })
-        container.addView(tapButton("✕  Hide ball") {
-            onDismiss()
-        })
+        container.addView(
+            tapButton("💬  Open Chat") {
+                removeMenu()
+                onOpenChat()
+            }
+        )
+        container.addView(
+            tapButton("✕  Hide ball") {
+                onDismiss()
+            }
+        )
 
         val params = menuLayoutParams()
         try {
@@ -293,11 +298,13 @@ class AssistiveBallOverlay(context: Context) {
                 }
             }
             val scroll = ScrollView(appContext).apply {
-                addView(TextView(appContext).apply {
-                    text = message
-                    setTextColor(Color.parseColor("#EEEEEE"))
-                    textSize = 14f
-                })
+                addView(
+                    TextView(appContext).apply {
+                        text = message
+                        setTextColor(Color.parseColor("#EEEEEE"))
+                        textSize = 14f
+                    }
+                )
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     dp(240)
@@ -305,11 +312,13 @@ class AssistiveBallOverlay(context: Context) {
             }
             container.addView(scroll)
             if (showClose) {
-                container.addView(Button(appContext).apply {
-                    text = "Close"
-                    isAllCaps = false
-                    setOnClickListener { hideCard() }
-                })
+                container.addView(
+                    Button(appContext).apply {
+                        text = "Close"
+                        isAllCaps = false
+                        setOnClickListener { hideCard() }
+                    }
+                )
             }
             try {
                 windowManager.addView(container, cardLayoutParams())
@@ -340,9 +349,12 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
 
     private fun ballLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(

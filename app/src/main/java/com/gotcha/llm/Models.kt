@@ -10,7 +10,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -49,14 +48,18 @@ fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "
     return ChatMessage(
         role = "user",
         content = buildJsonArray {
-            add(buildJsonObject {
-                put("type", "text")
-                put("text", text.ifBlank { "What is in this image?" })
-            })
-            add(buildJsonObject {
-                put("type", "image_url")
-                putJsonObject("image_url") { put("url", dataUri) }
-            })
+            add(
+                buildJsonObject {
+                    put("type", "text")
+                    put("text", text.ifBlank { "What is in this image?" })
+                }
+            )
+            add(
+                buildJsonObject {
+                    put("type", "image_url")
+                    putJsonObject("image_url") { put("url", dataUri) }
+                }
+            )
         }
     )
 }

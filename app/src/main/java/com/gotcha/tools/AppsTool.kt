@@ -6,16 +6,18 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.util.Log
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
 import android.os.Process
+import android.util.Log
 
 class AppsTool(private val context: Context) {
 
-    private val TAG = "Gotcha"
+    private companion object {
+        const val TAG = "Gotcha"
+    }
+
     private data class AppEntry(val label: String, val packageName: String, val isSystemApp: Boolean)
 
     /** List installed apps with optional search filter. */
@@ -60,7 +62,9 @@ class AppsTool(private val context: Context) {
                     "- ${it.label} (${it.packageName})${if (it.isSystemApp) " [system]" else ""}"
                 }
                 val truncated = if (matchCount > 30) " (showing 30 of $matchCount)" else ""
-                ToolResult.ok("Found $matchCount app(s) matching '$search'$truncated ($total total, $userApps user, $systemApps system).\n$listing")
+                ToolResult.ok(
+                    "Found $matchCount app(s) matching '$search'$truncated ($total total, $userApps user, $systemApps system).\n$listing"
+                )
             }
         } catch (e: Exception) {
             ToolResult.error("Could not list apps: ${e.message}")
@@ -120,7 +124,8 @@ class AppsTool(private val context: Context) {
         return try {
             val pm = context.packageManager
             val installed = try {
-                pm.getPackageInfo(packageName, 0); true
+                pm.getPackageInfo(packageName, 0)
+                true
             } catch (_: Exception) {
                 false
             }
@@ -136,7 +141,9 @@ class AppsTool(private val context: Context) {
             context.startActivity(intent)
 
             Log.d(TAG, "doUninstall: dialog opened for $label")
-            ToolResult.ok("System dialog opened to uninstall $label. After you tap OK in the dialog, ask the assistant to verify the app is gone.")
+            ToolResult.ok(
+                "System dialog opened to uninstall $label. After you tap OK in the dialog, ask the assistant to verify the app is gone."
+            )
         } catch (e: Exception) {
             Log.e(TAG, "doUninstall failed: ${e.message}")
             ToolResult.error("Could not start uninstall: ${e.message}")
@@ -190,8 +197,10 @@ class AppsTool(private val context: Context) {
         val start = end - window * 24L * 60 * 60 * 1000
         return try {
             val nsm = context.getSystemService(Context.NETWORK_STATS_SERVICE) as NetworkStatsManager
+
             @Suppress("DEPRECATION")
             val mobile = nsm.querySummaryForDevice(ConnectivityManager.TYPE_MOBILE, null, start, end)
+
             @Suppress("DEPRECATION")
             val wifi = nsm.querySummaryForDevice(ConnectivityManager.TYPE_WIFI, null, start, end)
             val mobileTotal = mobile.rxBytes + mobile.txBytes
@@ -211,12 +220,16 @@ class AppsTool(private val context: Context) {
             val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
             val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 appOps.unsafeCheckOpNoThrow(
-                    AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    Process.myUid(),
+                    context.packageName
                 )
             } else {
                 @Suppress("DEPRECATION")
                 appOps.checkOpNoThrow(
-                    AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    Process.myUid(),
+                    context.packageName
                 )
             }
             mode == AppOpsManager.MODE_ALLOWED

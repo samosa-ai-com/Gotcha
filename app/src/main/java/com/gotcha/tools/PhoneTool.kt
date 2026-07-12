@@ -79,7 +79,7 @@ class PhoneTool(private val context: Context) {
             if (simSlot != null) extras.add("Using $simSlot.")
             val extra = if (extras.isNotEmpty()) " ${extras.joinToString(" ")}" else ""
             ToolResult.ok("Calling $trimmed.$extra")
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             ToolResult.permissionNeeded(
                 Manifest.permission.CALL_PHONE,
                 "The Phone permission is not granted. Go to Settings → Permissions → Phone and enable it, then ask again."
@@ -90,6 +90,11 @@ class PhoneTool(private val context: Context) {
     }
 
     private fun resolveSubId(simSlot: String): Int? {
+        val phoneStateGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!phoneStateGranted) return null
         return try {
             val subs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 context.getSystemService(SubscriptionManager::class.java)?.activeSubscriptionInfoList
@@ -105,6 +110,7 @@ class PhoneTool(private val context: Context) {
         } catch (_: Exception) { null }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     fun readCallLog(
         limit: Int,
         callTypeFilter: String? = null,
@@ -157,7 +163,9 @@ class PhoneTool(private val context: Context) {
                 }
             }
             if (toDate != null) {
-                val toMillis = try { dateFormat.parse(toDate)?.time?.plus(86_400_000L - 1) } catch (_: Exception) { null }
+                val toMillis = try { dateFormat.parse(toDate)?.time?.plus(86_400_000L - 1) } catch (
+                    _: Exception
+                ) { null }
                 if (toMillis != null) {
                     if (selection.isNotEmpty()) selection.append(" AND ")
                     selection.append("${CallLog.Calls.DATE} <= ?")
@@ -207,8 +215,11 @@ class PhoneTool(private val context: Context) {
                     entries.append("- $date  $type  $who  $dur\n")
                     count++
                 }
-                if (count == 0) ToolResult.ok("The call log is empty.")
-                else ToolResult.ok("Last $count call(s):\n$entries")
+                if (count == 0) {
+                    ToolResult.ok("The call log is empty.")
+                } else {
+                    ToolResult.ok("Last $count call(s):\n$entries")
+                }
             }
         } catch (e: Exception) {
             ToolResult.error("Could not read the call log: ${e.message}")
@@ -221,11 +232,15 @@ class PhoneTool(private val context: Context) {
             context.contentResolver.query(
                 uri,
                 arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
-                null, null, null
+                null,
+                null,
+                null
             )?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.PhoneLookup.DISPLAY_NAME))
-                } else null
+                } else {
+                    null
+                }
             }
         } catch (_: Exception) { null }
     }

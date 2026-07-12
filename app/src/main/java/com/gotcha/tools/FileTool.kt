@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
 import java.io.File
-import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 /**
@@ -47,8 +46,14 @@ class FileTool(private val context: Context) {
         private val OFFICE_EXTENSIONS = setOf("docx", "xlsx", "pptx")
 
         private val ARCHIVE_DELIMITERS = setOf(
-            ".zip/", ".apk/", ".aar/", ".jar/", ".war/",
-            ".docx/", ".xlsx/", ".pptx/"
+            ".zip/",
+            ".apk/",
+            ".aar/",
+            ".jar/",
+            ".war/",
+            ".docx/",
+            ".xlsx/",
+            ".pptx/"
         )
     }
 
@@ -89,10 +94,14 @@ class FileTool(private val context: Context) {
             ext in ARCHIVE_EXTENSIONS -> listArchiveContents(file)
             ext in OFFICE_EXTENSIONS -> {
                 val list = listArchiveContents(file)
-                if (list.success) ToolResult.ok(
-                    "Office document detected (${file.name}). It is a ZIP archive containing:\n" +
-                    list.message + "\nUse read_file on a specific entry, e.g. '${originalPath}/word/document.xml' for .docx."
-                ) else list
+                if (list.success) {
+                    ToolResult.ok(
+                        "Office document detected (${file.name}). It is a ZIP archive containing:\n" +
+                            list.message + "\nUse read_file on a specific entry, e.g. '$originalPath/word/document.xml' for .docx."
+                    )
+                } else {
+                    list
+                }
             }
             ext in TEXT_EXTENSIONS -> readTextFile(file, offset, limit, encoding)
             else -> readUnknownFile(file, encoding)
@@ -119,9 +128,11 @@ class FileTool(private val context: Context) {
             var byteCount = 0
             for ((i, line) in selected.withIndex()) {
                 val lineNum = startLine + i
-                val display = if (line.length > MAX_LINE_LENGTH)
+                val display = if (line.length > MAX_LINE_LENGTH) {
                     line.take(MAX_LINE_LENGTH) + "…(line truncated)"
-                else line
+                } else {
+                    line
+                }
                 val next = if (i > 0 || offset != null) "$lineNum: $display\n" else "$display\n"
                 if (byteCount + next.length > MAX_TEXT_BYTES && byteCount > 0) {
                     sb.append("…(output capped at ${MAX_TEXT_BYTES / 1024} KB)")
@@ -137,12 +148,16 @@ class FileTool(private val context: Context) {
                 append(result)
                 if (truncated || capReached) {
                     append("\n")
-                    if (truncated) append("(Showing lines $startLine-$endLine of ${lines.size}. Use offset=${endLine + 1} to continue.)")
+                    if (truncated) {
+                        append(
+                            "(Showing lines $startLine-$endLine of ${lines.size}. Use offset=${endLine + 1} to continue.)"
+                        )
+                    }
                     if (capReached) append(" (Output capped at ${MAX_TEXT_BYTES / 1024} KB.)")
                 }
             }
             ToolResult.ok(summary.ifEmpty { "(empty file)" })
-        } catch (e: java.nio.charset.UnsupportedCharsetException) {
+        } catch (_: java.nio.charset.UnsupportedCharsetException) {
             ToolResult.error("Unsupported encoding '$enc'. Try UTF-8, ISO-8859-1, or UTF-16.")
         } catch (e: Exception) {
             ToolResult.error("Could not read '${file.name}': ${e.message}")
@@ -151,21 +166,25 @@ class FileTool(private val context: Context) {
 
     private fun readImageFile(file: File): ToolResult {
         if (file.length() > MAX_IMAGE_BYTES) {
-            return ToolResult.error("Image too large (${resolver.formatSize(file.length())}). Max: ${MAX_IMAGE_BYTES / 1024 / 1024} MB.")
+            return ToolResult.error(
+                "Image too large (${resolver.formatSize(file.length())}). Max: ${MAX_IMAGE_BYTES / 1024 / 1024} MB."
+            )
         }
         return try {
             val bytes = file.readBytes()
             val mime = resolver.detectMime(bytes)
-            if (mime == null || !resolver.isImageMime(mime))
+            if (mime == null || !resolver.isImageMime(mime)) {
                 return ToolResult.error("File '${file.name}' is not a recognized image format.")
+            }
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            if (opts.outWidth <= 0 || opts.outHeight <= 0)
+            if (opts.outWidth <= 0 || opts.outHeight <= 0) {
                 return ToolResult.error("File '${file.name}' could not be decoded as an image.")
+            }
             val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
             val displayName = file.name
             ToolResult.ok(
-                "${resolver.IMAGE_DATA_PREFIX}$mime:${opts.outWidth}x${opts.outHeight}:${bytes.size}:$displayName:$base64"
+                "${FileResolver.IMAGE_DATA_PREFIX}$mime:${opts.outWidth}x${opts.outHeight}:${bytes.size}:$displayName:$base64"
             )
         } catch (e: Exception) {
             ToolResult.error("Could not read image '${file.name}': ${e.message}")
@@ -174,7 +193,9 @@ class FileTool(private val context: Context) {
 
     private fun readFileBase64(file: File, mime: String): ToolResult {
         if (file.length() > MAX_BINARY_BYTES) {
-            return ToolResult.error("File too large (${resolver.formatSize(file.length())}). Max: ${MAX_BINARY_BYTES / 1024 / 1024} MB.")
+            return ToolResult.error(
+                "File too large (${resolver.formatSize(file.length())}). Max: ${MAX_BINARY_BYTES / 1024 / 1024} MB."
+            )
         }
         return try {
             val bytes = file.readBytes()
@@ -186,11 +207,26 @@ class FileTool(private val context: Context) {
     }
 
     private fun readUnknownFile(file: File, encoding: String?): ToolResult {
-        val sample = try { file.inputStream().use { it.readNBytes(512) } } catch (_: Exception) { ByteArray(0) }
+        // InputStream.readNBytes needs API 33; read up to 512 bytes manually (minSdk 26).
+        val sample = try {
+            file.inputStream().use { stream ->
+                val buf = ByteArray(512)
+                var total = 0
+                while (total < buf.size) {
+                    val n = stream.read(buf, total, buf.size - total)
+                    if (n < 0) break
+                    total += n
+                }
+                buf.copyOf(total)
+            }
+        } catch (_: Exception) {
+            ByteArray(0)
+        }
         if (sample.isEmpty()) return readTextFile(file, null, 200, encoding)
         val nullRatio = sample.count { it.toInt() == 0 }.toFloat() / sample.size
         val nonprintableRatio = sample.count {
-            val v = it.toInt() and 0xFF; v < 32 && v != 9 && v != 10 && v != 13
+            val v = it.toInt() and 0xFF
+            v < 32 && v != 9 && v != 10 && v != 13
         }.toFloat() / sample.size
         val mime = resolver.detectMime(sample)
         if (mime != null && resolver.isImageMime(mime)) return readImageFile(file)
@@ -214,7 +250,11 @@ class FileTool(private val context: Context) {
                     if (entries.isEmpty()) return ToolResult.ok("Archive '${file.name}' is empty.")
                     val totalSize = entries.sumOf { it.size.coerceAtLeast(0) }
                     val sb = StringBuilder()
-                    sb.appendLine("Archive: ${file.name} (${resolver.formatSize(file.length())}, ${entries.size} entries, ${resolver.formatSize(totalSize)} uncompressed)")
+                    sb.appendLine(
+                        "Archive: ${file.name} (${resolver.formatSize(
+                            file.length()
+                        )}, ${entries.size} entries, ${resolver.formatSize(totalSize)} uncompressed)"
+                    )
                     for (e in entries.take(200)) {
                         val flag = if (e.isDirectory) "/" else ""
                         val size = if (e.size > 0) " ${resolver.formatSize(e.size)}" else ""
@@ -255,9 +295,11 @@ class FileTool(private val context: Context) {
         if (entry == null) {
             val siblings = zf.entries().asSequence().map { it?.name ?: "" }.toList()
             val matching = siblings.filter { it.contains(entryPath, ignoreCase = true) }.take(5)
-            val hint = if (matching.isNotEmpty())
+            val hint = if (matching.isNotEmpty()) {
                 " Did you mean one of: ${matching.joinToString(", ")}?"
-            else ""
+            } else {
+                ""
+            }
             return ToolResult.error("Entry '$entryPath' not found in '${archiveFile.name}'.$hint")
         }
         if (entry.isDirectory) {
@@ -275,7 +317,7 @@ class FileTool(private val context: Context) {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
             val dims = if (opts.outWidth > 0) "${opts.outWidth}x${opts.outHeight}" else "unknown"
             val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            return ToolResult.ok("${resolver.IMAGE_DATA_PREFIX}$mime:$dims:${bytes.size}:$entryPath:$base64")
+            return ToolResult.ok("${FileResolver.IMAGE_DATA_PREFIX}$mime:$dims:${bytes.size}:$entryPath:$base64")
         }
         if (ext in TEXT_EXTENSIONS || resolver.detectMime(bytes) == null) {
             val text = String(bytes, Charsets.UTF_8)
@@ -316,11 +358,19 @@ class FileTool(private val context: Context) {
             if (binary) {
                 val bytes = Base64.decode(content, Base64.NO_WRAP)
                 if (append) file.appendBytes(bytes) else file.writeBytes(bytes)
-                ToolResult.ok("Wrote ${resolver.formatSize(bytes.size.toLong())} binary data to '$originalPath' (resolved: ${file.canonicalPath}).")
+                ToolResult.ok(
+                    "Wrote ${resolver.formatSize(
+                        bytes.size.toLong()
+                    )} binary data to '$originalPath' (resolved: ${file.canonicalPath})."
+                )
             } else {
                 val bytes = content.toByteArray(Charsets.UTF_8)
                 if (append) file.appendBytes(bytes) else file.writeBytes(bytes)
-                ToolResult.ok("${if (append) "Appended" else "Wrote"} ${resolver.formatSize(bytes.size.toLong())} to '$originalPath' (resolved: ${file.canonicalPath}).")
+                ToolResult.ok(
+                    "${if (append) "Appended" else "Wrote"} ${resolver.formatSize(
+                        bytes.size.toLong()
+                    )} to '$originalPath' (resolved: ${file.canonicalPath})."
+                )
             }
         } catch (e: Exception) {
             ToolResult.error("Could not write '$originalPath': ${e.message}")
@@ -340,11 +390,18 @@ class FileTool(private val context: Context) {
             is FileResolver.ResolveResult.PermissionNeeded -> resolved.result
             is FileResolver.ResolveResult.Error -> ToolResult.error(resolved.message)
             is FileResolver.ResolveResult.Ok -> listResolved(
-                resolved.file, path, sortBy, include, exclude, recursive, maxDepth
+                resolved.file,
+                path,
+                sortBy,
+                include,
+                exclude,
+                recursive,
+                maxDepth
             )
         }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun listResolved(
         file: File,
         originalPath: String,
@@ -354,9 +411,15 @@ class FileTool(private val context: Context) {
         recursive: Boolean,
         maxDepth: Int?
     ): ToolResult {
-        if (!file.exists()) return ToolResult.error("Path '$originalPath' does not exist (resolved: ${file.canonicalPath}).")
+        if (!file.exists()) {
+            return ToolResult.error(
+                "Path '$originalPath' does not exist (resolved: ${file.canonicalPath})."
+            )
+        }
         if (!file.isDirectory) {
-            return ToolResult.ok("${file.name} (${resolver.formatSize(file.length())})\nResolved: ${file.canonicalPath}")
+            return ToolResult.ok(
+                "${file.name} (${resolver.formatSize(file.length())})\nResolved: ${file.canonicalPath}"
+            )
         }
         val perm = resolver.checkReadPermission(file)
         if (perm != null) return perm
@@ -367,13 +430,18 @@ class FileTool(private val context: Context) {
 
         fun walk(dir: File, depth: Int) {
             if (aborted || depth > depthLimit) return
-            val entries = dir.listFiles()?.sortedWith(when (sortBy?.lowercase()) {
-                "date" -> compareBy<File> { it.lastModified() }
-                "size" -> compareBy<File> { it.length() }
-                else -> compareBy { it.name.lowercase() }
-            }) ?: return
+            val entries = dir.listFiles()?.sortedWith(
+                when (sortBy?.lowercase()) {
+                    "date" -> compareBy<File> { it.lastModified() }
+                    "size" -> compareBy<File> { it.length() }
+                    else -> compareBy { it.name.lowercase() }
+                }
+            ) ?: return
             for (entry in entries) {
-                if (results.size >= MAX_LIST_ENTRIES) { aborted = true; return }
+                if (results.size >= MAX_LIST_ENTRIES) {
+                    aborted = true
+                    return
+                }
                 val relPath = if (depth == 0) entry.name else entry.absolutePath
                 val name = entry.name.lowercase()
                 if (include != null && !name.contains(include.lowercase())) continue
@@ -422,10 +490,10 @@ class FileTool(private val context: Context) {
                 val readable = if (f.canRead()) "readable" else "not readable"
                 ToolResult.ok(
                     "Path: ${f.canonicalPath}\n" +
-                    "Type: $type\n" +
-                    "Size: $size\n" +
-                    "Modified: $modified\n" +
-                    "Permissions: $readable$executable"
+                        "Type: $type\n" +
+                        "Size: $size\n" +
+                        "Modified: $modified\n" +
+                        "Permissions: $readable$executable"
                 )
             }
         }

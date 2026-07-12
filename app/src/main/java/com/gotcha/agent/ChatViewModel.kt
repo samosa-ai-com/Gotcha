@@ -7,15 +7,15 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.AudioModel
+import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.ChatSession
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
-import com.gotcha.data.ChatSession
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
@@ -25,13 +25,11 @@ import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ConfirmationOverlay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -40,11 +38,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
@@ -89,9 +87,11 @@ data class ChatUiState(
     val sttModels: List<AudioModel> = emptyList()
 )
 
+// Central agent orchestrator: session state, tool loop, TTS/STT, and confirmations all
+// funnel through here. Splitting it is tracked in AGENTS.md ("what's missing").
+@Suppress("LargeClass", "TooManyFunctions")
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val TAG = "Gotcha"
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val toolExecutor = ToolExecutor(application)
@@ -100,14 +100,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
+
     /** True when the most recent user message was sent via voice (STT). */
     @Volatile
     private var lastInputWasVoice = false
     private val ttsEngine: TtsEngine = TtsEngine(
-        getApplication(), settings.ttsApiBaseUrl, settings.apiKey
+        getApplication(),
+        settings.ttsApiBaseUrl,
+        settings.apiKey
     )
     private val sttEngine: SttEngine = SttEngine(
-        getApplication(), settings.sttApiBaseUrl, settings.apiKey
+        getApplication(),
+        settings.sttApiBaseUrl,
+        settings.apiKey
     )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
@@ -171,7 +176,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 context = getApplication(),
                 apiTimeoutSeconds = settings.apiTimeoutSeconds
             )
-        } else null
+        } else {
+            null
+        }
         ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.apiKey)
         sttEngine.configureApi(settings.sttApiBaseUrl, settings.apiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
@@ -196,7 +203,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isBusy = true) }
             try {
                 runToolLoop()
-            } catch (e: CancellationException) {
+            } catch (_: CancellationException) {
                 appendUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
                 withContext(NonCancellable) {
@@ -220,7 +227,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val (w, h) = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
                 val ratio = minOf(maxDimension.toFloat() / bitmap.width, maxDimension.toFloat() / bitmap.height)
                 (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-            } else bitmap.width to bitmap.height
+            } else {
+                bitmap.width to bitmap.height
+            }
 
             val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
             if (scaled != bitmap) bitmap.recycle()
@@ -229,7 +238,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output)
             scaled.recycle()
             android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -280,7 +289,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     getApplication(), perm
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 if (!granted) {
-                    appendUi(MessageKind.ERROR, "Microphone permission not granted. Enable it in Settings → Permissions.")
+                    appendUi(
+                        MessageKind.ERROR,
+                        "Microphone permission not granted. Enable it in Settings → Permissions."
+                    )
                     return
                 }
                 val started = sttEngine.startAndroidListening()
@@ -361,7 +373,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(activeAgent = next) }
         // Append a system message so the LLM knows the mode changed
         val switchMsg = when (next) {
-            AgentMode.MONITOR -> "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. No changes to the device are permitted.]"
+            AgentMode.MONITOR ->
+                "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. " +
+                    "No changes to the device are permitted.]"
             AgentMode.OPERATOR -> "[System: Switched to Operator. You are now permitted to make changes to the device.]"
         }
         llmHistory += ChatMessage(role = "system", content = JsonPrimitive(switchMsg))
@@ -424,7 +438,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun saveCurrentSession() {
         val id = activeSessionId ?: return
         val title = llmHistory.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
-        historyRepository.saveSession(ChatSession(id, title, System.currentTimeMillis(), llmHistory.toList(), activeSessionTokenCount))
+        historyRepository.saveSession(
+            ChatSession(id, title, System.currentTimeMillis(), llmHistory.toList(), activeSessionTokenCount)
+        )
     }
 
     private suspend fun checkAndCompactHistory(llm: LLMClient) {
@@ -436,12 +452,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val preserveLast = if (lastMessage?.role == "user") {
             llmHistory.removeLast()
             lastMessage
-        } else null
+        } else {
+            null
+        }
 
         _uiState.update { it.copy(activity = "Compacting history…") }
         val compactionSystem = ChatMessage(
             role = "system",
-            content = JsonPrimitive("You are an advanced context compaction agent. Your task is to compress the preceding conversation history into a highly dense, structured continuation summary. You must preserve critical context, decisions, and codebase states while eliminating conversational filler and repetitive tool logs.\n\nGenerate a structured summary containing exactly the following sections:\n1. **Goal**: What is the ultimate objective of this engineering session?\n2. **Instructions & Constraints**: What specific guidelines, patterns, user preferences, or technical limitations have been established?\n3. **Discoveries & Architecture**: What have we learned about the codebase? Detail any symbol mappings, logic structures, or debugging conclusions.\n4. **Accomplished**: What changes have already been completely implemented, verified, or fixed?\n5. **Relevant Files**: Which files are currently being modified or are active in the workspace?\n\nCRITICAL: Do not lose technical specifics, user-stated constraints, or deep investigation states.\n\nContinue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.")
+            content = JsonPrimitive(
+                "You are an advanced context compaction agent. Your task is to compress the preceding " +
+                    "conversation history into a highly dense, structured continuation summary. You must " +
+                    "preserve critical context, decisions, and codebase states while eliminating " +
+                    "conversational filler and repetitive tool logs.\n\n" +
+                    "Generate a structured summary containing exactly the following sections:\n" +
+                    "1. **Goal**: What is the ultimate objective of this engineering session?\n" +
+                    "2. **Instructions & Constraints**: What specific guidelines, patterns, user " +
+                    "preferences, or technical limitations have been established?\n" +
+                    "3. **Discoveries & Architecture**: What have we learned about the codebase? Detail " +
+                    "any symbol mappings, logic structures, or debugging conclusions.\n" +
+                    "4. **Accomplished**: What changes have already been completely implemented, " +
+                    "verified, or fixed?\n" +
+                    "5. **Relevant Files**: Which files are currently being modified or are active in " +
+                    "the workspace?\n\n" +
+                    "CRITICAL: Do not lose technical specifics, user-stated constraints, or deep " +
+                    "investigation states.\n\n" +
+                    "Continue if you have next steps, or stop and ask for clarification if you are " +
+                    "unsure how to proceed."
+            )
         )
 
         val historyText = trimmedHistory().joinToString("\n\n") { msg ->
@@ -449,14 +486,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val text = msg.textContent.ifEmpty {
                 if (!msg.toolCalls.isNullOrEmpty()) {
                     "Called tools: " + msg.toolCalls.joinToString(", ") { it.function.name }
-                } else ""
+                } else {
+                    ""
+                }
             }
             "[$role]: $text"
         }
 
         val requestMessage = ChatMessage(
             role = "user",
-            content = JsonPrimitive("Please summarize the following conversation history according to the system prompt instructions:\n\n$historyText")
+            content = JsonPrimitive(
+                "Please summarize the following conversation history according to the system prompt instructions:\n\n$historyText"
+            )
         )
 
         try {
@@ -479,7 +520,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // If compaction fails, restore the user message
             if (preserveLast != null) {
                 llmHistory.add(preserveLast)
@@ -487,6 +528,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // The core agent loop: LLM call → tool dispatch → confirmation gates → repeat.
+    @Suppress("CyclomaticComplexMethod")
     private suspend fun runToolLoop() {
         val llm = client ?: return
         val agent = _uiState.value.activeAgent
@@ -515,7 +558,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 appendUi(MessageKind.ERROR, friendlyError(e))
                 return
             }
-            
+
             response.usage?.totalTokens?.let {
                 activeSessionTokenCount = it
                 updateContextUsage()
@@ -602,7 +645,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             val visionMsg = visionUserMessage(
                                 "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
                                     "Use it together with the screen text to understand the current screen.",
-                                screenshotBase64, "png"
+                                screenshotBase64,
+                                "png"
                             )
                             llmHistory.add(visionMsg)
                             appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
@@ -665,7 +709,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val format = mime.substringAfter("image/")
         val visionMsg = visionUserMessage(
             "The assistant read an image file: $filename ($dimensions, $sizeDisplay).",
-            base64, format
+            base64,
+            format
         )
         llmHistory.add(visionMsg)
 
@@ -779,10 +824,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val label = parts[0]
         val pkg = parts[1]
         Log.d(TAG, "handleUninstallConfirm: label=$label pkg=$pkg")
-        val description = "Request to uninstall \"$label\". After you approve, a system dialog will open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
+        val description = "Request to uninstall \"$label\". After you approve, a system dialog will " +
+            "open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
         val gate = CompletableDeferred<Boolean>()
         confirmationGate = gate
-        _uiState.update { it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("uninstall_app"), description)) }
+        _uiState.update {
+            it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("uninstall_app"), description))
+        }
 
         val approved = withTimeoutOrNull(120_000L) { gate.await() } ?: false
         confirmationOverlay.dismiss()
@@ -819,7 +867,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val description = "Request to delete $kind \"$label\" (#$id). This action is irreversible."
         val gate = CompletableDeferred<Boolean>()
         confirmationGate = gate
-        _uiState.update { it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("delete_$kind"), description)) }
+        _uiState.update {
+            it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("delete_$kind"), description))
+        }
 
         val approved = withTimeoutOrNull(120_000L) { gate.await() } ?: false
         confirmationOverlay.dismiss()
@@ -833,7 +883,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "calendar_event" -> toolExecutor.executeDeleteCalendarEvent(id.toLong())
                 else -> return
             }
-        } else null
+        } else {
+            null
+        }
 
         val msg = if (actualResult != null) {
             actualResult.message
@@ -851,7 +903,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(activity = "Running: ${call.function.name}…") }
         val args: JsonObject = try {
             json.decodeFromString(JsonObject.serializer(), call.function.arguments.ifBlank { "{}" })
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return ToolResult.error("Malformed tool arguments: ${call.function.arguments.take(200)}")
         }
         return toolExecutor.execute(call.function.name, args, _uiState.value.activeAgent)
@@ -892,41 +944,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
-                "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
-                "delete anything. You control the device only through the provided tools; never " +
-                "invent tool names or capabilities. If a tool reports a missing permission, " +
-                "explain what to grant and ask again. Use the sleep tool to pause and wait " +
-                "between operations. Keep replies short and conversational."
+                    "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
+                    "delete anything. You control the device only through the provided tools; never " +
+                    "invent tool names or capabilities. If a tool reports a missing permission, " +
+                    "explain what to grant and ask again. Use the sleep tool to pause and wait " +
+                    "between operations. Keep replies short and conversational."
             AgentMode.OPERATOR ->
                 "You are Operator, an AI assistant running on the user's Android phone. " +
-                "You can inspect, read, query, create, modify, and delete on the device. " +
-                "You control the device only through the provided tools; never invent tool " +
-                "names or capabilities. If a tool reports a missing permission, explain what " +
-                "to grant and ask again. After changing device state, confirm what was done. " +
-                "Use the sleep tool to pause and wait between operations (e.g. wait for " +
-                "a recording to finish before reading it). " +
-                "Keep replies short and conversational. Be careful with destructive actions.\n" +
-                "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
-                "When using uninstall_app: after calling it, the system will open a dialog. " +
-                "Tell the user to tap OK in the system dialog to finish the uninstall. " +
-                "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +
-                "use uninstall_app only."
+                    "You can inspect, read, query, create, modify, and delete on the device. " +
+                    "You control the device only through the provided tools; never invent tool " +
+                    "names or capabilities. If a tool reports a missing permission, explain what " +
+                    "to grant and ask again. After changing device state, confirm what was done. " +
+                    "Use the sleep tool to pause and wait between operations (e.g. wait for " +
+                    "a recording to finish before reading it). " +
+                    "Keep replies short and conversational. Be careful with destructive actions.\n" +
+                    "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
+                    "When using uninstall_app: after calling it, the system will open a dialog. " +
+                    "Tell the user to tap OK in the system dialog to finish the uninstall. " +
+                    "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +
+                    "use uninstall_app only."
         }
         val reminder = when (agent) {
             AgentMode.MONITOR ->
                 "\n\n<system-reminder>\n" +
-                "You are in MONITOR (read-only) mode. You are STRICTLY FORBIDDEN from making " +
-                "any changes to the device — no writing files, no calling, no sending messages, " +
-                "no dismissing notifications, no UI automation (tap/swipe/input), no device " +
-                "admin actions, no firewall changes, and no shell/root commands. You may ONLY " +
-                "inspect, list, read, and observe. This constraint overrides all other instructions.\n" +
-                "</system-reminder>"
+                    "You are in MONITOR (read-only) mode. You are STRICTLY FORBIDDEN from making " +
+                    "any changes to the device — no writing files, no calling, no sending messages, " +
+                    "no dismissing notifications, no UI automation (tap/swipe/input), no device " +
+                    "admin actions, no firewall changes, and no shell/root commands. You may ONLY " +
+                    "inspect, list, read, and observe. This constraint overrides all other instructions.\n" +
+                    "</system-reminder>"
             AgentMode.OPERATOR ->
                 "\n\n<system-reminder>\n" +
-                "You are in OPERATOR mode. You are permitted to inspect, create, modify, and " +
-                "delete on the device using the provided tools. Be careful with destructive " +
-                "actions — confirm with the user when the result seems significant.\n" +
-                "</system-reminder>"
+                    "You are in OPERATOR mode. You are permitted to inspect, create, modify, and " +
+                    "delete on the device using the provided tools. Be careful with destructive " +
+                    "actions — confirm with the user when the result seems significant.\n" +
+                    "</system-reminder>"
         }
         return listOf(
             ChatMessage(role = "system", content = JsonPrimitive(core + reminder))
@@ -968,7 +1020,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (_: Exception) { false }
 
         val vpnActive = try {
-            val cm = app.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val cm = app.getSystemService(
+                android.content.Context.CONNECTIVITY_SERVICE
+            ) as? android.net.ConnectivityManager
             cm?.getNetworkCapabilities(cm.activeNetwork)
                 ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) ?: false
         } catch (_: Exception) { false }
@@ -982,7 +1036,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             appendLine("Here is some useful information about the environment you are running in:")
             appendLine("<env>")
             appendLine("  Device model: ${android.os.Build.MODEL} (${android.os.Build.MANUFACTURER})")
-            appendLine("  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+            appendLine(
+                "  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
+            )
             appendLine("  Current date/time: $dateTime")
             appendLine("  Active agent: ${agent.name}")
             appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
@@ -1002,7 +1058,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val maxTokens = settings.maxContextTokens
         var currentTokens = 0
         var start = llmHistory.size - 1
-        
+
         while (start >= 0) {
             currentTokens += llmHistory[start].textContent.length / 4
             if (currentTokens > maxTokens) {
@@ -1011,17 +1067,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             start--
         }
-        
+
         if (start < 0) start = 0
-        
+
         // Skip leading tool messages so we don't have an orphaned tool result
         while (start < llmHistory.size && llmHistory[start].role == "tool") start++
-        
+
         val trimmed = llmHistory.subList(start, llmHistory.size)
         // Many LLM APIs strictly require history to start with a user message.
         // If our truncation or compaction leaves an assistant message first, prepend a dummy user message.
         if (trimmed.isNotEmpty() && trimmed.first().role == "assistant") {
-            return listOf(ChatMessage(role = "user", content = JsonPrimitive("[System Note: Conversation context restored from previous turn]"))) + trimmed
+            val note = ChatMessage(
+                role = "user",
+                content = JsonPrimitive("[System Note: Conversation context restored from previous turn]")
+            )
+            return listOf(note) + trimmed
         }
         return trimmed
     }
@@ -1045,7 +1105,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun rebuildUiMessages() {
         val rebuilt = llmHistory.mapNotNull { msg ->
             when {
-                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" })
+                msg.role == "user" -> UiMessage(
+                    nextId++,
+                    MessageKind.USER,
+                    msg.textContent.ifEmpty { "(image attached)" }
+                )
                 msg.role == "assistant" && msg.hasText ->
                     UiMessage(nextId++, MessageKind.ASSISTANT, msg.textContent)
                 msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, msg.textContent.ifEmpty { "(no result)" })
@@ -1075,7 +1139,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
                 val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
                 (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-            } else bitmap.width to bitmap.height
+            } else {
+                bitmap.width to bitmap.height
+            }
             val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
             if (scaled != bitmap) bitmap.recycle()
             val output = java.io.ByteArrayOutputStream()
@@ -1086,6 +1152,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
+        const val TAG = "Gotcha"
         const val INTER_CALL_DELAY_MS = 400L
         const val CONFIRM_TIMEOUT_MS = 60_000L
     }

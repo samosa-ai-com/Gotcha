@@ -24,16 +24,13 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Baselined against existing findings (app/detekt-baseline.xml); regenerate
-      # locally with: ./gradlew :app:detektBaseline
+      # No baselines: the whole repo must pass detekt and lint on every run.
       - name: Detekt
         run: ./gradlew :app:detekt --stacktrace
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
-      # Baselined against existing findings (app/lint-baseline.xml); regenerate
-      # locally with: ./gradlew :app:updateLintBaseline
       - name: Android Lint
         run: ./gradlew :app:lintDebug --stacktrace
 

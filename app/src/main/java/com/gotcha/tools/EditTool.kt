@@ -1,7 +1,6 @@
 package com.gotcha.tools
 
 import android.content.Context
-import java.io.File
 
 /**
  * Surgical text replacement tool — replaces exact text in a file.
@@ -29,26 +28,38 @@ class EditTool(private val context: Context) {
                 val file = resolved.file
                 val perm = resolver.checkWritePermission(file)
                 if (perm != null) return perm
-                if (!file.exists()) return ToolResult.error("File '$path' does not exist (resolved: ${file.canonicalPath}).")
+                if (!file.exists()) {
+                    return ToolResult.error(
+                        "File '$path' does not exist (resolved: ${file.canonicalPath})."
+                    )
+                }
                 if (!file.isFile) return ToolResult.error("'$path' is not a regular file.")
                 if (file.length() > MAX_FILE_BYTES) return ToolResult.error("File too large to edit (max 1 MB).")
 
                 try {
                     val content = file.readText(Charsets.UTF_8)
-                    val count = if (replaceAll) content.split(oldString).size - 1
-                    else if (content.contains(oldString)) 1 else 0
+                    val count = if (replaceAll) {
+                        content.split(oldString).size - 1
+                    } else if (content.contains(oldString)) 1 else 0
 
                     if (count == 0) {
-                        return ToolResult.error("No match found for the specified text in '$path'. " +
-                            "The text must match exactly, including whitespace and indentation.")
+                        return ToolResult.error(
+                            "No match found for the specified text in '$path'. " +
+                                "The text must match exactly, including whitespace and indentation."
+                        )
                     }
                     if (count > 1 && !replaceAll) {
-                        return ToolResult.error("Found $count matches in '$path'. " +
-                            "Provide more surrounding context or use replaceAll=true.")
+                        return ToolResult.error(
+                            "Found $count matches in '$path'. " +
+                                "Provide more surrounding context or use replaceAll=true."
+                        )
                     }
 
-                    val newContent = if (replaceAll) content.replace(oldString, newString)
-                    else content.replaceFirst(oldString, newString)
+                    val newContent = if (replaceAll) {
+                        content.replace(oldString, newString)
+                    } else {
+                        content.replaceFirst(oldString, newString)
+                    }
                     file.writeText(newContent, Charsets.UTF_8)
 
                     val verb = if (replaceAll) "Replaced $count occurrences" else "Replaced 1 occurrence"

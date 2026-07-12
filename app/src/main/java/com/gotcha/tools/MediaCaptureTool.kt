@@ -24,7 +24,10 @@ import kotlin.coroutines.resume
 
 class MediaCaptureTool(private val context: Context) {
 
-    private val TAG = "Gotcha"
+    private companion object {
+        const val TAG = "Gotcha"
+    }
+
     private var recorder: MediaRecorder? = null
     private var recordingFile: File? = null
     private var recordingStartTime: Long = 0L
@@ -112,8 +115,11 @@ class MediaCaptureTool(private val context: Context) {
         }
         return try {
             val file = if (!outputPath.isNullOrBlank()) {
-                val resolved = if (outputPath.startsWith("/")) outputPath
-                    else File(FileResolver.WORKING_DIR_BASE, outputPath).absolutePath
+                val resolved = if (outputPath.startsWith("/")) {
+                    outputPath
+                } else {
+                    File(FileResolver.WORKING_DIR_BASE, outputPath).absolutePath
+                }
                 File(resolved).also { it.parentFile?.mkdirs() }
             } else {
                 val dir = File(FileResolver.WORKING_DIR_BASE, "Recordings")
@@ -138,9 +144,18 @@ class MediaCaptureTool(private val context: Context) {
             rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
 
             when (quality?.trim()?.lowercase()) {
-                "low" -> { rec.setAudioSamplingRate(16000); rec.setAudioEncodingBitRate(16000) }
-                "medium" -> { rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(64000) }
-                "high" -> { rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(192000) }
+                "low" -> {
+                    rec.setAudioSamplingRate(16000)
+                    rec.setAudioEncodingBitRate(16000)
+                }
+                "medium" -> {
+                    rec.setAudioSamplingRate(44100)
+                    rec.setAudioEncodingBitRate(64000)
+                }
+                "high" -> {
+                    rec.setAudioSamplingRate(44100)
+                    rec.setAudioEncodingBitRate(192000)
+                }
             }
 
             if (maxDurationSeconds != null && maxDurationSeconds > 0) {

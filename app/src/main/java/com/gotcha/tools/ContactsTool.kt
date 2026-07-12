@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 
 class ContactsTool(private val context: Context) {
 
+    @Suppress("CyclomaticComplexMethod")
     fun findContact(name: String? = null, number: String? = null): ToolResult {
         if (name.isNullOrBlank() && number.isNullOrBlank()) {
             return ToolResult.error("Provide either a name or a phone number to search for.")
@@ -66,11 +67,13 @@ class ContactsTool(private val context: Context) {
                         ContactsContract.CommonDataKinds.Phone.TYPE_OTHER -> "other"
                         else -> "other"
                     }
-                    contacts.add(mapOf(
-                        "name" to displayName,
-                        "number" to phoneNumber,
-                        "type" to phoneType
-                    ))
+                    contacts.add(
+                        mapOf(
+                            "name" to displayName,
+                            "number" to phoneNumber,
+                            "type" to phoneType
+                        )
+                    )
                 }
             }
             if (contacts.isEmpty()) {
@@ -109,7 +112,9 @@ class ContactsTool(private val context: Context) {
             context.contentResolver.query(
                 uri,
                 arrayOf(ContactsContract.PhoneLookup._ID),
-                null, null, null
+                null,
+                null,
+                null
             )?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val contactId = cursor.getString(0)
@@ -117,7 +122,8 @@ class ContactsTool(private val context: Context) {
                         ContactsContract.CommonDataKinds.Email.CONTENT_URI,
                         arrayOf(ContactsContract.CommonDataKinds.Email.ADDRESS),
                         "${ContactsContract.CommonDataKinds.Email.CONTACT_ID} = ?",
-                        arrayOf(contactId), null
+                        arrayOf(contactId),
+                        null
                     )?.use { emailCursor ->
                         while (emailCursor.moveToNext()) {
                             emails.add(emailCursor.getString(0))
@@ -135,7 +141,9 @@ class ContactsTool(private val context: Context) {
             context.contentResolver.query(
                 uri,
                 arrayOf(ContactsContract.PhoneLookup._ID),
-                null, null, null
+                null,
+                null,
+                null
             )?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val contactId = cursor.getString(0)
@@ -148,7 +156,9 @@ class ContactsTool(private val context: Context) {
                     )?.use { orgCursor ->
                         if (orgCursor.moveToFirst()) orgCursor.getString(0) else null
                     }
-                } else null
+                } else {
+                    null
+                }
             }
         } catch (_: Exception) { null }
     }
@@ -178,7 +188,7 @@ class ContactsTool(private val context: Context) {
             if (dupes > 0) {
                 return ToolResult.error(
                     "A contact matching '$displayName' or '$phone' already exists ($dupes match(es)). " +
-                    "Use a different name or delete the existing contact first."
+                        "Use a different name or delete the existing contact first."
                 )
             }
             val typeVal = when (phoneType?.trim()?.lowercase()) {
@@ -200,7 +210,10 @@ class ContactsTool(private val context: Context) {
             ops.add(
                 ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                     .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                    .withValue(
+                        ContactsContract.Data.MIMETYPE,
+                        ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE
+                    )
                     .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, displayName)
                     .build()
             )
@@ -216,9 +229,15 @@ class ContactsTool(private val context: Context) {
                 ops.add(
                     ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                         .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                        .withValue(
+                            ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE
+                        )
                         .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, email.trim())
-                        .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_WORK)
+                        .withValue(
+                            ContactsContract.CommonDataKinds.Email.TYPE,
+                            ContactsContract.CommonDataKinds.Email.TYPE_WORK
+                        )
                         .build()
                 )
             }
@@ -226,9 +245,15 @@ class ContactsTool(private val context: Context) {
                 ops.add(
                     ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                         .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE)
+                        .withValue(
+                            ContactsContract.Data.MIMETYPE,
+                            ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE
+                        )
                         .withValue(ContactsContract.CommonDataKinds.Organization.COMPANY, organization.trim())
-                        .withValue(ContactsContract.CommonDataKinds.Organization.TYPE, ContactsContract.CommonDataKinds.Organization.TYPE_WORK)
+                        .withValue(
+                            ContactsContract.CommonDataKinds.Organization.TYPE,
+                            ContactsContract.CommonDataKinds.Organization.TYPE_WORK
+                        )
                         .build()
                 )
             }

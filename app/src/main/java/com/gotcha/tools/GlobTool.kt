@@ -42,7 +42,10 @@ class GlobTool(private val context: Context) {
                     val entries = dir.listFiles() ?: return
                     for (file in entries.sortedBy { it.name.lowercase() }) {
                         if (aborted) return
-                        if (results.size >= MAX_RESULTS) { aborted = true; return }
+                        if (results.size >= MAX_RESULTS) {
+                            aborted = true
+                            return
+                        }
 
                         val relPath = file.absolutePath.removePrefix(root.absolutePath).trimStart('/')
                         if (regex.matches(relPath)) {
@@ -53,8 +56,9 @@ class GlobTool(private val context: Context) {
                     }
                 }
 
-                if (root.isDirectory) walk(root, 0)
-                else {
+                if (root.isDirectory) {
+                    walk(root, 0)
+                } else {
                     if (regex.matches(root.name)) results.add(root.absolutePath)
                 }
 
@@ -62,8 +66,10 @@ class GlobTool(private val context: Context) {
                     return ToolResult.ok("No files matching '$pattern' found in '$path'.")
                 }
                 val truncated = if (aborted) "\n…(truncated, max $MAX_RESULTS results)" else ""
-                return ToolResult.ok("${results.size} file(s) matching '$pattern' in '$path':\n" +
-                    results.joinToString("\n") + truncated)
+                return ToolResult.ok(
+                    "${results.size} file(s) matching '$pattern' in '$path':\n" +
+                        results.joinToString("\n") + truncated
+                )
             }
         }
     }
@@ -84,8 +90,14 @@ class GlobTool(private val context: Context) {
                         i++
                     }
                 }
-                '?' -> { sb.append('.'); i++ }
-                '.' -> { sb.append("\\."); i++ }
+                '?' -> {
+                    sb.append('.')
+                    i++
+                }
+                '.' -> {
+                    sb.append("\\.")
+                    i++
+                }
                 '{' -> {
                     val end = glob.indexOf('}', i)
                     if (end > i) {
@@ -94,9 +106,15 @@ class GlobTool(private val context: Context) {
                         sb.append(parts.joinToString("|") { Regex.escape(it) })
                         sb.append(')')
                         i = end + 1
-                    } else { sb.append(c); i++ }
+                    } else {
+                        sb.append(c)
+                        i++
+                    }
                 }
-                else -> { sb.append(Regex.escape(c.toString())); i++ }
+                else -> {
+                    sb.append(Regex.escape(c.toString()))
+                    i++
+                }
             }
         }
         return try {

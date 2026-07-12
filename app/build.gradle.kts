@@ -82,14 +82,14 @@ android {
         warningsAsErrors = false
         htmlReport = true
         sarifReport = true
-        baseline = file("lint-baseline.xml")
     }
 }
 
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.files("config/detekt/detekt.yml"))
-    baseline = file("detekt-baseline.xml")
+    // One-off formatting fixes: ./gradlew :app:detekt -PdetektAutoCorrect
+    autoCorrect = project.hasProperty("detektAutoCorrect")
 }
 
 dependencies {

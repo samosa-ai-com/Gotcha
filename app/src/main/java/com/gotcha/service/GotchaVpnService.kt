@@ -75,7 +75,10 @@ class GotchaVpnService : VpnService() {
                 } catch (_: Exception) {
                     // Interface closed on teardown; exit the loop.
                 }
-            }.apply { isDaemon = true; start() }
+            }.apply {
+                isDaemon = true
+                start()
+            }
         }
     }
 

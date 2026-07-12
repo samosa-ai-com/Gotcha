@@ -31,7 +31,11 @@ class ClipboardTool(private val context: Context) {
             val a11yClip = GotchaAccessibilityService.lastClipboardData
             if (a11yClip != null && a11yClip.itemCount > 0) {
                 val text = a11yClip.getItemAt(0).coerceToText(context).toString()
-                if (text.isNotEmpty()) return ToolResult.ok("Clipboard (from accessibility service): ${text.take(2000)}")
+                if (text.isNotEmpty()) {
+                    return ToolResult.ok(
+                        "Clipboard (from accessibility service): ${text.take(2000)}"
+                    )
+                }
             }
 
             if (Build.VERSION.SDK_INT >= 34) {

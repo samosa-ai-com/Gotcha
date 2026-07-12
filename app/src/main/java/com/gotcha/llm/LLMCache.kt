@@ -77,7 +77,7 @@ class LLMCache(
         if (!file.exists()) return null
         return try {
             json.decodeFromString(DiskEntry.serializer(), file.readText())
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             file.delete()
             null
         }
@@ -87,7 +87,7 @@ class LLMCache(
         val file = diskFile(key) ?: return
         try {
             file.writeText(json.encodeToString(DiskEntry.serializer(), entry))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Disk cache is best-effort; in-memory cache still holds the entry.
         }
     }

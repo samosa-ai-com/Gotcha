@@ -28,6 +28,7 @@ class SttEngine(
     private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
     private var currentRecorder: MediaRecorder? = null
     private var currentAudioFile: File? = null
+
     // Android STT state
     private var currentRecognizer: SpeechRecognizer? = null
     private var listenGate: CompletableDeferred<String>? = null
@@ -73,7 +74,10 @@ class SttEngine(
     /** Stop recording and return the audio file for API STT. */
     fun stopRecording(): File? {
         return try {
-            currentRecorder?.apply { stop(); release() }
+            currentRecorder?.apply {
+                stop()
+                release()
+            }
             currentRecorder = null
             currentAudioFile
         } catch (_: Exception) {

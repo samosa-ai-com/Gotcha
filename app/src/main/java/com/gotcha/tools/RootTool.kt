@@ -25,8 +25,8 @@ class RootTool(
 
     /** Irreversible, device-destroying operations we refuse even with root. */
     private val denyPatterns = listOf(
-        Regex("""\bmkfs\b"""),                       // reformat a filesystem
-        Regex("""\bdd\b[^\n]*\bof=/dev/"""),         // raw write to a block device
+        Regex("""\bmkfs\b"""), // reformat a filesystem
+        Regex("""\bdd\b[^\n]*\bof=/dev/"""), // raw write to a block device
         Regex("""\brm\s+-[a-z]*r[a-z]*f?\s+/(\s|$)"""), // rm -rf /  (wipe the root tree)
         Regex("""\bfastboot\b"""),
         Regex("""\brecovery\b[^\n]*--wipe""")

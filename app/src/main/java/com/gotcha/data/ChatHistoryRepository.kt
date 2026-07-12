@@ -4,12 +4,9 @@ import android.content.Context
 import com.gotcha.llm.ChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-
-import kotlinx.serialization.Serializable
-import java.util.UUID
 
 @Serializable
 data class ChatSession(
@@ -28,7 +25,7 @@ class ChatHistoryRepository(context: Context) {
     private val chatsDir = File(context.filesDir, "chats").apply { mkdirs() }
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ChatSession.serializer()
-    
+
     suspend fun listSessions(): List<ChatSession> = withContext(Dispatchers.IO) {
         chatsDir.listFiles()
             ?.filter { it.extension == "json" }
@@ -37,7 +34,7 @@ class ChatHistoryRepository(context: Context) {
                     val session = json.decodeFromString(serializer, file.readText())
                     // Only return metadata-light clone if desired, but we just return full for now
                     session
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     null
                 }
             }
@@ -50,7 +47,7 @@ class ChatHistoryRepository(context: Context) {
         if (!file.exists()) return@withContext null
         try {
             json.decodeFromString(serializer, file.readText())
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

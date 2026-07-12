@@ -46,7 +46,8 @@ data class AudioModel(
                 val t = task.lowercase().trim()
                 when {
                     t == "text-to-speech" || t == "tts" -> return ModelCategory.TTS
-                    t == "automatic-speech-recognition" || t == "stt" || t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
+                    t == "automatic-speech-recognition" || t == "stt" ||
+                        t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
                 }
             }
             val lower = id.lowercase()

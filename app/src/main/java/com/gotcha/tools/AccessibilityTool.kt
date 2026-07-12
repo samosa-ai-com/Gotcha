@@ -30,11 +30,17 @@ class AccessibilityTool(private val context: Context) {
         val service = requireService() ?: return notEnabled()
         return when {
             !text.isNullOrBlank() ->
-                if (service.tapByText(text)) ToolResult.ok("Tapped an element matching \"$text\".")
-                else ToolResult.error("Found no clickable element matching \"$text\" on screen.")
+                if (service.tapByText(text)) {
+                    ToolResult.ok("Tapped an element matching \"$text\".")
+                } else {
+                    ToolResult.error("Found no clickable element matching \"$text\" on screen.")
+                }
             x != null && y != null ->
-                if (service.tapAt(x.toFloat(), y.toFloat())) ToolResult.ok("Tapped at ($x, $y).")
-                else ToolResult.error("Could not dispatch the tap gesture.")
+                if (service.tapAt(x.toFloat(), y.toFloat())) {
+                    ToolResult.ok("Tapped at ($x, $y).")
+                } else {
+                    ToolResult.error("Could not dispatch the tap gesture.")
+                }
             else -> ToolResult.error("Provide either 'text' to match, or both 'x' and 'y' coordinates.")
         }
     }
@@ -43,9 +49,11 @@ class AccessibilityTool(private val context: Context) {
     fun swipe(direction: String?, x1: Int?, y1: Int?, x2: Int?, y2: Int?): ToolResult {
         val service = requireService() ?: return notEnabled()
         if (x1 != null && y1 != null && x2 != null && y2 != null) {
-            return if (service.swipe(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat()))
+            return if (service.swipe(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat())) {
                 ToolResult.ok("Swiped from ($x1, $y1) to ($x2, $y2).")
-            else ToolResult.error("Could not dispatch the swipe gesture.")
+            } else {
+                ToolResult.error("Could not dispatch the swipe gesture.")
+            }
         }
         val metrics = context.resources.displayMetrics
         val w = metrics.widthPixels.toFloat()
@@ -59,25 +67,34 @@ class AccessibilityTool(private val context: Context) {
                 "Provide a direction (up/down/left/right) or explicit x1,y1,x2,y2 coordinates."
             )
         }
-        return if (service.swipe(sx, sy, ex, ey)) ToolResult.ok("Swiped $direction.")
-        else ToolResult.error("Could not dispatch the swipe gesture.")
+        return if (service.swipe(sx, sy, ex, ey)) {
+            ToolResult.ok("Swiped $direction.")
+        } else {
+            ToolResult.error("Could not dispatch the swipe gesture.")
+        }
     }
 
     /** Type text into the currently focused input field. */
     fun inputText(text: String): ToolResult {
         val service = requireService() ?: return notEnabled()
-        return if (service.typeText(text)) ToolResult.ok("Typed \"$text\" into the focused field.")
-        else ToolResult.error("No editable field is focused. Tap a text field first, then input text.")
+        return if (service.typeText(text)) {
+            ToolResult.ok("Typed \"$text\" into the focused field.")
+        } else {
+            ToolResult.error("No editable field is focused. Tap a text field first, then input text.")
+        }
     }
 
     /** Perform a device-wide navigation gesture (back/home/recents/notifications/quick_settings/lock_screen). */
     fun globalAction(action: String): ToolResult {
         val service = requireService() ?: return notEnabled()
-        return if (service.performGlobal(action)) ToolResult.ok("Performed global action: $action.")
-        else ToolResult.error(
-            "Unknown or unsupported global action '$action'. " +
-                "Use back, home, recents, notifications, quick_settings, or lock_screen."
-        )
+        return if (service.performGlobal(action)) {
+            ToolResult.ok("Performed global action: $action.")
+        } else {
+            ToolResult.error(
+                "Unknown or unsupported global action '$action'. " +
+                    "Use back, home, recents, notifications, quick_settings, or lock_screen."
+            )
+        }
     }
 
     private fun requireService(): GotchaAccessibilityService? =

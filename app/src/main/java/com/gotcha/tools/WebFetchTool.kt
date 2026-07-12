@@ -39,7 +39,11 @@ class WebFetchTool {
         return try {
             val request = Request.Builder()
                 .url(trimmed)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36")
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36"
+                )
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .build()
@@ -54,7 +58,9 @@ class WebFetchTool {
             val contentType = body.contentType()
             val mime = if (contentType != null) {
                 "${contentType.type?.lowercase() ?: "text"}/${contentType.subtype?.lowercase() ?: "html"}"
-            } else "text/html"
+            } else {
+                "text/html"
+            }
 
             val accepted = mime.startsWith("text/") ||
                 mime in listOf("application/json", "application/xml", "application/xhtml+xml")
@@ -83,20 +89,24 @@ class WebFetchTool {
             val truncated = output.length > MAX_RESPONSE_BYTES
             val finalOutput = if (truncated) {
                 output.take(MAX_RESPONSE_BYTES) + "\n…(truncated at ${MAX_RESPONSE_BYTES / 1024} KB)"
-            } else output
+            } else {
+                output
+            }
 
             ToolResult.ok(
-                "Fetched ${trimmed} (${rawSizeKb} KB raw → ${finalOutput.length / 1024} KB ${outputFormat}, HTTP ${response.code}):\n\n$finalOutput"
+                "Fetched $trimmed ($rawSizeKb KB raw → ${finalOutput.length / 1024} KB " +
+                    "$outputFormat, HTTP ${response.code}):\n\n$finalOutput"
             )
         } catch (e: java.net.UnknownHostException) {
             ToolResult.error("Could not resolve host: ${e.message}")
-        } catch (e: java.net.SocketTimeoutException) {
+        } catch (_: java.net.SocketTimeoutException) {
             ToolResult.error("Request timed out after ${TIMEOUT_SECONDS}s.")
         } catch (e: Exception) {
             ToolResult.error("Failed to fetch URL: ${e.message}")
         }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun htmlToMarkdown(doc: Document): String {
         val sb = StringBuilder()
         val body = doc.body() ?: return doc.text()
@@ -137,19 +147,33 @@ class WebFetchTool {
                     }
                 }
                 "strong", "b" -> {
-                    sb.append("**"); children(); sb.append("**")
+                    sb.append("**")
+                    children()
+                    sb.append("**")
                 }
                 "em", "i" -> {
-                    sb.append("*"); children(); sb.append("*")
+                    sb.append("*")
+                    children()
+                    sb.append("*")
                 }
                 "code" -> {
-                    sb.append("`"); children(); sb.append("`")
+                    sb.append("`")
+                    children()
+                    sb.append("`")
                 }
                 "pre" -> {
                     sb.append("\n```\n${(node as org.jsoup.nodes.Element).text()}\n```\n\n")
                 }
-                "ul" -> { sb.append("\n"); children(); sb.append("\n") }
-                "ol" -> { sb.append("\n"); children(); sb.append("\n") }
+                "ul" -> {
+                    sb.append("\n")
+                    children()
+                    sb.append("\n")
+                }
+                "ol" -> {
+                    sb.append("\n")
+                    children()
+                    sb.append("\n")
+                }
                 "li" -> {
                     val parent = node.parent()
                     val isOrdered = parent != null && parent.nodeName() == "ol"
@@ -162,7 +186,9 @@ class WebFetchTool {
                     sb.append("\n")
                 }
                 "blockquote" -> {
-                    sb.append("\n> "); children(); sb.append("\n\n")
+                    sb.append("\n> ")
+                    children()
+                    sb.append("\n\n")
                 }
                 "hr" -> sb.append("\n---\n\n")
                 "img" -> {

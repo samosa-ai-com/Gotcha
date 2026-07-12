@@ -60,7 +60,11 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
             )
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID_SILENT, "Alarms & Timers (no vibration)", NotificationManager.IMPORTANCE_HIGH).apply {
+                NotificationChannel(
+                    CHANNEL_ID_SILENT,
+                    "Alarms & Timers (no vibration)",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
                     enableVibration(false)
                 }
             )

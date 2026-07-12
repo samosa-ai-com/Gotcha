@@ -69,8 +69,12 @@ class AudioApi(
                         (0 until voicesArr.length()).mapNotNull { j ->
                             voicesArr.optJSONObject(j)?.optString("id", null)
                         }
-                    } else emptyList()
-                } else emptyList()
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    emptyList()
+                }
                 AudioModel(id, category, voices)
             }
         } catch (e: Exception) {
@@ -83,7 +87,11 @@ class AudioApi(
     fun transcribe(audioFile: File, model: String): Result<String> = runCatching {
         val url = "${baseUrl.trimEnd('/')}/audio/transcriptions"
         val boundary = "Boundary-${System.currentTimeMillis()}"
-        val body = buildMultipartBody(boundary, audioFile, "file", "audio/m4a",
+        val body = buildMultipartBody(
+            boundary,
+            audioFile,
+            "file",
+            "audio/m4a",
             mapOf("model" to model)
         )
         val request = Request.Builder()
@@ -111,7 +119,8 @@ class AudioApi(
             put("response_format", "wav")
         }
         val requestBody = RequestBody.create(
-            "application/json".toMediaType(), json.toString()
+            "application/json".toMediaType(),
+            json.toString()
         )
         val request = Request.Builder()
             .url(url)
@@ -126,7 +135,10 @@ class AudioApi(
     }
 
     private fun buildMultipartBody(
-        boundary: String, file: File, fieldName: String, contentType: String,
+        boundary: String,
+        file: File,
+        fieldName: String,
+        contentType: String,
         extraFields: Map<String, String>
     ): RequestBody {
         val delimiter = "--$boundary\r\n".toByteArray()
