@@ -7,7 +7,7 @@ import org.junit.Test
 
 class TerminalToolTest {
 
-    private val tool = TerminalTool(timeoutSeconds = 5)
+    private val tool = TerminalTool(defaultTimeoutSeconds = 5)
 
     @Test
     fun `simple command returns stdout and exit code`() = runTest {
@@ -34,7 +34,7 @@ class TerminalToolTest {
 
     @Test
     fun `long output is capped`() = runTest {
-        val small = TerminalTool(timeoutSeconds = 5, maxOutputBytes = 100)
+        val small = TerminalTool(defaultTimeoutSeconds = 5, maxOutputBytes = 100)
         val result = small.runCommand("seq 1 10000")
         assertTrue(result.message.contains("output capped"))
     }
