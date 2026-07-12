@@ -1039,6 +1039,24 @@ object ToolDefinitions {
         }
     )
 
+    val sleep = tool(
+        "sleep",
+        "Pause execution for a given duration, then automatically resume. " +
+            "Use this to wait before the next action — e.g. let a timer finish, " +
+            "wait for a download, or delay between operations. " +
+            "Can be cancelled anytime via the Stop button. " +
+            "Available to both Monitor and Operator modes.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("duration_seconds") {
+                    put("type", "integer")
+                    put("description", "How long to sleep, in seconds (1-86400).")
+                }
+            }
+            putJsonArray("required") { add("duration_seconds") }
+        }
+    )
+
     val glob = tool(
         "glob",
         "Find files matching a glob pattern within an allowed directory. " +
@@ -1421,6 +1439,8 @@ object ToolDefinitions {
         getAudioRecordingStatus, pauseAudioRecording, resumeAudioRecording,
         // User interaction
         question,
+        // Sleep / delay utility (available to both agents)
+        sleep,
         // Task tracking
         todowrite,
         // Surgical file editing (Operator only)

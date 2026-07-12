@@ -895,13 +895,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
                 "delete anything. You control the device only through the provided tools; never " +
                 "invent tool names or capabilities. If a tool reports a missing permission, " +
-                "explain what to grant and ask again. Keep replies short and conversational."
+                "explain what to grant and ask again. Use the sleep tool to pause and wait " +
+                "between operations. Keep replies short and conversational."
             AgentMode.OPERATOR ->
                 "You are Operator, an AI assistant running on the user's Android phone. " +
                 "You can inspect, read, query, create, modify, and delete on the device. " +
                 "You control the device only through the provided tools; never invent tool " +
                 "names or capabilities. If a tool reports a missing permission, explain what " +
                 "to grant and ask again. After changing device state, confirm what was done. " +
+                "Use the sleep tool to pause and wait between operations (e.g. wait for " +
+                "a recording to finish before reading it). " +
                 "Keep replies short and conversational. Be careful with destructive actions.\n" +
                 "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
                 "When using uninstall_app: after calling it, the system will open a dialog. " +

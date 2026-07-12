@@ -2,7 +2,9 @@ package com.gotcha.tools
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -69,6 +71,8 @@ class ToolExecutor(context: Context) {
         }
         val result = try {
             withContext(Dispatchers.IO) { dispatch(name, args) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ToolResult.error("Tool '$name' failed: ${e.message}")
         }
@@ -295,6 +299,15 @@ class ToolExecutor(context: Context) {
         "todowrite" -> todoTool.todowrite(
             parseTodoItems(args["items"]) ?: return missing("items")
         )
+        "sleep" -> {
+            val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
+                ?: return missing("duration_seconds")
+            for (remaining in secs downTo 1) {
+                Log.d(TAG, "sleep: ${remaining}s remaining")
+                delay(1000L)
+            }
+            ToolResult.ok("Slept for $secs seconds.")
+        }
         "read_image" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
         "glob" -> globTool.glob(
             path = args.requireString("path") ?: return missing("path"),

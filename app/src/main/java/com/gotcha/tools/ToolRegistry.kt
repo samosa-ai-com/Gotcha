@@ -59,6 +59,7 @@ object ToolRegistry {
         "todowrite", "list_alarms", "list_timers",
         // User interaction
         "question",
+        "sleep",
         // Web
         "websearch", "webfetch",
         // Clipboard (read-only)
