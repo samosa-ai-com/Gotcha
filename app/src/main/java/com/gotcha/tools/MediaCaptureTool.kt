@@ -44,8 +44,7 @@ class MediaCaptureTool(private val context: Context) {
             ?: return ToolResult.error("Camera system is not ready yet. Try again in a moment.")
 
         return try {
-            val dir = context.getExternalFilesDir("Pictures")
-                ?: return ToolResult.error("No external storage is available for photos.")
+            val dir = File(FileResolver.WORKING_DIR_BASE, "Pictures")
             dir.mkdirs()
             val file = File(dir, "photo_${timestamp()}.jpg")
 
@@ -113,12 +112,11 @@ class MediaCaptureTool(private val context: Context) {
         }
         return try {
             val file = if (!outputPath.isNullOrBlank()) {
-                val f = File(outputPath)
-                f.parentFile?.mkdirs()
-                f
+                val resolved = if (outputPath.startsWith("/")) outputPath
+                    else File(FileResolver.WORKING_DIR_BASE, outputPath).absolutePath
+                File(resolved).also { it.parentFile?.mkdirs() }
             } else {
-                val dir = context.getExternalFilesDir("Recordings")
-                    ?: return ToolResult.error("No external storage is available for recordings.")
+                val dir = File(FileResolver.WORKING_DIR_BASE, "Recordings")
                 dir.mkdirs()
                 File(dir, "recording_${timestamp()}.m4a")
             }
