@@ -57,7 +57,15 @@ data class UiMessage(
     val id: Long,
     val kind: MessageKind,
     val text: String,
-    val imageBase64: String? = null
+    val imageBase64: String? = null,
+    val subAgentSteps: List<String> = emptyList(),
+    val subAgentCollapsed: Boolean = true
+)
+
+data class SubAgentStepUi(
+    val action: String,
+    val status: String,
+    val detail: String = ""
 )
 
 /** A batch of tool calls waiting for the user's confirm/deny (Phase 7). */
@@ -76,15 +84,15 @@ data class PendingQuestion(
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val isBusy: Boolean = false,
-    val activity: String? = null, // e.g. "Running: set_brightness…"
-    val subAgentRunning: String? = null, // description while sub-agent is active
+    val activity: String? = null,
+    val subAgentRunning: String? = null,
+    val subAgentCurrentAction: String? = null,
     val pendingConfirmation: PendingConfirmation? = null,
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.OPERATOR,
     val contextUsagePercent: Float = 0f,
-    // TTS / STT state
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
@@ -137,20 +145,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         toolExecutor = ToolExecutor(application) { description, prompt ->
-            _uiState.update { it.copy(subAgentRunning = description) }
+            _uiState.update { it.copy(subAgentRunning = description, subAgentCurrentAction = "starting…") }
+            val steps = mutableListOf<SubAgentStepUi>()
             val subSession = SubAgentSession(
                 appContext = getApplication(),
                 toolExecutor = toolExecutor,
                 settings = settings,
                 description = description,
-                prompt = prompt
+                prompt = prompt,
+                onStep = { action, status, detail ->
+                    steps.add(SubAgentStepUi(action, status, detail))
+                    _uiState.update {
+                        it.copy(
+                            subAgentCurrentAction = when (status) {
+                                "running" -> "→ $action"
+                                "completed" -> if (detail.isNotBlank()) "✓ $action → ${detail.take(60)}"
+                                    else "✓ $action"
+                                else -> "$action: ${detail.take(60)}"
+                            }
+                        )
+                    }
+                }
             )
-            val result = subSession.run()
-            _uiState.update { it.copy(subAgentRunning = null) }
-            if (result.startsWith("Task failed") || result.startsWith("Task exceeded")) {
-                ToolResult.error(result)
+            val output = subSession.run()
+            val stepsEncoded = output.steps.joinToString("\n")
+            _uiState.update { it.copy(subAgentRunning = null, subAgentCurrentAction = null) }
+            if (output.finalAnswer.startsWith("Task failed") || output.finalAnswer.startsWith("Task exceeded")) {
+                ToolResult.error(output.finalAnswer)
             } else {
-                ToolResult.ok("TASK_RESULT:$description:$result")
+                ToolResult.ok("TASK_RESULT:$description:$stepsEncoded\n|||\n${output.finalAnswer}")
             }
         }
         refreshSettings()
@@ -233,7 +256,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 withContext(NonCancellable) {
                     saveCurrentSession()
-                    _uiState.update { it.copy(isBusy = false, activity = null, subAgentRunning = null) }
+                    _uiState.update { it.copy(isBusy = false, activity = null, subAgentRunning = null, subAgentCurrentAction = null) }
                     agentJob = null
                 }
             }
@@ -882,22 +905,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Handles a tool result prefixed with TASK_RESULT:description:result.
-     * Shows the result as a SUBAGENT message bubble and stores a clean
-     * tool result in the LLM history.
+     * Handles a tool result prefixed with TASK_RESULT:description:steps|||answer.
+     * Shows a collapsible SUBAGENT bubble with intermediate steps and renders
+     * the final answer with markdown.
      */
     private fun handleTaskResult(call: ToolCall, result: ToolResult) {
         val body = result.message.removePrefix("TASK_RESULT:")
         val colon = body.indexOf(':')
         if (colon < 0) return
         val description = body.substring(0, colon)
-        val answer = body.substring(colon + 1)
-        // Show as a styled SUBAGENT bubble in the UI
-        appendUi(MessageKind.SUBAGENT, "$description\n\n$answer")
-        // Store clean text in LLM history
+        val payload = body.substring(colon + 1)
+        val marker = "\n|||\n"
+        val splitIdx = payload.indexOf(marker)
+        val steps: List<String>
+        val answer: String
+        if (splitIdx >= 0) {
+            steps = payload.substring(0, splitIdx).split("\n").filter { it.isNotBlank() }
+            answer = payload.substring(splitIdx + marker.length)
+        } else {
+            steps = emptyList()
+            answer = payload
+        }
+        // Show as a collapsible SUBAGENT bubble in the UI
+        appendUi(MessageKind.SUBAGENT, answer, subAgentSteps = steps)
+        // Store in LLM history with steps embedded for persistence
+        val stepsBlock = if (steps.isNotEmpty()) {
+            "\n── Steps ──\n" + steps.joinToString("\n") + "\n── Result ──\n"
+        } else ""
         llmHistory += ChatMessage(
             role = "tool",
-            content = JsonPrimitive("Task \"$description\" completed. Result:\n$answer"),
+            content = JsonPrimitive(
+                "SUBAGENT_STEPS:$description" +
+                stepsBlock +
+                answer
+            ),
             toolCallId = call.id
         )
     }
@@ -960,6 +1001,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "to grant and ask again. After changing device state, confirm what was done. " +
                 "Use the sleep tool to pause and wait between operations (e.g. wait for " +
                 "a recording to finish before reading it). " +
+                "Use the task tool to delegate complex multi-step operations to the General " +
+                "sub-agent. Prefer delegation whenever a task involves many tool calls whose " +
+                "intermediate steps are not important — only the final result matters. " +
+                "For example: organizing files, gathering information from multiple sources, " +
+                "or performing a series of device checks. The sub-agent runs in the foreground; " +
+                "you will receive its complete report when done. " +
                 "Keep replies short and conversational. Be careful with destructive actions.\n" +
                 "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
                 "When using uninstall_app: after calling it, the system will open a dialog. " +
@@ -1091,19 +1138,50 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         else -> "Something went wrong: ${e.message}"
     }
 
-    private fun appendUi(kind: MessageKind, text: String, imageBase64: String? = null) {
+    private fun appendUi(
+        kind: MessageKind,
+        text: String,
+        imageBase64: String? = null,
+        subAgentSteps: List<String> = emptyList()
+    ) {
         _uiState.update {
-            it.copy(messages = it.messages + UiMessage(nextId++, kind, text, imageBase64))
+            it.copy(messages = it.messages + UiMessage(
+                nextId++, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true
+            ))
         }
     }
 
     private fun rebuildUiMessages() {
         val rebuilt = llmHistory.mapNotNull { msg ->
+            val text = msg.textContent
             when {
-                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" })
-                msg.role == "assistant" && msg.hasText ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, msg.textContent)
-                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, msg.textContent.ifEmpty { "(no result)" })
+                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, text.ifEmpty { "(image attached)" })
+                msg.role == "assistant" && text.isNotBlank() ->
+                    UiMessage(nextId++, MessageKind.ASSISTANT, text)
+                msg.role == "tool" && text.startsWith("SUBAGENT_STEPS:") -> {
+                    val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
+                    val rest = if (descEnd > 0) text.substring(descEnd + 1) else text.substring("SUBAGENT_STEPS:".length)
+                    val stepsMarker = "\n── Steps ──\n"
+                    val resultMarker = "\n── Result ──\n"
+                    val steps: List<String>
+                    val answer: String
+                    if (rest.startsWith(stepsMarker)) {
+                        val afterSteps = rest.removePrefix(stepsMarker)
+                        val resIdx = afterSteps.indexOf(resultMarker)
+                        if (resIdx >= 0) {
+                            steps = afterSteps.substring(0, resIdx).split("\n").filter { it.isNotBlank() }
+                            answer = afterSteps.substring(resIdx + resultMarker.length)
+                        } else {
+                            steps = emptyList()
+                            answer = afterSteps
+                        }
+                    } else {
+                        steps = emptyList()
+                        answer = rest
+                    }
+                    UiMessage(nextId++, MessageKind.SUBAGENT, answer, subAgentSteps = steps)
+                }
+                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, text.ifEmpty { "(no result)" })
                 else -> null
             }
         }

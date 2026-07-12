@@ -6,6 +6,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,8 +23,11 @@ import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.Material3RichText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,9 +41,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.MessageKind
@@ -55,6 +62,7 @@ fun MessageBubble(
     val isUser = message.kind == MessageKind.USER
     val isAssistant = message.kind == MessageKind.ASSISTANT
     val isTool = message.kind == MessageKind.TOOL
+    val isSubAgent = message.kind == MessageKind.SUBAGENT
     val colors = MaterialTheme.colorScheme
     val (container, contentColor) = when (message.kind) {
         MessageKind.USER -> colors.primaryContainer to colors.onPrimaryContainer
@@ -62,9 +70,8 @@ fun MessageBubble(
         MessageKind.TOOL -> colors.secondaryContainer to colors.onSecondaryContainer
         MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
         MessageKind.SUBAGENT -> {
-            // Distinct indigo/purple palette for sub-agent messages
-            val bg = androidx.compose.ui.graphics.Color(0xFF1A1A2E)
-            val fg = androidx.compose.ui.graphics.Color(0xFFE0D4FF)
+            val bg = Color(0xFF1A1A2E)
+            val fg = Color(0xFFE0D4FF)
             bg to fg
         }
     }
@@ -92,8 +99,8 @@ fun MessageBubble(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
                     .then(
-                        if (isTool) Modifier.combinedClickable(
-                            onClick = { expanded.value = !expanded.value },
+                        if (isTool || isSubAgent) Modifier.combinedClickable(
+                            onClick = { if (isTool) expanded.value = !expanded.value },
                             onLongClick = { showMenu = true }
                         )
                         else Modifier.combinedClickable(
@@ -123,11 +130,6 @@ fun MessageBubble(
                 if (message.text.isNotEmpty()) {
                     val displayText = when (message.kind) {
                         MessageKind.TOOL -> "🔧 ${message.text}"
-                        MessageKind.SUBAGENT -> {
-                            val firstLine = message.text.substringBefore("\n")
-                            val rest = message.text.substringAfter("\n", "")
-                            "⚡ General Agent: $firstLine" + if (rest.isNotBlank()) "\n$rest" else ""
-                        }
                         else -> message.text
                     }
                     val firstLine = displayText.substringBefore("\n").trimEnd()
@@ -147,16 +149,20 @@ fun MessageBubble(
                                 color = contentColor.copy(alpha = 0.6f)
                             )
                         }
+                    } else if (isSubAgent) {
+                        SubAgentContent(
+                            message = message,
+                            contentColor = contentColor,
+                            expanded = expanded
+                        )
+                    } else if (isTool || isSubAgent) {
+                        Text(
+                            text = displayText,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     } else {
-                        if (message.kind == MessageKind.TOOL || message.kind == MessageKind.SUBAGENT) {
-                            Text(
-                                text = displayText,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        } else {
-                            Material3RichText {
-                                Markdown(displayText)
-                            }
+                        Material3RichText {
+                            Markdown(displayText)
                         }
                     }
                 }
@@ -182,7 +188,6 @@ fun MessageBubble(
             }
         }
 
-        // Context menu on long press
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
@@ -190,17 +195,109 @@ fun MessageBubble(
             DropdownMenuItem(
                 text = { Text("Copy as text") },
                 onClick = {
-                    copyPlainText(context, message.text, isTool)
+                    copyPlainText(context, message.text, isTool || isSubAgent)
                     showMenu = false
                 }
             )
             DropdownMenuItem(
                 text = { Text("Copy as markdown") },
                 onClick = {
-                    copyMarkdown(context, message.text, isTool)
+                    copyMarkdown(context, message.text, isTool || isSubAgent)
                     showMenu = false
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun SubAgentContent(
+    message: UiMessage,
+    contentColor: Color,
+    expanded: androidx.compose.runtime.MutableState<Boolean>
+) {
+    val steps = message.subAgentSteps
+    val answer = message.text
+
+    // Header row — always visible, clickable to toggle
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded.value = !expanded.value }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "⚡ General Agent",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = contentColor
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        if (steps.isNotEmpty()) {
+            Text(
+                text = "${steps.size} step${if (steps.size != 1) "s" else ""}",
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Icon(
+            imageVector = if (expanded.value) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded.value) "Collapse" else "Expand",
+            modifier = Modifier.size(20.dp),
+            tint = contentColor.copy(alpha = 0.7f)
+        )
+    }
+
+    if (expanded.value) {
+        // Steps section
+        if (steps.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            steps.forEach { step ->
+                val icon = when {
+                    step.startsWith("reasoning:") -> "💭"
+                    step.contains("→ (running)") -> "⋯"
+                    step.contains("→ completed") || step.contains("→ completed:") -> "✓"
+                    step.contains("→ failed") -> "✗"
+                    else -> "·"
+                }
+                val display = step.removePrefix("reasoning:")
+                Row(modifier = Modifier.padding(vertical = 1.dp)) {
+                    Text(
+                        text = icon,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = contentColor.copy(alpha = 0.7f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = display.trimStart(),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = contentColor.copy(alpha = 0.7f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // Divider
+        if (answer.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            HorizontalDivider(
+                color = contentColor.copy(alpha = 0.2f),
+                thickness = 1.dp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        // Final answer with markdown rendering
+        if (answer.isNotBlank()) {
+            Material3RichText {
+                Markdown(answer)
+            }
         }
     }
 }

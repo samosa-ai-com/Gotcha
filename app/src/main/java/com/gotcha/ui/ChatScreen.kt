@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.PendingQuestion
@@ -145,23 +146,34 @@ fun ChatScreen(
             }
 
             if (state.subAgentRunning != null) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color(0xFF1A1A2E), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.width(16.dp),
-                        color = Color(0xFFE0D4FF)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "⚡ ${state.subAgentRunning}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFE0D4FF)
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.width(16.dp),
+                            color = Color(0xFFE0D4FF)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "⚡ ${state.subAgentRunning}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE0D4FF)
+                        )
+                    }
+                    state.subAgentCurrentAction?.let { action ->
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            action,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE0D4FF).copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 

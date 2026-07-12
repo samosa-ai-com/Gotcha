@@ -11,25 +11,30 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 
+data class SubAgentOutput(
+    val finalAnswer: String,
+    val steps: List<String>
+)
+
 /**
  * Runs an independent LLM tool loop for a delegated sub-agent task.
- * Intermediate tool calls and results stay internal — only the final
- * answer (from [ask_final_answer] or a text-only response) is returned.
+ * Intermediate tool calls and results are reported via [onStep] and
+ * returned as part of [SubAgentOutput] alongside the final answer.
  */
 class SubAgentSession(
     private val appContext: Context,
     private val toolExecutor: ToolExecutor,
     private val settings: Settings,
     private val description: String,
-    private val prompt: String
+    private val prompt: String,
+    private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> }
 ) {
     private val TAG = "SubAgentSession"
     private val json = Json { ignoreUnknownKeys = true }
-
-    /** Sub-agent session token tracking for model-appropriate trim. */
     private var activeTokenCount = 0
+    private val collectedSteps = mutableListOf<String>()
 
-    suspend fun run(): String {
+    suspend fun run(): SubAgentOutput {
         val model = settings.subAgentModel.ifBlank { settings.model }
         Log.d(TAG, "Starting sub-agent with model=$model: $description")
 
@@ -50,8 +55,7 @@ class SubAgentSession(
                 "Use the available tools to perform the required steps. " +
                 "When you have fully completed the task and have the final answer, " +
                 "call the ask_final_answer tool with your complete result. " +
-                "Do NOT call ask_final_answer until all work is actually done. " +
-                "Keep intermediate tool calls focused; only the final answer will be delivered."
+                "Do NOT call ask_final_answer until all work is actually done."
             )
         )
 
@@ -75,50 +79,60 @@ class SubAgentSession(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Sub-agent LLM call failed: ${e.message}")
-                return "Task failed: ${e.message}"
+                onStep("error", "completed", e.message ?: "LLM call failed")
+                return SubAgentOutput("Task failed: ${e.message}", collectedSteps.toList())
             }
 
             response.usage?.totalTokens?.let { activeTokenCount = it }
 
             val message = response.choices.firstOrNull()?.message
             if (message == null) {
-                return "Task failed: empty response from model"
+                return SubAgentOutput("Task failed: empty response from model", collectedSteps.toList())
             }
 
             val toolCalls = message.toolCalls.orEmpty()
+
+            // Capture any reasoning / text before tool calls
+            if (message.hasText && round == 0) {
+                val thought = message.textContent.take(120)
+                collectedSteps.add("reasoning: $thought")
+                onStep("reasoning", "completed", thought)
+            }
 
             if (toolCalls.isEmpty()) {
                 history.add(message)
                 val text = message.textContent.ifEmpty { "(no output)" }
                 Log.d(TAG, "Sub-agent finished (text response): ${text.take(100)}")
-                return text
+                return SubAgentOutput(text, collectedSteps.toList())
             }
 
             history.add(message)
 
+            // Check for ask_final_answer
             val finalCall = toolCalls.firstOrNull { it.function.name == "ask_final_answer" }
             if (finalCall != null) {
                 val answer = try {
                     val args = json.decodeFromString<JsonObject>(finalCall.function.arguments)
                     args["answer"]?.jsonPrimitive?.content ?: "(no answer provided)"
                 } catch (e: Exception) {
-                    "(failed to parse ask_final_answer arguments: ${e.message})"
+                    "(failed to parse ask_final_answer: ${e.message})"
                 }
-                Log.d(TAG, "Sub-agent finished (ask_final_answer): ${answer.take(100)}")
-                return answer
+                Log.d(TAG, "Sub-agent finished (ask_final_answer)")
+                return SubAgentOutput(answer, collectedSteps.toList())
             }
 
             for (call in toolCalls) {
+                val toolName = call.function.name
+                onStep(toolName, "running", "")
+                collectedSteps.add("$toolName → (running)")
+
                 val args = try {
                     json.decodeFromString<JsonObject>(call.function.arguments.ifBlank { "{}" })
                 } catch (e: Exception) {
-                    history.add(
-                        ChatMessage(
-                            role = "tool",
-                            content = JsonPrimitive("Malformed arguments: ${call.function.arguments.take(200)}"),
-                            toolCallId = call.id
-                        )
-                    )
+                    val err = "Malformed args: ${call.function.arguments.take(100)}"
+                    history.add(ChatMessage(role = "tool", content = JsonPrimitive(err), toolCallId = call.id))
+                    collectedSteps[collectedSteps.lastIndex] = "$toolName → failed: bad arguments"
+                    onStep(toolName, "completed", "failed: bad arguments")
                     continue
                 }
 
@@ -130,6 +144,10 @@ class SubAgentSession(
                     ToolResult.error("Tool '${call.function.name}' failed: ${e.message}")
                 }
 
+                val summary = result.message.take(80)
+                collectedSteps[collectedSteps.lastIndex] = "$toolName → ${if (result.success) "completed" else "failed"}: $summary"
+                onStep(toolName, "completed", summary)
+
                 history.add(
                     ChatMessage(
                         role = "tool",
@@ -137,19 +155,27 @@ class SubAgentSession(
                         toolCallId = call.id
                     )
                 )
+
+                // Report reasoning text that sometimes comes alongside tool calls
+                if (message.hasText && collectedSteps.none { it.startsWith("reasoning:") }) {
+                    val thought = message.textContent.take(120)
+                    if (thought.isNotBlank()) {
+                        collectedSteps.add("reasoning: $thought")
+                        onStep("reasoning", "completed", thought)
+                    }
+                }
             }
 
-            // Compact history if it exceeds 80% of context limit
             if (activeTokenCount > settings.maxContextTokens * 0.8) {
                 trimHistory(history)
             }
         }
 
-        return "Task exceeded $maxRounds tool rounds without producing a final answer."
+        val msg = "Task exceeded $maxRounds tool rounds without producing a final answer."
+        return SubAgentOutput(msg, collectedSteps.toList())
     }
 
     private fun trimHistory(history: MutableList<ChatMessage>) {
-        // Keep system prompt + last ~10 messages
         val sysPrompt = history.firstOrNull { it.role == "system" }
         history.clear()
         if (sysPrompt != null) history.add(sysPrompt)
