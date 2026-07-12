@@ -1161,7 +1161,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 msg.role == "tool" && text.startsWith("SUBAGENT_STEPS:") -> {
                     val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
                     val rest = if (descEnd > 0) text.substring(descEnd + 1) else text.substring("SUBAGENT_STEPS:".length)
-                    val stepsMarker = "\n── Steps ──\n"
+                    val stepsMarker = "── Steps ──\n"
                     val resultMarker = "\n── Result ──\n"
                     val steps: List<String>
                     val answer: String

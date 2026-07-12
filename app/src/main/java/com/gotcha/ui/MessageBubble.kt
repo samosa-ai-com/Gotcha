@@ -75,7 +75,7 @@ fun MessageBubble(
             bg to fg
         }
     }
-    val expanded = remember { mutableStateOf(!isTool) }
+    val expanded = remember { mutableStateOf(!isTool && !isSubAgent) }
     var showMenu by remember { mutableStateOf(false) }
 
     Row(
