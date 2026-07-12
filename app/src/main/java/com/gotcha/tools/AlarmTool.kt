@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import java.util.Calendar
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -39,25 +40,18 @@ class AlarmTool(private val context: Context) {
     fun setAlarm(hour: Int, minute: Int, message: String? = null, days: List<String>? = null, vibrate: Boolean? = null): ToolResult {
         if (hour !in 0..23) return ToolResult.error("Hour must be 0-23.")
         if (minute !in 0..59) return ToolResult.error("Minute must be 0-59.")
+        exactAlarmError()?.let { return it }
         val dayInts = parseDays(days)
         val id = nextId++
         val label = message?.takeIf { it.isNotBlank() }
 
-        val triggerAt = nextAlarmTime(hour, minute, dayInts)
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            putExtra("type", "alarm")
-            putExtra("alarm_id", id)
-            putExtra("label", label ?: "Alarm")
-            putExtra("hour", hour)
-            putExtra("minute", minute)
-            putExtra("vibrate", vibrate ?: true)
-            dayInts.toIntArray().let { putExtra("days", it) }
+        val record = AlarmRecord(id, hour, minute, dayInts, label, vibrate ?: true)
+        try {
+            scheduleAlarm(record)
+        } catch (e: SecurityException) {
+            return ToolResult.error(exactAlarmDeniedMessage(e))
         }
-        val pi = PendingIntent.getBroadcast(context, id.toInt(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, pi), pi)
-
-        saveAlarm(AlarmRecord(id, hour, minute, dayInts, label, vibrate ?: true))
+        saveAlarm(record)
 
         val dayStr = if (dayInts.isNotEmpty()) " (${days?.joinToString(",")})" else ""
         val extra = buildString {
@@ -70,21 +64,17 @@ class AlarmTool(private val context: Context) {
     fun setTimer(seconds: Int, message: String? = null, hours: Int? = null, minutes: Int? = null): ToolResult {
         val totalSeconds = seconds + (hours ?: 0) * 3600 + (minutes ?: 0) * 60
         if (totalSeconds < 1) return ToolResult.error("Timer length must be at least 1 second.")
+        exactAlarmError()?.let { return it }
         val id = nextId++
         val label = message?.takeIf { it.isNotBlank() }
-        val triggerAt = System.currentTimeMillis() + totalSeconds * 1000L
 
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            putExtra("type", "timer")
-            putExtra("timer_id", id)
-            putExtra("label", label ?: "Timer")
-            putExtra("seconds", totalSeconds)
+        val record = TimerRecord(id, totalSeconds, label)
+        try {
+            scheduleTimer(record)
+        } catch (e: SecurityException) {
+            return ToolResult.error(exactAlarmDeniedMessage(e))
         }
-        val pi = PendingIntent.getBroadcast(context, 10000 + id.toInt(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-
-        saveTimer(TimerRecord(id, totalSeconds, label))
+        saveTimer(record)
 
         val extra = buildString {
             if (hours != null && hours > 0) append(" ${hours}h")
@@ -99,6 +89,10 @@ class AlarmTool(private val context: Context) {
         if (alarms.isEmpty()) return ToolResult.ok("No alarms set.")
         val sb = StringBuilder()
         alarms.forEach { a ->
+            if (!isScheduled(alarmRequestCode(a.id))) {
+                // Registration was lost (reboot, force-stop) — re-register from storage.
+                try { scheduleAlarm(a) } catch (_: SecurityException) {}
+            }
             val dayStr = if (a.days.isNotEmpty()) {
                 a.days.mapNotNull { e -> dayNames.entries.firstOrNull { it.value == e }?.key?.take(3) }.joinToString(",")
             } else "once"
@@ -110,11 +104,14 @@ class AlarmTool(private val context: Context) {
     }
 
     fun listTimers(): ToolResult {
-        val timers = loadTimers()
+        val all = loadTimers()
+        val now = System.currentTimeMillis()
+        val timers = all.filter { it.triggerAt > now }
+        if (timers.size != all.size) saveTimers(timers)
         if (timers.isEmpty()) return ToolResult.ok("No timers running.")
         val sb = StringBuilder()
         timers.forEach { t ->
-            val remaining = maxOf(0, t.triggerAt - System.currentTimeMillis()) / 1000
+            val remaining = (t.triggerAt - now) / 1000
             sb.append("- ${t.label ?: "Timer"}: ${remaining / 60}m ${remaining % 60}s remaining (id=${t.id})\n")
         }
         return ToolResult.ok(sb.trimEnd().toString())
@@ -124,29 +121,23 @@ class AlarmTool(private val context: Context) {
         val alarms = loadAlarmsMutable()
         val idx = alarms.indexOfFirst { it.id == id }
         if (idx == -1) return ToolResult.error("Alarm $id not found.")
+        exactAlarmError()?.let { return it }
 
         val old = alarms[idx]
-        val newHour = hour ?: old.hour
-        val newMinute = minute ?: old.minute
-        val newLabel = message ?: old.label
-        val newDays = if (days != null) parseDays(days) else old.days
-        val newVibrate = vibrate ?: old.vibrate
-
-        val triggerAt = nextAlarmTime(newHour, newMinute, newDays)
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            putExtra("type", "alarm")
-            putExtra("alarm_id", id)
-            putExtra("label", newLabel ?: "Alarm")
-            putExtra("hour", newHour)
-            putExtra("minute", newMinute)
-            putExtra("vibrate", newVibrate)
-            newDays.toIntArray().let { putExtra("days", it) }
+        val record = AlarmRecord(
+            id = id,
+            hour = hour ?: old.hour,
+            minute = minute ?: old.minute,
+            days = if (days != null) parseDays(days) else old.days,
+            label = message ?: old.label,
+            vibrate = vibrate ?: old.vibrate
+        )
+        try {
+            scheduleAlarm(record)
+        } catch (e: SecurityException) {
+            return ToolResult.error(exactAlarmDeniedMessage(e))
         }
-        val pi = PendingIntent.getBroadcast(context, id.toInt(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, pi), pi)
-
-        alarms[idx] = AlarmRecord(id, newHour, newMinute, newDays, newLabel, newVibrate)
+        alarms[idx] = record
         saveAlarms(alarms)
         return ToolResult.ok("Updated alarm $id.")
     }
@@ -162,7 +153,7 @@ class AlarmTool(private val context: Context) {
     fun doDeleteAlarm(id: Long): ToolResult {
         val alarms = loadAlarmsMutable()
         if (alarms.none { it.id == id }) return ToolResult.error("Alarm $id not found.")
-        cancelPendingIntent(id.toInt())
+        cancelPendingIntent(alarmRequestCode(id))
         saveAlarms(alarms.filter { it.id != id })
         return ToolResult.ok("Deleted alarm $id.")
     }
@@ -178,10 +169,95 @@ class AlarmTool(private val context: Context) {
     fun doDeleteTimer(id: Long): ToolResult {
         val timers = loadTimersMutable()
         if (timers.none { it.id == id }) return ToolResult.error("Timer $id not found.")
-        cancelPendingIntent(10000 + id.toInt())
+        cancelPendingIntent(timerRequestCode(id))
         saveTimers(timers.filter { it.id != id })
         return ToolResult.ok("Deleted timer $id.")
     }
+
+    // ---- firing callbacks (from AlarmReceiver) ----
+
+    /** Reschedules a recurring alarm for its next occurrence, or removes a
+     *  one-shot alarm from storage so list_alarms stays accurate. */
+    fun onAlarmFired(id: Long) {
+        val alarms = loadAlarms()
+        val a = alarms.firstOrNull { it.id == id } ?: return
+        if (a.days.isEmpty()) {
+            saveAlarms(alarms.filter { it.id != id })
+        } else {
+            try { scheduleAlarm(a, skipToday = true) } catch (_: SecurityException) {}
+        }
+    }
+
+    /** Removes a fired timer from storage so list_timers stays accurate. */
+    fun onTimerFired(id: Long) {
+        saveTimers(loadTimers().filter { it.id != id })
+    }
+
+    /** Re-registers everything in storage with AlarmManager and drops expired
+     *  timers. Called after boot, since registrations don't survive a reboot. */
+    fun rescheduleAll() {
+        val now = System.currentTimeMillis()
+        val allTimers = loadTimers()
+        val timers = allTimers.filter { it.triggerAt > now }
+        if (timers.size != allTimers.size) saveTimers(timers)
+        try {
+            loadAlarms().forEach { scheduleAlarm(it) }
+            timers.forEach { scheduleTimer(it) }
+        } catch (_: SecurityException) {
+            // Exact-alarm permission was revoked; nothing can be re-registered
+            // until the user grants it again.
+        }
+    }
+
+    // ---- scheduling ----
+
+    // Alarms and timers share the next_id counter, so they need disjoint
+    // PendingIntent request-code spaces: positive for alarms, negative for timers.
+    private fun alarmRequestCode(id: Long) = id.toInt()
+    private fun timerRequestCode(id: Long) = -id.toInt()
+
+    private fun alarmManager() = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    private fun scheduleAlarm(a: AlarmRecord, skipToday: Boolean = false) {
+        val triggerAt = nextAlarmTime(a.hour, a.minute, a.days, skipToday)
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra("type", "alarm")
+            putExtra("alarm_id", a.id)
+            putExtra("label", a.label ?: "Alarm")
+            putExtra("vibrate", a.vibrate)
+        }
+        val pi = PendingIntent.getBroadcast(context, alarmRequestCode(a.id), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        alarmManager().setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, pi), pi)
+    }
+
+    private fun scheduleTimer(t: TimerRecord) {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            putExtra("type", "timer")
+            putExtra("timer_id", t.id)
+            putExtra("label", t.label ?: "Timer")
+        }
+        val pi = PendingIntent.getBroadcast(context, timerRequestCode(t.id), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        // setExactAndAllowWhileIdle (not setExact) so the timer fires on time in Doze.
+        alarmManager().setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, t.triggerAt, pi)
+    }
+
+    private fun isScheduled(requestCode: Int): Boolean {
+        val intent = Intent(context, AlarmReceiver::class.java)
+        return PendingIntent.getBroadcast(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE) != null
+    }
+
+    private fun exactAlarmError(): ToolResult? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager().canScheduleExactAlarms()) {
+            return ToolResult.error(
+                "The 'Alarms & reminders' special permission is not granted, so exact alarms cannot be scheduled. " +
+                    "Ask the user to enable it for Gotcha under Settings > Apps > Special app access > Alarms & reminders."
+            )
+        }
+        return null
+    }
+
+    private fun exactAlarmDeniedMessage(e: SecurityException) =
+        "Could not schedule: ${e.message}. Ask the user to enable 'Alarms & reminders' for Gotcha in system settings."
 
     // ---- storage ----
 
@@ -279,8 +355,7 @@ class AlarmTool(private val context: Context) {
         val intent = Intent(context, AlarmReceiver::class.java)
         val pi = PendingIntent.getBroadcast(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE)
         if (pi != null) {
-            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            am.cancel(pi)
+            alarmManager().cancel(pi)
             pi.cancel()
         }
     }
@@ -292,7 +367,7 @@ class AlarmTool(private val context: Context) {
         return days.mapNotNull { d -> dayNames[d.trim().lowercase()] }.distinct()
     }
 
-    private fun nextAlarmTime(hour: Int, minute: Int, days: List<Int>): Long {
+    private fun nextAlarmTime(hour: Int, minute: Int, days: List<Int>, skipToday: Boolean = false): Long {
         val now = Calendar.getInstance()
         val target = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
@@ -305,7 +380,8 @@ class AlarmTool(private val context: Context) {
             return target.timeInMillis
         }
         val currentDow = now.get(Calendar.DAY_OF_WEEK)
-        for (offset in 0..6) {
+        val firstOffset = if (skipToday) 1 else 0
+        for (offset in firstOffset..6) {
             val check = currentDow + offset
             val dow = if (check > 7) check - 7 else check
             if (dow in days) {
