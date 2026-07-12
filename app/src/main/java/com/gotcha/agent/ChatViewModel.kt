@@ -22,6 +22,7 @@ import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.SubAgentSession
+import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -42,9 +43,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
@@ -562,6 +566,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 addAll(trimmedHistory())
                 addAll(agentInstructionMessages(agent))
             }
+            cullOldImages()
             val response = try {
                 llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
             } catch (e: CancellationException) {
@@ -650,19 +655,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     // Automatic screenshot injection: when read_screen succeeds,
-                    // capture a screenshot and inject it as vision context so the LLM
-                    // can "see" the screen alongside the accessibility text dump.
+                    // capture a compressed JPEG screenshot + UI hierarchy + coordinate
+                    // contract and inject them as a vision user message so the LLM
+                    // can "see" the screen alongside structured element data.
                     if (result.success && call.function.name == "read_screen") {
-                        val screenshotBase64 = captureScreenshotBase64()
-                        if (screenshotBase64 != null) {
-                            val screenText = result.message.take(500)
-                            val visionMsg = visionUserMessage(
-                                "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
-                                    "Use it together with the screen text to understand the current screen.",
-                                screenshotBase64, "png"
-                            )
+                        val screenshot = captureCompressedScreenshot()
+                        if (screenshot != null) {
+                            val uiTree = ScreenPerception.buildUiHierarchyText()
+                            val observationText = ScreenPerception.buildObservationText(screenshot, uiTree)
+                            val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
                             llmHistory.add(visionMsg)
                             appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                        }
+                    }
+                    // read_screen_raw: full-resolution PNG screenshot for visual detail.
+                    if (result.success && call.function.name == "read_screen_raw") {
+                        val screenshot = captureFullResScreenshot()
+                        if (screenshot != null) {
+                            val screenText = result.message.removePrefix("read_screen_raw:").take(500)
+                            val visionMsg = visionUserMessage(
+                                "Screen text:\n$screenText\n\nThe assistant captured a " +
+                                    "full-resolution screenshot for visual detail.",
+                                screenshot.base64, screenshot.format
+                            )
+                            llmHistory.add(visionMsg)
+                            appendUi(MessageKind.ASSISTANT, "[Full-resolution screenshot captured]")
                         }
                     }
                     // Special-access markers: emit and continue (no wait needed since they open Settings)
@@ -1189,33 +1206,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Capture a screenshot via the `screencap -p` shell command.
-     * Returns the image as a base64-encoded PNG string, or null on failure.
-     * The app runs as an unprivileged uid; on many devices `screencap` requires
-     * the `DUMP` permission or root. This is best-effort.
+     * Capture a screenshot via the `screencap -p` shell command, compressed as JPEG.
+     * Returns a [ScreenPerception.CompressedScreenshot] with base64 data, or null on failure.
      */
-    private suspend fun captureScreenshotBase64(): String? {
-        return try {
-            val bytes = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val process = java.lang.Runtime.getRuntime().exec("screencap -p")
-                val b = process.inputStream.use { it.readBytes() }
-                process.waitFor()
-                b
+    private suspend fun captureCompressedScreenshot(): ScreenPerception.CompressedScreenshot? {
+        return ScreenPerception.compressScreenshot()
+    }
+
+    /**
+     * Capture a full-resolution screenshot (uncompressed PNG).
+     * Used by read_screen_raw for maximum visual detail.
+     */
+    private suspend fun captureFullResScreenshot(): ScreenPerception.CompressedScreenshot? {
+        return ScreenPerception.compressScreenshot(
+            maxDimension = 0,
+            format = android.graphics.Bitmap.CompressFormat.PNG,
+            quality = 100
+        )
+    }
+
+    /**
+     * Scans [llmHistory] for vision messages containing embedded images.
+     * Strips the image data from all but the 2 most recent such messages,
+     * keeping their text portions intact. This prevents accumulated
+     * screenshots from exhausting the LLM context window.
+     */
+    private fun cullOldImages() {
+        val imageMsgIndices = llmHistory.indices.filter { i ->
+            val content = llmHistory[i].content
+            content is JsonArray && content.any { part ->
+                part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
             }
-            if (bytes.isEmpty()) return null
-            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            val maxDim = 1024
-            val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
-                val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
-                (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-            } else bitmap.width to bitmap.height
-            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
-            if (scaled != bitmap) bitmap.recycle()
-            val output = java.io.ByteArrayOutputStream()
-            scaled.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, output)
-            scaled.recycle()
-            android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
-        } catch (_: Exception) { null }
+        }
+        val toCull = imageMsgIndices.dropLast(2)
+        for (idx in toCull) {
+            val msg = llmHistory[idx]
+            val text = msg.textContent
+            llmHistory[idx] = msg.copy(
+                content = JsonPrimitive(
+                    text + "\n\n[Previous screenshot removed to save context. " +
+                        "Only the 2 most recent screenshots are retained.]"
+                )
+            )
+        }
     }
 
     private companion object {

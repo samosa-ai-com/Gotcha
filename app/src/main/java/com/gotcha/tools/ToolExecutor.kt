@@ -343,6 +343,7 @@ class ToolExecutor(
         )
         // ---- Tier 3 ----
         "read_screen" -> accessibilityTool.readScreen()
+        "read_screen_raw" -> accessibilityTool.readScreenRaw()
         "tap" -> accessibilityTool.tap(
             text = args.requireString("text"),
             x = args.requireInt("x"),

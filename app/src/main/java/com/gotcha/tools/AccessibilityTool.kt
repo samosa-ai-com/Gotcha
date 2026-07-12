@@ -25,6 +25,15 @@ class AccessibilityTool(private val context: Context) {
         }
     }
 
+    /** Read screen text AND flag for full-resolution screenshot capture. */
+    fun readScreenRaw(): ToolResult {
+        val service = requireService() ?: return notEnabled()
+        val lines = service.dumpScreenText()
+        val text = if (lines.isEmpty()) "No readable text is on screen right now."
+        else lines.joinToString("\n") { "- $it" }
+        return ToolResult.ok("read_screen_raw:$text")
+    }
+
     /** Tap either an on-screen element matching [text], or absolute coordinates. */
     fun tap(text: String?, x: Int?, y: Int?): ToolResult {
         val service = requireService() ?: return notEnabled()

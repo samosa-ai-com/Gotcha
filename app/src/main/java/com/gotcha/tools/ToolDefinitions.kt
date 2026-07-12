@@ -1231,6 +1231,15 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val readScreenRaw = tool(
+        "read_screen_raw",
+        "Read the visible text AND capture a full-resolution screenshot of whatever app " +
+            "is currently on screen. Use this instead of read_screen when you need the " +
+            "highest quality visual detail (e.g. for reading small text, icons, or " +
+            "images). Prefer read_screen for most cases to save context.",
+        schema { putJsonObject("properties") {} }
+    )
+
     val tap = tool(
         "tap",
         "Tap the screen via the accessibility service — either an on-screen element matching " +
@@ -1514,7 +1523,7 @@ object ToolDefinitions {
         webSearch, webFetch,
         // DEPRECATED: readImage excluded from the active catalog — use read_file instead.
         // Tier 3 additions
-        readScreen, tap, swipe, inputText, globalAction,
+        readScreen, readScreenRaw, tap, swipe, inputText, globalAction,
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,
         lockScreen, disableCamera, setPasswordPolicy,
