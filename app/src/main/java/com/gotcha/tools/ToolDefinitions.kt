@@ -550,7 +550,9 @@ object ToolDefinitions {
     val setAlarm = tool(
         "set_alarm",
         "Set an alarm at a given hour and minute. Supports repeating by day of week and silent mode. " +
-            "Returns an alarm ID that can be used to edit or delete it later. " +
+            "The alarm is created in the system clock app when one is available (visible in its alarm " +
+            "list, rings with the full alarm UI); otherwise it falls back to an in-app alarm that rings " +
+            "as a notification. Returns an alarm ID that can be used to edit or delete it later. " +
             "List alarms with list_alarms. Edit with edit_alarm. Delete with delete_alarm.",
         schema {
             putJsonObject("properties") {
@@ -585,7 +587,8 @@ object ToolDefinitions {
 
     val setTimer = tool(
         "set_timer",
-        "Start a countdown timer. Returns a timer ID that can be used to delete it later. " +
+        "Start a countdown timer. Timers are managed in-app (a notification fires when done), not in " +
+            "the system clock app. Returns a timer ID that can be used to delete it later. " +
             "List timers with list_timers. Delete with delete_timer.",
         schema {
             putJsonObject("properties") {
@@ -882,7 +885,10 @@ object ToolDefinitions {
 
     val listAlarms = tool(
         "list_alarms",
-        "List all active alarms set by set_alarm, with their IDs, times, labels, and recurrence.",
+        "List all active alarms set by set_alarm, with their IDs, times, labels, and recurrence, plus " +
+            "the next alarm scheduled system-wide by any app. Alarms the user created manually in the " +
+            "clock app cannot be enumerated (Android exposes only the single next one); tell the user " +
+            "to check the clock app if they ask about alarms not in this list.",
         schema { putJsonObject("properties") {} }
     )
 
@@ -895,7 +901,9 @@ object ToolDefinitions {
     val editAlarm = tool(
         "edit_alarm",
         "Edit an existing alarm by ID. Only the fields you provide will be changed. " +
-            "Get the alarm ID from list_alarms.",
+            "Get the alarm ID from list_alarms. For alarms living in the system clock app this is " +
+            "done by dismissing the old alarm and creating a new one, which is best-effort — relay " +
+            "any caveat in the result to the user.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("alarm_id") {
@@ -931,7 +939,9 @@ object ToolDefinitions {
     val deleteAlarm = tool(
         "delete_alarm",
         "Permanently delete an alarm by ID. Requires explicit user confirmation (destructive action). " +
-            "Get the alarm ID from list_alarms.",
+            "Get the alarm ID from list_alarms. For alarms living in the system clock app the delete " +
+            "is best-effort (some clock apps only disable the alarm or skip its next occurrence) — " +
+            "relay any caveat in the result to the user.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("alarm_id") {
