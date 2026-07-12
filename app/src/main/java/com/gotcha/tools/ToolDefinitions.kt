@@ -241,12 +241,20 @@ object ToolDefinitions {
         "Place a phone call directly — the call is dialed immediately. This is the DEFAULT tool for " +
             "any 'call X' / 'phone X' / 'ring X' request. Resolve names to numbers with find_contact " +
             "first if needed. Needs the Phone permission. Only fall back to dial_number if the user " +
-            "explicitly wants to press call themselves.",
+            "explicitly wants to press call themselves. Supports speakerphone toggle and SIM selection.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("number") {
                     put("type", "string")
                     put("description", "Phone number to call, e.g. +49123456789")
+                }
+                putJsonObject("speakerphone") {
+                    put("type", "boolean")
+                    put("description", "Enable speakerphone for the call. Default false.")
+                }
+                putJsonObject("sim_slot") {
+                    put("type", "string")
+                    put("description", "SIM slot to use: 'sim1' or 'sim2'. Only needed on dual-SIM devices. Default is the system default.")
                 }
             }
             putJsonArray("required") { add("number") }
@@ -255,12 +263,29 @@ object ToolDefinitions {
 
     val readCallLog = tool(
         "read_call_log",
-        "Read the most recent call-log entries (incoming/outgoing/missed) with names, times and duration.",
+        "Read the most recent call-log entries (incoming/outgoing/missed) with names, times and duration. " +
+            "Supports filtering by call type, contact name/number, and date range.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("limit") {
                     put("type", "integer")
                     put("description", "How many recent calls to return (1-50). Default 10.")
+                }
+                putJsonObject("type") {
+                    put("type", "string")
+                    put("description", "Filter by call type: 'incoming', 'outgoing', 'missed', or 'rejected'. Omit for all.")
+                }
+                putJsonObject("contact") {
+                    put("type", "string")
+                    put("description", "Filter by contact name or number (partial match).")
+                }
+                putJsonObject("from_date") {
+                    put("type", "string")
+                    put("description", "Start date, e.g. '2026-01-01'. Only calls on or after this date.")
+                }
+                putJsonObject("to_date") {
+                    put("type", "string")
+                    put("description", "End date, e.g. '2026-01-31'. Only calls on or before this date.")
                 }
             }
         }
@@ -268,22 +293,29 @@ object ToolDefinitions {
 
     val findContact = tool(
         "find_contact",
-        "Look up a saved contact by name (partial match) and return their phone number(s). " +
-            "Use this to resolve requests like 'call mom' before dial_number/call_number.",
+        "Look up a saved contact by name or phone number (partial match). Returns matching contacts with " +
+            "their phone numbers (with type labels like mobile/home/work), email, and organization. " +
+            "Use this to resolve requests like 'call mom' before dial_number/call_number, " +
+            "or to identify who called from a number.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("name") {
                     put("type", "string")
                     put("description", "Contact name or partial name to search for.")
                 }
+                putJsonObject("number") {
+                    put("type", "string")
+                    put("description", "Phone number to reverse-lookup (find who owns this number).")
+                }
             }
-            putJsonArray("required") { add("name") }
         }
     )
 
     val addContact = tool(
         "add_contact",
-        "Create a new contact with a name and phone number.",
+        "Create a new contact with a name, phone number, and optional fields. " +
+            "Automatically detects and warns about duplicate contacts before creating. " +
+            "Supports adding email and organization alongside the phone number.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("name") {
@@ -293,6 +325,18 @@ object ToolDefinitions {
                 putJsonObject("number") {
                     put("type", "string")
                     put("description", "Phone number for the contact.")
+                }
+                putJsonObject("phone_type") {
+                    put("type", "string")
+                    put("description", "Phone number label: 'mobile' (default), 'home', 'work', 'main', 'fax', or 'pager'.")
+                }
+                putJsonObject("email") {
+                    put("type", "string")
+                    put("description", "Optional email address for the contact.")
+                }
+                putJsonObject("organization") {
+                    put("type", "string")
+                    put("description", "Optional company or organization name.")
                 }
             }
             putJsonArray("required") {
@@ -304,7 +348,10 @@ object ToolDefinitions {
 
     val sendSms = tool(
         "send_sms",
-        "Send a text (SMS) message directly to a number. The message is sent immediately. Needs the SMS permission.",
+        "Send a text (SMS) message directly to a number. The message is sent immediately. " +
+            "Supports delivery confirmation, auto-detects GSM 7-bit vs UCS-2 encoding, " +
+            "reports segment count, shows recent conversation context after sending, " +
+            "and can schedule future delivery. Needs the SMS permission.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("number") {
@@ -314,6 +361,14 @@ object ToolDefinitions {
                 putJsonObject("message") {
                     put("type", "string")
                     put("description", "Text body to send.")
+                }
+                putJsonObject("delivery_report") {
+                    put("type", "boolean")
+                    put("description", "Request a delivery confirmation (reports Sent/Failed). Default false.")
+                }
+                putJsonObject("send_at") {
+                    put("type", "string")
+                    put("description", "Schedule future delivery: ISO-8601 timestamp like '2026-01-15T14:30:00' or epoch millis. Omit for immediate send.")
                 }
             }
             putJsonArray("required") {
@@ -325,12 +380,17 @@ object ToolDefinitions {
 
     val readRecentSms = tool(
         "read_recent_sms",
-        "Read the most recent received SMS messages from the inbox (sender, time, body).",
+        "Read the most recent received SMS messages from the inbox (sender, time, body). " +
+            "Supports optional filter by sender address.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("limit") {
                     put("type", "integer")
                     put("description", "How many recent messages to return (1-50). Default 10.")
+                }
+                putJsonObject("from_address") {
+                    put("type", "string")
+                    put("description", "Filter by sender address (partial match, e.g. a contact name or phone number).")
                 }
             }
         }

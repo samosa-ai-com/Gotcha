@@ -132,18 +132,39 @@ class ToolExecutor(context: Context) {
             workingDir = args.requireString("working_dir"),
             timeoutSeconds = args.requireInt("timeout_seconds") ?: 15
         )
-        "call_number" -> phoneTool.callNumber(args.requireString("number") ?: return missing("number"))
-        "read_call_log" -> phoneTool.readCallLog(args.requireInt("limit") ?: 10)
-        "find_contact" -> contactsTool.findContact(args.requireString("name") ?: return missing("name"))
+        "call_number" -> phoneTool.callNumber(
+            args.requireString("number") ?: return missing("number"),
+            speakerphone = args["speakerphone"]?.jsonPrimitive?.booleanOrNull,
+            simSlot = args.requireString("sim_slot")
+        )
+        "read_call_log" -> phoneTool.readCallLog(
+            limit = args.requireInt("limit") ?: 10,
+            callTypeFilter = args.requireString("type"),
+            contact = args.requireString("contact"),
+            fromDate = args.requireString("from_date"),
+            toDate = args.requireString("to_date")
+        )
+        "find_contact" -> contactsTool.findContact(
+            name = args.requireString("name"),
+            number = args.requireString("number")
+        )
         "add_contact" -> contactsTool.addContact(
             name = args.requireString("name") ?: return missing("name"),
-            number = args.requireString("number") ?: return missing("number")
+            number = args.requireString("number") ?: return missing("number"),
+            phoneType = args.requireString("phone_type"),
+            email = args.requireString("email"),
+            organization = args.requireString("organization")
         )
         "send_sms" -> smsTool.sendSms(
             number = args.requireString("number") ?: return missing("number"),
-            message = args.requireString("message") ?: return missing("message")
+            message = args.requireString("message") ?: return missing("message"),
+            deliveryReport = args["delivery_report"]?.jsonPrimitive?.booleanOrNull,
+            sendAt = args.requireString("send_at")
         )
-        "read_recent_sms" -> smsTool.readRecentSms(args.requireInt("limit") ?: 10)
+        "read_recent_sms" -> smsTool.readRecentSms(
+            limit = args.requireInt("limit") ?: 10,
+            fromAddress = args.requireString("from_address")
+        )
         "list_calendar_events" -> calendarTool.listEvents(args.requireInt("days_ahead") ?: 7)
         "create_calendar_event" -> calendarTool.createEvent(
             title = args.requireString("title") ?: return missing("title"),

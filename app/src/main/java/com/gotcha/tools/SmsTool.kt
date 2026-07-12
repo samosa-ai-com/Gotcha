@@ -1,19 +1,36 @@
 package com.gotcha.tools
 
 import android.Manifest
+import android.app.Activity
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Telephony
 import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class SmsTool(private val context: Context) {
 
     private val numberPattern = Regex("^[+]?[0-9()\\-\\s#*]{2,20}$")
 
-    /** Send a text message directly (needs SEND_SMS). Gated by the sensitive-action confirmation dialog. */
-    fun sendSms(number: String, message: String): ToolResult {
+    fun sendSms(
+        number: String,
+        message: String,
+        deliveryReport: Boolean? = null,
+        sendAt: String? = null
+    ): ToolResult {
         val trimmed = number.trim()
         if (!trimmed.matches(numberPattern)) {
             return ToolResult.error("'$number' does not look like a valid phone number.")
@@ -27,20 +44,65 @@ class SmsTool(private val context: Context) {
                 "The SMS permission is not granted. Go to Settings → Permissions → SMS and enable it, then ask again."
             )
         }
+
+        // Scheduled send
+        if (sendAt != null) {
+            val delayMs = parseSendAt(sendAt)
+            if (delayMs == null) {
+                return ToolResult.error(
+                    "Could not parse send_at. Use an ISO-8601 timestamp like '2026-01-15T14:30:00' or epoch millis."
+                )
+            }
+            if (delayMs <= 0) {
+                return ToolResult.error("send_at must be in the future.")
+            }
+            scheduleSms(trimmed, message, delayMs)
+            val eta = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                .format(Date(System.currentTimeMillis() + delayMs))
+            return ToolResult.ok("Scheduled SMS to $trimmed for $eta (in ${delayMs / 60000} minutes).")
+        }
+
         return try {
-            val smsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                context.getSystemService(SmsManager::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                SmsManager.getDefault()
-            }
+            val smsManager = smsManager()
+
             val parts = smsManager.divideMessage(message)
-            if (parts.size > 1) {
-                smsManager.sendMultipartTextMessage(trimmed, null, parts, null, null)
+            val segmentCount = parts.size
+            val encoding = detectEncoding(message)
+            var deliveryResult: String? = null
+            val sentLatch = if (deliveryReport == true) CountDownLatch(1) else null
+
+            if (deliveryReport == true) {
+                val sentIntent = createSentIntent(trimmed, message, sentLatch)
+                if (segmentCount > 1) {
+                    val sentIntents = arrayListOf<PendingIntent>().apply {
+                        repeat(segmentCount) { add(sentIntent) }
+                    }
+                    smsManager.sendMultipartTextMessage(trimmed, null, parts, sentIntents, null)
+                } else {
+                    smsManager.sendTextMessage(trimmed, null, message, sentIntent, null)
+                }
+                sentLatch?.await(10, TimeUnit.SECONDS)
+                // Read delivery result from the receiver
+                deliveryResult = lastDeliveryResult
             } else {
-                smsManager.sendTextMessage(trimmed, null, message, null, null)
+                if (segmentCount > 1) {
+                    smsManager.sendMultipartTextMessage(trimmed, null, parts, null, null)
+                } else {
+                    smsManager.sendTextMessage(trimmed, null, message, null, null)
+                }
             }
-            ToolResult.ok("Sent a text to $trimmed.")
+
+            // Show recent conversation context
+            val threadContext = getConversationThread(trimmed)
+
+            buildString {
+                append("Sent a text to $trimmed.")
+                append(" $segmentCount segment(s)")
+                if (encoding != "GSM 7-bit") append(" (using $encoding)")
+                append(".")
+                if (deliveryResult != null) append(" Delivery: $deliveryResult.")
+                if (threadContext != null) append("\n\nConversation:\n$threadContext")
+            }.let { ToolResult.ok(it) }
         } catch (e: SecurityException) {
             ToolResult.permissionNeeded(
                 Manifest.permission.SEND_SMS,
@@ -51,8 +113,105 @@ class SmsTool(private val context: Context) {
         }
     }
 
-    /** Read recent inbox messages (needs READ_SMS). */
-    fun readRecentSms(limit: Int): ToolResult {
+    private var lastDeliveryResult: String? = null
+
+    private var deliveryReceiver: BroadcastReceiver? = null
+
+    private fun createSentIntent(number: String, message: String, latch: CountDownLatch?): PendingIntent {
+        val intent = Intent("com.gotcha.SMS_SENT").apply {
+            setPackage(context.packageName)
+            putExtra("number", number)
+            putExtra("message", message)
+        }
+        val pi = PendingIntent.getBroadcast(
+            context, System.currentTimeMillis().toInt() and 0x7FFFFFFF,
+            intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        if (deliveryReceiver == null) {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: Context, intent: Intent) {
+                    val code = resultCode
+                    lastDeliveryResult = when (code) {
+                        Activity.RESULT_OK -> "Sent"
+                        SmsManager.RESULT_ERROR_GENERIC_FAILURE -> "Generic failure"
+                        SmsManager.RESULT_ERROR_NO_SERVICE -> "No service"
+                        SmsManager.RESULT_ERROR_NULL_PDU -> "Null PDU"
+                        SmsManager.RESULT_ERROR_RADIO_OFF -> "Radio off"
+                        else -> "Unknown ($code)"
+                    }
+                    latch?.countDown()
+                }
+            }
+            deliveryReceiver = receiver
+            context.registerReceiver(receiver, IntentFilter("com.gotcha.SMS_SENT"),
+                Context.RECEIVER_EXPORTED
+            )
+        }
+        return pi
+    }
+
+    private fun smsManager(): SmsManager {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(SmsManager::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            SmsManager.getDefault()
+        }
+    }
+
+    private fun detectEncoding(message: String): String {
+        val gsm7 = setOf(
+            '@', '\u00a3', '\u0024', '\u00a5', '\u00e8', '\u00e9', '\u00f9', '\u00ec',
+            '\u00f2', '\u00c7', '\u000a', '\u00d8', '\u00f8', '\u000d', '\u00c5', '\u00e5',
+            '\u0394', '\u005f', '\u03a6', '\u0393', '\u039b', '\u03a9', '\u03a0', '\u03a8',
+            '\u03a3', '\u0398', '\u039e', '\u0020', '\u00c6', '\u00e6', '\u00df', '\u00c9',
+            ' ', '!', '"', '#', '\u00a4', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?',
+            '\u00a1', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+            '\u00c4', '\u00d6', '\u00d1', '\u00dc', '\u00a7', '\u00bf',
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+            'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+            '\u00e4', '\u00f6', '\u00f1', '\u00fc', '\u00e0'
+        )
+        return if (message.all { it in gsm7 }) "GSM 7-bit" else "UCS-2"
+    }
+
+    private fun parseSendAt(sendAt: String): Long? {
+        try {
+            return sendAt.toLongOrNull()?.minus(System.currentTimeMillis())
+        } catch (_: Exception) {}
+        try {
+            val formats = listOf(
+                "yyyy-MM-dd'T'HH:mm:ss",
+                "yyyy-MM-dd'T'HH:mm",
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd HH:mm"
+            )
+            for (fmt in formats) {
+                try {
+                    val date = SimpleDateFormat(fmt, Locale.getDefault()).parse(sendAt)
+                    if (date != null) return date.time - System.currentTimeMillis()
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    private fun scheduleSms(number: String, message: String, delayMs: Long) {
+        val intent = Intent(context, ScheduledSmsReceiver::class.java).apply {
+            putExtra("number", number)
+            putExtra("message", message)
+        }
+        val pi = PendingIntent.getBroadcast(
+            context, number.hashCode() and 0x7FFFFFFF,
+            intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarm.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delayMs, pi)
+    }
+
+    fun readRecentSms(limit: Int, fromAddress: String? = null): ToolResult {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -63,13 +222,16 @@ class SmsTool(private val context: Context) {
         }
         val take = limit.coerceIn(1, 50)
         return try {
-            val projection = arrayOf(
-                Telephony.Sms.ADDRESS,
-                Telephony.Sms.BODY,
-                Telephony.Sms.DATE
-            )
+            val selection = if (!fromAddress.isNullOrBlank()) {
+                "${Telephony.Sms.ADDRESS} LIKE ?"
+            } else null
+            val selectionArgs = if (!fromAddress.isNullOrBlank()) {
+                arrayOf("%$fromAddress%")
+            } else null
             context.contentResolver.query(
-                Telephony.Sms.Inbox.CONTENT_URI, projection, null, null,
+                Telephony.Sms.Inbox.CONTENT_URI,
+                arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+                selection, selectionArgs,
                 "${Telephony.Sms.DATE} DESC"
             ).use { cursor ->
                 if (cursor == null) return ToolResult.error("Could not read messages.")
@@ -81,16 +243,46 @@ class SmsTool(private val context: Context) {
                 while (cursor.moveToNext() && count < take) {
                     val addr = cursor.getString(addrIdx) ?: "unknown"
                     val body = (cursor.getString(bodyIdx) ?: "").take(300)
-                    val date = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                        .format(java.util.Date(cursor.getLong(dateIdx)))
+                    val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                        .format(Date(cursor.getLong(dateIdx)))
                     out.append("- $date from $addr: $body\n")
                     count++
                 }
-                if (count == 0) ToolResult.ok("The SMS inbox is empty.")
-                else ToolResult.ok("Last $count message(s):\n$out")
+                if (count == 0) {
+                    val hint = if (!fromAddress.isNullOrBlank()) " from '$fromAddress'" else ""
+                    ToolResult.ok("The SMS inbox is empty$hint.")
+                } else ToolResult.ok("Last $count message(s):\n$out")
             }
         } catch (e: Exception) {
             ToolResult.error("Could not read messages: ${e.message}")
         }
+    }
+
+    private fun getConversationThread(number: String): String? {
+        return try {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS)
+                != PackageManager.PERMISSION_GRANTED
+            ) return null
+            context.contentResolver.query(
+                Telephony.Sms.Inbox.CONTENT_URI,
+                arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+                "${Telephony.Sms.ADDRESS} LIKE ?",
+                arrayOf("%${number.take(10)}%"),
+                "${Telephony.Sms.DATE} DESC"
+            )?.use { cursor ->
+                val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+                val bodyIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
+                val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
+                val lines = mutableListOf<String>()
+                while (cursor.moveToNext() && lines.size < 3) {
+                    val addr = cursor.getString(addrIdx) ?: "unknown"
+                    val body = (cursor.getString(bodyIdx) ?: "").take(160)
+                    val date = SimpleDateFormat("HH:mm", Locale.getDefault())
+                        .format(Date(cursor.getLong(dateIdx)))
+                    lines.add("$date $addr: $body")
+                }
+                if (lines.isEmpty()) null else lines.reversed().joinToString("\n")
+            }
+        } catch (_: Exception) { null }
     }
 }
