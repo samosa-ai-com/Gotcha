@@ -18,26 +18,22 @@ object ToolRegistry {
         ToolDefinitions.all.associateBy { it.function.name }
 
     /**
-     * Tools whose execution mutates device state or is otherwise sensitive;
-     * these require user confirmation when the confirmation toggle is on (Phase 7).
+     * Sensitive-action confirmation is removed. Permissions are pre-configured
+     * in Settings → Permissions. Only destructive tools (see [destructiveTools])
+     * require a dedicated user confirmation dialog.
      */
-    val sensitiveTools: Set<String> = setOf(
-        "dial_number", "set_wallpaper", "clear_app_cache",
-        "write_file", "edit", "run_command", "set_brightness",
-        // Tier 0–2 additions: outbound actions, personal-data reads, and captures.
-        "call_number", "read_call_log", "find_contact", "add_contact",
-        "send_sms", "read_recent_sms", "create_calendar_event", "list_calendar_events",
-        "get_location", "uninstall_app",
-        "take_photo", "start_audio_recording", "stop_audio_recording",
-        // Tier 3: device-wide / other-app control is always sensitive.
-        "read_screen", "tap", "swipe", "input_text", "global_action",
-        "read_notifications", "dismiss_notifications", "media_control",
-        "show_overlay", "hide_overlay",
-        "lock_screen", "disable_camera", "set_password_policy",
-        // Tier 3: VpnService — enabling cuts all device connectivity.
-        "set_firewall",
-        // Tier 4: privileged root execution.
-        "run_root_command", "write_secure_settings"
+    val sensitiveTools: Set<String> = emptySet()
+
+    /**
+     * Destructive tools that require explicit, separate user confirmation even when
+     * sensitive-action confirmation is enabled. Each call presents a dedicated dialog
+     * to the user before the tool is actually executed.
+     */
+    val destructiveTools: Set<String> = setOf(
+        "uninstall_app",
+        "delete_calendar_event",
+        "delete_alarm",
+        "delete_timer"
     )
 
     /**
@@ -52,16 +48,18 @@ object ToolRegistry {
         // Calendar (read-only)
         "list_calendar_events",
         // Info & sensors
-        "get_storage_info", "get_battery_info", "get_location",
+        "get_storage_info", "get_battery_info", "get_location", "get_volume",
+        "get_audio_recording_status",
         "get_app_usage", "get_data_usage",
         // Apps (read-only + intent)
         "open_app", "list_installed_apps",
         // Files & terminal (read-only)
-        "list_files", "read_file", "grep", "glob", "read_image",
+        "list_files", "read_file", "grep", "glob",
         // Task management
-        "todowrite",
+        "todowrite", "list_alarms", "list_timers",
         // User interaction
         "question",
+        "sleep",
         // Web
         "websearch", "webfetch",
         // Clipboard (read-only)
@@ -84,6 +82,8 @@ object ToolRegistry {
     fun contains(name: String): Boolean = name in definitions
 
     fun isSensitive(name: String): Boolean = name in sensitiveTools
+
+    fun isDestructive(name: String): Boolean = name in destructiveTools
 
     /** Whether [name] is callable by the given [agent] mode. */
     fun isAllowedForAgent(name: String, agent: AgentMode): Boolean = when (agent) {

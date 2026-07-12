@@ -2,6 +2,9 @@ package com.gotcha.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Path
 import android.os.Build
@@ -29,6 +32,7 @@ class GotchaAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        initClipboardListener()
     }
 
     // Passive: we drive the UI on demand from tools rather than reacting to events.
@@ -176,5 +180,18 @@ class GotchaAccessibilityService : AccessibilityService() {
         @Volatile
         var instance: GotchaAccessibilityService? = null
             private set
+
+        /** Last clipboard content, used as fallback when direct read is blocked (API 34+). */
+        @Volatile
+        var lastClipboardData: ClipData? = null
+            internal set
+    }
+
+    /** Register a clipboard listener to cache clipboard content. */
+    internal fun initClipboardListener() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.addPrimaryClipChangedListener {
+            try { lastClipboardData = cm.primaryClip } catch (_: Exception) {}
+        }
     }
 }

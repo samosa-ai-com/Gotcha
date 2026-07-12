@@ -11,6 +11,9 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
 
     <!-- Tier 0–2: communications -->
     <uses-permission android:name="android.permission.SEND_SMS" />
@@ -22,6 +25,7 @@
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
     <!-- Tier 0–2: sensors & capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -30,6 +34,9 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
@@ -132,6 +139,16 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+
+        <!-- Scheduled SMS delivery receiver -->
+        <receiver
+            android:name=".tools.ScheduledSmsReceiver"
+            android:exported="false" />
+
+        <!-- Alarm and timer firing receiver -->
+        <receiver
+            android:name=".tools.AlarmReceiver"
+            android:exported="false" />
 
         <!-- Tier 3: Device Admin — lock screen, password policy, disable camera. -->
         <receiver

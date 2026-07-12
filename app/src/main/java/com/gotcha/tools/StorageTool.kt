@@ -1,42 +1,43 @@
 package com.gotcha.tools
 
-import android.content.Context
-import android.os.Environment
 import android.os.StatFs
-import java.io.File
 
-class StorageTool(private val context: Context) {
+class StorageTool() {
 
     fun getStorageInfo(): ToolResult {
         return try {
-            val stat = StatFs(Environment.getDataDirectory().path)
-            val total = stat.blockCountLong * stat.blockSizeLong
-            val free = stat.availableBlocksLong * stat.blockSizeLong
-            val used = total - free
-            ToolResult.ok(
-                "Internal storage: ${format(used)} used of ${format(total)} total, ${format(free)} free."
-            )
+            val internal = readPartition("/data")
+            val external = try {
+                val ext = readPartition("/storage/emulated/0")
+                if (ext.total > 0 && ext.total != internal.total) ext else null
+            } catch (_: Exception) { null }
+
+            val message = buildString {
+                append("Internal storage: ${format(internal.used)} used of ${format(internal.total)} total, ${format(internal.free)} free")
+                if (external != null) {
+                    append("\nExternal / SD card: ${format(external.used)} used of ${format(external.total)} total, ${format(external.free)} free")
+                }
+                val pct = if (internal.total > 0) (internal.free * 100 / internal.total) else 100L
+                if (pct < 10) {
+                    append("\n⚠ Internal storage is critically low (${pct}% free) — consider freeing up space.")
+                } else if (pct < 20) {
+                    append("\nInternal storage is running low (${pct}% free).")
+                }
+            }
+            ToolResult.ok(message)
         } catch (e: Exception) {
             ToolResult.error("Could not read storage info: ${e.message}")
         }
     }
 
-    fun clearAppCache(): ToolResult {
-        return try {
-            val dirs = listOfNotNull(context.cacheDir, context.externalCacheDir)
-            val before = dirs.sumOf { dirSize(it) }
-            dirs.forEach { dir ->
-                dir.listFiles()?.forEach { it.deleteRecursively() }
-            }
-            val after = dirs.sumOf { dirSize(it) }
-            ToolResult.ok("Cleared the app cache, freeing ${format(before - after)}.")
-        } catch (e: Exception) {
-            ToolResult.error("Could not clear cache: ${e.message}")
-        }
-    }
+    private data class Partition(val total: Long, val free: Long, val used: Long)
 
-    private fun dirSize(dir: File): Long =
-        dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
+    private fun readPartition(path: String): Partition {
+        val stat = StatFs(path)
+        val total = stat.blockCountLong * stat.blockSizeLong
+        val free = stat.availableBlocksLong * stat.blockSizeLong
+        return Partition(total = total, free = free, used = total - free)
+    }
 
     companion object {
         fun format(bytes: Long): String {

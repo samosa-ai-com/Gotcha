@@ -96,7 +96,9 @@ data class ChatRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val tools: List<ToolDefinition>? = null,
-    val temperature: Float? = null
+    val temperature: Float? = null,
+    @SerialName("prompt_cache_key")
+    val promptCacheKey: String? = null
 )
 
 @Serializable

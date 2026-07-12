@@ -201,11 +201,11 @@ fun ChatScreen(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
-                    shape = CircleShape,
+                    shape = RoundedCornerShape(24.dp),
                     placeholder = { Text("Ask me to do something…") },
                     enabled = !state.isBusy && state.isConfigured,
-                    maxLines = 1,
-                    singleLine = true
+                    maxLines = 6,
+                    singleLine = false
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 // All action buttons use the same 40dp box so the layout never resizes

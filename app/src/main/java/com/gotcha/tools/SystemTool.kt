@@ -1,34 +1,14 @@
 package com.gotcha.tools
 
-import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.Settings
 
 class SystemTool(private val context: Context) {
-
-    fun toggleDarkMode(enabled: Boolean): ToolResult {
-        return try {
-            val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                uiModeManager.setApplicationNightMode(
-                    if (enabled) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO
-                )
-                ToolResult.ok("${if (enabled) "Dark" else "Light"} mode enabled for the app.")
-            } else {
-                // System-wide night mode below Android 12 needs privileged access;
-                // fall back to reporting the limitation honestly.
-                ToolResult.error(
-                    "Changing the theme programmatically requires Android 12+. " +
-                        "On this device the user can toggle dark mode in Settings > Display."
-                )
-            }
-        } catch (e: Exception) {
-            ToolResult.error("Could not change theme: ${e.message}")
-        }
-    }
 
     fun setBrightness(percent: Int): ToolResult {
         if (percent !in 0..100) {
@@ -63,14 +43,70 @@ class SystemTool(private val context: Context) {
         return try {
             val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
             val percent = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            val charging = bm.isCharging
-            ToolResult.ok("Battery at $percent%, ${if (charging) "charging" else "not charging"}.")
+            // Temperature, voltage, health, and plugged info come from the sticky battery intent.
+            val batteryIntent = context.registerReceiver(null,
+                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            val status = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val plugged = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1) ?: -1
+            val tempRaw = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+            val voltage = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
+            val healthInt = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, -1) ?: -1
+
+            val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING
+                    || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            val pluggedLabel = when (plugged) {
+                android.os.BatteryManager.BATTERY_PLUGGED_AC -> "AC"
+                android.os.BatteryManager.BATTERY_PLUGGED_USB -> "USB"
+                android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "wireless"
+                else -> null
+            }
+            val tempC = if (tempRaw > 0) tempRaw / 10f else null
+            val healthLabel = when (healthInt) {
+                android.os.BatteryManager.BATTERY_HEALTH_GOOD -> "good"
+                android.os.BatteryManager.BATTERY_HEALTH_OVERHEAT -> "overheating"
+                android.os.BatteryManager.BATTERY_HEALTH_DEAD -> "dead"
+                android.os.BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "over-voltage"
+                android.os.BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "failure"
+                else -> null
+            }
+            val message = buildString {
+                append("Battery at $percent%")
+                if (charging) {
+                    append(", charging")
+                    if (pluggedLabel != null) append(" ($pluggedLabel)")
+                } else {
+                    append(", not charging")
+                }
+                if (tempC != null) append(", temp: ${"%.1f".format(tempC)}°C")
+                if (voltage > 0) append(", voltage: ${voltage / 1000}V")
+                if (healthLabel != null) append(", health: $healthLabel")
+            }
+            ToolResult.ok(message)
         } catch (e: Exception) {
             ToolResult.error("Could not read battery info: ${e.message}")
         }
     }
 
-    fun toggleWifi(): ToolResult {
+    fun toggleWifi(enabled: Boolean): ToolResult {
+        val wifi = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val wasEnabled = wifi?.isWifiEnabled
+        return try {
+            if (wifi != null && wifi.setWifiEnabled(enabled)) {
+                val now = wifi.isWifiEnabled
+                return ToolResult.ok(
+                    "Wi-Fi turned ${if (enabled) "on" else "off"}" +
+                        if (wasEnabled != null) " (was ${if (wasEnabled) "on" else "off"}, now ${if (now) "on" else "off"})." else "."
+                )
+            }
+            openWifiSettings()
+        } catch (e: SecurityException) {
+            openWifiSettings()
+        } catch (e: Exception) {
+            ToolResult.error("Could not toggle Wi-Fi: ${e.message}")
+        }
+    }
+
+    private fun openWifiSettings(): ToolResult {
         return try {
             val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 Intent(Settings.Panel.ACTION_WIFI)
@@ -89,9 +125,12 @@ class SystemTool(private val context: Context) {
             val pm = context.packageManager
             val launch = pm.getLaunchIntentForPackage(packageName)
             if (launch != null) {
+                val label = try {
+                    pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+                } catch (_: Exception) { packageName }
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(launch)
-                return ToolResult.ok("Launched $packageName.")
+                return ToolResult.ok("Launched $label.")
             }
             // Fuzzy fallback: match against installed app labels.
             val query = packageName.lowercase()
