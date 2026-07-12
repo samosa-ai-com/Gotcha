@@ -22,7 +22,7 @@ object ToolRegistry {
      * these require user confirmation when the confirmation toggle is on (Phase 7).
      */
     val sensitiveTools: Set<String> = setOf(
-        "dial_number", "set_wallpaper", "clear_app_cache",
+        "dial_number", "set_wallpaper",
         "write_file", "edit", "run_command", "set_brightness",
         // Tier 0–2 additions: outbound actions, personal-data reads, and captures.
         "call_number", "read_call_log", "find_contact", "add_contact",

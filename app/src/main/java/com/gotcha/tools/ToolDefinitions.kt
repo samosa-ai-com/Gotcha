@@ -114,12 +114,6 @@ object ToolDefinitions {
         }
     )
 
-    val clearAppCache = tool(
-        "clear_app_cache",
-        "Clear this app's own cache directory and report how much space was freed.",
-        schema { putJsonObject("properties") {} }
-    )
-
     val openApp = tool(
         "open_app",
         "Launch an installed app by its package name (e.g. com.android.settings) or by a human name " +
@@ -1009,7 +1003,7 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
-        clearAppCache, openApp, toggleDarkMode, setBrightness, toggleWifi,
+        openApp, toggleDarkMode, setBrightness, toggleWifi,
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,

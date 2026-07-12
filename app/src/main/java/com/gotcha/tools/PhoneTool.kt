@@ -17,9 +17,16 @@ class PhoneTool(private val context: Context) {
         if (trimmed.isEmpty() || !trimmed.matches(numberPattern)) {
             return ToolResult.error("'$number' does not look like a valid phone number.")
         }
+        val digitsOnly = trimmed.filter { it.isDigit() }
+        if (digitsOnly.isEmpty()) {
+            return ToolResult.error("'$number' has no digits — a phone number needs at least one digit.")
+        }
         return try {
             val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$trimmed")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            if (intent.resolveActivity(context.packageManager) == null) {
+                return ToolResult.error("No dialer app is available on this device.")
             }
             context.startActivity(intent)
             ToolResult.ok("Opened the dialer with $trimmed. The user must press call themselves.")

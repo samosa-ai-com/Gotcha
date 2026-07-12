@@ -21,7 +21,7 @@ class ToolExecutor(context: Context) {
     private val appContext = context.applicationContext
     private val phoneTool = PhoneTool(appContext)
     private val systemTool = SystemTool(appContext)
-    private val storageTool = StorageTool(appContext)
+    private val storageTool = StorageTool()
     private val fileTool = FileTool(appContext)
     private val terminalTool = TerminalTool()
     private val wallpaperTool = WallpaperTool(appContext)
@@ -80,7 +80,6 @@ class ToolExecutor(context: Context) {
         "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
         "get_storage_info" -> storageTool.getStorageInfo()
         "get_battery_info" -> systemTool.getBatteryInfo()
-        "clear_app_cache" -> storageTool.clearAppCache()
         "edit" -> editTool.edit(
             path = args.requireString("path") ?: return missing("path"),
             oldString = args.requireString("oldString") ?: return missing("oldString"),
