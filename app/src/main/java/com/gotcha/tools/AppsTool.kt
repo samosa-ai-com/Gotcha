@@ -5,6 +5,9 @@ import android.app.usage.NetworkStatsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.util.Log
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
@@ -12,39 +15,130 @@ import android.os.Process
 
 class AppsTool(private val context: Context) {
 
-    /** List launchable installed apps (name + package). Uses the manifest <queries> visibility. */
-    fun listInstalledApps(): ToolResult {
+    private val TAG = "Gotcha"
+    private data class AppEntry(val label: String, val packageName: String, val isSystemApp: Boolean)
+
+    /** List installed apps with optional search filter. */
+    fun listInstalledApps(search: String?): ToolResult {
         return try {
             val pm = context.packageManager
             val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            val apps = pm.queryIntentActivities(intent, 0)
-                .map { "${it.loadLabel(pm)} (${it.activityInfo.packageName})" }
-                .distinct()
-                .sorted()
-            if (apps.isEmpty()) return ToolResult.ok("No launchable apps are visible.")
-            ToolResult.ok("Installed apps (${apps.size}):\n" + apps.joinToString("\n") { "- $it" })
+            val allApps = pm.queryIntentActivities(intent, 0).map {
+                val isSystem = (it.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                AppEntry(
+                    label = it.loadLabel(pm).toString(),
+                    packageName = it.activityInfo.packageName,
+                    isSystemApp = isSystem
+                )
+            }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+
+            val userApps = allApps.count { !it.isSystemApp }
+            val systemApps = allApps.count { it.isSystemApp }
+            val total = allApps.size
+
+            val query = search?.trim()?.lowercase()
+
+            if (query.isNullOrBlank()) {
+                // Full listing
+                val listing = allApps.take(200).joinToString("\n") {
+                    "- ${it.label} (${it.packageName})${if (it.isSystemApp) " [system]" else ""}"
+                }
+                val truncated = if (allApps.size > 200) "\n…(${allApps.size - 200} more apps — use search to find specific ones)" else ""
+                ToolResult.ok("Total: $total apps installed ($userApps user, $systemApps system).\n$listing$truncated")
+            } else {
+                // Filtered listing
+                val matches = allApps.filter {
+                    it.label.lowercase().contains(query) || it.packageName.lowercase().contains(query)
+                }
+                if (matches.isEmpty()) {
+                    return ToolResult.ok(
+                        "No apps matching '$search' ($total apps installed total). Try a different search term."
+                    )
+                }
+                val matchCount = matches.size
+                val listing = matches.take(30).joinToString("\n") {
+                    "- ${it.label} (${it.packageName})${if (it.isSystemApp) " [system]" else ""}"
+                }
+                val truncated = if (matchCount > 30) " (showing 30 of $matchCount)" else ""
+                ToolResult.ok("Found $matchCount app(s) matching '$search'$truncated ($total total, $userApps user, $systemApps system).\n$listing")
+            }
         } catch (e: Exception) {
             ToolResult.error("Could not list apps: ${e.message}")
         }
     }
 
-    /** Open the system uninstall dialog for a package (user confirms). */
+    /**
+     * Uninstall an app. First call resolves the app name/package and returns
+     * a confirmation request. The ChatViewModel catches that marker, shows a
+     * dialog, and if confirmed calls [doUninstall] to actually execute.
+     */
     fun uninstallApp(packageName: String): ToolResult {
         val pkg = packageName.trim()
-        if (pkg.isEmpty()) return ToolResult.error("Please provide the package name to uninstall.")
+        if (pkg.isEmpty()) return ToolResult.error("Please provide the app name or package name.")
+        val pm = context.packageManager
+
+        // Try exact package match first
+        val info = try {
+            pm.getApplicationInfo(pkg, 0).let { it to pm.getApplicationLabel(it).toString() }
+        } catch (_: Exception) {
+            null
+        }
+
+        if (info != null) {
+            val label = info.second
+            return ToolResult.ok("CONFIRM_UNINSTALL:$label:$pkg")
+        }
+
+        // Fuzzy match by app label
+        val query = pkg.lowercase()
+        val match = try {
+            pm.getInstalledApplications(0).firstOrNull { app ->
+                val label = try { pm.getApplicationLabel(app).toString().lowercase() } catch (_: Exception) { "" }
+                label.contains(query) || app.packageName.lowercase().contains(query)
+            }
+        } catch (_: Exception) { null }
+
+        if (match != null) {
+            val label = try { pm.getApplicationLabel(match).toString() } catch (_: Exception) { match.packageName }
+            return ToolResult.ok("CONFIRM_UNINSTALL:$label:${match.packageName}")
+        }
+
+        return ToolResult.error(
+            "No app found matching '$packageName'. Use list_installed_apps to find the correct package name."
+        )
+    }
+
+    /**
+     * Fires the uninstall intent after the user has confirmed the destructive
+     * action. The system uninstall dialog opens and the user must tap OK.
+     * Detection of completion is unreliable on some OEMs (Xiaomi MIUI);
+     * the tool returns immediately and the LLM asks the user to verify
+     * the app is gone via list_installed_apps after tapping OK.
+     */
+    fun doUninstall(packageName: String): ToolResult {
+        Log.d(TAG, "doUninstall: $packageName")
         return try {
+            val pm = context.packageManager
             val installed = try {
-                context.packageManager.getPackageInfo(pkg, 0); true
+                pm.getPackageInfo(packageName, 0); true
             } catch (_: Exception) {
                 false
             }
-            if (!installed) return ToolResult.error("No app with package '$pkg' is installed.")
+            if (!installed) return ToolResult.error("No app with package '$packageName' is installed.")
+
+            val label = try {
+                pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+            } catch (_: Exception) { packageName }
+
             @Suppress("DEPRECATION")
-            val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$pkg"))
+            val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            ToolResult.ok("Opened the uninstall dialog for $pkg. The user must confirm removal.")
+
+            Log.d(TAG, "doUninstall: dialog opened for $label")
+            ToolResult.ok("System dialog opened to uninstall $label. After you tap OK in the dialog, ask the assistant to verify the app is gone.")
         } catch (e: Exception) {
+            Log.e(TAG, "doUninstall failed: ${e.message}")
             ToolResult.error("Could not start uninstall: ${e.message}")
         }
     }

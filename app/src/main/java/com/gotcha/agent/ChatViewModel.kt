@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioProvider
@@ -41,6 +42,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
@@ -87,6 +90,7 @@ data class ChatUiState(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val TAG = "Gotcha"
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val toolExecutor = ToolExecutor(application)
@@ -116,6 +120,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var questionGate: CompletableDeferred<String>? = null
+    private var permissionGate: CompletableDeferred<Boolean>? = null
     private var agentJob: Job? = null
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -242,6 +247,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(pendingQuestion = null) }
         questionGate?.complete(answer ?: "")
         questionGate = null
+    }
+
+    /** Called from MainActivity after the user grants or denies a runtime permission. */
+    fun onPermissionResult(granted: Boolean) {
+        permissionGate?.complete(granted)
+        permissionGate = null
     }
 
     /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
@@ -528,49 +539,76 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val decision = requestConfirmation(toolCalls)
-            for (call in toolCalls) {
-                val result = when (decision) {
-                    ConfirmDecision.APPROVED -> executeCall(call)
-                    ConfirmDecision.DENIED ->
-                        ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
-                    ConfirmDecision.TIMED_OUT -> ToolResult.error(
-                        "Confirmation for '${call.function.name}' timed out with no response. " +
-                            "Do not retry automatically; tell the user to ask again when ready."
-                    )
-                }
-                if (result.success && result.message.startsWith("IMAGE_DATA:")) {
-                    handleImageResult(call, result)
-                } else if (result.success && result.message.startsWith("QUESTION:")) {
-                    handleQuestionResult(call, result)
-                } else {
-                    llmHistory += ChatMessage(
-                        role = "tool",
-                        content = JsonPrimitive(result.message),
-                        toolCallId = call.id
-                    )
-                    appendUi(
-                        if (result.success) MessageKind.TOOL else MessageKind.ERROR,
-                        "${call.function.name}: ${result.message}"
-                    )
-                }
-                // Automatic screenshot injection: when read_screen succeeds,
-                // capture a screenshot and inject it as vision context so the LLM
-                // can "see" the screen alongside the accessibility text dump.
-                if (result.success && call.function.name == "read_screen") {
-                    val screenshotBase64 = captureScreenshotBase64()
-                    if (screenshotBase64 != null) {
-                        val screenText = result.message.take(500)
-                        val visionMsg = visionUserMessage(
-                            "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
-                                "Use it together with the screen text to understand the current screen.",
-                            screenshotBase64, "png"
+            suspend fun executeToolCalls() {
+                for (call in toolCalls) {
+                    var result = when (decision) {
+                        ConfirmDecision.APPROVED -> executeCall(call)
+                        ConfirmDecision.DENIED ->
+                            ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
+                        ConfirmDecision.TIMED_OUT -> ToolResult.error(
+                            "Confirmation for '${call.function.name}' timed out with no response. " +
+                                "Do not retry automatically; tell the user to ask again when ready."
                         )
-                        llmHistory.add(visionMsg)
-                        appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                    }
+
+                    // Permission gate: if the tool needs a runtime permission (not a special marker),
+                    // emit the request, suspend until the user responds, and retry if granted.
+                    val perm = result.needsPermission
+                    if (perm != null && !perm.startsWith("special:")) {
+                        Log.d(TAG, "Permission needed: $perm, waiting for user…")
+                        _permissionRequests.tryEmit(perm)
+                        val gate = CompletableDeferred<Boolean>()
+                        permissionGate = gate
+                        val granted = withTimeoutOrNull(120_000L) { gate.await() } ?: false
+                        permissionGate = null
+                        Log.d(TAG, "Permission $perm -> granted=$granted")
+                        if (granted) {
+                            result = executeCall(call)
+                        } else {
+                            result = ToolResult(false, "${result.message} Permission was not granted.")
+                        }
+                    }
+
+                    if (result.success && result.message.startsWith("IMAGE_DATA:")) {
+                        handleImageResult(call, result)
+                    } else if (result.success && result.message.startsWith("QUESTION:")) {
+                        handleQuestionResult(call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
+                        handleUninstallConfirm(call, result)
+                    } else {
+                        llmHistory += ChatMessage(
+                            role = "tool",
+                            content = JsonPrimitive(result.message),
+                            toolCallId = call.id
+                        )
+                        appendUi(
+                            if (result.success) MessageKind.TOOL else MessageKind.ERROR,
+                            "${call.function.name}: ${result.message}"
+                        )
+                    }
+                    // Automatic screenshot injection: when read_screen succeeds,
+                    // capture a screenshot and inject it as vision context so the LLM
+                    // can "see" the screen alongside the accessibility text dump.
+                    if (result.success && call.function.name == "read_screen") {
+                        val screenshotBase64 = captureScreenshotBase64()
+                        if (screenshotBase64 != null) {
+                            val screenText = result.message.take(500)
+                            val visionMsg = visionUserMessage(
+                                "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
+                                    "Use it together with the screen text to understand the current screen.",
+                                screenshotBase64, "png"
+                            )
+                            llmHistory.add(visionMsg)
+                            appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                        }
+                    }
+                    // Special-access markers: emit and continue (no wait needed since they open Settings)
+                    if (perm != null && perm.startsWith("special:")) {
+                        _permissionRequests.tryEmit(perm)
                     }
                 }
-                result.needsPermission?.let { _permissionRequests.tryEmit(it) }
             }
+            executeToolCalls()
             saveCurrentSession()
         }
         appendUi(
@@ -727,6 +765,56 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * Handles a tool result prefixed with CONFIRM_UNINSTALL:label:package.
+     * Shows a confirmation dialog, and if approved, executes the actual uninstall.
+     */
+    private suspend fun handleUninstallConfirm(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("CONFIRM_UNINSTALL:")
+        val parts = body.split(":", limit = 2)
+        if (parts.size < 2) {
+            llmHistory += ChatMessage(
+                role = "tool", content = JsonPrimitive("Failed to parse uninstall confirmation."),
+                toolCallId = call.id
+            )
+            appendUi(MessageKind.ERROR, "${call.function.name}: Failed to parse uninstall confirmation.")
+            return
+        }
+        val label = parts[0]
+        val pkg = parts[1]
+        Log.d(TAG, "handleUninstallConfirm: label=$label pkg=$pkg")
+        val description = "Request to uninstall \"$label\". After you approve, a system dialog will open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
+        val gate = CompletableDeferred<Boolean>()
+        confirmationGate = gate
+        _uiState.update { it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("uninstall_app"), description)) }
+
+        val approved = withTimeoutOrNull(120_000L) { gate.await() } ?: false
+        confirmationOverlay.dismiss()
+        _uiState.update { it.copy(pendingConfirmation = null) }
+        confirmationGate = null
+
+        if (approved) {
+            val actualResult = toolExecutor.executeUninstall(pkg)
+            llmHistory += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(actualResult.message),
+                toolCallId = call.id
+            )
+            appendUi(
+                if (actualResult.success) MessageKind.TOOL else MessageKind.ERROR,
+                "Uninstalling $label: ${actualResult.message}"
+            )
+        } else {
+            val msg = "User declined to uninstall $label."
+            llmHistory += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(msg),
+                toolCallId = call.id
+            )
+            appendUi(MessageKind.TOOL, "${call.function.name}: $msg")
+        }
+    }
+
     private suspend fun executeCall(call: ToolCall): ToolResult {
         _uiState.update { it.copy(activity = "Running: ${call.function.name}…") }
         val args: JsonObject = try {
@@ -757,7 +845,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "You control the device only through the provided tools; never invent tool " +
                 "names or capabilities. If a tool reports a missing permission, explain what " +
                 "to grant and ask again. After changing device state, confirm what was done. " +
-                "Keep replies short and conversational. Be careful with destructive actions."
+                "Keep replies short and conversational. Be careful with destructive actions.\n" +
+                "When using uninstall_app: after calling it, the system will open a dialog. " +
+                "Tell the user to tap OK in the system dialog to finish the uninstall. " +
+                "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +
+                "use uninstall_app only."
         }
         val reminder = when (agent) {
             AgentMode.MONITOR ->

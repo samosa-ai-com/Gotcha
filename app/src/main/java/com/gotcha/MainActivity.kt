@@ -57,9 +57,10 @@ class MainActivity : ComponentActivity() {
 
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            chatViewModel.onPermissionResult(granted)
             Toast.makeText(
                 this,
-                if (granted) "Permission granted — ask the assistant again."
+                if (granted) "Permission granted — the assistant will retry the operation."
                 else "Permission denied. The assistant cannot perform that action.",
                 Toast.LENGTH_SHORT
             ).show()
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleOwner = this
         settingsRepository = SettingsRepository(this)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
 
@@ -330,5 +332,10 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Intent extra: when true, launch straight into the chat screen. */
         const val EXTRA_OPEN_CHAT = "com.gotcha.OPEN_CHAT"
+
+        /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */
+        @Volatile
+        var lifecycleOwner: androidx.lifecycle.LifecycleOwner? = null
+            private set
     }
 }

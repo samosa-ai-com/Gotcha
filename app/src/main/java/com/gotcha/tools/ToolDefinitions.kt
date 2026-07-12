@@ -492,18 +492,30 @@ object ToolDefinitions {
 
     val listInstalledApps = tool(
         "list_installed_apps",
-        "List the launchable apps installed on the device with their package names.",
-        schema { putJsonObject("properties") {} }
+        "List installed apps optionally filtered by name or package. Returns a summary of " +
+            "how many apps are installed and, when a search is provided, the matching apps. " +
+            "Use this before uninstall_app to find the exact package name.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("search") {
+                    put("type", "string")
+                    put("description", "Optional: filter to apps whose name or package contains this text.")
+                }
+            }
+        }
     )
 
     val uninstallApp = tool(
         "uninstall_app",
-        "Open the system uninstall dialog for an app package. The user confirms removal.",
+        "Uninstall an app by its name or package name. Accepts both exact package names " +
+            "(e.g. com.example.app) and human-readable app names (e.g. YouTube). " +
+            "When a name is given, the tool resolves it to the matching package automatically. " +
+            "The user will be asked to confirm before the uninstall proceeds.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("package_name") {
                     put("type", "string")
-                    put("description", "Package name to uninstall, e.g. com.example.app")
+                    put("description", "App name or package name to uninstall, e.g. com.example.app or YouTube.")
                 }
             }
             putJsonArray("required") { add("package_name") }
@@ -558,9 +570,17 @@ object ToolDefinitions {
 
     val takePhoto = tool(
         "take_photo",
-        "Open the camera app to capture a photo; the image is saved into the app's storage. " +
-            "Returns the file path where the photo will be saved.",
-        schema { putJsonObject("properties") {} }
+        "Capture a photo automatically using the device camera. No camera app is opened — " +
+            "the photo is taken in the background and saved to the app's storage. " +
+            "Needs the Camera permission. Returns the file path of the captured photo.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("camera") {
+                    put("type", "string")
+                    put("description", "Which camera to use: 'back' (default) or 'front'.")
+                }
+            }
+        }
     )
 
     val startAudioRecording = tool(

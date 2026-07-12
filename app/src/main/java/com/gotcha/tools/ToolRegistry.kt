@@ -27,7 +27,7 @@ object ToolRegistry {
         // Tier 0–2 additions: outbound actions, personal-data reads, and captures.
         "call_number", "read_call_log", "find_contact", "add_contact",
         "send_sms", "read_recent_sms", "create_calendar_event", "list_calendar_events",
-        "get_location", "uninstall_app",
+        "get_location",
         "take_photo", "start_audio_recording", "stop_audio_recording",
         // Tier 3: device-wide / other-app control is always sensitive.
         "read_screen", "tap", "swipe", "input_text", "global_action",
@@ -38,6 +38,15 @@ object ToolRegistry {
         "set_firewall",
         // Tier 4: privileged root execution.
         "run_root_command", "write_secure_settings"
+    )
+
+    /**
+     * Destructive tools that require explicit, separate user confirmation even when
+     * sensitive-action confirmation is enabled. Each call presents a dedicated dialog
+     * to the user before the tool is actually executed.
+     */
+    val destructiveTools: Set<String> = setOf(
+        "uninstall_app"
     )
 
     /**
@@ -84,6 +93,8 @@ object ToolRegistry {
     fun contains(name: String): Boolean = name in definitions
 
     fun isSensitive(name: String): Boolean = name in sensitiveTools
+
+    fun isDestructive(name: String): Boolean = name in destructiveTools
 
     /** Whether [name] is callable by the given [agent] mode. */
     fun isAllowedForAgent(name: String, agent: AgentMode): Boolean = when (agent) {

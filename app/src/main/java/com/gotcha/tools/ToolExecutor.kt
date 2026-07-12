@@ -1,6 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
@@ -18,6 +19,7 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class ToolExecutor(context: Context) {
 
+    private val TAG = "Gotcha"
     private val appContext = context.applicationContext
     private val phoneTool = PhoneTool(appContext)
     private val systemTool = SystemTool(appContext)
@@ -71,7 +73,19 @@ class ToolExecutor(context: Context) {
         } catch (e: Exception) {
             ToolResult.error("Tool '$name' failed: ${e.message}")
         }
+        Log.d(TAG, "execute: $name -> success=${result.success}, msg=${result.message.take(80)}, perm=${result.needsPermission}")
         actionLog.record(name, args.toString(), result)
+        return result
+    }
+
+    /**
+     * Execute an uninstall that was already confirmed by the user.
+     * Bypasses the destructive-action confirmation flow.
+     */
+    suspend fun executeUninstall(packageName: String): ToolResult {
+        Log.d(TAG, "executeUninstall: $packageName")
+        val result = withContext(Dispatchers.IO) { appsTool.doUninstall(packageName) }
+        actionLog.record("uninstall_app", packageName, result)
         return result
     }
 
@@ -150,13 +164,13 @@ class ToolExecutor(context: Context) {
             args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
         )
         "get_location" -> locationTool.getLocation()
-        "list_installed_apps" -> appsTool.listInstalledApps()
+        "list_installed_apps" -> appsTool.listInstalledApps(args.requireString("search"))
         "uninstall_app" -> appsTool.uninstallApp(args.requireString("package_name") ?: return missing("package_name"))
         "get_app_usage" -> appsTool.getAppUsage(args.requireInt("days") ?: 7)
         "get_data_usage" -> appsTool.getDataUsage(args.requireInt("days") ?: 30)
         "get_clipboard" -> clipboardTool.getClipboard()
         "set_clipboard" -> clipboardTool.setClipboard(args.requireString("text") ?: return missing("text"))
-        "take_photo" -> mediaCaptureTool.takePhoto()
+        "take_photo" -> mediaCaptureTool.takePhoto(args.requireString("camera"))
         "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
         "question" -> questionTool.ask(
