@@ -218,7 +218,15 @@ class SmsTool(private val context: Context) {
         alarm.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delayMs, pi)
     }
 
-    fun readRecentSms(limit: Int, fromAddress: String? = null): ToolResult {
+    fun readRecentSms(
+        limit: Int,
+        fromAddress: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null,
+        unreadOnly: Boolean? = null,
+        search: String? = null,
+        includeSent: Boolean? = null
+    ): ToolResult {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -229,40 +237,124 @@ class SmsTool(private val context: Context) {
         }
         val take = limit.coerceIn(1, 50)
         return try {
-            val selection = if (!fromAddress.isNullOrBlank()) {
-                "${Telephony.Sms.ADDRESS} LIKE ?"
-            } else null
-            val selectionArgs = if (!fromAddress.isNullOrBlank()) {
-                arrayOf("%$fromAddress%")
-            } else null
-            context.contentResolver.query(
-                Telephony.Sms.Inbox.CONTENT_URI,
-                arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
-                selection, selectionArgs,
-                "${Telephony.Sms.DATE} DESC"
-            ).use { cursor ->
-                if (cursor == null) return ToolResult.error("Could not read messages.")
-                val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
-                val bodyIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
-                val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
-                val out = StringBuilder()
-                var count = 0
-                while (cursor.moveToNext() && count < take) {
-                    val addr = cursor.getString(addrIdx) ?: "unknown"
-                    val body = (cursor.getString(bodyIdx) ?: "").take(300)
-                    val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-                        .format(Date(cursor.getLong(dateIdx)))
-                    out.append("- $date from $addr: $body\n")
-                    count++
+            val selection = StringBuilder()
+            val selectionArgs = mutableListOf<String>()
+
+            if (!fromAddress.isNullOrBlank()) {
+                if (selection.isNotEmpty()) selection.append(" AND ")
+                selection.append("${Telephony.Sms.ADDRESS} LIKE ?")
+                selectionArgs.add("%$fromAddress%")
+            }
+
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            if (fromDate != null) {
+                val fromMillis = try { dateFormat.parse(fromDate)?.time } catch (_: Exception) { null }
+                if (fromMillis != null) {
+                    if (selection.isNotEmpty()) selection.append(" AND ")
+                    selection.append("${Telephony.Sms.DATE} >= ?")
+                    selectionArgs.add(fromMillis.toString())
                 }
-                if (count == 0) {
-                    val hint = if (!fromAddress.isNullOrBlank()) " from '$fromAddress'" else ""
-                    ToolResult.ok("The SMS inbox is empty$hint.")
-                } else ToolResult.ok("Last $count message(s):\n$out")
+            }
+            if (toDate != null) {
+                val toMillis = try { dateFormat.parse(toDate)?.time?.plus(86_400_000L - 1) } catch (_: Exception) { null }
+                if (toMillis != null) {
+                    if (selection.isNotEmpty()) selection.append(" AND ")
+                    selection.append("${Telephony.Sms.DATE} <= ?")
+                    selectionArgs.add(toMillis.toString())
+                }
+            }
+
+            if (unreadOnly == true) {
+                if (selection.isNotEmpty()) selection.append(" AND ")
+                selection.append("${Telephony.Sms.READ} = 0")
+            }
+
+            if (!search.isNullOrBlank()) {
+                if (selection.isNotEmpty()) selection.append(" AND ")
+                selection.append("${Telephony.Sms.BODY} LIKE ?")
+                selectionArgs.add("%$search%")
+            }
+
+            val sel: String? = if (selection.isNotEmpty()) selection.toString() else null
+            val selArgs: Array<String>? = selectionArgs.toTypedArray().ifEmpty { null }
+
+            val out = StringBuilder()
+
+            // Inbox messages
+            querySms(Telephony.Sms.Inbox.CONTENT_URI, take, sel, selArgs, out, "from")
+
+            // Sent messages (optional)
+            if (includeSent == true) {
+                querySms(Telephony.Sms.Sent.CONTENT_URI, take, sel, selArgs, out, "to")
+            }
+
+            if (out.isEmpty()) {
+                val hint = buildString {
+                    if (!fromAddress.isNullOrBlank()) append(" from '$fromAddress'")
+                    if (unreadOnly == true) append(" unread")
+                    if (!search.isNullOrBlank()) append(" matching '$search'")
+                }
+                ToolResult.ok("The SMS inbox is empty$hint.")
+            } else {
+                ToolResult.ok(out.trimEnd().toString())
             }
         } catch (e: Exception) {
             ToolResult.error("Could not read messages: ${e.message}")
         }
+    }
+
+    private fun querySms(
+        uri: android.net.Uri,
+        take: Int,
+        selection: String?,
+        selectionArgs: Array<String>?,
+        out: StringBuilder,
+        direction: String
+    ) {
+        context.contentResolver.query(
+            uri,
+            arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms._ID),
+            selection, selectionArgs,
+            "${Telephony.Sms.DATE} DESC"
+        )?.use { cursor ->
+            val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+            val bodyIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
+            val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
+            var count = 0
+            while (cursor.moveToNext() && count < take) {
+                val addr = cursor.getString(addrIdx) ?: "unknown"
+                val name = resolveSmsContactName(addr)
+                val sender = if (name != null) "$name ($addr)" else addr
+                val body = (cursor.getString(bodyIdx) ?: "").take(300)
+                val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                    .format(Date(cursor.getLong(dateIdx)))
+                when (direction) {
+                    "from" -> out.append("- $date from $sender: $body\n")
+                    "to" -> out.append("- $date to $sender: $body\n")
+                }
+                count++
+            }
+        }
+    }
+
+    private fun resolveSmsContactName(number: String): String? {
+        return try {
+            val uri = android.net.Uri.withAppendedPath(
+                android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                android.net.Uri.encode(number)
+            )
+            context.contentResolver.query(
+                uri,
+                arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    cursor.getString(cursor.getColumnIndexOrThrow(
+                        android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME
+                    ))
+                } else null
+            }
+        } catch (_: Exception) { null }
     }
 
     private fun getConversationThread(number: String): String? {

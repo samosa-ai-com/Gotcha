@@ -163,14 +163,28 @@ class ToolExecutor(context: Context) {
         )
         "read_recent_sms" -> smsTool.readRecentSms(
             limit = args.requireInt("limit") ?: 10,
-            fromAddress = args.requireString("from_address")
+            fromAddress = args.requireString("from_address"),
+            fromDate = args.requireString("from_date"),
+            toDate = args.requireString("to_date"),
+            unreadOnly = args["unread_only"]?.jsonPrimitive?.booleanOrNull,
+            search = args.requireString("search"),
+            includeSent = args["include_sent"]?.jsonPrimitive?.booleanOrNull
         )
-        "list_calendar_events" -> calendarTool.listEvents(args.requireInt("days_ahead") ?: 7)
+        "list_calendar_events" -> calendarTool.listEvents(
+            daysAhead = args.requireInt("days_ahead"),
+            fromDate = args.requireString("from_date"),
+            toDate = args.requireString("to_date"),
+            search = args.requireString("search")
+        )
         "create_calendar_event" -> calendarTool.createEvent(
             title = args.requireString("title") ?: return missing("title"),
             start = args.requireString("start") ?: return missing("start"),
             end = args.requireString("end"),
-            location = args.requireString("location")
+            location = args.requireString("location"),
+            description = args.requireString("description"),
+            allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
+            reminderMinutes = args.requireInt("reminder_minutes"),
+            calendarName = args.requireString("calendar_name")
         )
         "set_alarm" -> alarmTool.setAlarm(
             hour = args.requireInt("hour") ?: return missing("hour"),
@@ -200,7 +214,9 @@ class ToolExecutor(context: Context) {
         "set_dnd" -> deviceTool.setDnd(
             args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
         )
-        "get_location" -> locationTool.getLocation()
+        "get_location" -> locationTool.getLocation(
+            fresh = args["fresh"]?.jsonPrimitive?.booleanOrNull
+        )
         "list_installed_apps" -> appsTool.listInstalledApps(args.requireString("search"))
         "uninstall_app" -> appsTool.uninstallApp(args.requireString("package_name") ?: return missing("package_name"))
         "get_app_usage" -> appsTool.getAppUsage(args.requireInt("days") ?: 7)

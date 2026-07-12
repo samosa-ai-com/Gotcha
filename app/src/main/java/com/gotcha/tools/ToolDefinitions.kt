@@ -380,17 +380,38 @@ object ToolDefinitions {
 
     val readRecentSms = tool(
         "read_recent_sms",
-        "Read the most recent received SMS messages from the inbox (sender, time, body). " +
-            "Supports optional filter by sender address.",
+        "Read SMS messages from the inbox (and optionally sent folder) with filters. " +
+            "Supports filtering by sender, date range, unread status, and body keyword search. " +
+            "Contact names are resolved automatically when available.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("limit") {
                     put("type", "integer")
-                    put("description", "How many recent messages to return (1-50). Default 10.")
+                    put("description", "How many messages to return (1-50). Default 10.")
                 }
                 putJsonObject("from_address") {
                     put("type", "string")
-                    put("description", "Filter by sender address (partial match, e.g. a contact name or phone number).")
+                    put("description", "Filter by sender/recipient address (partial match, e.g. a contact name or phone number).")
+                }
+                putJsonObject("from_date") {
+                    put("type", "string")
+                    put("description", "Start date, e.g. '2026-01-01'. Only messages on or after this date.")
+                }
+                putJsonObject("to_date") {
+                    put("type", "string")
+                    put("description", "End date, e.g. '2026-01-31'. Only messages on or before this date.")
+                }
+                putJsonObject("unread_only") {
+                    put("type", "boolean")
+                    put("description", "Only show unread messages. Default false.")
+                }
+                putJsonObject("search") {
+                    put("type", "string")
+                    put("description", "Filter messages whose body contains this text (case-insensitive).")
+                }
+                putJsonObject("include_sent") {
+                    put("type", "boolean")
+                    put("description", "Also include sent messages alongside inbox messages. Default false.")
                 }
             }
         }
@@ -398,12 +419,25 @@ object ToolDefinitions {
 
     val listCalendarEvents = tool(
         "list_calendar_events",
-        "List upcoming calendar events within a number of days from now.",
+        "List calendar events within a date range. Supports looking ahead (days_ahead) or explicit " +
+            "from/to dates, title keyword search, and shows status, description preview, and calendar name.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("days_ahead") {
                     put("type", "integer")
-                    put("description", "How many days ahead to include (1-365). Default 7.")
+                    put("description", "How many days ahead to include (1-365). Default 7 when from_date/to_date not set.")
+                }
+                putJsonObject("from_date") {
+                    put("type", "string")
+                    put("description", "Start date, e.g. '2026-01-01'. Overrides days_ahead.")
+                }
+                putJsonObject("to_date") {
+                    put("type", "string")
+                    put("description", "End date, e.g. '2026-01-31'. Defaults to one day after from_date.")
+                }
+                putJsonObject("search") {
+                    put("type", "string")
+                    put("description", "Filter events whose title contains this text (case-insensitive).")
                 }
             }
         }
@@ -411,7 +445,8 @@ object ToolDefinitions {
 
     val createCalendarEvent = tool(
         "create_calendar_event",
-        "Add an event to the device's primary calendar.",
+        "Add an event to a calendar. Supports optional description, all-day flag, reminder, " +
+            "and calendar selection. Defaults to the primary writable calendar.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("title") {
@@ -429,6 +464,22 @@ object ToolDefinitions {
                 putJsonObject("location") {
                     put("type", "string")
                     put("description", "Optional event location.")
+                }
+                putJsonObject("description") {
+                    put("type", "string")
+                    put("description", "Optional notes or description for the event.")
+                }
+                putJsonObject("all_day") {
+                    put("type", "boolean")
+                    put("description", "Set as an all-day event. Default false.")
+                }
+                putJsonObject("reminder_minutes") {
+                    put("type", "integer")
+                    put("description", "Reminder before the event, in minutes. Default is no custom reminder.")
+                }
+                putJsonObject("calendar_name") {
+                    put("type", "string")
+                    put("description", "Calendar account name to add the event to (e.g. 'Work', 'Personal'). Defaults to the primary writable calendar.")
                 }
             }
             putJsonArray("required") {
@@ -592,9 +643,17 @@ object ToolDefinitions {
 
     val getLocation = tool(
         "get_location",
-        "Report the device's last-known location (latitude/longitude and a nearby address if available). " +
-            "Needs the Location permission.",
-        schema { putJsonObject("properties") {} }
+        "Report the device's location (latitude/longitude, accuracy, altitude, speed, bearing, " +
+            "and a nearby address if available). Also returns a Google Maps link. " +
+            "Can request a fresh GPS fix instead of the last-known location. Needs the Location permission.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("fresh") {
+                    put("type", "boolean")
+                    put("description", "If true, request a fresh GPS fix (takes a few seconds). Default false (uses last-known location).")
+                }
+            }
+        }
     )
 
     val listInstalledApps = tool(
