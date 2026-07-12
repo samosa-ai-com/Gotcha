@@ -1,7 +1,9 @@
 package com.gotcha
 
 import android.app.admin.DevicePolicyManager
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -55,24 +57,32 @@ class MainActivity : ComponentActivity() {
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
 
+    /** Used by the Settings screen to grant individual runtime permissions. */
     private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             Toast.makeText(
                 this,
-                if (granted) "Permission granted — ask the assistant again."
-                else "Permission denied. The assistant cannot perform that action.",
+                if (granted) "Permission granted."
+                else "Permission denied.",
                 Toast.LENGTH_SHORT
             ).show()
         }
 
+    /** Requests all runtime permissions at once on first launch. */
+    private val firstLaunchLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+            // No action needed; the Settings screen shows live permission state.
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleOwner = this
         settingsRepository = SettingsRepository(this)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
 
-        // Phase 7: tools report missing permissions; request them here on first use.
-        // "special:*" markers map to per-access Settings deep-links; anything else is a
-        // real runtime permission handled by the single RequestPermission launcher.
+        // Phase 7: tools report special-access markers; open Settings deep-links.
+        // Runtime permissions are no longer requested here — they are pre-configured
+        // in Settings → Permissions or auto-requested on first launch.
         lifecycleScope.launch {
             chatViewModel.permissionRequests.collect { permission ->
                 when (permission) {
@@ -118,15 +128,23 @@ class MainActivity : ComponentActivity() {
                         )
                     )
                     ToolResult.VPN_CONSENT -> VpnService.prepare(this@MainActivity)?.let {
-                        // Non-null means consent is still needed; launch the system dialog.
                         startActivity(it)
                     } ?: Toast.makeText(
                         this@MainActivity,
                         "VPN already authorized — ask the assistant again.",
                         Toast.LENGTH_SHORT
                     ).show()
-                    else -> permissionLauncher.launch(permission)
+                    // Runtime permissions are mapped in Settings → Permissions; skip here.
                 }
+            }
+        }
+
+        // Auto-request runtime permissions on first launch
+        lifecycleScope.launch {
+            val prefs = settingsRepository.prefs
+            if (!prefs.getBoolean(KEY_FIRST_LAUNCH_DONE, false)) {
+                requestAllRuntimePermissions()
+                prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
             }
         }
 
@@ -257,7 +275,8 @@ class MainActivity : ComponentActivity() {
                             }
                             Pair(ttsModels, sttModels)
                         }
-                    }
+                    },
+                    packageName = packageName
                 )
             }
             Route.SESSIONS -> {
@@ -330,5 +349,38 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Intent extra: when true, launch straight into the chat screen. */
         const val EXTRA_OPEN_CHAT = "com.gotcha.OPEN_CHAT"
+
+        /** SharedPreferences key to track first-launch permission setup. */
+        const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"
+
+        /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */
+        @Volatile
+        var lifecycleOwner: androidx.lifecycle.LifecycleOwner? = null
+            private set
+    }
+
+    /** Request all runtime permissions the app needs on first launch. */
+    private fun requestAllRuntimePermissions() {
+        val perms = mutableListOf<String>().apply {
+            add(android.Manifest.permission.CAMERA)
+            add(android.Manifest.permission.RECORD_AUDIO)
+            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            add(android.Manifest.permission.CALL_PHONE)
+            add(android.Manifest.permission.SEND_SMS)
+            add(android.Manifest.permission.READ_SMS)
+            add(android.Manifest.permission.READ_CALL_LOG)
+            add(android.Manifest.permission.READ_CONTACTS)
+            add(android.Manifest.permission.WRITE_CONTACTS)
+            add(android.Manifest.permission.READ_CALENDAR)
+            add(android.Manifest.permission.WRITE_CALENDAR)
+            if (Build.VERSION.SDK_INT <= 29) {
+                add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(android.Manifest.permission.READ_MEDIA_IMAGES)
+            }
+        }
+        firstLaunchLauncher.launch(perms.toTypedArray())
     }
 }

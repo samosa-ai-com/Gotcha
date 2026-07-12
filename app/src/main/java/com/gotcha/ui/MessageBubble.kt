@@ -1,7 +1,12 @@
 package com.gotcha.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +22,8 @@ import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.Material3RichText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,21 +33,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: UiMessage,
     onSpeak: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val isUser = message.kind == MessageKind.USER
     val isAssistant = message.kind == MessageKind.ASSISTANT
     val isTool = message.kind == MessageKind.TOOL
@@ -52,6 +63,7 @@ fun MessageBubble(
         MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
     }
     val expanded = remember { mutableStateOf(!isTool) }
+    var showMenu by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -73,7 +85,16 @@ fun MessageBubble(
             Column(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
-                    .then(if (isTool) Modifier.clickable { expanded.value = !expanded.value } else Modifier)
+                    .then(
+                        if (isTool) Modifier.combinedClickable(
+                            onClick = { expanded.value = !expanded.value },
+                            onLongClick = { showMenu = true }
+                        )
+                        else Modifier.combinedClickable(
+                            onClick = { },
+                            onLongClick = { showMenu = true }
+                        )
+                    )
                     .padding(16.dp)
             ) {
                 message.imageBase64?.let { base64 ->
@@ -146,5 +167,57 @@ fun MessageBubble(
                 }
             }
         }
+
+        // Context menu on long press
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Copy as text") },
+                onClick = {
+                    copyPlainText(context, message.text, isTool)
+                    showMenu = false
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Copy as markdown") },
+                onClick = {
+                    copyMarkdown(context, message.text, isTool)
+                    showMenu = false
+                }
+            )
+        }
     }
+}
+
+private fun copyPlainText(context: Context, text: String, isTool: Boolean) {
+    val source = if (isTool) text else text
+    val plain = stripMarkdown(source)
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("Gotcha", plain))
+    Toast.makeText(context, "Copied as plain text", Toast.LENGTH_SHORT).show()
+}
+
+private fun copyMarkdown(context: Context, text: String, isTool: Boolean) {
+    val source = if (isTool) text else text
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("Gotcha (Markdown)", source))
+    Toast.makeText(context, "Copied as markdown", Toast.LENGTH_SHORT).show()
+}
+
+private fun stripMarkdown(md: String): String {
+    return md
+        .replace(Regex("```[\\s\\S]*?```"), "")
+        .replace(Regex("`([^`]+)`"), "$1")
+        .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1")
+        .replace(Regex("__(.+?)__"), "$1")
+        .replace(Regex("\\*(.+?)\\*"), "$1")
+        .replace(Regex("_(.+?)_"), "$1")
+        .replace(Regex("~~(.+?)~~"), "$1")
+        .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")
+        .replace(Regex("!\\[([^]]*)]\\([^)]+\\)"), "$1")
+        .replace(Regex("^###?\\s+", RegexOption.MULTILINE), "")
+        .replace(Regex("^>\\s+", RegexOption.MULTILINE), "")
+        .trim()
 }

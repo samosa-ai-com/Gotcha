@@ -1,7 +1,10 @@
 package com.gotcha.tools
 
 import android.content.Context
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -18,10 +21,11 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class ToolExecutor(context: Context) {
 
+    private val TAG = "Gotcha"
     private val appContext = context.applicationContext
     private val phoneTool = PhoneTool(appContext)
     private val systemTool = SystemTool(appContext)
-    private val storageTool = StorageTool(appContext)
+    private val storageTool = StorageTool()
     private val fileTool = FileTool(appContext)
     private val terminalTool = TerminalTool()
     private val wallpaperTool = WallpaperTool(appContext)
@@ -42,7 +46,6 @@ class ToolExecutor(context: Context) {
     private val editTool = EditTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
-    private val visionTool = VisionTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
@@ -68,11 +71,39 @@ class ToolExecutor(context: Context) {
         }
         val result = try {
             withContext(Dispatchers.IO) { dispatch(name, args) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             ToolResult.error("Tool '$name' failed: ${e.message}")
         }
+        // Do not log result.message — tool payloads can contain sensitive user data
+        // (SMS bodies, clipboard text, file contents, location, etc.).
+        Log.d(TAG, "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}")
         actionLog.record(name, args.toString(), result)
         return result
+    }
+
+    /**
+     * Execute an uninstall that was already confirmed by the user.
+     * Bypasses the destructive-action confirmation flow.
+     */
+    suspend fun executeUninstall(packageName: String): ToolResult {
+        Log.d(TAG, "executeUninstall: $packageName")
+        val result = withContext(Dispatchers.IO) { appsTool.doUninstall(packageName) }
+        actionLog.record("uninstall_app", packageName, result)
+        return result
+    }
+
+    suspend fun executeDeleteAlarm(id: Long): ToolResult {
+        return withContext(Dispatchers.IO) { alarmTool.doDeleteAlarm(id) }
+    }
+
+    suspend fun executeDeleteTimer(id: Long): ToolResult {
+        return withContext(Dispatchers.IO) { alarmTool.doDeleteTimer(id) }
+    }
+
+    suspend fun executeDeleteCalendarEvent(eventId: Long): ToolResult {
+        return withContext(Dispatchers.IO) { calendarTool.doDeleteEvent(eventId) }
     }
 
     private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
@@ -80,80 +111,180 @@ class ToolExecutor(context: Context) {
         "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
         "get_storage_info" -> storageTool.getStorageInfo()
         "get_battery_info" -> systemTool.getBatteryInfo()
-        "clear_app_cache" -> storageTool.clearAppCache()
         "edit" -> editTool.edit(
             path = args.requireString("path") ?: return missing("path"),
             oldString = args.requireString("oldString") ?: return missing("oldString"),
             newString = args.requireString("newString") ?: return missing("newString"),
             replaceAll = args["replaceAll"]?.jsonPrimitive?.booleanOrNull ?: false
         )
-        "list_files" -> fileTool.listFiles(args.requireString("path") ?: return missing("path"))
-        "read_file" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
+        "list_files" -> fileTool.listFiles(
+            path = args.requireString("path") ?: return missing("path"),
+            recursive = args["recursive"]?.jsonPrimitive?.booleanOrNull ?: false,
+            sortBy = args.requireString("sort_by"),
+            include = args.requireString("include"),
+            exclude = args.requireString("exclude"),
+            maxDepth = args.requireInt("max_depth")
+        )
+        "read_file" -> fileTool.readFile(
+            path = args.requireString("path") ?: return missing("path"),
+            offset = args.requireInt("offset"),
+            limit = args.requireInt("limit"),
+            encoding = args.requireString("encoding")
+        )
         "write_file" -> fileTool.writeFile(
             path = args.requireString("path") ?: return missing("path"),
             content = args.requireString("content") ?: return missing("content"),
-            append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false
+            append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false,
+            binary = args["binary"]?.jsonPrimitive?.booleanOrNull ?: false
         )
         "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
-        "toggle_dark_mode" -> systemTool.toggleDarkMode(
-            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
-        )
         "set_brightness" -> systemTool.setBrightness(
             args["percent"]?.jsonPrimitive?.intOrNull ?: return missing("percent")
         )
-        "toggle_wifi" -> systemTool.toggleWifi()
+        "toggle_wifi" -> systemTool.toggleWifi(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
         "set_wallpaper" -> wallpaperTool.setWallpaper(args.requireString("url"))
-        "run_command" -> terminalTool.runCommand(args.requireString("command") ?: return missing("command"))
-        "call_number" -> phoneTool.callNumber(args.requireString("number") ?: return missing("number"))
-        "read_call_log" -> phoneTool.readCallLog(args.requireInt("limit") ?: 10)
-        "find_contact" -> contactsTool.findContact(args.requireString("name") ?: return missing("name"))
+        "run_command" -> terminalTool.runCommand(
+            command = args.requireString("command") ?: return missing("command"),
+            workingDir = args.requireString("working_dir"),
+            timeoutSeconds = args.requireInt("timeout_seconds") ?: 15
+        )
+        "call_number" -> phoneTool.callNumber(
+            args.requireString("number") ?: return missing("number"),
+            speakerphone = args["speakerphone"]?.jsonPrimitive?.booleanOrNull,
+            simSlot = args.requireString("sim_slot")
+        )
+        "read_call_log" -> phoneTool.readCallLog(
+            limit = args.requireInt("limit") ?: 10,
+            callTypeFilter = args.requireString("type"),
+            contact = args.requireString("contact"),
+            fromDate = args.requireString("from_date"),
+            toDate = args.requireString("to_date")
+        )
+        "find_contact" -> contactsTool.findContact(
+            name = args.requireString("name"),
+            number = args.requireString("number")
+        )
         "add_contact" -> contactsTool.addContact(
             name = args.requireString("name") ?: return missing("name"),
-            number = args.requireString("number") ?: return missing("number")
+            number = args.requireString("number") ?: return missing("number"),
+            phoneType = args.requireString("phone_type"),
+            email = args.requireString("email"),
+            organization = args.requireString("organization")
         )
         "send_sms" -> smsTool.sendSms(
             number = args.requireString("number") ?: return missing("number"),
-            message = args.requireString("message") ?: return missing("message")
+            message = args.requireString("message") ?: return missing("message"),
+            deliveryReport = args["delivery_report"]?.jsonPrimitive?.booleanOrNull,
+            sendAt = args.requireString("send_at")
         )
-        "read_recent_sms" -> smsTool.readRecentSms(args.requireInt("limit") ?: 10)
-        "list_calendar_events" -> calendarTool.listEvents(args.requireInt("days_ahead") ?: 7)
+        "read_recent_sms" -> smsTool.readRecentSms(
+            limit = args.requireInt("limit") ?: 10,
+            fromAddress = args.requireString("from_address"),
+            fromDate = args.requireString("from_date"),
+            toDate = args.requireString("to_date"),
+            unreadOnly = args["unread_only"]?.jsonPrimitive?.booleanOrNull,
+            search = args.requireString("search"),
+            includeSent = args["include_sent"]?.jsonPrimitive?.booleanOrNull
+        )
+        "list_calendar_events" -> calendarTool.listEvents(
+            daysAhead = args.requireInt("days_ahead"),
+            fromDate = args.requireString("from_date"),
+            toDate = args.requireString("to_date"),
+            search = args.requireString("search")
+        )
         "create_calendar_event" -> calendarTool.createEvent(
             title = args.requireString("title") ?: return missing("title"),
             start = args.requireString("start") ?: return missing("start"),
             end = args.requireString("end"),
-            location = args.requireString("location")
+            location = args.requireString("location"),
+            description = args.requireString("description"),
+            allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
+            reminderMinutes = args.requireInt("reminder_minutes"),
+            calendarName = args.requireString("calendar_name")
+        )
+        "edit_calendar_event" -> calendarTool.editEvent(
+            eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id"),
+            title = args.requireString("title"),
+            start = args.requireString("start"),
+            end = args.requireString("end"),
+            location = args.requireString("location"),
+            description = args.requireString("description"),
+            allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
+            reminderMinutes = args.requireInt("reminder_minutes")
+        )
+        "delete_calendar_event" -> calendarTool.deleteEvent(
+            eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id")
         )
         "set_alarm" -> alarmTool.setAlarm(
             hour = args.requireInt("hour") ?: return missing("hour"),
             minute = args.requireInt("minute") ?: return missing("minute"),
-            message = args.requireString("message")
+            message = args.requireString("message"),
+            days = args["days"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
+            vibrate = args["vibrate"]?.jsonPrimitive?.booleanOrNull
         )
         "set_timer" -> alarmTool.setTimer(
-            seconds = args.requireInt("seconds") ?: return missing("seconds"),
-            message = args.requireString("message")
+            seconds = args.requireInt("seconds") ?: 0,
+            message = args.requireString("message"),
+            hours = args.requireInt("hours"),
+            minutes = args.requireInt("minutes")
+        )
+        "list_alarms" -> alarmTool.listAlarms()
+        "list_timers" -> alarmTool.listTimers()
+        "edit_alarm" -> alarmTool.editAlarm(
+            id = args.requireInt("alarm_id")?.toLong() ?: return missing("alarm_id"),
+            hour = args.requireInt("hour"),
+            minute = args.requireInt("minute"),
+            message = args.requireString("message"),
+            days = args["days"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
+            vibrate = args["vibrate"]?.jsonPrimitive?.booleanOrNull
+        )
+        "delete_alarm" -> alarmTool.deleteAlarm(
+            id = args.requireInt("alarm_id")?.toLong() ?: return missing("alarm_id")
+        )
+        "delete_timer" -> alarmTool.deleteTimer(
+            id = args.requireInt("timer_id")?.toLong() ?: return missing("timer_id")
         )
         "toggle_torch" -> deviceTool.toggleTorch(
-            args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on")
+            on = args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on"),
+            durationSeconds = args.requireInt("duration_seconds")
         )
         "set_volume" -> deviceTool.setVolume(
             stream = args.requireString("stream") ?: return missing("stream"),
-            percent = args.requireInt("percent") ?: return missing("percent")
+            percent = args.requireInt("percent") ?: return missing("percent"),
+            showUi = args["show_ui"]?.jsonPrimitive?.booleanOrNull ?: false
         )
+        "get_volume" -> deviceTool.getVolume(args.requireString("stream"))
         "set_ringer_mode" -> deviceTool.setRingerMode(args.requireString("mode") ?: return missing("mode"))
-        "vibrate" -> deviceTool.vibrate(args.requireInt("duration_ms") ?: 500)
+        "vibrate" -> deviceTool.vibrate(
+            durationMs = args.requireInt("duration_ms") ?: 500,
+            intensity = args.requireInt("intensity") ?: 100,
+            pattern = args.requireString("pattern")
+        )
         "set_dnd" -> deviceTool.setDnd(
             args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
         )
-        "get_location" -> locationTool.getLocation()
-        "list_installed_apps" -> appsTool.listInstalledApps()
+        "get_location" -> locationTool.getLocation(
+            fresh = args["fresh"]?.jsonPrimitive?.booleanOrNull
+        )
+        "list_installed_apps" -> appsTool.listInstalledApps(args.requireString("search"))
         "uninstall_app" -> appsTool.uninstallApp(args.requireString("package_name") ?: return missing("package_name"))
         "get_app_usage" -> appsTool.getAppUsage(args.requireInt("days") ?: 7)
         "get_data_usage" -> appsTool.getDataUsage(args.requireInt("days") ?: 30)
         "get_clipboard" -> clipboardTool.getClipboard()
         "set_clipboard" -> clipboardTool.setClipboard(args.requireString("text") ?: return missing("text"))
-        "take_photo" -> mediaCaptureTool.takePhoto()
-        "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
+        "take_photo" -> mediaCaptureTool.takePhoto(args.requireString("camera"))
+        "start_audio_recording" -> mediaCaptureTool.startAudioRecording(
+            source = args.requireString("source"),
+            maxDurationSeconds = args.requireInt("max_duration_seconds"),
+            outputPath = args.requireString("output_path"),
+            quality = args.requireString("quality")
+        )
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        "get_audio_recording_status" -> mediaCaptureTool.getAudioRecordingStatus()
+        "pause_audio_recording" -> mediaCaptureTool.pauseAudioRecording()
+        "resume_audio_recording" -> mediaCaptureTool.resumeAudioRecording()
         "question" -> questionTool.ask(
             question = args.requireString("question") ?: return missing("question"),
             options = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
@@ -170,7 +301,16 @@ class ToolExecutor(context: Context) {
         "todowrite" -> todoTool.todowrite(
             parseTodoItems(args["items"]) ?: return missing("items")
         )
-        "read_image" -> visionTool.readImage(args.requireString("path") ?: return missing("path"))
+        "sleep" -> {
+            val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
+                ?: return missing("duration_seconds")
+            for (remaining in secs downTo 1) {
+                Log.d(TAG, "sleep: ${remaining}s remaining")
+                delay(1000L)
+            }
+            ToolResult.ok("Slept for $secs seconds.")
+        }
+        "read_image" -> fileTool.readFile(args.requireString("path") ?: return missing("path"))
         "glob" -> globTool.glob(
             path = args.requireString("path") ?: return missing("path"),
             pattern = args.requireString("pattern") ?: return missing("pattern")

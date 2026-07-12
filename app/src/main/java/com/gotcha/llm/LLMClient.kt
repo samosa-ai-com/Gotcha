@@ -42,10 +42,9 @@ class LLMClient(
             .readTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .writeTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
+                val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")
-                    .build()
-                chain.proceed(request)
+                chain.proceed(builder.build())
             }
             .addInterceptor(logging)
             .build()
@@ -64,7 +63,8 @@ class LLMClient(
     suspend fun chat(
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
-        temperature: Float? = null
+        temperature: Float? = null,
+        sessionId: String? = null
     ): ChatResponse {
         val cacheKey = buildCacheKey(model, messages, tools)
 
@@ -76,10 +76,11 @@ class LLMClient(
             model = model,
             messages = messages,
             tools = tools.ifEmpty { null },
-            temperature = temperature
+            temperature = temperature,
+            promptCacheKey = sessionId
         )
 
-        val response = apiService.chat(request)
+        val response = apiService.chat(request, sessionId)
 
         val shouldCache = (temperature == null || temperature == 0f)
                 && response.choices.isNotEmpty()

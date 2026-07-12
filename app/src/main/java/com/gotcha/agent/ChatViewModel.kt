@@ -4,6 +4,7 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioProvider
@@ -19,6 +20,7 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
+import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -41,6 +43,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 
 enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
@@ -71,7 +75,7 @@ data class PendingQuestion(
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val isBusy: Boolean = false,
-    val activity: String? = null, // e.g. "Running: toggle_dark_mode…"
+    val activity: String? = null, // e.g. "Running: set_brightness…"
     val pendingConfirmation: PendingConfirmation? = null,
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
@@ -87,6 +91,7 @@ data class ChatUiState(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val TAG = "Gotcha"
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val toolExecutor = ToolExecutor(application)
@@ -141,6 +146,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 activeSessionId = java.util.UUID.randomUUID().toString()
                 activeSessionTokenCount = 0
             }
+            setupWorkingDir(activeSessionId!!)
             _uiState.update { it.copy(activeSessionId = activeSessionId) }
             updateContextUsage()
             rebuildUiMessages()
@@ -274,8 +280,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     getApplication(), perm
                 ) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 if (!granted) {
-                    _permissionRequests.tryEmit(perm)
-                    appendUi(MessageKind.ERROR, "Microphone permission needed for speech input.")
+                    appendUi(MessageKind.ERROR, "Microphone permission not granted. Enable it in Settings → Permissions.")
                     return
                 }
                 val started = sttEngine.startAndroidListening()
@@ -374,6 +379,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         nextId = 0
         activeSessionId = java.util.UUID.randomUUID().toString()
         activeSessionTokenCount = 0
+        setupWorkingDir(activeSessionId!!)
         _uiState.update { it.copy(messages = emptyList(), activeSessionId = activeSessionId) }
         updateContextUsage()
     }
@@ -397,6 +403,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     activeSessionId = session.id
                     activeSessionTokenCount = session.tokenCount
                     nextId = 0
+                    setupWorkingDir(session.id)
                     updateContextUsage()
                     rebuildUiMessages()
                 }
@@ -483,13 +490,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun runToolLoop() {
         val llm = client ?: return
         val agent = _uiState.value.activeAgent
+        val sessionId = activeSessionId ?: "unknown"
         checkAndCompactHistory(llm)
         repeat(settings.maxToolRounds) { iteration ->
-            if (iteration > 0) delay(INTER_CALL_DELAY_MS) // throttle (PRD §11.2 #7)
+            if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             _uiState.update { it.copy(activity = "Thinking…") }
 
+            // Build message array optimized for prompt caching:
+            //   1. Base environment block (identical across agent switches
+            //      except for a single "Active agent: X" line)
+            //   2. Full conversation history (unchanged on switch)
+            //   3. Agent instructions at the tail (changes on switch, keeps
+            //      the prefix [base env + history] in the KV cache)
+            val messages = buildList {
+                add(baseEnvironmentBlock(agent))
+                addAll(trimmedHistory())
+                addAll(agentInstructionMessages(agent))
+            }
             val response = try {
-                llm.chat(systemPrompt(agent) + trimmedHistory(), ToolRegistry.toolsForAgent(agent))
+                llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -528,49 +547,74 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val decision = requestConfirmation(toolCalls)
-            for (call in toolCalls) {
-                val result = when (decision) {
-                    ConfirmDecision.APPROVED -> executeCall(call)
-                    ConfirmDecision.DENIED ->
-                        ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
-                    ConfirmDecision.TIMED_OUT -> ToolResult.error(
-                        "Confirmation for '${call.function.name}' timed out with no response. " +
-                            "Do not retry automatically; tell the user to ask again when ready."
-                    )
-                }
-                if (result.success && result.message.startsWith("IMAGE_DATA:")) {
-                    handleImageResult(call, result)
-                } else if (result.success && result.message.startsWith("QUESTION:")) {
-                    handleQuestionResult(call, result)
-                } else {
-                    llmHistory += ChatMessage(
-                        role = "tool",
-                        content = JsonPrimitive(result.message),
-                        toolCallId = call.id
-                    )
-                    appendUi(
-                        if (result.success) MessageKind.TOOL else MessageKind.ERROR,
-                        "${call.function.name}: ${result.message}"
-                    )
-                }
-                // Automatic screenshot injection: when read_screen succeeds,
-                // capture a screenshot and inject it as vision context so the LLM
-                // can "see" the screen alongside the accessibility text dump.
-                if (result.success && call.function.name == "read_screen") {
-                    val screenshotBase64 = captureScreenshotBase64()
-                    if (screenshotBase64 != null) {
-                        val screenText = result.message.take(500)
-                        val visionMsg = visionUserMessage(
-                            "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
-                                "Use it together with the screen text to understand the current screen.",
-                            screenshotBase64, "png"
+            suspend fun executeToolCalls() {
+                for (call in toolCalls) {
+                    var result = when (decision) {
+                        ConfirmDecision.APPROVED -> executeCall(call)
+                        ConfirmDecision.DENIED ->
+                            ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
+                        ConfirmDecision.TIMED_OUT -> ToolResult.error(
+                            "Confirmation for '${call.function.name}' timed out with no response. " +
+                                "Do not retry automatically; tell the user to ask again when ready."
                         )
-                        llmHistory.add(visionMsg)
-                        appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                    }
+
+                    // Special-access markers: emit the marker and continue.
+                    // Runtime permissions are pre-configured in Settings — the tool
+                    // already returned an error message with guidance if one is missing.
+                    val perm = result.needsPermission
+                    if (perm != null && perm.startsWith("special:")) {
+                        _permissionRequests.tryEmit(perm)
+                    }
+
+                    if (result.success && result.message.startsWith("IMAGE_DATA:")) {
+                        handleImageResult(call, result)
+                    } else if (result.success && result.message.startsWith("BINARY_DATA:")) {
+                        handleBinaryResult(call, result)
+                    } else if (result.success && result.message.startsWith("QUESTION:")) {
+                        handleQuestionResult(call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
+                        handleUninstallConfirm(call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_DELETE_ALARM:")) {
+                        handleDeleteConfirm("CONFIRM_DELETE_ALARM:", "alarm", call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_DELETE_TIMER:")) {
+                        handleDeleteConfirm("CONFIRM_DELETE_TIMER:", "timer", call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_DELETE_CALENDAR_EVENT:")) {
+                        handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
+                    } else {
+                        llmHistory += ChatMessage(
+                            role = "tool",
+                            content = JsonPrimitive(result.message),
+                            toolCallId = call.id
+                        )
+                        appendUi(
+                            if (result.success) MessageKind.TOOL else MessageKind.ERROR,
+                            "${call.function.name}: ${result.message}"
+                        )
+                    }
+                    // Automatic screenshot injection: when read_screen succeeds,
+                    // capture a screenshot and inject it as vision context so the LLM
+                    // can "see" the screen alongside the accessibility text dump.
+                    if (result.success && call.function.name == "read_screen") {
+                        val screenshotBase64 = captureScreenshotBase64()
+                        if (screenshotBase64 != null) {
+                            val screenText = result.message.take(500)
+                            val visionMsg = visionUserMessage(
+                                "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
+                                    "Use it together with the screen text to understand the current screen.",
+                                screenshotBase64, "png"
+                            )
+                            llmHistory.add(visionMsg)
+                            appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                        }
+                    }
+                    // Special-access markers: emit and continue (no wait needed since they open Settings)
+                    if (perm != null && perm.startsWith("special:")) {
+                        _permissionRequests.tryEmit(perm)
                     }
                 }
-                result.needsPermission?.let { _permissionRequests.tryEmit(it) }
             }
+            executeToolCalls()
             saveCurrentSession()
         }
         appendUi(
@@ -580,54 +624,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Gates sensitive tool calls behind user approval. When Gotcha is in the
-     * foreground the in-app Compose dialog is used; when it has been backgrounded (e.g.
-     * after `open_app` launched another app) a floating overlay is shown instead so the
-     * prompt is visible over that app rather than hidden behind it. Either way the wait
-     * is bounded by [CONFIRM_TIMEOUT_MS] so the tool loop can never hang indefinitely.
+     * Sensitive-action confirmation is disabled. Permissions are pre-configured
+     * in Settings → Permissions. Only destructive tools (e.g. uninstall_app)
+     * have their own dedicated confirmation flow via [executeCall].
      */
-    private suspend fun requestConfirmation(toolCalls: List<ToolCall>): ConfirmDecision {
-        // Monitor mode tools are read-only — no confirmation needed
-        if (_uiState.value.activeAgent == AgentMode.MONITOR) return ConfirmDecision.APPROVED
-        if (!settings.confirmSensitiveActions) return ConfirmDecision.APPROVED
-        val sensitive = toolCalls.filter { ToolRegistry.isSensitive(it.function.name) }
-        if (sensitive.isEmpty()) return ConfirmDecision.APPROVED
-
-        val names = sensitive.map { it.function.name }
-        val description = sensitive.joinToString("\n") { c ->
-            "${c.function.name}(${c.function.arguments.take(200)})"
-        }
-
-        val gate = CompletableDeferred<Boolean>()
-        confirmationGate = gate
-
-        val useOverlay = !appInForeground && confirmationOverlay.canShow()
-        if (useOverlay) {
-            confirmationOverlay.show(
-                summary = "Allow these actions?\n$description",
-                onAllow = { confirmPendingActions(true) },
-                onDeny = { confirmPendingActions(false) }
-            )
-        } else {
-            _uiState.update {
-                it.copy(
-                    activity = null,
-                    pendingConfirmation = PendingConfirmation(names, description)
-                )
-            }
-        }
-
-        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() }
-
-        confirmationOverlay.dismiss()
-        _uiState.update { it.copy(pendingConfirmation = null) }
-        confirmationGate = null
-
-        return when (approved) {
-            true -> ConfirmDecision.APPROVED
-            false -> ConfirmDecision.DENIED
-            null -> ConfirmDecision.TIMED_OUT
-        }
+    private suspend fun requestConfirmation(@Suppress("UNUSED_PARAMETER") toolCalls: List<ToolCall>): ConfirmDecision {
+        return ConfirmDecision.APPROVED
     }
 
     /**
@@ -674,6 +676,38 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             toolCallId = call.id
         )
         appendUi(MessageKind.TOOL, "${call.function.name}: Read image $filename ($dimensions)")
+    }
+
+    /**
+     * Handles a tool result that contains binary data (prefixed with BINARY_DATA:).
+     * Format: BINARY_DATA:<mime>:<bytes>:<filename>:<base64>
+     * Stores a text summary in history; the raw base64 is available if needed.
+     */
+    private fun handleBinaryResult(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("BINARY_DATA:")
+        val parts = body.split(":", limit = 4)
+        if (parts.size < 4) {
+            llmHistory += ChatMessage(
+                role = "tool", content = JsonPrimitive("Failed to parse binary data."),
+                toolCallId = call.id
+            )
+            return
+        }
+        val mime = parts[0]
+        val bytesStr = parts[1]
+        val filename = parts[2]
+        val fileSize = try { bytesStr.toLong() } catch (_: Exception) { 0L }
+        val sizeDisplay = when {
+            fileSize >= 1024 * 1024 -> "${fileSize / (1024 * 1024)} MB"
+            fileSize >= 1024 -> "${fileSize / 1024} KB"
+            else -> "$fileSize B"
+        }
+        llmHistory += ChatMessage(
+            role = "tool",
+            content = JsonPrimitive("Read binary file: $filename ($mime, $sizeDisplay)"),
+            toolCallId = call.id
+        )
+        appendUi(MessageKind.TOOL, "${call.function.name}: Read $filename ($mime)")
     }
 
     /**
@@ -727,6 +761,92 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * Handles a tool result prefixed with CONFIRM_UNINSTALL:label:package.
+     * Shows a confirmation dialog, and if approved, executes the actual uninstall.
+     */
+    private suspend fun handleUninstallConfirm(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("CONFIRM_UNINSTALL:")
+        val parts = body.split(":", limit = 2)
+        if (parts.size < 2) {
+            llmHistory += ChatMessage(
+                role = "tool", content = JsonPrimitive("Failed to parse uninstall confirmation."),
+                toolCallId = call.id
+            )
+            appendUi(MessageKind.ERROR, "${call.function.name}: Failed to parse uninstall confirmation.")
+            return
+        }
+        val label = parts[0]
+        val pkg = parts[1]
+        Log.d(TAG, "handleUninstallConfirm: label=$label pkg=$pkg")
+        val description = "Request to uninstall \"$label\". After you approve, a system dialog will open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
+        val gate = CompletableDeferred<Boolean>()
+        confirmationGate = gate
+        _uiState.update { it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("uninstall_app"), description)) }
+
+        val approved = withTimeoutOrNull(120_000L) { gate.await() } ?: false
+        confirmationOverlay.dismiss()
+        _uiState.update { it.copy(pendingConfirmation = null) }
+        confirmationGate = null
+
+        if (approved) {
+            val actualResult = toolExecutor.executeUninstall(pkg)
+            llmHistory += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(actualResult.message),
+                toolCallId = call.id
+            )
+            appendUi(
+                if (actualResult.success) MessageKind.TOOL else MessageKind.ERROR,
+                "Uninstalling $label: ${actualResult.message}"
+            )
+        } else {
+            val msg = "User declined to uninstall $label."
+            llmHistory += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(msg),
+                toolCallId = call.id
+            )
+            appendUi(MessageKind.TOOL, "${call.function.name}: $msg")
+        }
+    }
+
+    private suspend fun handleDeleteConfirm(confirmPrefix: String, kind: String, call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix(confirmPrefix)
+        val parts = body.split(":", limit = 2)
+        val id = parts[0]
+        val label = parts.getOrElse(1) { kind }
+        val description = "Request to delete $kind \"$label\" (#$id). This action is irreversible."
+        val gate = CompletableDeferred<Boolean>()
+        confirmationGate = gate
+        _uiState.update { it.copy(activity = null, pendingConfirmation = PendingConfirmation(listOf("delete_$kind"), description)) }
+
+        val approved = withTimeoutOrNull(120_000L) { gate.await() } ?: false
+        confirmationOverlay.dismiss()
+        _uiState.update { it.copy(pendingConfirmation = null) }
+        confirmationGate = null
+
+        val actualResult = if (approved) {
+            when (kind) {
+                "alarm" -> toolExecutor.executeDeleteAlarm(id.toLong())
+                "timer" -> toolExecutor.executeDeleteTimer(id.toLong())
+                "calendar_event" -> toolExecutor.executeDeleteCalendarEvent(id.toLong())
+                else -> return
+            }
+        } else null
+
+        val msg = if (actualResult != null) {
+            actualResult.message
+        } else {
+            "User declined to delete $kind $label."
+        }
+        llmHistory += ChatMessage(role = "tool", content = JsonPrimitive(msg), toolCallId = call.id)
+        appendUi(
+            if (actualResult?.success != false) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: $msg"
+        )
+    }
+
     private suspend fun executeCall(call: ToolCall): ToolResult {
         _uiState.update { it.copy(activity = "Running: ${call.function.name}…") }
         val args: JsonObject = try {
@@ -738,26 +858,59 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Assembles the system prompt for the given [agent] mode.
-     * Contains the environment block, core prompt, and agent-mode reminder.
-     * Follows the Open Code pattern from PRD §14.
+     * Sets up the per-chat working directory at:
+     *   /storage/emulated/0/Gotcha/chats/{sessionId}/
+     *
+     * Updates [FileResolver.WORKING_DIR_BASE] so file tools resolve relative
+     * paths against this directory.
      */
-    private fun systemPrompt(agent: AgentMode): List<ChatMessage> {
-        val env = buildEnvironmentBlock(agent)
+    private fun setupWorkingDir(sessionId: String) {
+        val base = "/storage/emulated/0/Gotcha/chats/$sessionId"
+        val dir = java.io.File(base)
+        if (!dir.exists()) dir.mkdirs()
+        FileResolver.WORKING_DIR_BASE = dir.absolutePath
+        Log.d(TAG, "setupWorkingDir: ${dir.absolutePath}")
+    }
+
+    /**
+     * Environment block sent as the first system message.
+     * Only one line ("Active agent: X") differs between Monitor and Operator,
+     * so the server KV cache for this ~300-token prefix is mostly preserved
+     * across agent switches.
+     */
+    private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
+        return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
+    }
+
+    /**
+     * Agent-specific core prompt + system-reminder, sent at the tail of the
+     * message array (right before the latest user message).  Placing these
+     * after the conversation history ensures the [baseEnvironmentBlock] +
+     * history prefix stays in the KV cache when the user switches agents.
+     */
+    private fun agentInstructionMessages(agent: AgentMode): List<ChatMessage> {
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
                 "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
                 "delete anything. You control the device only through the provided tools; never " +
                 "invent tool names or capabilities. If a tool reports a missing permission, " +
-                "explain what to grant and ask again. Keep replies short and conversational."
+                "explain what to grant and ask again. Use the sleep tool to pause and wait " +
+                "between operations. Keep replies short and conversational."
             AgentMode.OPERATOR ->
                 "You are Operator, an AI assistant running on the user's Android phone. " +
                 "You can inspect, read, query, create, modify, and delete on the device. " +
                 "You control the device only through the provided tools; never invent tool " +
                 "names or capabilities. If a tool reports a missing permission, explain what " +
                 "to grant and ask again. After changing device state, confirm what was done. " +
-                "Keep replies short and conversational. Be careful with destructive actions."
+                "Use the sleep tool to pause and wait between operations (e.g. wait for " +
+                "a recording to finish before reading it). " +
+                "Keep replies short and conversational. Be careful with destructive actions.\n" +
+                "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
+                "When using uninstall_app: after calling it, the system will open a dialog. " +
+                "Tell the user to tap OK in the system dialog to finish the uninstall. " +
+                "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +
+                "use uninstall_app only."
         }
         val reminder = when (agent) {
             AgentMode.MONITOR ->
@@ -775,14 +928,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "actions — confirm with the user when the result seems significant.\n" +
                 "</system-reminder>"
         }
-        return listOf(ChatMessage(role = "system", content = JsonPrimitive(env + "\n\n" + core + reminder)))
+        return listOf(
+            ChatMessage(role = "system", content = JsonPrimitive(core + reminder))
+        )
     }
 
     /**
-     * Builds the environment block with device info, date/time, agent mode,
-     * and service statuses (PRD §14.1).
+     * Builds the environment info string with device info, date/time, agent mode,
+     * and service statuses (PRD §14.1).  Only varies by a single "Active agent: X" line.
      */
-    private fun buildEnvironmentBlock(agent: AgentMode): String {
+    private fun buildEnvironmentString(agent: AgentMode): String {
         val app = getApplication<Application>()
         val pm = app.packageManager
         val versionName = try {
@@ -835,6 +990,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
             appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
             appendLine("  App version: $versionName")
+            appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
+            appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
             append("</env>")
         }
     }
