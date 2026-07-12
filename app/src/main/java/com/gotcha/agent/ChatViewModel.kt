@@ -861,6 +861,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "names or capabilities. If a tool reports a missing permission, explain what " +
                 "to grant and ask again. After changing device state, confirm what was done. " +
                 "Keep replies short and conversational. Be careful with destructive actions.\n" +
+                "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
                 "When using uninstall_app: after calling it, the system will open a dialog. " +
                 "Tell the user to tap OK in the system dialog to finish the uninstall. " +
                 "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +
