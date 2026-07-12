@@ -129,20 +129,6 @@ object ToolDefinitions {
         }
     )
 
-    val toggleDarkMode = tool(
-        "toggle_dark_mode",
-        "Enable or disable dark theme for this app (and the system where supported).",
-        schema {
-            putJsonObject("properties") {
-                putJsonObject("enabled") {
-                    put("type", "boolean")
-                    put("description", "true for dark, false for light")
-                }
-            }
-            putJsonArray("required") { add("enabled") }
-        }
-    )
-
     val setBrightness = tool(
         "set_brightness",
         "Set the screen brightness to a percentage between 0 and 100. Requires the 'Modify system settings' special access.",
@@ -159,8 +145,17 @@ object ToolDefinitions {
 
     val toggleWifi = tool(
         "toggle_wifi",
-        "Open the system Wi-Fi settings panel so the user can toggle Wi-Fi (apps cannot toggle it directly on modern Android).",
-        schema { putJsonObject("properties") {} }
+        "Turn Wi-Fi on or off directly (on Android 13+) or open the Wi-Fi settings panel for the " +
+            "user to toggle it (older Android). Reports whether Wi-Fi is currently enabled.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("enabled") {
+                    put("type", "boolean")
+                    put("description", "true to turn Wi-Fi on, false to turn it off")
+                }
+            }
+            putJsonArray("required") { add("enabled") }
+        }
     )
 
     val setWallpaper = tool(
@@ -381,12 +376,17 @@ object ToolDefinitions {
 
     val toggleTorch = tool(
         "toggle_torch",
-        "Turn the camera flashlight (torch) on or off.",
+        "Turn the camera flashlight (torch) on or off. If the flashlight is already in the " +
+            "requested state, reports that without error.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("on") {
                     put("type", "boolean")
                     put("description", "true to turn the flashlight on, false to turn it off.")
+                }
+                putJsonObject("duration_seconds") {
+                    put("type", "integer")
+                    put("description", "Optional: auto-turn off after this many seconds (1-300). Only applies when turning on.")
                 }
             }
             putJsonArray("required") { add("on") }
@@ -395,7 +395,8 @@ object ToolDefinitions {
 
     val setVolume = tool(
         "set_volume",
-        "Set a volume stream to a percentage. Streams: media, ring, alarm, notification, call.",
+        "Set a volume stream to a percentage (0-100). Use 0 to mute or 100 for max volume. " +
+            "Streams: media, ring, alarm, notification, call. Reports the previous and new volume levels.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("stream") {
@@ -404,12 +405,30 @@ object ToolDefinitions {
                 }
                 putJsonObject("percent") {
                     put("type", "integer")
-                    put("description", "Target volume 0-100.")
+                    put("description", "Target volume 0-100 (0 = mute, 100 = max).")
+                }
+                putJsonObject("show_ui") {
+                    put("type", "boolean")
+                    put("description", "Show the volume slider briefly. Default false.")
                 }
             }
             putJsonArray("required") {
                 add("stream")
                 add("percent")
+            }
+        }
+    )
+
+    val getVolume = tool(
+        "get_volume",
+        "Read the current volume level (0-100) of a stream, or all streams if none is specified. " +
+            "Streams: media, ring, alarm, notification, call. Reports each stream's current percentage.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("stream") {
+                    put("type", "string")
+                    put("description", "Which stream to read: media, ring, alarm, notification, call. If omitted, all streams are reported.")
+                }
             }
         }
     )
@@ -430,12 +449,21 @@ object ToolDefinitions {
 
     val vibrate = tool(
         "vibrate",
-        "Vibrate the device for a short duration.",
+        "Vibrate the device. Supports custom intensity and predefined patterns. " +
+            "Use for haptic feedback, notifications, alerts, or attention-getting.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("duration_ms") {
                     put("type", "integer")
-                    put("description", "Vibration length in milliseconds (1-5000). Default 500.")
+                    put("description", "Vibration length in milliseconds (1-5000). Default 500. Ignored when pattern is set.")
+                }
+                putJsonObject("intensity") {
+                    put("type", "integer")
+                    put("description", "Vibration strength 0-100 (0 = none, 100 = max). Default 100.")
+                }
+                putJsonObject("pattern") {
+                    put("type", "string")
+                    put("description", "Predefined pattern: short (100ms), long (1s), double (two quick buzzes), sos (...---...). Overrides duration_ms.")
                 }
             }
         }
@@ -1003,12 +1031,12 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
-        openApp, toggleDarkMode, setBrightness, toggleWifi,
+        openApp, setBrightness, toggleWifi,
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,
         listCalendarEvents, createCalendarEvent, setAlarm, setTimer,
-        toggleTorch, setVolume, setRingerMode, vibrate, setDnd,
+        toggleTorch, setVolume, getVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
         // User interaction

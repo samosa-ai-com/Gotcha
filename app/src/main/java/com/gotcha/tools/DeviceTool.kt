@@ -6,29 +6,45 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 
 class DeviceTool(private val context: Context) {
 
-    /** Turn the camera flash on or off (no permission needed for CameraManager.setTorchMode). */
-    fun toggleTorch(on: Boolean): ToolResult {
+    /** Turn the camera flash on or off. No permission needed for CameraManager.setTorchMode. */
+    fun toggleTorch(on: Boolean, durationSeconds: Int?): ToolResult {
         return try {
             val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
             val cameraId = cm.cameraIdList.firstOrNull { id ->
                 cm.getCameraCharacteristics(id)
                     .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
             } ?: return ToolResult.error("This device has no controllable flashlight.")
+
             cm.setTorchMode(cameraId, on)
-            ToolResult.ok("Flashlight turned ${if (on) "on" else "off"}.")
+            if (on && durationSeconds != null && durationSeconds > 0) {
+                val ms = durationSeconds.coerceIn(1, 300) * 1000L
+                Handler(Looper.getMainLooper()).postDelayed({
+                    try { cm.setTorchMode(cameraId, false) } catch (_: Exception) {}
+                }, ms)
+                ToolResult.ok("Flashlight turned on for ${durationSeconds}s.")
+            } else {
+                ToolResult.ok("Flashlight turned ${if (on) "on" else "off"}.")
+            }
         } catch (e: Exception) {
-            ToolResult.error("Could not toggle the flashlight: ${e.message}")
+            val msg = e.message?.lowercase() ?: ""
+            if ("in use" in msg || "already" in msg) {
+                ToolResult.error("Another app may be using the camera. Close other camera apps and try again.")
+            } else {
+                ToolResult.error("Could not toggle the flashlight: ${e.message}")
+            }
         }
     }
 
-    /** Set a volume stream to a percentage (no permission, though muting ring may need DND access). */
-    fun setVolume(stream: String, percent: Int): ToolResult {
+    /** Set a volume stream to a percentage. Reports previous level. */
+    fun setVolume(stream: String, percent: Int, showUi: Boolean): ToolResult {
         if (percent !in 0..100) return ToolResult.error("Volume must be between 0 and 100 (got $percent).")
         val streamType = when (stream.lowercase().trim()) {
             "media", "music" -> AudioManager.STREAM_MUSIC
@@ -43,9 +59,11 @@ class DeviceTool(private val context: Context) {
         return try {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val max = am.getStreamMaxVolume(streamType)
+            val previousPct = (am.getStreamVolume(streamType) * 100) / max
             val target = (percent * max) / 100
-            am.setStreamVolume(streamType, target, 0)
-            ToolResult.ok("Set $stream volume to $percent%.")
+            val flags = if (showUi) AudioManager.FLAG_SHOW_UI else 0
+            am.setStreamVolume(streamType, target, flags)
+            ToolResult.ok("Set $stream volume from ${previousPct}% to ${percent}%.")
         } catch (e: SecurityException) {
             ToolResult.permissionNeeded(
                 ToolResult.DND_ACCESS,
@@ -53,6 +71,32 @@ class DeviceTool(private val context: Context) {
             )
         } catch (e: Exception) {
             ToolResult.error("Could not set the volume: ${e.message}")
+        }
+    }
+
+    /** Read current volume level(s). */
+    fun getVolume(stream: String?): ToolResult {
+        return try {
+            val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val streams = if (stream != null) listOf(stream.lowercase().trim()) else
+                listOf("media", "ring", "alarm", "notification", "call")
+            val results = streams.map { name ->
+                val type = when (name) {
+                    "media", "music" -> AudioManager.STREAM_MUSIC
+                    "ring", "ringer" -> AudioManager.STREAM_RING
+                    "alarm" -> AudioManager.STREAM_ALARM
+                    "notification" -> AudioManager.STREAM_NOTIFICATION
+                    "call", "voice" -> AudioManager.STREAM_VOICE_CALL
+                    else -> return ToolResult.error("Unknown stream '$name'. Use media, ring, alarm, notification, or call.")
+                }
+                val max = am.getStreamMaxVolume(type)
+                val current = am.getStreamVolume(type)
+                val pct = (current * 100) / max
+                "$name: ${pct}%"
+            }
+            ToolResult.ok(results.joinToString("\n"))
+        } catch (e: Exception) {
+            ToolResult.error("Could not read volume: ${e.message}")
         }
     }
 
@@ -84,23 +128,53 @@ class DeviceTool(private val context: Context) {
         }
     }
 
-    /** Vibrate for a number of milliseconds (needs VIBRATE, an install-time permission). */
-    fun vibrate(durationMs: Int): ToolResult {
-        val ms = durationMs.coerceIn(1, 5000).toLong()
+    /** Vibrate with optional intensity and pattern (needs VIBRATE, an install-time permission). */
+    fun vibrate(durationMs: Int, intensity: Int, pattern: String?): ToolResult {
+        val vibrator = getVibrator() ?: return ToolResult.error("This device has no vibrator.")
+        val amplitude = (intensity.coerceIn(0, 100) * 255) / 100
+        val effect = if (pattern != null) {
+            patternEffect(pattern.lowercase().trim(), amplitude)
+        } else {
+            val ms = durationMs.coerceIn(1, 5000).toLong()
+            if (amplitude == 0) VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)
+            else VibrationEffect.createOneShot(ms, amplitude)
+        }
         return try {
-            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            vibrator.vibrate(effect)
+            val desc = if (pattern != null) " (pattern: $pattern)" else " for ${durationMs.coerceIn(1, 5000)}ms"
+            ToolResult.ok("Vibrated$desc.")
+        } catch (e: Exception) {
+            ToolResult.error("Could not vibrate: ${e.message}")
+        }
+    }
+
+    private fun patternEffect(pattern: String, amplitude: Int): VibrationEffect {
+        val timings = when (pattern) {
+            "short" -> longArrayOf(0, 100)
+            "long" -> longArrayOf(0, 1000)
+            "double" -> longArrayOf(0, 200, 800, 200)
+            "sos" -> longArrayOf(0, 200, 200, 200, 200, 200, 600, 600, 600, 200, 600, 200, 600, 600, 200, 200, 200, 200, 200)
+            else -> longArrayOf(0, 500)
+        }
+        val amps = if (amplitude == 0) null else IntArray(timings.size) { amplitude }
+        return if (amps != null) {
+            VibrationEffect.createWaveform(timings, amps, -1)
+        } else {
+            @Suppress("DEPRECATION")
+            VibrationEffect.createWaveform(timings, -1)
+        }
+    }
+
+    private fun getVibrator(): Vibrator? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
                 vm.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
-            if (!vibrator.hasVibrator()) return ToolResult.error("This device has no vibrator.")
-            vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
-            ToolResult.ok("Vibrated for ${ms}ms.")
-        } catch (e: Exception) {
-            ToolResult.error("Could not vibrate: ${e.message}")
-        }
+        } catch (_: Exception) { null }
     }
 
     /** Turn Do Not Disturb on or off (needs DND / notification-policy access). */

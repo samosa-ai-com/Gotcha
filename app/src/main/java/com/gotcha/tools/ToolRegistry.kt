@@ -52,7 +52,7 @@ object ToolRegistry {
         // Calendar (read-only)
         "list_calendar_events",
         // Info & sensors
-        "get_storage_info", "get_battery_info", "get_location",
+        "get_storage_info", "get_battery_info", "get_location", "get_volume",
         "get_app_usage", "get_data_usage",
         // Apps (read-only + intent)
         "open_app", "list_installed_apps",

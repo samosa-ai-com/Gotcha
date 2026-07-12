@@ -71,7 +71,7 @@ data class PendingQuestion(
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val isBusy: Boolean = false,
-    val activity: String? = null, // e.g. "Running: toggle_dark_mode…"
+    val activity: String? = null, // e.g. "Running: set_brightness…"
     val pendingConfirmation: PendingConfirmation? = null,
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,

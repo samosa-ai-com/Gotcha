@@ -94,13 +94,12 @@ class ToolExecutor(context: Context) {
             append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false
         )
         "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
-        "toggle_dark_mode" -> systemTool.toggleDarkMode(
-            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
-        )
         "set_brightness" -> systemTool.setBrightness(
             args["percent"]?.jsonPrimitive?.intOrNull ?: return missing("percent")
         )
-        "toggle_wifi" -> systemTool.toggleWifi()
+        "toggle_wifi" -> systemTool.toggleWifi(
+            args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+        )
         "set_wallpaper" -> wallpaperTool.setWallpaper(args.requireString("url"))
         "run_command" -> terminalTool.runCommand(args.requireString("command") ?: return missing("command"))
         "call_number" -> phoneTool.callNumber(args.requireString("number") ?: return missing("number"))
@@ -132,14 +131,21 @@ class ToolExecutor(context: Context) {
             message = args.requireString("message")
         )
         "toggle_torch" -> deviceTool.toggleTorch(
-            args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on")
+            on = args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on"),
+            durationSeconds = args.requireInt("duration_seconds")
         )
         "set_volume" -> deviceTool.setVolume(
             stream = args.requireString("stream") ?: return missing("stream"),
-            percent = args.requireInt("percent") ?: return missing("percent")
+            percent = args.requireInt("percent") ?: return missing("percent"),
+            showUi = args["show_ui"]?.jsonPrimitive?.booleanOrNull ?: false
         )
+        "get_volume" -> deviceTool.getVolume(args.requireString("stream"))
         "set_ringer_mode" -> deviceTool.setRingerMode(args.requireString("mode") ?: return missing("mode"))
-        "vibrate" -> deviceTool.vibrate(args.requireInt("duration_ms") ?: 500)
+        "vibrate" -> deviceTool.vibrate(
+            durationMs = args.requireInt("duration_ms") ?: 500,
+            intensity = args.requireInt("intensity") ?: 100,
+            pattern = args.requireString("pattern")
+        )
         "set_dnd" -> deviceTool.setDnd(
             args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
         )

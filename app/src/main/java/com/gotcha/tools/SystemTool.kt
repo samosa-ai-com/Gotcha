@@ -1,35 +1,14 @@
 package com.gotcha.tools
 
-import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.Settings
 
 class SystemTool(private val context: Context) {
-
-    fun toggleDarkMode(enabled: Boolean): ToolResult {
-        return try {
-            val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                uiModeManager.setApplicationNightMode(
-                    if (enabled) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO
-                )
-                ToolResult.ok("${if (enabled) "Dark" else "Light"} mode enabled for the app.")
-            } else {
-                // System-wide night mode below Android 12 needs privileged access;
-                // fall back to reporting the limitation honestly.
-                ToolResult.error(
-                    "Changing the theme programmatically requires Android 12+. " +
-                        "On this device the user can toggle dark mode in Settings > Display."
-                )
-            }
-        } catch (e: Exception) {
-            ToolResult.error("Could not change theme: ${e.message}")
-        }
-    }
 
     fun setBrightness(percent: Int): ToolResult {
         if (percent !in 0..100) {
@@ -108,7 +87,26 @@ class SystemTool(private val context: Context) {
         }
     }
 
-    fun toggleWifi(): ToolResult {
+    fun toggleWifi(enabled: Boolean): ToolResult {
+        val wifi = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val wasEnabled = wifi?.isWifiEnabled
+        return try {
+            if (wifi != null && wifi.setWifiEnabled(enabled)) {
+                val now = wifi.isWifiEnabled
+                return ToolResult.ok(
+                    "Wi-Fi turned ${if (enabled) "on" else "off"}" +
+                        if (wasEnabled != null) " (was ${if (wasEnabled) "on" else "off"}, now ${if (now) "on" else "off"})." else "."
+                )
+            }
+            openWifiSettings()
+        } catch (e: SecurityException) {
+            openWifiSettings()
+        } catch (e: Exception) {
+            ToolResult.error("Could not toggle Wi-Fi: ${e.message}")
+        }
+    }
+
+    private fun openWifiSettings(): ToolResult {
         return try {
             val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 Intent(Settings.Panel.ACTION_WIFI)
