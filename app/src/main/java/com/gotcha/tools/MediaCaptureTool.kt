@@ -1,10 +1,12 @@
 package com.gotcha.tools
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -25,11 +27,9 @@ class MediaCaptureTool(private val context: Context) {
     private val TAG = "Gotcha"
     private var recorder: MediaRecorder? = null
     private var recordingFile: File? = null
+    private var recordingStartTime: Long = 0L
+    private var recordingPaused: Boolean = false
 
-    /**
-     * Capture a photo automatically using CameraX. No camera app is opened.
-     * Takes a photo from the selected camera in the background.
-     */
     suspend fun takePhoto(camera: String?): ToolResult {
         Log.d(TAG, "takePhoto: camera=$camera")
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
@@ -94,8 +94,12 @@ class MediaCaptureTool(private val context: Context) {
         }
     }
 
-    /** Start recording audio to a file (needs RECORD_AUDIO). */
-    fun startAudioRecording(): ToolResult {
+    fun startAudioRecording(
+        source: String? = null,
+        maxDurationSeconds: Int? = null,
+        outputPath: String? = null,
+        quality: String? = null
+    ): ToolResult {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -108,52 +112,138 @@ class MediaCaptureTool(private val context: Context) {
             return ToolResult.error("A recording is already in progress. Stop it before starting a new one.")
         }
         return try {
-            val dir = context.getExternalFilesDir("Recordings")
-                ?: return ToolResult.error("No external storage is available for recordings.")
-            dir.mkdirs()
-            val file = File(dir, "recording_${timestamp()}.m4a")
+            val file = if (!outputPath.isNullOrBlank()) {
+                val f = File(outputPath)
+                f.parentFile?.mkdirs()
+                f
+            } else {
+                val dir = context.getExternalFilesDir("Recordings")
+                    ?: return ToolResult.error("No external storage is available for recordings.")
+                dir.mkdirs()
+                File(dir, "recording_${timestamp()}.m4a")
+            }
+
+            val audioSource = when (source?.trim()?.lowercase()) {
+                "voice" -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+                "camcorder" -> MediaRecorder.AudioSource.CAMCORDER
+                else -> MediaRecorder.AudioSource.MIC
+            }
+
             val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(context)
             } else {
                 @Suppress("DEPRECATION")
                 MediaRecorder()
             }
-            rec.setAudioSource(MediaRecorder.AudioSource.MIC)
+            rec.setAudioSource(audioSource)
             rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+
+            when (quality?.trim()?.lowercase()) {
+                "low" -> { rec.setAudioSamplingRate(16000); rec.setAudioEncodingBitRate(16000) }
+                "medium" -> { rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(64000) }
+                "high" -> { rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(192000) }
+            }
+
+            if (maxDurationSeconds != null && maxDurationSeconds > 0) {
+                rec.setMaxDuration(maxDurationSeconds * 1000)
+            }
             rec.setOutputFile(file.absolutePath)
             rec.prepare()
             rec.start()
             recorder = rec
             recordingFile = file
-            ToolResult.ok("Recording started. Ask to stop when finished.")
+            recordingStartTime = System.currentTimeMillis()
+            recordingPaused = false
+
+            val extras = buildString {
+                if (source != null) append(" ($source)")
+                if (maxDurationSeconds != null && maxDurationSeconds > 0) append(", max ${maxDurationSeconds}s")
+                append(" at ${file.absolutePath}")
+                if (quality != null) append(", $quality quality")
+            }
+            ToolResult.ok("Recording started$extras.")
         } catch (e: Exception) {
             releaseRecorder()
             ToolResult.error("Could not start recording: ${e.message}")
         }
     }
 
-    /** Stop the in-progress recording and report the saved file. */
     fun stopAudioRecording(): ToolResult {
         val rec = recorder ?: return ToolResult.error("No recording is in progress.")
         return try {
             rec.stop()
-            val path = recordingFile?.absolutePath ?: "unknown"
+            val file = recordingFile
+            val path = file?.absolutePath ?: "unknown"
+            val dur = (System.currentTimeMillis() - recordingStartTime) / 1000
+            // Make the file accessible to other apps
+            file?.setReadable(true, false)
+            // Scan into MediaStore so music players can discover it
+            if (file != null) {
+                try {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Audio.Media.IS_PENDING, 0)
+                        put(MediaStore.Audio.Media.DATA, file.absolutePath)
+                        put(MediaStore.Audio.Media.TITLE, file.nameWithoutExtension)
+                        put(MediaStore.Audio.Media.DURATION, dur * 1000)
+                        put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+                    }
+                    context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                } catch (_: Exception) { }
+            }
             releaseRecorder()
-            ToolResult.ok("Recording saved to $path.")
+            ToolResult.ok("Recording saved to $path (${dur / 60}m ${dur % 60}s).")
         } catch (e: Exception) {
             releaseRecorder()
             ToolResult.error("Could not stop the recording cleanly: ${e.message}")
         }
     }
 
-    private fun releaseRecorder() {
-        try {
-            recorder?.release()
-        } catch (_: Exception) {
+    fun getAudioRecordingStatus(): ToolResult {
+        val rec = recorder
+        if (rec == null) return ToolResult.ok("No recording is active.")
+        val elapsed = (System.currentTimeMillis() - recordingStartTime) / 1000
+        val path = recordingFile?.absolutePath ?: "unknown"
+        val state = if (recordingPaused) "paused" else "recording"
+        return ToolResult.ok("$state for ${elapsed / 60}m ${elapsed % 60}s at $path.")
+    }
+
+    fun pauseAudioRecording(): ToolResult {
+        val rec = recorder ?: return ToolResult.error("No recording is in progress.")
+        if (recordingPaused) return ToolResult.error("Recording is already paused.")
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return ToolResult.error("Pause/resume requires Android 7.0+ (API 24).")
         }
+        return try {
+            rec.pause()
+            recordingPaused = true
+            ToolResult.ok("Recording paused.")
+        } catch (e: Exception) {
+            ToolResult.error("Could not pause: ${e.message}")
+        }
+    }
+
+    fun resumeAudioRecording(): ToolResult {
+        val rec = recorder ?: return ToolResult.error("No recording is in progress.")
+        if (!recordingPaused) return ToolResult.error("Recording is not paused.")
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return ToolResult.error("Pause/resume requires Android 7.0+ (API 24).")
+        }
+        return try {
+            rec.resume()
+            recordingPaused = false
+            ToolResult.ok("Recording resumed.")
+        } catch (e: Exception) {
+            ToolResult.error("Could not resume: ${e.message}")
+        }
+    }
+
+    private fun releaseRecorder() {
+        try { recorder?.release() } catch (_: Exception) {}
         recorder = null
         recordingFile = null
+        recordingStartTime = 0L
+        recordingPaused = false
     }
 
     private fun timestamp(): String =

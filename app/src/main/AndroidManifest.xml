@@ -145,6 +145,11 @@
             android:name=".tools.ScheduledSmsReceiver"
             android:exported="false" />
 
+        <!-- Alarm and timer firing receiver -->
+        <receiver
+            android:name=".tools.AlarmReceiver"
+            android:exported="false" />
+
         <!-- Tier 3: Device Admin — lock screen, password policy, disable camera. -->
         <receiver
             android:name=".service.GotchaDeviceAdminReceiver"

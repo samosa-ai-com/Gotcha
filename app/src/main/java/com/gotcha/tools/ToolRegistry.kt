@@ -31,7 +31,9 @@ object ToolRegistry {
      */
     val destructiveTools: Set<String> = setOf(
         "uninstall_app",
-        "delete_calendar_event"
+        "delete_calendar_event",
+        "delete_alarm",
+        "delete_timer"
     )
 
     /**
@@ -47,13 +49,14 @@ object ToolRegistry {
         "list_calendar_events",
         // Info & sensors
         "get_storage_info", "get_battery_info", "get_location", "get_volume",
+        "get_audio_recording_status",
         "get_app_usage", "get_data_usage",
         // Apps (read-only + intent)
         "open_app", "list_installed_apps",
         // Files & terminal (read-only)
         "list_files", "read_file", "grep", "glob",
         // Task management
-        "todowrite",
+        "todowrite", "list_alarms", "list_timers",
         // User interaction
         "question",
         // Web

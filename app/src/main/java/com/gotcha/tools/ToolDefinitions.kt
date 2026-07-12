@@ -549,7 +549,9 @@ object ToolDefinitions {
 
     val setAlarm = tool(
         "set_alarm",
-        "Set a clock alarm at a given hour and minute via the device clock app.",
+        "Set an alarm at a given hour and minute. Supports repeating by day of week and silent mode. " +
+            "Returns an alarm ID that can be used to edit or delete it later. " +
+            "List alarms with list_alarms. Edit with edit_alarm. Delete with delete_alarm.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("hour") {
@@ -564,6 +566,15 @@ object ToolDefinitions {
                     put("type", "string")
                     put("description", "Optional alarm label.")
                 }
+                putJsonObject("days") {
+                    put("type", "array")
+                    put("description", "Repeating days: e.g. ['mon','wed','fri'] or ['weekdays']. Omit for one-time alarm.")
+                    putJsonObject("items") { put("type", "string") }
+                }
+                putJsonObject("vibrate") {
+                    put("type", "boolean")
+                    put("description", "Whether the alarm should vibrate. Default true.")
+                }
             }
             putJsonArray("required") {
                 add("hour")
@@ -574,12 +585,21 @@ object ToolDefinitions {
 
     val setTimer = tool(
         "set_timer",
-        "Start a countdown timer for a number of seconds via the device clock app.",
+        "Start a countdown timer. Returns a timer ID that can be used to delete it later. " +
+            "List timers with list_timers. Delete with delete_timer.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("seconds") {
                     put("type", "integer")
-                    put("description", "Timer length in seconds.")
+                    put("description", "Timer length in seconds. Combine with hours/minutes for longer durations.")
+                }
+                putJsonObject("minutes") {
+                    put("type", "integer")
+                    put("description", "Additional minutes (e.g. 5 for '5 minutes').")
+                }
+                putJsonObject("hours") {
+                    put("type", "integer")
+                    put("description", "Additional hours.")
                 }
                 putJsonObject("message") {
                     put("type", "string")
@@ -809,15 +829,133 @@ object ToolDefinitions {
 
     val startAudioRecording = tool(
         "start_audio_recording",
-        "Start recording audio from the microphone to a file. Call stop_audio_recording to finish. " +
+        "Start recording audio from the microphone to a file. Supports configurable source, " +
+            "quality, max duration, and custom output path. Call stop_audio_recording to finish. " +
             "Needs the Microphone permission.",
-        schema { putJsonObject("properties") {} }
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("source") {
+                    put("type", "string")
+                    put("description", "Audio source: 'mic' (default), 'voice' (optimized for speech), or 'camcorder' (wider range).")
+                }
+                putJsonObject("max_duration_seconds") {
+                    put("type", "integer")
+                    put("description", "Auto-stop after this many seconds. 0 or omit for no limit.")
+                }
+                putJsonObject("output_path") {
+                    put("type", "string")
+                    put("description", "Custom file path to save the recording. Defaults to Recordings/recording_{timestamp}.m4a.")
+                }
+                putJsonObject("quality") {
+                    put("type", "string")
+                    put("description", "Recording quality: 'low' (16kHz, 16kbps), 'medium' (44.1kHz, 64kbps), or 'high' (44.1kHz, 192kbps). Default medium.")
+                }
+            }
+        }
     )
 
     val stopAudioRecording = tool(
         "stop_audio_recording",
-        "Stop the in-progress audio recording and report the saved file path.",
+        "Stop the in-progress audio recording and report the saved file path and duration.",
         schema { putJsonObject("properties") {} }
+    )
+
+    val getAudioRecordingStatus = tool(
+        "get_audio_recording_status",
+        "Check whether a recording is active, and if so report its duration and file path.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val pauseAudioRecording = tool(
+        "pause_audio_recording",
+        "Pause the in-progress recording without stopping it. Resume with resume_audio_recording. " +
+            "Requires Android 7.0+.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val resumeAudioRecording = tool(
+        "resume_audio_recording",
+        "Resume a paused recording. Only works if pause_audio_recording was called first. " +
+            "Requires Android 7.0+.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val listAlarms = tool(
+        "list_alarms",
+        "List all active alarms set by set_alarm, with their IDs, times, labels, and recurrence.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val listTimers = tool(
+        "list_timers",
+        "List all running timers set by set_timer, with their IDs, labels, and remaining time.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val editAlarm = tool(
+        "edit_alarm",
+        "Edit an existing alarm by ID. Only the fields you provide will be changed. " +
+            "Get the alarm ID from list_alarms.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("alarm_id") {
+                    put("type", "integer")
+                    put("description", "Alarm ID from list_alarms.")
+                }
+                putJsonObject("hour") {
+                    put("type", "integer")
+                    put("description", "New hour (0-23). Omit to keep current.")
+                }
+                putJsonObject("minute") {
+                    put("type", "integer")
+                    put("description", "New minute (0-59). Omit to keep current.")
+                }
+                putJsonObject("message") {
+                    put("type", "string")
+                    put("description", "New label. Omit to keep current.")
+                }
+                putJsonObject("days") {
+                    put("type", "array")
+                    put("description", "New repeating days. Omit to keep current. Pass empty array for one-time.")
+                    putJsonObject("items") { put("type", "string") }
+                }
+                putJsonObject("vibrate") {
+                    put("type", "boolean")
+                    put("description", "New vibrate setting. Omit to keep current.")
+                }
+            }
+            putJsonArray("required") { add("alarm_id") }
+        }
+    )
+
+    val deleteAlarm = tool(
+        "delete_alarm",
+        "Permanently delete an alarm by ID. Requires explicit user confirmation (destructive action). " +
+            "Get the alarm ID from list_alarms.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("alarm_id") {
+                    put("type", "integer")
+                    put("description", "Alarm ID from list_alarms.")
+                }
+            }
+            putJsonArray("required") { add("alarm_id") }
+        }
+    )
+
+    val deleteTimer = tool(
+        "delete_timer",
+        "Cancel and remove a running timer by ID. Requires explicit user confirmation (destructive action). " +
+            "Get the timer ID from list_timers.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("timer_id") {
+                    put("type", "integer")
+                    put("description", "Timer ID from list_timers.")
+                }
+            }
+            putJsonArray("required") { add("timer_id") }
+        }
     )
 
     val edit = tool(
@@ -1275,10 +1413,12 @@ object ToolDefinitions {
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,
-        listCalendarEvents, createCalendarEvent, editCalendarEvent, deleteCalendarEvent, setAlarm, setTimer,
+        listCalendarEvents, createCalendarEvent, editCalendarEvent, deleteCalendarEvent,
+        setAlarm, setTimer, listAlarms, listTimers, editAlarm, deleteAlarm, deleteTimer,
         toggleTorch, setVolume, getVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,
+        getAudioRecordingStatus, pauseAudioRecording, resumeAudioRecording,
         // User interaction
         question,
         // Task tracking

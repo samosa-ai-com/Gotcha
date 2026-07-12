@@ -202,11 +202,31 @@ class ToolExecutor(context: Context) {
         "set_alarm" -> alarmTool.setAlarm(
             hour = args.requireInt("hour") ?: return missing("hour"),
             minute = args.requireInt("minute") ?: return missing("minute"),
-            message = args.requireString("message")
+            message = args.requireString("message"),
+            days = args["days"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
+            vibrate = args["vibrate"]?.jsonPrimitive?.booleanOrNull
         )
         "set_timer" -> alarmTool.setTimer(
-            seconds = args.requireInt("seconds") ?: return missing("seconds"),
-            message = args.requireString("message")
+            seconds = args.requireInt("seconds") ?: 0,
+            message = args.requireString("message"),
+            hours = args.requireInt("hours"),
+            minutes = args.requireInt("minutes")
+        )
+        "list_alarms" -> alarmTool.listAlarms()
+        "list_timers" -> alarmTool.listTimers()
+        "edit_alarm" -> alarmTool.editAlarm(
+            id = args.requireInt("alarm_id")?.toLong() ?: return missing("alarm_id"),
+            hour = args.requireInt("hour"),
+            minute = args.requireInt("minute"),
+            message = args.requireString("message"),
+            days = args["days"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
+            vibrate = args["vibrate"]?.jsonPrimitive?.booleanOrNull
+        )
+        "delete_alarm" -> alarmTool.deleteAlarm(
+            id = args.requireInt("alarm_id")?.toLong() ?: return missing("alarm_id")
+        )
+        "delete_timer" -> alarmTool.deleteTimer(
+            id = args.requireInt("timer_id")?.toLong() ?: return missing("timer_id")
         )
         "toggle_torch" -> deviceTool.toggleTorch(
             on = args["on"]?.jsonPrimitive?.booleanOrNull ?: return missing("on"),
@@ -237,8 +257,16 @@ class ToolExecutor(context: Context) {
         "get_clipboard" -> clipboardTool.getClipboard()
         "set_clipboard" -> clipboardTool.setClipboard(args.requireString("text") ?: return missing("text"))
         "take_photo" -> mediaCaptureTool.takePhoto(args.requireString("camera"))
-        "start_audio_recording" -> mediaCaptureTool.startAudioRecording()
+        "start_audio_recording" -> mediaCaptureTool.startAudioRecording(
+            source = args.requireString("source"),
+            maxDurationSeconds = args.requireInt("max_duration_seconds"),
+            outputPath = args.requireString("output_path"),
+            quality = args.requireString("quality")
+        )
         "stop_audio_recording" -> mediaCaptureTool.stopAudioRecording()
+        "get_audio_recording_status" -> mediaCaptureTool.getAudioRecordingStatus()
+        "pause_audio_recording" -> mediaCaptureTool.pauseAudioRecording()
+        "resume_audio_recording" -> mediaCaptureTool.resumeAudioRecording()
         "question" -> questionTool.ask(
             question = args.requireString("question") ?: return missing("question"),
             options = args["options"]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content },
