@@ -179,10 +179,17 @@ class SmsTool(private val context: Context) {
 
     private fun parseSendAt(sendAt: String): Long? {
         try {
-            return sendAt.toLongOrNull()?.minus(System.currentTimeMillis())
+            val millis = sendAt.toLongOrNull()
+            if (millis != null) return millis - System.currentTimeMillis()
         } catch (_: Exception) {}
         try {
             val formats = listOf(
+                "yyyy-MM-dd'T'HH:mm:ssXXX",
+                "yyyy-MM-dd'T'HH:mm:ssX",
+                "yyyy-MM-dd'T'HH:mmXXX",
+                "yyyy-MM-dd'T'HH:mmX",
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd'T'HH:mm'Z'",
                 "yyyy-MM-dd'T'HH:mm:ss",
                 "yyyy-MM-dd'T'HH:mm",
                 "yyyy-MM-dd HH:mm:ss",
@@ -190,7 +197,7 @@ class SmsTool(private val context: Context) {
             )
             for (fmt in formats) {
                 try {
-                    val date = SimpleDateFormat(fmt, Locale.getDefault()).parse(sendAt)
+                    val date = SimpleDateFormat(fmt, Locale.US).parse(sendAt)
                     if (date != null) return date.time - System.currentTimeMillis()
                 } catch (_: Exception) {}
             }

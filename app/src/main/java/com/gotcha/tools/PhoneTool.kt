@@ -174,7 +174,7 @@ class PhoneTool(private val context: Context) {
                     CallLog.Calls.DATE,
                     CallLog.Calls.DURATION
                 ),
-                selection.ifEmpty { null }.toString(),
+                selection.ifEmpty { null }?.toString(),
                 selectionArgs.toTypedArray().ifEmpty { null },
                 "${CallLog.Calls.DATE} DESC"
             ).use { cursor ->
