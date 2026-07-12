@@ -1,0 +1,34 @@
+# Overrides on top of detekt's default config (buildUponDefaultConfig = true in app/build.gradle.kts).
+# Keep this file small: only deviations from defaults belong here.
+
+build:
+  maxIssues: 0
+
+style:
+  MaxLineLength:
+    maxLineLength: 140
+  MagicNumber:
+    excludes: ["**/test/**"]
+  ReturnCount:
+    max: 4
+
+complexity:
+  LongMethod:
+    threshold: 80
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 8
+    ignoreDefaultParameters: true
+  TooManyFunctions:
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    thresholdInObjects: 20
+
+exceptions:
+  # Tool implementations intentionally catch broad exceptions and convert them to ToolResult errors
+  TooGenericExceptionCaught:
+    active: false
+
+formatting:
+  MaximumLineLength:
+    maxLineLength: 140

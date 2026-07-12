@@ -1,5 +1,7 @@
 # Running Gotcha
 
+![CI](https://github.com/<org>/Gotcha/actions/workflows/ci.yml/badge.svg?branch=master)
+
 A step-by-step guide to build, run, and configure the Gotcha Android app.
 
 ## 1. Prerequisites
@@ -54,7 +56,21 @@ From the project root:
 ./gradlew assembleDebug        # builds app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug         # builds + installs onto the connected device
 ./gradlew testDebugUnitTest    # runs the JVM unit tests
+./gradlew detekt lintDebug     # static analysis (detekt + Android Lint)
 ```
+
+### Continuous integration
+
+Every pull request and push to `master` or `development` runs the
+GitHub Actions workflow (`.github/workflows/ci.yml`): detekt → JVM unit tests →
+Android Lint → `assembleDebug`. Test and analysis reports are attached to each
+run as artifacts. The workflow can also be triggered manually from the Actions
+tab (**workflow_dispatch**) on any branch.
+Detekt and lint check only *new* findings — existing ones are grandfathered in
+committed baselines (`app/detekt-baseline.xml`, `app/lint-baseline.xml`);
+regenerate them with `./gradlew :app:detektBaseline :app:updateLintBaseline`.
+The unit tests shell out to a POSIX `sh` (TerminalTool), so they need Linux,
+macOS, or Git Bash — on plain Windows they fail; use CI instead.
 
 ## 5. Configure the LLM (required before chatting)
 
