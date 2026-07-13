@@ -56,11 +56,9 @@ class AppNavigatorSession(
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }
             
-            // Send abbreviated text if image is available, otherwise send full tree
+            // Send the tree (which is now organically filtered)
             val obsText = if (screenshot != null) {
-                val lines = uiTree.lines()
-                val truncatedTree = if (lines.size > 20) lines.take(20).joinToString("\n") + "\n... (truncated, use vision to see the rest)" else uiTree
-                ScreenPerception.buildObservationText(screenshot, truncatedTree)
+                ScreenPerception.buildObservationText(screenshot, uiTree)
             } else {
                 "── UI Elements ──\n$uiTree\n── Screenshot ──\n(failed to capture)"
             }

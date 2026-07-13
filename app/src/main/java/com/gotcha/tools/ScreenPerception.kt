@@ -74,11 +74,16 @@ object ScreenPerception {
         val sw = scaled.width
         val sh = scaled.height
         val (forEncoding, recycleForEncoding) = if (drawGrid) {
-            drawCoordinateGrid(scaled) to true
+            val elements = lastElementsCache ?: emptyList()
+            if (elements.isNotEmpty()) {
+                drawElementOverlays(scaled, elements) to true
+            } else {
+                drawCoordinateGrid(scaled) to true
+            }
         } else {
             scaled to false
         }
-        if (drawGrid) scaled.recycle()
+        if (drawGrid && scaled != forEncoding) scaled.recycle()
         val output = ByteArrayOutputStream()
         forEncoding.compress(format, quality, output)
         if (recycleForEncoding) forEncoding.recycle()
@@ -208,6 +213,59 @@ object ScreenPerception {
         return result
     }
 
+    private fun drawElementOverlays(bitmap: Bitmap, elements: List<UiElement>): Bitmap {
+        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return bitmap
+        val canvas = Canvas(result)
+
+        val boxPaint = Paint().apply {
+            color = Color.argb(120, 255, 50, 50)
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+        val labelBgPaint = Paint().apply {
+            color = Color.argb(220, 0, 0, 0)
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 28f
+            isAntiAlias = true
+            setShadowLayer(2f, 1f, 1f, Color.argb(255, 0, 0, 0))
+        }
+
+        // Draw boxes and tags
+        for (el in elements) {
+            val parts = el.bounds.split(",").mapNotNull { it.trim().toIntOrNull() }
+            if (parts.size == 4) {
+                val left = parts[0].toFloat()
+                val top = parts[1].toFloat()
+                val right = parts[2].toFloat()
+                val bottom = parts[3].toFloat()
+                
+                // Draw bounding box
+                canvas.drawRect(left, top, right, bottom, boxPaint)
+                
+                // Draw label [Index] at the top-left of the box
+                val label = "[${el.index}]"
+                val textWidth = textPaint.measureText(label)
+                val fontMetrics = textPaint.fontMetrics
+                val textHeight = fontMetrics.descent - fontMetrics.ascent
+                
+                // Keep label within bounds
+                val bgLeft = left
+                var bgTop = top - textHeight - 4f
+                if (bgTop < 0) bgTop = top // If goes off top edge, push inside the box
+                
+                val bgRight = bgLeft + textWidth + 8f
+                val bgBottom = bgTop + textHeight + 8f
+                
+                canvas.drawRect(bgLeft, bgTop, bgRight, bgBottom, labelBgPaint)
+                canvas.drawText(label, bgLeft + 4f, bgBottom - fontMetrics.descent - 4f, textPaint)
+            }
+        }
+        return result
+    }
+
     /** Public entry point: capture raw screenshot PNG bytes. */
     suspend fun captureRawScreenshotBytes(): ByteArray? = captureRawBytes()
 
@@ -288,19 +346,24 @@ object ScreenPerception {
         val desc = node.contentDescription?.toString()?.trim() ?: ""
         val label = text.ifBlank { desc }
 
-        index[0]++
-        out.add(
-            UiElement(
-                index = index[0],
-                className = node.className?.toString()?.substringAfterLast('.') ?: "Unknown",
-                text = label,
-                bounds = "${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}",
-                clickable = node.isClickable,
-                scrollable = node.isScrollable,
-                checked = if (node.isCheckable) node.isChecked else null,
-                enabled = node.isEnabled
+        val isInteractable = node.isClickable || node.isScrollable || node.isEditable || node.isCheckable
+        val hasMeaningfulContent = label.isNotEmpty()
+        
+        if (isInteractable || hasMeaningfulContent) {
+            index[0]++
+            out.add(
+                UiElement(
+                    index = index[0],
+                    className = node.className?.toString()?.substringAfterLast('.') ?: "Unknown",
+                    text = label,
+                    bounds = "${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}",
+                    clickable = node.isClickable,
+                    scrollable = node.isScrollable,
+                    checked = if (node.isCheckable) node.isChecked else null,
+                    enabled = node.isEnabled
+                )
             )
-        )
+        }
 
         for (i in 0 until node.childCount) {
             collectElements(node.getChild(i), out, max, index)
