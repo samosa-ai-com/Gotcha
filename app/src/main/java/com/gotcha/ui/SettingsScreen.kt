@@ -164,10 +164,11 @@ fun SettingsScreen(
                         onExpandedChange = { modelExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = model.ifEmpty { "(select model)" },
-                            onValueChange = {},
+                            value = model,
+                            onValueChange = { model = it },
                             readOnly = false,
                             label = { Text("Main model") },
+                            placeholder = { Text("(select model)") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                             modifier = Modifier.fillMaxWidth().menuAnchor()
                         )

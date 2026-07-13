@@ -348,7 +348,7 @@ class ToolExecutor(
         "tap" -> {
             var x = args.requireInt("x")
             var y = args.requireInt("y")
-            val normalized = args.requireBoolean("normalized") ?: false
+            val normalized = args.requireBoolean("normalized") ?: true
             if (normalized && x != null && y != null) {
                 val (w, h) = ScreenPerception.getScreenDimensions()
                 val (nx, ny) = ScreenPerception.normalizeToPixel(x, y, w, h)
@@ -360,7 +360,7 @@ class ToolExecutor(
             direction = args.requireString("direction"),
             x1 = args.requireInt("x1"), y1 = args.requireInt("y1"),
             x2 = args.requireInt("x2"), y2 = args.requireInt("y2"),
-            normalized = args.requireBoolean("normalized") ?: false,
+            normalized = args.requireBoolean("normalized") ?: true,
             index = args.requireInt("index")
         )
         "tap_index" -> {
@@ -370,7 +370,7 @@ class ToolExecutor(
         "long_press" -> {
             var x = args.requireInt("x")
             var y = args.requireInt("y")
-            val normalized = args.requireBoolean("normalized") ?: false
+            val normalized = args.requireBoolean("normalized") ?: true
             if (normalized && x != null && y != null) {
                 val (w, h) = ScreenPerception.getScreenDimensions()
                 val pixelCoords = ScreenPerception.normalizeToPixel(x, y, w, h)

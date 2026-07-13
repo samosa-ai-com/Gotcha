@@ -1353,7 +1353,7 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("key") {
                     put("type", "string")
-                    put("description", "One of: enter, back, home, recents, notifications, quick_settings, lock_screen, delete, tab, escape.")
+                    put("description", "One of: enter, back, home, recents, notifications, quick_settings, lock_screen.")
                 }
             }
             putJsonArray("required") { add("key") }

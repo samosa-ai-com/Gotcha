@@ -175,8 +175,8 @@ object ScreenPerception {
     }
 
     fun normalizeToPixel(modelX: Int, modelY: Int, displayW: Int, displayH: Int): Pair<Int, Int> {
-        val actualX = (modelX.toFloat() / 1000f * displayW).toInt().coerceIn(0, displayW)
-        val actualY = (modelY.toFloat() / 1000f * displayH).toInt().coerceIn(0, displayH)
+        val actualX = (modelX.toFloat() / 1000f * displayW).toInt().coerceIn(0, displayW - 1)
+        val actualY = (modelY.toFloat() / 1000f * displayH).toInt().coerceIn(0, displayH - 1)
         return Pair(actualX, actualY)
     }
 
@@ -398,7 +398,12 @@ object ScreenPerception {
         }
 
         for (i in 0 until node.childCount) {
-            collectElements(node.getChild(i), out, max, index)
+            val child = node.getChild(i)
+            try {
+                collectElements(child, out, max, index)
+            } finally {
+                child?.recycle()
+            }
         }
     }
 }

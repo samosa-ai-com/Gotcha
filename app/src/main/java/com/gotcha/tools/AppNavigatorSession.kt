@@ -209,7 +209,7 @@ You are a mobile app navigation agent. Your job is to operate Android apps step 
 - swipe(direction) or swipe(x1,y1,x2,y2, normalized=true) — swipe/scroll
 - input_text(text) — type into the focused field
 - press_key(key) — back, home, enter
-- sleep(ms) — wait briefly (max 3000ms)
+- sleep(duration_seconds) — wait briefly (1-3)
 - ask_final_answer(answer) — done! Provide the final summary.
 """
     }
