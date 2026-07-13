@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -11,6 +13,17 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+
+/** Result of a single hands-free listening turn ([SttEngine.listenOnceAndroid]). */
+sealed class SttOutcome {
+    data class Text(val text: String) : SttOutcome()
+    data class Error(val code: Int) : SttOutcome() {
+        /** True for silence/no-speech errors that a continuous loop should just retry. */
+        val isBenign: Boolean
+            get() = code == SpeechRecognizer.ERROR_NO_MATCH ||
+                code == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+    }
+}
 
 /**
  * Speech-to-Text engine supporting two providers.
@@ -30,8 +43,10 @@ class SttEngine(
     private var currentAudioFile: File? = null
 
     // Android STT state
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var currentRecognizer: SpeechRecognizer? = null
     private var listenGate: CompletableDeferred<String>? = null
+    private var onceGate: CompletableDeferred<SttOutcome>? = null
 
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
@@ -136,5 +151,78 @@ class SttEngine(
         val result = listenGate?.await() ?: ""
         listenGate = null
         return result
+    }
+
+    /**
+     * Listen for a single utterance hands-free: the recognizer endpoints on
+     * its own (no stop call needed) and this returns the transcript or the
+     * SpeechRecognizer error code. Used by the voice-call loop.
+     */
+    suspend fun listenOnceAndroid(): SttOutcome {
+        if (currentRecognizer != null || onceGate != null) {
+            return SttOutcome.Error(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
+        }
+        val gate = CompletableDeferred<SttOutcome>()
+        onceGate = gate
+        // SpeechRecognizer must be created and driven from the main thread.
+        withContext(Dispatchers.Main) {
+            try {
+                val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                currentRecognizer = recognizer
+                recognizer.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {}
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
+                    override fun onError(error: Int) {
+                        gate.complete(SttOutcome.Error(error))
+                        currentRecognizer?.destroy()
+                        currentRecognizer = null
+                    }
+                    override fun onResults(results: Bundle?) {
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        gate.complete(SttOutcome.Text(matches?.firstOrNull() ?: ""))
+                        currentRecognizer?.destroy()
+                        currentRecognizer = null
+                    }
+                    override fun onPartialResults(partialResults: Bundle?) {}
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                }
+                recognizer.startListening(intent)
+            } catch (_: Exception) {
+                gate.complete(SttOutcome.Error(SpeechRecognizer.ERROR_CLIENT))
+                currentRecognizer = null
+            }
+        }
+        return try {
+            gate.await()
+        } finally {
+            onceGate = null
+        }
+    }
+
+    /**
+     * Abort an in-flight [listenOnceAndroid] (pause/end of a call). Safe to
+     * call from any thread; a suspended caller unblocks with [ERROR_CANCELLED].
+     */
+    fun cancelListening() {
+        onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
+        mainHandler.post {
+            try {
+                currentRecognizer?.cancel()
+                currentRecognizer?.destroy()
+            } catch (_: Exception) { }
+            currentRecognizer = null
+        }
+    }
+
+    companion object {
+        /** Synthetic error code: listening was cancelled by pause/end, not by the recognizer. */
+        const val ERROR_CANCELLED = -100
     }
 }
