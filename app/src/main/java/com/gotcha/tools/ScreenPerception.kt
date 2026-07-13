@@ -16,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 object ScreenPerception {
 
@@ -53,7 +55,8 @@ object ScreenPerception {
         maxDimension: Int = 2000,
         format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
         quality: Int = 50,
-        drawGrid: Boolean = false
+        drawGrid: Boolean = false,
+        saveDir: File? = null
     ): CompressedScreenshot? {
         Log.d("ScreenCapture", "compressScreenshot: starting capture...")
         val bytes = captureRawBytes()
@@ -86,6 +89,19 @@ object ScreenPerception {
         if (drawGrid && scaled != forEncoding) scaled.recycle()
         val output = ByteArrayOutputStream()
         forEncoding.compress(format, quality, output)
+        
+        if (saveDir != null) {
+            try {
+                if (!saveDir.exists()) saveDir.mkdirs()
+                val debugFile = File(saveDir, "screenshot_overlay_${System.currentTimeMillis()}.png")
+                FileOutputStream(debugFile).use { fos ->
+                    forEncoding.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                }
+            } catch (e: Exception) {
+                Log.e("ScreenCapture", "Failed to save debug screenshot: ${e.message}")
+            }
+        }
+        
         if (recycleForEncoding) forEncoding.recycle()
         val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
         val fmtName = when (format) {

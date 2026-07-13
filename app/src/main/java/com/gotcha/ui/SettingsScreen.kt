@@ -50,6 +50,7 @@ fun SettingsScreen(
     onSave: (Settings) -> Unit,
     onTestConnection: suspend (Settings) -> Result<String>,
     onClearLlmCache: () -> Unit,
+    onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = { Pair(emptyList(), emptyList()) },
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = { Result.failure(Exception("Not available")) },
@@ -351,6 +352,13 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Clear LLM cache") }
+                    OutlinedButton(
+                        onClick = {
+                            onClearDebugScreenshots()
+                            status = "Debug screenshots cleared."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Clear debug screenshots") }
                 }
             }
 

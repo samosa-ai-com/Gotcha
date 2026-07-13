@@ -301,6 +301,14 @@ class MainActivity : ComponentActivity() {
                             context = this@MainActivity
                         ).clearCache()
                     },
+                    onClearDebugScreenshots = {
+                        val chatsDir = java.io.File(filesDir, "chats")
+                        if (chatsDir.exists()) {
+                            chatsDir.walkTopDown()
+                                .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
+                                .forEach { it.delete() }
+                        }
+                    },
                     onBack = { currentRoute = previousRoute },
                     onRefreshAudioModels = { s ->
                         withContext(Dispatchers.IO) {

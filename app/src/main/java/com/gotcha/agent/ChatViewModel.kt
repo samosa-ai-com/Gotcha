@@ -713,7 +713,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // can "see" the screen alongside structured element data.
                     if (result.success && call.function.name == "read_screen") {
                         android.util.Log.d("ScreenCapture", "read_screen auto-injection: calling captureCompressedScreenshot()")
-                        val screenshot = captureCompressedScreenshot()
+                        val screenshot = captureCompressedScreenshot(sessionId)
                         android.util.Log.d("ScreenCapture", "read_screen auto-injection: screenshot=${screenshot != null}")
                         if (screenshot != null) {
                             val uiTree = ScreenPerception.buildUiHierarchyText()
@@ -733,7 +733,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // read_screen_raw: full-resolution PNG screenshot for visual detail.
                     // Also saves the raw bytes to the working directory as a file.
                     if (result.success && call.function.name == "read_screen_raw") {
-                        val screenshot = captureFullResScreenshot()
+                        val screenshot = captureFullResScreenshot(sessionId)
                         if (screenshot != null) {
                             val screenText = result.message.removePrefix("read_screen_raw:").take(500)
                             // Save screenshot to working directory
@@ -1306,19 +1306,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Capture a screenshot via the `screencap -p` shell command, compressed as JPEG.
      * Returns a [ScreenPerception.CompressedScreenshot] with base64 data, or null on failure.
      */
-    private suspend fun captureCompressedScreenshot(): ScreenPerception.CompressedScreenshot? {
-        return ScreenPerception.compressScreenshot()
+    private suspend fun captureCompressedScreenshot(sessionId: String): ScreenPerception.CompressedScreenshot? {
+        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
+        return ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
     }
 
     /**
      * Capture a full-resolution screenshot (uncompressed PNG).
      * Used by read_screen_raw for maximum visual detail.
      */
-    private suspend fun captureFullResScreenshot(): ScreenPerception.CompressedScreenshot? {
+    private suspend fun captureFullResScreenshot(sessionId: String): ScreenPerception.CompressedScreenshot? {
+        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
         return ScreenPerception.compressScreenshot(
             maxDimension = 0,
             format = android.graphics.Bitmap.CompressFormat.PNG,
-            quality = 100
+            quality = 100,
+            saveDir = saveDir
         )
     }
 

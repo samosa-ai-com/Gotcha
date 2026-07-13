@@ -8,6 +8,7 @@ import com.gotcha.llm.ChatResponse
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -50,7 +51,8 @@ class AppNavigatorSession(
             onStep("Analyzing screen", "running", "")
 
             // 1. Capture fresh perception with grid overlay
-            val screenshot = ScreenPerception.compressScreenshot(drawGrid = true)
+            val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
+            val screenshot = ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
             val uiTree = ScreenPerception.buildUiHierarchyText()
 
             // 2. Build single-turn prompt
@@ -132,6 +134,11 @@ class AppNavigatorSession(
                     else "⚠ ${result.message.take(100)}"
                 actionLog.add("Step $step: ${call.function.name} → $summary")
                 onStep(call.function.name, "completed", summary)
+            }
+            
+            // Wait for animations/transitions to settle before the next observation
+            if (toolCalls.isNotEmpty()) {
+                delay(1000)
             }
         }
 
