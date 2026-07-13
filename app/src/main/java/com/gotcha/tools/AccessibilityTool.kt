@@ -52,6 +52,20 @@ class AccessibilityTool(private val context: Context) {
         }
     }
 
+    /** Long-press either an on-screen element matching [text], or absolute coordinates. */
+    fun longPress(text: String?, x: Int?, y: Int?): ToolResult {
+        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        return when {
+            !text.isNullOrBlank() ->
+                if (service.longPressByText(text)) ToolResult.ok("Long-pressed an element matching \"$text\".")
+                else ToolResult.error("Found no element matching \"$text\" on screen.")
+            x != null && y != null ->
+                if (service.longPressAt(x.toFloat(), y.toFloat())) ToolResult.ok("Long-pressed at ($x, $y).")
+                else ToolResult.error("Could not dispatch the long-press gesture.")
+            else -> ToolResult.error("Provide either 'text' to match, or both 'x' and 'y' coordinates.")
+        }
+    }
+
     /** Swipe in a named direction, or between explicit coordinates. */
     fun swipe(direction: String?, x1: Int?, y1: Int?, x2: Int?, y2: Int?, normalized: Boolean = false, distance: Int? = null, index: Int? = null): ToolResult {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
@@ -147,6 +161,22 @@ class AccessibilityTool(private val context: Context) {
         return if (service.tapAt(cx, cy))
             ToolResult.ok("Tapped element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()}).")
         else ToolResult.error("Could not dispatch the tap gesture for element $index.")
+    }
+
+    /** Long-press a UI element by its index from the numbered elements list. */
+    fun longPressByIndex(index: Int): ToolResult {
+        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val element = ScreenPerception.resolveElementByIndex(index)
+            ?: return ToolResult.error("No UI element with index $index found on screen.")
+        val parts = element.bounds.split(",").map { it.trim().toIntOrNull() }
+        if (parts.size != 4 || parts.any { it == null }) {
+            return ToolResult.error("Invalid bounds for element $index.")
+        }
+        val cx = (parts[0]!! + parts[2]!!) / 2f
+        val cy = (parts[1]!! + parts[3]!!) / 2f
+        return if (service.longPressAt(cx, cy))
+            ToolResult.ok("Long-pressed element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()}).")
+        else ToolResult.error("Could not dispatch the long-press gesture for element $index.")
     }
 
     /**

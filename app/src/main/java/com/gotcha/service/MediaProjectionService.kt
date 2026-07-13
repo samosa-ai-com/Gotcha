@@ -88,7 +88,11 @@ class MediaProjectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, buildNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -187,8 +191,8 @@ class MediaProjectionService : Service() {
                     bmp.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(packedBytes))
                     Log.d("ScreenCapture", "captureScreenshot: bitmap=${bmp.width}x${bmp.height} (stride=$rowStride, pxStride=$pixelStride)")
                     bmp
-                } catch (e: Exception) {
-                    Log.e("ScreenCapture", "captureScreenshot: bitmap creation failed: ${e.message}")
+                } catch (t: Throwable) {
+                    Log.e("ScreenCapture", "captureScreenshot: bitmap creation failed: ${t.message}", t)
                     null
                 }
 

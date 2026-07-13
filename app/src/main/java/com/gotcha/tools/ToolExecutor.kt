@@ -367,6 +367,26 @@ class ToolExecutor(
             val index = args.requireInt("index") ?: return missing("index")
             accessibilityTool.tapByIndex(index)
         }
+        "long_press" -> {
+            var x = args.requireInt("x")
+            var y = args.requireInt("y")
+            val normalized = args.requireBoolean("normalized") ?: false
+            if (normalized && x != null && y != null) {
+                val (w, h) = ScreenPerception.getScreenDimensions()
+                val pixelCoords = ScreenPerception.normalizeToPixel(x, y, w, h)
+                x = pixelCoords.first
+                y = pixelCoords.second
+            }
+            accessibilityTool.longPress(
+                text = args.requireString("text"),
+                x = x,
+                y = y
+            )
+        }
+        "long_press_index" -> {
+            val index = args.requireInt("index") ?: return missing("index")
+            accessibilityTool.longPressByIndex(index)
+        }
         "press_key" -> {
             val key = args.requireString("key") ?: return missing("key")
             accessibilityTool.pressKey(key)

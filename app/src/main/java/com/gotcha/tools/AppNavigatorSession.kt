@@ -105,7 +105,7 @@ class AppNavigatorSession(
                 )
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 actionLog.add("Step $step: LLM error — ${e.message}")
                 break
             }
@@ -163,15 +163,15 @@ class AppNavigatorSession(
                     call.function.name, args,
                     AgentMode.OPERATOR, isSubAgent = true
                 )
-                java.lang.Thread.sleep(300)
+                kotlinx.coroutines.delay(300)
                 if (lastResult.success) return lastResult
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                lastResult = ToolResult.error("Attempt $attempt failed")
+            } catch (e: Throwable) {
+                lastResult = ToolResult.error("Attempt $attempt failed: ${e.message}")
             }
             if (attempt < 3 && !lastResult.success) {
-                java.lang.Thread.sleep(500)
+                kotlinx.coroutines.delay(500)
             }
         }
         return lastResult
@@ -204,6 +204,8 @@ You are a mobile app navigation agent. Your job is to operate Android apps step 
 ## Available Actions
 - tap_index(index) — tap an element by its number from the UI Elements list
 - tap(x, y, normalized=true) — tap at normalized coordinate (0-1000 space)
+- long_press_index(index) — long-press an element by its number
+- long_press(x, y, normalized=true) — long-press at normalized coordinate
 - swipe(direction) or swipe(x1,y1,x2,y2, normalized=true) — swipe/scroll
 - input_text(text) — type into the focused field
 - press_key(key) — back, home, enter

@@ -116,6 +116,14 @@ class GotchaAccessibilityService : AccessibilityService() {
         return performed
     }
 
+    fun longPressByText(query: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val match = findClickable(root, query.lowercase())
+        val performed = match?.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK) ?: false
+        root.recycle()
+        return performed
+    }
+
     private fun findClickable(node: AccessibilityNodeInfo?, query: String): AccessibilityNodeInfo? {
         if (node == null) return null
         val hay = ((node.text?.toString() ?: "") + " " + (node.contentDescription?.toString() ?: ""))
@@ -187,6 +195,8 @@ class GotchaAccessibilityService : AccessibilityService() {
 
     /** Dispatch a tap gesture at absolute screen coordinates (API 24+). */
     fun tapAt(x: Float, y: Float): Boolean = gesture(x, y, x, y, 50)
+    
+    fun longPressAt(x: Float, y: Float): Boolean = gesture(x, y, x, y, 1000)
 
     /** Dispatch a swipe gesture between two points. */
     fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 300): Boolean =

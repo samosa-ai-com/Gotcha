@@ -58,88 +58,98 @@ object ScreenPerception {
         drawGrid: Boolean = false,
         saveDir: File? = null
     ): CompressedScreenshot? {
-        Log.d("ScreenCapture", "compressScreenshot: starting capture...")
-        val bytes = captureRawBytes()
-        if (bytes == null) {
-            Log.e("ScreenCapture", "compressScreenshot: captureRawBytes returned null — all paths failed")
-            return null
-        }
-        Log.d("ScreenCapture", "compressScreenshot: got ${bytes.size} raw bytes")
-        val originalSize = bytes.size.toLong()
-        val options = BitmapFactory.Options().apply { 
-            inMutable = true
-            inScaled = false 
-        }
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-        if (bitmap == null) {
-            Log.e("ScreenCapture", "compressScreenshot: BitmapFactory.decodeByteArray returned null — invalid image data")
-            return null
-        }
-        Log.d("ScreenCapture", "compressScreenshot: decoded bitmap ${bitmap.width}x${bitmap.height}")
-        val annotated = if (drawGrid) {
-            val elements = lastElementsCache ?: emptyList()
-            if (elements.isNotEmpty()) {
-                drawElementOverlays(bitmap, elements)
-            } else {
-                drawCoordinateGrid(bitmap)
+        return try {
+            Log.d("ScreenCapture", "compressScreenshot: starting capture...")
+            val bytes = captureRawBytes()
+            if (bytes == null) {
+                Log.e("ScreenCapture", "compressScreenshot: captureRawBytes returned null — all paths failed")
+                return null
             }
-        } else {
-            bitmap
-        }
-        
-        val forEncoding = if (maxDimension > 0) downscale(annotated, maxDimension) else annotated
-        
-        val sw = forEncoding.width
-        val sh = forEncoding.height
-        val output = ByteArrayOutputStream()
-        forEncoding.compress(format, quality, output)
-        
-        if (saveDir != null) {
-            try {
-                if (!saveDir.exists()) saveDir.mkdirs()
-                val debugFile = File(saveDir, "screenshot_overlay_${System.currentTimeMillis()}.png")
-                FileOutputStream(debugFile).use { fos ->
-                    forEncoding.compress(Bitmap.CompressFormat.PNG, 100, fos)
+            Log.d("ScreenCapture", "compressScreenshot: got ${bytes.size} raw bytes")
+            val originalSize = bytes.size.toLong()
+            val options = BitmapFactory.Options().apply { 
+                inMutable = true
+                inScaled = false 
+            }
+            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            if (bitmap == null) {
+                Log.e("ScreenCapture", "compressScreenshot: BitmapFactory.decodeByteArray returned null — invalid image data")
+                return null
+            }
+            Log.d("ScreenCapture", "compressScreenshot: decoded bitmap ${bitmap.width}x${bitmap.height}")
+            val annotated = if (drawGrid) {
+                val elements = lastElementsCache ?: emptyList()
+                if (elements.isNotEmpty()) {
+                    drawElementOverlays(bitmap, elements)
+                } else {
+                    drawCoordinateGrid(bitmap)
                 }
-            } catch (e: Exception) {
-                Log.e("ScreenCapture", "Failed to save debug screenshot: ${e.message}")
+            } else {
+                bitmap
             }
+            
+            val forEncoding = if (maxDimension > 0) downscale(annotated, maxDimension) else annotated
+            
+            val sw = forEncoding.width
+            val sh = forEncoding.height
+            val output = ByteArrayOutputStream()
+            forEncoding.compress(format, quality, output)
+            
+            if (saveDir != null) {
+                try {
+                    if (!saveDir.exists()) saveDir.mkdirs()
+                    val debugFile = File(saveDir, "screenshot_overlay_${System.currentTimeMillis()}.png")
+                    FileOutputStream(debugFile).use { fos ->
+                        forEncoding.compress(Bitmap.CompressFormat.PNG, 100, fos)
+                    }
+                } catch (e: Throwable) {
+                    Log.e("ScreenCapture", "Failed to save debug screenshot: ${e.message}")
+                }
+            }
+            
+            if (forEncoding !== annotated) forEncoding.recycle()
+            if (annotated !== bitmap) annotated.recycle()
+            bitmap.recycle()
+            val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+            val fmtName = when (format) {
+                Bitmap.CompressFormat.JPEG -> "jpeg"
+                Bitmap.CompressFormat.PNG -> "png"
+                Bitmap.CompressFormat.WEBP_LOSSY -> "webp"
+                Bitmap.CompressFormat.WEBP_LOSSLESS -> "webp"
+                else -> "jpeg"
+            }
+            CompressedScreenshot(base64, sw, sh, fmtName, originalSize)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e("ScreenCapture", "compressScreenshot failed with throwable: ${e.message}", e)
+            null
         }
-        
-        
-        
-        if (forEncoding !== annotated) forEncoding.recycle()
-        if (annotated !== bitmap) annotated.recycle()
-        bitmap.recycle()
-        val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
-        val fmtName = when (format) {
-            Bitmap.CompressFormat.JPEG -> "jpeg"
-            Bitmap.CompressFormat.PNG -> "png"
-            Bitmap.CompressFormat.WEBP_LOSSY -> "webp"
-            Bitmap.CompressFormat.WEBP_LOSSLESS -> "webp"
-            else -> "jpeg"
-        }
-        return CompressedScreenshot(base64, sw, sh, fmtName, originalSize)
     }
 
     fun buildUiHierarchyText(maxElements: Int = 100): String {
-        val service = GotchaAccessibilityService.instance ?: return "(accessibility service not available)"
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return "(requires API 18+)"
-        val root = service.rootInActiveWindow ?: return "(no active window)"
-        val elements = mutableListOf<UiElement>()
-        collectElements(root, elements, maxElements)
-        lastElementsCache = elements.toList()
-        root.recycle()
-        if (elements.isEmpty()) return "(no UI elements found)"
-        return elements.joinToString("\n") { el ->
-            val props = buildString {
-                if (el.clickable) append(" clickable")
-                if (el.scrollable) append(" scrollable")
-                el.checked?.let { if (it) append(" checked") }
-                if (!el.enabled) append(" disabled")
+        return try {
+            val service = GotchaAccessibilityService.instance ?: return "(accessibility service not available)"
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return "(requires API 18+)"
+            val root = service.rootInActiveWindow ?: return "(no active window)"
+            val elements = mutableListOf<UiElement>()
+            collectElements(root, elements, maxElements)
+            lastElementsCache = elements.toList()
+            root.recycle()
+            if (elements.isEmpty()) return "(no UI elements found)"
+            elements.joinToString("\n") { el ->
+                val props = buildString {
+                    if (el.clickable) append(" clickable")
+                    if (el.scrollable) append(" scrollable")
+                    el.checked?.let { if (it) append(" checked") }
+                    if (!el.enabled) append(" disabled")
+                }
+                val text = if (el.text.isNotBlank()) "\"${el.text}\"" else ""
+                "${el.index}. ${el.className} $text (${el.bounds})$props"
             }
-            val text = if (el.text.isNotBlank()) "\"${el.text}\"" else ""
-            "${el.index}. ${el.className} $text (${el.bounds})$props"
+        } catch (e: Throwable) {
+            Log.e("ScreenCapture", "buildUiHierarchyText failed with throwable: ${e.message}", e)
+            "(error reading UI: ${e.message})"
         }
     }
 

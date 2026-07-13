@@ -78,8 +78,8 @@ class SubAgentSession(
                 subLlm.chat(history.toList(), subAgentTools, sessionId = sessionId)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Sub-agent LLM call failed: ${e.message}")
+            } catch (e: Throwable) {
+                Log.e(TAG, "Sub-agent LLM call failed: ${e.message}", e)
                 onStep("error", "completed", e.message ?: "LLM call failed")
                 return SubAgentOutput("Task failed: ${e.message}", collectedSteps.toList())
             }
@@ -141,7 +141,7 @@ class SubAgentSession(
                     toolExecutor.execute(call.function.name, args, AgentMode.OPERATOR, isSubAgent = true)
                 } catch (e: CancellationException) {
                     throw e
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     ToolResult.error("Tool '${call.function.name}' failed: ${e.message}")
                 }
 

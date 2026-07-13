@@ -1310,6 +1310,41 @@ object ToolDefinitions {
         }
     )
 
+    val longPress = tool(
+        "long_press",
+        "Perform a long-press gesture on a specific on-screen UI element or explicit coordinates.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("description", "Visible text/label of the element to long press.")
+                }
+                putJsonObject("x") {
+                    put("type", "integer")
+                    put("description", "Absolute X coordinate.")
+                }
+                putJsonObject("y") {
+                    put("type", "integer")
+                    put("description", "Absolute Y coordinate.")
+                }
+            }
+        }
+    )
+
+    val longPressIndex = tool(
+        "long_press_index",
+        "Perform a long-press gesture on a UI element from the numbered elements list shown in the screen observation.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Index of the element to long press (from the ── UI Elements ── list).")
+                }
+            }
+            putJsonArray("required") { add("index") }
+        }
+    )
+
     val pressKey = tool(
         "press_key",
         "Press a system key or perform a navigation action. " +
@@ -1592,7 +1627,7 @@ object ToolDefinitions {
         webSearch, webFetch,
         // DEPRECATED: readImage excluded from the active catalog — use read_file instead.
         // Tier 3 additions
-        readScreen, readScreenRaw, tap, swipe, tapIndex, pressKey, inputText, globalAction,
+        readScreen, readScreenRaw, tap, longPress, swipe, tapIndex, longPressIndex, pressKey, inputText, globalAction,
         navigateApp,
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,

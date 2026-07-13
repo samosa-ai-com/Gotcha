@@ -49,7 +49,7 @@ object ToolRegistry {
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
-        "tap", "tap_index", "swipe", "input_text", "press_key",
+        "tap", "tap_index", "long_press", "long_press_index", "swipe", "input_text", "press_key",
         "sleep", "ask_final_answer"
     )
 
@@ -71,6 +71,28 @@ object ToolRegistry {
         )),
         "tap_index" to ToolDefinition(function = FunctionDefinition("tap_index",
             "Tap a UI element by its index from the UI Elements list.",
+            buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("index") { put("type", "integer"); put("description", "Element index") }
+                }
+                putJsonArray("required") { add("index") }
+            }
+        )),
+        "long_press" to ToolDefinition(function = FunctionDefinition("long_press",
+            "Long press at coordinates. Use normalized=true and x,y in [0,1000] space.",
+            buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("x") { put("type", "integer"); put("description", "X in [0,1000]") }
+                    putJsonObject("y") { put("type", "integer"); put("description", "Y in [0,1000]") }
+                    putJsonObject("normalized") { put("type", "boolean"); put("description", "Default true") }
+                    putJsonObject("text") { put("type", "string"); put("description", "Element text to match") }
+                }
+            }
+        )),
+        "long_press_index" to ToolDefinition(function = FunctionDefinition("long_press_index",
+            "Long press a UI element by its index from the UI Elements list.",
             buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
