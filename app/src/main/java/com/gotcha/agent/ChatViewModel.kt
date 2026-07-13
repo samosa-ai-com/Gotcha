@@ -64,7 +64,8 @@ data class UiMessage(
     val text: String,
     val imageBase64: String? = null,
     val subAgentSteps: List<String> = emptyList(),
-    val subAgentCollapsed: Boolean = true
+    val subAgentCollapsed: Boolean = true,
+    val reasoningContent: String? = null
 )
 
 data class SubAgentStepUi(
@@ -1250,11 +1251,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         kind: MessageKind,
         text: String,
         imageBase64: String? = null,
-        subAgentSteps: List<String> = emptyList()
+        subAgentSteps: List<String> = emptyList(),
+        reasoningContent: String? = null
     ) {
         _uiState.update {
             it.copy(messages = it.messages + UiMessage(
-                nextId++, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true
+                nextId++, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent = reasoningContent
             ))
         }
     }
@@ -1271,7 +1273,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, text.ifEmpty { "(image attached)" })
                 msg.role == "assistant" && text.isNotBlank() ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, text)
+                    UiMessage(nextId++, MessageKind.ASSISTANT, text, reasoningContent = msg.reasoningContent)
+                msg.role == "assistant" && !msg.reasoningContent.isNullOrBlank() ->
+                    UiMessage(nextId++, MessageKind.ASSISTANT, "(no reply)", reasoningContent = msg.reasoningContent)
                 msg.role == "tool" && text.startsWith("SUBAGENT_STEPS:") -> {
                     val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
                     val rest = if (descEnd > 0) text.substring(descEnd + 1) else text.substring("SUBAGENT_STEPS:".length)
@@ -1293,7 +1297,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         steps = emptyList()
                         answer = rest
                     }
-                    UiMessage(nextId++, MessageKind.SUBAGENT, answer, subAgentSteps = steps)
+                    UiMessage(nextId++, MessageKind.SUBAGENT, answer, subAgentSteps = steps, reasoningContent = msg.reasoningContent)
                 }
                 msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, text.ifEmpty { "(no result)" })
                 else -> null

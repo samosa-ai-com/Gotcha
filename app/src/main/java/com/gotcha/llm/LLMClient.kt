@@ -80,7 +80,8 @@ class LLMClient(
             promptCacheKey = sessionId
         )
 
-        val response = apiService.chat(request, sessionId)
+        var response = apiService.chat(request, sessionId)
+        response = normalizeResponse(response)
 
         val shouldCache = (temperature == null || temperature == 0f)
                 && response.choices.isNotEmpty()
@@ -117,5 +118,52 @@ class LLMClient(
         val digest = MessageDigest.getInstance("SHA-256")
         return digest.digest(serialized.toByteArray())
             .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun normalizeResponse(response: ChatResponse): ChatResponse {
+        val newChoices = response.choices.map { choice ->
+            var msg = choice.message
+            var text = msg.textContent
+            var reasoning = msg.reasoningContent ?: ""
+
+            // 1. Extract <think> tags from text
+            val thinkRegex = "(?s)<think>(.*?)</think>".toRegex()
+            val thinkMatches = thinkRegex.findAll(text)
+            for (match in thinkMatches) {
+                if (reasoning.isNotBlank()) reasoning += "\n"
+                reasoning += match.groupValues[1].trim()
+            }
+            if (thinkMatches.any()) {
+                text = thinkRegex.replace(text, "").trim()
+            }
+
+            val toolCalls = msg.toolCalls?.toMutableList() ?: mutableListOf()
+
+            // 2. Extract XML tool calls if native toolCalls is empty
+            if (toolCalls.isEmpty()) {
+                val combinedText = "$reasoning\n$text"
+                val toolCallRegex = "(?s)<tool_call>\\s*<function=([a-zA-Z0-9_]+)>\\s*(.*?)\\s*</function>\\s*</tool_call>".toRegex()
+                val matches = toolCallRegex.findAll(combinedText)
+                for (match in matches) {
+                    val name = match.groupValues[1]
+                    val argsRaw = match.groupValues[2].trim()
+                    val args = if (argsRaw.isBlank()) "{}" else argsRaw
+                    toolCalls.add(
+                        ToolCall(
+                            id = "call_" + java.util.UUID.randomUUID().toString().substring(0, 8),
+                            function = FunctionCall(name, args)
+                        )
+                    )
+                }
+            }
+
+            msg = msg.copy(
+                content = kotlinx.serialization.json.JsonPrimitive(text),
+                reasoningContent = reasoning.trim().ifEmpty { null },
+                toolCalls = toolCalls.ifEmpty { null }
+            )
+            choice.copy(message = msg)
+        }
+        return response.copy(choices = newChoices)
     }
 }

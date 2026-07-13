@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -125,6 +126,48 @@ fun MessageBubble(
                                 .clip(RoundedCornerShape(8.dp)),
                             contentScale = ContentScale.Fit
                         )
+                    }
+                }
+                message.reasoningContent?.let { reasoning ->
+                    var reasoningExpanded by remember { mutableStateOf(false) }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(contentColor.copy(alpha = 0.05f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { reasoningExpanded = !reasoningExpanded }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "💭 Reasoning process",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = contentColor.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                imageVector = if (reasoningExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = "Toggle reasoning",
+                                modifier = Modifier.size(16.dp),
+                                tint = contentColor.copy(alpha = 0.7f)
+                            )
+                        }
+                        if (reasoningExpanded) {
+                            HorizontalDivider(color = contentColor.copy(alpha = 0.1f))
+                            Text(
+                                text = reasoning,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                ),
+                                color = contentColor.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
                     }
                 }
                 if (message.text.isNotEmpty()) {

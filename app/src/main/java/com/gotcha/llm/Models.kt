@@ -29,7 +29,9 @@ data class ChatMessage(
     @SerialName("tool_calls")
     val toolCalls: List<ToolCall>? = null,
     @SerialName("tool_call_id")
-    val toolCallId: String? = null
+    val toolCallId: String? = null,
+    @SerialName("reasoning_content")
+    val reasoningContent: String? = null
 ) {
     /** The plain-text portion of this message, or empty string if there is none. */
     val textContent: String get() = when (content) {
