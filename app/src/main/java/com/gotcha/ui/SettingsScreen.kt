@@ -50,15 +50,22 @@ fun SettingsScreen(
     onSave: (Settings) -> Unit,
     onTestConnection: suspend (Settings) -> Result<String>,
     onClearLlmCache: () -> Unit,
+    onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
-    onRefreshAudioModels: suspend (
-        Settings
-    ) -> Pair<List<AudioModel>, List<AudioModel>> = { Pair(emptyList(), emptyList()) },
+    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
+        Pair(
+            emptyList(),
+            emptyList()
+        )
+    },
+    onRefreshChatModels: suspend (Settings) -> Result<List<String>> = { Result.failure(Exception("Not available")) },
     packageName: String = ""
 ) {
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
     var model by remember { mutableStateOf(initial.model) }
+    var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
+    var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
@@ -73,10 +80,12 @@ fun SettingsScreen(
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    var availableChatModels by remember { mutableStateOf<List<String>>(emptyList()) }
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var refreshingModels by remember { mutableStateOf(false) }
+    var refreshingChatModels by remember { mutableStateOf(false) }
     // Collapsible sections
     var aiConfigExpanded by remember { mutableStateOf(false) }
     var speechExpanded by remember { mutableStateOf(false) }
@@ -87,11 +96,16 @@ fun SettingsScreen(
     var sttProviderExpanded by remember { mutableStateOf(false) }
     var ttsModelExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
+    var modelExpanded by remember { mutableStateOf(false) }
+    var subAgentModelExpanded by remember { mutableStateOf(false) }
+    var navigatorModelExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
+        subAgentModel = subAgentModel.trim(),
+        navigatorModel = navigatorModel.trim(),
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
@@ -101,7 +115,8 @@ fun SettingsScreen(
         sttProvider = sttProvider,
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiModel = sttApiModel.trim(),
-        autoReadReplies = autoReadReplies
+        autoReadReplies = autoReadReplies,
+        assistiveBallEnabled = initial.assistiveBallEnabled
     )
 
     Scaffold(
@@ -152,13 +167,153 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = model,
-                        onValueChange = { model = it },
-                        label = { Text("Model name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    ExposedDropdownMenuBox(
+                        expanded = modelExpanded,
+                        onExpandedChange = { modelExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = model,
+                            onValueChange = { model = it },
+                            readOnly = false,
+                            label = { Text("Main model") },
+                            placeholder = { Text("(select model)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false }
+                        ) {
+                            if (availableChatModels.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("No models — refresh below") },
+                                    onClick = { modelExpanded = false }
+                                )
+                            } else {
+                                availableChatModels.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(m) },
+                                        onClick = {
+                                            model = m
+                                            modelExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                            // Always allow manual text input
+                            DropdownMenuItem(
+                                text = { Text("✏️ Custom model…") },
+                                onClick = {
+                                    modelExpanded = false
+                                }
+                            )
+                        }
+                    }
+                    ExposedDropdownMenuBox(
+                        expanded = subAgentModelExpanded,
+                        onExpandedChange = { subAgentModelExpanded = it }
+                    ) {
+                        val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
+                        OutlinedTextField(
+                            value = subLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Sub-agent model") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = subAgentModelExpanded
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = subAgentModelExpanded,
+                            onDismissRequest = { subAgentModelExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Same as main agent") },
+                                onClick = {
+                                    subAgentModel = ""
+                                    subAgentModelExpanded = false
+                                }
+                            )
+                            if (availableChatModels.isNotEmpty()) {
+                                availableChatModels.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(m) },
+                                        onClick = {
+                                            subAgentModel = m
+                                            subAgentModelExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    ExposedDropdownMenuBox(
+                        expanded = navigatorModelExpanded,
+                        onExpandedChange = { navigatorModelExpanded = it }
+                    ) {
+                        val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
+                        OutlinedTextField(
+                            value = navLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Navigator model") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = navigatorModelExpanded
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = navigatorModelExpanded,
+                            onDismissRequest = { navigatorModelExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Same as main model") },
+                                onClick = {
+                                    navigatorModel = ""
+                                    navigatorModelExpanded = false
+                                }
+                            )
+                            if (availableChatModels.isNotEmpty()) {
+                                availableChatModels.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(m) },
+                                        onClick = {
+                                            navigatorModel = m
+                                            navigatorModelExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                refreshingChatModels = true
+                                status = "Refreshing models…"
+                                scope.launch {
+                                    val result = onRefreshChatModels(currentSettings())
+                                    result.onSuccess { models ->
+                                        availableChatModels = models
+                                        status = "Found ${models.size} models"
+                                    }.onFailure { e ->
+                                        status = "Failed: ${e.message}"
+                                    }
+                                    refreshingChatModels = false
+                                }
+                            },
+                            enabled = !refreshingChatModels,
+                            modifier = Modifier.weight(1f)
+                        ) { Text(if (refreshingChatModels) "Refreshing…" else "Refresh models") }
+                    }
                     OutlinedTextField(
                         value = maxToolRounds,
                         onValueChange = { maxToolRounds = it },
@@ -214,6 +369,13 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Clear LLM cache") }
+                    OutlinedButton(
+                        onClick = {
+                            onClearDebugScreenshots()
+                            status = "Debug screenshots cleared."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Clear debug screenshots") }
                 }
             }
 

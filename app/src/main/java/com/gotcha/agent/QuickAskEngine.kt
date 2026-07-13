@@ -33,6 +33,9 @@ class QuickAskEngine(
     private val ttsEngine: TtsEngine,
     private val llmProvider: () -> LLMClient?
 ) {
+    /** Stable session ID for prefix caching across consecutive quick-ask calls. */
+    private val sessionId: String = "quickask_${java.util.UUID.randomUUID()}"
+
     private fun settings() = settingsRepository.load()
 
     /** True when speech input is available (a usable STT provider is configured). */
@@ -160,7 +163,7 @@ class QuickAskEngine(
             ChatMessage(role = "user", content = JsonPrimitive(userText))
         }
 
-        val response = llm.chat(listOf(system, user))
+        val response = llm.chat(listOf(system, user), sessionId = sessionId)
         return response.choices.firstOrNull()?.message?.textContent?.ifBlank { "(no reply)" }
             ?: "(no reply)"
     }

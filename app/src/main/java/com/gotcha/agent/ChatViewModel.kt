@@ -20,7 +20,10 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
+import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ScreenPerception
+import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
@@ -41,11 +44,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.ByteArrayOutputStream
 
-enum class MessageKind { USER, ASSISTANT, TOOL, ERROR }
+enum class MessageKind { USER, ASSISTANT, TOOL, ERROR, SUBAGENT }
 
 /** Outcome of the sensitive-action confirmation step. */
 private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
@@ -54,7 +60,16 @@ data class UiMessage(
     val id: Long,
     val kind: MessageKind,
     val text: String,
-    val imageBase64: String? = null
+    val imageBase64: String? = null,
+    val subAgentSteps: List<String> = emptyList(),
+    val subAgentCollapsed: Boolean = true,
+    val reasoningContent: String? = null
+)
+
+data class SubAgentStepUi(
+    val action: String,
+    val status: String,
+    val detail: String = ""
 )
 
 /** A batch of tool calls waiting for the user's confirm/deny (Phase 7). */
@@ -73,16 +88,17 @@ data class PendingQuestion(
 data class ChatUiState(
     val messages: List<UiMessage> = emptyList(),
     val isBusy: Boolean = false,
-    val activity: String? = null, // e.g. "Running: set_brightness…"
+    val activity: String? = null,
+    val subAgentRunning: String? = null,
+    val subAgentCurrentAction: String? = null,
     val pendingConfirmation: PendingConfirmation? = null,
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.OPERATOR,
     val contextUsagePercent: Float = 0f,
-    // TTS / STT state
-    val isListening: Boolean = false, // Android STT active
-    val isRecording: Boolean = false, // API STT recording
+    val isListening: Boolean = false,
+    val isRecording: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
 )
@@ -94,7 +110,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
-    private val toolExecutor = ToolExecutor(application)
+    private lateinit var toolExecutor: ToolExecutor
     private val confirmationOverlay = ConfirmationOverlay(application)
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -138,7 +154,99 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
 
+    /** Exported chat markdown content the Activity should share. */
+    private val _exportContent = MutableSharedFlow<String>(extraBufferCapacity = 2)
+    val exportContent: SharedFlow<String> = _exportContent.asSharedFlow()
+
     init {
+        ScreenPerception.appContext = application
+        toolExecutor = ToolExecutor(
+            application,
+            onTask = { description, prompt ->
+                _uiState.update { it.copy(subAgentRunning = description, subAgentCurrentAction = "starting…") }
+                val steps = mutableListOf<SubAgentStepUi>()
+                val subSession = SubAgentSession(
+                    appContext = getApplication(),
+                    toolExecutor = toolExecutor,
+                    settings = settings,
+                    description = description,
+                    prompt = prompt,
+                    onStep = { action, status, detail ->
+                        steps.add(SubAgentStepUi(action, status, detail))
+                        _uiState.update {
+                            it.copy(
+                                subAgentCurrentAction = when (status) {
+                                    "running" -> "→ $action"
+                                    "completed" -> if (detail.isNotBlank()) {
+                                        "✓ $action → ${detail.take(60)}"
+                                    } else {
+                                        "✓ $action"
+                                    }
+                                    else -> "$action: ${detail.take(60)}"
+                                }
+                            )
+                        }
+                    },
+                    sessionId = activeSessionId?.let { "${it}_task" }
+                )
+                val output = subSession.run()
+                val stepsEncoded = output.steps.joinToString("\n")
+                _uiState.update { it.copy(subAgentRunning = null, subAgentCurrentAction = null) }
+                if (output.finalAnswer.startsWith("Task failed") || output.finalAnswer.startsWith("Task exceeded")) {
+                    ToolResult.error(output.finalAnswer)
+                } else {
+                    ToolResult.ok("TASK_RESULT:$description:$stepsEncoded\n|||\n${output.finalAnswer}")
+                }
+            },
+            onNavigateApp = { task ->
+                _uiState.update { it.copy(subAgentRunning = "App Navigation", subAgentCurrentAction = "starting…") }
+                val steps = mutableListOf<SubAgentStepUi>()
+                val session = AppNavigatorSession(
+                    appContext = getApplication(),
+                    toolExecutor = toolExecutor,
+                    settings = settings,
+                    task = task,
+                    onStep = { action, status, detail ->
+                        steps.add(SubAgentStepUi(action, status, detail))
+                        _uiState.update {
+                            it.copy(
+                                subAgentCurrentAction = when (status) {
+                                    "running" -> "→ $action"
+                                    "completed" -> if (detail.isNotBlank()) {
+                                        "✓ $action → ${detail.take(60)}"
+                                    } else {
+                                        "✓ $action"
+                                    }
+                                    else -> "$action: ${detail.take(60)}"
+                                }
+                            )
+                        }
+                    },
+                    sessionId = activeSessionId?.let { "${it}_nav" }
+                )
+                val output = session.run()
+                val stepsEncoded = output.steps.joinToString("\n")
+                _uiState.update { it.copy(subAgentRunning = null, subAgentCurrentAction = null) }
+                // Auto-return to our app after navigation completes
+                try {
+                    val pkg = getApplication<android.app.Application>().packageName
+                    val launchIntent = getApplication<android.app.Application>()
+                        .packageManager.getLaunchIntentForPackage(pkg)
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(
+                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                                android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        )
+                        getApplication<android.app.Application>().startActivity(launchIntent)
+                    }
+                } catch (_: Exception) { }
+                if (!output.success) {
+                    ToolResult.error(output.finalAnswer)
+                } else {
+                    ToolResult.ok("TASK_RESULT:App Navigation:$stepsEncoded\n|||\n${output.finalAnswer}")
+                }
+            }
+        )
         refreshSettings()
         viewModelScope.launch {
             val sessions = historyRepository.listSessions()
@@ -184,6 +292,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
     }
 
+    suspend fun refreshChatModels(): Result<List<String>> {
+        val cfg = settings
+        if (!cfg.isConfigured) return Result.failure(Exception("API not configured"))
+        val client = LLMClient(
+            apiKey = cfg.apiKey,
+            baseUrl = cfg.baseUrl,
+            model = cfg.model,
+            context = getApplication(),
+            apiTimeoutSeconds = cfg.apiTimeoutSeconds
+        )
+        return client.listModels()
+    }
+
     fun sendMessage(text: String, imageBase64: String? = null) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && imageBase64 == null) return
@@ -208,7 +329,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 withContext(NonCancellable) {
                     saveCurrentSession()
-                    _uiState.update { it.copy(isBusy = false, activity = null) }
+                    _uiState.update { it.copy(isBusy = false, activity = null, subAgentRunning = null, subAgentCurrentAction = null) }
                     agentJob = null
                 }
             }
@@ -540,14 +661,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(activity = "Thinking…") }
 
             // Build message array optimized for prompt caching:
-            //   1. Base environment block (identical across agent switches
-            //      except for a single "Active agent: X" line)
-            //   2. Full conversation history (unchanged on switch)
-            //   3. Agent instructions at the tail (changes on switch, keeps
-            //      the prefix [base env + history] in the KV cache)
+            //   1. Base environment block (fully static — no volatile fields)
+            //   2. Full conversation history (images culled non-mutatively)
+            //   3. Current timestamp (volatile — placed after cacheable prefix)
+            //   4. Agent instructions at the tail
+            // The [env block + history] prefix stays byte-identical across
+            // iterations, maximising server-side KV-cache hits.
             val messages = buildList {
                 add(baseEnvironmentBlock(agent))
-                addAll(trimmedHistory())
+                addAll(cullOldImages(trimmedHistory()))
+                add(currentTimestampMessage())
                 addAll(agentInstructionMessages(agent))
             }
             val response = try {
@@ -616,6 +739,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         handleBinaryResult(call, result)
                     } else if (result.success && result.message.startsWith("QUESTION:")) {
                         handleQuestionResult(call, result)
+                    } else if (result.success && result.message.startsWith("TASK_RESULT:")) {
+                        handleTaskResult(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
                         handleUninstallConfirm(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_ALARM:")) {
@@ -636,21 +761,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
                     // Automatic screenshot injection: when read_screen succeeds,
-                    // capture a screenshot and inject it as vision context so the LLM
-                    // can "see" the screen alongside the accessibility text dump.
+                    // capture a compressed JPEG screenshot + UI hierarchy + coordinate
+                    // contract and inject them as a vision user message so the LLM
+                    // can "see" the screen alongside structured element data.
                     if (result.success && call.function.name == "read_screen") {
-                        val screenshotBase64 = captureScreenshotBase64()
-                        if (screenshotBase64 != null) {
-                            val screenText = result.message.take(500)
-                            val visionMsg = visionUserMessage(
-                                "Screen text:\n$screenText\n\nThe assistant also captured a screenshot. " +
-                                    "Use it together with the screen text to understand the current screen.",
-                                screenshotBase64,
-                                "png"
-                            )
-                            llmHistory.add(visionMsg)
-                            appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
-                        }
+                        injectReadScreenObservation()
+                    }
+                    // read_screen_raw: full-resolution PNG screenshot for visual detail.
+                    // Also saves the raw bytes to the working directory as a file.
+                    if (result.success && call.function.name == "read_screen_raw") {
+                        injectFullResScreenshot(result)
                     }
                     // Special-access markers: emit and continue (no wait needed since they open Settings)
                     if (perm != null && perm.startsWith("special:")) {
@@ -899,8 +1019,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /**
+     * Handles a tool result prefixed with TASK_RESULT:description:steps|||answer.
+     * Shows a collapsible SUBAGENT bubble with intermediate steps and renders
+     * the final answer with markdown.
+     */
+    private fun handleTaskResult(call: ToolCall, result: ToolResult) {
+        val body = result.message.removePrefix("TASK_RESULT:")
+        val colon = body.indexOf(':')
+        if (colon < 0) return
+        val description = body.substring(0, colon)
+        val payload = body.substring(colon + 1)
+        val marker = "\n|||\n"
+        val splitIdx = payload.indexOf(marker)
+        val steps: List<String>
+        val answer: String
+        if (splitIdx >= 0) {
+            steps = payload.substring(0, splitIdx).split("\n").filter { it.isNotBlank() }
+            answer = payload.substring(splitIdx + marker.length)
+        } else {
+            steps = emptyList()
+            answer = payload
+        }
+        // Show as a collapsible SUBAGENT bubble in the UI
+        appendUi(MessageKind.SUBAGENT, answer, subAgentSteps = steps)
+        // Store in LLM history with steps embedded for persistence
+        val stepsBlock = if (steps.isNotEmpty()) {
+            "\n── Steps ──\n" + steps.joinToString("\n") + "\n── Result ──\n"
+        } else {
+            ""
+        }
+        llmHistory += ChatMessage(
+            role = "tool",
+            content = JsonPrimitive(
+                "SUBAGENT_STEPS:$description" +
+                    stepsBlock +
+                    answer
+            ),
+            toolCallId = call.id
+        )
+    }
+
     private suspend fun executeCall(call: ToolCall): ToolResult {
-        _uiState.update { it.copy(activity = "Running: ${call.function.name}…") }
+        _uiState.update { it.copy(activity = "Running: ${call.function.name}…", subAgentRunning = null) }
         val args: JsonObject = try {
             json.decodeFromString(JsonObject.serializer(), call.function.arguments.ifBlank { "{}" })
         } catch (_: Exception) {
@@ -926,12 +1087,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Environment block sent as the first system message.
-     * Only one line ("Active agent: X") differs between Monitor and Operator,
-     * so the server KV cache for this ~300-token prefix is mostly preserved
-     * across agent switches.
+     * Fully static within a session — no volatile fields like timestamps.
+     * Only "Active agent: X" differs between Monitor and Operator.
+     * The server KV cache for this prefix is preserved across all calls.
      */
     private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
         return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
+    }
+
+    /**
+     * A separate system message carrying only the current date/time.
+     * Placed after the conversation history so the [baseEnvironmentBlock] +
+     * history prefix stays in the KV cache while the timestamp is always fresh.
+     */
+    private fun currentTimestampMessage(): ChatMessage {
+        val dateTime = java.text.SimpleDateFormat(
+            "EEE MMM dd yyyy, HH:mm:ss 'UTC'Z",
+            java.util.Locale.US
+        ).apply { timeZone = java.util.TimeZone.getDefault() }.format(java.util.Date())
+        return ChatMessage(role = "system", content = JsonPrimitive("Current date/time: $dateTime"))
     }
 
     /**
@@ -957,6 +1131,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     "to grant and ask again. After changing device state, confirm what was done. " +
                     "Use the sleep tool to pause and wait between operations (e.g. wait for " +
                     "a recording to finish before reading it). " +
+                    "Use the task tool to delegate complex multi-step operations to the General " +
+                    "sub-agent. Prefer delegation whenever a task involves many tool calls whose " +
+                    "intermediate steps are not important — only the final result matters. " +
+                    "For example: organizing files, gathering information from multiple sources, " +
+                    "or performing a series of device checks. The sub-agent runs in the foreground; " +
+                    "you will receive its complete report when done. " +
+                    "Use the navigate_app tool to delegate app interaction tasks to the App " +
+                    "Navigator sub-agent. For example: opening an app, searching for something, " +
+                    "scrolling through results, or reading on-screen information. The navigator " +
+                    "will look at the screen, tap, swipe, and type step by step. " +
+                    "You will receive its complete report when done. " +
                     "Keep replies short and conversational. Be careful with destructive actions.\n" +
                     "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
                     "When using uninstall_app: after calling it, the system will open a dialog. " +
@@ -986,8 +1171,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Builds the environment info string with device info, date/time, agent mode,
-     * and service statuses (PRD §14.1).  Only varies by a single "Active agent: X" line.
+     * Builds the environment info string with device info, agent mode,
+     * and service statuses (PRD §14.1).
+     *
+     * The date/time is intentionally excluded — it is provided via
+     * [currentTimestampMessage] placed after the conversation history
+     * so that this block stays fully static and the server-side KV cache
+     * for the [env block + history] prefix is preserved across calls.
      */
     private fun buildEnvironmentString(agent: AgentMode): String {
         val app = getApplication<Application>()
@@ -1027,10 +1217,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) ?: false
         } catch (_: Exception) { false }
 
-        val dateTime = java.text.SimpleDateFormat("EEE MMM dd yyyy, HH:mm:ss 'UTC'Z", java.util.Locale.US)
-            .apply { timeZone = java.util.TimeZone.getDefault() }
-            .format(java.util.Date())
-
         return buildString {
             appendLine("You are powered by the model named ${settings.model}.")
             appendLine("Here is some useful information about the environment you are running in:")
@@ -1039,7 +1225,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             appendLine(
                 "  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
             )
-            appendLine("  Current date/time: $dateTime")
             appendLine("  Active agent: ${agent.name}")
             appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
@@ -1096,23 +1281,76 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         else -> "Something went wrong: ${e.message}"
     }
 
-    private fun appendUi(kind: MessageKind, text: String, imageBase64: String? = null) {
+    private fun appendUi(
+        kind: MessageKind,
+        text: String,
+        imageBase64: String? = null,
+        subAgentSteps: List<String> = emptyList(),
+        reasoningContent: String? = null
+    ) {
         _uiState.update {
-            it.copy(messages = it.messages + UiMessage(nextId++, kind, text, imageBase64))
+            it.copy(
+                messages = it.messages + UiMessage(
+                    nextId++, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent = reasoningContent
+                )
+            )
         }
     }
 
     private fun rebuildUiMessages() {
         val rebuilt = llmHistory.mapNotNull { msg ->
+            val text = msg.textContent
             when {
-                msg.role == "user" -> UiMessage(
-                    nextId++,
-                    MessageKind.USER,
-                    msg.textContent.ifEmpty { "(image attached)" }
-                )
-                msg.role == "assistant" && msg.hasText ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, msg.textContent)
-                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, msg.textContent.ifEmpty { "(no result)" })
+                msg.role == "user" && (text.startsWith("[Screen State]") || text.startsWith("Screen text:")) -> {
+                    val saved = if (text.contains("Saved to:")) " → " + text.substringAfter("Saved to:").trim() else ""
+                    val msgText = if (text.startsWith("Screen text:")) {
+                        "[Full-resolution screenshot captured]$saved"
+                    } else {
+                        "[Screenshot captured for visual context]"
+                    }
+                    UiMessage(nextId++, MessageKind.ASSISTANT, msgText)
+                }
+                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, text.ifEmpty { "(image attached)" })
+                msg.role == "assistant" && text.isNotBlank() ->
+                    UiMessage(nextId++, MessageKind.ASSISTANT, text, reasoningContent = msg.reasoningContent)
+                msg.role == "assistant" && !msg.reasoningContent.isNullOrBlank() ->
+                    UiMessage(nextId++, MessageKind.ASSISTANT, "(no reply)", reasoningContent = msg.reasoningContent)
+                msg.role == "tool" && text.startsWith("SUBAGENT_STEPS:") -> {
+                    val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
+                    val rest = if (descEnd > 0) {
+                        text.substring(
+                            descEnd + 1
+                        )
+                    } else {
+                        text.substring("SUBAGENT_STEPS:".length)
+                    }
+                    val stepsMarker = "── Steps ──\n"
+                    val resultMarker = "\n── Result ──\n"
+                    val steps: List<String>
+                    val answer: String
+                    if (rest.startsWith(stepsMarker)) {
+                        val afterSteps = rest.removePrefix(stepsMarker)
+                        val resIdx = afterSteps.indexOf(resultMarker)
+                        if (resIdx >= 0) {
+                            steps = afterSteps.substring(0, resIdx).split("\n").filter { it.isNotBlank() }
+                            answer = afterSteps.substring(resIdx + resultMarker.length)
+                        } else {
+                            steps = emptyList()
+                            answer = afterSteps
+                        }
+                    } else {
+                        steps = emptyList()
+                        answer = rest
+                    }
+                    UiMessage(
+                        nextId++,
+                        MessageKind.SUBAGENT,
+                        answer,
+                        subAgentSteps = steps,
+                        reasoningContent = msg.reasoningContent
+                    )
+                }
+                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, text.ifEmpty { "(no result)" })
                 else -> null
             }
         }
@@ -1120,35 +1358,227 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Capture a screenshot via the `screencap -p` shell command.
-     * Returns the image as a base64-encoded PNG string, or null on failure.
-     * The app runs as an unprivileged uid; on many devices `screencap` requires
-     * the `DUMP` permission or root. This is best-effort.
+     * Capture a screenshot via the `screencap -p` shell command, compressed as JPEG.
+     * Returns a [ScreenPerception.CompressedScreenshot] with base64 data, or null on failure.
      */
-    private suspend fun captureScreenshotBase64(): String? {
-        return try {
-            val bytes = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val process = java.lang.Runtime.getRuntime().exec("screencap -p")
-                val b = process.inputStream.use { it.readBytes() }
-                process.waitFor()
-                b
+    private suspend fun captureCompressedScreenshot(
+        drawGrid: Boolean = true
+    ): ScreenPerception.CompressedScreenshot? {
+        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
+        return ScreenPerception.compressScreenshot(drawGrid = drawGrid, saveDir = saveDir)
+    }
+
+    /**
+     * Capture a full-resolution screenshot (uncompressed PNG).
+     * Used by read_screen_raw for maximum visual detail.
+     */
+    private suspend fun captureFullResScreenshot(): ScreenPerception.CompressedScreenshot? {
+        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
+        return ScreenPerception.compressScreenshot(
+            maxDimension = 0,
+            drawGrid = false,
+            format = android.graphics.Bitmap.CompressFormat.PNG,
+            quality = 100,
+            saveDir = saveDir
+        )
+    }
+
+    /**
+     * Captures a compressed screenshot + UI hierarchy after a successful
+     * read_screen call and injects them as a vision user message so the LLM
+     * can "see" the screen alongside structured element data.
+     */
+    private suspend fun injectReadScreenObservation() {
+        android.util.Log.d(
+            "ScreenCapture",
+            "read_screen auto-injection: calling captureCompressedScreenshot()"
+        )
+        val uiTree = ScreenPerception.buildUiHierarchyText()
+        val screenshot = captureCompressedScreenshot()
+        android.util.Log.d(
+            "ScreenCapture",
+            "read_screen auto-injection: screenshot=${screenshot != null}"
+        )
+        if (screenshot != null) {
+            val observationText = ScreenPerception.buildObservationText(screenshot, uiTree)
+            val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
+            llmHistory.add(visionMsg)
+            appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+            android.util.Log.d(
+                "ScreenCapture",
+                "read_screen auto-injection: vision message added, base64 length=${screenshot.base64.length}"
+            )
+        } else {
+            android.util.Log.e(
+                "ScreenCapture",
+                "read_screen auto-injection: screenshot was null — no vision message added"
+            )
+            // If MediaProjection consent hasn't been granted, request it
+            if (ScreenPerception.mediaProjectionResultData == null) {
+                _permissionRequests.tryEmit("special:screenshot_consent")
             }
-            if (bytes.isEmpty()) return null
-            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            val maxDim = 1024
-            val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
-                val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
-                (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
+        }
+    }
+
+    /**
+     * Captures a full-resolution PNG screenshot after read_screen_raw,
+     * saves it to the working directory, and injects it as a vision message.
+     */
+    private suspend fun injectFullResScreenshot(result: ToolResult) {
+        val screenshot = captureFullResScreenshot() ?: return
+        val screenText = result.message.removePrefix("read_screen_raw:").take(500)
+        // Save screenshot to working directory
+        val savedPath = try {
+            val ts = java.text.SimpleDateFormat(
+                "yyyyMMdd_HHmmss",
+                java.util.Locale.US
+            ).format(java.util.Date())
+            val dir = java.io.File(com.gotcha.tools.FileResolver.WORKING_DIR_BASE)
+            if (!dir.exists()) dir.mkdirs()
+            val file = java.io.File(dir, "screenshot_$ts.png")
+            val rawBytes = android.util.Base64.decode(
+                screenshot.base64,
+                android.util.Base64.DEFAULT
+            )
+            file.writeBytes(rawBytes)
+            file.absolutePath
+        } catch (_: Exception) {
+            null
+        }
+        val pathNote = if (savedPath != null) "\n\nSaved to: $savedPath" else ""
+        val visionMsg = visionUserMessage(
+            "Screen text:\n$screenText\n\nThe assistant captured a " +
+                "full-resolution screenshot for visual detail.$pathNote",
+            screenshot.base64,
+            screenshot.format
+        )
+        llmHistory.add(visionMsg)
+        appendUi(
+            MessageKind.ASSISTANT,
+            "[Full-resolution screenshot captured]${if (savedPath != null) " → $savedPath" else ""}"
+        )
+    }
+
+    /**
+     * Returns a copy of [messages] with old vision messages replaced by
+     * text-only versions. Only the 2 most recent vision messages keep their
+     * image data. The original list (and [llmHistory]) is NOT modified,
+     * so the prefix sent in previous iterations stays cache-stable.
+     */
+    private fun cullOldImages(messages: List<ChatMessage>): List<ChatMessage> {
+        val imageMsgIndices = messages.indices.filter { i ->
+            val content = messages[i].content
+            content is JsonArray && content.any { part ->
+                part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
+            }
+        }
+        val toCull = imageMsgIndices.dropLast(2).toSet()
+        if (toCull.isEmpty()) return messages
+
+        return messages.mapIndexed { idx, msg ->
+            if (idx in toCull) {
+                msg.copy(
+                    content = JsonPrimitive(
+                        "[Previous screen observation removed to save context. Only the 2 most recent are retained.]"
+                    )
+                )
             } else {
-                bitmap.width to bitmap.height
+                msg
             }
-            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
-            if (scaled != bitmap) bitmap.recycle()
-            val output = java.io.ByteArrayOutputStream()
-            scaled.compress(android.graphics.Bitmap.CompressFormat.PNG, 90, output)
-            scaled.recycle()
-            android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
-        } catch (_: Exception) { null }
+        }
+    }
+
+    fun exportChat() {
+        val sessionId = activeSessionId ?: "unknown"
+        val sb = StringBuilder()
+        sb.appendLine("# Gotcha Chat Export")
+        sb.appendLine("**Session:** $sessionId")
+        sb.appendLine(
+            "**Date:** ${java.text.SimpleDateFormat(
+                "yyyy-MM-dd HH:mm:ss",
+                java.util.Locale.US
+            ).format(java.util.Date())}"
+        )
+        sb.appendLine("**Messages:** ${llmHistory.size}")
+        sb.appendLine()
+        sb.appendLine("---")
+        sb.appendLine()
+
+        for (msg in llmHistory) {
+            val role = msg.role
+            val text = msg.textContent
+
+            when (role) {
+                "user" -> {
+                    val isVision = msg.content is JsonArray
+                    sb.appendLine("### User")
+                    if (text.isNotBlank()) sb.appendLine(text)
+                    if (isVision) sb.appendLine("*(Image attached)*")
+                    sb.appendLine()
+                }
+                "assistant" -> {
+                    sb.appendLine("### Assistant")
+                    if (text.isNotBlank()) sb.appendLine(text)
+                    val calls = msg.toolCalls
+                    if (!calls.isNullOrEmpty()) {
+                        sb.appendLine()
+                        sb.appendLine("**Called tools:**")
+                        for (call in calls) {
+                            sb.appendLine("- `${call.function.name}(${call.function.arguments.take(200)})`")
+                        }
+                    }
+                    sb.appendLine()
+                }
+                "tool" -> {
+                    if (text.startsWith("SUBAGENT_STEPS:")) {
+                        appendSubAgentExport(sb, text)
+                    } else {
+                        sb.appendLine("### Tool Result")
+                        sb.appendLine(text.ifEmpty { "(no result)" })
+                    }
+                    sb.appendLine()
+                }
+                "system" -> {
+                    sb.appendLine("### System")
+                    sb.appendLine(text.ifEmpty { "(system message)" })
+                    sb.appendLine()
+                }
+            }
+        }
+
+        _exportContent.tryEmit(sb.toString())
+    }
+
+    /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
+    private fun appendSubAgentExport(sb: StringBuilder, text: String) {
+        val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
+        val desc = if (descEnd > 0) {
+            text.substring("SUBAGENT_STEPS:".length, descEnd)
+        } else {
+            text.substring("SUBAGENT_STEPS:".length)
+        }
+        sb.appendLine("### Sub-Agent: $desc")
+        val rest = if (descEnd > 0) text.substring(descEnd + 1) else ""
+        val stepsMarker = "── Steps ──\n"
+        val resultMarker = "\n── Result ──\n"
+        if (!rest.startsWith(stepsMarker)) {
+            sb.appendLine(rest)
+            return
+        }
+        val afterSteps = rest.removePrefix(stepsMarker)
+        val resIdx = afterSteps.indexOf(resultMarker)
+        if (resIdx < 0) {
+            sb.appendLine(afterSteps)
+            return
+        }
+        val steps = afterSteps.substring(0, resIdx).split("\n").filter { it.isNotBlank() }
+        val answer = afterSteps.substring(resIdx + resultMarker.length)
+        sb.appendLine()
+        sb.appendLine("**Steps:**")
+        for (s in steps) sb.appendLine("- $s")
+        sb.appendLine()
+        sb.appendLine("**Result:**")
+        sb.appendLine(answer)
     }
 
     private companion object {

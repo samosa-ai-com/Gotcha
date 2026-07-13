@@ -1,6 +1,7 @@
 package com.gotcha
 
 import android.app.admin.DevicePolicyManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
@@ -33,6 +34,7 @@ import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.SessionsScreen
@@ -53,6 +55,22 @@ class MainActivity : ComponentActivity() {
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
+
+    /** MediaProjection consent result — stores intent for screenshot capture. */
+    private val mediaProjectionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            android.util.Log.d(
+                "ScreenCapture",
+                "mediaProjectionLauncher: resultCode=${result.resultCode}, data=${result.data != null}"
+            )
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                ScreenPerception.mediaProjectionResultData = result.data
+                Toast.makeText(this, "Screenshot permission granted.", Toast.LENGTH_SHORT).show()
+                android.util.Log.d("ScreenCapture", "mediaProjectionLauncher: consent stored successfully")
+            } else {
+                android.util.Log.w("ScreenCapture", "mediaProjectionLauncher: consent denied or data null")
+            }
+        }
 
     /** Requests all runtime permissions at once on first launch. */
     private val firstLaunchLauncher =
@@ -126,8 +144,28 @@ class MainActivity : ComponentActivity() {
                         "VPN already authorized — ask the assistant again.",
                         Toast.LENGTH_SHORT
                     ).show()
+                    "special:screenshot_consent" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            val mpManager = getSystemService(
+                                Context.MEDIA_PROJECTION_SERVICE
+                            ) as android.media.projection.MediaProjectionManager
+                            mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                        }
+                    }
                     // Runtime permissions are mapped in Settings → Permissions; skip here.
                 }
+            }
+        }
+
+        // Collect exported chat content and launch a share sheet
+        lifecycleScope.launch {
+            chatViewModel.exportContent.collect { markdown ->
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, markdown)
+                    putExtra(Intent.EXTRA_SUBJECT, "Gotcha Chat Export")
+                }
+                startActivity(Intent.createChooser(shareIntent, "Share Chat Export"))
             }
         }
 
@@ -137,6 +175,16 @@ class MainActivity : ComponentActivity() {
             if (!prefs.getBoolean(KEY_FIRST_LAUNCH_DONE, false)) {
                 requestAllRuntimePermissions()
                 prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
+            }
+            // Request MediaProjection consent for screenshot capture
+            // Always request if not granted in this process session (cleared on process kill)
+            if (ScreenPerception.mediaProjectionResultData == null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    val mpManager = getSystemService(
+                        Context.MEDIA_PROJECTION_SERVICE
+                    ) as android.media.projection.MediaProjectionManager
+                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                }
             }
         }
 
@@ -254,6 +302,14 @@ class MainActivity : ComponentActivity() {
                             context = this@MainActivity
                         ).clearCache()
                     },
+                    onClearDebugScreenshots = {
+                        val baseDir = java.io.File("/storage/emulated/0/Gotcha")
+                        if (baseDir.exists()) {
+                            baseDir.walkTopDown()
+                                .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
+                                .forEach { it.delete() }
+                        }
+                    },
                     onBack = { currentRoute = previousRoute },
                     onRefreshAudioModels = { s ->
                         withContext(Dispatchers.IO) {
@@ -267,6 +323,18 @@ class MainActivity : ComponentActivity() {
                                 ttsAll.filter { it.category == ModelCategory.STT }
                             }
                             Pair(ttsModels, sttModels)
+                        }
+                    },
+                    onRefreshChatModels = { s ->
+                        withContext(Dispatchers.IO) {
+                            val client = LLMClient(
+                                apiKey = s.apiKey,
+                                baseUrl = s.baseUrl,
+                                model = s.model,
+                                context = this@MainActivity,
+                                apiTimeoutSeconds = s.apiTimeoutSeconds
+                            )
+                            client.listModels()
                         }
                     },
                     packageName = packageName
@@ -317,7 +385,8 @@ class MainActivity : ComponentActivity() {
                     onSwitchAgent = chatViewModel::switchAgent,
                     onSpeak = chatViewModel::speak,
                     onStartListening = chatViewModel::startListening,
-                    onStopRecording = chatViewModel::stopRecording
+                    onStopRecording = chatViewModel::stopRecording,
+                    onExportChat = chatViewModel::exportChat
                 )
             }
         }
@@ -336,7 +405,7 @@ class MainActivity : ComponentActivity() {
             messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
             temperature = 0f
         )
-        response.choices.firstOrNull()?.message?.textContent?.take(60) ?: "empty response"
+        response.choices.firstOrNull()?.message?.textContent?. take(60) ?: "empty response"
     }
 
     companion object {

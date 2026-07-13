@@ -8,7 +8,9 @@ interface ApiService {
     @POST("chat/completions")
     suspend fun chat(
         @Body request: ChatRequest,
-        // Passed per-request; Retrofit omits the header entirely when null.
         @Header("X-Session-Id") sessionId: String? = null
     ): ChatResponse
+
+    @retrofit2.http.GET("models")
+    suspend fun listModels(): ModelListResponse
 }
