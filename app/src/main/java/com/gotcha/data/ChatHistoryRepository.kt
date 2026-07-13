@@ -18,11 +18,18 @@ data class ChatSession(
 )
 
 /**
- * Persists multiple chat sessions as JSON files in a dedicated 'chats' directory.
+ * Persists multiple chat sessions as JSON files in a dedicated directory
+ * (default 'chats'; voice calls use a separate 'calls' directory so they
+ * never show up in the main chat list).
  */
-class ChatHistoryRepository(context: Context) {
+class ChatHistoryRepository internal constructor(private val chatsDir: File) {
 
-    private val chatsDir = File(context.filesDir, "chats").apply { mkdirs() }
+    constructor(context: Context, dirName: String = "chats") :
+        this(File(context.filesDir, dirName))
+
+    init {
+        chatsDir.mkdirs()
+    }
     private val json = Json { ignoreUnknownKeys = true }
     private val serializer = ChatSession.serializer()
 

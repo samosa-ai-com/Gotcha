@@ -270,6 +270,13 @@ class AgentEngine(
     suspend fun run(agent: AgentMode) {
         val llm = clientProvider() ?: return
         val sessionId = this.sessionId ?: "unknown"
+        // KNOWN LIMITATION: WORKING_DIR_BASE is a process-wide global. We
+        // re-assert it at run start and after every tool round so sequential
+        // runs (in-app chat, voice call) always see their own directory, but
+        // two agents running tool rounds concurrently race last-writer-wins.
+        // The full fix is threading a cwd through ToolExecutor into the file
+        // tools (FileResolver already accepts one); deferred for now.
+        FileResolver.WORKING_DIR_BASE = workingDir().absolutePath
         checkAndCompactHistory(llm)
         repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
@@ -390,6 +397,8 @@ class AgentEngine(
             }
             executeToolCalls()
             saveCurrentSession()
+            // Re-assert after each round; a concurrent engine may have moved it.
+            FileResolver.WORKING_DIR_BASE = workingDir().absolutePath
         }
         events.onUi(
             MessageKind.ERROR,
