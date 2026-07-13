@@ -1269,9 +1269,8 @@ object ToolDefinitions {
 
     val swipe = tool(
         "swipe",
-        "Swipe the screen via the accessibility service — a named direction (up/down/left/right), " +
-            "explicit start/end coordinates, or by UI element index. Use for scrolling and navigation. " +
-            "If using a direction, 'down' means scroll the content down to see lower items (which performs an upward swipe). " +
+        "Swipe/scroll the screen or a specific element. " +
+            "If using a direction, 'down' means scroll the content down to see lower items. 'up' means scroll the content up to see higher items. " +
             "Needs the accessibility service enabled.",
         schema {
             putJsonObject("properties") {

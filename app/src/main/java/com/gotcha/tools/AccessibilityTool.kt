@@ -68,10 +68,10 @@ class AccessibilityTool(private val context: Context) {
                 val h = bottom - top
                 val w = right - left
                 val (sx, sy, ex, ey) = when (direction?.lowercase()?.trim()) {
-                    "up" -> listOf(cx, top + h * 0.8f, cx, top + h * 0.2f)
-                    "down" -> listOf(cx, top + h * 0.2f, cx, top + h * 0.8f)
-                    "left" -> listOf(left + w * 0.8f, (top + bottom) / 2f, left + w * 0.2f, (top + bottom) / 2f)
-                    "right" -> listOf(left + w * 0.2f, (top + bottom) / 2f, left + w * 0.8f, (top + bottom) / 2f)
+                    "up" -> listOf(cx, top + h * 0.2f, cx, top + h * 0.8f)       // Scroll Up (physical swipe down)
+                    "down" -> listOf(cx, top + h * 0.8f, cx, top + h * 0.2f)     // Scroll Down (physical swipe up)
+                    "left" -> listOf(left + w * 0.2f, (top + bottom) / 2f, left + w * 0.8f, (top + bottom) / 2f) // Scroll Left (physical swipe right)
+                    "right" -> listOf(left + w * 0.8f, (top + bottom) / 2f, left + w * 0.2f, (top + bottom) / 2f) // Scroll Right (physical swipe left)
                     else -> return ToolResult.error("Provide a direction (up/down/left/right) when using index.")
                 }
                 return if (service.swipe(sx, sy, ex, ey, 500)) ToolResult.ok("Swiped $direction on element $index.")
@@ -96,10 +96,10 @@ class AccessibilityTool(private val context: Context) {
         val h = metrics.heightPixels.toFloat()
         val scrollPx = distance?.toFloat()?.takeIf { it > 0f } ?: (h * 0.6f)
         val (sx, sy, ex, ey) = when (direction?.lowercase()?.trim()) {
-            "up" -> listOf(w / 2, h * 0.8f, w / 2, h * 0.8f - scrollPx)
-            "down" -> listOf(w / 2, h * 0.2f, w / 2, h * 0.2f + scrollPx)
-            "left" -> listOf(w * 0.8f, h / 2, w * 0.8f - scrollPx, h / 2)
-            "right" -> listOf(w * 0.2f, h / 2, w * 0.2f + scrollPx, h / 2)
+            "up" -> listOf(w / 2, h * 0.2f, w / 2, h * 0.2f + scrollPx)       // Scroll Up (physical swipe down)
+            "down" -> listOf(w / 2, h * 0.8f, w / 2, h * 0.8f - scrollPx)     // Scroll Down (physical swipe up)
+            "left" -> listOf(w * 0.2f, h / 2, w * 0.2f + scrollPx, h / 2)     // Scroll Left (physical swipe right)
+            "right" -> listOf(w * 0.8f, h / 2, w * 0.8f - scrollPx, h / 2)    // Scroll Right (physical swipe left)
             else -> return ToolResult.error(
                 "Provide a direction (up/down/left/right) or explicit x1,y1,x2,y2 coordinates."
             )
