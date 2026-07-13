@@ -8,13 +8,24 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.os.Build
 import android.util.Base64
+import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import com.gotcha.service.GotchaAccessibilityService
+import com.gotcha.service.MediaProjectionService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
 object ScreenPerception {
+
+    /** Set by MainActivity after the user grants MediaProjection consent. */
+    @Volatile
+    var mediaProjectionResultData: android.content.Intent? = null
+
+    /** Application context — set by ChatViewModel.init(). Used by captureRawBytes. */
+    @Volatile
+    var appContext: android.content.Context? = null
 
     data class CompressedScreenshot(
         val base64: String,
@@ -41,11 +52,24 @@ object ScreenPerception {
         quality: Int = 50,
         drawGrid: Boolean = false
     ): CompressedScreenshot? {
-        val bytes = captureRawBytes() ?: return null
+        Log.d("ScreenCapture", "compressScreenshot: starting capture...")
+        val bytes = captureRawBytes()
+        if (bytes == null) {
+            Log.e("ScreenCapture", "compressScreenshot: captureRawBytes returned null — all paths failed")
+            return null
+        }
+        Log.d("ScreenCapture", "compressScreenshot: got ${bytes.size} raw bytes")
         val originalSize = bytes.size.toLong()
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        if (bitmap == null) {
+            Log.e("ScreenCapture", "compressScreenshot: BitmapFactory.decodeByteArray returned null — invalid image data")
+            return null
+        }
+        Log.d("ScreenCapture", "compressScreenshot: decoded bitmap ${bitmap.width}x${bitmap.height}")
         val scaled = if (maxDimension > 0) downscale(bitmap, maxDimension) else bitmap
         if (scaled != bitmap) bitmap.recycle()
+        val sw = scaled.width
+        val sh = scaled.height
         val (forEncoding, recycleForEncoding) = if (drawGrid) {
             drawCoordinateGrid(scaled) to true
         } else {
@@ -63,7 +87,7 @@ object ScreenPerception {
             Bitmap.CompressFormat.WEBP_LOSSLESS -> "webp"
             else -> "jpeg"
         }
-        return CompressedScreenshot(base64, scaled.width, scaled.height, fmtName, originalSize)
+        return CompressedScreenshot(base64, sw, sh, fmtName, originalSize)
     }
 
     fun buildUiHierarchyText(maxElements: Int = 100): String {
@@ -186,15 +210,60 @@ object ScreenPerception {
         return result
     }
 
+    /** Public entry point: capture raw screenshot PNG bytes. */
+    suspend fun captureRawScreenshotBytes(): ByteArray? = captureRawBytes()
+
     private suspend fun captureRawBytes(): ByteArray? {
+        // Path 1: AccessibilityService.takeScreenshot() — API 30+, no special perms.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val service = GotchaAccessibilityService.instance
+            Log.d("ScreenCapture", "Path1: API>=30, service=${service != null}")
+            if (service != null) {
+                for (attempt in 1..2) {
+                    Log.d("ScreenCapture", "Path1: takeScreenshotBitmap attempt $attempt")
+                    val bitmap = service.takeScreenshotBitmap()
+                    Log.d("ScreenCapture", "Path1: takeScreenshotBitmap returned ${bitmap != null}")
+                    if (bitmap != null) {
+                        val bytes = withContext(Dispatchers.Default) {
+                            val stream = ByteArrayOutputStream()
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                            bitmap.recycle()
+                            stream.toByteArray()
+                        }
+                        Log.d("ScreenCapture", "Path1: compressed to ${bytes.size} bytes")
+                        if (bytes.isNotEmpty()) return bytes
+                    }
+                    if (attempt < 2) delay(1100)
+                }
+                Log.w("ScreenCapture", "Path1: both attempts failed")
+            }
+        }
+        // Path 2: MediaProjection — works on all devices if user granted consent.
+        val projectionData = mediaProjectionResultData
+        val ctx = appContext ?: GotchaAccessibilityService.instance?.applicationContext
+        Log.d("ScreenCapture", "Path2: projectionData=${projectionData != null}, ctx=${ctx != null}, appContext=${appContext != null}")
+        if (projectionData != null && ctx != null) {
+            Log.d("ScreenCapture", "Path2: calling MediaProjectionService.capture()")
+            val bytes = withContext(Dispatchers.IO) {
+                MediaProjectionService.capture(ctx, projectionData)
+            }
+            Log.d("ScreenCapture", "Path2: MediaProjectionService.capture returned ${bytes?.size ?: "null"} bytes")
+            if (bytes != null && bytes.isNotEmpty()) return bytes
+        }
+        // Path 3: screencap via shell (works on rooted devices / emulators).
+        Log.d("ScreenCapture", "Path3: trying screencap -p")
         return try {
             withContext(Dispatchers.IO) {
                 val process = Runtime.getRuntime().exec("screencap -p")
                 val bytes = process.inputStream.use { it.readBytes() }
                 process.waitFor()
+                Log.d("ScreenCapture", "Path3: screencap returned ${bytes.size} bytes, exit=${process.exitValue()}")
                 if (bytes.isEmpty()) null else bytes
             }
-        } catch (_: Exception) { null }
+        } catch (e: Exception) {
+            Log.e("ScreenCapture", "Path3: screencap failed: ${e.message}")
+            null
+        }
     }
 
     private fun downscale(bitmap: Bitmap, maxDim: Int): Bitmap {

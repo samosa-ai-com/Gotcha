@@ -48,6 +48,7 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <!-- Assistive ball: records audio (STT) from the foreground service and runs as a
          floating overlay assistant. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
@@ -125,6 +126,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="floating_assistant_overlay" />
         </service>
+
+        <!-- Screenshot capture via MediaProjection (foreground service, one-shot). -->
+        <service
+            android:name=".service.MediaProjectionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- Tier 3: NotificationListenerService — reads/dismisses notifications, media control. -->
         <service

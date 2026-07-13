@@ -153,6 +153,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val exportContent: SharedFlow<String> = _exportContent.asSharedFlow()
 
     init {
+        ScreenPerception.appContext = application
         toolExecutor = ToolExecutor(
             application,
             onTask = { description, prompt ->
@@ -710,27 +711,48 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // contract and inject them as a vision user message so the LLM
                     // can "see" the screen alongside structured element data.
                     if (result.success && call.function.name == "read_screen") {
+                        android.util.Log.d("ScreenCapture", "read_screen auto-injection: calling captureCompressedScreenshot()")
                         val screenshot = captureCompressedScreenshot()
+                        android.util.Log.d("ScreenCapture", "read_screen auto-injection: screenshot=${screenshot != null}")
                         if (screenshot != null) {
                             val uiTree = ScreenPerception.buildUiHierarchyText()
                             val observationText = ScreenPerception.buildObservationText(screenshot, uiTree)
                             val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
                             llmHistory.add(visionMsg)
                             appendUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
+                            android.util.Log.d("ScreenCapture", "read_screen auto-injection: vision message added, base64 length=${screenshot.base64.length}")
+                        } else {
+                            android.util.Log.e("ScreenCapture", "read_screen auto-injection: screenshot was null — no vision message added")
+                            // If MediaProjection consent hasn't been granted, request it
+                            if (ScreenPerception.mediaProjectionResultData == null) {
+                                _permissionRequests.tryEmit("special:screenshot_consent")
+                            }
                         }
                     }
                     // read_screen_raw: full-resolution PNG screenshot for visual detail.
+                    // Also saves the raw bytes to the working directory as a file.
                     if (result.success && call.function.name == "read_screen_raw") {
                         val screenshot = captureFullResScreenshot()
                         if (screenshot != null) {
                             val screenText = result.message.removePrefix("read_screen_raw:").take(500)
+                            // Save screenshot to working directory
+                            val savedPath = try {
+                                val ts = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                                val dir = java.io.File(com.gotcha.tools.FileResolver.WORKING_DIR_BASE)
+                                if (!dir.exists()) dir.mkdirs()
+                                val file = java.io.File(dir, "screenshot_$ts.png")
+                                val rawBytes = android.util.Base64.decode(screenshot.base64, android.util.Base64.DEFAULT)
+                                file.writeBytes(rawBytes)
+                                file.absolutePath
+                            } catch (_: Exception) { null }
+                            val pathNote = if (savedPath != null) "\n\nSaved to: $savedPath" else ""
                             val visionMsg = visionUserMessage(
                                 "Screen text:\n$screenText\n\nThe assistant captured a " +
-                                    "full-resolution screenshot for visual detail.",
+                                    "full-resolution screenshot for visual detail.$pathNote",
                                 screenshot.base64, screenshot.format
                             )
                             llmHistory.add(visionMsg)
-                            appendUi(MessageKind.ASSISTANT, "[Full-resolution screenshot captured]")
+                            appendUi(MessageKind.ASSISTANT, "[Full-resolution screenshot captured]${if (savedPath != null) " → $savedPath" else ""}")
                         }
                     }
                     // Special-access markers: emit and continue (no wait needed since they open Settings)

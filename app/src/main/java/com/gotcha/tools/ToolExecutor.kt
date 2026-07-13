@@ -360,8 +360,7 @@ class ToolExecutor(
             direction = args.requireString("direction"),
             x1 = args.requireInt("x1"), y1 = args.requireInt("y1"),
             x2 = args.requireInt("x2"), y2 = args.requireInt("y2"),
-            normalized = args.requireBoolean("normalized") ?: false,
-            distance = args.requireInt("distance")
+            normalized = args.requireBoolean("normalized") ?: false
         )
         "tap_index" -> {
             val index = args.requireInt("index") ?: return missing("index")

@@ -1286,10 +1286,6 @@ object ToolDefinitions {
                     put("type", "boolean")
                     put("description", "If true, coordinate params are in [0, 1000] normalized space. Default false.")
                 }
-                putJsonObject("distance") {
-                    put("type", "integer")
-                    put("description", "Scroll distance in pixels. Default 0 = full screen (70% of dimension). Ignored when using explicit coordinates.")
-                }
             }
         }
     )

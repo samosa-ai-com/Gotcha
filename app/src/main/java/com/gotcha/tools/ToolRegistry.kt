@@ -80,18 +80,13 @@ object ToolRegistry {
             }
         )),
         "swipe" to ToolDefinition(function = FunctionDefinition("swipe",
-            "Swipe a direction (up/down/left/right) or between coordinates.",
+            "Scroll the screen in a direction. Each swipe scrolls about half the screen.",
             buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
-                    putJsonObject("direction") { put("type", "string"); put("description", "up/down/left/right") }
-                    putJsonObject("x1") { put("type", "integer"); put("description", "Start X") }
-                    putJsonObject("y1") { put("type", "integer"); put("description", "Start Y") }
-                    putJsonObject("x2") { put("type", "integer"); put("description", "End X") }
-                    putJsonObject("y2") { put("type", "integer"); put("description", "End Y") }
-                    putJsonObject("normalized") { put("type", "boolean"); put("description", "Coords in [0,1000]") }
-                    putJsonObject("distance") { put("type", "integer"); put("description", "Pixels to scroll") }
+                    putJsonObject("direction") { put("type", "string"); put("description", "up, down, left, or right") }
                 }
+                putJsonArray("required") { add("direction") }
             }
         )),
         "input_text" to ToolDefinition(function = FunctionDefinition("input_text",

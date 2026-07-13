@@ -40,6 +40,7 @@ import com.gotcha.llm.LLMClient
 import kotlinx.serialization.json.JsonPrimitive
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.SessionsScreen
@@ -66,6 +67,19 @@ class MainActivity : ComponentActivity() {
                 else "Permission denied.",
                 Toast.LENGTH_SHORT
             ).show()
+        }
+
+    /** MediaProjection consent result — stores intent for screenshot capture. */
+    private val mediaProjectionLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            android.util.Log.d("ScreenCapture", "mediaProjectionLauncher: resultCode=${result.resultCode}, data=${result.data != null}")
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                ScreenPerception.mediaProjectionResultData = result.data
+                Toast.makeText(this, "Screenshot permission granted.", Toast.LENGTH_SHORT).show()
+                android.util.Log.d("ScreenCapture", "mediaProjectionLauncher: consent stored successfully")
+            } else {
+                android.util.Log.w("ScreenCapture", "mediaProjectionLauncher: consent denied or data null")
+            }
         }
 
     /** Requests all runtime permissions at once on first launch. */
@@ -134,6 +148,12 @@ class MainActivity : ComponentActivity() {
                         "VPN already authorized — ask the assistant again.",
                         Toast.LENGTH_SHORT
                     ).show()
+                    "special:screenshot_consent" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                            mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                        }
+                    }
                     // Runtime permissions are mapped in Settings → Permissions; skip here.
                 }
             }
@@ -157,6 +177,14 @@ class MainActivity : ComponentActivity() {
             if (!prefs.getBoolean(KEY_FIRST_LAUNCH_DONE, false)) {
                 requestAllRuntimePermissions()
                 prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
+            }
+            // Request MediaProjection consent for screenshot capture
+            // Always request if not granted in this process session (cleared on process kill)
+            if (ScreenPerception.mediaProjectionResultData == null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                }
             }
         }
 
@@ -368,7 +396,7 @@ class MainActivity : ComponentActivity() {
             messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
             temperature = 0f
         )
-        response.choices.firstOrNull()?.message?.textContent?.take(60) ?: "empty response"
+        response.choices.firstOrNull()?.message?.textContent?.  take(60) ?: "empty response"
     }
 
     companion object {
