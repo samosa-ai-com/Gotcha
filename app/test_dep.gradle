@@ -1,3 +1,0 @@
-apply plugin: 'com.android.application'
-repositories { mavenCentral(); google() }
-dependencies { implementation "com.halilibo.compose-richtext:richtext-commonmark:0.17.0" }

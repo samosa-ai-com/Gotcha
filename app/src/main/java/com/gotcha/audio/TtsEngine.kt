@@ -3,7 +3,6 @@ package com.gotcha.audio
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -107,20 +106,27 @@ class TtsEngine(
             // If it's a WAV file, skip the 44-byte header
             val pcmData = if (bytes.size > 44 &&
                 bytes[0] == 0x52.toByte() && bytes[1] == 0x49.toByte() &&
-                bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte()) {
+                bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte()
+            ) {
                 bytes.copyOfRange(44, bytes.size)
-            } else bytes
+            } else {
+                bytes
+            }
 
             val track = AudioTrack.Builder()
-                .setAudioAttributes(AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build())
-                .setAudioFormat(AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(24000)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build())
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(24000)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
                 .setBufferSizeInBytes(pcmData.size)
                 .setTransferMode(AudioTrack.MODE_STATIC)
                 .build()

@@ -58,7 +58,14 @@ class LocationTool(private val context: Context) {
 
             ToolResult.ok(
                 "Location: %.5f, %.5f%s%s%s%s%s%s\nMap: $mapLink".format(
-                    lat, lng, accuracy, altitude, bearing, speed, where, source
+                    lat,
+                    lng,
+                    accuracy,
+                    altitude,
+                    bearing,
+                    speed,
+                    where,
+                    source
                 )
             )
         } catch (e: Exception) {
@@ -107,7 +114,11 @@ class LocationTool(private val context: Context) {
             override fun onProviderDisabled(provider: String) {}
         }
 
-        lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+        try {
+            lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+        } catch (_: SecurityException) {
+            return null
+        }
         latch.await(8, TimeUnit.SECONDS)
         try { lm.removeUpdates(listener) } catch (_: Exception) {}
 

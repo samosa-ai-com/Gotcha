@@ -43,11 +43,17 @@ class AccessibilityTool(private val context: Context) {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
         return when {
             !text.isNullOrBlank() ->
-                if (service.tapByText(text)) ToolResult.ok("Tapped an element matching \"$text\".")
-                else ToolResult.error("Found no clickable element matching \"$text\" on screen.")
+                if (service.tapByText(text)) {
+                    ToolResult.ok("Tapped an element matching \"$text\".")
+                } else {
+                    ToolResult.error("Found no clickable element matching \"$text\" on screen.")
+                }
             x != null && y != null ->
-                if (service.tapAt(x.toFloat(), y.toFloat())) ToolResult.ok("Tapped at ($x, $y).")
-                else ToolResult.error("Could not dispatch the tap gesture.")
+                if (service.tapAt(x.toFloat(), y.toFloat())) {
+                    ToolResult.ok("Tapped at ($x, $y).")
+                } else {
+                    ToolResult.error("Could not dispatch the tap gesture.")
+                }
             else -> ToolResult.error("Provide either 'text' to match, or both 'x' and 'y' coordinates.")
         }
     }

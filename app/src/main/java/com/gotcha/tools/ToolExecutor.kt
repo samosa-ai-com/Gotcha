@@ -25,7 +25,10 @@ class ToolExecutor(
     val onNavigateApp: (suspend (task: String) -> ToolResult)? = null
 ) {
 
-    private val TAG = "Gotcha"
+    private companion object {
+        const val TAG = "Gotcha"
+    }
+
     private val appContext = context.applicationContext
     private val phoneTool = PhoneTool(appContext)
     private val systemTool = SystemTool(appContext)
@@ -42,6 +45,7 @@ class ToolExecutor(
     private val appsTool = AppsTool(appContext)
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
+
     // Tier 3 tools
     private val webSearchTool = WebSearchTool()
     private val webFetchTool = WebFetchTool()
@@ -55,6 +59,7 @@ class ToolExecutor(
     private val overlayTool = OverlayTool(appContext)
     private val deviceAdminTool = DeviceAdminTool(appContext)
     private val vpnTool = VpnTool(appContext)
+
     // Tier 4 tools
     private val rootTool = RootTool()
     private val actionLog = ActionLog(appContext)
@@ -70,7 +75,7 @@ class ToolExecutor(
         if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
                 "This action is not available in ${agent.name} mode. " +
-                "Switch to Operator mode if you need to perform this action."
+                    "Switch to Operator mode if you need to perform this action."
             )
         }
         if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(name)) {
@@ -87,7 +92,10 @@ class ToolExecutor(
         }
         // Do not log result.message — tool payloads can contain sensitive user data
         // (SMS bodies, clipboard text, file contents, location, etc.).
-        Log.d(TAG, "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}")
+        Log.d(
+            TAG,
+            "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
+        )
         actionLog.record(name, args.toString(), result)
         return result
     }
@@ -115,6 +123,9 @@ class ToolExecutor(
         return withContext(Dispatchers.IO) { calendarTool.doDeleteEvent(eventId) }
     }
 
+    // Single when-dispatch over the entire fixed tool catalog; size and branch count are
+    // inherent to the design (see AGENTS.md).
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
         return when (name) {
         "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))

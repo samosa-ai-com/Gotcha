@@ -10,8 +10,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.provider.Telephony
 import android.telephony.SmsManager
 import androidx.core.content.ContextCompat
@@ -103,7 +101,7 @@ class SmsTool(private val context: Context) {
                 if (deliveryResult != null) append(" Delivery: $deliveryResult.")
                 if (threadContext != null) append("\n\nConversation:\n$threadContext")
             }.let { ToolResult.ok(it) }
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             ToolResult.permissionNeeded(
                 Manifest.permission.SEND_SMS,
                 "The SMS permission is not granted. Go to Settings → Permissions → SMS and enable it, then ask again."
@@ -124,8 +122,10 @@ class SmsTool(private val context: Context) {
             putExtra("message", message)
         }
         val pi = PendingIntent.getBroadcast(
-            context, System.currentTimeMillis().toInt() and 0x7FFFFFFF,
-            intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            context,
+            System.currentTimeMillis().toInt() and 0x7FFFFFFF,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         if (deliveryReceiver == null) {
             val receiver = object : BroadcastReceiver() {
@@ -147,7 +147,9 @@ class SmsTool(private val context: Context) {
             // so the receiver must not be exported (also avoids the API 33+ overload
             // crashing on older devices — minSdk is 26).
             ContextCompat.registerReceiver(
-                context, receiver, IntentFilter("com.gotcha.SMS_SENT"),
+                context,
+                receiver,
+                IntentFilter("com.gotcha.SMS_SENT"),
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
         }
@@ -215,8 +217,10 @@ class SmsTool(private val context: Context) {
             putExtra("message", message)
         }
         val pi = PendingIntent.getBroadcast(
-            context, number.hashCode() and 0x7FFFFFFF,
-            intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            context,
+            number.hashCode() and 0x7FFFFFFF,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarm.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delayMs, pi)
@@ -260,7 +264,9 @@ class SmsTool(private val context: Context) {
                 }
             }
             if (toDate != null) {
-                val toMillis = try { dateFormat.parse(toDate)?.time?.plus(86_400_000L - 1) } catch (_: Exception) { null }
+                val toMillis = try { dateFormat.parse(toDate)?.time?.plus(86_400_000L - 1) } catch (
+                    _: Exception
+                ) { null }
                 if (toMillis != null) {
                     if (selection.isNotEmpty()) selection.append(" AND ")
                     selection.append("${Telephony.Sms.DATE} <= ?")
@@ -318,7 +324,8 @@ class SmsTool(private val context: Context) {
         context.contentResolver.query(
             uri,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms._ID),
-            selection, selectionArgs,
+            selection,
+            selectionArgs,
             "${Telephony.Sms.DATE} DESC"
         )?.use { cursor ->
             val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
@@ -350,13 +357,19 @@ class SmsTool(private val context: Context) {
             context.contentResolver.query(
                 uri,
                 arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME),
-                null, null, null
+                null,
+                null,
+                null
             )?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    cursor.getString(cursor.getColumnIndexOrThrow(
-                        android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME
-                    ))
-                } else null
+                    cursor.getString(
+                        cursor.getColumnIndexOrThrow(
+                            android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME
+                        )
+                    )
+                } else {
+                    null
+                }
             }
         } catch (_: Exception) { null }
     }
@@ -365,7 +378,9 @@ class SmsTool(private val context: Context) {
         return try {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS)
                 != PackageManager.PERMISSION_GRANTED
-            ) return null
+            ) {
+                return null
+            }
             context.contentResolver.query(
                 Telephony.Sms.Inbox.CONTENT_URI,
                 arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),

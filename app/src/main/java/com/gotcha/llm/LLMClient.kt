@@ -1,13 +1,13 @@
 package com.gotcha.llm
 
 import android.content.Context
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.security.MessageDigest
 
 class LLMClient(
@@ -18,10 +18,6 @@ class LLMClient(
     private val apiTimeoutSeconds: Long = 0L,
     private val cache: LLMCache = LLMCache(context)
 ) {
-    companion object {
-        private const val DEFAULT_MODEL = "gpt-4o"
-    }
-
     private val apiService: ApiService
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
@@ -83,9 +79,9 @@ class LLMClient(
         var response = apiService.chat(request, sessionId)
         response = normalizeResponse(response)
 
-        val shouldCache = (temperature == null || temperature == 0f)
-                && response.choices.isNotEmpty()
-                && response.choices.none { it.message.toolCalls?.isNotEmpty() == true }
+        val shouldCache = (temperature == null || temperature == 0f) &&
+            response.choices.isNotEmpty() &&
+            response.choices.none { it.message.toolCalls?.isNotEmpty() == true }
 
         if (shouldCache) {
             cache.put(cacheKey, response)

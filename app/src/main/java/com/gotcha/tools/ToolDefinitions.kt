@@ -3,16 +3,18 @@ package com.gotcha.tools
 import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import kotlinx.serialization.json.add
 
 /**
  * Declarative JSON schemas for every tool in the catalog (PRD §4).
  * Schemas are decoupled from execution: [ToolExecutor] handles side effects.
  */
+// Fixed catalog of all tool schemas in one object by design; size is inherent.
+@Suppress("LargeClass")
 object ToolDefinitions {
 
     private fun schema(block: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit): JsonObject =
@@ -223,7 +225,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("working_dir") {
                     put("type", "string")
-                    put("description", "Working directory for the command (absolute path). Defaults to the app's working directory.")
+                    put(
+                        "description",
+                        "Working directory for the command (absolute path). Defaults to the app's working directory."
+                    )
                 }
                 putJsonObject("timeout_seconds") {
                     put("type", "integer")
@@ -254,7 +259,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("sim_slot") {
                     put("type", "string")
-                    put("description", "SIM slot to use: 'sim1' or 'sim2'. Only needed on dual-SIM devices. Default is the system default.")
+                    put(
+                        "description",
+                        "SIM slot to use: 'sim1' or 'sim2'. Only needed on dual-SIM devices. Default is the system default."
+                    )
                 }
             }
             putJsonArray("required") { add("number") }
@@ -273,7 +281,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("type") {
                     put("type", "string")
-                    put("description", "Filter by call type: 'incoming', 'outgoing', 'missed', or 'rejected'. Omit for all.")
+                    put(
+                        "description",
+                        "Filter by call type: 'incoming', 'outgoing', 'missed', or 'rejected'. Omit for all."
+                    )
                 }
                 putJsonObject("contact") {
                     put("type", "string")
@@ -328,7 +339,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("phone_type") {
                     put("type", "string")
-                    put("description", "Phone number label: 'mobile' (default), 'home', 'work', 'main', 'fax', or 'pager'.")
+                    put(
+                        "description",
+                        "Phone number label: 'mobile' (default), 'home', 'work', 'main', 'fax', or 'pager'."
+                    )
                 }
                 putJsonObject("email") {
                     put("type", "string")
@@ -368,7 +382,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("send_at") {
                     put("type", "string")
-                    put("description", "Schedule future delivery: ISO-8601 timestamp like '2026-01-15T14:30:00' or epoch millis. Omit for immediate send.")
+                    put(
+                        "description",
+                        "Schedule future delivery: ISO-8601 timestamp like '2026-01-15T14:30:00' or epoch millis. Omit for immediate send."
+                    )
                 }
             }
             putJsonArray("required") {
@@ -391,7 +408,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("from_address") {
                     put("type", "string")
-                    put("description", "Filter by sender/recipient address (partial match, e.g. a contact name or phone number).")
+                    put(
+                        "description",
+                        "Filter by sender/recipient address (partial match, e.g. a contact name or phone number)."
+                    )
                 }
                 putJsonObject("from_date") {
                     put("type", "string")
@@ -425,7 +445,10 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("days_ahead") {
                     put("type", "integer")
-                    put("description", "How many days ahead to include (1-365). Default 7 when from_date/to_date not set.")
+                    put(
+                        "description",
+                        "How many days ahead to include (1-365). Default 7 when from_date/to_date not set."
+                    )
                 }
                 putJsonObject("from_date") {
                     put("type", "string")
@@ -479,7 +502,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("calendar_name") {
                     put("type", "string")
-                    put("description", "Calendar account name to add the event to (e.g. 'Work', 'Personal'). Defaults to the primary writable calendar.")
+                    put(
+                        "description",
+                        "Calendar account name to add the event to (e.g. 'Work', 'Personal'). Defaults to the primary writable calendar."
+                    )
                 }
             }
             putJsonArray("required") {
@@ -525,7 +551,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("reminder_minutes") {
                     put("type", "integer")
-                    put("description", "New reminder before event in minutes. -1 to remove reminder. Omit to keep current.")
+                    put(
+                        "description",
+                        "New reminder before event in minutes. -1 to remove reminder. Omit to keep current."
+                    )
                 }
             }
             putJsonArray("required") { add("event_id") }
@@ -570,7 +599,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("days") {
                     put("type", "array")
-                    put("description", "Repeating days: e.g. ['mon','wed','fri'] or ['weekdays']. Omit for one-time alarm.")
+                    put(
+                        "description",
+                        "Repeating days: e.g. ['mon','wed','fri'] or ['weekdays']. Omit for one-time alarm."
+                    )
                     putJsonObject("items") { put("type", "string") }
                 }
                 putJsonObject("vibrate") {
@@ -625,7 +657,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("duration_seconds") {
                     put("type", "integer")
-                    put("description", "Optional: auto-turn off after this many seconds (1-300). Only applies when turning on.")
+                    put(
+                        "description",
+                        "Optional: auto-turn off after this many seconds (1-300). Only applies when turning on."
+                    )
                 }
             }
             putJsonArray("required") { add("on") }
@@ -666,7 +701,10 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("stream") {
                     put("type", "string")
-                    put("description", "Which stream to read: media, ring, alarm, notification, call. If omitted, all streams are reported.")
+                    put(
+                        "description",
+                        "Which stream to read: media, ring, alarm, notification, call. If omitted, all streams are reported."
+                    )
                 }
             }
         }
@@ -694,7 +732,10 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("duration_ms") {
                     put("type", "integer")
-                    put("description", "Vibration length in milliseconds (1-5000). Default 500. Ignored when pattern is set.")
+                    put(
+                        "description",
+                        "Vibration length in milliseconds (1-5000). Default 500. Ignored when pattern is set."
+                    )
                 }
                 putJsonObject("intensity") {
                     put("type", "integer")
@@ -702,7 +743,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("pattern") {
                     put("type", "string")
-                    put("description", "Predefined pattern: short (100ms), long (1s), double (two quick buzzes), sos (...---...). Overrides duration_ms.")
+                    put(
+                        "description",
+                        "Predefined pattern: short (100ms), long (1s), double (two quick buzzes), sos (...---...). Overrides duration_ms."
+                    )
                 }
             }
         }
@@ -731,7 +775,10 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("fresh") {
                     put("type", "boolean")
-                    put("description", "If true, request a fresh GPS fix (takes a few seconds). Default false (uses last-known location).")
+                    put(
+                        "description",
+                        "If true, request a fresh GPS fix (takes a few seconds). Default false (uses last-known location)."
+                    )
                 }
             }
         }
@@ -839,7 +886,10 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("source") {
                     put("type", "string")
-                    put("description", "Audio source: 'mic' (default), 'voice' (optimized for speech), or 'camcorder' (wider range).")
+                    put(
+                        "description",
+                        "Audio source: 'mic' (default), 'voice' (optimized for speech), or 'camcorder' (wider range)."
+                    )
                 }
                 putJsonObject("max_duration_seconds") {
                     put("type", "integer")
@@ -847,11 +897,18 @@ object ToolDefinitions {
                 }
                 putJsonObject("output_path") {
                     put("type", "string")
-                    put("description", "Custom file path to save the recording. Defaults to Recordings/recording_{timestamp}.m4a.")
+                    put(
+                        "description",
+                        "Custom file path to save the recording. Defaults to Recordings/recording_{timestamp}.m4a."
+                    )
                 }
                 putJsonObject("quality") {
                     put("type", "string")
-                    put("description", "Recording quality: 'low' (16kHz, 16kbps), 'medium' (44.1kHz, 64kbps), or 'high' (44.1kHz, 192kbps). Default medium.")
+                    put(
+                        "description",
+                        "Recording quality: 'low' (16kHz, 16kbps), 'medium' (44.1kHz, 64kbps), " +
+                            "or 'high' (44.1kHz, 192kbps). Default medium."
+                    )
                 }
             }
         }
@@ -994,7 +1051,11 @@ object ToolDefinitions {
                     put("description", "Replace all occurrences instead of just the first. Default false.")
                 }
             }
-            putJsonArray("required") { add("path"); add("oldString"); add("newString") }
+            putJsonArray("required") {
+                add("path")
+                add("oldString")
+                add("newString")
+            }
         }
     )
 
@@ -1037,11 +1098,30 @@ object ToolDefinitions {
                     putJsonObject("items") {
                         put("type", "object")
                         putJsonObject("properties") {
-                            putJsonObject("content") { put("type", "string"); put("description", "Task description.") }
-                            putJsonObject("status") { put("type", "string"); put("description", "One of: pending, in_progress, completed, cancelled.") }
-                            putJsonObject("priority") { put("type", "string"); put("description", "Optional: high, medium, low.") }
+                            putJsonObject("content") {
+                                put("type", "string")
+                                put("description", "Task description.")
+                            }
+                            putJsonObject(
+                                "status"
+                            ) {
+                                put(
+                                    "type",
+                                    "string"
+                                )
+                                put("description", "One of: pending, in_progress, completed, cancelled.")
+                            }
+                            putJsonObject(
+                                "priority"
+                            ) {
+                                put("type", "string")
+                                put("description", "Optional: high, medium, low.")
+                            }
                         }
-                        putJsonArray("required") { add("content"); add("status") }
+                        putJsonArray("required") {
+                            add("content")
+                            add("status")
+                        }
                     }
                 }
             }
@@ -1134,7 +1214,10 @@ object ToolDefinitions {
                     put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
                 }
             }
-            putJsonArray("required") { add("pattern"); add("path") }
+            putJsonArray("required") {
+                add("pattern")
+                add("path")
+            }
         }
     )
 
@@ -1160,7 +1243,10 @@ object ToolDefinitions {
                     put("description", "Optional file-name filter glob, e.g. '*.txt', '*.kt', '*.{json,xml}'.")
                 }
             }
-            putJsonArray("required") { add("pattern"); add("path") }
+            putJsonArray("required") {
+                add("pattern")
+                add("path")
+            }
         }
     )
 
@@ -1198,7 +1284,10 @@ object ToolDefinitions {
                 }
                 putJsonObject("format") {
                     put("type", "string")
-                    put("description", "Optional output format: 'text' (default) or 'markdown'. Currently always returns text.")
+                    put(
+                        "description",
+                        "Optional output format: 'text' (default) or 'markdown'. Currently always returns text."
+                    )
                 }
             }
             putJsonArray("required") { add("url") }

@@ -3,9 +3,7 @@ package com.gotcha.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image as ComposeImage
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,12 +30,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -61,8 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.gotcha.agent.ChatUiState
-import com.gotcha.agent.PendingQuestion
 import com.gotcha.tools.AgentMode
+import androidx.compose.foundation.Image as ComposeImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -262,8 +259,11 @@ fun ChatScreen(
                                 contentPadding = ButtonDefaults.TextButtonContentPadding,
                                 shape = CircleShape
                             ) {
-                                Icon(Icons.Default.Stop, contentDescription = "Stop",
-                                    modifier = Modifier.size(20.dp))
+                                Icon(
+                                    Icons.Default.Stop,
+                                    contentDescription = "Stop",
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                         state.isRecording || state.isListening -> {
@@ -277,9 +277,12 @@ fun ChatScreen(
                                     containerColor = MaterialTheme.colorScheme.error
                                 )
                             ) {
-                                Icon(Icons.Default.Stop, contentDescription = "Stop recording",
+                                Icon(
+                                    Icons.Default.Stop,
+                                    contentDescription = "Stop recording",
                                     modifier = Modifier.size(20.dp),
-                                    tint = Color.White)
+                                    tint = Color.White
+                                )
                             }
                         }
                         input.isBlank() && pendingImageBase64 == null -> {

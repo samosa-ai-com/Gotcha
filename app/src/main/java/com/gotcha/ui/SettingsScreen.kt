@@ -143,8 +143,11 @@ fun SettingsScreen(
                         onValueChange = { apiKey = it },
                         label = { Text("API key") },
                         singleLine = true,
-                        visualTransformation = if (showKey) VisualTransformation.None
-                        else PasswordVisualTransformation(),
+                        visualTransformation = if (showKey) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
                         trailingIcon = {
                             TextButton(onClick = { showKey = !showKey }) {
                                 Text(if (showKey) "Hide" else "Show")
@@ -423,7 +426,11 @@ fun SettingsScreen(
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("TTS Model") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = ttsModelExpanded) },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = ttsModelExpanded
+                                    )
+                                },
                                 modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
                             ExposedDropdownMenu(
@@ -494,7 +501,11 @@ fun SettingsScreen(
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("STT Model") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttModelExpanded) },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = sttModelExpanded
+                                    )
+                                },
                                 modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
                             ExposedDropdownMenu(

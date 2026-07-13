@@ -18,7 +18,9 @@ class ActionLog(context: Context) {
     @Synchronized
     fun record(tool: String, args: String, result: ToolResult) {
         val status = if (result.success) "OK" else "FAIL"
-        val line = "${formatter.format(Date())}\t$tool\t$args\t$status\t${result.message.take(500).replace('\n', ' ')}\n"
+        val line = "${formatter.format(
+            Date()
+        )}\t$tool\t$args\t$status\t${result.message.take(500).replace('\n', ' ')}\n"
         try {
             file.appendText(line)
             trimIfNeeded()

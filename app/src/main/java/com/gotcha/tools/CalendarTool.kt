@@ -16,6 +16,7 @@ class CalendarTool(private val context: Context) {
 
     private val readable = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
+    @Suppress("CyclomaticComplexMethod")
     fun listEvents(
         daysAhead: Int? = null,
         fromDate: String? = null,
@@ -40,10 +41,16 @@ class CalendarTool(private val context: Context) {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                 rangeStart = if (fromDate != null) {
                     try { df.parse(fromDate)?.time ?: now } catch (_: Exception) { now }
-                } else now
+                } else {
+                    now
+                }
                 rangeEnd = if (toDate != null) {
-                    try { df.parse(toDate)?.time?.plus(86_400_000L - 1) ?: (now + 86400000L) } catch (_: Exception) { now + 86400000L }
-                } else rangeStart + 86400000L
+                    try { df.parse(toDate)?.time?.plus(86_400_000L - 1) ?: (now + 86400000L) } catch (
+                        _: Exception
+                    ) { now + 86400000L }
+                } else {
+                    rangeStart + 86400000L
+                }
                 rangeDesc = "${fromDate ?: "today"} → ${toDate ?: "tomorrow"}"
             } else {
                 val days = (daysAhead ?: 7).coerceIn(1, 365)
@@ -75,7 +82,10 @@ class CalendarTool(private val context: Context) {
             }
 
             context.contentResolver.query(
-                builder.build(), projection, selection, selectionArgs,
+                builder.build(),
+                projection,
+                selection,
+                selectionArgs,
                 "${CalendarContract.Instances.BEGIN} ASC"
             ).use { cursor ->
                 if (cursor == null) return ToolResult.error("Could not read the calendar.")
@@ -117,7 +127,9 @@ class CalendarTool(private val context: Context) {
                 if (count == 0) {
                     val hint = if (!search.isNullOrBlank()) " matching '$search'" else ""
                     ToolResult.ok("No events $rangeDesc$hint.")
-                } else ToolResult.ok("Events $rangeDesc ($count):\n$out")
+                } else {
+                    ToolResult.ok("Events $rangeDesc ($count):\n$out")
+                }
             }
         } catch (e: Exception) {
             ToolResult.error("Could not read the calendar: ${e.message}")
@@ -145,8 +157,11 @@ class CalendarTool(private val context: Context) {
         }
         val startMs = parseWhen(start)
             ?: return ToolResult.error("Could not understand the start time '$start'. Use 'yyyy-MM-dd HH:mm' or epoch millis.")
-        val endMs = if (end.isNullOrBlank()) startMs + 60 * 60 * 1000
-        else parseWhen(end) ?: return ToolResult.error("Could not understand the end time '$end'.")
+        val endMs = if (end.isNullOrBlank()) {
+            startMs + 60 * 60 * 1000
+        } else {
+            parseWhen(end) ?: return ToolResult.error("Could not understand the end time '$end'.")
+        }
 
         if (allDay == true) {
             // all-day events: set to midnight of the start date
@@ -162,9 +177,11 @@ class CalendarTool(private val context: Context) {
         return try {
             val calendarId = if (!calendarName.isNullOrBlank()) {
                 findCalendarByName(calendarName)
-            } else null
-            ?: defaultWritableCalendarId()
-            ?: return ToolResult.error("No writable calendar was found on this device.")
+            } else {
+                null
+                    ?: defaultWritableCalendarId()
+                    ?: return ToolResult.error("No writable calendar was found on this device.")
+            }
 
             val values = ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, calendarId)
@@ -292,7 +309,11 @@ class CalendarTool(private val context: Context) {
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME
         )
         context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI, projection, null, null, null
+            CalendarContract.Calendars.CONTENT_URI,
+            projection,
+            null,
+            null,
+            null
         )?.use { cursor ->
             val idIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars._ID)
             val nameIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
@@ -310,8 +331,10 @@ class CalendarTool(private val context: Context) {
         val v = value.trim()
         v.toLongOrNull()?.let { return it }
         val formats = listOf(
-            "yyyy-MM-dd HH:mm", "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss"
         )
         for (f in formats) {
             try {
@@ -326,7 +349,10 @@ class CalendarTool(private val context: Context) {
         val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?"
         val args = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString())
         context.contentResolver.query(
-            CalendarContract.Calendars.CONTENT_URI, projection, selection, args,
+            CalendarContract.Calendars.CONTENT_URI,
+            projection,
+            selection,
+            args,
             "${CalendarContract.Calendars.IS_PRIMARY} DESC"
         ).use { cursor ->
             if (cursor != null && cursor.moveToFirst()) {

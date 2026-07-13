@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.halilibo.richtext.markdown.Markdown
-import com.halilibo.richtext.ui.material3.Material3RichText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
@@ -50,6 +48,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.material3.Material3RichText
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
 
@@ -100,14 +100,17 @@ fun MessageBubble(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
                     .then(
-                        if (isTool || isSubAgent) Modifier.combinedClickable(
-                            onClick = { if (isTool) expanded.value = !expanded.value },
-                            onLongClick = { showMenu = true }
-                        )
-                        else Modifier.combinedClickable(
-                            onClick = { },
-                            onLongClick = { showMenu = true }
-                        )
+                        if (isTool || isSubAgent) {
+                            Modifier.combinedClickable(
+                                onClick = { if (isTool) expanded.value = !expanded.value },
+                                onLongClick = { showMenu = true }
+                            )
+                        } else {
+                            Modifier.combinedClickable(
+                                onClick = { },
+                                onLongClick = { showMenu = true }
+                            )
+                        }
                     )
                     .padding(16.dp)
             ) {

@@ -8,13 +8,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import android.provider.AlarmClock
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -23,6 +17,10 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /**
  * Hybrid alarm management: alarms are created in the system clock app via
@@ -43,6 +41,7 @@ import kotlinx.serialization.json.put
  * Timers always stay local: there is no intent to cancel a running clock-app
  * timer, which would break delete_timer.
  */
+@Suppress("TooManyFunctions")
 class AlarmTool(private val context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences("gotcha_alarms", Context.MODE_PRIVATE)
@@ -78,8 +77,12 @@ class AlarmTool(private val context: Context) {
         // rings with the full alarm UI (snooze/dismiss, alarm sound).
         if (dispatchClockIntent(buildSetAlarmIntent(hour, minute, label, dayInts, vibrate ?: true))) {
             val id = nextId++
-            saveAlarm(AlarmRecord(id, hour, minute, dayInts, label, vibrate ?: true, system = true, triggerAt = triggerAt))
-            return ToolResult.ok("Set alarm '$label' for %02d:%02d$extra in the system clock app (id=$id).".format(hour, minute))
+            saveAlarm(
+                AlarmRecord(id, hour, minute, dayInts, label, vibrate ?: true, system = true, triggerAt = triggerAt)
+            )
+            return ToolResult.ok(
+                "Set alarm '$label' for %02d:%02d$extra in the system clock app (id=$id).".format(hour, minute)
+            )
         }
 
         // No compatible clock app — schedule locally via AlarmManager.
@@ -92,7 +95,11 @@ class AlarmTool(private val context: Context) {
             return ToolResult.error(exactAlarmDeniedMessage(e))
         }
         saveAlarm(record)
-        return ToolResult.ok("Set alarm '$label' for %02d:%02d$extra (id=$id). No clock app handled it, so it was scheduled in-app and rings as a notification.".format(hour, minute))
+        val time = "%02d:%02d".format(hour, minute)
+        return ToolResult.ok(
+            "Set alarm '$label' for $time$extra (id=$id). No clock app handled it, " +
+                "so it was scheduled in-app and rings as a notification."
+        )
     }
 
     fun setTimer(seconds: Int, message: String? = null, hours: Int? = null, minutes: Int? = null): ToolResult {
@@ -140,8 +147,14 @@ class AlarmTool(private val context: Context) {
                     try { scheduleAlarm(a) } catch (_: SecurityException) {}
                 }
                 val dayStr = if (a.days.isNotEmpty()) {
-                    a.days.mapNotNull { e -> dayNames.entries.firstOrNull { it.value == e }?.key?.take(3) }.joinToString(",")
-                } else "once"
+                    a.days.mapNotNull { e ->
+                        dayNames.entries.firstOrNull { it.value == e }?.key?.take(
+                            3
+                        )
+                    }.joinToString(",")
+                } else {
+                    "once"
+                }
                 sb.append("- $dayStr %02d:%02d".format(a.hour, a.minute))
                 if (a.label != null) sb.append("  ${a.label}")
                 sb.append("  (id=${a.id}, ${if (a.system) "clock app" else "in-app"})\n")
@@ -165,7 +178,14 @@ class AlarmTool(private val context: Context) {
         return ToolResult.ok(sb.trimEnd().toString())
     }
 
-    fun editAlarm(id: Long, hour: Int? = null, minute: Int? = null, message: String? = null, days: List<String>? = null, vibrate: Boolean? = null): ToolResult {
+    fun editAlarm(
+        id: Long,
+        hour: Int? = null,
+        minute: Int? = null,
+        message: String? = null,
+        days: List<String>? = null,
+        vibrate: Boolean? = null
+    ): ToolResult {
         val alarms = loadAlarmsMutable()
         val idx = alarms.indexOfFirst { it.id == id }
         if (idx == -1) return ToolResult.error("Alarm $id not found.")
@@ -186,8 +206,13 @@ class AlarmTool(private val context: Context) {
         if (old.system) {
             // No edit intent exists: dismiss the old alarm (best effort) and create a new one.
             dismissSystemAlarm(old)
-            if (!dispatchClockIntent(buildSetAlarmIntent(record.hour, record.minute, record.label, record.days, record.vibrate))) {
-                return ToolResult.error("Alarm $id lives in the system clock app but no clock app handled the update intent. Edit it in the clock app directly.")
+            if (!dispatchClockIntent(
+                    buildSetAlarmIntent(record.hour, record.minute, record.label, record.days, record.vibrate)
+                )
+            ) {
+                return ToolResult.error(
+                    "Alarm $id lives in the system clock app but no clock app handled the update intent. Edit it in the clock app directly."
+                )
             }
             alarms[idx] = record
             saveAlarms(alarms)
@@ -228,7 +253,10 @@ class AlarmTool(private val context: Context) {
                         "some clock apps only disable it or skip the next occurrence; the user can verify in the clock app."
                 )
             } else {
-                ToolResult.ok("Removed alarm $id from this assistant's list, but no clock app handled the dismiss intent — ask the user to delete it in the clock app.")
+                ToolResult.ok(
+                    "Removed alarm $id from this assistant's list, but no clock app handled the " +
+                        "dismiss intent — ask the user to delete it in the clock app."
+                )
             }
         }
         cancelPendingIntent(alarmRequestCode(id))
@@ -350,7 +378,12 @@ class AlarmTool(private val context: Context) {
             putExtra("label", a.label ?: "Alarm")
             putExtra("vibrate", a.vibrate)
         }
-        val pi = PendingIntent.getBroadcast(context, alarmRequestCode(a.id), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val pi = PendingIntent.getBroadcast(
+            context,
+            alarmRequestCode(a.id),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         alarmManager().setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, pi), pi)
     }
 
@@ -360,14 +393,20 @@ class AlarmTool(private val context: Context) {
             putExtra("timer_id", t.id)
             putExtra("label", t.label ?: "Timer")
         }
-        val pi = PendingIntent.getBroadcast(context, timerRequestCode(t.id), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val pi = PendingIntent.getBroadcast(
+            context,
+            timerRequestCode(t.id),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         // setExactAndAllowWhileIdle (not setExact) so the timer fires on time in Doze.
         alarmManager().setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, t.triggerAt, pi)
     }
 
     private fun isScheduled(requestCode: Int): Boolean {
         val intent = Intent(context, AlarmReceiver::class.java)
-        return PendingIntent.getBroadcast(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE) != null
+        val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
+        return PendingIntent.getBroadcast(context, requestCode, intent, flags) != null
     }
 
     private fun exactAlarmError(): ToolResult? {
@@ -386,13 +425,20 @@ class AlarmTool(private val context: Context) {
     // ---- storage ----
 
     private data class AlarmRecord(
-        val id: Long, val hour: Int, val minute: Int,
-        val days: List<Int>, val label: String?, val vibrate: Boolean,
-        val system: Boolean = false, val triggerAt: Long? = null
+        val id: Long,
+        val hour: Int,
+        val minute: Int,
+        val days: List<Int>,
+        val label: String?,
+        val vibrate: Boolean,
+        val system: Boolean = false,
+        val triggerAt: Long? = null
     )
 
     private data class TimerRecord(
-        val id: Long, val seconds: Int, val label: String?,
+        val id: Long,
+        val seconds: Int,
+        val label: String?,
         val triggerAt: Long = System.currentTimeMillis() + seconds * 1000L
     )
 
@@ -405,17 +451,20 @@ class AlarmTool(private val context: Context) {
     private fun saveAlarms(list: List<AlarmRecord>) {
         val json = buildJsonArray {
             list.forEach { a ->
-                add(buildJsonObject {
-                    put("id", a.id)
-                    put("hour", a.hour)
-                    put("minute", a.minute)
-                    val daysArr = buildJsonArray { a.days.forEach { d -> add(kotlinx.serialization.json.JsonPrimitive(d)) } }
-                    put("days", daysArr)
-                    if (a.label != null) put("label", a.label)
-                    put("vibrate", a.vibrate)
-                    put("system", a.system)
-                    if (a.triggerAt != null) put("triggerAt", a.triggerAt)
-                })
+                add(
+                    buildJsonObject {
+                        put("id", a.id)
+                        put("hour", a.hour)
+                        put("minute", a.minute)
+                        val daysArr =
+                            buildJsonArray { a.days.forEach { d -> add(kotlinx.serialization.json.JsonPrimitive(d)) } }
+                        put("days", daysArr)
+                        if (a.label != null) put("label", a.label)
+                        put("vibrate", a.vibrate)
+                        put("system", a.system)
+                        if (a.triggerAt != null) put("triggerAt", a.triggerAt)
+                    }
+                )
             }
         }
         prefs.edit().putString("alarms", json.toString()).apply()
@@ -452,12 +501,14 @@ class AlarmTool(private val context: Context) {
     private fun saveTimers(list: List<TimerRecord>) {
         val json = buildJsonArray {
             list.forEach { t ->
-                add(buildJsonObject {
-                    put("id", t.id)
-                    put("seconds", t.seconds)
-                    if (t.label != null) put("label", t.label)
-                    put("triggerAt", t.triggerAt)
-                })
+                add(
+                    buildJsonObject {
+                        put("id", t.id)
+                        put("seconds", t.seconds)
+                        if (t.label != null) put("label", t.label)
+                        put("triggerAt", t.triggerAt)
+                    }
+                )
             }
         }
         prefs.edit().putString("timers", json.toString()).apply()
@@ -482,7 +533,12 @@ class AlarmTool(private val context: Context) {
 
     private fun cancelPendingIntent(requestCode: Int) {
         val intent = Intent(context, AlarmReceiver::class.java)
-        val pi = PendingIntent.getBroadcast(context, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE)
+        val pi = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
+        )
         if (pi != null) {
             alarmManager().cancel(pi)
             pi.cancel()
@@ -495,7 +551,13 @@ class AlarmTool(private val context: Context) {
         if (days.isNullOrEmpty()) return emptyList()
         return days.flatMap { d ->
             when (val key = d.trim().lowercase()) {
-                "weekdays" -> listOf(Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY)
+                "weekdays" -> listOf(
+                    Calendar.MONDAY,
+                    Calendar.TUESDAY,
+                    Calendar.WEDNESDAY,
+                    Calendar.THURSDAY,
+                    Calendar.FRIDAY
+                )
                 "weekend", "weekends" -> listOf(Calendar.SATURDAY, Calendar.SUNDAY)
                 "daily", "everyday" -> dayNumbers.toList()
                 else -> listOfNotNull(dayNames[key])

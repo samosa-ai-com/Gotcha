@@ -8,11 +8,10 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings as AndroidSettings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,11 +32,8 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
-import kotlinx.serialization.json.JsonPrimitive
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ScreenPerception
@@ -46,7 +42,11 @@ import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.SessionsScreen
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonPrimitive
+import android.provider.Settings as AndroidSettings
 
 enum class Route { SESSIONS, CHAT, SETTINGS }
 
@@ -119,11 +119,17 @@ class MainActivity : ComponentActivity() {
                         Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                     )
                     ToolResult.ALL_FILES_ACCESS -> startActivity(
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Intent(
-                            AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        ) else Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.parse("package:$packageName"))
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            Intent(
+                                AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                Uri.parse("package:$packageName")
+                            )
+                        } else {
+                            Intent(
+                                AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName")
+                            )
+                        }
                     )
                     ToolResult.OVERLAY_ACCESS -> startActivity(
                         Intent(
@@ -259,9 +265,9 @@ class MainActivity : ComponentActivity() {
     private fun GotchaApp() {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
-        
-        var currentRoute by remember { 
-            mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS) 
+
+        var currentRoute by remember {
+            mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS)
         }
         var previousRoute by remember { mutableStateOf(Route.SESSIONS) }
         var assistiveBallOn by remember { mutableStateOf(settingsRepository.load().assistiveBallEnabled) }
@@ -297,7 +303,8 @@ class MainActivity : ComponentActivity() {
                     onTestConnection = ::testConnection,
                     onClearLlmCache = {
                         LLMClient(
-                            apiKey = "unused", baseUrl = "http://localhost/",
+                            apiKey = "unused",
+                            baseUrl = "http://localhost/",
                             context = this@MainActivity
                         ).clearCache()
                     },
@@ -372,9 +379,9 @@ class MainActivity : ComponentActivity() {
                     onStop = chatViewModel::stopAgent,
                     onConfirm = chatViewModel::confirmPendingActions,
                     onAnswer = chatViewModel::submitAnswer,
-                    onBack = { 
+                    onBack = {
                         chatViewModel.refreshSessions()
-                        currentRoute = Route.SESSIONS 
+                        currentRoute = Route.SESSIONS
                     },
                     onOpenSettings = {
                         previousRoute = Route.CHAT
