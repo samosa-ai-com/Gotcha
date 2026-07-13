@@ -11,29 +11,31 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import com.gotcha.MainActivity
-import com.gotcha.agent.QuickAskEngine
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
+import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
-import com.gotcha.llm.LLMClient
 import com.gotcha.ui.AssistiveBallOverlay
+import com.gotcha.ui.CallChatWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Foreground service that hosts the floating assistive ball over other apps.
  *
- * It owns its own copies of the STT/TTS engines and LLM client (the chat UI's
- * [com.gotcha.agent.ChatViewModel] dies when another app is foregrounded), and
- * drives the lightweight single-turn [QuickAskEngine] for the two "press & talk"
- * options. The third option simply relaunches [MainActivity] into the chat.
+ * The ball behaves like a Messenger bubble: long-press it (3s) to start a
+ * hands-free voice call with the agent ([CallSessionController]), tap it for
+ * Start/Pause/End controls (or, during a call, to expand the [CallChatWindow]
+ * transcript), long-press 5s during a call to end it, and drag it onto the ✕
+ * target to hide the ball. It owns its own STT/TTS engines because the chat
+ * UI's ViewModel dies when another app is foregrounded.
  *
  * Started/stopped from the in-app toggle via [ACTION_START] / [ACTION_STOP].
  */
@@ -45,11 +47,8 @@ class AssistiveBallService : Service() {
     private lateinit var ttsEngine: TtsEngine
     private lateinit var sttEngine: SttEngine
     private lateinit var overlay: AssistiveBallOverlay
-    private lateinit var quickAsk: QuickAskEngine
-
-    @Volatile private var isBusy = false
-
-    @Volatile private var listening = false
+    private lateinit var chatWindow: CallChatWindow
+    private lateinit var callController: CallSessionController
 
     override fun onCreate() {
         super.onCreate()
@@ -57,18 +56,52 @@ class AssistiveBallService : Service() {
         val s = settingsRepository.load()
         ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.apiKey)
         sttEngine = SttEngine(this, s.sttApiBaseUrl, s.apiKey)
-        quickAsk = QuickAskEngine(
+        callController = CallSessionController(
+            appContext = applicationContext,
+            scope = scope,
             settingsRepository = settingsRepository,
             sttEngine = sttEngine,
-            ttsEngine = ttsEngine,
-            llmProvider = ::buildLlmClient
+            ttsEngine = ttsEngine
         )
-        overlay = AssistiveBallOverlay(this).apply {
-            onOpenChat = { openChat() }
-            onDismiss = { stopBall() }
-            onStartTalk = { withScreen -> startTalk(withScreen) }
-            onStopTalk = { stopTalk() }
+        chatWindow = CallChatWindow(this).apply {
+            onStart = { startOrResumeCall() }
+            onPause = { callController.pause() }
+            onEnd = { endCall() }
         }
+        overlay = AssistiveBallOverlay(this).apply {
+            onDismiss = { stopBall() }
+            onStartCall = { startOrResumeCall() }
+            onPauseCall = { callController.pause() }
+            onEndCall = { endCall() }
+            onToggleChatWindow = { if (chatWindow.isShowing()) chatWindow.hide() else chatWindow.show() }
+            isCallActive = { callController.isActive() }
+        }
+        callController.onError = { overlay.showError(it) }
+        callController.onCaptureChrome = { hide ->
+            if (hide) {
+                overlay.hideChromeForCapture()
+                chatWindow.setVisibleForCapture(false)
+            } else {
+                overlay.showChromeAfterCapture()
+                chatWindow.setVisibleForCapture(true)
+            }
+        }
+
+        scope.launch {
+            callController.state.collect { state ->
+                overlay.setCallActive(state != CallState.IDLE)
+                chatWindow.setStatus(state, callController.statusLine.value)
+                if (state == CallState.IDLE) chatWindow.hide()
+            }
+        }
+        scope.launch {
+            callController.transcript.collect { chatWindow.setTranscript(it) }
+        }
+        scope.launch {
+            callController.statusLine.collect { chatWindow.setStatus(callController.state.value, it) }
+        }
+
+        sweepOrphanedCalls()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -90,159 +123,56 @@ class AssistiveBallService : Service() {
 
     override fun onDestroy() {
         _isRunning.value = false
+        callController.endCall()
+        chatWindow.hide()
         overlay.dismiss()
         ttsEngine.shutdown()
         scope.cancel()
         super.onDestroy()
     }
 
-    // ---- Option 3: open chat ----
+    // ---- Call control ----
 
-    private fun openChat() {
-        android.util.Log.d("AssistiveBall", "openChat requested")
-        val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-            )
-            putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
-        } ?: Intent(this, MainActivity::class.java).apply {
-            setAction(Intent.ACTION_MAIN)
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-            )
-            putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
-        }
-
-        try {
-            val pendingIntent = PendingIntent.getActivity(
-                this,
-                1,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                val options = android.app.ActivityOptions.makeBasic()
-                options.pendingIntentBackgroundActivityStartMode =
-                    android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                pendingIntent.send(this, 0, null, null, null, null, options.toBundle())
-                android.util.Log.d("AssistiveBall", "PendingIntent sent with ActivityOptions")
-            } else {
-                pendingIntent.send()
-                android.util.Log.d("AssistiveBall", "PendingIntent sent")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("AssistiveBall", "PendingIntent.send() failed", e)
-            try {
-                startActivity(intent)
-                android.util.Log.d("AssistiveBall", "startActivity() called as fallback")
-            } catch (e2: Exception) {
-                android.util.Log.e("AssistiveBall", "startActivity() also failed", e2)
-            }
+    private fun startOrResumeCall() {
+        if (callController.state.value == CallState.PAUSED) {
+            callController.resume()
+        } else {
+            callController.startCall()
         }
     }
 
-    // ---- Options 1 & 2: press & talk ----
-
-    private var pendingWithScreen = false
-
-    private fun startTalk(withScreen: Boolean) {
-        if (isBusy) return
-        if (buildLlmClient() == null) {
-            overlay.showError("Set up your API key in Gotcha first.")
-            return
-        }
-        if (!quickAsk.canListen()) {
-            overlay.showError("No speech-to-text provider is configured. Enable one in Settings.")
-            return
-        }
-        val started = quickAsk.startListening()
-        if (!started) {
-            overlay.showError("Couldn't start listening. Check the microphone permission.")
-            return
-        }
-        listening = true
-        pendingWithScreen = withScreen
-        overlay.showListening()
+    private fun endCall() {
+        callController.endCall()
+        chatWindow.hide()
     }
 
-    private fun stopTalk() {
-        if (!listening) return
-        listening = false
-        val withScreen = pendingWithScreen
-        isBusy = true
-        scope.launch {
+    /**
+     * Call sessions are deleted when a call ends; anything still on disk is
+     * left over from a crash or process kill, so clear it on startup.
+     */
+    private fun sweepOrphanedCalls() {
+        scope.launch(Dispatchers.IO) {
+            val repo = ChatHistoryRepository(applicationContext, "calls")
+            repo.listSessions().forEach { repo.deleteSession(it.id) }
             try {
-                val question = quickAsk.stopAndTranscribe()
-                if (question.isBlank()) {
-                    overlay.showError("I didn't catch that. Try again.")
-                    return@launch
-                }
-
-                var screenshot: String? = null
-                var screenText: String? = null
-                if (withScreen) {
-                    // Screen questions require the accessibility service (it provides both
-                    // the screenshot and the on-screen text). Guide the user if it's off.
-                    if (!quickAsk.isAccessibilityAvailable()) {
-                        overlay.showError(
-                            "I can't see your screen yet. Turn on Gotcha under " +
-                                "Settings ▸ Accessibility, then use Screen Share again. " +
-                                "(For a screen-free question, use the Talk option.)"
-                        )
-                        return@launch
-                    }
-                    // Hide our own overlays so they aren't captured, and let the compositor
-                    // paint a clean frame of the underlying app before we grab it.
-                    overlay.hideChromeForCapture()
-                    delay(350)
-                    screenshot = quickAsk.captureScreenBase64()
-                    screenText = quickAsk.captureScreenText()
-                    overlay.showChromeAfterCapture()
-                }
-
-                overlay.showThinking()
-                val answer = quickAsk.ask(question, screenshot, screenText, screenRequested = withScreen)
-                overlay.showAnswer(answer)
-                quickAsk.speak(answer)
-            } catch (e: Exception) {
-                overlay.showError(friendlyError(e))
-            } finally {
-                isBusy = false
-            }
+                File(CallSessionController.CALLS_WORKING_ROOT).deleteRecursively()
+            } catch (_: Exception) { }
         }
     }
 
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
-        // Keep the persisted toggle in sync when the ball is hidden from its own
-        // menu (not just from the in-app toggle), so the app reopens with it off.
+        // Keep the persisted toggle in sync when the ball is hidden by the
+        // drag-to-✕ gesture (not just from the in-app toggle), so the app
+        // reopens with it off. An active call is ended (and deleted) first.
+        callController.endCall()
+        chatWindow.hide()
         settingsRepository.save(settingsRepository.load().copy(assistiveBallEnabled = false))
         _isRunning.value = false
         overlay.dismiss()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
-    }
-
-    private fun buildLlmClient(): LLMClient? {
-        val s = settingsRepository.load()
-        return if (s.isConfigured) {
-            LLMClient(
-                apiKey = s.apiKey,
-                baseUrl = s.baseUrl,
-                model = s.model,
-                context = applicationContext,
-                apiTimeoutSeconds = s.apiTimeoutSeconds
-            )
-        } else {
-            null
-        }
     }
 
     private fun startAsForeground() {
@@ -255,7 +185,7 @@ class AssistiveBallService : Service() {
         )
         val notification: Notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Gotcha assistive ball")
-            .setContentText("Tap the floating ball to ask about your screen.")
+            .setContentText("Tap the ball for call controls. Long-press it to start a voice call.")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(tapIntent)
             .setOngoing(true)
@@ -294,23 +224,13 @@ class AssistiveBallService : Service() {
         }
     }
 
-    private fun friendlyError(e: Exception): String = when {
-        e is retrofit2.HttpException && e.code() == 401 ->
-            "The API rejected the key (401). Check your API key in settings."
-        e is retrofit2.HttpException ->
-            "The API returned an error (HTTP ${e.code()})."
-        e is java.io.IOException ->
-            "Network problem. Check your connection and try again."
-        else -> "Something went wrong: ${e.message}"
-    }
-
     companion object {
         const val ACTION_START = "com.gotcha.assistiveball.START"
         const val ACTION_STOP = "com.gotcha.assistiveball.STOP"
 
         private val _isRunning = MutableStateFlow(false)
 
-        /** Live running state of the ball, so UI toggles can track "Hide ball" too. */
+        /** Live running state of the ball, so UI toggles can track hide gestures too. */
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
         private const val CHANNEL_ID = "assistive_ball"
         private const val NOTIFICATION_ID = 4711

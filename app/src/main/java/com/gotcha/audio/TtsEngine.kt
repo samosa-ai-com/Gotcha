@@ -92,6 +92,7 @@ class TtsEngine(
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) { gate.complete(true) }
             override fun onError(utteranceId: String?) { gate.complete(false) }
+
             // stop() interrupts the utterance; without this the gate never completes
             // and a suspended speak() would hang (e.g. pausing a voice call).
             override fun onStop(utteranceId: String?, interrupted: Boolean) { gate.complete(false) }
