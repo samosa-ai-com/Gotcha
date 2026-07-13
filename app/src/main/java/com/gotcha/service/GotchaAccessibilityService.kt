@@ -27,6 +27,8 @@ import kotlin.coroutines.resume
  * service is only alive while the user has it enabled; the tool checks [instance]
  * for null and returns a permission hint otherwise.
  */
+// One function per accessibility capability (tap, swipe, type, …) by design; size is inherent.
+@Suppress("TooManyFunctions")
 class GotchaAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
@@ -117,6 +119,14 @@ class GotchaAccessibilityService : AccessibilityService() {
         return performed
     }
 
+    fun longPressByText(query: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val match = findClickable(root, query.lowercase())
+        val performed = match?.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK) ?: false
+        root.recycle()
+        return performed
+    }
+
     private fun findClickable(node: AccessibilityNodeInfo?, query: String): AccessibilityNodeInfo? {
         if (node == null) return null
         val hay = ((node.text?.toString() ?: "") + " " + (node.contentDescription?.toString() ?: ""))
@@ -135,16 +145,63 @@ class GotchaAccessibilityService : AccessibilityService() {
     /** Type [text] into the currently focused editable field. */
     fun typeText(text: String): Boolean {
         val focused = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
-        val args = android.os.Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-        }
-        val ok = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        val ok = setTextOnNode(focused, text)
         focused.recycle()
         return ok
     }
 
+    /** Type [text] into a specific node matching the given bounds (left, top, right, bottom). */
+    fun typeTextIntoNodeByBounds(boundsStr: String, text: String): Boolean {
+        val targetBounds = android.graphics.Rect()
+        try {
+            val parts = boundsStr.split(",").map { it.trim().toInt() }
+            if (parts.size == 4) {
+                targetBounds.set(parts[0], parts[1], parts[2], parts[3])
+            } else {
+                return false
+            }
+        } catch (_: Exception) {
+            return false
+        }
+
+        val root = rootInActiveWindow ?: return false
+        var match: AccessibilityNodeInfo? = null
+
+        fun search(node: AccessibilityNodeInfo?) {
+            if (node == null || match != null) return
+            if (node.isVisibleToUser) {
+                val bounds = android.graphics.Rect()
+                node.getBoundsInScreen(bounds)
+                if (bounds == targetBounds) {
+                    match = AccessibilityNodeInfo.obtain(node)
+                    return
+                }
+            }
+            for (i in 0 until node.childCount) {
+                search(node.getChild(i))
+            }
+        }
+
+        search(root)
+        root.recycle()
+
+        val nodeToEdit = match ?: return false
+        val ok = setTextOnNode(nodeToEdit, text)
+        nodeToEdit.recycle()
+        return ok
+    }
+
+    private fun setTextOnNode(node: AccessibilityNodeInfo, text: String): Boolean {
+        val args = android.os.Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        }
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+    }
+
     /** Dispatch a tap gesture at absolute screen coordinates (API 24+). */
     fun tapAt(x: Float, y: Float): Boolean = gesture(x, y, x, y, 50)
+
+    fun longPressAt(x: Float, y: Float): Boolean = gesture(x, y, x, y, 1000)
 
     /** Dispatch a swipe gesture between two points. */
     fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 300): Boolean =

@@ -1147,6 +1147,68 @@ object ToolDefinitions {
         }
     )
 
+    val task = tool(
+        "task",
+        "Delegate a multi-step task to a sub-agent. The sub-agent runs independently " +
+            "with full access to all Operator tools and returns a final report. " +
+            "Use this when the work involves many steps whose intermediate details are " +
+            "not important to you — only the final result matters. " +
+            "Available sub-agents: GENERAL — a general-purpose agent that can perform " +
+            "any multi-step operation using all available device tools. " +
+            "Cannot be called from within a sub-agent (no recursive delegation). " +
+            "Only available to Operator mode.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("description") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Brief description of what the sub-agent should do " +
+                            "(shown in the UI while it runs)."
+                    )
+                }
+                putJsonObject("prompt") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Detailed instructions for the sub-agent. " +
+                            "Include all context the sub-agent needs to complete the task."
+                    )
+                }
+                putJsonObject("subagent_type") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Which sub-agent to use. Default: 'general'. " +
+                            "Available: general."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("description")
+                add("prompt")
+            }
+        }
+    )
+
+    val ask_final_answer = tool(
+        "ask_final_answer",
+        "Signal that the delegated task is complete and provide the final result. " +
+            "Only available to General sub-agent. " +
+            "Call this once all required steps have been executed and you have the " +
+            "complete answer to report back. " +
+            "Do NOT call this before the work is actually done.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("answer") {
+                    put("type", "string")
+                    put("description", "The complete final result to report back.")
+                }
+            }
+            putJsonArray("required") { add("answer") }
+        }
+    )
+
     val glob = tool(
         "glob",
         "Find files matching a glob pattern within an allowed directory. " +
@@ -1270,6 +1332,15 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val readScreenRaw = tool(
+        "read_screen_raw",
+        "Read the visible text AND capture a full-resolution screenshot of whatever app " +
+            "is currently on screen. Use this instead of read_screen when you need the " +
+            "highest quality visual detail (e.g. for reading small text, icons, or " +
+            "images). Prefer read_screen for most cases to save context.",
+        schema { putJsonObject("properties") {} }
+    )
+
     val tap = tool(
         "tap",
         "Tap the screen via the accessibility service — either an on-screen element matching " +
@@ -1283,11 +1354,15 @@ object ToolDefinitions {
                 }
                 putJsonObject("x") {
                     put("type", "integer")
-                    put("description", "Absolute X pixel coordinate (use with y instead of text).")
+                    put("description", "X coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
                 }
                 putJsonObject("y") {
                     put("type", "integer")
-                    put("description", "Absolute Y pixel coordinate (use with x instead of text).")
+                    put("description", "Y coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                }
+                putJsonObject("normalized") {
+                    put("type", "boolean")
+                    put("description", "If true, x and y are in [0, 1000] normalized space. Default true.")
                 }
             }
         }
@@ -1295,14 +1370,19 @@ object ToolDefinitions {
 
     val swipe = tool(
         "swipe",
-        "Swipe the screen via the accessibility service — a named direction (up/down/left/right) " +
-            "or explicit start/end coordinates. Use for scrolling and navigation. Needs the " +
-            "accessibility service enabled.",
+        "Swipe/scroll the screen or a specific element. " +
+            "If using a direction, 'down' means scroll the content down to see lower items. " +
+            "'up' means scroll the content up to see higher items. " +
+            "Needs the accessibility service enabled.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("direction") {
                     put("type", "string")
                     put("description", "One of: up, down, left, right.")
+                }
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Optional index of the UI element to swipe on.")
                 }
                 putJsonObject("x1") {
                     put("type", "integer")
@@ -1320,19 +1400,127 @@ object ToolDefinitions {
                     put("type", "integer")
                     put("description", "End Y.")
                 }
+                putJsonObject("normalized") {
+                    put("type", "boolean")
+                    put("description", "If true, coordinate params are in [0, 1000] normalized space. Default true.")
+                }
             }
+        }
+    )
+
+    val tapIndex = tool(
+        "tap_index",
+        "Tap a UI element from the numbered elements list shown in the screen observation. " +
+            "The index corresponds to the number shown before each element. " +
+            "Prefer this over raw coordinate tap when possible for precision.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Index of the element to tap (from the ── UI Elements ── list).")
+                }
+            }
+            putJsonArray("required") { add("index") }
+        }
+    )
+
+    val longPress = tool(
+        "long_press",
+        "Perform a long-press gesture on a specific on-screen UI element or explicit coordinates.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("description", "Visible text/label of the element to long press.")
+                }
+                putJsonObject("x") {
+                    put("type", "integer")
+                    put("description", "X coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                }
+                putJsonObject("y") {
+                    put("type", "integer")
+                    put("description", "Y coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                }
+                putJsonObject("normalized") {
+                    put("type", "boolean")
+                    put("description", "If true, x and y are in [0, 1000] normalized space. Default true.")
+                }
+            }
+        }
+    )
+
+    val longPressIndex = tool(
+        "long_press_index",
+        "Perform a long-press gesture on a UI element from the numbered elements list shown in the screen observation.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Index of the element to long press (from the ── UI Elements ── list).")
+                }
+            }
+            putJsonArray("required") { add("index") }
+        }
+    )
+
+    val pressKey = tool(
+        "press_key",
+        "Press a system key or perform a navigation action. " +
+            "Note: 'enter' may not successfully submit forms or searches on all apps. It is much " +
+            "more reliable to use tap or tap_index to click the on-screen 'Search', 'Submit', " +
+            "or 'Go' button instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("key") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "One of: enter, back, home, recents, notifications, quick_settings, lock_screen."
+                    )
+                }
+            }
+            putJsonArray("required") { add("key") }
+        }
+    )
+
+    val navigateApp = tool(
+        "navigate_app",
+        "Open apps and navigate them step by step. Provide a detailed description of " +
+            "what to do — the App Navigator will look at the screen, tap, swipe, type, " +
+            "and scroll until the task is done. " +
+            "Only available to Operator mode. Cannot be called from within a sub-agent.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("task") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Detailed step-by-step instructions of what to do in the app. " +
+                            "Include the app name, search terms, what to look for, and what the final " +
+                            "summary should contain. " +
+                            "Example: 'Open Google Maps, search for restaurants near me, scroll through " +
+                            "results, and tell me the top 5 with ratings and distances.'"
+                    )
+                }
+            }
+            putJsonArray("required") { add("task") }
         }
     )
 
     val inputText = tool(
         "input_text",
-        "Type text into the currently focused input field via the accessibility service. Tap a " +
-            "text field first so it is focused. Needs the accessibility service enabled.",
+        "Type text into a text field via the accessibility service. You can optionally target an " +
+            "element directly by providing its index. If no index is provided, it types into the currently " +
+            "focused field. Needs the accessibility service enabled.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("text") {
                     put("type", "string")
                     put("description", "Text to type into the focused field.")
+                }
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Optional index of the text field to type into.")
                 }
             }
             putJsonArray("required") { add("text") }
@@ -1552,6 +1740,9 @@ object ToolDefinitions {
         question,
         // Sleep / delay utility (available to both agents)
         sleep,
+        // Sub-agent delegation (Operator only)
+        task,
+        ask_final_answer,
         // Task tracking
         todowrite,
         // Surgical file editing (Operator only)
@@ -1562,7 +1753,8 @@ object ToolDefinitions {
         webSearch, webFetch,
         // DEPRECATED: readImage excluded from the active catalog — use read_file instead.
         // Tier 3 additions
-        readScreen, tap, swipe, inputText, globalAction,
+        readScreen, readScreenRaw, tap, longPress, swipe, tapIndex, longPressIndex, pressKey, inputText, globalAction,
+        navigateApp,
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,
         lockScreen, disableCamera, setPasswordPolicy,

@@ -3,6 +3,7 @@ package com.gotcha.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -52,9 +54,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
 import com.gotcha.tools.AgentMode
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image as ComposeImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,7 +75,8 @@ fun ChatScreen(
     onSwitchAgent: () -> Unit,
     onSpeak: (String) -> Unit = {},
     onStartListening: () -> Unit = {},
-    onStopRecording: () -> Unit = {}
+    onStopRecording: () -> Unit = {},
+    onExportChat: () -> Unit = {}
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
@@ -87,9 +92,14 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text?.length) {
+    LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) {
-            listState.scrollToItem(state.messages.size - 1)
+            delay(100)
+            try {
+                listState.animateScrollToItem(state.messages.size - 1)
+            } catch (_: Exception) {
+                listState.scrollToItem(state.messages.size - 1)
+            }
         }
     }
 
@@ -109,6 +119,9 @@ fun ChatScreen(
                         label = { Text(state.activeAgent.name) },
                         enabled = !state.isBusy
                     )
+                    IconButton(onClick = onExportChat, enabled = !state.isBusy) {
+                        Icon(Icons.Default.Share, contentDescription = "Export chat")
+                    }
                     TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )
@@ -137,6 +150,38 @@ fun ChatScreen(
                     CircularProgressIndicator(modifier = Modifier.width(16.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(state.activity, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            if (state.subAgentRunning != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1A1A2E), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.width(16.dp),
+                            color = Color(0xFFE0D4FF)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "⚡ ${state.subAgentRunning}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE0D4FF)
+                        )
+                    }
+                    state.subAgentCurrentAction?.let { action ->
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            action,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFE0D4FF).copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 

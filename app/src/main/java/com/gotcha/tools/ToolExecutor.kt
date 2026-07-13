@@ -19,7 +19,11 @@ import kotlinx.serialization.json.jsonPrimitive
  * preconditions (executors return permission errors instead of crashing),
  * and records every execution in the [ActionLog].
  */
-class ToolExecutor(context: Context) {
+class ToolExecutor(
+    context: Context,
+    val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
+    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null
+) {
 
     private companion object {
         const val TAG = "Gotcha"
@@ -64,14 +68,24 @@ class ToolExecutor(context: Context) {
      * Execute [name] with [args] on behalf of the given [agent].
      * Returns an error without running the tool if the agent mode disallows it.
      */
-    suspend fun execute(name: String, args: JsonObject, agent: AgentMode = AgentMode.OPERATOR): ToolResult {
+    suspend fun execute(
+        name: String,
+        args: JsonObject,
+        agent: AgentMode = AgentMode.OPERATOR,
+        isSubAgent: Boolean = false
+    ): ToolResult {
         if (!ToolRegistry.contains(name)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
-        if (!ToolRegistry.isAllowedForAgent(name, agent)) {
+        if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
                 "This action is not available in ${agent.name} mode. " +
                     "Switch to Operator mode if you need to perform this action."
+            )
+        }
+        if (isSubAgent && !ToolRegistry.isAllowedForSubAgent(name)) {
+            return ToolResult.error(
+                "Tool '$name' is not available to sub-agents (no recursive delegation)."
             )
         }
         val result = try {
@@ -314,6 +328,19 @@ class ToolExecutor(context: Context) {
             "todowrite" -> todoTool.todowrite(
                 parseTodoItems(args["items"]) ?: return missing("items")
             )
+            "ask_final_answer" -> {
+                ToolResult.ok(args.requireString("answer") ?: "(no answer)")
+            }
+            "task" -> {
+                val handler = onTask
+                if (handler == null) {
+                    ToolResult.error("Task delegation is not configured.")
+                } else {
+                    val description = args.requireString("description") ?: return missing("description")
+                    val prompt = args.requireString("prompt") ?: return missing("prompt")
+                    handler(description, prompt)
+                }
+            }
             "sleep" -> {
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                     ?: return missing("duration_seconds")
@@ -335,19 +362,69 @@ class ToolExecutor(context: Context) {
             )
             // ---- Tier 3 ----
             "read_screen" -> accessibilityTool.readScreen()
-            "tap" -> accessibilityTool.tap(
-                text = args.requireString("text"),
-                x = args.requireInt("x"),
-                y = args.requireInt("y")
-            )
+            "read_screen_raw" -> accessibilityTool.readScreenRaw()
+            "tap" -> {
+                var x = args.requireInt("x")
+                var y = args.requireInt("y")
+                val normalized = args.requireBoolean("normalized") ?: true
+                if (normalized && x != null && y != null) {
+                    val (w, h) = ScreenPerception.getScreenDimensions()
+                    val (nx, ny) = ScreenPerception.normalizeToPixel(x, y, w, h)
+                    x = nx
+                    y = ny
+                }
+                accessibilityTool.tap(text = args.requireString("text"), x = x, y = y)
+            }
             "swipe" -> accessibilityTool.swipe(
                 direction = args.requireString("direction"),
                 x1 = args.requireInt("x1"),
                 y1 = args.requireInt("y1"),
                 x2 = args.requireInt("x2"),
-                y2 = args.requireInt("y2")
+                y2 = args.requireInt("y2"),
+                normalized = args.requireBoolean("normalized") ?: true,
+                index = args.requireInt("index")
             )
-            "input_text" -> accessibilityTool.inputText(args.requireString("text") ?: return missing("text"))
+            "tap_index" -> {
+                val index = args.requireInt("index") ?: return missing("index")
+                accessibilityTool.tapByIndex(index)
+            }
+            "long_press" -> {
+                var x = args.requireInt("x")
+                var y = args.requireInt("y")
+                val normalized = args.requireBoolean("normalized") ?: true
+                if (normalized && x != null && y != null) {
+                    val (w, h) = ScreenPerception.getScreenDimensions()
+                    val pixelCoords = ScreenPerception.normalizeToPixel(x, y, w, h)
+                    x = pixelCoords.first
+                    y = pixelCoords.second
+                }
+                accessibilityTool.longPress(
+                    text = args.requireString("text"),
+                    x = x,
+                    y = y
+                )
+            }
+            "long_press_index" -> {
+                val index = args.requireInt("index") ?: return missing("index")
+                accessibilityTool.longPressByIndex(index)
+            }
+            "press_key" -> {
+                val key = args.requireString("key") ?: return missing("key")
+                accessibilityTool.pressKey(key)
+            }
+            "navigate_app" -> {
+                val handler = onNavigateApp
+                if (handler == null) {
+                    ToolResult.error("App navigation is not configured.")
+                } else {
+                    val task = args.requireString("task") ?: return missing("task")
+                    handler(task)
+                }
+            }
+            "input_text" -> accessibilityTool.inputText(
+                text = args.requireString("text") ?: return missing("text"),
+                index = args.requireInt("index")
+            )
             "global_action" -> accessibilityTool.globalAction(args.requireString("action") ?: return missing("action"))
             "read_notifications" -> notificationTool.readNotifications(args.requireInt("limit") ?: 15)
             "dismiss_notifications" -> notificationTool.dismissNotifications(args.requireString("key"))
@@ -386,6 +463,9 @@ class ToolExecutor(context: Context) {
     /** Parse an integer argument; tolerates numbers sent as JSON strings by the LLM. */
     private fun JsonObject.requireInt(key: String): Int? =
         this[key]?.jsonPrimitive?.let { it.intOrNull ?: it.content.trim().toIntOrNull() }
+
+    private fun JsonObject.requireBoolean(key: String): Boolean? =
+        this[key]?.jsonPrimitive?.booleanOrNull
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
