@@ -11,6 +11,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 data class AppNavigatorOutput(
@@ -51,11 +55,16 @@ class AppNavigatorSession(
 
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }
+            
+            // Send abbreviated text if image is available, otherwise send full tree
             val obsText = if (screenshot != null) {
-                ScreenPerception.buildObservationText(screenshot, uiTree)
+                val lines = uiTree.lines()
+                val truncatedTree = if (lines.size > 20) lines.take(20).joinToString("\n") + "\n... (truncated, use vision to see the rest)" else uiTree
+                ScreenPerception.buildObservationText(screenshot, truncatedTree)
             } else {
                 "── UI Elements ──\n$uiTree\n── Screenshot ──\n(failed to capture)"
             }
+            
             val userMsg = buildString {
                 appendLine("## Task")
                 appendLine(task)
@@ -67,12 +76,29 @@ class AppNavigatorSession(
                 appendLine(obsText)
             }
 
+            val userContent = if (screenshot != null) {
+                buildJsonArray {
+                    addJsonObject {
+                        put("type", "text")
+                        put("text", userMsg)
+                    }
+                    addJsonObject {
+                        put("type", "image_url")
+                        putJsonObject("image_url") {
+                            put("url", "data:image/${screenshot.format};base64,${screenshot.base64}")
+                        }
+                    }
+                }
+            } else {
+                JsonPrimitive(userMsg)
+            }
+
             // 3. Single-turn LLM call with navigation tools
             val response: ChatResponse = try {
                 llmClient.chat(
                     messages = listOf(
                         ChatMessage(role = "system", content = JsonPrimitive(NAVIGATOR_SYSTEM_PROMPT)),
-                        ChatMessage(role = "user", content = JsonPrimitive(userMsg))
+                        ChatMessage(role = "user", content = userContent)
                     ),
                     tools = navTools,
                     sessionId = sessionId

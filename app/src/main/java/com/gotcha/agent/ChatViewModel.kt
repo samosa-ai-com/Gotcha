@@ -1341,10 +1341,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return messages.mapIndexed { idx, msg ->
             if (idx in toCull) {
                 msg.copy(
-                    content = JsonPrimitive(
-                        msg.textContent + "\n\n[Previous screenshot removed to save context. " +
-                            "Only the 2 most recent screenshots are retained.]"
-                    )
+                    content = JsonPrimitive("[Previous screen observation removed to save context. Only the 2 most recent are retained.]")
                 )
             } else msg
         }

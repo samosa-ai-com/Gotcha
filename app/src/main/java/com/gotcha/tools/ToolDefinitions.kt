@@ -1314,7 +1314,7 @@ object ToolDefinitions {
     val pressKey = tool(
         "press_key",
         "Press a system key or perform a navigation action. " +
-            "For entering text, use input_text instead.",
+            "Note: 'enter' may not successfully submit forms or searches on all apps. It is much more reliable to use tap or tap_index to click the on-screen 'Search', 'Submit', or 'Go' button instead.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("key") {

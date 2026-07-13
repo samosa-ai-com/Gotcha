@@ -1,6 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
+import android.os.Build
 import android.provider.Settings
 import android.text.TextUtils
 import android.view.accessibility.AccessibilityNodeInfo
@@ -163,7 +164,14 @@ class AccessibilityTool(private val context: Context) {
                 val result = try {
                     val focused = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
                     if (focused != null) {
-                        focused.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        var clicked = false
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            clicked = focused.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+                        }
+                        if (!clicked) {
+                            clicked = focused.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        }
+                        clicked
                     } else false
                 } finally { try { root?.recycle() } catch (_: Exception) { } }
                 if (result) return ToolResult.ok("Pressed Enter.")
