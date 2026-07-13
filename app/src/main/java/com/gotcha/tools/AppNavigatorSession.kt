@@ -52,7 +52,7 @@ class AppNavigatorSession(
 
             // 1. Capture fresh perception with grid overlay
             val uiTree = ScreenPerception.buildUiHierarchyText()
-            val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
+            val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
             val screenshot = ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
 
             // 2. Build single-turn prompt

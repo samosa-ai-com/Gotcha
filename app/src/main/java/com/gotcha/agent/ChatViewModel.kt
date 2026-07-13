@@ -1306,9 +1306,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Capture a screenshot via the `screencap -p` shell command, compressed as JPEG.
      * Returns a [ScreenPerception.CompressedScreenshot] with base64 data, or null on failure.
      */
-    private suspend fun captureCompressedScreenshot(sessionId: String): ScreenPerception.CompressedScreenshot? {
-        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
-        return ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
+    private suspend fun captureCompressedScreenshot(
+        sessionId: String,
+        drawGrid: Boolean = true
+    ): ScreenPerception.CompressedScreenshot? {
+        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
+        return ScreenPerception.compressScreenshot(drawGrid = drawGrid, saveDir = saveDir)
     }
 
     /**
@@ -1316,9 +1319,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Used by read_screen_raw for maximum visual detail.
      */
     private suspend fun captureFullResScreenshot(sessionId: String): ScreenPerception.CompressedScreenshot? {
-        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
+        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
         return ScreenPerception.compressScreenshot(
             maxDimension = 0,
+            drawGrid = false,
             format = android.graphics.Bitmap.CompressFormat.PNG,
             quality = 100,
             saveDir = saveDir

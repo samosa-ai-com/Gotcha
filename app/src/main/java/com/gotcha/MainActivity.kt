@@ -302,9 +302,9 @@ class MainActivity : ComponentActivity() {
                         ).clearCache()
                     },
                     onClearDebugScreenshots = {
-                        val chatsDir = java.io.File(filesDir, "chats")
-                        if (chatsDir.exists()) {
-                            chatsDir.walkTopDown()
+                        val baseDir = java.io.File("/storage/emulated/0/Gotcha")
+                        if (baseDir.exists()) {
+                            baseDir.walkTopDown()
                                 .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
                                 .forEach { it.delete() }
                         }
