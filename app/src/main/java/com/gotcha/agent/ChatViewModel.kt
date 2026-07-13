@@ -608,17 +608,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(activity = "Thinking…") }
 
             // Build message array optimized for prompt caching:
-            //   1. Base environment block (identical across agent switches
-            //      except for a single "Active agent: X" line)
-            //   2. Full conversation history (unchanged on switch)
-            //   3. Agent instructions at the tail (changes on switch, keeps
-            //      the prefix [base env + history] in the KV cache)
+            //   1. Base environment block (fully static — no volatile fields)
+            //   2. Full conversation history (images culled non-mutatively)
+            //   3. Current timestamp (volatile — placed after cacheable prefix)
+            //   4. Agent instructions at the tail
+            // The [env block + history] prefix stays byte-identical across
+            // iterations, maximising server-side KV-cache hits.
             val messages = buildList {
                 add(baseEnvironmentBlock(agent))
-                addAll(trimmedHistory())
+                addAll(cullOldImages(trimmedHistory()))
+                add(currentTimestampMessage())
                 addAll(agentInstructionMessages(agent))
             }
-            cullOldImages()
             val response = try {
                 llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
             } catch (e: CancellationException) {
@@ -1060,12 +1061,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Environment block sent as the first system message.
-     * Only one line ("Active agent: X") differs between Monitor and Operator,
-     * so the server KV cache for this ~300-token prefix is mostly preserved
-     * across agent switches.
+     * Fully static within a session — no volatile fields like timestamps.
+     * Only "Active agent: X" differs between Monitor and Operator.
+     * The server KV cache for this prefix is preserved across all calls.
      */
     private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
         return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
+    }
+
+    /**
+     * A separate system message carrying only the current date/time.
+     * Placed after the conversation history so the [baseEnvironmentBlock] +
+     * history prefix stays in the KV cache while the timestamp is always fresh.
+     */
+    private fun currentTimestampMessage(): ChatMessage {
+        val dateTime = java.text.SimpleDateFormat(
+            "EEE MMM dd yyyy, HH:mm:ss 'UTC'Z", java.util.Locale.US
+        ).apply { timeZone = java.util.TimeZone.getDefault() }.format(java.util.Date())
+        return ChatMessage(role = "system", content = JsonPrimitive("Current date/time: $dateTime"))
     }
 
     /**
@@ -1131,8 +1144,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Builds the environment info string with device info, date/time, agent mode,
-     * and service statuses (PRD §14.1).  Only varies by a single "Active agent: X" line.
+     * Builds the environment info string with device info, agent mode,
+     * and service statuses (PRD §14.1).
+     *
+     * The date/time is intentionally excluded — it is provided via
+     * [currentTimestampMessage] placed after the conversation history
+     * so that this block stays fully static and the server-side KV cache
+     * for the [env block + history] prefix is preserved across calls.
      */
     private fun buildEnvironmentString(agent: AgentMode): String {
         val app = getApplication<Application>()
@@ -1170,17 +1188,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) ?: false
         } catch (_: Exception) { false }
 
-        val dateTime = java.text.SimpleDateFormat("EEE MMM dd yyyy, HH:mm:ss 'UTC'Z", java.util.Locale.US)
-            .apply { timeZone = java.util.TimeZone.getDefault() }
-            .format(java.util.Date())
-
         return buildString {
             appendLine("You are powered by the model named ${settings.model}.")
             appendLine("Here is some useful information about the environment you are running in:")
             appendLine("<env>")
             appendLine("  Device model: ${android.os.Build.MODEL} (${android.os.Build.MANUFACTURER})")
             appendLine("  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
-            appendLine("  Current date/time: $dateTime")
             appendLine("  Active agent: ${agent.name}")
             appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
@@ -1304,28 +1317,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Scans [llmHistory] for vision messages containing embedded images.
-     * Strips the image data from all but the 2 most recent such messages,
-     * keeping their text portions intact. This prevents accumulated
-     * screenshots from exhausting the LLM context window.
+     * Returns a copy of [messages] with old vision messages replaced by
+     * text-only versions. Only the 2 most recent vision messages keep their
+     * image data. The original list (and [llmHistory]) is NOT modified,
+     * so the prefix sent in previous iterations stays cache-stable.
      */
-    private fun cullOldImages() {
-        val imageMsgIndices = llmHistory.indices.filter { i ->
-            val content = llmHistory[i].content
+    private fun cullOldImages(messages: List<ChatMessage>): List<ChatMessage> {
+        val imageMsgIndices = messages.indices.filter { i ->
+            val content = messages[i].content
             content is JsonArray && content.any { part ->
                 part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
             }
         }
-        val toCull = imageMsgIndices.dropLast(2)
-        for (idx in toCull) {
-            val msg = llmHistory[idx]
-            val text = msg.textContent
-            llmHistory[idx] = msg.copy(
-                content = JsonPrimitive(
-                    text + "\n\n[Previous screenshot removed to save context. " +
-                        "Only the 2 most recent screenshots are retained.]"
+        val toCull = imageMsgIndices.dropLast(2).toSet()
+        if (toCull.isEmpty()) return messages
+
+        return messages.mapIndexed { idx, msg ->
+            if (idx in toCull) {
+                msg.copy(
+                    content = JsonPrimitive(
+                        msg.textContent + "\n\n[Previous screenshot removed to save context. " +
+                            "Only the 2 most recent screenshots are retained.]"
+                    )
                 )
-            )
+            } else msg
         }
     }
 

@@ -168,7 +168,7 @@ class SubAgentSession(
             }
 
             if (activeTokenCount > settings.maxContextTokens * 0.8) {
-                trimHistory(history)
+                compactHistory(history, subLlm)
             }
         }
 
@@ -176,10 +176,67 @@ class SubAgentSession(
         return SubAgentOutput(msg, collectedSteps.toList())
     }
 
-    private fun trimHistory(history: MutableList<ChatMessage>) {
-        val sysPrompt = history.firstOrNull { it.role == "system" }
-        history.clear()
-        if (sysPrompt != null) history.add(sysPrompt)
-        activeTokenCount = history.sumOf { it.textContent.length / 4 }
+    /**
+     * Compacts history using an LLM summarization call (same strategy as
+     * ChatViewModel.checkAndCompactHistory). Preserves the system prompt
+     * and original user task, replacing intermediate exchanges with a
+     * dense summary so no task context is lost.
+     */
+    private suspend fun compactHistory(
+        history: MutableList<ChatMessage>,
+        llm: LLMClient
+    ) {
+        if (history.size <= 3) return
+
+        val sysPrompt = history.first()
+        val userTask = history[1]
+
+        // Serialize the intermediate exchanges for the compaction LLM
+        val exchangeText = history.subList(2, history.size).joinToString("\n\n") { msg ->
+            val role = msg.role.uppercase()
+            val text = msg.textContent.ifEmpty {
+                if (!msg.toolCalls.isNullOrEmpty())
+                    "Called tools: " + msg.toolCalls.joinToString(", ") { it.function.name }
+                else ""
+            }
+            "[$role]: $text"
+        }
+
+        val compactionSystem = ChatMessage(
+            role = "system",
+            content = JsonPrimitive(
+                "You are a context compaction agent. Compress the following sub-agent " +
+                "tool-call history into a dense summary preserving: what was attempted, " +
+                "what succeeded, what failed, and key data discovered. Be concise but " +
+                "do not lose technical specifics."
+            )
+        )
+        val compactionUser = ChatMessage(
+            role = "user",
+            content = JsonPrimitive(
+                "Original task: ${userTask.textContent}\n\n" +
+                "Intermediate exchanges:\n$exchangeText"
+            )
+        )
+
+        try {
+            val response = llm.chat(listOf(compactionSystem, compactionUser))
+            val summary = response.choices.firstOrNull()?.message?.textContent
+            if (!summary.isNullOrBlank()) {
+                history.clear()
+                history.add(sysPrompt)
+                history.add(userTask)
+                history.add(ChatMessage(
+                    role = "assistant",
+                    content = JsonPrimitive("[Context compacted]\n$summary")
+                ))
+                activeTokenCount = history.sumOf { it.textContent.length / 4 }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Compaction failed — keep full history and continue
+            Log.w(TAG, "Sub-agent context compaction failed, keeping full history")
+        }
     }
 }
