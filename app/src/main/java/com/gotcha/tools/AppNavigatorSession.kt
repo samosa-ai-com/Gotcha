@@ -51,9 +51,9 @@ class AppNavigatorSession(
             onStep("Analyzing screen", "running", "")
 
             // 1. Capture fresh perception with grid overlay
+            val uiTree = ScreenPerception.buildUiHierarchyText()
             val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE)
             val screenshot = ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
-            val uiTree = ScreenPerception.buildUiHierarchyText()
 
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }

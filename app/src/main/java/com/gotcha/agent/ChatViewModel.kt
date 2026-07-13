@@ -713,10 +713,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // can "see" the screen alongside structured element data.
                     if (result.success && call.function.name == "read_screen") {
                         android.util.Log.d("ScreenCapture", "read_screen auto-injection: calling captureCompressedScreenshot()")
+                        val uiTree = ScreenPerception.buildUiHierarchyText()
                         val screenshot = captureCompressedScreenshot(sessionId)
                         android.util.Log.d("ScreenCapture", "read_screen auto-injection: screenshot=${screenshot != null}")
                         if (screenshot != null) {
-                            val uiTree = ScreenPerception.buildUiHierarchyText()
                             val observationText = ScreenPerception.buildObservationText(screenshot, uiTree)
                             val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
                             llmHistory.add(visionMsg)

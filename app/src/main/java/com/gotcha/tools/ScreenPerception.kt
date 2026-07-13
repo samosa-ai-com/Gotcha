@@ -66,27 +66,31 @@ object ScreenPerception {
         }
         Log.d("ScreenCapture", "compressScreenshot: got ${bytes.size} raw bytes")
         val originalSize = bytes.size.toLong()
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        val options = BitmapFactory.Options().apply { 
+            inMutable = true
+            inScaled = false 
+        }
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         if (bitmap == null) {
             Log.e("ScreenCapture", "compressScreenshot: BitmapFactory.decodeByteArray returned null — invalid image data")
             return null
         }
         Log.d("ScreenCapture", "compressScreenshot: decoded bitmap ${bitmap.width}x${bitmap.height}")
-        val scaled = if (maxDimension > 0) downscale(bitmap, maxDimension) else bitmap
-        if (scaled != bitmap) bitmap.recycle()
-        val sw = scaled.width
-        val sh = scaled.height
-        val (forEncoding, recycleForEncoding) = if (drawGrid) {
+        val annotated = if (drawGrid) {
             val elements = lastElementsCache ?: emptyList()
             if (elements.isNotEmpty()) {
-                drawElementOverlays(scaled, elements) to true
+                drawElementOverlays(bitmap, elements)
             } else {
-                drawCoordinateGrid(scaled) to true
+                drawCoordinateGrid(bitmap)
             }
         } else {
-            scaled to false
+            bitmap
         }
-        if (drawGrid && scaled != forEncoding) scaled.recycle()
+        
+        val forEncoding = if (maxDimension > 0) downscale(annotated, maxDimension) else annotated
+        
+        val sw = forEncoding.width
+        val sh = forEncoding.height
         val output = ByteArrayOutputStream()
         forEncoding.compress(format, quality, output)
         
@@ -102,7 +106,11 @@ object ScreenPerception {
             }
         }
         
-        if (recycleForEncoding) forEncoding.recycle()
+        
+        
+        if (forEncoding !== annotated) forEncoding.recycle()
+        if (annotated !== bitmap) annotated.recycle()
+        bitmap.recycle()
         val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
         val fmtName = when (format) {
             Bitmap.CompressFormat.JPEG -> "jpeg"
@@ -183,8 +191,7 @@ object ScreenPerception {
     }
 
     private fun drawCoordinateGrid(bitmap: Bitmap): Bitmap {
-        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return bitmap
-        val canvas = Canvas(result)
+        val canvas = Canvas(bitmap)
         val w = bitmap.width.toFloat()
         val h = bitmap.height.toFloat()
         val divisions = 10
@@ -226,12 +233,11 @@ object ScreenPerception {
         val cy = h / 2
         canvas.drawCircle(cx, cy, 8f, centerPaint)
 
-        return result
+        return bitmap
     }
 
     private fun drawElementOverlays(bitmap: Bitmap, elements: List<UiElement>): Bitmap {
-        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true) ?: return bitmap
-        val canvas = Canvas(result)
+        val canvas = Canvas(bitmap)
 
         val boxPaint = Paint().apply {
             color = Color.argb(120, 255, 50, 50)
@@ -279,7 +285,7 @@ object ScreenPerception {
                 canvas.drawText(label, bgLeft + 4f, bgBottom - fontMetrics.descent - 4f, textPaint)
             }
         }
-        return result
+        return bitmap
     }
 
     /** Public entry point: capture raw screenshot PNG bytes. */
