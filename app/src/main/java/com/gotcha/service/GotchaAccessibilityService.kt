@@ -134,12 +134,55 @@ class GotchaAccessibilityService : AccessibilityService() {
     /** Type [text] into the currently focused editable field. */
     fun typeText(text: String): Boolean {
         val focused = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+        val ok = setTextOnNode(focused, text)
+        focused.recycle()
+        return ok
+    }
+
+    /** Type [text] into a specific node matching the given bounds (left, top, right, bottom). */
+    fun typeTextIntoNodeByBounds(boundsStr: String, text: String): Boolean {
+        val targetBounds = android.graphics.Rect()
+        try {
+            val parts = boundsStr.split(",").map { it.trim().toInt() }
+            if (parts.size == 4) {
+                targetBounds.set(parts[0], parts[1], parts[2], parts[3])
+            } else return false
+        } catch (e: Exception) {
+            return false
+        }
+        
+        val root = rootInActiveWindow ?: return false
+        var match: AccessibilityNodeInfo? = null
+
+        fun search(node: AccessibilityNodeInfo?) {
+            if (node == null || match != null) return
+            if (node.isVisibleToUser) {
+                val bounds = android.graphics.Rect()
+                node.getBoundsInScreen(bounds)
+                if (bounds == targetBounds) {
+                    match = AccessibilityNodeInfo.obtain(node)
+                    return
+                }
+            }
+            for (i in 0 until node.childCount) {
+                search(node.getChild(i))
+            }
+        }
+        
+        search(root)
+        root.recycle()
+        
+        val nodeToEdit = match ?: return false
+        val ok = setTextOnNode(nodeToEdit, text)
+        nodeToEdit.recycle()
+        return ok
+    }
+
+    private fun setTextOnNode(node: AccessibilityNodeInfo, text: String): Boolean {
         val args = android.os.Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
         }
-        val ok = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        focused.recycle()
-        return ok
+        return node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
     }
 
     /** Dispatch a tap gesture at absolute screen coordinates (API 24+). */

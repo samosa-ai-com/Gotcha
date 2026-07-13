@@ -1263,6 +1263,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val rebuilt = llmHistory.mapNotNull { msg ->
             val text = msg.textContent
             when {
+                msg.role == "user" && (text.startsWith("[Screen State]") || text.startsWith("Screen text:")) -> {
+                    val saved = if (text.contains("Saved to:")) " → " + text.substringAfter("Saved to:").trim() else ""
+                    val msgText = if (text.startsWith("Screen text:")) "[Full-resolution screenshot captured]$saved"
+                                  else "[Screenshot captured for visual context]"
+                    UiMessage(nextId++, MessageKind.ASSISTANT, msgText)
+                }
                 msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, text.ifEmpty { "(image attached)" })
                 msg.role == "assistant" && text.isNotBlank() ->
                     UiMessage(nextId++, MessageKind.ASSISTANT, text)

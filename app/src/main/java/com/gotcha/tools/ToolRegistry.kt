@@ -80,21 +80,23 @@ object ToolRegistry {
             }
         )),
         "swipe" to ToolDefinition(function = FunctionDefinition("swipe",
-            "Scroll the screen in a direction. Each swipe scrolls about half the screen.",
+            "Scroll the screen in a direction. 'down' scrolls to see lower content (upward swipe).",
             buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
                     putJsonObject("direction") { put("type", "string"); put("description", "up, down, left, or right") }
+                    putJsonObject("index") { put("type", "integer"); put("description", "Optional element index to scroll") }
                 }
                 putJsonArray("required") { add("direction") }
             }
         )),
         "input_text" to ToolDefinition(function = FunctionDefinition("input_text",
-            "Type text into the focused field.",
+            "Type text into a field. Provide 'index' to target it directly.",
             buildJsonObject {
                 put("type", "object")
                 putJsonObject("properties") {
                     putJsonObject("text") { put("type", "string"); put("description", "Text to type") }
+                    putJsonObject("index") { put("type", "integer"); put("description", "Element index") }
                 }
                 putJsonArray("required") { add("text") }
             }

@@ -23,6 +23,9 @@ object ScreenPerception {
     @Volatile
     var mediaProjectionResultData: android.content.Intent? = null
 
+    @Volatile
+    private var lastElementsCache: List<UiElement>? = null
+
     /** Application context — set by ChatViewModel.init(). Used by captureRawBytes. */
     @Volatile
     var appContext: android.content.Context? = null
@@ -96,6 +99,7 @@ object ScreenPerception {
         val root = service.rootInActiveWindow ?: return "(no active window)"
         val elements = mutableListOf<UiElement>()
         collectElements(root, elements, maxElements)
+        lastElementsCache = elements.toList()
         root.recycle()
         if (elements.isEmpty()) return "(no UI elements found)"
         return elements.joinToString("\n") { el ->
@@ -128,13 +132,7 @@ object ScreenPerception {
     }
 
     fun resolveElementByIndex(targetIndex: Int): UiElement? {
-        val service = GotchaAccessibilityService.instance ?: return null
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return null
-        val root = service.rootInActiveWindow ?: return null
-        val container = mutableListOf<UiElement>()
-        collectElements(root, container, 1000)
-        root.recycle()
-        return container.firstOrNull { it.index == targetIndex }
+        return lastElementsCache?.firstOrNull { it.index == targetIndex }
     }
 
     fun normalizeToPixel(modelX: Int, modelY: Int, displayW: Int, displayH: Int): Pair<Int, Int> {

@@ -360,7 +360,8 @@ class ToolExecutor(
             direction = args.requireString("direction"),
             x1 = args.requireInt("x1"), y1 = args.requireInt("y1"),
             x2 = args.requireInt("x2"), y2 = args.requireInt("y2"),
-            normalized = args.requireBoolean("normalized") ?: false
+            normalized = args.requireBoolean("normalized") ?: false,
+            index = args.requireInt("index")
         )
         "tap_index" -> {
             val index = args.requireInt("index") ?: return missing("index")
@@ -379,7 +380,10 @@ class ToolExecutor(
                 handler(task)
             }
         }
-        "input_text" -> accessibilityTool.inputText(args.requireString("text") ?: return missing("text"))
+        "input_text" -> accessibilityTool.inputText(
+            text = args.requireString("text") ?: return missing("text"),
+            index = args.requireInt("index")
+        )
         "global_action" -> accessibilityTool.globalAction(args.requireString("action") ?: return missing("action"))
         "read_notifications" -> notificationTool.readNotifications(args.requireInt("limit") ?: 15)
         "dismiss_notifications" -> notificationTool.dismissNotifications(args.requireString("key"))

@@ -1269,14 +1269,19 @@ object ToolDefinitions {
 
     val swipe = tool(
         "swipe",
-        "Swipe the screen via the accessibility service — a named direction (up/down/left/right) " +
-            "or explicit start/end coordinates. Use for scrolling and navigation. Needs the " +
-            "accessibility service enabled.",
+        "Swipe the screen via the accessibility service — a named direction (up/down/left/right), " +
+            "explicit start/end coordinates, or by UI element index. Use for scrolling and navigation. " +
+            "If using a direction, 'down' means scroll the content down to see lower items (which performs an upward swipe). " +
+            "Needs the accessibility service enabled.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("direction") {
                     put("type", "string")
                     put("description", "One of: up, down, left, right.")
+                }
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Optional index of the UI element to swipe on.")
                 }
                 putJsonObject("x1") { put("type", "integer"); put("description", "Start X (with y1,x2,y2).") }
                 putJsonObject("y1") { put("type", "integer"); put("description", "Start Y.") }
@@ -1344,13 +1349,18 @@ object ToolDefinitions {
 
     val inputText = tool(
         "input_text",
-        "Type text into the currently focused input field via the accessibility service. Tap a " +
-            "text field first so it is focused. Needs the accessibility service enabled.",
+        "Type text into a text field via the accessibility service. You can optionally target an " +
+            "element directly by providing its index. If no index is provided, it types into the currently " +
+            "focused field. Needs the accessibility service enabled.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("text") {
                     put("type", "string")
                     put("description", "Text to type into the focused field.")
+                }
+                putJsonObject("index") {
+                    put("type", "integer")
+                    put("description", "Optional index of the text field to type into.")
                 }
             }
             putJsonArray("required") { add("text") }
