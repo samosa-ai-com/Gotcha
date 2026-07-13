@@ -1350,7 +1350,7 @@ object ToolDefinitions {
                 }
                 putJsonObject("normalized") {
                     put("type", "boolean")
-                    put("description", "If true, x and y are in [0, 1000] normalized space. Default false.")
+                    put("description", "If true, x and y are in [0, 1000] normalized space. Default true.")
                 }
             }
         }
@@ -1377,7 +1377,7 @@ object ToolDefinitions {
                 putJsonObject("y2") { put("type", "integer"); put("description", "End Y.") }
                 putJsonObject("normalized") {
                     put("type", "boolean")
-                    put("description", "If true, coordinate params are in [0, 1000] normalized space. Default false.")
+                    put("description", "If true, coordinate params are in [0, 1000] normalized space. Default true.")
                 }
             }
         }
@@ -1410,11 +1410,15 @@ object ToolDefinitions {
                 }
                 putJsonObject("x") {
                     put("type", "integer")
-                    put("description", "Absolute X coordinate.")
+                    put("description", "X coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
                 }
                 putJsonObject("y") {
                     put("type", "integer")
-                    put("description", "Absolute Y coordinate.")
+                    put("description", "Y coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                }
+                putJsonObject("normalized") {
+                    put("type", "boolean")
+                    put("description", "If true, x and y are in [0, 1000] normalized space. Default true.")
                 }
             }
         }
