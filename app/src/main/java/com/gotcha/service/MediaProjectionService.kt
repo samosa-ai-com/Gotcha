@@ -167,7 +167,9 @@ class MediaProjectionService : Service() {
                     val h = screenHeight
                     val srcBytes = ByteArray(buffer.remaining())
                     buffer.get(srcBytes)
-                    // Create tightly-packed output (no row padding) with RGBA→ARGB swap
+                    // Copy pixels row-by-row into tightly-packed array (skip row padding)
+                    // No channel swap — copy bytes as-is; the device's native pixel
+                    // order already matches ARGB_8888 on most devices.
                     val packedBytes = ByteArray(w * h * 4)
                     for (row in 0 until h) {
                         val srcRow = row * rowStride
@@ -175,10 +177,10 @@ class MediaProjectionService : Service() {
                         for (col in 0 until w) {
                             val sp = srcRow + col * pixelStride
                             val dp = dstRow + col * 4
-                            packedBytes[dp + 0] = srcBytes[sp + 2] // B ← R
-                            packedBytes[dp + 1] = srcBytes[sp + 1] // G
-                            packedBytes[dp + 2] = srcBytes[sp + 0] // R ← B
-                            packedBytes[dp + 3] = srcBytes[sp + 3] // A
+                            packedBytes[dp + 0] = srcBytes[sp + 0]
+                            packedBytes[dp + 1] = srcBytes[sp + 1]
+                            packedBytes[dp + 2] = srcBytes[sp + 2]
+                            packedBytes[dp + 3] = srcBytes[sp + 3]
                         }
                     }
                     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
