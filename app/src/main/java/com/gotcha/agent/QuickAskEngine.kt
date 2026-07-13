@@ -95,7 +95,9 @@ class QuickAskEngine(
                 val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
                     val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
                     (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-                } else bitmap.width to bitmap.height
+                } else {
+                    bitmap.width to bitmap.height
+                }
                 val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
                 if (scaled != bitmap) bitmap.recycle()
                 val output = ByteArrayOutputStream()
@@ -129,7 +131,7 @@ class QuickAskEngine(
         screenText: String?,
         screenRequested: Boolean = false
     ): String {
-        val llm = llmProvider() ?: throw IllegalStateException("Not configured")
+        val llm = llmProvider() ?: error("Not configured")
 
         val noScreenCaptured = screenshotBase64 == null && screenText.isNullOrBlank()
         val systemText = if (screenRequested && noScreenCaptured) {
@@ -137,7 +139,9 @@ class QuickAskEngine(
                 "on-screen text could be captured this time. Tell them briefly that you " +
                 "couldn't read the screen right now, then help as best you can. Do NOT invent or " +
                 "guess what is on the screen."
-        } else SYSTEM_PROMPT
+        } else {
+            SYSTEM_PROMPT
+        }
         val system = ChatMessage(role = "system", content = JsonPrimitive(systemText))
 
         val userText = buildString {
@@ -168,7 +172,9 @@ class QuickAskEngine(
         val voice = if (s.ttsProvider == AudioProvider.API) {
             if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
             ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
-        } else ""
+        } else {
+            ""
+        }
         ttsEngine.speak(
             text = text,
             provider = s.ttsProvider,

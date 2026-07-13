@@ -2,7 +2,7 @@ package com.gotcha.tools
 
 import android.os.StatFs
 
-class StorageTool() {
+class StorageTool {
 
     fun getStorageInfo(): ToolResult {
         return try {
@@ -13,15 +13,23 @@ class StorageTool() {
             } catch (_: Exception) { null }
 
             val message = buildString {
-                append("Internal storage: ${format(internal.used)} used of ${format(internal.total)} total, ${format(internal.free)} free")
+                append(
+                    "Internal storage: ${format(
+                        internal.used
+                    )} used of ${format(internal.total)} total, ${format(internal.free)} free"
+                )
                 if (external != null) {
-                    append("\nExternal / SD card: ${format(external.used)} used of ${format(external.total)} total, ${format(external.free)} free")
+                    append(
+                        "\nExternal / SD card: ${format(
+                            external.used
+                        )} used of ${format(external.total)} total, ${format(external.free)} free"
+                    )
                 }
                 val pct = if (internal.total > 0) (internal.free * 100 / internal.total) else 100L
                 if (pct < 10) {
-                    append("\n⚠ Internal storage is critically low (${pct}% free) — consider freeing up space.")
+                    append("\n⚠ Internal storage is critically low ($pct% free) — consider freeing up space.")
                 } else if (pct < 20) {
-                    append("\nInternal storage is running low (${pct}% free).")
+                    append("\nInternal storage is running low ($pct% free).")
                 }
             }
             ToolResult.ok(message)

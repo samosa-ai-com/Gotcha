@@ -51,8 +51,11 @@ class DeviceAdminTool(private val context: Context) {
             val sufficient = dpm.isActivePasswordSufficient
             ToolResult.ok(
                 "Set the minimum password length to $length. " +
-                    if (sufficient) "The current password meets the policy."
-                    else "The current password does NOT meet the policy — the user will be prompted to update it."
+                    if (sufficient) {
+                        "The current password meets the policy."
+                    } else {
+                        "The current password does NOT meet the policy — the user will be prompted to update it."
+                    }
             )
         } catch (e: Exception) {
             ToolResult.error("Could not set the password policy: ${e.message}")

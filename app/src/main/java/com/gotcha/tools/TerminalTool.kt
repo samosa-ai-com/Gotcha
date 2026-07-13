@@ -62,7 +62,8 @@ class TerminalTool(
             val errBuilder = StringBuilder()
             val outThread = Thread { drain(stdout::read, outBuilder) }
             val errThread = Thread { drain(stderr::read, errBuilder) }
-            outThread.start(); errThread.start()
+            outThread.start()
+            errThread.start()
 
             val finished = process.waitFor(timeout, TimeUnit.SECONDS)
             if (!finished) {
@@ -71,7 +72,8 @@ class TerminalTool(
                     "Command timed out after ${timeout}s and was killed: $trimmed"
                 )
             }
-            outThread.join(2000); errThread.join(2000)
+            outThread.join(2000)
+            errThread.join(2000)
 
             val exit = process.exitValue()
             val message = buildString {

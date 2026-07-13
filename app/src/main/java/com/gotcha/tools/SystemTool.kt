@@ -44,16 +44,18 @@ class SystemTool(private val context: Context) {
             val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
             val percent = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
             // Temperature, voltage, health, and plugged info come from the sticky battery intent.
-            val batteryIntent = context.registerReceiver(null,
-                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            val batteryIntent = context.registerReceiver(
+                null,
+                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)
+            )
             val status = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
             val plugged = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1) ?: -1
             val tempRaw = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
             val voltage = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
             val healthInt = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, -1) ?: -1
 
-            val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING
-                    || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == android.os.BatteryManager.BATTERY_STATUS_FULL
             val pluggedLabel = when (plugged) {
                 android.os.BatteryManager.BATTERY_PLUGGED_AC -> "AC"
                 android.os.BatteryManager.BATTERY_PLUGGED_USB -> "USB"
@@ -99,7 +101,7 @@ class SystemTool(private val context: Context) {
                 )
             }
             openWifiSettings()
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             openWifiSettings()
         } catch (e: Exception) {
             ToolResult.error("Could not toggle Wi-Fi: ${e.message}")

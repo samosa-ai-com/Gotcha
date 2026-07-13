@@ -1,12 +1,11 @@
 package com.gotcha.ui
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
-import android.provider.Settings as AndroidSettings
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,11 +35,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ToolResult
+import android.provider.Settings as AndroidSettings
 
 @Composable
 fun PermissionsSection(packageName: String) {
     val context = LocalContext.current
-    val groups = remember { allPermissionGroups(context) }
+    val groups = remember { allPermissionGroups() }
     var expandedGroups by remember { mutableStateOf(groups.associate { it.name to true }) }
 
     // Trigger recomposition on every activity resume so permission state is re-read from Android
@@ -159,10 +159,15 @@ private fun openSpecialAccess(context: android.content.Context, marker: String, 
         ToolResult.DND_ACCESS -> Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
         ToolResult.ACCESSIBILITY_ACCESS -> Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)
         ToolResult.NOTIFICATION_LISTENER_ACCESS -> Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-        ToolResult.ALL_FILES_ACCESS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+        ToolResult.ALL_FILES_ACCESS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Intent(AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName"))
-        else Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
-        ToolResult.OVERLAY_ACCESS -> Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+        } else {
+            Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        }
+        ToolResult.OVERLAY_ACCESS -> Intent(
+            AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
         ToolResult.DEVICE_ADMIN -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(
             DevicePolicyManager.EXTRA_DEVICE_ADMIN,
             ComponentName(context, GotchaDeviceAdminReceiver::class.java)

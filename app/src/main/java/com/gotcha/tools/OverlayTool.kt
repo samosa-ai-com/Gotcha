@@ -48,8 +48,11 @@ class OverlayTool(private val context: Context) {
             }
         }
         return ToolResult.ok(
-            if (duration > 0) "Showing an overlay for ${duration / 1000}s: \"$text\"."
-            else "Showing a persistent overlay: \"$text\". Call hide_overlay to remove it."
+            if (duration > 0) {
+                "Showing an overlay for ${duration / 1000}s: \"$text\"."
+            } else {
+                "Showing a persistent overlay: \"$text\". Call hide_overlay to remove it."
+            }
         )
     }
 

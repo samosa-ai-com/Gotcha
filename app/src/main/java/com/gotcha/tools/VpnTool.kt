@@ -42,8 +42,11 @@ class VpnTool(private val context: Context) {
 
     /** Report whether the blocking VPN is currently up. */
     fun getFirewallStatus(): ToolResult = ToolResult.ok(
-        if (GotchaVpnService.isRunning) "The network firewall is ON — all traffic is blocked."
-        else "The network firewall is OFF — traffic flows normally."
+        if (GotchaVpnService.isRunning) {
+            "The network firewall is ON — all traffic is blocked."
+        } else {
+            "The network firewall is OFF — traffic flows normally."
+        }
     )
 
     private fun startIntent() =

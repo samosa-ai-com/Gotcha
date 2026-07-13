@@ -100,8 +100,9 @@ class GotchaAccessibilityService : AccessibilityService() {
         if (node == null || out.size >= limit) return
         val text = node.text?.toString()?.trim()
         val desc = node.contentDescription?.toString()?.trim()
-        if (!text.isNullOrEmpty()) out.add(text)
-        else if (!desc.isNullOrEmpty()) out.add(desc)
+        if (!text.isNullOrEmpty()) {
+            out.add(text)
+        } else if (!desc.isNullOrEmpty()) out.add(desc)
         for (i in 0 until node.childCount) {
             collectText(node.getChild(i), out, limit)
         }

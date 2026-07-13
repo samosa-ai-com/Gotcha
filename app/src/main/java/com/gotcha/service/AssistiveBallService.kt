@@ -48,6 +48,7 @@ class AssistiveBallService : Service() {
     private lateinit var quickAsk: QuickAskEngine
 
     @Volatile private var isBusy = false
+
     @Volatile private var listening = false
 
     override fun onCreate() {
@@ -116,7 +117,7 @@ class AssistiveBallService : Service() {
             )
             putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
         }
-        
+
         try {
             val pendingIntent = PendingIntent.getActivity(
                 this,
@@ -124,10 +125,10 @@ class AssistiveBallService : Service() {
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val options = android.app.ActivityOptions.makeBasic()
-                options.pendingIntentBackgroundActivityStartMode = 
+                options.pendingIntentBackgroundActivityStartMode =
                     android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
                 pendingIntent.send(this, 0, null, null, null, null, options.toBundle())
                 android.util.Log.d("AssistiveBall", "PendingIntent sent with ActivityOptions")
@@ -239,13 +240,16 @@ class AssistiveBallService : Service() {
                 context = applicationContext,
                 apiTimeoutSeconds = s.apiTimeoutSeconds
             )
-        } else null
+        } else {
+            null
+        }
     }
 
     private fun startAsForeground() {
         createChannel()
         val tapIntent = PendingIntent.getActivity(
-            this, 0,
+            this,
+            0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE
         )
@@ -305,6 +309,7 @@ class AssistiveBallService : Service() {
         const val ACTION_STOP = "com.gotcha.assistiveball.STOP"
 
         private val _isRunning = MutableStateFlow(false)
+
         /** Live running state of the ball, so UI toggles can track "Hide ball" too. */
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
         private const val CHANNEL_ID = "assistive_ball"

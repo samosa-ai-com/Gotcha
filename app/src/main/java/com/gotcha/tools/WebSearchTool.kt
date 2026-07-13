@@ -31,7 +31,11 @@ class WebSearchTool {
         return try {
             val request = Request.Builder()
                 .url("$DUCKDUCKGO_HTML?q=${java.net.URLEncoder.encode(trimmed, "UTF-8")}")
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36")
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/125.0.6422.165 Mobile Safari/537.36"
+                )
                 .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .build()
@@ -60,12 +64,11 @@ class WebSearchTool {
 
                 val titleEl = row.selectFirst(".result__title a")
                 val snippetEl = row.selectFirst(".result__snippet")
-                val urlEl = row.selectFirst(".result__url")
 
                 val title = titleEl?.text()?.trim() ?: continue
                 val href = titleEl.attr("href")
                 // DDG wraps real URLs in redirect — extract from the 'uddg' parameter or use the href directly
-                val url = extractUrl(href, row)
+                val url = extractUrl(href)
                 val snippet = snippetEl?.text()?.trim() ?: ""
 
                 if (url.isNotEmpty()) {
@@ -84,15 +87,15 @@ class WebSearchTool {
             ToolResult.ok("Search results for '$trimmed' (top ${results.size}):\n\n${results.joinToString("\n")}")
         } catch (e: java.net.UnknownHostException) {
             ToolResult.error("Could not reach the search engine: ${e.message}")
-        } catch (e: java.net.SocketTimeoutException) {
+        } catch (_: java.net.SocketTimeoutException) {
             ToolResult.error("Search timed out after ${TIMEOUT_SECONDS}s.")
         } catch (e: Exception) {
             ToolResult.error("Search failed: ${e.message}")
         }
     }
 
-    /** Extract the real URL from a DDG result row. DDG wraps links in redirects. */
-    private fun extractUrl(href: String, row: org.jsoup.nodes.Element): String {
+    /** Extract the real URL from a DDG result href. DDG wraps links in redirects. */
+    private fun extractUrl(href: String): String {
         // DDG redirect links look like: //duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2F...
         if (href.contains("uddg=")) {
             val uddg = href.substringAfter("uddg=").substringBefore("&")

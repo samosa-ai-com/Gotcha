@@ -75,7 +75,7 @@ class NotificationTool(private val context: Context) {
             controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
             controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
             ToolResult.ok("Sent media '$action' to ${controller.packageName}.")
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             notEnabled()
         } catch (e: Exception) {
             ToolResult.error("Could not control media: ${e.message}")

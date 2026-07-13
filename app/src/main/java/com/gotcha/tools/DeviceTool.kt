@@ -63,8 +63,8 @@ class DeviceTool(private val context: Context) {
             val target = (percent * max) / 100
             val flags = if (showUi) AudioManager.FLAG_SHOW_UI else 0
             am.setStreamVolume(streamType, target, flags)
-            ToolResult.ok("Set $stream volume from ${previousPct}% to ${percent}%.")
-        } catch (e: SecurityException) {
+            ToolResult.ok("Set $stream volume from $previousPct% to $percent%.")
+        } catch (_: SecurityException) {
             ToolResult.permissionNeeded(
                 ToolResult.DND_ACCESS,
                 "Changing this volume needs Do Not Disturb access. I have opened that settings page — please enable it and ask again."
@@ -78,8 +78,11 @@ class DeviceTool(private val context: Context) {
     fun getVolume(stream: String?): ToolResult {
         return try {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val streams = if (stream != null) listOf(stream.lowercase().trim()) else
+            val streams = if (stream != null) {
+                listOf(stream.lowercase().trim())
+            } else {
                 listOf("media", "ring", "alarm", "notification", "call")
+            }
             val results = streams.map { name ->
                 val type = when (name) {
                     "media", "music" -> AudioManager.STREAM_MUSIC
@@ -87,12 +90,14 @@ class DeviceTool(private val context: Context) {
                     "alarm" -> AudioManager.STREAM_ALARM
                     "notification" -> AudioManager.STREAM_NOTIFICATION
                     "call", "voice" -> AudioManager.STREAM_VOICE_CALL
-                    else -> return ToolResult.error("Unknown stream '$name'. Use media, ring, alarm, notification, or call.")
+                    else -> return ToolResult.error(
+                        "Unknown stream '$name'. Use media, ring, alarm, notification, or call."
+                    )
                 }
                 val max = am.getStreamMaxVolume(type)
                 val current = am.getStreamVolume(type)
                 val pct = (current * 100) / max
-                "$name: ${pct}%"
+                "$name: $pct%"
             }
             ToolResult.ok(results.joinToString("\n"))
         } catch (e: Exception) {
@@ -118,7 +123,7 @@ class DeviceTool(private val context: Context) {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.ringerMode = ringerMode
             ToolResult.ok("Ringer set to ${mode.lowercase().trim()}.")
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             ToolResult.permissionNeeded(
                 ToolResult.DND_ACCESS,
                 "Changing the ringer needs Do Not Disturb access. I have opened that settings page — please enable it and ask again."
@@ -136,8 +141,11 @@ class DeviceTool(private val context: Context) {
             patternEffect(pattern.lowercase().trim(), amplitude)
         } else {
             val ms = durationMs.coerceIn(1, 5000).toLong()
-            if (amplitude == 0) VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)
-            else VibrationEffect.createOneShot(ms, amplitude)
+            if (amplitude == 0) {
+                VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE)
+            } else {
+                VibrationEffect.createOneShot(ms, amplitude)
+            }
         }
         return try {
             vibrator.vibrate(effect)
@@ -182,14 +190,18 @@ class DeviceTool(private val context: Context) {
         if (!hasDndAccess()) {
             return ToolResult.permissionNeeded(
                 ToolResult.DND_ACCESS,
-                "Do Not Disturb control needs notification-policy access. I have opened that settings page — please enable it and ask again."
+                "Do Not Disturb control needs notification-policy access. " +
+                    "I have opened that settings page — please enable it and ask again."
             )
         }
         return try {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.setInterruptionFilter(
-                if (enabled) NotificationManager.INTERRUPTION_FILTER_PRIORITY
-                else NotificationManager.INTERRUPTION_FILTER_ALL
+                if (enabled) {
+                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
+                } else {
+                    NotificationManager.INTERRUPTION_FILTER_ALL
+                }
             )
             ToolResult.ok("Do Not Disturb turned ${if (enabled) "on" else "off"}.")
         } catch (e: Exception) {
