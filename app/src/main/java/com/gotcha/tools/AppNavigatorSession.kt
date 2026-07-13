@@ -1,7 +1,6 @@
 package com.gotcha.tools
 
 import android.content.Context
-import android.graphics.Bitmap
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.ChatResponse
@@ -12,11 +11,11 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 data class AppNavigatorOutput(
     val finalAnswer: String,
@@ -57,14 +56,14 @@ class AppNavigatorSession(
 
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }
-            
+
             // Send the tree (which is now organically filtered)
             val obsText = if (screenshot != null) {
                 ScreenPerception.buildObservationText(screenshot, uiTree)
             } else {
                 "── UI Elements ──\n$uiTree\n── Screenshot ──\n(failed to capture)"
             }
-            
+
             val userMsg = buildString {
                 appendLine("## Task")
                 appendLine(task)
@@ -130,12 +129,15 @@ class AppNavigatorSession(
             // 5. Execute each tool call with error recovery
             for (call in toolCalls) {
                 val result = executeWithRetry(call)
-                val summary = if (result.success) result.message.take(100)
-                    else "⚠ ${result.message.take(100)}"
+                val summary = if (result.success) {
+                    result.message.take(100)
+                } else {
+                    "⚠ ${result.message.take(100)}"
+                }
                 actionLog.add("Step $step: ${call.function.name} → $summary")
                 onStep(call.function.name, "completed", summary)
             }
-            
+
             // Wait for animations/transitions to settle before the next observation
             if (toolCalls.isNotEmpty()) {
                 delay(1000)

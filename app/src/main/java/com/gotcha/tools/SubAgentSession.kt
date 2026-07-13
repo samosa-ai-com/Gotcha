@@ -30,7 +30,6 @@ class SubAgentSession(
     private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
     private val sessionId: String? = null
 ) {
-    private val TAG = "SubAgentSession"
     private val json = Json { ignoreUnknownKeys = true }
     private var activeTokenCount = 0
     private val collectedSteps = mutableListOf<String>()
@@ -47,26 +46,7 @@ class SubAgentSession(
             apiTimeoutSeconds = settings.apiTimeoutSeconds
         )
 
-        val systemMsg = ChatMessage(
-            role = "system",
-            content = JsonPrimitive(
-                "You are General, a general-purpose AI agent running on the user's Android phone. " +
-                "You have access to all device tools. " +
-                "Your job is to complete the task delegated to you. " +
-                "Use the available tools to perform the required steps. " +
-                "When you have fully completed the task and have the final answer, " +
-                "call the ask_final_answer tool with your complete result. " +
-                "Do NOT call ask_final_answer until all work is actually done."
-            )
-        )
-
-        val userMsg = ChatMessage(
-            role = "user",
-            content = JsonPrimitive(prompt)
-        )
-
-        val history = mutableListOf(systemMsg, userMsg)
-        activeTokenCount = (systemMsg.textContent.length + userMsg.textContent.length) / 4
+        val history = initialHistory()
 
         val maxRounds = settings.maxToolRounds
         val subAgentTools = ToolRegistry.toolsForSubAgent()
@@ -129,7 +109,7 @@ class SubAgentSession(
 
                 val args = try {
                     json.decodeFromString<JsonObject>(call.function.arguments.ifBlank { "{}" })
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     val err = "Malformed args: ${call.function.arguments.take(100)}"
                     history.add(ChatMessage(role = "tool", content = JsonPrimitive(err), toolCallId = call.id))
                     collectedSteps[collectedSteps.lastIndex] = "$toolName → failed: bad arguments"
@@ -176,6 +156,28 @@ class SubAgentSession(
         return SubAgentOutput(msg, collectedSteps.toList())
     }
 
+    /** Builds the system + user messages that seed the sub-agent conversation. */
+    private fun initialHistory(): MutableList<ChatMessage> {
+        val systemMsg = ChatMessage(
+            role = "system",
+            content = JsonPrimitive(
+                "You are General, a general-purpose AI agent running on the user's Android phone. " +
+                    "You have access to all device tools. " +
+                    "Your job is to complete the task delegated to you. " +
+                    "Use the available tools to perform the required steps. " +
+                    "When you have fully completed the task and have the final answer, " +
+                    "call the ask_final_answer tool with your complete result. " +
+                    "Do NOT call ask_final_answer until all work is actually done."
+            )
+        )
+        val userMsg = ChatMessage(
+            role = "user",
+            content = JsonPrimitive(prompt)
+        )
+        activeTokenCount = (systemMsg.textContent.length + userMsg.textContent.length) / 4
+        return mutableListOf(systemMsg, userMsg)
+    }
+
     /**
      * Compacts history using an LLM summarization call (same strategy as
      * ChatViewModel.checkAndCompactHistory). Preserves the system prompt
@@ -195,9 +197,11 @@ class SubAgentSession(
         val exchangeText = history.subList(2, history.size).joinToString("\n\n") { msg ->
             val role = msg.role.uppercase()
             val text = msg.textContent.ifEmpty {
-                if (!msg.toolCalls.isNullOrEmpty())
+                if (!msg.toolCalls.isNullOrEmpty()) {
                     "Called tools: " + msg.toolCalls.joinToString(", ") { it.function.name }
-                else ""
+                } else {
+                    ""
+                }
             }
             "[$role]: $text"
         }
@@ -206,16 +210,16 @@ class SubAgentSession(
             role = "system",
             content = JsonPrimitive(
                 "You are a context compaction agent. Compress the following sub-agent " +
-                "tool-call history into a dense summary preserving: what was attempted, " +
-                "what succeeded, what failed, and key data discovered. Be concise but " +
-                "do not lose technical specifics."
+                    "tool-call history into a dense summary preserving: what was attempted, " +
+                    "what succeeded, what failed, and key data discovered. Be concise but " +
+                    "do not lose technical specifics."
             )
         )
         val compactionUser = ChatMessage(
             role = "user",
             content = JsonPrimitive(
                 "Original task: ${userTask.textContent}\n\n" +
-                "Intermediate exchanges:\n$exchangeText"
+                    "Intermediate exchanges:\n$exchangeText"
             )
         )
 
@@ -226,10 +230,12 @@ class SubAgentSession(
                 history.clear()
                 history.add(sysPrompt)
                 history.add(userTask)
-                history.add(ChatMessage(
-                    role = "assistant",
-                    content = JsonPrimitive("[Context compacted]\n$summary")
-                ))
+                history.add(
+                    ChatMessage(
+                        role = "assistant",
+                        content = JsonPrimitive("[Context compacted]\n$summary")
+                    )
+                )
                 activeTokenCount = history.sumOf { it.textContent.length / 4 }
             }
         } catch (e: CancellationException) {
@@ -238,5 +244,9 @@ class SubAgentSession(
             // Compaction failed — keep full history and continue
             Log.w(TAG, "Sub-agent context compaction failed, keeping full history")
         }
+    }
+
+    private companion object {
+        const val TAG = "SubAgentSession"
     }
 }

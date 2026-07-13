@@ -33,8 +33,11 @@ class AccessibilityTool(private val context: Context) {
         val service = GotchaAccessibilityService.instance
         if (service == null) return if (isEnabled()) serviceNotRunning() else notEnabled()
         val lines = service.dumpScreenText()
-        val text = if (lines.isEmpty()) "No readable text is on screen right now."
-        else lines.joinToString("\n") { "- $it" }
+        val text = if (lines.isEmpty()) {
+            "No readable text is on screen right now."
+        } else {
+            lines.joinToString("\n") { "- $it" }
+        }
         return ToolResult.ok("read_screen_raw:$text")
     }
 
@@ -63,40 +66,36 @@ class AccessibilityTool(private val context: Context) {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
         return when {
             !text.isNullOrBlank() ->
-                if (service.longPressByText(text)) ToolResult.ok("Long-pressed an element matching \"$text\".")
-                else ToolResult.error("Found no element matching \"$text\" on screen.")
+                if (service.longPressByText(text)) {
+                    ToolResult.ok("Long-pressed an element matching \"$text\".")
+                } else {
+                    ToolResult.error("Found no element matching \"$text\" on screen.")
+                }
             x != null && y != null ->
-                if (service.longPressAt(x.toFloat(), y.toFloat())) ToolResult.ok("Long-pressed at ($x, $y).")
-                else ToolResult.error("Could not dispatch the long-press gesture.")
+                if (service.longPressAt(x.toFloat(), y.toFloat())) {
+                    ToolResult.ok("Long-pressed at ($x, $y).")
+                } else {
+                    ToolResult.error("Could not dispatch the long-press gesture.")
+                }
             else -> ToolResult.error("Provide either 'text' to match, or both 'x' and 'y' coordinates.")
         }
     }
 
     /** Swipe in a named direction, or between explicit coordinates. */
-    fun swipe(direction: String?, x1: Int?, y1: Int?, x2: Int?, y2: Int?, normalized: Boolean = false, distance: Int? = null, index: Int? = null): ToolResult {
+    fun swipe(
+        direction: String?,
+        x1: Int?,
+        y1: Int?,
+        x2: Int?,
+        y2: Int?,
+        normalized: Boolean = false,
+        distance: Int? = null,
+        index: Int? = null
+    ): ToolResult {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
         if (index != null) {
-            val element = ScreenPerception.resolveElementByIndex(index)
-                ?: return ToolResult.error("No UI element with index $index found on screen.")
-            val parts = element.bounds.split(",").map { it.trim().toIntOrNull() }
-            if (parts.size == 4 && parts.none { it == null }) {
-                val cx = (parts[0]!! + parts[2]!!) / 2f
-                val top = parts[1]!!.toFloat()
-                val bottom = parts[3]!!.toFloat()
-                val left = parts[0]!!.toFloat()
-                val right = parts[2]!!.toFloat()
-                val h = bottom - top
-                val w = right - left
-                val (sx, sy, ex, ey) = when (direction?.lowercase()?.trim()) {
-                    "up" -> listOf(cx, top + h * 0.2f, cx, top + h * 0.8f)       // Scroll Up (physical swipe down)
-                    "down" -> listOf(cx, top + h * 0.8f, cx, top + h * 0.2f)     // Scroll Down (physical swipe up)
-                    "left" -> listOf(left + w * 0.2f, (top + bottom) / 2f, left + w * 0.8f, (top + bottom) / 2f) // Scroll Left (physical swipe right)
-                    "right" -> listOf(left + w * 0.8f, (top + bottom) / 2f, left + w * 0.2f, (top + bottom) / 2f) // Scroll Right (physical swipe left)
-                    else -> return ToolResult.error("Provide a direction (up/down/left/right) when using index.")
-                }
-                return if (service.swipe(sx, sy, ex, ey, 500)) ToolResult.ok("Swiped $direction on element $index.")
-                else ToolResult.error("Could not dispatch the swipe gesture on element $index.")
-            }
+            val result = swipeOnElement(service, direction, index)
+            if (result != null) return result
         }
         if (x1 != null && y1 != null && x2 != null && y2 != null) {
             val (sx, sy, ex, ey) = if (normalized) {
@@ -107,25 +106,74 @@ class AccessibilityTool(private val context: Context) {
             } else {
                 listOf(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat())
             }
-            return if (service.swipe(sx, sy, ex, ey))
+            return if (service.swipe(sx, sy, ex, ey)) {
                 ToolResult.ok("Swiped from (${sx.toInt()}, ${sy.toInt()}) to (${ex.toInt()}, ${ey.toInt()}).")
-            else ToolResult.error("Could not dispatch the swipe gesture.")
+            } else {
+                ToolResult.error("Could not dispatch the swipe gesture.")
+            }
         }
         val metrics = context.resources.displayMetrics
         val w = metrics.widthPixels.toFloat()
         val h = metrics.heightPixels.toFloat()
         val scrollPx = distance?.toFloat()?.takeIf { it > 0f } ?: (h * 0.6f)
         val (sx, sy, ex, ey) = when (direction?.lowercase()?.trim()) {
-            "up" -> listOf(w / 2, h * 0.2f, w / 2, h * 0.2f + scrollPx)       // Scroll Up (physical swipe down)
-            "down" -> listOf(w / 2, h * 0.8f, w / 2, h * 0.8f - scrollPx)     // Scroll Down (physical swipe up)
-            "left" -> listOf(w * 0.2f, h / 2, w * 0.2f + scrollPx, h / 2)     // Scroll Left (physical swipe right)
-            "right" -> listOf(w * 0.8f, h / 2, w * 0.8f - scrollPx, h / 2)    // Scroll Right (physical swipe left)
+            "up" -> listOf(w / 2, h * 0.2f, w / 2, h * 0.2f + scrollPx) // Scroll Up (physical swipe down)
+            "down" -> listOf(w / 2, h * 0.8f, w / 2, h * 0.8f - scrollPx) // Scroll Down (physical swipe up)
+            "left" -> listOf(w * 0.2f, h / 2, w * 0.2f + scrollPx, h / 2) // Scroll Left (physical swipe right)
+            "right" -> listOf(w * 0.8f, h / 2, w * 0.8f - scrollPx, h / 2) // Scroll Right (physical swipe left)
             else -> return ToolResult.error(
                 "Provide a direction (up/down/left/right) or explicit x1,y1,x2,y2 coordinates."
             )
         }
-        return if (service.swipe(sx, sy, ex, ey, 500)) ToolResult.ok("Swiped $direction.")
-        else ToolResult.error("Could not dispatch the swipe gesture.")
+        return if (service.swipe(sx, sy, ex, ey, 500)) {
+            ToolResult.ok("Swiped $direction.")
+        } else {
+            ToolResult.error("Could not dispatch the swipe gesture.")
+        }
+    }
+
+    /**
+     * Swipe within the bounds of the element at [index], or null to fall through
+     * to the coordinate/whole-screen paths when the element bounds are unusable.
+     */
+    private fun swipeOnElement(
+        service: GotchaAccessibilityService,
+        direction: String?,
+        index: Int
+    ): ToolResult? {
+        val element = ScreenPerception.resolveElementByIndex(index)
+            ?: return ToolResult.error("No UI element with index $index found on screen.")
+        val parts = element.bounds.split(",").map { it.trim().toIntOrNull() }
+        if (parts.size != 4 || parts.any { it == null }) return null
+        val cx = (parts[0]!! + parts[2]!!) / 2f
+        val top = parts[1]!!.toFloat()
+        val bottom = parts[3]!!.toFloat()
+        val left = parts[0]!!.toFloat()
+        val right = parts[2]!!.toFloat()
+        val h = bottom - top
+        val w = right - left
+        val (sx, sy, ex, ey) = when (direction?.lowercase()?.trim()) {
+            "up" -> listOf(cx, top + h * 0.2f, cx, top + h * 0.8f) // Scroll Up (physical swipe down)
+            "down" -> listOf(cx, top + h * 0.8f, cx, top + h * 0.2f) // Scroll Down (physical swipe up)
+            "left" -> listOf(
+                left + w * 0.2f,
+                (top + bottom) / 2f,
+                left + w * 0.8f,
+                (top + bottom) / 2f
+            ) // Scroll Left (physical swipe right)
+            "right" -> listOf(
+                left + w * 0.8f,
+                (top + bottom) / 2f,
+                left + w * 0.2f,
+                (top + bottom) / 2f
+            ) // Scroll Right (physical swipe left)
+            else -> return ToolResult.error("Provide a direction (up/down/left/right) when using index.")
+        }
+        return if (service.swipe(sx, sy, ex, ey, 500)) {
+            ToolResult.ok("Swiped $direction on element $index.")
+        } else {
+            ToolResult.error("Could not dispatch the swipe gesture on element $index.")
+        }
     }
 
     /** Type text into the currently focused input field or target an element directly by index. */
@@ -139,18 +187,24 @@ class AccessibilityTool(private val context: Context) {
             }
             // Fall through if direct setting fails, maybe it wasn't editable via ACTION_SET_TEXT
         }
-        return if (service.typeText(text)) ToolResult.ok("Typed \"$text\" into the focused field.")
-        else ToolResult.error("No editable field is focused. Try passing the index of the text field.")
+        return if (service.typeText(text)) {
+            ToolResult.ok("Typed \"$text\" into the focused field.")
+        } else {
+            ToolResult.error("No editable field is focused. Try passing the index of the text field.")
+        }
     }
 
     /** Perform a device-wide navigation gesture via the accessibility service (back/home/recents/...). */
     fun globalAction(action: String): ToolResult {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
-        return if (service.performGlobal(action)) ToolResult.ok("Performed global action: $action.")
-        else ToolResult.error(
-            "Unknown or unsupported global action '$action'. " +
-                "Use back, home, recents, notifications, quick_settings, or lock_screen."
-        )
+        return if (service.performGlobal(action)) {
+            ToolResult.ok("Performed global action: $action.")
+        } else {
+            ToolResult.error(
+                "Unknown or unsupported global action '$action'. " +
+                    "Use back, home, recents, notifications, quick_settings, or lock_screen."
+            )
+        }
     }
 
     /** Tap a UI element by its index from the numbered elements list. */
@@ -164,9 +218,11 @@ class AccessibilityTool(private val context: Context) {
         }
         val cx = (parts[0]!! + parts[2]!!) / 2f
         val cy = (parts[1]!! + parts[3]!!) / 2f
-        return if (service.tapAt(cx, cy))
+        return if (service.tapAt(cx, cy)) {
             ToolResult.ok("Tapped element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()}).")
-        else ToolResult.error("Could not dispatch the tap gesture for element $index.")
+        } else {
+            ToolResult.error("Could not dispatch the tap gesture for element $index.")
+        }
     }
 
     /** Long-press a UI element by its index from the numbered elements list. */
@@ -180,9 +236,13 @@ class AccessibilityTool(private val context: Context) {
         }
         val cx = (parts[0]!! + parts[2]!!) / 2f
         val cy = (parts[1]!! + parts[3]!!) / 2f
-        return if (service.longPressAt(cx, cy))
-            ToolResult.ok("Long-pressed element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()}).")
-        else ToolResult.error("Could not dispatch the long-press gesture for element $index.")
+        return if (service.longPressAt(cx, cy)) {
+            ToolResult.ok(
+                "Long-pressed element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()})."
+            )
+        } else {
+            ToolResult.error("Could not dispatch the long-press gesture for element $index.")
+        }
     }
 
     /**
@@ -208,7 +268,9 @@ class AccessibilityTool(private val context: Context) {
                             clicked = focused.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         }
                         clicked
-                    } else false
+                    } else {
+                        false
+                    }
                 } finally { try { root?.recycle() } catch (_: Exception) { } }
                 if (result) return ToolResult.ok("Pressed Enter.")
             } catch (_: Exception) { }
@@ -218,11 +280,6 @@ class AccessibilityTool(private val context: Context) {
             "Unknown key '$key'. Valid: ${(globalKeys + "enter").joinToString(", ")}."
         )
     }
-
-    private fun requireService(): GotchaAccessibilityService? =
-        GotchaAccessibilityService.instance ?: run {
-            if (isEnabled()) null else null // both cases return null, but error differs
-        }
 
     private fun notEnabled() = ToolResult.permissionNeeded(
         ToolResult.ACCESSIBILITY_ACCESS,

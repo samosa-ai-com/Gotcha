@@ -89,7 +89,11 @@ class MediaProjectionService : Service() {
         super.onCreate()
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, buildNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
         } else {
             startForeground(NOTIFICATION_ID, buildNotification())
         }
@@ -139,7 +143,7 @@ class MediaProjectionService : Service() {
         val screenWidth = metrics.widthPixels
         val screenHeight = metrics.heightPixels
         val screenDpi = metrics.densityDpi
-        Log.d("ScreenCapture", "captureScreenshot: screen ${screenWidth}x${screenHeight} dpi=$screenDpi")
+        Log.d("ScreenCapture", "captureScreenshot: screen ${screenWidth}x$screenHeight dpi=$screenDpi")
 
         imageReader = ImageReader.newInstance(
             screenWidth, screenHeight,
@@ -189,7 +193,10 @@ class MediaProjectionService : Service() {
                     }
                     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
                     bmp.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(packedBytes))
-                    Log.d("ScreenCapture", "captureScreenshot: bitmap=${bmp.width}x${bmp.height} (stride=$rowStride, pxStride=$pixelStride)")
+                    Log.d(
+                        "ScreenCapture",
+                        "captureScreenshot: bitmap=${bmp.width}x${bmp.height} (stride=$rowStride, pxStride=$pixelStride)"
+                    )
                     bmp
                 } catch (t: Throwable) {
                     Log.e("ScreenCapture", "captureScreenshot: bitmap creation failed: ${t.message}", t)

@@ -52,7 +52,12 @@ fun SettingsScreen(
     onClearLlmCache: () -> Unit,
     onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
-    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = { Pair(emptyList(), emptyList()) },
+    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
+        Pair(
+            emptyList(),
+            emptyList()
+        )
+    },
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = { Result.failure(Exception("Not available")) },
     packageName: String = ""
 ) {
@@ -214,7 +219,11 @@ fun SettingsScreen(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Sub-agent model") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subAgentModelExpanded) },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = subAgentModelExpanded
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth().menuAnchor()
                         )
                         ExposedDropdownMenu(
@@ -251,7 +260,11 @@ fun SettingsScreen(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Navigator model") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = navigatorModelExpanded) },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = navigatorModelExpanded
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth().menuAnchor()
                         )
                         ExposedDropdownMenu(

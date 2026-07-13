@@ -10,7 +10,7 @@ data class Settings(
     val apiKey: String = "",
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
-    val subAgentModel: String = "",  // empty = same as main agent
+    val subAgentModel: String = "", // empty = same as main agent
     val navigatorModel: String = "", // empty = same as main model
     val maxToolRounds: Int = 30,
     val maxContextTokens: Int = 40000,

@@ -2,8 +2,6 @@ package com.gotcha.tools
 
 import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -57,102 +55,180 @@ object ToolRegistry {
 
     /** Trimmed tool definitions for the App Navigator (shorter descriptions = fewer tokens). */
     private val navigatorDefinitions: Map<String, ToolDefinition> = mapOf(
-        "tap" to ToolDefinition(function = FunctionDefinition("tap",
-            "Tap at coordinates. Use normalized=true and x,y in [0,1000] space.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("x") { put("type", "integer"); put("description", "X in [0,1000]") }
-                    putJsonObject("y") { put("type", "integer"); put("description", "Y in [0,1000]") }
-                    putJsonObject("normalized") { put("type", "boolean"); put("description", "Default true") }
-                    putJsonObject("text") { put("type", "string"); put("description", "Element text to match") }
+        "tap" to ToolDefinition(
+            function = FunctionDefinition(
+                "tap",
+                "Tap at coordinates. Use normalized=true and x,y in [0,1000] space.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("x") {
+                            put("type", "integer")
+                            put("description", "X in [0,1000]")
+                        }
+                        putJsonObject("y") {
+                            put("type", "integer")
+                            put("description", "Y in [0,1000]")
+                        }
+                        putJsonObject("normalized") {
+                            put("type", "boolean")
+                            put("description", "Default true")
+                        }
+                        putJsonObject("text") {
+                            put("type", "string")
+                            put("description", "Element text to match")
+                        }
+                    }
                 }
-            }
-        )),
-        "tap_index" to ToolDefinition(function = FunctionDefinition("tap_index",
-            "Tap a UI element by its index from the UI Elements list.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("index") { put("type", "integer"); put("description", "Element index") }
+            )
+        ),
+        "tap_index" to ToolDefinition(
+            function = FunctionDefinition(
+                "tap_index",
+                "Tap a UI element by its index from the UI Elements list.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("index") {
+                            put("type", "integer")
+                            put("description", "Element index")
+                        }
+                    }
+                    putJsonArray("required") { add("index") }
                 }
-                putJsonArray("required") { add("index") }
-            }
-        )),
-        "long_press" to ToolDefinition(function = FunctionDefinition("long_press",
-            "Long press at coordinates. Use normalized=true and x,y in [0,1000] space.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("x") { put("type", "integer"); put("description", "X in [0,1000]") }
-                    putJsonObject("y") { put("type", "integer"); put("description", "Y in [0,1000]") }
-                    putJsonObject("normalized") { put("type", "boolean"); put("description", "Default true") }
-                    putJsonObject("text") { put("type", "string"); put("description", "Element text to match") }
+            )
+        ),
+        "long_press" to ToolDefinition(
+            function = FunctionDefinition(
+                "long_press",
+                "Long press at coordinates. Use normalized=true and x,y in [0,1000] space.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("x") {
+                            put("type", "integer")
+                            put("description", "X in [0,1000]")
+                        }
+                        putJsonObject("y") {
+                            put("type", "integer")
+                            put("description", "Y in [0,1000]")
+                        }
+                        putJsonObject("normalized") {
+                            put("type", "boolean")
+                            put("description", "Default true")
+                        }
+                        putJsonObject("text") {
+                            put("type", "string")
+                            put("description", "Element text to match")
+                        }
+                    }
                 }
-            }
-        )),
-        "long_press_index" to ToolDefinition(function = FunctionDefinition("long_press_index",
-            "Long press a UI element by its index from the UI Elements list.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("index") { put("type", "integer"); put("description", "Element index") }
+            )
+        ),
+        "long_press_index" to ToolDefinition(
+            function = FunctionDefinition(
+                "long_press_index",
+                "Long press a UI element by its index from the UI Elements list.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("index") {
+                            put("type", "integer")
+                            put("description", "Element index")
+                        }
+                    }
+                    putJsonArray("required") { add("index") }
                 }
-                putJsonArray("required") { add("index") }
-            }
-        )),
-        "swipe" to ToolDefinition(function = FunctionDefinition("swipe",
-            "Scroll the screen in a direction. 'down' scrolls to see lower content (upward swipe).",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("direction") { put("type", "string"); put("description", "up, down, left, or right") }
-                    putJsonObject("index") { put("type", "integer"); put("description", "Optional element index to scroll") }
+            )
+        ),
+        "swipe" to ToolDefinition(
+            function = FunctionDefinition(
+                "swipe",
+                "Scroll the screen in a direction. 'down' scrolls to see lower content (upward swipe).",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("direction") {
+                            put("type", "string")
+                            put("description", "up, down, left, or right")
+                        }
+                        putJsonObject("index") {
+                            put("type", "integer")
+                            put("description", "Optional element index to scroll")
+                        }
+                    }
+                    putJsonArray("required") { add("direction") }
                 }
-                putJsonArray("required") { add("direction") }
-            }
-        )),
-        "input_text" to ToolDefinition(function = FunctionDefinition("input_text",
-            "Type text into a field. Provide 'index' to target it directly.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("text") { put("type", "string"); put("description", "Text to type") }
-                    putJsonObject("index") { put("type", "integer"); put("description", "Element index") }
+            )
+        ),
+        "input_text" to ToolDefinition(
+            function = FunctionDefinition(
+                "input_text",
+                "Type text into a field. Provide 'index' to target it directly.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("text") {
+                            put("type", "string")
+                            put("description", "Text to type")
+                        }
+                        putJsonObject("index") {
+                            put("type", "integer")
+                            put("description", "Element index")
+                        }
+                    }
+                    putJsonArray("required") { add("text") }
                 }
-                putJsonArray("required") { add("text") }
-            }
-        )),
-        "press_key" to ToolDefinition(function = FunctionDefinition("press_key",
-            "Press a system key: back, home, enter.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("key") { put("type", "string"); put("description", "back, home, enter") }
+            )
+        ),
+        "press_key" to ToolDefinition(
+            function = FunctionDefinition(
+                "press_key",
+                "Press a system key: back, home, enter.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("key") {
+                            put("type", "string")
+                            put("description", "back, home, enter")
+                        }
+                    }
+                    putJsonArray("required") { add("key") }
                 }
-                putJsonArray("required") { add("key") }
-            }
-        )),
-        "sleep" to ToolDefinition(function = FunctionDefinition("sleep",
-            "Wait for a short time (max 3s).",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("duration_seconds") { put("type", "integer"); put("description", "Seconds (1-3)") }
+            )
+        ),
+        "sleep" to ToolDefinition(
+            function = FunctionDefinition(
+                "sleep",
+                "Wait for a short time (max 3s).",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("duration_seconds") {
+                            put("type", "integer")
+                            put("description", "Seconds (1-3)")
+                        }
+                    }
+                    putJsonArray("required") { add("duration_seconds") }
                 }
-                putJsonArray("required") { add("duration_seconds") }
-            }
-        )),
-        "ask_final_answer" to ToolDefinition(function = FunctionDefinition("ask_final_answer",
-            "Task complete — provide the final answer summary.",
-            buildJsonObject {
-                put("type", "object")
-                putJsonObject("properties") {
-                    putJsonObject("answer") { put("type", "string"); put("description", "Final summary") }
+            )
+        ),
+        "ask_final_answer" to ToolDefinition(
+            function = FunctionDefinition(
+                "ask_final_answer",
+                "Task complete — provide the final answer summary.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("answer") {
+                            put("type", "string")
+                            put("description", "Final summary")
+                        }
+                    }
+                    putJsonArray("required") { add("answer") }
                 }
-                putJsonArray("required") { add("answer") }
-            }
-        ))
+            )
+        )
     )
 
     fun allDefinitions(): List<ToolDefinition> = definitions.values.toList()

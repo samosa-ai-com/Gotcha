@@ -3,7 +3,6 @@ package com.gotcha
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -28,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
-import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
@@ -58,21 +56,13 @@ class MainActivity : ComponentActivity() {
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
 
-    /** Used by the Settings screen to grant individual runtime permissions. */
-    private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            Toast.makeText(
-                this,
-                if (granted) "Permission granted."
-                else "Permission denied.",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            android.util.Log.d("ScreenCapture", "mediaProjectionLauncher: resultCode=${result.resultCode}, data=${result.data != null}")
+            android.util.Log.d(
+                "ScreenCapture",
+                "mediaProjectionLauncher: resultCode=${result.resultCode}, data=${result.data != null}"
+            )
             if (result.resultCode == RESULT_OK && result.data != null) {
                 ScreenPerception.mediaProjectionResultData = result.data
                 Toast.makeText(this, "Screenshot permission granted.", Toast.LENGTH_SHORT).show()
@@ -156,7 +146,9 @@ class MainActivity : ComponentActivity() {
                     ).show()
                     "special:screenshot_consent" -> {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                            val mpManager = getSystemService(
+                                Context.MEDIA_PROJECTION_SERVICE
+                            ) as android.media.projection.MediaProjectionManager
                             mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
                         }
                     }
@@ -188,7 +180,9 @@ class MainActivity : ComponentActivity() {
             // Always request if not granted in this process session (cleared on process kill)
             if (ScreenPerception.mediaProjectionResultData == null) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                    val mpManager = getSystemService(
+                        Context.MEDIA_PROJECTION_SERVICE
+                    ) as android.media.projection.MediaProjectionManager
                     mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
                 }
             }
@@ -411,7 +405,7 @@ class MainActivity : ComponentActivity() {
             messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Reply with the single word: pong"))),
             temperature = 0f
         )
-        response.choices.firstOrNull()?.message?.textContent?.  take(60) ?: "empty response"
+        response.choices.firstOrNull()?.message?.textContent?. take(60) ?: "empty response"
     }
 
     companion object {

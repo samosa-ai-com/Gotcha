@@ -1161,21 +1161,33 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("description") {
                     put("type", "string")
-                    put("description", "Brief description of what the sub-agent should do " +
-                        "(shown in the UI while it runs).")
+                    put(
+                        "description",
+                        "Brief description of what the sub-agent should do " +
+                            "(shown in the UI while it runs)."
+                    )
                 }
                 putJsonObject("prompt") {
                     put("type", "string")
-                    put("description", "Detailed instructions for the sub-agent. " +
-                        "Include all context the sub-agent needs to complete the task.")
+                    put(
+                        "description",
+                        "Detailed instructions for the sub-agent. " +
+                            "Include all context the sub-agent needs to complete the task."
+                    )
                 }
                 putJsonObject("subagent_type") {
                     put("type", "string")
-                    put("description", "Which sub-agent to use. Default: 'general'. " +
-                        "Available: general.")
+                    put(
+                        "description",
+                        "Which sub-agent to use. Default: 'general'. " +
+                            "Available: general."
+                    )
                 }
             }
-            putJsonArray("required") { add("description"); add("prompt") }
+            putJsonArray("required") {
+                add("description")
+                add("prompt")
+            }
         }
     )
 
@@ -1359,7 +1371,8 @@ object ToolDefinitions {
     val swipe = tool(
         "swipe",
         "Swipe/scroll the screen or a specific element. " +
-            "If using a direction, 'down' means scroll the content down to see lower items. 'up' means scroll the content up to see higher items. " +
+            "If using a direction, 'down' means scroll the content down to see lower items. " +
+            "'up' means scroll the content up to see higher items. " +
             "Needs the accessibility service enabled.",
         schema {
             putJsonObject("properties") {
@@ -1371,10 +1384,22 @@ object ToolDefinitions {
                     put("type", "integer")
                     put("description", "Optional index of the UI element to swipe on.")
                 }
-                putJsonObject("x1") { put("type", "integer"); put("description", "Start X (with y1,x2,y2).") }
-                putJsonObject("y1") { put("type", "integer"); put("description", "Start Y.") }
-                putJsonObject("x2") { put("type", "integer"); put("description", "End X.") }
-                putJsonObject("y2") { put("type", "integer"); put("description", "End Y.") }
+                putJsonObject("x1") {
+                    put("type", "integer")
+                    put("description", "Start X (with y1,x2,y2).")
+                }
+                putJsonObject("y1") {
+                    put("type", "integer")
+                    put("description", "Start Y.")
+                }
+                putJsonObject("x2") {
+                    put("type", "integer")
+                    put("description", "End X.")
+                }
+                putJsonObject("y2") {
+                    put("type", "integer")
+                    put("description", "End Y.")
+                }
                 putJsonObject("normalized") {
                     put("type", "boolean")
                     put("description", "If true, coordinate params are in [0, 1000] normalized space. Default true.")
@@ -1441,12 +1466,17 @@ object ToolDefinitions {
     val pressKey = tool(
         "press_key",
         "Press a system key or perform a navigation action. " +
-            "Note: 'enter' may not successfully submit forms or searches on all apps. It is much more reliable to use tap or tap_index to click the on-screen 'Search', 'Submit', or 'Go' button instead.",
+            "Note: 'enter' may not successfully submit forms or searches on all apps. It is much " +
+            "more reliable to use tap or tap_index to click the on-screen 'Search', 'Submit', " +
+            "or 'Go' button instead.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("key") {
                     put("type", "string")
-                    put("description", "One of: enter, back, home, recents, notifications, quick_settings, lock_screen.")
+                    put(
+                        "description",
+                        "One of: enter, back, home, recents, notifications, quick_settings, lock_screen."
+                    )
                 }
             }
             putJsonArray("required") { add("key") }
@@ -1463,11 +1493,14 @@ object ToolDefinitions {
             putJsonObject("properties") {
                 putJsonObject("task") {
                     put("type", "string")
-                    put("description", "Detailed step-by-step instructions of what to do in the app. " +
-                        "Include the app name, search terms, what to look for, and what the final " +
-                        "summary should contain. " +
-                        "Example: 'Open Google Maps, search for restaurants near me, scroll through " +
-                        "results, and tell me the top 5 with ratings and distances.'")
+                    put(
+                        "description",
+                        "Detailed step-by-step instructions of what to do in the app. " +
+                            "Include the app name, search terms, what to look for, and what the final " +
+                            "summary should contain. " +
+                            "Example: 'Open Google Maps, search for restaurants near me, scroll through " +
+                            "results, and tell me the top 5 with ratings and distances.'"
+                    )
                 }
             }
             putJsonArray("required") { add("task") }

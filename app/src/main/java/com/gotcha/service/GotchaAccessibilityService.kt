@@ -27,6 +27,8 @@ import kotlin.coroutines.resume
  * service is only alive while the user has it enabled; the tool checks [instance]
  * for null and returns a permission hint otherwise.
  */
+// One function per accessibility capability (tap, swipe, type, …) by design; size is inherent.
+@Suppress("TooManyFunctions")
 class GotchaAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
@@ -155,11 +157,13 @@ class GotchaAccessibilityService : AccessibilityService() {
             val parts = boundsStr.split(",").map { it.trim().toInt() }
             if (parts.size == 4) {
                 targetBounds.set(parts[0], parts[1], parts[2], parts[3])
-            } else return false
-        } catch (e: Exception) {
+            } else {
+                return false
+            }
+        } catch (_: Exception) {
             return false
         }
-        
+
         val root = rootInActiveWindow ?: return false
         var match: AccessibilityNodeInfo? = null
 
@@ -177,10 +181,10 @@ class GotchaAccessibilityService : AccessibilityService() {
                 search(node.getChild(i))
             }
         }
-        
+
         search(root)
         root.recycle()
-        
+
         val nodeToEdit = match ?: return false
         val ok = setTextOnNode(nodeToEdit, text)
         nodeToEdit.recycle()
@@ -196,7 +200,7 @@ class GotchaAccessibilityService : AccessibilityService() {
 
     /** Dispatch a tap gesture at absolute screen coordinates (API 24+). */
     fun tapAt(x: Float, y: Float): Boolean = gesture(x, y, x, y, 50)
-    
+
     fun longPressAt(x: Float, y: Float): Boolean = gesture(x, y, x, y, 1000)
 
     /** Dispatch a swipe gesture between two points. */

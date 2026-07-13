@@ -67,13 +67,16 @@ object ScreenPerception {
             }
             Log.d("ScreenCapture", "compressScreenshot: got ${bytes.size} raw bytes")
             val originalSize = bytes.size.toLong()
-            val options = BitmapFactory.Options().apply { 
+            val options = BitmapFactory.Options().apply {
                 inMutable = true
-                inScaled = false 
+                inScaled = false
             }
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
             if (bitmap == null) {
-                Log.e("ScreenCapture", "compressScreenshot: BitmapFactory.decodeByteArray returned null — invalid image data")
+                Log.e(
+                    "ScreenCapture",
+                    "compressScreenshot: BitmapFactory.decodeByteArray returned null — invalid image data"
+                )
                 return null
             }
             Log.d("ScreenCapture", "compressScreenshot: decoded bitmap ${bitmap.width}x${bitmap.height}")
@@ -87,14 +90,14 @@ object ScreenPerception {
             } else {
                 bitmap
             }
-            
+
             val forEncoding = if (maxDimension > 0) downscale(annotated, maxDimension) else annotated
-            
+
             val sw = forEncoding.width
             val sh = forEncoding.height
             val output = ByteArrayOutputStream()
             forEncoding.compress(format, quality, output)
-            
+
             if (saveDir != null) {
                 try {
                     if (!saveDir.exists()) saveDir.mkdirs()
@@ -106,16 +109,16 @@ object ScreenPerception {
                     Log.e("ScreenCapture", "Failed to save debug screenshot: ${e.message}")
                 }
             }
-            
+
             if (forEncoding !== annotated) forEncoding.recycle()
             if (annotated !== bitmap) annotated.recycle()
             bitmap.recycle()
             val base64 = Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
-            val fmtName = when (format) {
-                Bitmap.CompressFormat.JPEG -> "jpeg"
-                Bitmap.CompressFormat.PNG -> "png"
-                Bitmap.CompressFormat.WEBP_LOSSY -> "webp"
-                Bitmap.CompressFormat.WEBP_LOSSLESS -> "webp"
+            // WEBP_LOSSY/WEBP_LOSSLESS enum fields need API 30 — match by name instead.
+            val fmtName = when {
+                format == Bitmap.CompressFormat.JPEG -> "jpeg"
+                format == Bitmap.CompressFormat.PNG -> "png"
+                format.name.startsWith("WEBP") -> "webp"
                 else -> "jpeg"
             }
             CompressedScreenshot(base64, sw, sh, fmtName, originalSize)
@@ -273,24 +276,24 @@ object ScreenPerception {
                 val top = parts[1].toFloat()
                 val right = parts[2].toFloat()
                 val bottom = parts[3].toFloat()
-                
+
                 // Draw bounding box
                 canvas.drawRect(left, top, right, bottom, boxPaint)
-                
+
                 // Draw label [Index] at the top-left of the box
                 val label = "[${el.index}]"
                 val textWidth = textPaint.measureText(label)
                 val fontMetrics = textPaint.fontMetrics
                 val textHeight = fontMetrics.descent - fontMetrics.ascent
-                
+
                 // Keep label within bounds
                 val bgLeft = left
                 var bgTop = top - textHeight - 4f
                 if (bgTop < 0) bgTop = top // If goes off top edge, push inside the box
-                
+
                 val bgRight = bgLeft + textWidth + 8f
                 val bgBottom = bgTop + textHeight + 8f
-                
+
                 canvas.drawRect(bgLeft, bgTop, bgRight, bgBottom, labelBgPaint)
                 canvas.drawText(label, bgLeft + 4f, bgBottom - fontMetrics.descent - 4f, textPaint)
             }
@@ -329,7 +332,10 @@ object ScreenPerception {
         // Path 2: MediaProjection — works on all devices if user granted consent.
         val projectionData = mediaProjectionResultData
         val ctx = appContext ?: GotchaAccessibilityService.instance?.applicationContext
-        Log.d("ScreenCapture", "Path2: projectionData=${projectionData != null}, ctx=${ctx != null}, appContext=${appContext != null}")
+        Log.d(
+            "ScreenCapture",
+            "Path2: projectionData=${projectionData != null}, ctx=${ctx != null}, appContext=${appContext != null}"
+        )
         if (projectionData != null && ctx != null) {
             Log.d("ScreenCapture", "Path2: calling MediaProjectionService.capture()")
             val bytes = withContext(Dispatchers.IO) {
@@ -358,7 +364,9 @@ object ScreenPerception {
         val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
             val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
             (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-        } else bitmap.width to bitmap.height
+        } else {
+            bitmap.width to bitmap.height
+        }
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
@@ -380,7 +388,7 @@ object ScreenPerception {
 
         val isInteractable = node.isClickable || node.isScrollable || node.isEditable || node.isCheckable
         val hasMeaningfulContent = label.isNotEmpty()
-        
+
         if (isInteractable || hasMeaningfulContent) {
             index[0]++
             out.add(
