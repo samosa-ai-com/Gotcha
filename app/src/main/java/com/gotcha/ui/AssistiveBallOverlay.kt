@@ -60,6 +60,7 @@ class AssistiveBallOverlay(context: Context) {
     var isCallActive: () -> Boolean = { false }
 
     private var ballView: View? = null
+    private var ringView: View? = null
     private var menuView: View? = null
     private var cardView: View? = null
     private var dismissTargetView: View? = null
@@ -85,6 +86,7 @@ class AssistiveBallOverlay(context: Context) {
 
     fun dismiss() {
         mainHandler.post {
+            removeLongPressRing()
             removeMenu()
             removeCard()
             removeDismissTarget()
@@ -109,6 +111,7 @@ class AssistiveBallOverlay(context: Context) {
      */
     fun hideChromeForCapture() {
         mainHandler.post {
+            removeLongPressRing()
             removeMenu()
             removeCard()
             ballView?.visibility = View.GONE
@@ -155,6 +158,58 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
+    // ---- Long-press ring ----
+
+    /** Show an expanding ring around the ball during the 3s hold to start a call. */
+    private fun showLongPressRing() {
+        removeLongPressRing()
+        val ringSize = dp(BALL_SIZE_DP * 2)
+        val ring = View(appContext).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setStroke(dp(2), Color.parseColor("#66FFFFFF"))
+                setColor(Color.TRANSPARENT)
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            ringSize,
+            ringSize,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = ballParams.x + dp(BALL_SIZE_DP / 2) - ringSize / 2
+            y = ballParams.y + dp(BALL_SIZE_DP / 2) - ringSize / 2
+        }
+        try {
+            windowManager.addView(ring, params)
+            ringView = ring
+            ring.scaleX = 0.2f
+            ring.scaleY = 0.2f
+            ring.alpha = 1f
+            ring.animate()
+                .scaleX(1.8f)
+                .scaleY(1.8f)
+                .alpha(0f)
+                .setDuration(LONG_PRESS_START_MS)
+                .start()
+        } catch (_: Exception) {
+            ringView = null
+        }
+    }
+
+    private fun hideLongPressRing() {
+        ringView?.let { safeRemove(it) }
+        ringView = null
+    }
+
+    private fun removeLongPressRing() {
+        ringView?.let { safeRemove(it) }
+        ringView = null
+    }
+
     @Suppress("CyclomaticComplexMethod")
     private fun ballTouchListener(): View.OnTouchListener {
         var startX = 0
@@ -181,6 +236,7 @@ class AssistiveBallOverlay(context: Context) {
                         longPressRunnable,
                         if (isCallActive()) LONG_PRESS_END_MS else LONG_PRESS_START_MS
                     )
+                    if (!isCallActive()) showLongPressRing()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -189,6 +245,7 @@ class AssistiveBallOverlay(context: Context) {
                     if (!dragging && !longPressFired && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                         dragging = true
                         mainHandler.removeCallbacks(longPressRunnable)
+                        hideLongPressRing()
                         removeMenu()
                         showDismissTarget()
                     }
@@ -204,6 +261,7 @@ class AssistiveBallOverlay(context: Context) {
                 }
                 MotionEvent.ACTION_UP -> {
                     mainHandler.removeCallbacks(longPressRunnable)
+                    hideLongPressRing()
                     val droppedOnTarget = dragging && isOverDismissTarget()
                     removeDismissTarget()
                     when {
@@ -217,6 +275,7 @@ class AssistiveBallOverlay(context: Context) {
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     mainHandler.removeCallbacks(longPressRunnable)
+                    hideLongPressRing()
                     removeDismissTarget()
                     if (dragging) clampBallIntoBounds()
                     true
