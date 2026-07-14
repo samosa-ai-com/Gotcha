@@ -409,6 +409,6 @@ class CallChatWindow(context: Context) {
 
     private companion object {
         const val BTN_SIZE_DP = 44
-        const val END_LONG_PRESS_MS = 3000L
+        const val END_LONG_PRESS_MS = 2000L
     }
 }

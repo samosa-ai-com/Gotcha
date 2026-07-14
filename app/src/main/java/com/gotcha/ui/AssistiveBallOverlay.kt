@@ -568,8 +568,8 @@ class AssistiveBallOverlay(context: Context) {
 
     private companion object {
         const val BALL_SIZE_DP = 56
-        const val LONG_PRESS_START_MS = 3000L
-        const val LONG_PRESS_END_MS = 5000L
+        const val LONG_PRESS_START_MS = 2000L
+        const val LONG_PRESS_END_MS = 2000L
         const val DISMISS_TARGET_SIZE_DP = 64
         const val DISMISS_TARGET_MARGIN_DP = 32
         const val DISMISS_SNAP_RADIUS_DP = 56
