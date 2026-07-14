@@ -28,39 +28,36 @@ private fun variableFamily(resId: Int) = FontFamily(
     }
 )
 
-/** DM Sans — headlines and titles (greeting, drawer/app-bar titles). */
-val DmSans = variableFamily(R.font.dm_sans)
-
-/** Inter — body text and labels. */
-val Inter = variableFamily(R.font.inter)
+/** Figtree — the app-wide typeface (OFL-licensed; see assets/licenses). */
+val Figtree = variableFamily(R.font.figtree)
 
 private val baseline = Typography()
 
 val Typography = Typography(
-    displayLarge = baseline.displayLarge.copy(fontFamily = DmSans),
-    displayMedium = baseline.displayMedium.copy(fontFamily = DmSans),
-    displaySmall = baseline.displaySmall.copy(fontFamily = DmSans),
-    headlineLarge = baseline.headlineLarge.copy(fontFamily = DmSans),
+    displayLarge = baseline.displayLarge.copy(fontFamily = Figtree),
+    displayMedium = baseline.displayMedium.copy(fontFamily = Figtree),
+    displaySmall = baseline.displaySmall.copy(fontFamily = Figtree),
+    headlineLarge = baseline.headlineLarge.copy(fontFamily = Figtree),
     headlineMedium = TextStyle(
-        fontFamily = DmSans,
+        fontFamily = Figtree,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
         lineHeight = 36.sp
     ),
-    headlineSmall = baseline.headlineSmall.copy(fontFamily = DmSans),
-    titleLarge = baseline.titleLarge.copy(fontFamily = DmSans),
-    titleMedium = baseline.titleMedium.copy(fontFamily = DmSans),
-    titleSmall = baseline.titleSmall.copy(fontFamily = DmSans),
+    headlineSmall = baseline.headlineSmall.copy(fontFamily = Figtree),
+    titleLarge = baseline.titleLarge.copy(fontFamily = Figtree),
+    titleMedium = baseline.titleMedium.copy(fontFamily = Figtree),
+    titleSmall = baseline.titleSmall.copy(fontFamily = Figtree),
     bodyLarge = TextStyle(
-        fontFamily = Inter,
+        fontFamily = Figtree,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp
     ),
-    bodyMedium = baseline.bodyMedium.copy(fontFamily = Inter),
-    bodySmall = baseline.bodySmall.copy(fontFamily = Inter),
-    labelLarge = baseline.labelLarge.copy(fontFamily = Inter),
-    labelMedium = baseline.labelMedium.copy(fontFamily = Inter),
-    labelSmall = baseline.labelSmall.copy(fontFamily = Inter)
+    bodyMedium = baseline.bodyMedium.copy(fontFamily = Figtree),
+    bodySmall = baseline.bodySmall.copy(fontFamily = Figtree),
+    labelLarge = baseline.labelLarge.copy(fontFamily = Figtree),
+    labelMedium = baseline.labelMedium.copy(fontFamily = Figtree),
+    labelSmall = baseline.labelSmall.copy(fontFamily = Figtree)
 )
