@@ -436,15 +436,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             AgentMode.OPERATOR -> AgentMode.MONITOR
         }
         _uiState.update { it.copy(activeAgent = next) }
-        // Append a system message so the LLM knows the mode changed
-        val switchMsg = when (next) {
+        // Instruct the LLM ("you" = the agent) and show the user a separate,
+        // user-facing notice — the history wording reads wrong in the chat UI.
+        val llmMsg = when (next) {
             AgentMode.MONITOR ->
                 "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. " +
                     "No changes to the device are permitted.]"
             AgentMode.OPERATOR -> "[System: Switched to Operator. You are now permitted to make changes to the device.]"
         }
-        agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(switchMsg))
-        appendUi(MessageKind.ASSISTANT, switchMsg)
+        val uiMsg = when (next) {
+            AgentMode.MONITOR ->
+                "Switched to Monitor mode — the agent can only observe; it cannot make any changes to your device."
+            AgentMode.OPERATOR ->
+                "Switched to Operator mode — the agent can now make changes to your device."
+        }
+        agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
+        appendUi(MessageKind.ASSISTANT, uiMsg)
     }
 
     override fun onCleared() {
