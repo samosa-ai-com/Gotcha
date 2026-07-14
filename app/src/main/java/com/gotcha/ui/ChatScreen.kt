@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,9 +56,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.agent.ChatUiState
 import com.gotcha.tools.AgentMode
 import kotlinx.coroutines.delay
@@ -166,10 +169,17 @@ fun ChatScreen(
             }
             if (isHome) {
                 val greeting = rememberSaveable(state.activeSessionId) { HOME_GREETINGS.random() }
-                Box(
+                Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp),
-                    contentAlignment = Alignment.Center
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    ComposeImage(
+                        painter = painterResource(R.mipmap.ic_launcher_round),
+                        contentDescription = "Gotcha logo",
+                        modifier = Modifier.size(96.dp).clip(CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
                     Text(
                         greeting,
                         style = MaterialTheme.typography.headlineMedium,
