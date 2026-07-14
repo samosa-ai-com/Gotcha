@@ -54,8 +54,10 @@ class AssistiveBallOverlay(context: Context) {
 
     // Callbacks — set by the host service before [show].
     var onDismiss: () -> Unit = {}
+    var onOpenApp: () -> Unit = {}
+    var onHideBall: () -> Unit = {}
+    var onTakeScreenshot: () -> Unit = {}
     var onStartCall: () -> Unit = {}
-    var onPauseCall: () -> Unit = {}
     var onEndCall: () -> Unit = {}
     var onToggleChatWindow: () -> Unit = {}
 
@@ -400,25 +402,24 @@ class AssistiveBallOverlay(context: Context) {
             }
         }
 
-        val active = isCallActive()
-        container.addView(menuTitle("Gotcha Call"))
+        container.addView(menuTitle("Gotcha"))
         container.addView(
-            tapButton("▶  Start") {
+            tapButton("\uD83D\uDCF1  Open App") {
                 removeMenu()
-                onStartCall()
-            }.apply { isEnabled = !active }
+                onOpenApp()
+            }
         )
         container.addView(
-            tapButton("⏸  Pause") {
+            tapButton("\u2716  Hide Ball") {
                 removeMenu()
-                onPauseCall()
-            }.apply { isEnabled = active }
+                onHideBall()
+            }
         )
         container.addView(
-            tapButton("⏹  End") {
+            tapButton("\uD83D\uDCF7  Screenshot") {
                 removeMenu()
-                onEndCall()
-            }.apply { isEnabled = active }
+                onTakeScreenshot()
+            }
         )
 
         val params = menuLayoutParams()

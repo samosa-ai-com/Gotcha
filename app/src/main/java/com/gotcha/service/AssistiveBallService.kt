@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -74,8 +75,17 @@ class AssistiveBallService : Service() {
         // Assistive ball (shown when idle, hidden during a call)
         overlay = AssistiveBallOverlay(this).apply {
             onDismiss = { stopBall() }
+            onOpenApp = {
+                val intent = Intent(this@AssistiveBallService, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            }
+            onHideBall = {
+                callController.endCall()
+                stopBall()
+            }
+            onTakeScreenshot = { takeScreenshot() }
             onStartCall = { callController.startCall() }
-            onPauseCall = { callController.stopAgent() }
             onEndCall = { callController.endCall() }
             onToggleChatWindow = { } // no-op during calls (ball is hidden)
             isCallActive = { callController.isActive() }
@@ -149,6 +159,61 @@ class AssistiveBallService : Service() {
             try {
                 File(CallSessionController.CALLS_WORKING_ROOT).deleteRecursively()
             } catch (_: Exception) { }
+        }
+    }
+
+    private fun takeScreenshot() {
+        scope.launch(Dispatchers.IO) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                overlay.showError("Screenshot requires Android 11+")
+                return@launch
+            }
+            try {
+                val service = GotchaAccessibilityService.instance
+                if (service == null) {
+                    overlay.showError("Accessibility service not available")
+                    return@launch
+                }
+                var bitmap = service.takeScreenshotBitmap()
+                if (bitmap == null) {
+                    delay(1200L)
+                    bitmap = service.takeScreenshotBitmap()
+                }
+                if (bitmap == null) {
+                    overlay.showError("Screenshot failed — try again")
+                    return@launch
+                }
+                val timestamp = java.text.SimpleDateFormat(
+                    "yyyyMMdd_HHmmss",
+                    java.util.Locale.US
+                ).format(java.util.Date())
+                val fileName = "Screenshot_$timestamp.png"
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        put(
+                            android.provider.MediaStore.Images.Media.RELATIVE_PATH,
+                            android.os.Environment.DIRECTORY_PICTURES + "/Gotcha"
+                        )
+                    }
+                }
+                val uri = contentResolver.insert(
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    contentValues
+                )
+                if (uri != null) {
+                    contentResolver.openOutputStream(uri)?.use { out ->
+                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                    }
+                    overlay.showError("Screenshot saved: $fileName")
+                } else {
+                    overlay.showError("Screenshot save failed")
+                }
+                bitmap.recycle()
+            } catch (e: Throwable) {
+                overlay.showError("Screenshot error: ${e.message}")
+            }
         }
     }
 
