@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
@@ -17,11 +18,13 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import com.gotcha.R
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -61,6 +64,8 @@ class AssistiveBallOverlay(context: Context) {
 
     private var ballView: View? = null
     private var ringView: View? = null
+    private var ringDrawable: RingDrawable? = null
+    private var ringAnimator: ValueAnimator? = null
     private var menuView: View? = null
     private var cardView: View? = null
     private var dismissTargetView: View? = null
@@ -160,54 +165,77 @@ class AssistiveBallOverlay(context: Context) {
 
     // ---- Long-press ring ----
 
-    /** Show an expanding ring around the ball during the 3s hold to start a call. */
+    /** Show a growing ring around the ball during the 3s hold to start a call. */
     private fun showLongPressRing() {
         removeLongPressRing()
-        val ringSize = dp(BALL_SIZE_DP * 2)
-        val ring = View(appContext).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setStroke(dp(2), Color.parseColor("#66FFFFFF"))
-                setColor(Color.TRANSPARENT)
-            }
-        }
+        val density = appContext.resources.displayMetrics.density
+        // View is 3.5x the ball so the ring can grow to ~1.6x the ball radius
+        // without hitting the view's bounds. The screen edge may still clip
+        // when the ball is near the edge — that's intended.
+        val viewSize = (BALL_SIZE_DP * 3.5f * density).toInt()
+        val ballPx = dp(BALL_SIZE_DP)
+        val drawable = RingDrawable()
+        val view = View(appContext).apply { background = drawable }
         val params = WindowManager.LayoutParams(
-            ringSize,
-            ringSize,
+            viewSize,
+            viewSize,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = ballParams.x + dp(BALL_SIZE_DP / 2) - ringSize / 2
-            y = ballParams.y + dp(BALL_SIZE_DP / 2) - ringSize / 2
+            x = ballParams.x + ballPx / 2 - viewSize / 2
+            y = ballParams.y + ballPx / 2 - viewSize / 2
         }
         try {
-            windowManager.addView(ring, params)
-            ringView = ring
-            ring.scaleX = 0.2f
-            ring.scaleY = 0.2f
-            ring.alpha = 1f
-            ring.animate()
-                .scaleX(1.8f)
-                .scaleY(1.8f)
-                .alpha(0f)
-                .setDuration(LONG_PRESS_START_MS)
-                .start()
+            windowManager.addView(view, params)
+            ringView = view
+            ringDrawable = drawable
+
+            val minRadius = ballPx * 0.50f
+            val maxRadius = ballPx * 1.60f
+            val strokePx = 2.5f * density
+            val fillBase = Color.WHITE
+            val strokeBase = Color.WHITE
+
+            ringAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = LONG_PRESS_START_MS
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val p = anim.animatedValue as Float
+                    drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
+                    // Stroke fades from full to ~40% opacity as it expands
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(
+                        strokeBase,
+                        ((1f - p * 0.6f) * 255).toInt()
+                    )
+                    drawable.strokeWidth = strokePx
+                    // Fill tints the area between ball and ring, fades out
+                    drawable.fillColor = ColorUtils.setAlphaComponent(
+                        fillBase,
+                        ((0.18f * (1f - p)) * 255).toInt()
+                    )
+                }
+                start()
+            }
         } catch (_: Exception) {
             ringView = null
+            ringDrawable = null
         }
     }
 
     private fun hideLongPressRing() {
-        ringView?.let { safeRemove(it) }
-        ringView = null
+        removeLongPressRing()
     }
 
     private fun removeLongPressRing() {
+        ringAnimator?.cancel()
+        ringAnimator = null
         ringView?.let { safeRemove(it) }
         ringView = null
+        ringDrawable = null
     }
 
     @Suppress("CyclomaticComplexMethod")

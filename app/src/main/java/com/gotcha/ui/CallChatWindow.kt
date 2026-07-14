@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Outline
@@ -14,9 +15,11 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import com.gotcha.service.CallState
 import kotlin.math.abs
 
@@ -45,6 +48,8 @@ class CallChatWindow(context: Context) {
     private var endBtn: View? = null
     private var endWrapper: View? = null
     private var ringView: View? = null
+    private var ringDrawable: RingDrawable? = null
+    private var ringAnimator: ValueAnimator? = null
 
     private var currentState: CallState = CallState.IDLE
 
@@ -59,7 +64,7 @@ class CallChatWindow(context: Context) {
     private var longPressFired = false
     private val endLongPressRunnable = Runnable {
         longPressFired = true
-        hideEndButtonRing()
+        cancelEndRing()
         onEndCall()
     }
 
@@ -83,6 +88,7 @@ class CallChatWindow(context: Context) {
     fun hide() {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
+            cancelEndRing()
             rootView?.let {
                 try { windowManager.removeView(it) } catch (_: Exception) { }
             }
@@ -92,6 +98,7 @@ class CallChatWindow(context: Context) {
             endBtn = null
             endWrapper = null
             ringView = null
+            ringDrawable = null
         }
     }
 
@@ -147,37 +154,48 @@ class CallChatWindow(context: Context) {
     private fun buildContainer(): View {
         val density = appContext.resources.displayMetrics.density
         val btnSize = (BTN_SIZE_DP * density).toInt()
+        val ringViewSize = (BTN_SIZE_DP * 3.5f * density).toInt()
 
         actionBtn = glassButton("\uD83C\uDFA4", btnSize, isEnd = false)
         endBtn = glassButton("\uD83D\uDCDE", btnSize, isEnd = true)
 
-        // Wrap end button in FrameLayout so a ring can sit behind it
-        val ringSize = (BTN_SIZE_DP * 1.6f * density).toInt()
+        // Custom ring drawable — its radius is animated, not the view's scale
+        val drawable = RingDrawable()
+        ringDrawable = drawable
         val ring = View(appContext).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setStroke(dp(2f), Color.parseColor("#AAFF6B6B"))
-                setColor(Color.TRANSPARENT)
-            }
-            layoutParams = FrameLayout.LayoutParams(ringSize, ringSize, Gravity.CENTER)
-            visibility = View.GONE
+            background = drawable
+            layoutParams = FrameLayout.LayoutParams(ringViewSize, ringViewSize, Gravity.CENTER)
         }
         ringView = ring
+
+        // Wrapper is exactly the end-button size so it lines up with the mic
+        // button in the row. The ring view (3.5x) is centered inside and
+        // allowed to draw beyond via clipChildren=false + software layer
+        // (hardware acceleration can ignore clipChildren=false on some
+        // devices, so we force software rendering to guarantee the ring
+        // draws beyond the wrapper's bounds).
         val wrapper = FrameLayout(appContext).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
+            clipChildren = false
+            clipToPadding = false
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         }
+        // End button fills the wrapper so its center matches the ring's center
+        endBtn!!.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        // Ring first (drawn underneath), then the button
         wrapper.addView(ring)
         wrapper.addView(endBtn!!)
         endWrapper = wrapper
-        ringView = ring
 
         val row = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
+            clipChildren = false
+            clipToPadding = false
             setOnTouchListener(containerTouchListener())
         }
         actionBtn?.let { row.addView(it) }
@@ -225,25 +243,47 @@ class CallChatWindow(context: Context) {
         }
     }
 
-    private fun showEndButtonRing() {
-        ringView?.let { ring ->
-            ring.visibility = View.VISIBLE
-            ring.scaleX = 0.2f
-            ring.scaleY = 0.2f
-            ring.alpha = 1f
-            ring.animate()
-                .scaleX(1.8f)
-                .scaleY(1.8f)
-                .alpha(0f)
-                .setDuration(END_LONG_PRESS_MS)
-                .start()
+    private fun startEndRingAnimation() {
+        val drawable = ringDrawable ?: return
+        val density = appContext.resources.displayMetrics.density
+        val btnPx = dp(BTN_SIZE_DP.toFloat())
+        val minRadius = btnPx * 0.50f
+        val maxRadius = btnPx * 1.60f
+        val strokePx = 2.5f * density
+        val fillBase = Color.parseColor("#FF6B6B")
+        val strokeBase = Color.parseColor("#FF6B6B")
+
+        ringAnimator?.cancel()
+        ringAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = END_LONG_PRESS_MS
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
+                drawable.strokeWidth = strokePx
+                // Stroke fades from full to ~40% as it expands
+                drawable.strokeColor = ColorUtils.setAlphaComponent(
+                    strokeBase,
+                    ((1f - p * 0.6f) * 255).toInt()
+                )
+                // Fill tints the area between the button and the growing ring
+                drawable.fillColor = ColorUtils.setAlphaComponent(
+                    fillBase,
+                    ((0.22f * (1f - p)) * 255).toInt()
+                )
+            }
+            start()
         }
     }
 
-    private fun hideEndButtonRing() {
-        ringView?.let { ring ->
-            ring.animate().cancel()
-            ring.visibility = View.GONE
+    private fun cancelEndRing() {
+        ringAnimator?.cancel()
+        ringAnimator = null
+        // Reset drawable so a fresh hold starts from a clean state
+        ringDrawable?.let {
+            it.ringRadius = 0f
+            it.fillColor = Color.TRANSPARENT
+            it.strokeColor = Color.TRANSPARENT
         }
     }
 
@@ -281,7 +321,7 @@ class CallChatWindow(context: Context) {
 
                 if (isTouchOnEndWrapper(event.x, event.y) && endWrapper?.alpha != 0.25f) {
                     mainHandler.postDelayed(endLongPressRunnable, END_LONG_PRESS_MS)
-                    showEndButtonRing()
+                    startEndRingAnimation()
                 }
                 true
             }
@@ -291,7 +331,7 @@ class CallChatWindow(context: Context) {
                 if (!dragging && !longPressFired && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                     dragging = true
                     mainHandler.removeCallbacks(endLongPressRunnable)
-                    hideEndButtonRing()
+                    cancelEndRing()
                 }
                 if (dragging) {
                     rootParams?.let { p ->
@@ -306,7 +346,7 @@ class CallChatWindow(context: Context) {
             }
             MotionEvent.ACTION_UP -> {
                 mainHandler.removeCallbacks(endLongPressRunnable)
-                hideEndButtonRing()
+                cancelEndRing()
                 if (!dragging && !longPressFired) {
                     handleActionUp(event.x, event.y)
                 }
@@ -315,7 +355,7 @@ class CallChatWindow(context: Context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 mainHandler.removeCallbacks(endLongPressRunnable)
-                hideEndButtonRing()
+                cancelEndRing()
                 true
             }
             else -> false
