@@ -47,7 +47,11 @@ fun AppDrawerContent(
 
     ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "Gotcha",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp)
+            )
             NavigationDrawerItem(
                 label = { Text("New Chat") },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
