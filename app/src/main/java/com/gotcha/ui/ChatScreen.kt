@@ -27,13 +27,14 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.Adjust
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -145,12 +146,22 @@ fun ChatScreen(
                             )
                         }
                     } else {
-                        FilterChip(
-                            selected = state.activeAgent == AgentMode.OPERATOR,
-                            onClick = onSwitchAgent,
-                            label = { Text(state.activeAgent.name) },
-                            enabled = !state.isBusy
-                        )
+                        val isOperator = state.activeAgent == AgentMode.OPERATOR
+                        IconButton(onClick = onSwitchAgent, enabled = !state.isBusy) {
+                            Icon(
+                                if (isOperator) Icons.Filled.TouchApp else Icons.Outlined.Visibility,
+                                contentDescription = if (isOperator) {
+                                    "Operator mode — tap to switch to Monitor"
+                                } else {
+                                    "Monitor mode — tap to switch to Operator"
+                                },
+                                tint = if (isOperator) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                         IconButton(onClick = onExportChat, enabled = !state.isBusy) {
                             Icon(Icons.Default.Share, contentDescription = "Export chat")
                         }
