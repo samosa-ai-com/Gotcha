@@ -20,12 +20,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.Adjust
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.ChatUiState
@@ -69,8 +71,11 @@ fun ChatScreen(
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
     onAnswer: (String?) -> Unit,
-    onBack: () -> Unit,
+    onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
+    sessionTitle: String? = null,
+    assistiveBallEnabled: Boolean = false,
+    onToggleAssistiveBall: (Boolean) -> Unit = {},
     onPickImage: (Uri) -> String?,
     onSwitchAgent: () -> Unit,
     onSpeak: (String) -> Unit = {},
@@ -78,6 +83,7 @@ fun ChatScreen(
     onStopRecording: () -> Unit = {},
     onExportChat: () -> Unit = {}
 ) {
+    val isHome = state.messages.isEmpty()
     var input by rememberSaveable { mutableStateOf("") }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
@@ -106,39 +112,79 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Gotcha") },
+                title = {
+                    Text(
+                        if (isHome) "Gotcha" else (sessionTitle ?: "Gotcha"),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack, enabled = !state.isBusy) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open menu")
                     }
                 },
                 actions = {
-                    FilterChip(
-                        selected = state.activeAgent == AgentMode.OPERATOR,
-                        onClick = onSwitchAgent,
-                        label = { Text(state.activeAgent.name) },
-                        enabled = !state.isBusy
-                    )
-                    IconButton(onClick = onExportChat, enabled = !state.isBusy) {
-                        Icon(Icons.Default.Share, contentDescription = "Export chat")
+                    if (isHome) {
+                        IconButton(onClick = { onToggleAssistiveBall(!assistiveBallEnabled) }) {
+                            Icon(
+                                Icons.Outlined.Adjust,
+                                contentDescription = if (assistiveBallEnabled) {
+                                    "Turn off assistive ball"
+                                } else {
+                                    "Turn on assistive ball"
+                                },
+                                tint = if (assistiveBallEnabled) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    } else {
+                        FilterChip(
+                            selected = state.activeAgent == AgentMode.OPERATOR,
+                            onClick = onSwitchAgent,
+                            label = { Text(state.activeAgent.name) },
+                            enabled = !state.isBusy
+                        )
+                        IconButton(onClick = onExportChat, enabled = !state.isBusy) {
+                            Icon(Icons.Default.Share, contentDescription = "Export chat")
+                        }
                     }
-                    TextButton(onClick = onOpenSettings) { Text("Settings") }
                 }
             )
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            LinearProgressIndicator(
-                progress = { state.contextUsagePercent },
-                modifier = Modifier.fillMaxWidth(),
-                color = if (state.contextUsagePercent > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            )
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth()
-            ) {
-                items(state.messages, key = { it.id }) { message ->
-                    MessageBubble(message = message, onSpeak = onSpeak)
+            if (!isHome) {
+                LinearProgressIndicator(
+                    progress = { state.contextUsagePercent },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (state.contextUsagePercent > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
+            }
+            if (isHome) {
+                val greeting = rememberSaveable(state.activeSessionId) { HOME_GREETINGS.random() }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        greeting,
+                        style = MaterialTheme.typography.headlineMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                ) {
+                    items(state.messages, key = { it.id }) { message ->
+                        MessageBubble(message = message, onSpeak = onSpeak)
+                    }
                 }
             }
 

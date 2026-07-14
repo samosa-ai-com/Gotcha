@@ -133,20 +133,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         ScreenPerception.appContext = application
         refreshSettings()
         viewModelScope.launch {
-            val sessions = historyRepository.listSessions()
-            if (sessions.isNotEmpty()) {
-                val latest = sessions.first()
-                agentEngine.sessionId = latest.id
-                agentEngine.tokenCount = latest.tokenCount
-                agentEngine.history.addAll(latest.messages)
-            } else {
-                agentEngine.sessionId = java.util.UUID.randomUUID().toString()
-                agentEngine.tokenCount = 0
-            }
+            // Always start on a fresh session so the home screen greets with an
+            // empty chat; past sessions remain one tap away in the drawer.
+            agentEngine.sessionId = java.util.UUID.randomUUID().toString()
+            agentEngine.tokenCount = 0
             agentEngine.setupWorkingDir()
             _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
             updateContextUsage()
-            rebuildUiMessages()
             refreshSessions()
         }
     }

@@ -14,14 +14,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
@@ -36,8 +40,8 @@ import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
+import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
-import com.gotcha.ui.SessionsScreen
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +50,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { SESSIONS, CHAT, SETTINGS }
+enum class Route { HOME, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -261,12 +265,22 @@ class MainActivity : ComponentActivity() {
         val sessions by chatViewModel.sessions.collectAsState()
 
         var currentRoute by remember {
-            mutableStateOf(if (settingsRepository.load().isConfigured) Route.SESSIONS else Route.SETTINGS)
+            mutableStateOf(if (settingsRepository.load().isConfigured) Route.HOME else Route.SETTINGS)
         }
-        var previousRoute by remember { mutableStateOf(Route.SESSIONS) }
         var assistiveBallOn by remember { mutableStateOf(settingsRepository.load().assistiveBallEnabled) }
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
+
+        // Keep the drawer's session list fresh: on open, and after a run finishes
+        // (picks up the auto-generated title once the first exchange is saved).
+        LaunchedEffect(drawerState.isOpen) {
+            if (drawerState.isOpen) chatViewModel.refreshSessions()
+        }
+        LaunchedEffect(state.isBusy) {
+            if (!state.isBusy) chatViewModel.refreshSessions()
+        }
 
         // Track the service's real state so the toggle updates when the ball is
         // hidden from its own overlay menu (which stops the service directly).
@@ -279,116 +293,126 @@ class MainActivity : ComponentActivity() {
         // Honor the assistive ball's "Open Chat" option.
         LaunchedEffect(openChatRequested) {
             if (openChatRequested) {
-                currentRoute = Route.CHAT
+                currentRoute = Route.HOME
                 openChatRequested = false
             }
         }
 
-        when (currentRoute) {
-            Route.SETTINGS -> {
-                BackHandler { currentRoute = previousRoute }
-                SettingsScreen(
-                    initial = settingsRepository.load(),
-                    onSave = { settings ->
-                        settingsRepository.save(settings)
-                        chatViewModel.refreshSettings()
-                        currentRoute = Route.SESSIONS
-                    },
-                    onTestConnection = ::testConnection,
-                    onClearLlmCache = {
-                        LLMClient(
-                            apiKey = "unused",
-                            baseUrl = "http://localhost/",
-                            context = this@MainActivity
-                        ).clearCache()
-                    },
-                    onClearDebugScreenshots = {
-                        val baseDir = java.io.File("/storage/emulated/0/Gotcha")
-                        if (baseDir.exists()) {
-                            baseDir.walkTopDown()
-                                .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
-                                .forEach { it.delete() }
-                        }
-                    },
-                    onBack = { currentRoute = previousRoute },
-                    onRefreshAudioModels = { s ->
-                        withContext(Dispatchers.IO) {
-                            val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
-                            val ttsAll = ttsApi.listAudioModels()
-                            val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
-                            val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
-                                val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
-                                sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
-                            } else {
-                                ttsAll.filter { it.category == ModelCategory.STT }
-                            }
-                            Pair(ttsModels, sttModels)
-                        }
-                    },
-                    onRefreshChatModels = { s ->
-                        withContext(Dispatchers.IO) {
-                            val client = LLMClient(
-                                apiKey = s.apiKey,
-                                baseUrl = s.baseUrl,
-                                model = s.model,
-                                context = this@MainActivity,
-                                apiTimeoutSeconds = s.apiTimeoutSeconds
-                            )
-                            client.listModels()
-                        }
-                    },
-                    packageName = packageName
-                )
-            }
-            Route.SESSIONS -> {
-                SessionsScreen(
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = currentRoute == Route.HOME || drawerState.isOpen,
+            drawerContent = {
+                AppDrawerContent(
                     sessions = sessions,
+                    activeSessionId = state.activeSessionId,
+                    onNewChat = {
+                        scope.launch { drawerState.close() }
+                        chatViewModel.openSession(null)
+                        currentRoute = Route.HOME
+                    },
                     onSessionClick = { id ->
+                        scope.launch { drawerState.close() }
                         chatViewModel.openSession(id)
-                        currentRoute = Route.CHAT
+                        currentRoute = Route.HOME
                     },
                     onDeleteSession = chatViewModel::deleteSession,
-                    onNewChat = {
-                        chatViewModel.openSession(null)
-                        currentRoute = Route.CHAT
-                    },
                     onOpenSettings = {
-                        previousRoute = Route.SESSIONS
+                        scope.launch { drawerState.close() }
                         currentRoute = Route.SETTINGS
-                    },
-                    assistiveBallEnabled = assistiveBallOn,
-                    onToggleAssistiveBall = { enabled ->
-                        assistiveBallOn = setAssistiveBall(enabled)
                     }
                 )
             }
-            Route.CHAT -> {
-                BackHandler {
-                    chatViewModel.refreshSessions()
-                    currentRoute = Route.SESSIONS
+        ) {
+            when (currentRoute) {
+                Route.SETTINGS -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    SettingsScreen(
+                        initial = settingsRepository.load(),
+                        onSave = { settings ->
+                            settingsRepository.save(settings)
+                            chatViewModel.refreshSettings()
+                            currentRoute = Route.HOME
+                        },
+                        onTestConnection = ::testConnection,
+                        onClearLlmCache = {
+                            LLMClient(
+                                apiKey = "unused",
+                                baseUrl = "http://localhost/",
+                                context = this@MainActivity
+                            ).clearCache()
+                        },
+                        onClearDebugScreenshots = {
+                            val baseDir = java.io.File("/storage/emulated/0/Gotcha")
+                            if (baseDir.exists()) {
+                                baseDir.walkTopDown()
+                                    .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
+                                    .forEach { it.delete() }
+                            }
+                        },
+                        onBack = { currentRoute = Route.HOME },
+                        onRefreshAudioModels = { s ->
+                            withContext(Dispatchers.IO) {
+                                val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
+                                val ttsAll = ttsApi.listAudioModels()
+                                val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
+                                val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
+                                    val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
+                                    sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
+                                } else {
+                                    ttsAll.filter { it.category == ModelCategory.STT }
+                                }
+                                Pair(ttsModels, sttModels)
+                            }
+                        },
+                        onRefreshChatModels = { s ->
+                            withContext(Dispatchers.IO) {
+                                val client = LLMClient(
+                                    apiKey = s.apiKey,
+                                    baseUrl = s.baseUrl,
+                                    model = s.model,
+                                    context = this@MainActivity,
+                                    apiTimeoutSeconds = s.apiTimeoutSeconds
+                                )
+                                client.listModels()
+                            }
+                        },
+                        packageName = packageName
+                    )
                 }
-                ChatScreen(
-                    state = state,
-                    onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
-                    onStop = chatViewModel::stopAgent,
-                    onConfirm = chatViewModel::confirmPendingActions,
-                    onAnswer = chatViewModel::submitAnswer,
-                    onBack = {
-                        chatViewModel.refreshSessions()
-                        currentRoute = Route.SESSIONS
-                    },
-                    onOpenSettings = {
-                        previousRoute = Route.CHAT
-                        currentRoute = Route.SETTINGS
-                    },
-                    onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
-                    onSwitchAgent = chatViewModel::switchAgent,
-                    onSpeak = chatViewModel::speak,
-                    onStartListening = chatViewModel::startListening,
-                    onStopRecording = chatViewModel::stopRecording,
-                    onExportChat = chatViewModel::exportChat
-                )
+                Route.HOME -> {
+                    // Back from an active chat returns to a fresh home (new session,
+                    // new greeting); on an empty home the default back exits the app.
+                    BackHandler(enabled = state.messages.isNotEmpty() && !state.isBusy) {
+                        chatViewModel.openSession(null)
+                    }
+                    ChatScreen(
+                        state = state,
+                        onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
+                        onStop = chatViewModel::stopAgent,
+                        onConfirm = chatViewModel::confirmPendingActions,
+                        onAnswer = chatViewModel::submitAnswer,
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        onOpenSettings = { currentRoute = Route.SETTINGS },
+                        sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
+                        assistiveBallEnabled = assistiveBallOn,
+                        onToggleAssistiveBall = { enabled ->
+                            assistiveBallOn = setAssistiveBall(enabled)
+                        },
+                        onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
+                        onSwitchAgent = chatViewModel::switchAgent,
+                        onSpeak = chatViewModel::speak,
+                        onStartListening = chatViewModel::startListening,
+                        onStopRecording = chatViewModel::stopRecording,
+                        onExportChat = chatViewModel::exportChat
+                    )
+                }
             }
+        }
+
+        // Composed last so this innermost enabled handler wins back dispatch:
+        // back closes an open drawer before any other navigation.
+        BackHandler(enabled = drawerState.isOpen) {
+            scope.launch { drawerState.close() }
         }
     }
 
