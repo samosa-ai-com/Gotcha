@@ -299,7 +299,7 @@ fun ChatScreen(
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
-                    placeholder = { Text("Ask me to do something…") },
+                    placeholder = { Text("Let's Go") },
                     enabled = !state.isBusy && state.isConfigured,
                     maxLines = 6,
                     singleLine = false
