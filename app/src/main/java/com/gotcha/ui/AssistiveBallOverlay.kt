@@ -528,7 +528,8 @@ class AssistiveBallOverlay(context: Context) {
             dp(BALL_SIZE_DP),
             dp(BALL_SIZE_DP),
             overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START

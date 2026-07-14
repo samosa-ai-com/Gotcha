@@ -27,7 +27,8 @@ import kotlin.math.abs
  * Two floating draggable glass buttons drawn over other apps during a voice
  * call. The left button changes emoji and behavior based on call state.
  * The right end-call button requires a 3-second hold (shown via an expanding
- * ring) to fire — taps alone are ignored.
+ * ring drawn as a separate [WindowManager] overlay) to fire — taps alone
+ * are ignored.
  */
 class CallChatWindow(context: Context) {
 
@@ -47,9 +48,10 @@ class CallChatWindow(context: Context) {
     private var actionBtn: View? = null
     private var endBtn: View? = null
     private var endWrapper: View? = null
-    private var ringView: View? = null
-    private var ringDrawable: RingDrawable? = null
-    private var ringAnimator: ValueAnimator? = null
+
+    // Ring as a separate overlay window (not inside the layout)
+    private var ringOverlayView: View? = null
+    private var ringOverlayAnimator: ValueAnimator? = null
 
     private var currentState: CallState = CallState.IDLE
 
@@ -64,7 +66,7 @@ class CallChatWindow(context: Context) {
     private var longPressFired = false
     private val endLongPressRunnable = Runnable {
         longPressFired = true
-        cancelEndRing()
+        removeRingOverlay()
         onEndCall()
     }
 
@@ -88,7 +90,7 @@ class CallChatWindow(context: Context) {
     fun hide() {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
-            cancelEndRing()
+            removeRingOverlay()
             rootView?.let {
                 try { windowManager.removeView(it) } catch (_: Exception) { }
             }
@@ -97,8 +99,6 @@ class CallChatWindow(context: Context) {
             actionBtn = null
             endBtn = null
             endWrapper = null
-            ringView = null
-            ringDrawable = null
         }
     }
 
@@ -107,6 +107,7 @@ class CallChatWindow(context: Context) {
     fun setVisibleForCapture(visible: Boolean) {
         mainHandler.post {
             rootView?.visibility = if (visible) View.VISIBLE else View.GONE
+            if (!visible) removeRingOverlay()
         }
     }
 
@@ -149,44 +150,24 @@ class CallChatWindow(context: Context) {
         endWrapper?.alpha = if (s != CallState.IDLE && s != CallState.ENDING) 0.9f else 0.25f
     }
 
-    // ---- Container with drag + end-button long-press handling ----
+    // ---- Container ----
 
     private fun buildContainer(): View {
         val density = appContext.resources.displayMetrics.density
         val btnSize = (BTN_SIZE_DP * density).toInt()
-        val ringViewSize = (BTN_SIZE_DP * 3.5f * density).toInt()
 
         actionBtn = glassButton("\uD83C\uDFA4", btnSize, isEnd = false)
         endBtn = glassButton("\uD83D\uDCDE", btnSize, isEnd = true)
 
-        // Custom ring drawable — its radius is animated, not the view's scale
-        val drawable = RingDrawable()
-        ringDrawable = drawable
-        val ring = View(appContext).apply {
-            background = drawable
-            layoutParams = FrameLayout.LayoutParams(ringViewSize, ringViewSize, Gravity.CENTER)
-        }
-        ringView = ring
-
-        // Wrapper is exactly the end-button size so it lines up with the mic
-        // button in the row. The ring view (3.5x) is centered inside and
-        // allowed to draw beyond via clipChildren=false + software layer
-        // (hardware acceleration can ignore clipChildren=false on some
-        // devices, so we force software rendering to guarantee the ring
-        // draws beyond the wrapper's bounds).
+        // Simple FrameLayout wrapper — just the end button size (44dp).
+        // No ring inside the layout; the ring appears as a separate overlay.
         val wrapper = FrameLayout(appContext).apply {
             layoutParams = LinearLayout.LayoutParams(btnSize, btnSize)
-            clipChildren = false
-            clipToPadding = false
-            setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         }
-        // End button fills the wrapper so its center matches the ring's center
         endBtn!!.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
-        // Ring first (drawn underneath), then the button
-        wrapper.addView(ring)
         wrapper.addView(endBtn!!)
         endWrapper = wrapper
 
@@ -194,8 +175,6 @@ class CallChatWindow(context: Context) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
-            clipChildren = false
-            clipToPadding = false
             setOnTouchListener(containerTouchListener())
         }
         actionBtn?.let { row.addView(it) }
@@ -243,49 +222,88 @@ class CallChatWindow(context: Context) {
         }
     }
 
+    // ---- Ring as a separate overlay ----
+
     private fun startEndRingAnimation() {
-        val drawable = ringDrawable ?: return
+        removeRingOverlay()
         val density = appContext.resources.displayMetrics.density
-        val btnPx = dp(BTN_SIZE_DP.toFloat())
-        val minRadius = btnPx * 0.50f
-        val maxRadius = btnPx * 1.60f
-        val strokePx = 2.5f * density
-        val fillBase = Color.parseColor("#FF6B6B")
-        val strokeBase = Color.parseColor("#FF6B6B")
+        val ringSize = dp(BTN_SIZE_DP * 3.5f)
+        val drawable = RingDrawable()
+        val view = View(appContext).apply { background = drawable }
 
-        ringAnimator?.cancel()
-        ringAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = END_LONG_PRESS_MS
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener { anim ->
-                val p = anim.animatedValue as Float
-                drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
-                drawable.strokeWidth = strokePx
-                // Stroke fades from full to ~40% as it expands
-                drawable.strokeColor = ColorUtils.setAlphaComponent(
-                    strokeBase,
-                    ((1f - p * 0.6f) * 255).toInt()
-                )
-                // Fill tints the area between the button and the growing ring
-                drawable.fillColor = ColorUtils.setAlphaComponent(
-                    fillBase,
-                    ((0.22f * (1f - p)) * 255).toInt()
-                )
+        // Compute the end button's center from the root overlay position.
+        // Avoid getLocationOnScreen() which can be unreliable under
+        // FLAG_LAYOUT_NO_LIMITS and with nested overlay windows.
+        val paddingPx = (8 * density).toInt()
+        val marginPx = (6 * density).toInt()
+        val btnPx = (BTN_SIZE_DP * density).toInt()
+        val cx = (rootParams?.x ?: 0) + paddingPx + btnPx + marginPx + btnPx / 2
+        val cy = (rootParams?.y ?: 0) + btnPx / 2
+
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
+            ringSize,
+            ringSize,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = cx - ringSize / 2
+            y = cy - ringSize / 2
+        }
+        try {
+            windowManager.addView(view, params)
+            ringOverlayView = view
+
+            val btnPx = dp(BTN_SIZE_DP.toFloat())
+            val minRadius = btnPx * 0.50f
+            val maxRadius = btnPx * 1.60f
+            val strokePx = 2.5f * density
+            val fillBase = Color.parseColor("#FF6B6B")
+            val strokeBase = Color.parseColor("#FF6B6B")
+
+            ringOverlayAnimator?.cancel()
+            ringOverlayAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = END_LONG_PRESS_MS
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val p = anim.animatedValue as Float
+                    drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
+                    drawable.strokeWidth = strokePx
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(
+                        strokeBase,
+                        ((1f - p * 0.6f) * 255).toInt()
+                    )
+                    drawable.fillColor = ColorUtils.setAlphaComponent(
+                        fillBase,
+                        ((0.22f * (1f - p)) * 255).toInt()
+                    )
+                }
+                start()
             }
-            start()
+        } catch (_: Exception) {
+            ringOverlayView = null
         }
     }
 
-    private fun cancelEndRing() {
-        ringAnimator?.cancel()
-        ringAnimator = null
-        // Reset drawable so a fresh hold starts from a clean state
-        ringDrawable?.let {
-            it.ringRadius = 0f
-            it.fillColor = Color.TRANSPARENT
-            it.strokeColor = Color.TRANSPARENT
+    private fun removeRingOverlay() {
+        ringOverlayAnimator?.cancel()
+        ringOverlayAnimator = null
+        ringOverlayView?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) { }
+            ringOverlayView = null
         }
     }
+
+    // ---- Touch handling ----
 
     private fun isTouchOnEndWrapper(x: Float, y: Float): Boolean {
         val w = endWrapper ?: return false
@@ -331,7 +349,7 @@ class CallChatWindow(context: Context) {
                 if (!dragging && !longPressFired && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                     dragging = true
                     mainHandler.removeCallbacks(endLongPressRunnable)
-                    cancelEndRing()
+                    removeRingOverlay()
                 }
                 if (dragging) {
                     rootParams?.let { p ->
@@ -346,7 +364,7 @@ class CallChatWindow(context: Context) {
             }
             MotionEvent.ACTION_UP -> {
                 mainHandler.removeCallbacks(endLongPressRunnable)
-                cancelEndRing()
+                removeRingOverlay()
                 if (!dragging && !longPressFired) {
                     handleActionUp(event.x, event.y)
                 }
@@ -355,7 +373,7 @@ class CallChatWindow(context: Context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 mainHandler.removeCallbacks(endLongPressRunnable)
-                cancelEndRing()
+                removeRingOverlay()
                 true
             }
             else -> false
@@ -376,7 +394,8 @@ class CallChatWindow(context: Context) {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
