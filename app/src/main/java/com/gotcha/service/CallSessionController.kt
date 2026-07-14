@@ -63,6 +63,7 @@ class CallSessionController(
 
     private var engine: AgentEngine? = null
     private var loopJob: Job? = null
+    private var currentTurnJob: Job? = null
     private var nextTranscriptId = 0L
 
     /** Gate for [awaitQuestionAnswer]: completed when the user taps mic stop. */
@@ -126,20 +127,22 @@ class CallSessionController(
         return true
     }
 
-    /** Pause: stop speech and listening, park state until [resume]. */
-    fun pause() {
-        if (_state.value == CallState.IDLE || _state.value == CallState.ENDING) return
-        _state.value = CallState.PAUSED
+    /**
+     * Stop/interrupt the current turn. Cancels the agent, stops TTS/STT,
+     * completes any pending question, and returns to [READY].
+     * Mirrors the chat-mode Stop button (ChatViewModel.stopAgent()).
+     */
+    fun stopAgent() {
+        if (!isActive() || _state.value == CallState.ENDING) return
+        currentTurnJob?.cancel()
+        currentTurnJob = null
         ttsEngine.stop()
         val s = settingsRepository.load()
         sttEngine.cancelListening(s.sttProvider)
-    }
-
-    /** Resume a paused call — goes to [READY] (mic off). */
-    fun resume() {
-        if (_state.value == CallState.PAUSED) {
-            _state.value = CallState.READY
-        }
+        questionGate?.complete("")
+        questionGate = null
+        pendingReply = null
+        _state.value = CallState.READY
     }
 
     /** End the call and delete its chat session + working directory. */
@@ -148,6 +151,8 @@ class CallSessionController(
         _state.value = CallState.ENDING
         loopJob?.cancel()
         loopJob = null
+        currentTurnJob?.cancel()
+        currentTurnJob = null
         ttsEngine.stop()
         val s = settingsRepository.load()
         sttEngine.cancelListening(s.sttProvider)
@@ -190,7 +195,8 @@ class CallSessionController(
     /** Stop the mic and send the recording for transcription + agent processing. */
     fun stopMic() {
         if (_state.value != CallState.LISTENING) return
-        scope.launch {
+        currentTurnJob?.cancel()
+        currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
             val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel)

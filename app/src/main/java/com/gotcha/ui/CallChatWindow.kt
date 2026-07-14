@@ -2,68 +2,73 @@ package com.gotcha.ui
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import com.gotcha.agent.MessageKind
 import com.gotcha.service.CallState
-import com.gotcha.service.CallTranscriptItem
+import kotlin.math.abs
 
 /**
- * Messenger-style expanded chat window for an active voice call, drawn as a
- * bottom-anchored overlay (same SYSTEM_ALERT_WINDOW pattern as
- * [AssistiveBallOverlay]). Shows the live transcript plus a header with the
- * call status and Start / Pause / End controls. Voice-only: there is no text
- * input row, so the window never needs focus (FLAG_NOT_FOCUSABLE throughout).
+ * Two floating draggable glass buttons drawn over other apps during a voice
+ * call. The left button changes emoji and behavior based on call state:
+ *
+ *   READY / WAITING_USER  → 🎤  (onStartMic)
+ *   LISTENING             → ⏹  (onStopMic)
+ *   THINKING / SPEAKING   → 🛑  (onInterrupt)
+ *   IDLE / STARTING / ENDING → hidden
+ *
+ * The right button is always the red end-call button (📞).
+ * The whole group is draggable so the user can move it out of the way.
  */
-@Suppress("TooManyFunctions")
 class CallChatWindow(context: Context) {
 
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val windowManager: WindowManager
         get() = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    // Callbacks — set by the host service before [show].
-    var onStart: () -> Unit = {}
-    var onPause: () -> Unit = {}
-    var onEnd: () -> Unit = {}
-    var onMicClick: () -> Unit = {}
+    var onStartMic: () -> Unit = {}
+    var onStopMic: () -> Unit = {}
+    var onInterrupt: () -> Unit = {}
+    var onEndCall: () -> Unit = {}
 
     private var rootView: View? = null
-    private var statusText: TextView? = null
-    private var micButton: Button? = null
-    private var startButton: Button? = null
-    private var pauseButton: Button? = null
-    private var endButton: Button? = null
-    private var listContainer: LinearLayout? = null
-    private var scrollView: ScrollView? = null
+    private var rootParams: WindowManager.LayoutParams? = null
+    private var actionBtn: View? = null
+    private var endBtn: View? = null
 
-    // Last known state so a freshly (re)built window renders current data.
-    private var lastState: CallState = CallState.IDLE
-    private var lastStatusLine: String? = null
-    private var lastItems: List<CallTranscriptItem> = emptyList()
+    private var currentState: CallState = CallState.IDLE
+    private var dragging = false
+    private var startX = 0
+    private var startY = 0
+    private var touchDownRawX = 0f
+    private var touchDownRawY = 0f
 
     fun show() {
         mainHandler.post {
             if (rootView != null) return@post
-            val root = buildWindow()
+            val root = buildContainer()
+            val params = layoutParams()
             try {
-                windowManager.addView(root, layoutParams())
+                windowManager.addView(root, params)
                 rootView = root
-                renderStatus()
-                renderTranscript()
+                rootParams = params
+                renderButtons()
             } catch (_: Exception) {
                 rootView = null
+                rootParams = null
             }
         }
     }
@@ -71,197 +76,178 @@ class CallChatWindow(context: Context) {
     fun hide() {
         mainHandler.post {
             rootView?.let {
-                try {
-                    windowManager.removeView(it)
-                } catch (_: Exception) { }
+                try { windowManager.removeView(it) } catch (_: Exception) { }
             }
             rootView = null
-            statusText = null
-            micButton = null
-            startButton = null
-            pauseButton = null
-            endButton = null
-            listContainer = null
-            scrollView = null
+            rootParams = null
+            actionBtn = null
+            endBtn = null
         }
     }
 
     fun isShowing(): Boolean = rootView != null
 
-    /** Temporarily hide the window so it is not baked into a screen capture. */
     fun setVisibleForCapture(visible: Boolean) {
         mainHandler.post {
             rootView?.visibility = if (visible) View.VISIBLE else View.GONE
         }
     }
 
-    fun setStatus(state: CallState, statusLine: String?) {
+    /** Update button emoji, visibility, and action from the current call state. */
+    fun setState(state: CallState) {
         mainHandler.post {
-            lastState = state
-            lastStatusLine = statusLine
-            renderStatus()
-        }
-    }
-
-    fun setTranscript(items: List<CallTranscriptItem>) {
-        mainHandler.post {
-            lastItems = items
-            renderTranscript()
+            currentState = state
+            renderButtons()
         }
     }
 
     // ---- Rendering ----
 
-    private fun renderStatus() {
-        val state = lastState
-        statusText?.text = when (state) {
-            CallState.IDLE -> "No active call"
-            CallState.STARTING -> "Starting…"
-            CallState.READY -> "🎤 Tap mic to speak"
-            CallState.LISTENING -> "🔴 Recording…"
-            CallState.THINKING -> lastStatusLine ?: "Thinking…"
-            CallState.SPEAKING -> "🔊 Speaking…"
-            CallState.WAITING_USER -> "🎤 Tap mic to answer"
-            CallState.PAUSED -> "⏸ Paused"
-            CallState.ENDING -> "Ending…"
+    @Suppress("SetTextI18n")
+    private fun renderButtons() {
+        val s = currentState
+        when (s) {
+            CallState.READY, CallState.WAITING_USER -> {
+                actionBtn?.visibility = View.VISIBLE
+                (actionBtn as? TextView)?.text = "\uD83C\uDFA4"
+                actionBtn?.alpha = 1f
+                actionBtn?.setOnClickListener { onStartMic() }
+            }
+            CallState.LISTENING -> {
+                actionBtn?.visibility = View.VISIBLE
+                (actionBtn as? TextView)?.text = "\u23F9"
+                actionBtn?.alpha = 1f
+                actionBtn?.setOnClickListener { onStopMic() }
+            }
+            CallState.THINKING, CallState.SPEAKING -> {
+                actionBtn?.visibility = View.VISIBLE
+                (actionBtn as? TextView)?.text = "\uD83D\uDED1"
+                actionBtn?.alpha = 1f
+                actionBtn?.setOnClickListener { onInterrupt() }
+            }
+            else -> {
+                actionBtn?.visibility = View.GONE
+            }
         }
-        micButton?.text = when (state) {
-            CallState.LISTENING -> "⏹"
-            else -> "🎤"
-        }
-        micButton?.isEnabled = state == CallState.READY ||
-            state == CallState.WAITING_USER ||
-            state == CallState.LISTENING
-        startButton?.isEnabled = state == CallState.PAUSED || state == CallState.IDLE
-        pauseButton?.isEnabled = state != CallState.IDLE && state != CallState.PAUSED && state != CallState.ENDING
-        endButton?.isEnabled = state != CallState.IDLE && state != CallState.ENDING
+        endBtn?.alpha = if (s != CallState.IDLE && s != CallState.ENDING) 0.9f else 0.25f
+        endBtn?.setOnClickListener { onEndCall() }
     }
 
-    private fun renderTranscript() {
-        val container = listContainer ?: return
-        container.removeAllViews()
-        for (item in lastItems) {
-            container.addView(bubbleFor(item))
-        }
-        scrollView?.post { scrollView?.fullScroll(View.FOCUS_DOWN) }
-    }
+    // ---- Container with drag handling ----
 
-    private fun bubbleFor(item: CallTranscriptItem): View {
+    private fun buildContainer(): View {
+        val density = appContext.resources.displayMetrics.density
+        val btnSize = (BTN_SIZE_DP * density).toInt()
+
+        actionBtn = glassButton("\uD83C\uDFA4", btnSize, isEnd = false)
+        endBtn = glassButton("\uD83D\uDCDE", btnSize, isEnd = true)
+
         val row = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { setMargins(0, dp(3), 0, dp(3)) }
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
+            setOnTouchListener(containerTouchListener())
         }
-        val bubble = TextView(appContext).apply {
-            text = if (item.kind == MessageKind.SUBAGENT) "◆ ${item.text}" else item.text
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            maxWidth = (appContext.resources.displayMetrics.widthPixels * MAX_BUBBLE_WIDTH_FRACTION).toInt()
-        }
-        when (item.kind) {
-            MessageKind.USER -> {
-                row.gravity = Gravity.END
-                bubble.setTextColor(Color.WHITE)
-                bubble.textSize = 14f
-                bubble.background = bubbleBackground("#6750A4")
-            }
-            MessageKind.ASSISTANT, MessageKind.SUBAGENT -> {
-                row.gravity = Gravity.START
-                bubble.setTextColor(Color.parseColor("#EEEEEE"))
-                bubble.textSize = 14f
-                bubble.background = bubbleBackground("#2A2A2A")
-            }
-            MessageKind.TOOL -> {
-                row.gravity = Gravity.START
-                bubble.setTextColor(Color.parseColor("#9A9A9A"))
-                bubble.textSize = 11f
-                bubble.background = null
-            }
-            MessageKind.ERROR -> {
-                row.gravity = Gravity.START
-                bubble.setTextColor(Color.parseColor("#CF6679"))
-                bubble.textSize = 12f
-                bubble.background = null
-            }
-        }
-        row.addView(bubble)
+        actionBtn?.let { row.addView(it) }
+        (actionBtn?.layoutParams as? LinearLayout.LayoutParams)?.setMargins(0, 0, (6 * density).toInt(), 0)
+        endBtn?.let { row.addView(it) }
+
         return row
     }
 
-    private fun bubbleBackground(color: String) = GradientDrawable().apply {
-        cornerRadius = dp(16).toFloat()
-        setColor(Color.parseColor(color))
-    }
-
-    // ---- Window construction ----
-
-    private fun buildWindow(): View {
-        val root = LinearLayout(appContext).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = GradientDrawable().apply {
-                cornerRadii = floatArrayOf(
-                    dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(), dp(20).toFloat(),
-                    0f, 0f, 0f, 0f
+    private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
+        val bg = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            if (isEnd) {
+                colors = intArrayOf(
+                    Color.parseColor("#66FF6B6B"),
+                    Color.parseColor("#33CC3333")
                 )
-                setColor(Color.parseColor("#1E1E1E"))
-                setStroke(dp(1), Color.parseColor("#3A3A3A"))
+                setStroke(dp(1.5f), Color.parseColor("#AAFF6B6B"))
+            } else {
+                colors = intArrayOf(
+                    Color.parseColor("#44FFFFFF"),
+                    Color.parseColor("#22C0C0C0")
+                )
+                setStroke(dp(1.5f), Color.parseColor("#66FFFFFF"))
             }
+            gradientType = GradientDrawable.LINEAR_GRADIENT
+            orientation = GradientDrawable.Orientation.TL_BR
         }
 
-        val header = LinearLayout(appContext).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+        return TextView(appContext).apply {
+            text = emoji
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setShadowLayer(4f, 0f, 2f, Color.parseColor("#80000000"))
+            this.background = bg
+            setElevation(dp(3f).toFloat())
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            clipToOutline = true
+            layoutParams = LinearLayout.LayoutParams(size, size)
         }
-        val status = TextView(appContext).apply {
-            setTextColor(Color.parseColor("#EADDFF"))
-            textSize = 13f
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val mic = headerButton("🎤") { onMicClick() }
-        val start = headerButton("▶") { onStart() }
-        val pauseBtn = headerButton("⏸") { onPause() }
-        val end = headerButton("⏹") { onEnd() }
-        header.addView(status)
-        header.addView(mic)
-        header.addView(start)
-        header.addView(pauseBtn)
-        header.addView(end)
-
-        val scroll = ScrollView(appContext).apply {
-            isVerticalScrollBarEnabled = true
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            ).apply { setMargins(0, dp(8), 0, 0) }
-        }
-        val list = LinearLayout(appContext).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-        scroll.addView(list)
-
-        root.addView(header)
-        root.addView(scroll)
-
-        statusText = status
-        micButton = mic
-        startButton = start
-        pauseButton = pauseBtn
-        endButton = end
-        listContainer = list
-        scrollView = scroll
-        return root
     }
 
-    private fun headerButton(label: String, onClick: () -> Unit) = Button(appContext).apply {
-        text = label
-        isAllCaps = false
-        minWidth = dp(48)
-        minimumWidth = dp(48)
-        setOnClickListener { onClick() }
+    private fun containerTouchListener() = View.OnTouchListener { _, event ->
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                val p = rootParams ?: return@OnTouchListener false
+                startX = p.x
+                startY = p.y
+                touchDownRawX = event.rawX
+                touchDownRawY = event.rawY
+                dragging = false
+                true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = (event.rawX - touchDownRawX).toInt()
+                val dy = (event.rawY - touchDownRawY).toInt()
+                if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                    dragging = true
+                }
+                if (dragging) {
+                    rootParams?.let { p ->
+                        p.x = startX + dx
+                        p.y = startY + dy
+                        try {
+                            windowManager.updateViewLayout(rootView, p)
+                        } catch (_: Exception) { }
+                    }
+                }
+                true
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!dragging) {
+                    val x = event.x
+                    val y = event.y
+                    val root = rootView as? LinearLayout ?: return@OnTouchListener true
+                    val count = root.childCount
+                    for (i in 0 until count) {
+                        val child = root.getChildAt(i)
+                        if (x >= child.left && x <= child.right &&
+                            y >= child.top && y <= child.bottom
+                        ) {
+                            when (child) {
+                                actionBtn -> actionBtn?.callOnClick()
+                                endBtn -> onEndCall()
+                            }
+                            break
+                        }
+                    }
+                }
+                true
+            }
+            MotionEvent.ACTION_CANCEL -> true
+            else -> false
+        }
     }
+
+    // ---- Layout ----
 
     private fun layoutParams(): WindowManager.LayoutParams {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -272,21 +258,22 @@ class CallChatWindow(context: Context) {
         }
         val metrics = appContext.resources.displayMetrics
         return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            (metrics.heightPixels * WINDOW_HEIGHT_FRACTION).toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.BOTTOM
+            gravity = Gravity.TOP or Gravity.START
+            x = metrics.widthPixels - dp(BTN_SIZE_DP * 2f + 32f)
+            y = metrics.heightPixels - dp(120f)
         }
     }
 
-    private fun dp(value: Int): Int =
+    private fun dp(value: Float): Int =
         (value * appContext.resources.displayMetrics.density).toInt()
 
     private companion object {
-        const val WINDOW_HEIGHT_FRACTION = 0.65f
-        const val MAX_BUBBLE_WIDTH_FRACTION = 0.78f
+        const val BTN_SIZE_DP = 44
     }
 }

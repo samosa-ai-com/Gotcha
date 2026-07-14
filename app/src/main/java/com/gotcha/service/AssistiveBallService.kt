@@ -30,12 +30,11 @@ import java.io.File
 /**
  * Foreground service that hosts the floating assistive ball over other apps.
  *
- * The ball behaves like a Messenger bubble: long-press it (3s) to start a
- * hands-free voice call with the agent ([CallSessionController]), tap it for
- * Start/Pause/End controls (or, during a call, to expand the [CallChatWindow]
- * transcript), long-press 5s during a call to end it, and drag it onto the ✕
- * target to hide the ball. It owns its own STT/TTS engines because the chat
- * UI's ViewModel dies when another app is foregrounded.
+ * When idle, the ball is shown. Long-press the ball (3s) to start a voice call.
+ * During a call, the ball is hidden and replaced by three floating draggable
+ * glass buttons (Mic, Stop, End). The buttons let the user push-to-talk,
+ * interrupt the agent, or end the call. It owns its own STT/TTS engines
+ * because the chat UI's ViewModel dies when another app is foregrounded.
  *
  * Started/stopped from the in-app toggle via [ACTION_START] / [ACTION_STOP].
  */
@@ -63,26 +62,25 @@ class AssistiveBallService : Service() {
             sttEngine = sttEngine,
             ttsEngine = ttsEngine
         )
+
+        // Floating call buttons (shown during a call, hidden otherwise)
         chatWindow = CallChatWindow(this).apply {
-            onStart = { startOrResumeCall() }
-            onPause = { callController.pause() }
-            onEnd = { endCall() }
-            onMicClick = {
-                if (callController.state.value == CallState.LISTENING) {
-                    callController.stopMic()
-                } else {
-                    callController.startMic()
-                }
-            }
+            onStartMic = { callController.startMic() }
+            onStopMic = { callController.stopMic() }
+            onInterrupt = { callController.stopAgent() }
+            onEndCall = { callController.endCall() }
         }
+
+        // Assistive ball (shown when idle, hidden during a call)
         overlay = AssistiveBallOverlay(this).apply {
             onDismiss = { stopBall() }
-            onStartCall = { startOrResumeCall() }
-            onPauseCall = { callController.pause() }
-            onEndCall = { endCall() }
-            onToggleChatWindow = { if (chatWindow.isShowing()) chatWindow.hide() else chatWindow.show() }
+            onStartCall = { callController.startCall() }
+            onPauseCall = { callController.stopAgent() }
+            onEndCall = { callController.endCall() }
+            onToggleChatWindow = { } // no-op during calls (ball is hidden)
             isCallActive = { callController.isActive() }
         }
+
         callController.onError = { overlay.showError(it) }
         callController.onCaptureChrome = { hide ->
             if (hide) {
@@ -94,18 +92,20 @@ class AssistiveBallService : Service() {
             }
         }
 
+        // Track call state → show/hide ball + buttons
         scope.launch {
             callController.state.collect { state ->
-                overlay.setCallActive(state != CallState.IDLE)
-                chatWindow.setStatus(state, callController.statusLine.value)
-                if (state == CallState.IDLE) chatWindow.hide()
+                val active = state != CallState.IDLE && state != CallState.ENDING
+                if (active) {
+                    overlay.hideChromeForCapture()
+                    chatWindow.show()
+                } else if (state == CallState.IDLE) {
+                    chatWindow.hide()
+                    overlay.showChromeAfterCapture()
+                }
+                chatWindow.setState(state)
+                overlay.setCallActive(active)
             }
-        }
-        scope.launch {
-            callController.transcript.collect { chatWindow.setTranscript(it) }
-        }
-        scope.launch {
-            callController.statusLine.collect { chatWindow.setStatus(callController.state.value, it) }
         }
 
         sweepOrphanedCalls()
@@ -138,21 +138,6 @@ class AssistiveBallService : Service() {
         super.onDestroy()
     }
 
-    // ---- Call control ----
-
-    private fun startOrResumeCall() {
-        if (callController.state.value == CallState.PAUSED) {
-            callController.resume()
-        } else {
-            callController.startCall()
-        }
-    }
-
-    private fun endCall() {
-        callController.endCall()
-        chatWindow.hide()
-    }
-
     /**
      * Call sessions are deleted when a call ends; anything still on disk is
      * left over from a crash or process kill, so clear it on startup.
@@ -170,9 +155,6 @@ class AssistiveBallService : Service() {
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
-        // Keep the persisted toggle in sync when the ball is hidden by the
-        // drag-to-✕ gesture (not just from the in-app toggle), so the app
-        // reopens with it off. An active call is ended (and deleted) first.
         callController.endCall()
         chatWindow.hide()
         settingsRepository.save(settingsRepository.load().copy(assistiveBallEnabled = false))
