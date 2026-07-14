@@ -206,18 +206,70 @@ class SttEngine(
         }
     }
 
+    // ---- Provider-agnostic PTT ----
+
+    /** Start listening with the current provider. Returns false on failure. */
+    fun startListening(provider: AudioProvider): Boolean {
+        return when (provider) {
+            AudioProvider.ANDROID -> startAndroidListening()
+            AudioProvider.API -> startRecording()
+            AudioProvider.NONE -> false
+        }
+    }
+
     /**
-     * Abort an in-flight [listenOnceAndroid] (pause/end of a call). Safe to
-     * call from any thread; a suspended caller unblocks with [ERROR_CANCELLED].
+     * Stop listening and return the transcript. Provider-agnostic.
+     * For ANDROID: returns the recognized text.
+     * For API: stops the recorder, transcribes, returns the text or error.
      */
-    fun cancelListening() {
-        onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
-        mainHandler.post {
-            try {
-                currentRecognizer?.cancel()
-                currentRecognizer?.destroy()
-            } catch (_: Exception) { }
-            currentRecognizer = null
+    suspend fun stopListeningAndTranscribe(provider: AudioProvider, model: String): Result<String> {
+        return when (provider) {
+            AudioProvider.ANDROID -> {
+                val text = stopAndroidListening()
+                if (text.isBlank()) {
+                    Result.failure(Exception("No speech detected"))
+                } else {
+                    Result.success(text)
+                }
+            }
+            AudioProvider.API -> {
+                val file = stopRecording()
+                if (file == null) {
+                    return Result.failure(Exception("Recording failed"))
+                }
+                transcribeApi(file, model)
+            }
+            AudioProvider.NONE -> Result.failure(Exception("STT not configured"))
+        }
+    }
+
+    /**
+     * Abort an active listen (pause/end of a call). Handles both providers.
+     * Safe to call from any thread.
+     */
+    fun cancelListening(provider: AudioProvider) {
+        when (provider) {
+            AudioProvider.ANDROID -> {
+                onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
+                mainHandler.post {
+                    try {
+                        currentRecognizer?.cancel()
+                        currentRecognizer?.destroy()
+                    } catch (_: Exception) { }
+                    currentRecognizer = null
+                }
+            }
+            AudioProvider.API -> {
+                try {
+                    currentRecorder?.apply {
+                        stop()
+                        release()
+                    }
+                } catch (_: Exception) { }
+                currentRecorder = null
+                currentAudioFile = null
+            }
+            AudioProvider.NONE -> {}
         }
     }
 

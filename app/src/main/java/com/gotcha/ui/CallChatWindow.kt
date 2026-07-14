@@ -37,9 +37,11 @@ class CallChatWindow(context: Context) {
     var onStart: () -> Unit = {}
     var onPause: () -> Unit = {}
     var onEnd: () -> Unit = {}
+    var onMicClick: () -> Unit = {}
 
     private var rootView: View? = null
     private var statusText: TextView? = null
+    private var micButton: Button? = null
     private var startButton: Button? = null
     private var pauseButton: Button? = null
     private var endButton: Button? = null
@@ -75,6 +77,7 @@ class CallChatWindow(context: Context) {
             }
             rootView = null
             statusText = null
+            micButton = null
             startButton = null
             pauseButton = null
             endButton = null
@@ -114,13 +117,21 @@ class CallChatWindow(context: Context) {
         statusText?.text = when (state) {
             CallState.IDLE -> "No active call"
             CallState.STARTING -> "Starting…"
-            CallState.LISTENING -> "🎤 Listening…"
+            CallState.READY -> "🎤 Tap mic to speak"
+            CallState.LISTENING -> "🔴 Recording…"
             CallState.THINKING -> lastStatusLine ?: "Thinking…"
             CallState.SPEAKING -> "🔊 Speaking…"
-            CallState.WAITING_USER -> "Waiting for you…"
+            CallState.WAITING_USER -> "🎤 Tap mic to answer"
             CallState.PAUSED -> "⏸ Paused"
             CallState.ENDING -> "Ending…"
         }
+        micButton?.text = when (state) {
+            CallState.LISTENING -> "⏹"
+            else -> "🎤"
+        }
+        micButton?.isEnabled = state == CallState.READY ||
+            state == CallState.WAITING_USER ||
+            state == CallState.LISTENING
         startButton?.isEnabled = state == CallState.PAUSED || state == CallState.IDLE
         pauseButton?.isEnabled = state != CallState.IDLE && state != CallState.PAUSED && state != CallState.ENDING
         endButton?.isEnabled = state != CallState.IDLE && state != CallState.ENDING
@@ -208,10 +219,12 @@ class CallChatWindow(context: Context) {
             textSize = 13f
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+        val mic = headerButton("🎤") { onMicClick() }
         val start = headerButton("▶") { onStart() }
         val pauseBtn = headerButton("⏸") { onPause() }
         val end = headerButton("⏹") { onEnd() }
         header.addView(status)
+        header.addView(mic)
         header.addView(start)
         header.addView(pauseBtn)
         header.addView(end)
@@ -233,6 +246,7 @@ class CallChatWindow(context: Context) {
         root.addView(scroll)
 
         statusText = status
+        micButton = mic
         startButton = start
         pauseButton = pauseBtn
         endButton = end

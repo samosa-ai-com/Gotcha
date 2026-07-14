@@ -11,7 +11,6 @@ import com.gotcha.agent.ScreenSnapshot
 import com.gotcha.agent.friendlyAgentError
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
-import com.gotcha.audio.SttOutcome
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
@@ -30,24 +29,22 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 
-enum class CallState { IDLE, STARTING, LISTENING, THINKING, SPEAKING, WAITING_USER, PAUSED, ENDING }
+enum class CallState { IDLE, STARTING, READY, LISTENING, THINKING, SPEAKING, WAITING_USER, PAUSED, ENDING }
 
 data class CallTranscriptItem(val id: Long, val kind: MessageKind, val text: String)
 
 /**
- * A hands-free voice "call" with the full agent: mic listens (Android STT
- * endpointing) → transcript + screen context go through [AgentEngine] with
- * tools → the reply is spoken (TTS) → mic re-arms, until the call ends.
+ * A push-to-talk voice "call" with the full agent. Mic is off by default.
+ * User taps a mic button to start recording, taps again to stop and send.
+ * The transcript goes through [AgentEngine] with tools, the reply is spoken
+ * (TTS), and the mic returns to the off state — ready for the next tap.
  *
  * Call sessions persist to a separate "calls" directory (never the main chat
  * list) and are deleted — history and working dir — when the call ends.
- * The loop is strictly sequential so the mic never records our own speech.
  */
 @Suppress("TooManyFunctions")
 class CallSessionController(
@@ -68,6 +65,9 @@ class CallSessionController(
     private var loopJob: Job? = null
     private var nextTranscriptId = 0L
 
+    /** Gate for [awaitQuestionAnswer]: completed when the user taps mic stop. */
+    private var questionGate: CompletableDeferred<String>? = null
+
     @Volatile
     private var pendingReply: String? = null
 
@@ -87,7 +87,7 @@ class CallSessionController(
     /** Set by the service: surface a start-call failure to the user. */
     var onError: (String) -> Unit = { }
 
-    fun isActive(): Boolean = _state.value != CallState.IDLE
+    fun isActive(): Boolean = _state.value != CallState.IDLE && _state.value != CallState.ENDING
 
     /**
      * Start a new call. Returns false (after reporting through [onError])
@@ -95,13 +95,8 @@ class CallSessionController(
      */
     fun startCall(): Boolean {
         if (isActive()) return false
-        val settings = settingsRepository.load()
         if (buildClient() == null) {
             onError("Set up your API key in Gotcha first.")
-            return false
-        }
-        if (settings.sttProvider != AudioProvider.ANDROID) {
-            onError("Calls need Android speech recognition — switch the STT provider in Settings.")
             return false
         }
         val micGranted = ContextCompat.checkSelfPermission(
@@ -124,28 +119,26 @@ class CallSessionController(
         newEngine.setupWorkingDir()
         engine = newEngine
         _state.value = CallState.STARTING
-        loopJob = scope.launch {
-            try {
-                runCallLoop(newEngine)
-            } catch (_: CancellationException) {
-                // endCall() handles state + cleanup.
-            }
+        scope.launch {
+            speakText("Call started. I'm ready when you are.")
+            _state.value = CallState.READY
         }
         return true
     }
 
-    /** Pause: stop speech and listening, park the loop until [resume]. */
+    /** Pause: stop speech and listening, park state until [resume]. */
     fun pause() {
         if (_state.value == CallState.IDLE || _state.value == CallState.ENDING) return
         _state.value = CallState.PAUSED
         ttsEngine.stop()
-        sttEngine.cancelListening()
+        val s = settingsRepository.load()
+        sttEngine.cancelListening(s.sttProvider)
     }
 
-    /** Resume a paused call at the listening step. */
+    /** Resume a paused call — goes to [READY] (mic off). */
     fun resume() {
         if (_state.value == CallState.PAUSED) {
-            _state.value = CallState.LISTENING
+            _state.value = CallState.READY
         }
     }
 
@@ -156,7 +149,10 @@ class CallSessionController(
         loopJob?.cancel()
         loopJob = null
         ttsEngine.stop()
-        sttEngine.cancelListening()
+        val s = settingsRepository.load()
+        sttEngine.cancelListening(s.sttProvider)
+        questionGate?.complete("")
+        questionGate = null
         confirmationOverlay.dismiss()
         engine = null
 
@@ -175,40 +171,51 @@ class CallSessionController(
         }
     }
 
-    // ---- The call loop ----
+    // ---- Push-to-talk: called from the UI ----
 
-    private suspend fun runCallLoop(engine: AgentEngine) {
-        var consecutiveFailures = 0
-        speakText("Call started. I'm listening.")
-        while (kotlinx.coroutines.currentCoroutineContext().isActive) {
-            awaitNotPaused()
+    /**
+     * Start the mic. User must tap [stopMic] to stop recording and send.
+     * Works from [READY] (normal turn) or [WAITING_USER] (answering a question).
+     */
+    fun startMic() {
+        val current = _state.value
+        if (current != CallState.READY && current != CallState.WAITING_USER) return
+        val s = settingsRepository.load()
+        val started = sttEngine.startListening(s.sttProvider)
+        if (started) {
             _state.value = CallState.LISTENING
-            _statusLine.value = null
-            val outcome = sttEngine.listenOnceAndroid()
+        }
+    }
 
-            if (outcome is SttOutcome.Error && outcome.code == SttEngine.ERROR_CANCELLED) {
-                continue // pause/end interrupted the mic; loop parks or dies above
+    /** Stop the mic and send the recording for transcription + agent processing. */
+    fun stopMic() {
+        if (_state.value != CallState.LISTENING) return
+        scope.launch {
+            _state.value = CallState.THINKING
+            val s = settingsRepository.load()
+            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel)
+            val text = result.getOrDefault("")
+
+            if (text.isBlank()) {
+                _state.value = CallState.READY
+                return@launch
             }
-            val text = (outcome as? SttOutcome.Text)?.text?.trim().orEmpty()
-            if (text.isEmpty()) {
-                consecutiveFailures++
-                if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                    consecutiveFailures = 0
-                    speakText("I'll pause the call. Tap Start when you're ready.")
-                    pause()
-                } else if (outcome is SttOutcome.Error && !outcome.isBenign) {
-                    delay(ERROR_RETRY_DELAY_MS) // recognizer hiccup; brief backoff
-                }
-                continue
-            }
-            consecutiveFailures = 0
 
             addTranscript(MessageKind.USER, text)
-            _state.value = CallState.THINKING
-            engine.history += buildTurnMessage(text)
+
+            // Answering an agent question?
+            questionGate?.let { gate ->
+                questionGate = null
+                gate.complete(text)
+                return@launch
+            }
+
+            // Normal turn
+            val eng = engine ?: return@launch
+            eng.history += buildTurnMessage(text)
             pendingReply = null
             try {
-                engine.run(AgentMode.OPERATOR)
+                eng.run(AgentMode.OPERATOR)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -217,16 +224,11 @@ class CallSessionController(
                 pendingReply = msg
             }
 
-            val reply = pendingReply ?: continue
-            pendingReply = null
-            awaitNotPaused()
+            val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
             speakText(reply)
+            _state.value = CallState.READY
         }
-    }
-
-    private suspend fun awaitNotPaused() {
-        _state.first { it != CallState.PAUSED }
     }
 
     /**
@@ -308,7 +310,7 @@ class CallSessionController(
         )
     }
 
-    /** The agent asked a question: speak it and take the answer by voice. */
+    /** The agent asked a question: speak it and wait for a PTT answer. */
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String {
         _state.value = CallState.WAITING_USER
         val prompt = buildString {
@@ -320,10 +322,11 @@ class CallSessionController(
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
         speakText(prompt)
-        val outcome = withTimeoutOrNull(QUESTION_TIMEOUT_MS) { sttEngine.listenOnceAndroid() }
-        val answer = ((outcome as? SttOutcome.Text)?.text ?: "").trim()
+        val gate = CompletableDeferred<String>()
+        questionGate = gate
+        val answer = withTimeoutOrNull(QUESTION_TIMEOUT_MS) { gate.await() } ?: ""
         if (answer.isNotBlank()) addTranscript(MessageKind.USER, answer)
-        _state.value = CallState.THINKING
+        _state.value = CallState.READY
         return answer
     }
 
@@ -388,8 +391,6 @@ class CallSessionController(
 
     companion object {
         const val CALLS_WORKING_ROOT = "/storage/emulated/0/Gotcha/calls"
-        const val MAX_CONSECUTIVE_FAILURES = 3
-        private const val ERROR_RETRY_DELAY_MS = 600L
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
         private const val CONFIRM_TIMEOUT_MS = 60_000L

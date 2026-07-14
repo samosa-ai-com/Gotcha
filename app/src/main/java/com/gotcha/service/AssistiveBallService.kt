@@ -67,6 +67,13 @@ class AssistiveBallService : Service() {
             onStart = { startOrResumeCall() }
             onPause = { callController.pause() }
             onEnd = { endCall() }
+            onMicClick = {
+                if (callController.state.value == CallState.LISTENING) {
+                    callController.stopMic()
+                } else {
+                    callController.startMic()
+                }
+            }
         }
         overlay = AssistiveBallOverlay(this).apply {
             onDismiss = { stopBall() }
