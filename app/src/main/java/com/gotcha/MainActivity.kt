@@ -13,6 +13,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +35,7 @@ import com.gotcha.audio.AudioApi
 import com.gotcha.audio.ModelCategory
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.ThemeMode
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.service.AssistiveBallService
@@ -59,6 +61,9 @@ class MainActivity : ComponentActivity() {
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
+
+    /** In-app theme override, applied immediately when changed in Settings. */
+    private var themeMode by mutableStateOf(ThemeMode.SYSTEM)
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
@@ -192,8 +197,15 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        themeMode = settingsRepository.load().themeMode
+
         setContent {
-            GotchaTheme {
+            val darkTheme = when (themeMode) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+            GotchaTheme(darkTheme = darkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -350,6 +362,10 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
+                        onThemeChange = { mode ->
+                            themeMode = mode
+                            settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
+                        },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)

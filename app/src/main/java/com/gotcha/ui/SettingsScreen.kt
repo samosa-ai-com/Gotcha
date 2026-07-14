@@ -21,6 +21,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.data.Settings
+import com.gotcha.data.ThemeMode
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +56,7 @@ fun SettingsScreen(
     onClearLlmCache: () -> Unit,
     onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
+    onThemeChange: (ThemeMode) -> Unit = {},
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(
             emptyList(),
@@ -77,6 +82,7 @@ fun SettingsScreen(
     var ttsApiModel by remember { mutableStateOf(initial.ttsApiModel) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
+    var themeMode by remember { mutableStateOf(initial.themeMode) }
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -116,7 +122,8 @@ fun SettingsScreen(
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiModel = sttApiModel.trim(),
         autoReadReplies = autoReadReplies,
-        assistiveBallEnabled = initial.assistiveBallEnabled
+        assistiveBallEnabled = initial.assistiveBallEnabled,
+        themeMode = themeMode
     )
 
     Scaffold(
@@ -135,6 +142,30 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // ---- Appearance (always visible, applies immediately) ----
+            Text(
+                "Appearance",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                ThemeMode.values().forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        selected = themeMode == mode,
+                        onClick = {
+                            themeMode = mode
+                            onThemeChange(mode)
+                        },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = ThemeMode.values().size
+                        )
+                    ) { Text(mode.label) }
+                }
+            }
+
+            HorizontalDivider(thickness = 1.dp)
+
             // ---- AI Configuration (collapsible, collapsed by default) ----
             SectionHeader(
                 title = "AI Configuration",
