@@ -567,6 +567,13 @@ fun SettingsScreen(
                         enabled = !refreshingModels && (ttsApiBaseUrl.isNotBlank() || sttApiBaseUrl.isNotBlank()),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(if (refreshingModels) "Refreshing…" else "Refresh audio models") }
+                    Button(
+                        onClick = {
+                            onSave(currentSettings())
+                            status = "Saved."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save Speech Settings") }
                 }
             }
 

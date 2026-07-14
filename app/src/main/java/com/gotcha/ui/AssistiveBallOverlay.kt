@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
@@ -11,33 +12,36 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
 import com.gotcha.R
 import kotlin.math.abs
+import kotlin.math.hypot
 
 /**
- * The floating "assistive ball" drawn over other apps via SYSTEM_ALERT_WINDOW.
+ * The floating "assistive ball" drawn over other apps via SYSTEM_ALERT_WINDOW,
+ * reworked into a Messenger-Bubbles-style call head:
+ *
+ *  - Tap: Start / Pause / End menu when idle; toggles the call chat window
+ *    during a call.
+ *  - Long-press (3s idle / 5s during a call): start or end a voice call.
+ *  - Drag: moves the ball; an ✕ target appears at the bottom of the screen
+ *    and dropping the ball on it hides the ball (Messenger-style dismiss).
  *
  * Structurally modelled on [ConfirmationOverlay]: a [WindowManager] +
  * [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY] window, gated on
  * [Settings.canDrawOverlays], with all window mutations posted to the main thread.
- *
- * It manages three independent windows:
- *  - the draggable ball itself (always visible while the service runs),
- *  - an expanded menu with the three options, and
- *  - a status/answer card that reports listening/thinking/answer/error state.
- *
- * The ball is touchable (no FLAG_NOT_TOUCHABLE) so it can be dragged and tapped; the
- * two "talk" options are press-and-hold (down = start recording, up = stop & ask).
  */
 @Suppress("TooManyFunctions")
 class AssistiveBallOverlay(context: Context) {
@@ -49,14 +53,24 @@ class AssistiveBallOverlay(context: Context) {
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
     // Callbacks — set by the host service before [show].
-    var onOpenChat: () -> Unit = {}
     var onDismiss: () -> Unit = {}
-    var onStartTalk: (withScreen: Boolean) -> Unit = {}
-    var onStopTalk: () -> Unit = {}
+    var onOpenApp: () -> Unit = {}
+    var onHideBall: () -> Unit = {}
+    var onTakeScreenshot: () -> Unit = {}
+    var onStartCall: () -> Unit = {}
+    var onEndCall: () -> Unit = {}
+    var onToggleChatWindow: () -> Unit = {}
+
+    /** Queried per gesture: is a voice call active (any non-idle state)? */
+    var isCallActive: () -> Boolean = { false }
 
     private var ballView: View? = null
+    private var ringView: View? = null
+    private var ringDrawable: RingDrawable? = null
+    private var ringAnimator: ValueAnimator? = null
     private var menuView: View? = null
     private var cardView: View? = null
+    private var dismissTargetView: View? = null
 
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
 
@@ -79,10 +93,19 @@ class AssistiveBallOverlay(context: Context) {
 
     fun dismiss() {
         mainHandler.post {
+            removeLongPressRing()
             removeMenu()
             removeCard()
+            removeDismissTarget()
             ballView?.let { safeRemove(it) }
             ballView = null
+        }
+    }
+
+    /** Tint the ball's rim green while a call is active so the 5s end gesture is discoverable. */
+    fun setCallActive(active: Boolean) {
+        mainHandler.post {
+            (ballView as? ImageView)?.foreground = ballRim(active)
         }
     }
 
@@ -90,29 +113,27 @@ class AssistiveBallOverlay(context: Context) {
 
     /**
      * Hide all of our own overlay windows (menu, status card, and the ball) so they are
-     * not baked into a screen capture taken for the "screen share" flow. Call
+     * not baked into a screen capture taken for the call's screen context. Call
      * [showChromeAfterCapture] once the screenshot has been taken.
      */
     fun hideChromeForCapture() {
         mainHandler.post {
+            removeLongPressRing()
             removeMenu()
             removeCard()
             ballView?.visibility = View.GONE
         }
     }
 
-    /** Restore the ball after a capture (the status card is shown separately). */
+    /** Restore the ball after a capture. */
     fun showChromeAfterCapture() {
         mainHandler.post {
             ballView?.visibility = View.VISIBLE
         }
     }
 
-    // ---- Status / answer card ----
+    // ---- Status card (errors only) ----
 
-    fun showListening() = showCard("Listening… release to send", showClose = false)
-    fun showThinking() = showCard("Thinking…", showClose = false)
-    fun showAnswer(text: String) = showCard(text, showClose = true)
     fun showError(text: String) = showCard(text, showClose = true)
 
     // ---- Ball ----
@@ -129,21 +150,109 @@ class AssistiveBallOverlay(context: Context) {
                 }
             }
             clipToOutline = true
-            // Subtle rim so the logo reads on any background.
-            foreground = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setStroke(dp(1), Color.parseColor("#66FFFFFF"))
-            }
+            // Subtle rim so the logo reads on any background (green during calls).
+            foreground = ballRim(isCallActive())
             setOnTouchListener(ballTouchListener())
         }
     }
 
+    private fun ballRim(callActive: Boolean) = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        if (callActive) {
+            setStroke(dp(2), Color.parseColor("#CC34C759"))
+        } else {
+            setStroke(dp(1), Color.parseColor("#66FFFFFF"))
+        }
+    }
+
+    // ---- Long-press ring ----
+
+    /** Show a growing ring around the ball during the 3s hold to start a call. */
+    private fun showLongPressRing() {
+        removeLongPressRing()
+        val density = appContext.resources.displayMetrics.density
+        // View is 3.5x the ball so the ring can grow to ~1.6x the ball radius
+        // without hitting the view's bounds. The screen edge may still clip
+        // when the ball is near the edge — that's intended.
+        val viewSize = (BALL_SIZE_DP * 3.5f * density).toInt()
+        val ballPx = dp(BALL_SIZE_DP)
+        val drawable = RingDrawable()
+        val view = View(appContext).apply { background = drawable }
+        val params = WindowManager.LayoutParams(
+            viewSize,
+            viewSize,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = ballParams.x + ballPx / 2 - viewSize / 2
+            y = ballParams.y + ballPx / 2 - viewSize / 2
+        }
+        try {
+            windowManager.addView(view, params)
+            ringView = view
+            ringDrawable = drawable
+
+            val minRadius = ballPx * 0.50f
+            val maxRadius = ballPx * 1.60f
+            val strokePx = 2.5f * density
+            val fillBase = Color.WHITE
+            val strokeBase = Color.WHITE
+
+            ringAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = LONG_PRESS_START_MS
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val p = anim.animatedValue as Float
+                    drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
+                    // Stroke fades from full to ~40% opacity as it expands
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(
+                        strokeBase,
+                        ((1f - p * 0.6f) * 255).toInt()
+                    )
+                    drawable.strokeWidth = strokePx
+                    // Fill tints the area between ball and ring, fades out
+                    drawable.fillColor = ColorUtils.setAlphaComponent(
+                        fillBase,
+                        ((0.18f * (1f - p)) * 255).toInt()
+                    )
+                }
+                start()
+            }
+        } catch (_: Exception) {
+            ringView = null
+            ringDrawable = null
+        }
+    }
+
+    private fun hideLongPressRing() {
+        removeLongPressRing()
+    }
+
+    private fun removeLongPressRing() {
+        ringAnimator?.cancel()
+        ringAnimator = null
+        ringView?.let { safeRemove(it) }
+        ringView = null
+        ringDrawable = null
+    }
+
+    @Suppress("CyclomaticComplexMethod")
     private fun ballTouchListener(): View.OnTouchListener {
         var startX = 0
         var startY = 0
         var touchDownRawX = 0f
         var touchDownRawY = 0f
         var dragging = false
+        var longPressFired = false
+        val longPressRunnable = Runnable {
+            longPressFired = true
+            ballView?.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            if (isCallActive()) onEndCall() else onStartCall()
+        }
         return View.OnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -152,14 +261,23 @@ class AssistiveBallOverlay(context: Context) {
                     touchDownRawX = event.rawX
                     touchDownRawY = event.rawY
                     dragging = false
+                    longPressFired = false
+                    mainHandler.postDelayed(
+                        longPressRunnable,
+                        if (isCallActive()) LONG_PRESS_END_MS else LONG_PRESS_START_MS
+                    )
+                    if (!isCallActive()) showLongPressRing()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - touchDownRawX).toInt()
                     val dy = (event.rawY - touchDownRawY).toInt()
-                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                    if (!dragging && !longPressFired && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                         dragging = true
+                        mainHandler.removeCallbacks(longPressRunnable)
+                        hideLongPressRing()
                         removeMenu()
+                        showDismissTarget()
                     }
                     if (dragging) {
                         ballParams.x = startX + dx
@@ -167,15 +285,29 @@ class AssistiveBallOverlay(context: Context) {
                         try {
                             windowManager.updateViewLayout(ballView, ballParams)
                         } catch (_: Exception) { }
+                        updateDismissTargetHighlight(isOverDismissTarget())
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (dragging) {
-                        clampBallIntoBounds()
-                    } else {
-                        toggleMenu()
+                    mainHandler.removeCallbacks(longPressRunnable)
+                    hideLongPressRing()
+                    val droppedOnTarget = dragging && isOverDismissTarget()
+                    removeDismissTarget()
+                    when {
+                        longPressFired -> { /* handled by the runnable */ }
+                        droppedOnTarget -> onDismiss()
+                        dragging -> clampBallIntoBounds()
+                        isCallActive() -> onToggleChatWindow()
+                        else -> toggleMenu()
                     }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    mainHandler.removeCallbacks(longPressRunnable)
+                    hideLongPressRing()
+                    removeDismissTarget()
+                    if (dragging) clampBallIntoBounds()
                     true
                 }
                 else -> false
@@ -185,8 +317,8 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun clampBallIntoBounds() {
         val metrics = appContext.resources.displayMetrics
-        val maxX = metrics.widthPixels - dp(56)
-        val maxY = metrics.heightPixels - dp(56)
+        val maxX = metrics.widthPixels - dp(BALL_SIZE_DP)
+        val maxY = metrics.heightPixels - dp(BALL_SIZE_DP)
         ballParams.x = ballParams.x.coerceIn(0, maxX.coerceAtLeast(0))
         ballParams.y = ballParams.y.coerceIn(0, maxY.coerceAtLeast(0))
         try {
@@ -194,13 +326,70 @@ class AssistiveBallOverlay(context: Context) {
         } catch (_: Exception) { }
     }
 
-    // ---- Expanded menu ----
+    // ---- Dismiss target (drag the ball onto the ✕ to hide it) ----
+
+    private fun showDismissTarget() {
+        if (dismissTargetView != null) return
+        val target = TextView(appContext).apply {
+            text = "✕"
+            textSize = 22f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#CC222222"))
+                setStroke(dp(2), Color.parseColor("#66FFFFFF"))
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            dp(DISMISS_TARGET_SIZE_DP),
+            dp(DISMISS_TARGET_SIZE_DP),
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(DISMISS_TARGET_MARGIN_DP)
+        }
+        try {
+            windowManager.addView(target, params)
+            dismissTargetView = target
+        } catch (_: Exception) {
+            dismissTargetView = null
+        }
+    }
+
+    private fun removeDismissTarget() {
+        dismissTargetView?.let { safeRemove(it) }
+        dismissTargetView = null
+    }
+
+    private fun updateDismissTargetHighlight(hovering: Boolean) {
+        val scale = if (hovering) 1.25f else 1f
+        dismissTargetView?.scaleX = scale
+        dismissTargetView?.scaleY = scale
+    }
+
+    /** True when the ball's centre is within snapping distance of the ✕ target's centre. */
+    private fun isOverDismissTarget(): Boolean {
+        if (dismissTargetView == null) return false
+        val metrics = appContext.resources.displayMetrics
+        val ballCenterX = ballParams.x + dp(BALL_SIZE_DP) / 2f
+        val ballCenterY = ballParams.y + dp(BALL_SIZE_DP) / 2f
+        val targetCenterX = metrics.widthPixels / 2f
+        val targetCenterY = metrics.heightPixels -
+            dp(DISMISS_TARGET_MARGIN_DP) - dp(DISMISS_TARGET_SIZE_DP) / 2f
+        val distance = hypot(ballCenterX - targetCenterX, ballCenterY - targetCenterY)
+        return distance <= dp(DISMISS_SNAP_RADIUS_DP)
+    }
+
+    // ---- Expanded menu (idle only; taps during a call toggle the chat window) ----
 
     private fun toggleMenu() {
         if (menuView != null) removeMenu() else showMenu()
     }
 
-    @SuppressLint("ClickableViewAccessibility")
     private fun showMenu() {
         removeMenu()
         val container = LinearLayout(appContext).apply {
@@ -214,17 +403,22 @@ class AssistiveBallOverlay(context: Context) {
         }
 
         container.addView(menuTitle("Gotcha"))
-        container.addView(talkButton("🖥  Screen Share — hold & talk", withScreen = true))
-        container.addView(talkButton("🎤  Talk — hold & talk", withScreen = false))
         container.addView(
-            tapButton("💬  Open Chat") {
+            tapButton("\uD83D\uDCF1  Open App") {
                 removeMenu()
-                onOpenChat()
+                onOpenApp()
             }
         )
         container.addView(
-            tapButton("✕  Hide ball") {
-                onDismiss()
+            tapButton("\u2716  Hide Ball") {
+                removeMenu()
+                onHideBall()
+            }
+        )
+        container.addView(
+            tapButton("\uD83D\uDCF7  Screenshot") {
+                removeMenu()
+                onTakeScreenshot()
             }
         )
 
@@ -242,32 +436,6 @@ class AssistiveBallOverlay(context: Context) {
         setTextColor(Color.parseColor("#EADDFF"))
         textSize = 13f
         setPadding(dp(4), 0, dp(4), dp(8))
-    }
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun talkButton(label: String, withScreen: Boolean): Button {
-        return Button(appContext).apply {
-            text = label
-            isAllCaps = false
-            // Press-and-hold. The menu (and thus this button) must stay attached until
-            // ACTION_UP, otherwise the button would never receive the release event.
-            setOnTouchListener { v, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        v.isPressed = true
-                        onStartTalk(withScreen)
-                        true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        v.isPressed = false
-                        onStopTalk()
-                        removeMenu()
-                        true
-                    }
-                    else -> false
-                }
-            }
-        }
     }
 
     private fun tapButton(label: String, onClick: () -> Unit): Button {
@@ -358,10 +526,11 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun ballLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            dp(56),
-            dp(56),
+            dp(BALL_SIZE_DP),
+            dp(BALL_SIZE_DP),
             overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -397,4 +566,13 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun dp(value: Int): Int =
         (value * appContext.resources.displayMetrics.density).toInt()
+
+    private companion object {
+        const val BALL_SIZE_DP = 56
+        const val LONG_PRESS_START_MS = 2000L
+        const val LONG_PRESS_END_MS = 2000L
+        const val DISMISS_TARGET_SIZE_DP = 64
+        const val DISMISS_TARGET_MARGIN_DP = 32
+        const val DISMISS_SNAP_RADIUS_DP = 56
+    }
 }
