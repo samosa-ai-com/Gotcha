@@ -90,6 +90,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleOwner = this
+        // Some OEM skins (e.g. MIUI) force-dark light-themed apps even when the
+        // theme opts out; disabling on the decorView covers those cases too.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.decorView.isForceDarkAllowed = false
+        }
         settingsRepository = SettingsRepository(this)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
 
