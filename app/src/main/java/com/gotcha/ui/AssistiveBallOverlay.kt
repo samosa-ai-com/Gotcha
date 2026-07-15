@@ -3,9 +3,11 @@ package com.gotcha.ui
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
@@ -19,13 +21,15 @@ import android.view.ViewConfiguration
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
 import com.gotcha.R
+import com.gotcha.data.SettingsRepository
+import com.gotcha.data.ThemeMode
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -33,7 +37,7 @@ import kotlin.math.hypot
  * The floating "assistive ball" drawn over other apps via SYSTEM_ALERT_WINDOW,
  * reworked into a Messenger-Bubbles-style call head:
  *
- *  - Tap: Start / Pause / End menu when idle; toggles the call chat window
+ *  - Tap: Open App / Screenshot menu when idle; toggles the call chat window
  *    during a call.
  *  - Long-press (3s idle / 5s during a call): start or end a voice call.
  *  - Drag: moves the ball; an ✕ target appears at the bottom of the screen
@@ -55,7 +59,6 @@ class AssistiveBallOverlay(context: Context) {
     // Callbacks — set by the host service before [show].
     var onDismiss: () -> Unit = {}
     var onOpenApp: () -> Unit = {}
-    var onHideBall: () -> Unit = {}
     var onTakeScreenshot: () -> Unit = {}
     var onStartCall: () -> Unit = {}
     var onEndCall: () -> Unit = {}
@@ -73,6 +76,50 @@ class AssistiveBallOverlay(context: Context) {
     private var dismissTargetView: View? = null
 
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
+
+    private val settingsRepository by lazy { SettingsRepository(appContext) }
+    private val figtree: Typeface? by lazy {
+        runCatching { ResourcesCompat.getFont(appContext, R.font.figtree) }.getOrNull()
+    }
+
+    /** Colors mirroring the app's Material scheme (ui/theme/Color.kt) for raw views. */
+    private class OverlayPalette(
+        val surface: Int,
+        val onSurface: Int,
+        val outline: Int,
+        val buttonBg: Int,
+        val buttonText: Int
+    )
+
+    /** Follows the in-app theme setting; SYSTEM tracks the device dark mode. */
+    private fun isDarkTheme(): Boolean {
+        val mode = runCatching { settingsRepository.load().themeMode }.getOrDefault(ThemeMode.SYSTEM)
+        return when (mode) {
+            ThemeMode.DARK -> true
+            ThemeMode.LIGHT -> false
+            ThemeMode.SYSTEM ->
+                appContext.resources.configuration.uiMode and
+                    Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        }
+    }
+
+    private fun palette(): OverlayPalette = if (isDarkTheme()) {
+        OverlayPalette(
+            surface = 0xFF1E293B.toInt(), // DarkSurface
+            onSurface = 0xFFE2E8F0.toInt(),
+            outline = 0xFF334155.toInt(), // DarkSurfaceVariant
+            buttonBg = 0xFF334155.toInt(),
+            buttonText = 0xFFE2E8F0.toInt()
+        )
+    } else {
+        OverlayPalette(
+            surface = 0xFFFBFDF9.toInt(), // LightSurface
+            onSurface = 0xFF191C1A.toInt(),
+            outline = 0xFFDBE5E0.toInt(), // LightSurfaceVariant
+            buttonBg = 0xFFE8F6F2.toInt(), // LightPrimaryContainer
+            buttonText = 0xFF002117.toInt() // LightOnPrimaryContainer
+        )
+    }
 
     /** Whether we currently hold the "Display over other apps" permission. */
     fun canShow(): Boolean =
@@ -392,31 +439,25 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun showMenu() {
         removeMenu()
+        val colors = palette()
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
             background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(Color.parseColor("#1E1E1E"))
-                setStroke(dp(1), Color.parseColor("#3A3A3A"))
+                cornerRadius = dp(20).toFloat()
+                setColor(colors.surface)
+                setStroke(dp(1), colors.outline)
             }
         }
 
-        container.addView(menuTitle("Gotcha"))
         container.addView(
-            tapButton("\uD83D\uDCF1  Open App") {
+            tapButton("\uD83D\uDCF1  Open App", colors) {
                 removeMenu()
                 onOpenApp()
             }
         )
         container.addView(
-            tapButton("\u2716  Hide Ball") {
-                removeMenu()
-                onHideBall()
-            }
-        )
-        container.addView(
-            tapButton("\uD83D\uDCF7  Screenshot") {
+            tapButton("\uD83D\uDCF7  Screenshot", colors) {
                 removeMenu()
                 onTakeScreenshot()
             }
@@ -431,17 +472,22 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
-    private fun menuTitle(text: String) = TextView(appContext).apply {
-        this.text = text
-        setTextColor(Color.parseColor("#EADDFF"))
-        textSize = 13f
-        setPadding(dp(4), 0, dp(4), dp(8))
-    }
-
-    private fun tapButton(label: String, onClick: () -> Unit): Button {
-        return Button(appContext).apply {
+    private fun tapButton(label: String, colors: OverlayPalette, onClick: () -> Unit): TextView {
+        return TextView(appContext).apply {
             text = label
-            isAllCaps = false
+            typeface = figtree ?: Typeface.DEFAULT
+            textSize = 14f
+            setTextColor(colors.buttonText)
+            gravity = Gravity.CENTER
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(colors.buttonBg)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) }
             setOnClickListener { onClick() }
         }
     }
@@ -456,20 +502,22 @@ class AssistiveBallOverlay(context: Context) {
     private fun showCard(message: String, showClose: Boolean) {
         mainHandler.post {
             removeCard()
+            val colors = palette()
             val container = LinearLayout(appContext).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(20), dp(16), dp(20), dp(16))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
-                    setColor(Color.parseColor("#1E1E1E"))
-                    setStroke(dp(1), Color.parseColor("#3A3A3A"))
+                    cornerRadius = dp(20).toFloat()
+                    setColor(colors.surface)
+                    setStroke(dp(1), colors.outline)
                 }
             }
             val scroll = ScrollView(appContext).apply {
                 addView(
                     TextView(appContext).apply {
                         text = message
-                        setTextColor(Color.parseColor("#EEEEEE"))
+                        typeface = figtree ?: Typeface.DEFAULT
+                        setTextColor(colors.onSurface)
                         textSize = 14f
                     }
                 )
@@ -480,13 +528,7 @@ class AssistiveBallOverlay(context: Context) {
             }
             container.addView(scroll)
             if (showClose) {
-                container.addView(
-                    Button(appContext).apply {
-                        text = "Close"
-                        isAllCaps = false
-                        setOnClickListener { hideCard() }
-                    }
-                )
+                container.addView(tapButton("Close", colors) { hideCard() })
             }
             try {
                 windowManager.addView(container, cardLayoutParams())
@@ -540,7 +582,7 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun menuLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            dp(240),
+            dp(MENU_WIDTH_DP),
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -549,8 +591,8 @@ class AssistiveBallOverlay(context: Context) {
             gravity = Gravity.TOP or Gravity.START
             // Anchor near the ball, clamped so the menu stays on screen.
             val metrics = appContext.resources.displayMetrics
-            x = (ballParams.x).coerceIn(0, (metrics.widthPixels - dp(240)).coerceAtLeast(0))
-            y = (ballParams.y + dp(64)).coerceIn(0, (metrics.heightPixels - dp(260)).coerceAtLeast(0))
+            x = (ballParams.x).coerceIn(0, (metrics.widthPixels - dp(MENU_WIDTH_DP)).coerceAtLeast(0))
+            y = (ballParams.y + dp(64)).coerceIn(0, (metrics.heightPixels - dp(140)).coerceAtLeast(0))
         }
 
     private fun cardLayoutParams(): WindowManager.LayoutParams =
@@ -569,6 +611,7 @@ class AssistiveBallOverlay(context: Context) {
 
     private companion object {
         const val BALL_SIZE_DP = 56
+        const val MENU_WIDTH_DP = 200
         const val LONG_PRESS_START_MS = 2000L
         const val LONG_PRESS_END_MS = 2000L
         const val DISMISS_TARGET_SIZE_DP = 64

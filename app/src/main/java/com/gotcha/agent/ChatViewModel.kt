@@ -133,20 +133,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         ScreenPerception.appContext = application
         refreshSettings()
         viewModelScope.launch {
-            val sessions = historyRepository.listSessions()
-            if (sessions.isNotEmpty()) {
-                val latest = sessions.first()
-                agentEngine.sessionId = latest.id
-                agentEngine.tokenCount = latest.tokenCount
-                agentEngine.history.addAll(latest.messages)
-            } else {
-                agentEngine.sessionId = java.util.UUID.randomUUID().toString()
-                agentEngine.tokenCount = 0
-            }
+            // Always start on a fresh session so the home screen greets with an
+            // empty chat; past sessions remain one tap away in the drawer.
+            agentEngine.sessionId = java.util.UUID.randomUUID().toString()
+            agentEngine.tokenCount = 0
             agentEngine.setupWorkingDir()
             _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
             updateContextUsage()
-            rebuildUiMessages()
             refreshSessions()
         }
     }
@@ -443,15 +436,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             AgentMode.OPERATOR -> AgentMode.MONITOR
         }
         _uiState.update { it.copy(activeAgent = next) }
-        // Append a system message so the LLM knows the mode changed
-        val switchMsg = when (next) {
+        // Instruct the LLM ("you" = the agent) and show the user a separate,
+        // user-facing notice — the history wording reads wrong in the chat UI.
+        val llmMsg = when (next) {
             AgentMode.MONITOR ->
                 "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. " +
                     "No changes to the device are permitted.]"
             AgentMode.OPERATOR -> "[System: Switched to Operator. You are now permitted to make changes to the device.]"
         }
-        agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(switchMsg))
-        appendUi(MessageKind.ASSISTANT, switchMsg)
+        val uiMsg = when (next) {
+            AgentMode.MONITOR ->
+                "Switched to Monitor mode — the agent can only observe; it cannot make any changes to your device."
+            AgentMode.OPERATOR ->
+                "Switched to Operator mode — the agent can now make changes to your device."
+        }
+        agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
+        appendUi(MessageKind.ASSISTANT, uiMsg)
     }
 
     override fun onCleared() {

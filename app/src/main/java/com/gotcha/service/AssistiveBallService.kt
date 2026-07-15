@@ -74,15 +74,14 @@ class AssistiveBallService : Service() {
 
         // Assistive ball (shown when idle, hidden during a call)
         overlay = AssistiveBallOverlay(this).apply {
-            onDismiss = { stopBall() }
+            onDismiss = {
+                callController.endCall()
+                stopBall()
+            }
             onOpenApp = {
                 val intent = Intent(this@AssistiveBallService, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
-            }
-            onHideBall = {
-                callController.endCall()
-                stopBall()
             }
             onTakeScreenshot = { takeScreenshot() }
             onStartCall = { callController.startCall() }

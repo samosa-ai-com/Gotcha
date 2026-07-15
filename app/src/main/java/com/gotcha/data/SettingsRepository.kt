@@ -6,6 +6,13 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.gotcha.audio.AudioProvider
 
+/** In-app theme override; SYSTEM follows the device dark-mode setting. */
+enum class ThemeMode(val label: String) {
+    SYSTEM("System"),
+    LIGHT("Light"),
+    DARK("Dark")
+}
+
 data class Settings(
     val apiKey: String = "",
     val baseUrl: String = DEFAULT_BASE_URL,
@@ -23,7 +30,8 @@ data class Settings(
     val sttApiBaseUrl: String = "",
     val sttApiModel: String = "",
     val autoReadReplies: Boolean = false,
-    val assistiveBallEnabled: Boolean = false
+    val assistiveBallEnabled: Boolean = false,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM
 ) {
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank()
 
@@ -66,7 +74,10 @@ class SettingsRepository(context: Context) {
         sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
-        assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false)
+        assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
+        themeMode = runCatching {
+            ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
+        }.getOrDefault(ThemeMode.SYSTEM)
     )
 
     fun save(settings: Settings) {
@@ -87,6 +98,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
+            .putString(KEY_THEME_MODE, settings.themeMode.name)
             .apply()
     }
 
@@ -107,5 +119,6 @@ class SettingsRepository(context: Context) {
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
+        const val KEY_THEME_MODE = "theme_mode"
     }
 }
