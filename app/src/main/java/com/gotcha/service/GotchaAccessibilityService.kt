@@ -61,31 +61,34 @@ class GotchaAccessibilityService : AccessibilityService() {
      * flow to give the LLM vision context alongside [dumpScreenText].
      */
     @RequiresApi(Build.VERSION_CODES.R)
-    suspend fun takeScreenshotBitmap(): Bitmap? = suspendCancellableCoroutine { cont ->
-        try {
-            takeScreenshot(
-                Display.DEFAULT_DISPLAY,
-                mainExecutor,
-                object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                        val bitmap = try {
-                            Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
-                                ?.copy(Bitmap.Config.ARGB_8888, false)
-                        } catch (_: Exception) {
-                            null
-                        } finally {
-                            screenshot.hardwareBuffer.close()
+    suspend fun takeScreenshotBitmap(): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return suspendCancellableCoroutine { cont ->
+            try {
+                takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    mainExecutor,
+                    object : AccessibilityService.TakeScreenshotCallback {
+                        override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                            val bitmap = try {
+                                Bitmap.wrapHardwareBuffer(screenshot.hardwareBuffer, screenshot.colorSpace)
+                                    ?.copy(Bitmap.Config.ARGB_8888, false)
+                            } catch (_: Throwable) {
+                                null
+                            } finally {
+                                screenshot.hardwareBuffer.close()
+                            }
+                            if (cont.isActive) cont.resume(bitmap)
                         }
-                        if (cont.isActive) cont.resume(bitmap)
-                    }
 
-                    override fun onFailure(errorCode: Int) {
-                        if (cont.isActive) cont.resume(null)
+                        override fun onFailure(errorCode: Int) {
+                            if (cont.isActive) cont.resume(null)
+                        }
                     }
-                }
-            )
-        } catch (_: Exception) {
-            if (cont.isActive) cont.resume(null)
+                )
+            } catch (_: Throwable) {
+                if (cont.isActive) cont.resume(null)
+            }
         }
     }
 
