@@ -103,71 +103,7 @@ class MainActivity : ComponentActivity() {
         // in Settings → Permissions or auto-requested on first launch.
         lifecycleScope.launch {
             chatViewModel.permissionRequests.collect { permission ->
-                when (permission) {
-                    ToolResult.WRITE_SETTINGS -> startActivity(
-                        Intent(
-                            AndroidSettings.ACTION_MANAGE_WRITE_SETTINGS,
-                            Uri.parse("package:$packageName")
-                        )
-                    )
-                    ToolResult.USAGE_ACCESS -> startActivity(
-                        Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS)
-                    )
-                    ToolResult.DND_ACCESS -> startActivity(
-                        Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
-                    )
-                    ToolResult.ACCESSIBILITY_ACCESS -> startActivity(
-                        Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)
-                    )
-                    ToolResult.NOTIFICATION_LISTENER_ACCESS -> startActivity(
-                        Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                    )
-                    ToolResult.ALL_FILES_ACCESS -> startActivity(
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            Intent(
-                                AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                Uri.parse("package:$packageName")
-                            )
-                        } else {
-                            Intent(
-                                AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.parse("package:$packageName")
-                            )
-                        }
-                    )
-                    ToolResult.OVERLAY_ACCESS -> startActivity(
-                        Intent(
-                            AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        )
-                    )
-                    ToolResult.DEVICE_ADMIN -> startActivity(
-                        Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(
-                            DevicePolicyManager.EXTRA_DEVICE_ADMIN,
-                            GotchaDeviceAdminReceiver.componentName(this@MainActivity)
-                        ).putExtra(
-                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                            "Gotcha uses device administration to lock the screen, enforce " +
-                                "password policy, and disable the camera when you ask it to."
-                        )
-                    )
-                    ToolResult.VPN_CONSENT -> VpnService.prepare(this@MainActivity)?.let {
-                        startActivity(it)
-                    } ?: Toast.makeText(
-                        this@MainActivity,
-                        "VPN already authorized — ask the assistant again.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    "special:screenshot_consent" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            val mpManager = getSystemService(
-                                Context.MEDIA_PROJECTION_SERVICE
-                            ) as android.media.projection.MediaProjectionManager
-                            mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                        }
-                    }
-                    // Runtime permissions are mapped in Settings → Permissions; skip here.
-                }
+                handlePermissionRequest(permission)
             }
         }
 
@@ -218,6 +154,75 @@ class MainActivity : ComponentActivity() {
                     GotchaApp()
                 }
             }
+        }
+    }
+
+    /** Opens the matching special-access Settings screen for a tool-reported marker. */
+    private fun handlePermissionRequest(permission: String) {
+        when (permission) {
+            ToolResult.WRITE_SETTINGS -> startActivity(
+                Intent(
+                    AndroidSettings.ACTION_MANAGE_WRITE_SETTINGS,
+                    Uri.parse("package:$packageName")
+                )
+            )
+            ToolResult.USAGE_ACCESS -> startActivity(
+                Intent(AndroidSettings.ACTION_USAGE_ACCESS_SETTINGS)
+            )
+            ToolResult.DND_ACCESS -> startActivity(
+                Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+            )
+            ToolResult.ACCESSIBILITY_ACCESS -> startActivity(
+                Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)
+            )
+            ToolResult.NOTIFICATION_LISTENER_ACCESS -> startActivity(
+                Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            )
+            ToolResult.ALL_FILES_ACCESS -> startActivity(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Intent(
+                        AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                } else {
+                    Intent(
+                        AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:$packageName")
+                    )
+                }
+            )
+            ToolResult.OVERLAY_ACCESS -> startActivity(
+                Intent(
+                    AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
+            ToolResult.DEVICE_ADMIN -> startActivity(
+                Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(
+                    DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                    GotchaDeviceAdminReceiver.componentName(this)
+                ).putExtra(
+                    DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                    "Gotcha uses device administration to lock the screen, enforce " +
+                        "password policy, and disable the camera when you ask it to."
+                )
+            )
+            ToolResult.VPN_CONSENT -> VpnService.prepare(this)?.let {
+                startActivity(it)
+            } ?: Toast.makeText(
+                this,
+                "VPN already authorized — ask the assistant again.",
+                Toast.LENGTH_SHORT
+            ).show()
+            "special:screenshot_consent" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    val mpManager = getSystemService(
+                        Context.MEDIA_PROJECTION_SERVICE
+                    ) as android.media.projection.MediaProjectionManager
+                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                }
+            }
+            // Runtime permissions are mapped in Settings → Permissions; skip here.
         }
     }
 
