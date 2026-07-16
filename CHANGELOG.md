@@ -51,3 +51,15 @@ Studio, OpenRouter, any OpenAI-compatible server) are unchanged.
   (runs Google sign-in with the Activity context, persists the JWT, refreshes the
   ViewModel) and `onSamosaSignOut`. The initial route already opens Settings when
   the active provider is unconfigured, satisfying the "prompt to sign in" flow.
+
+### Fixed
+
+- **agent/AgentEngine.kt**: added an anti-loop guard to the shared agent tool
+  loop. When consecutive tool rounds produce a byte-identical signature (tool-call
+  names + tool result text) — e.g. the accessibility service repeatedly returning
+  "enabled but not running", or `webfetch` retrying a dead URL that keeps 404-ing —
+  the loop now bails out after 3 identical rounds with a clear message instead of
+  spinning until `maxToolRounds`. Provider-agnostic; benefits both OpenAI-compatible
+  and Samosa AI. (Root cause of the apparent "reply re-sent in a loop" during
+  tool-heavy Samosa tasks: the model kept retrying a failing tool with no new
+  information; not a re-injection of assistant replies as user turns.)

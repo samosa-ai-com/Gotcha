@@ -278,6 +278,12 @@ class AgentEngine(
         // tools (FileResolver already accepts one); deferred for now.
         FileResolver.WORKING_DIR_BASE = workingDir().absolutePath
         checkAndCompactHistory(llm)
+        // Anti-loop guard: if consecutive tool rounds produce the byte-identical
+        // set of tool-call names + results (e.g. a tool that keeps returning the
+        // same "service not running" error), the model is stuck retrying with no
+        // new information. Break after [MAX_REPEATED_TOOL_ROUNDS] such rounds.
+        var lastRoundSignature: String? = null
+        var repeatedRoundCount = 0
         repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             events.onActivity("Thinking…")
@@ -395,10 +401,34 @@ class AgentEngine(
                     }
                 }
             }
+            val historySizeBeforeTools = history.size
             executeToolCalls()
             saveCurrentSession()
             // Re-assert after each round; a concurrent engine may have moved it.
             FileResolver.WORKING_DIR_BASE = workingDir().absolutePath
+
+            // Anti-loop guard: signature = tool-call names + the tool result text
+            // appended this round. Identical signatures across consecutive rounds
+            // mean the model is retrying the same failing action with no progress.
+            val roundToolResults = history.drop(historySizeBeforeTools)
+                .filter { it.role == "tool" }
+                .joinToString("\n") { it.textContent }
+            val roundSignature = toolCalls.joinToString(",") { it.function.name } + "|" + roundToolResults
+            if (roundSignature == lastRoundSignature) {
+                repeatedRoundCount++
+                if (repeatedRoundCount >= MAX_REPEATED_TOOL_ROUNDS) {
+                    events.onUi(
+                        MessageKind.ERROR,
+                        "Stopped: the same tool action kept returning the same result " +
+                            "($repeatedRoundCount times in a row) with no progress. " +
+                            "Check that the required service/permission is available, then try again."
+                    )
+                    return
+                }
+            } else {
+                repeatedRoundCount = 0
+                lastRoundSignature = roundSignature
+            }
         }
         events.onUi(
             MessageKind.ERROR,
@@ -960,6 +990,13 @@ class AgentEngine(
     companion object {
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /**
+         * How many consecutive tool rounds with a byte-identical
+         * (tool names + results) signature are tolerated before the agent loop
+         * bails out. Catches "service not running" / dead-URL retry storms.
+         */
+        private const val MAX_REPEATED_TOOL_ROUNDS = 3
 
         /**
          * Parses the body of a QUESTION: tool result into a [PendingQuestion].
