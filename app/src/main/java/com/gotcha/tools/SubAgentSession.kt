@@ -39,8 +39,8 @@ class SubAgentSession(
         Log.d(TAG, "Starting sub-agent with model=$model: $description")
 
         val subLlm = LLMClient(
-            apiKey = settings.apiKey,
-            baseUrl = settings.baseUrl,
+            apiKey = settings.effectiveApiKey,
+            baseUrl = settings.effectiveBaseUrl,
             model = model,
             context = appContext,
             apiTimeoutSeconds = settings.apiTimeoutSeconds

@@ -33,6 +33,8 @@ import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.ModelCategory
+import com.gotcha.auth.SamosaAuthManager
+import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.ThemeMode
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var samosaAuthManager: SamosaAuthManager
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
@@ -96,6 +99,7 @@ class MainActivity : ComponentActivity() {
             window.decorView.isForceDarkAllowed = false
         }
         settingsRepository = SettingsRepository(this)
+        samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
 
         // Phase 7: tools report special-access markers; open Settings deep-links.
@@ -393,14 +397,32 @@ class MainActivity : ComponentActivity() {
                         onRefreshChatModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val client = LLMClient(
-                                    apiKey = s.apiKey,
-                                    baseUrl = s.baseUrl,
+                                    apiKey = s.effectiveApiKey,
+                                    baseUrl = s.effectiveBaseUrl,
                                     model = s.model,
                                     context = this@MainActivity,
                                     apiTimeoutSeconds = s.apiTimeoutSeconds
                                 )
                                 client.listModels()
                             }
+                        },
+                        onSamosaSignIn = {
+                            when (val r = samosaAuthManager.signIn(this@MainActivity)) {
+                                is SamosaSignInResult.Success -> {
+                                    // Token is already persisted by the auth manager.
+                                    val token = settingsRepository.load().samosaSessionToken
+                                    chatViewModel.refreshSettings()
+                                    Result.success(r.email to token)
+                                }
+                                is SamosaSignInResult.Cancelled ->
+                                    Result.failure(Exception("Sign-in cancelled."))
+                                is SamosaSignInResult.Error ->
+                                    Result.failure(Exception(r.message))
+                            }
+                        },
+                        onSamosaSignOut = {
+                            samosaAuthManager.signOut()
+                            chatViewModel.refreshSettings()
                         },
                         packageName = packageName
                     )
@@ -445,8 +467,8 @@ class MainActivity : ComponentActivity() {
     /** Cheap "ping" request to validate credentials (Phase 6). */
     private suspend fun testConnection(settings: Settings): Result<String> = runCatching {
         val client = LLMClient(
-            apiKey = settings.apiKey,
-            baseUrl = settings.baseUrl,
+            apiKey = settings.effectiveApiKey,
+            baseUrl = settings.effectiveBaseUrl,
             model = settings.model,
             context = this,
             apiTimeoutSeconds = settings.apiTimeoutSeconds

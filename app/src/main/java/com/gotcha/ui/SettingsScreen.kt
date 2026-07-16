@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
 import kotlinx.coroutines.launch
@@ -64,11 +65,21 @@ fun SettingsScreen(
         )
     },
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = { Result.failure(Exception("Not available")) },
+    /** Runs the Samosa Google Sign-In flow; returns (email, sessionToken) or an error. */
+    onSamosaSignIn: suspend () -> Result<Pair<String, String>> = { Result.failure(Exception("Not available")) },
+    /** Logs out of Samosa (clears JWT + Google state). */
+    onSamosaSignOut: suspend () -> Unit = {},
     packageName: String = ""
 ) {
+    var provider by remember { mutableStateOf(initial.provider) }
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
     var model by remember { mutableStateOf(initial.model) }
+    // Samosa auth state, kept live as the user signs in / out.
+    var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
+    var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
+    var samosaBusy by remember { mutableStateOf(false) }
+    var providerExpanded by remember { mutableStateOf(false) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
@@ -107,9 +118,12 @@ fun SettingsScreen(
     var navigatorModelExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
+        provider = provider,
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
+        samosaSessionToken = samosaToken,
+        samosaEmail = samosaEmail,
         subAgentModel = subAgentModel.trim(),
         navigatorModel = navigatorModel.trim(),
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 300,
@@ -174,30 +188,98 @@ fun SettingsScreen(
             )
             AnimatedVisibility(visible = aiConfigExpanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = { Text("API key") },
-                        singleLine = true,
-                        visualTransformation = if (showKey) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            TextButton(onClick = { showKey = !showKey }) {
-                                Text(if (showKey) "Hide" else "Show")
+                    // ---- LLM provider selector ----
+                    ExposedDropdownMenuBox(
+                        expanded = providerExpanded,
+                        onExpandedChange = { providerExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = provider.label,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("LLM Provider") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
+                            },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = providerExpanded,
+                            onDismissRequest = { providerExpanded = false }
+                        ) {
+                            LlmProvider.entries.forEach { p ->
+                                DropdownMenuItem(
+                                    text = { Text(p.label) },
+                                    onClick = {
+                                        provider = p
+                                        providerExpanded = false
+                                    }
+                                )
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("Base URL (OpenAI-compatible)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        }
+                    }
+
+                    if (provider == LlmProvider.SAMOSA_AI) {
+                        // ---- Samosa AI: Google sign-in (no Base URL / API key) ----
+                        SamosaAuthSection(
+                            email = samosaEmail,
+                            signedIn = samosaToken.isNotBlank(),
+                            busy = samosaBusy,
+                            onSignIn = {
+                                samosaBusy = true
+                                status = "Signing in with Google…"
+                                scope.launch {
+                                    val result = onSamosaSignIn()
+                                    result.onSuccess { (email, token) ->
+                                        samosaEmail = email
+                                        samosaToken = token
+                                        status = "Signed in as $email"
+                                    }.onFailure { e ->
+                                        status = e.message ?: "Sign-in failed."
+                                    }
+                                    samosaBusy = false
+                                }
+                            },
+                            onSignOut = {
+                                samosaBusy = true
+                                status = "Signing out…"
+                                scope.launch {
+                                    onSamosaSignOut()
+                                    samosaToken = ""
+                                    samosaEmail = ""
+                                    availableChatModels = emptyList()
+                                    status = "Signed out of Samosa AI."
+                                    samosaBusy = false
+                                }
+                            }
+                        )
+                    } else {
+                        // ---- OpenAI-compatible: Base URL + API key (unchanged) ----
+                        OutlinedTextField(
+                            value = apiKey,
+                            onValueChange = { apiKey = it },
+                            label = { Text("API key") },
+                            singleLine = true,
+                            visualTransformation = if (showKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showKey = !showKey }) {
+                                    Text(if (showKey) "Hide" else "Show")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = { baseUrl = it },
+                            label = { Text("Base URL (OpenAI-compatible)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     ExposedDropdownMenuBox(
                         expanded = modelExpanded,
                         onExpandedChange = { modelExpanded = it }
@@ -374,7 +456,11 @@ fun SettingsScreen(
                             onSave(currentSettings())
                             status = "Saved."
                         },
-                        enabled = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank(),
+                        enabled = when (provider) {
+                            LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE ->
+                                apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save") }
                     OutlinedButton(
@@ -390,7 +476,10 @@ fun SettingsScreen(
                                 testing = false
                             }
                         },
-                        enabled = !testing && apiKey.isNotBlank() && baseUrl.isNotBlank(),
+                        enabled = !testing && when (provider) {
+                            LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> apiKey.isNotBlank() && baseUrl.isNotBlank()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Test connection") }
                     OutlinedButton(
@@ -618,6 +707,49 @@ fun SettingsScreen(
                     "except in requests to the base URL above.",
                 style = MaterialTheme.typography.bodySmall
             )
+        }
+    }
+}
+
+@Composable
+private fun SamosaAuthSection(
+    email: String,
+    signedIn: Boolean,
+    busy: Boolean,
+    onSignIn: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+        if (signedIn && email.isNotBlank()) {
+            Text(
+                text = email,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        if (!signedIn) {
+            Text(
+                text = "Sign in with Google to use Samosa AI. Your OpenAI-compatible " +
+                    "settings are kept separately and are unaffected.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (signedIn) {
+            OutlinedButton(
+                onClick = onSignOut,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "Please wait…" else "Log out") }
+        } else {
+            Button(
+                onClick = onSignIn,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
         }
     }
 }

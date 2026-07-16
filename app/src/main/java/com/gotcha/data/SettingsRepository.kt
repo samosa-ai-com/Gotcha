@@ -14,9 +14,15 @@ enum class ThemeMode(val label: String) {
 }
 
 data class Settings(
+    // Which LLM backend is active. Defaults to the original OpenAI-compatible flow.
+    val provider: LlmProvider = LlmProvider.OPENAI_COMPATIBLE,
     val apiKey: String = "",
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
+    // Samosa AI: Samosa AI backend session JWT + connected Google account (never
+    // stores the Google ID token). Only used when provider == SAMOSA_AI.
+    val samosaSessionToken: String = "",
+    val samosaEmail: String = "",
     val subAgentModel: String = "", // empty = same as main agent
     val navigatorModel: String = "", // empty = same as main model
     val maxToolRounds: Int = 300,
@@ -33,7 +39,30 @@ data class Settings(
     val assistiveBallEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM
 ) {
-    val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank()
+    /** True when the active provider has everything it needs to make requests. */
+    val isConfigured: Boolean
+        get() = when (provider) {
+            LlmProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
+            LlmProvider.OPENAI_COMPATIBLE -> apiKey.isNotBlank() && baseUrl.isNotBlank()
+        }
+
+    /** Base URL the networking stack should actually use for the active provider. */
+    val effectiveBaseUrl: String
+        get() = when (provider) {
+            LlmProvider.SAMOSA_AI -> LlmProvider.SAMOSA_BASE_URL
+            LlmProvider.OPENAI_COMPATIBLE -> baseUrl
+        }
+
+    /** Bearer token the networking stack should attach for the active provider. */
+    val effectiveApiKey: String
+        get() = when (provider) {
+            LlmProvider.SAMOSA_AI -> samosaSessionToken
+            LlmProvider.OPENAI_COMPATIBLE -> apiKey
+        }
+
+    /** True when Samosa AI is selected and a session token exists. */
+    val isSamosaAuthenticated: Boolean
+        get() = provider == LlmProvider.SAMOSA_AI && samosaSessionToken.isNotBlank()
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/"
@@ -58,10 +87,13 @@ class SettingsRepository(context: Context) {
     }
 
     fun load(): Settings = Settings(
+        provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = prefs.getString(KEY_API_KEY, "") ?: "",
         baseUrl = prefs.getString(KEY_BASE_URL, Settings.DEFAULT_BASE_URL)
             ?: Settings.DEFAULT_BASE_URL,
         model = prefs.getString(KEY_MODEL, Settings.DEFAULT_MODEL) ?: Settings.DEFAULT_MODEL,
+        samosaSessionToken = prefs.getString(KEY_SAMOSA_TOKEN, "") ?: "",
+        samosaEmail = prefs.getString(KEY_SAMOSA_EMAIL, "") ?: "",
         subAgentModel = prefs.getString(KEY_SUB_AGENT_MODEL, "") ?: "",
         navigatorModel = prefs.getString(KEY_NAVIGATOR_MODEL, "") ?: "",
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 300),
@@ -82,9 +114,12 @@ class SettingsRepository(context: Context) {
 
     fun save(settings: Settings) {
         prefs.edit()
+            .putString(KEY_PROVIDER, settings.provider.name)
             .putString(KEY_API_KEY, settings.apiKey)
             .putString(KEY_BASE_URL, settings.baseUrl)
             .putString(KEY_MODEL, settings.model)
+            .putString(KEY_SAMOSA_TOKEN, settings.samosaSessionToken)
+            .putString(KEY_SAMOSA_EMAIL, settings.samosaEmail)
             .putString(KEY_SUB_AGENT_MODEL, settings.subAgentModel)
             .putString(KEY_NAVIGATOR_MODEL, settings.navigatorModel)
             .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
@@ -102,10 +137,29 @@ class SettingsRepository(context: Context) {
             .apply()
     }
 
+    /** Persist just the Samosa session token + account email after a sign-in. */
+    fun saveSamosaSession(token: String, email: String) {
+        prefs.edit()
+            .putString(KEY_SAMOSA_TOKEN, token)
+            .putString(KEY_SAMOSA_EMAIL, email)
+            .apply()
+    }
+
+    /** Clear the Samosa session (logout / 401). Leaves all other settings intact. */
+    fun clearSamosaSession() {
+        prefs.edit()
+            .remove(KEY_SAMOSA_TOKEN)
+            .remove(KEY_SAMOSA_EMAIL)
+            .apply()
+    }
+
     private companion object {
+        const val KEY_PROVIDER = "llm_provider"
         const val KEY_API_KEY = "api_key"
         const val KEY_BASE_URL = "base_url"
         const val KEY_MODEL = "model"
+        const val KEY_SAMOSA_TOKEN = "samosa_session_token"
+        const val KEY_SAMOSA_EMAIL = "samosa_email"
         const val KEY_SUB_AGENT_MODEL = "sub_agent_model"
         const val KEY_NAVIGATOR_MODEL = "navigator_model"
         const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"

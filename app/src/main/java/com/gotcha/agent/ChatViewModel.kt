@@ -220,26 +220,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         settings = settingsRepository.load()
         client = if (settings.isConfigured) {
             LLMClient(
-                apiKey = settings.apiKey,
-                baseUrl = settings.baseUrl,
+                apiKey = settings.effectiveApiKey,
+                baseUrl = settings.effectiveBaseUrl,
                 model = settings.model,
                 context = getApplication(),
-                apiTimeoutSeconds = settings.apiTimeoutSeconds
+                apiTimeoutSeconds = settings.apiTimeoutSeconds,
+                onUnauthorized = { onSamosaUnauthorized() }
             )
         } else {
             null
         }
-        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.apiKey)
-        sttEngine.configureApi(settings.sttApiBaseUrl, settings.apiKey)
+        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveApiKey)
+        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
+    }
+
+    /**
+     * On a 401 while using Samosa AI, the JWT is expired/blacklisted: drop it so
+     * the app returns to the unauthenticated state and prompts sign-in again.
+     */
+    private fun onSamosaUnauthorized() {
+        if (settings.provider != com.gotcha.data.LlmProvider.SAMOSA_AI) return
+        settingsRepository.clearSamosaSession()
+        settings = settingsRepository.load()
+        client = null
+        _uiState.update { it.copy(isConfigured = false) }
     }
 
     suspend fun refreshChatModels(): Result<List<String>> {
         val cfg = settings
         if (!cfg.isConfigured) return Result.failure(Exception("API not configured"))
         val client = LLMClient(
-            apiKey = cfg.apiKey,
-            baseUrl = cfg.baseUrl,
+            apiKey = cfg.effectiveApiKey,
+            baseUrl = cfg.effectiveBaseUrl,
             model = cfg.model,
             context = getApplication(),
             apiTimeoutSeconds = cfg.apiTimeoutSeconds
