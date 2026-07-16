@@ -129,19 +129,16 @@ class CallChatWindow(context: Context) {
                 actionBtn?.visibility = View.VISIBLE
                 (actionBtn as? TextView)?.text = "\uD83C\uDFA4"
                 actionBtn?.alpha = 1f
-                actionBtn?.setOnClickListener { onStartMic() }
             }
             CallState.LISTENING -> {
                 actionBtn?.visibility = View.VISIBLE
                 (actionBtn as? TextView)?.text = "\u23F9"
                 actionBtn?.alpha = 1f
-                actionBtn?.setOnClickListener { onStopMic() }
             }
             CallState.THINKING, CallState.SPEAKING -> {
                 actionBtn?.visibility = View.VISIBLE
                 (actionBtn as? TextView)?.text = "\uD83D\uDED1"
                 actionBtn?.alpha = 1f
-                actionBtn?.setOnClickListener { onInterrupt() }
             }
             else -> {
                 actionBtn?.visibility = View.GONE
@@ -318,11 +315,19 @@ class CallChatWindow(context: Context) {
             if (x >= child.left && x <= child.right &&
                 y >= child.top && y <= child.bottom
             ) {
-                if (child == actionBtn) {
-                    actionBtn?.callOnClick()
-                }
+                if (child == actionBtn) performMicAction()
                 break
             }
+        }
+    }
+
+    /** Fire the action bound to the mic button for the current call state. */
+    private fun performMicAction() {
+        when (currentState) {
+            CallState.READY, CallState.WAITING_USER -> onStartMic()
+            CallState.LISTENING -> onStopMic()
+            CallState.THINKING, CallState.SPEAKING -> onInterrupt()
+            else -> { /* no-op when hidden */ }
         }
     }
 

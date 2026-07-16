@@ -723,7 +723,7 @@ class AssistiveBallOverlay(context: Context) {
 
         // Edge-peek behaviour: when idle the ball docks off an edge, leaving
         // only a thin, semi-transparent sliver; interaction reveals the full ball.
-        const val PEEK_DP = 12
+        const val PEEK_DP = 14
         const val PEEK_ALPHA = 0.35f
         const val DOCK_MARGIN_DP = 16
         const val AUTO_DOCK_DELAY_MS = 2500L
