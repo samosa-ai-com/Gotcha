@@ -43,7 +43,7 @@ data class Settings(
     val isConfigured: Boolean
         get() = when (provider) {
             LlmProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
-            LlmProvider.OPENAI_COMPATIBLE -> apiKey.isNotBlank() && baseUrl.isNotBlank()
+            LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
         }
 
     /** Base URL the networking stack should actually use for the active provider. */

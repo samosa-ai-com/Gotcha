@@ -140,6 +140,37 @@ fun SettingsScreen(
         themeMode = themeMode
     )
 
+    val refreshChatModelsAction = {
+        if (!refreshingChatModels) {
+            refreshingChatModels = true
+            status = "Refreshing models…"
+            scope.launch {
+                val result = onRefreshChatModels(currentSettings())
+                result.onSuccess { models ->
+                    availableChatModels = models
+                    status = "Found ${models.size} models"
+                }.onFailure { e ->
+                    status = "Failed: ${e.message}"
+                }
+                refreshingChatModels = false
+            }
+        }
+    }
+
+    val refreshAudioModelsAction = {
+        if (!refreshingModels) {
+            refreshingModels = true
+            status = "Refreshing audio models…"
+            scope.launch {
+                val (tts, stt) = onRefreshAudioModels(currentSettings())
+                availableTtsModels = tts
+                availableSttModels = stt
+                status = "Found ${tts.size} TTS, ${stt.size} STT models"
+                refreshingModels = false
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -282,7 +313,10 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = modelExpanded,
-                        onExpandedChange = { modelExpanded = it }
+                        onExpandedChange = { 
+                            modelExpanded = it 
+                            if (it) refreshChatModelsAction()
+                        }
                     ) {
                         OutlinedTextField(
                             value = model,
@@ -297,9 +331,13 @@ fun SettingsScreen(
                             expanded = modelExpanded,
                             onDismissRequest = { modelExpanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                                onClick = { refreshChatModelsAction() }
+                            )
                             if (availableChatModels.isEmpty()) {
                                 DropdownMenuItem(
-                                    text = { Text("No models — refresh below") },
+                                    text = { Text("No models found") },
                                     onClick = { modelExpanded = false }
                                 )
                             } else {
@@ -324,7 +362,10 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = subAgentModelExpanded,
-                        onExpandedChange = { subAgentModelExpanded = it }
+                        onExpandedChange = { 
+                            subAgentModelExpanded = it 
+                            if (it) refreshChatModelsAction()
+                        }
                     ) {
                         val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
                         OutlinedTextField(
@@ -343,6 +384,10 @@ fun SettingsScreen(
                             expanded = subAgentModelExpanded,
                             onDismissRequest = { subAgentModelExpanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                                onClick = { refreshChatModelsAction() }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Same as main agent") },
                                 onClick = {
@@ -365,7 +410,10 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = navigatorModelExpanded,
-                        onExpandedChange = { navigatorModelExpanded = it }
+                        onExpandedChange = { 
+                            navigatorModelExpanded = it
+                            if (it) refreshChatModelsAction()
+                        }
                     ) {
                         val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
                         OutlinedTextField(
@@ -385,6 +433,10 @@ fun SettingsScreen(
                             onDismissRequest = { navigatorModelExpanded = false }
                         ) {
                             DropdownMenuItem(
+                                text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                                onClick = { refreshChatModelsAction() }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Same as main model") },
                                 onClick = {
                                     navigatorModel = ""
@@ -403,29 +455,6 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                refreshingChatModels = true
-                                status = "Refreshing models…"
-                                scope.launch {
-                                    val result = onRefreshChatModels(currentSettings())
-                                    result.onSuccess { models ->
-                                        availableChatModels = models
-                                        status = "Found ${models.size} models"
-                                    }.onFailure { e ->
-                                        status = "Failed: ${e.message}"
-                                    }
-                                    refreshingChatModels = false
-                                }
-                            },
-                            enabled = !refreshingChatModels,
-                            modifier = Modifier.weight(1f)
-                        ) { Text(if (refreshingChatModels) "Refreshing…" else "Refresh models") }
                     }
                     OutlinedTextField(
                         value = maxToolRounds,
@@ -458,8 +487,7 @@ fun SettingsScreen(
                         },
                         enabled = when (provider) {
                             LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
-                            LlmProvider.OPENAI_COMPATIBLE ->
-                                apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save") }
@@ -478,7 +506,7 @@ fun SettingsScreen(
                         },
                         enabled = !testing && when (provider) {
                             LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
-                            LlmProvider.OPENAI_COMPATIBLE -> apiKey.isNotBlank() && baseUrl.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Test connection") }
@@ -552,7 +580,10 @@ fun SettingsScreen(
                         )
                         ExposedDropdownMenuBox(
                             expanded = ttsModelExpanded,
-                            onExpandedChange = { ttsModelExpanded = it }
+                            onExpandedChange = { 
+                                ttsModelExpanded = it 
+                                if (it) refreshAudioModelsAction()
+                            }
                         ) {
                             OutlinedTextField(
                                 value = ttsApiModel.ifEmpty { "(select model)" },
@@ -570,9 +601,13 @@ fun SettingsScreen(
                                 expanded = ttsModelExpanded,
                                 onDismissRequest = { ttsModelExpanded = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…") },
+                                    onClick = { refreshAudioModelsAction() }
+                                )
                                 if (availableTtsModels.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No models — refresh below") },
+                                        text = { Text("No models found") },
                                         onClick = { ttsModelExpanded = false }
                                     )
                                 } else {
@@ -627,7 +662,10 @@ fun SettingsScreen(
                         )
                         ExposedDropdownMenuBox(
                             expanded = sttModelExpanded,
-                            onExpandedChange = { sttModelExpanded = it }
+                            onExpandedChange = { 
+                                sttModelExpanded = it 
+                                if (it) refreshAudioModelsAction()
+                            }
                         ) {
                             OutlinedTextField(
                                 value = sttApiModel.ifEmpty { "(select model)" },
@@ -645,9 +683,13 @@ fun SettingsScreen(
                                 expanded = sttModelExpanded,
                                 onDismissRequest = { sttModelExpanded = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…") },
+                                    onClick = { refreshAudioModelsAction() }
+                                )
                                 if (availableSttModels.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No models — refresh below") },
+                                        text = { Text("No models found") },
                                         onClick = { sttModelExpanded = false }
                                     )
                                 } else {
@@ -672,21 +714,6 @@ fun SettingsScreen(
                         Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
                         Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
                     }
-                    OutlinedButton(
-                        onClick = {
-                            refreshingModels = true
-                            status = "Refreshing audio models…"
-                            scope.launch {
-                                val (tts, stt) = onRefreshAudioModels(currentSettings())
-                                availableTtsModels = tts
-                                availableSttModels = stt
-                                status = "Found ${tts.size} TTS, ${stt.size} STT models"
-                                refreshingModels = false
-                            }
-                        },
-                        enabled = !refreshingModels && (ttsApiBaseUrl.isNotBlank() || sttApiBaseUrl.isNotBlank()),
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (refreshingModels) "Refreshing…" else "Refresh audio models") }
                     Button(
                         onClick = {
                             onSave(currentSettings())
