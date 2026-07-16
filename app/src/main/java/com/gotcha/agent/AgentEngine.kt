@@ -447,7 +447,7 @@ class AgentEngine(
             val roundToolResults = history.drop(historySizeBeforeTools)
                 .filter { it.role == "tool" }
                 .joinToString("\n") { it.textContent }
-            val roundSignature = toolCalls.joinToString(",") { it.function.name } + "|" + roundToolResults
+            val roundSignature = toolCalls.joinToString(",") { "${it.function.name}:${it.function.arguments}" } + "|" + roundToolResults
             if (roundSignature == lastRoundSignature) {
                 repeatedRoundCount++
                 if (repeatedRoundCount >= MAX_REPEATED_TOOL_ROUNDS) {
