@@ -75,6 +75,9 @@ class AssistiveBallOverlay(context: Context) {
     private var cardView: View? = null
     private var dismissTargetView: View? = null
 
+    /** Which edge the ball docks to when idle. Defaults to the right edge. */
+    private var dockSide: Int = DOCK_SIDE_END
+
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
 
     private val settingsRepository by lazy { SettingsRepository(appContext) }
@@ -132,8 +135,14 @@ class AssistiveBallOverlay(context: Context) {
             try {
                 windowManager.addView(ball, ballParams)
                 ballView = ball
-                // Start as a faint sliver docked at the edge (edge-peek behaviour).
-                ball.alpha = PEEK_ALPHA
+                // On first enable, show the full, opaque button (centred) so the user
+                // sees it; it auto-docks to the edge after a short idle delay.
+                ball.alpha = 1.0f
+                ballParams.x = (screenWidth() - dp(BALL_SIZE_DP)) / 2
+                try {
+                    windowManager.updateViewLayout(ball, ballParams)
+                } catch (_: Exception) { }
+                scheduleAutoDock()
             } catch (_: Exception) {
                 ballView = null
             }
@@ -353,6 +362,8 @@ class AssistiveBallOverlay(context: Context) {
                         longPressFired -> { /* handled by the runnable */ }
                         droppedOnTarget -> onDismiss()
                         dragging -> {
+                            // Snap to the edge on the side the ball was dropped on.
+                            dockSide = sideForX(ballParams.x)
                             clampBallIntoBounds()
                             scheduleAutoDock()
                         }
@@ -372,6 +383,8 @@ class AssistiveBallOverlay(context: Context) {
                     hideLongPressRing()
                     removeDismissTarget()
                     if (dragging) {
+                        // Snap to the edge on the side the ball was dropped on.
+                        dockSide = sideForX(ballParams.x)
                         clampBallIntoBounds()
                         scheduleAutoDock()
                     }
@@ -384,11 +397,11 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun clampBallIntoBounds() {
         val metrics = appContext.resources.displayMetrics
-        val maxX = metrics.widthPixels - dp(BALL_SIZE_DP)
         val maxY = metrics.heightPixels - dp(BALL_SIZE_DP)
-        // Allow the ball to slide off the left edge down to its docked peek position.
+        // Allow the ball to dock fully off either edge down to its peek position.
         val minX = -dp(BALL_SIZE_DP - PEEK_DP)
-        ballParams.x = ballParams.x.coerceIn(minX, maxX.coerceAtLeast(minX))
+        val maxX = metrics.widthPixels - dp(PEEK_DP)
+        ballParams.x = ballParams.x.coerceIn(minX, maxX)
         ballParams.y = ballParams.y.coerceIn(0, maxY.coerceAtLeast(0))
         try {
             windowManager.updateViewLayout(ballView, ballParams)
@@ -396,6 +409,20 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     // ---- Edge-peek expand / dock ----
+
+    private fun screenWidth(): Int = appContext.resources.displayMetrics.widthPixels
+
+    /** X offset (from the left/START edge) that places the ball in its peek sliver. */
+    private fun dockedX(side: Int): Int = when (side) {
+        DOCK_SIDE_END -> screenWidth() - dp(PEEK_DP)
+        else -> -dp(BALL_SIZE_DP - PEEK_DP)
+    }
+
+    /** Pick the dock side from the ball's current left offset (uses its centre). */
+    private fun sideForX(leftX: Int): Int {
+        val centre = leftX + dp(BALL_SIZE_DP) / 2
+        return if (centre < screenWidth() / 2) DOCK_SIDE_START else DOCK_SIDE_END
+    }
 
     /** Slide the full ball onto the screen and make it fully opaque. */
     private fun expandFromEdge() {
@@ -418,7 +445,7 @@ class AssistiveBallOverlay(context: Context) {
     /** Animate the ball back to the faint, docked-at-edge peek state. */
     private fun dockToEdge() {
         val view = ballView ?: return
-        val targetX = -dp(BALL_SIZE_DP - PEEK_DP)
+        val targetX = dockedX(dockSide)
         val startX = ballParams.x
         val startAlpha = view.alpha
         ValueAnimator.ofFloat(0f, 1f).apply {
@@ -651,8 +678,8 @@ class AssistiveBallOverlay(context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // Dock off the left edge by default: only PEEK_DP of the ball is visible.
-            x = -dp(BALL_SIZE_DP - PEEK_DP)
+            // Default-dock off the right edge: only PEEK_DP of the ball is visible.
+            x = dockedX(dockSide)
             y = dp(160)
         }
 
@@ -694,11 +721,15 @@ class AssistiveBallOverlay(context: Context) {
         const val DISMISS_TARGET_MARGIN_DP = 32
         const val DISMISS_SNAP_RADIUS_DP = 56
 
-        // Edge-peek behaviour: when idle the ball docks off the left edge, leaving
+        // Edge-peek behaviour: when idle the ball docks off an edge, leaving
         // only a thin, semi-transparent sliver; interaction reveals the full ball.
         const val PEEK_DP = 12
         const val PEEK_ALPHA = 0.35f
         const val DOCK_MARGIN_DP = 16
         const val AUTO_DOCK_DELAY_MS = 2500L
+
+        // Dock side identifiers (START = left edge, END = right edge).
+        const val DOCK_SIDE_START = 0
+        const val DOCK_SIDE_END = 1
     }
 }
