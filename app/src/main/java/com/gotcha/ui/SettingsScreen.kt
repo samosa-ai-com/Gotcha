@@ -313,8 +313,8 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = modelExpanded,
-                        onExpandedChange = { 
-                            modelExpanded = it 
+                        onExpandedChange = {
+                            modelExpanded = it
                             if (it) refreshChatModelsAction()
                         }
                     ) {
@@ -362,8 +362,8 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = subAgentModelExpanded,
-                        onExpandedChange = { 
-                            subAgentModelExpanded = it 
+                        onExpandedChange = {
+                            subAgentModelExpanded = it
                             if (it) refreshChatModelsAction()
                         }
                     ) {
@@ -410,7 +410,7 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = navigatorModelExpanded,
-                        onExpandedChange = { 
+                        onExpandedChange = {
                             navigatorModelExpanded = it
                             if (it) refreshChatModelsAction()
                         }
@@ -580,8 +580,8 @@ fun SettingsScreen(
                         )
                         ExposedDropdownMenuBox(
                             expanded = ttsModelExpanded,
-                            onExpandedChange = { 
-                                ttsModelExpanded = it 
+                            onExpandedChange = {
+                                ttsModelExpanded = it
                                 if (it) refreshAudioModelsAction()
                             }
                         ) {
@@ -602,7 +602,9 @@ fun SettingsScreen(
                                 onDismissRequest = { ttsModelExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…") },
+                                    text = {
+                                        Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
+                                    },
                                     onClick = { refreshAudioModelsAction() }
                                 )
                                 if (availableTtsModels.isEmpty()) {
@@ -662,8 +664,8 @@ fun SettingsScreen(
                         )
                         ExposedDropdownMenuBox(
                             expanded = sttModelExpanded,
-                            onExpandedChange = { 
-                                sttModelExpanded = it 
+                            onExpandedChange = {
+                                sttModelExpanded = it
                                 if (it) refreshAudioModelsAction()
                             }
                         ) {
@@ -684,7 +686,9 @@ fun SettingsScreen(
                                 onDismissRequest = { sttModelExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…") },
+                                    text = {
+                                        Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
+                                    },
                                     onClick = { refreshAudioModelsAction() }
                                 )
                                 if (availableSttModels.isEmpty()) {

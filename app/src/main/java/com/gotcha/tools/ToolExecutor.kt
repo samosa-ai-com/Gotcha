@@ -58,7 +58,6 @@ class ToolExecutor(
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
     private val deviceAdminTool = DeviceAdminTool(appContext)
-    private val vpnTool = VpnTool(appContext)
 
     // Tier 4 tools
     private val rootTool = RootTool()
@@ -441,10 +440,7 @@ class ToolExecutor(
             "set_password_policy" -> deviceAdminTool.setPasswordPolicy(
                 args.requireInt("min_length") ?: return missing("min_length")
             )
-            "set_firewall" -> vpnTool.setFirewall(
-                args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
-            )
-            "get_firewall_status" -> vpnTool.getFirewallStatus()
+
             // ---- Tier 4 ----
             "check_root" -> rootTool.checkRoot()
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))

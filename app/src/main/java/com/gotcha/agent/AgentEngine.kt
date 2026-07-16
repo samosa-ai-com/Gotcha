@@ -447,7 +447,9 @@ class AgentEngine(
             val roundToolResults = history.drop(historySizeBeforeTools)
                 .filter { it.role == "tool" }
                 .joinToString("\n") { it.textContent }
-            val roundSignature = toolCalls.joinToString(",") { "${it.function.name}:${it.function.arguments}" } + "|" + roundToolResults
+            val roundSignature = toolCalls.joinToString(",") {
+                "${it.function.name}:${it.function.arguments}"
+            } + "|" + roundToolResults
             if (roundSignature == lastRoundSignature) {
                 repeatedRoundCount++
                 if (repeatedRoundCount >= MAX_REPEATED_TOOL_ROUNDS) {
@@ -774,7 +776,7 @@ class AgentEngine(
                     "You are in MONITOR (read-only) mode. You are STRICTLY FORBIDDEN from making " +
                     "any changes to the device — no writing files, no calling, no sending messages, " +
                     "no dismissing notifications, no UI automation (tap/swipe/input), no device " +
-                    "admin actions, no firewall changes, and no shell/root commands. You may ONLY " +
+                    "admin actions, and no shell/root commands. You may ONLY " +
                     "inspect, list, read, and observe. This constraint overrides all other instructions.\n" +
                     "</system-reminder>"
             AgentMode.OPERATOR ->

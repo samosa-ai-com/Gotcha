@@ -1645,31 +1645,6 @@ object ToolDefinitions {
         }
     )
 
-    // ---- Tier 3 addition: VpnService (local traffic firewall) ----
-
-    val setFirewall = tool(
-        "set_firewall",
-        "Enable or disable a local VPN that blocks ALL device network traffic — an on-device " +
-            "internet kill-switch. Nothing is inspected or sent anywhere; while it is on, every " +
-            "packet is dropped so no app can reach the network. Enabling needs a one-time system " +
-            "VPN consent the first time.",
-        schema {
-            putJsonObject("properties") {
-                putJsonObject("enabled") {
-                    put("type", "boolean")
-                    put("description", "true to block all network traffic, false to restore connectivity.")
-                }
-            }
-            putJsonArray("required") { add("enabled") }
-        }
-    )
-
-    val getFirewallStatus = tool(
-        "get_firewall_status",
-        "Report whether the local traffic-blocking VPN firewall is currently on or off.",
-        schema { putJsonObject("properties") {} }
-    )
-
     // ---- Tier 4 additions (privileged / rooted execution) ----
 
     val checkRoot = tool(
@@ -1758,8 +1733,7 @@ object ToolDefinitions {
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,
         lockScreen, disableCamera, setPasswordPolicy,
-        // Tier 3 addition: VpnService firewall
-        setFirewall, getFirewallStatus,
+
         // Tier 4 additions: privileged / rooted execution
         checkRoot, runRootCommand, writeSecureSettings
     )

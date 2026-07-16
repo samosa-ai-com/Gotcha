@@ -38,7 +38,6 @@ object ToolRegistry {
         "websearch", "webfetch",
         "get_clipboard",
         "read_screen", "read_notifications",
-        "get_firewall_status",
         "check_root"
     )
 
