@@ -81,6 +81,7 @@ class AssistiveBallService : Service() {
             onOpenApp = {
                 val intent = Intent(this@AssistiveBallService, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra(MainActivity.EXTRA_FROM_ASSISTIVE_BALL, true)
                 startActivity(intent)
             }
             onTakeScreenshot = { takeScreenshot() }

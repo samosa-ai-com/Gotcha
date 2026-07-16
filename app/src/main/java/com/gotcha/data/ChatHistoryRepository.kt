@@ -1,6 +1,7 @@
 package com.gotcha.data
 
 import android.content.Context
+import com.gotcha.agent.UiMessage
 import com.gotcha.llm.ChatMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,7 +15,16 @@ data class ChatSession(
     val title: String,
     val lastModified: Long,
     val messages: List<ChatMessage>,
-    val tokenCount: Int = 0
+    val tokenCount: Int = 0,
+    /**
+     * The verbatim on-screen transcript for this session. Persisted separately
+     * from [messages] (the LLM-shaped history) so reopening a chat restores
+     * exactly what was shown live, without lossy reconstruction. Reset on
+     * history compaction so pre-compaction bubbles are intentionally dropped.
+     */
+    val displayMessages: List<UiMessage> = emptyList(),
+    /** Persisted agent mode ("MONITOR"/"OPERATOR") so it survives app restarts. */
+    val agentMode: String? = null
 )
 
 /**

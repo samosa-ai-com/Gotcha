@@ -38,6 +38,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import java.io.ByteArrayOutputStream
 
+@kotlinx.serialization.Serializable
 data class UiMessage(
     val id: Long,
     val kind: MessageKind,
@@ -64,8 +65,14 @@ data class ChatUiState(
     val pendingQuestion: PendingQuestion? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
-    val activeAgent: AgentMode = AgentMode.OPERATOR,
+    val activeAgent: AgentMode = AgentMode.MONITOR,
+    /** Id of the session with an in-progress run, or null when nothing is running. */
+    val runningSessionId: String? = null,
+    /** Title of the running session, for the "return to running chat" banner. */
+    val runningSessionTitle: String? = null,
     val contextUsagePercent: Float = 0f,
+    val tokenCount: Int = 0,
+    val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
@@ -74,7 +81,7 @@ data class ChatUiState(
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
 // loop itself lives in AgentEngine and reports back through AgentEvents.
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LargeClass")
 class ChatViewModel(application: Application) : AndroidViewModel(application), AgentEvents {
 
     private val settingsRepository = SettingsRepository(application)
@@ -107,13 +114,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         events = this,
         historyRepository = historyRepository,
         settingsProvider = { settings },
-        clientProvider = { client }
+        clientProvider = { client },
+        // Persist the ENGINE session's own data, never the viewed session's —
+        // the user may be browsing another chat while this run continues.
+        displayMessagesProvider = { engineTranscript },
+        agentModeProvider = { engineAgent }
     )
 
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var questionGate: CompletableDeferred<String>? = null
     private var agentJob: Job? = null
+
+    /**
+     * Live on-screen transcript of the session currently bound to [agentEngine]
+     * (the one that runs). Kept separate from [_uiState].messages so the user
+     * can browse to another chat while a run continues in the background without
+     * the engine's output overwriting — or being overwritten by — the viewed chat.
+     */
+    private var engineTranscript: List<UiMessage> = emptyList()
+
+    /** Monotonic UiMessage id for engine bubbles while browsing a different chat. */
+    private var engineNextId: Long = 1_000_000_000L
+
+    /** Agent mode of the session currently bound to [agentEngine]. */
+    private var engineAgent: AgentMode = AgentMode.MONITOR
+
+    /** True when the session the user is viewing is the one bound to the engine. */
+    private fun viewingEngineSession(): Boolean =
+        _uiState.value.activeSessionId == agentEngine.sessionId
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -153,15 +182,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         subAgentSteps: List<String>,
         reasoningContent: String?
     ) {
-        appendUi(kind, text, imageBase64, subAgentSteps, reasoningContent)
+        appendEngineUi(kind, text, imageBase64, subAgentSteps, reasoningContent)
     }
 
     override fun onActivity(activity: String?) {
-        _uiState.update { it.copy(activity = activity) }
+        if (viewingEngineSession()) {
+            _uiState.update { it.copy(activity = activity) }
+        }
     }
 
     override fun onTokenCount(totalTokens: Int) {
-        updateContextUsage()
+        if (viewingEngineSession()) updateContextUsage()
+        // Keep the running-session token count fresh in the drawer regardless.
+        refreshSessions()
     }
 
     override fun onAssistantReply(text: String) {
@@ -174,11 +207,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     override fun onSubAgentUpdate(running: String?, currentAction: String?) {
-        _uiState.update { it.copy(subAgentRunning = running, subAgentCurrentAction = currentAction) }
+        if (viewingEngineSession()) {
+            _uiState.update { it.copy(subAgentRunning = running, subAgentCurrentAction = currentAction) }
+        }
     }
 
     override fun onPermissionRequest(marker: String) {
         _permissionRequests.tryEmit(marker)
+    }
+
+    /** Compaction dropped the LLM history; clear the engine transcript to match. */
+    override fun onHistoryReset() {
+        engineTranscript = emptyList()
+        if (viewingEngineSession()) {
+            nextId = 0
+            _uiState.update { it.copy(messages = emptyList()) }
+        }
     }
 
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String {
@@ -209,10 +253,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     // ---- Settings / models ----
 
-    private fun updateContextUsage() {
+    private fun updateContextUsage() = applyContextUsage(agentEngine.tokenCount)
+
+    /** Sets the context readout for an explicit token count (viewed session). */
+    private fun applyContextUsage(tokens: Int) {
         val limit = settings.maxContextTokens.toFloat()
-        val percent = if (limit > 0) agentEngine.tokenCount.toFloat() / limit else 0f
-        _uiState.update { it.copy(contextUsagePercent = percent.coerceIn(0f, 1f)) }
+        val percent = if (limit > 0) tokens.toFloat() / limit else 0f
+        _uiState.update {
+            it.copy(
+                contextUsagePercent = percent.coerceIn(0f, 1f),
+                tokenCount = tokens,
+                maxContextTokens = settings.maxContextTokens
+            )
+        }
     }
 
     /** Re-reads settings; call after the settings screen saves. */
@@ -233,6 +286,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveApiKey)
         sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
+        updateContextUsage()
     }
 
     /**
@@ -263,7 +317,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun sendMessage(text: String, imageBase64: String? = null) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && imageBase64 == null) return
-        if (_uiState.value.isBusy) return
+        // One agent runs at a time. Block sending while any run is in flight —
+        // the user can browse other chats but must let the current run finish.
+        if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         if (client == null) {
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
@@ -273,24 +329,70 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } else {
             ChatMessage(role = "user", content = JsonPrimitive(trimmed))
         }
-        agentEngine.history += msg
-        appendUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, imageBase64)
+        val viewedId = _uiState.value.activeSessionId
         agentJob = viewModelScope.launch {
-            _uiState.update { it.copy(isBusy = true) }
+            // Ensure the engine is bound to the session being viewed. After a
+            // previous run finished while the user browsed elsewhere, the engine
+            // may still point at that older session — reload the viewed one.
+            bindEngineToViewedSession(viewedId)
+
+            agentEngine.history += msg
+            appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, imageBase64)
+
+            val runningId = agentEngine.sessionId
+            val runningTitle = engineTranscript.firstOrNull { it.kind == MessageKind.USER }
+                ?.text?.take(30) ?: "New Chat"
+            _uiState.update {
+                it.copy(
+                    isBusy = true,
+                    runningSessionId = runningId,
+                    runningSessionTitle = runningTitle
+                )
+            }
             try {
-                agentEngine.run(_uiState.value.activeAgent)
+                agentEngine.run(engineAgent)
             } catch (_: CancellationException) {
-                appendUi(MessageKind.ERROR, "Agent was interrupted by the user.")
+                appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
                 withContext(NonCancellable) {
                     agentEngine.saveCurrentSession()
                     _uiState.update {
-                        it.copy(isBusy = false, activity = null, subAgentRunning = null, subAgentCurrentAction = null)
+                        it.copy(
+                            isBusy = false,
+                            runningSessionId = null,
+                            runningSessionTitle = null,
+                            activity = if (viewingEngineSession()) null else it.activity,
+                            subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
+                            subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
+                        )
                     }
                     agentJob = null
                 }
             }
         }
+    }
+
+    /**
+     * Point [agentEngine] at [viewedId] (the session being viewed) so a run
+     * operates on it. Only called from [sendMessage], which is gated on nothing
+     * else running, so re-pointing the engine here is safe. Reloads the session's
+     * LLM history from disk when the engine had drifted to another session.
+     */
+    private suspend fun bindEngineToViewedSession(viewedId: String?) {
+        if (viewedId != null && agentEngine.sessionId != viewedId) {
+            val saved = historyRepository.loadSession(viewedId)
+            agentEngine.history.clear()
+            agentEngine.sessionId = viewedId
+            if (saved != null) {
+                agentEngine.history.addAll(saved.messages)
+                agentEngine.tokenCount = saved.tokenCount
+            } else {
+                agentEngine.tokenCount = 0
+            }
+            agentEngine.setupWorkingDir()
+        }
+        engineTranscript = _uiState.value.messages
+        engineAgent = _uiState.value.activeAgent
     }
 
     /** Load an image from a content:// URI, downscale, and return base64. */
@@ -441,6 +543,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
+    /**
+     * The app was brought to the front by the assistive ball. One agent runs at
+     * a time, so:
+     *  - If a run is active, return to that running chat (never start a new one).
+     *  - Else if the current chat is empty (home), default it to Operator, since
+     *    ball-initiated chats are Operator by design.
+     *  - Else leave the populated chat being viewed as-is.
+     */
+    fun onOpenedFromAssistiveBall() {
+        val running = _uiState.value.runningSessionId
+        when {
+            running != null -> openSession(running)
+            _uiState.value.messages.isEmpty() -> setAgent(AgentMode.OPERATOR)
+            else -> { /* keep the current chat */ }
+        }
+    }
+
     /** Switch between Monitor (read-only) and Operator (full) agent mode mid-conversation. */
     fun switchAgent() {
         val current = _uiState.value.activeAgent
@@ -463,8 +582,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             AgentMode.OPERATOR ->
                 "Switched to Operator mode — the agent can now make changes to your device."
         }
-        agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
+        // Only inject into the LLM history when the viewed chat is the engine's;
+        // otherwise the mode is applied at the next send (run(engineAgent)).
+        if (viewingEngineSession()) {
+            agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
+            engineAgent = next
+        }
         appendUi(MessageKind.ASSISTANT, uiMsg)
+    }
+
+    /**
+     * Set the agent mode directly, without injecting a mid-conversation system
+     * message. Used by the home-screen selector before the first message is sent.
+     */
+    fun setAgent(mode: AgentMode) {
+        if (_uiState.value.activeAgent == mode) return
+        _uiState.update { it.copy(activeAgent = mode) }
     }
 
     override fun onCleared() {
@@ -472,15 +605,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         super.onCleared()
     }
 
-    fun clearChat() {
-        if (_uiState.value.isBusy) return
-        agentEngine.history.clear()
+    /**
+     * Start a fresh chat. [defaultAgent] sets the starting mode: Monitor when
+     * created from the app UI, Operator when created from the assistive ball.
+     *
+     * If a run is in progress in another session, this is a VIEW-ONLY switch to a
+     * new blank chat — the engine stays bound to the running session. The engine
+     * is only re-pointed at the new blank chat when nothing is running.
+     */
+    fun clearChat(defaultAgent: AgentMode = AgentMode.MONITOR) {
+        val newId = java.util.UUID.randomUUID().toString()
+        val runInProgress = _uiState.value.runningSessionId != null
         nextId = 0
-        agentEngine.sessionId = java.util.UUID.randomUUID().toString()
-        agentEngine.tokenCount = 0
-        agentEngine.setupWorkingDir()
-        _uiState.update { it.copy(messages = emptyList(), activeSessionId = agentEngine.sessionId) }
-        updateContextUsage()
+        if (!runInProgress) {
+            agentEngine.history.clear()
+            agentEngine.sessionId = newId
+            agentEngine.tokenCount = 0
+            agentEngine.setupWorkingDir()
+            engineTranscript = emptyList()
+            engineAgent = defaultAgent
+        }
+        _uiState.update {
+            it.copy(
+                messages = emptyList(),
+                activeSessionId = newId,
+                activeAgent = defaultAgent
+            )
+        }
+        applyContextUsage(0)
     }
 
     fun refreshSessions() {
@@ -490,23 +642,70 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun openSession(id: String?) {
-        if (_uiState.value.isBusy) return
         viewModelScope.launch {
             if (id == null) {
                 clearChat()
-            } else {
-                val session = historyRepository.loadSession(id)
-                if (session != null) {
-                    agentEngine.history.clear()
-                    agentEngine.history.addAll(session.messages)
-                    agentEngine.sessionId = session.id
-                    agentEngine.tokenCount = session.tokenCount
-                    nextId = 0
-                    agentEngine.setupWorkingDir()
-                    _uiState.update { it.copy(activeSessionId = session.id) }
-                    updateContextUsage()
-                    rebuildUiMessages()
+                return@launch
+            }
+            // Re-viewing the running session: just show its live engine transcript.
+            if (id == agentEngine.sessionId && _uiState.value.runningSessionId == id) {
+                nextId = (engineTranscript.maxOfOrNull { it.id }?.plus(1)) ?: 0
+                _uiState.update {
+                    it.copy(
+                        activeSessionId = id,
+                        activeAgent = engineAgent,
+                        messages = engineTranscript
+                    )
                 }
+                applyContextUsage(agentEngine.tokenCount)
+                return@launch
+            }
+            val session = historyRepository.loadSession(id) ?: return@launch
+            val restoredAgent = session.agentMode
+                ?.let { runCatching { AgentMode.valueOf(it) }.getOrNull() }
+                ?: AgentMode.MONITOR
+            val runInProgress = _uiState.value.runningSessionId != null
+            // Only rebind the engine when idle. While a run is active this is a
+            // view-only switch so the running session is never disturbed.
+            if (!runInProgress) {
+                agentEngine.history.clear()
+                agentEngine.history.addAll(session.messages)
+                agentEngine.sessionId = session.id
+                agentEngine.tokenCount = session.tokenCount
+                agentEngine.setupWorkingDir()
+                engineTranscript = session.displayMessages
+                engineAgent = restoredAgent
+            }
+            // Restore the verbatim on-screen transcript so what's shown on reopen
+            // matches exactly what was shown live. Fall back to a lossy rebuild
+            // only for legacy sessions saved before display messages existed.
+            if (session.displayMessages.isNotEmpty()) {
+                nextId = (session.displayMessages.maxOf { it.id } + 1)
+                _uiState.update {
+                    it.copy(
+                        activeSessionId = session.id,
+                        activeAgent = restoredAgent,
+                        messages = session.displayMessages,
+                        // Clear engine-scoped transient UI for the viewed (non-running) chat.
+                        activity = null,
+                        subAgentRunning = null,
+                        subAgentCurrentAction = null
+                    )
+                }
+                applyContextUsage(session.tokenCount)
+            } else {
+                nextId = 0
+                _uiState.update {
+                    it.copy(
+                        activeSessionId = session.id,
+                        activeAgent = restoredAgent,
+                        activity = null,
+                        subAgentRunning = null,
+                        subAgentCurrentAction = null
+                    )
+                }
+                applyContextUsage(session.tokenCount)
+                rebuildUiMessagesFrom(session.messages)
             }
         }
     }
@@ -537,8 +736,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
-    private fun rebuildUiMessages() {
-        val rebuilt = agentEngine.history.mapNotNull { msg ->
+    /**
+     * Append a bubble authored by the ENGINE (agent output). Always records it on
+     * [engineTranscript] so the running session's transcript stays complete even
+     * while the user browses another chat; mirrors into the visible [_uiState]
+     * only when that running session is the one being viewed.
+     */
+    private fun appendEngineUi(
+        kind: MessageKind,
+        text: String,
+        imageBase64: String? = null,
+        subAgentSteps: List<String> = emptyList(),
+        reasoningContent: String? = null
+    ) {
+        val viewing = viewingEngineSession()
+        val id = if (viewing) nextId++ else engineNextId++
+        val message = UiMessage(id, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent)
+        engineTranscript = engineTranscript + message
+        if (viewing) {
+            _uiState.update { it.copy(messages = it.messages + message) }
+        }
+    }
+
+    private fun rebuildUiMessagesFrom(source: List<ChatMessage>) {
+        val rebuilt = source.mapNotNull { msg ->
             val text = msg.textContent
             when {
                 msg.role == "user" && (text.startsWith("[Screen State]") || text.startsWith("Screen text:")) -> {
@@ -554,7 +775,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 msg.role == "assistant" && text.isNotBlank() ->
                     UiMessage(nextId++, MessageKind.ASSISTANT, text, reasoningContent = msg.reasoningContent)
                 msg.role == "assistant" && !msg.reasoningContent.isNullOrBlank() ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, "(no reply)", reasoningContent = msg.reasoningContent)
+                    UiMessage(nextId++, MessageKind.ASSISTANT, "", reasoningContent = msg.reasoningContent)
                 msg.role == "tool" && text.startsWith("SUBAGENT_STEPS:") -> {
                     val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
                     val rest = if (descEnd > 0) {

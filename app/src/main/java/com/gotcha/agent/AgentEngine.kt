@@ -54,7 +54,11 @@ class AgentEngine(
     private val historyRepository: ChatHistoryRepository,
     private val settingsProvider: () -> Settings,
     private val clientProvider: () -> LLMClient?,
-    private val workingDirRoot: String = "/storage/emulated/0/Gotcha/chats"
+    private val workingDirRoot: String = "/storage/emulated/0/Gotcha/chats",
+    /** Supplies the current on-screen transcript to persist alongside history. */
+    private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
+    /** Supplies the active agent mode to persist so it survives restarts. */
+    private val agentModeProvider: () -> AgentMode? = { null }
 ) {
 
     /** LLM-shaped history (excludes the system prompt, which is prepended per call). */
@@ -176,7 +180,15 @@ class AgentEngine(
         val id = sessionId ?: return
         val title = history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
         historyRepository.saveSession(
-            ChatSession(id, title, System.currentTimeMillis(), history.toList(), tokenCount)
+            ChatSession(
+                id = id,
+                title = title,
+                lastModified = System.currentTimeMillis(),
+                messages = history.toList(),
+                tokenCount = tokenCount,
+                displayMessages = displayMessagesProvider(),
+                agentMode = agentModeProvider()?.name
+            )
         )
     }
 
@@ -250,6 +262,9 @@ class AgentEngine(
                 val newTokensApprox = (summary.length / 4) + ((preserveLast?.textContent?.length ?: 0) / 4)
                 tokenCount = newTokensApprox
                 events.onTokenCount(newTokensApprox)
+                // Drop the pre-compaction on-screen transcript, then show the
+                // compaction summary as the first bubble of the fresh transcript.
+                events.onHistoryReset()
                 // Show the compacted message in the chat UI as an assistant message
                 events.onUi(MessageKind.ASSISTANT, "[System: History Compacted]\n$summary")
             } else if (preserveLast != null) {
@@ -323,16 +338,35 @@ class AgentEngine(
 
             val toolCalls = message.toolCalls.orEmpty()
             if (toolCalls.isEmpty()) {
-                val content = message.textContent.ifEmpty { "(no reply)" }
-                history += ChatMessage(role = "assistant", content = JsonPrimitive(content))
-                events.onUi(MessageKind.ASSISTANT, content)
-                events.onAssistantReply(content)
+                val content = message.textContent
+                // Preserve the real (possibly empty) content and carry any reasoning
+                // through so the UI can render a reasoning-only bubble without the
+                // placeholder "(no reply)" text.
+                history += ChatMessage(
+                    role = "assistant",
+                    content = JsonPrimitive(content),
+                    reasoningContent = message.reasoningContent
+                )
+                if (content.isNotEmpty() || !message.reasoningContent.isNullOrBlank()) {
+                    events.onUi(
+                        MessageKind.ASSISTANT,
+                        content,
+                        reasoningContent = message.reasoningContent
+                    )
+                }
+                if (content.isNotEmpty()) {
+                    events.onAssistantReply(content)
+                }
                 return
             }
 
             history += message
-            if (message.hasText) {
-                events.onUi(MessageKind.ASSISTANT, message.textContent)
+            if (message.hasText || !message.reasoningContent.isNullOrBlank()) {
+                events.onUi(
+                    MessageKind.ASSISTANT,
+                    message.textContent,
+                    reasoningContent = message.reasoningContent
+                )
             }
 
             val decision = requestConfirmation(toolCalls)
