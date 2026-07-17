@@ -110,8 +110,13 @@ class LLMClient(
             ChatMessage(role = "system", content = kotlinx.serialization.json.JsonPrimitive(prompt)),
             ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive(text))
         )
-        val response = chat(messages = messages, temperature = 0f, modelOverride = modelOverride)
-        return response.choices.firstOrNull()?.message?.textContent ?: text
+        return try {
+            val response = chat(messages = messages, temperature = 0f, modelOverride = modelOverride)
+            response.choices.firstOrNull()?.message?.textContent ?: text
+        } catch (_: Exception) {
+            // Fall back to original text if the LLM fails (e.g., 401 Unauthorized)
+            text
+        }
     }
 
     fun clearCache() {
