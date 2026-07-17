@@ -170,7 +170,9 @@ class SubAgentSession(
                     "You have access to all device tools. " +
                     "Your job is to complete the task delegated to you. " +
                     "Use the available tools to perform the required steps. " +
-                    "When interacting with unfamiliar apps, system settings, or complex workflows, use the search_skills tool to fetch context-aware operational instructions.\n" +
+                    "When interacting with unfamiliar apps, system settings, or complex " +
+                    "workflows, use the search_skills tool to fetch context-aware " +
+                    "operational instructions.\n" +
                     "When you have fully completed the task and have the final answer, " +
                     "call the ask_final_answer tool with your complete result. " +
                     "Do NOT call ask_final_answer until all work is actually done."
@@ -260,16 +262,16 @@ class SubAgentSession(
         val currentPackage = com.gotcha.tools.ScreenPerception.getCurrentPackageName() ?: return emptyList()
         val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
             .filter { !disabledSkills.contains(it.id) }
-        
+
         if (activeSkills.isEmpty()) return emptyList()
-        
+
         val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
         return listOf(
             ChatMessage(
-                role = "system", 
+                role = "system",
                 content = JsonPrimitive(
                     "<active-skills>\nThe user is currently using $currentPackage. " +
-                    "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
+                        "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
                 )
             )
         )

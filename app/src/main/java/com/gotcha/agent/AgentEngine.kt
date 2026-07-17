@@ -208,30 +208,7 @@ class AgentEngine(
         events.onActivity("Compacting history…")
         val compactionSystem = ChatMessage(
             role = "system",
-            content = JsonPrimitive(
-                "You are an advanced Context Compaction Agent for an Android-based personal assistant. Your task is to compress the preceding conversation history and system interaction logs into a highly dense, structured, and actionable continuation summary.\n\n" +
-                "You must eliminate all conversational filler, repetitive system notifications, and redundant logs while preserving 100% of the user's intent, active tasks, preferences, and the current device/environmental state.\n\n" +
-                "Generate a structured summary containing exactly the following five sections. Use the exact headers provided below:\n\n" +
-                "### 1. Active User Goal\n" +
-                "Provide a single, clear sentence defining the user's ultimate objective or current request (e.g., \"User wants to navigate to central park while avoiding tolls,\" or \"User is troubleshooting high battery drain\").\n\n" +
-                "### 2. Constraints & Preferences\n" +
-                "List all active limitations, user preferences, or environmental constraints established during this session.\n" +
-                "* Use bullet points.\n" +
-                "* Examples: \"Avoid highway tolls,\" \"Prefers walking over driving,\" \"Do not disturb mode is ON,\" \"Low battery mode active (<15%).\"\n\n" +
-                "### 3. Completed Actions\n" +
-                "A chronological, bulleted list of actions that the assistant has **successfully executed** during this session.\n" +
-                "* Be specific: \"Calculated route via transit,\" \"Retrieved battery usage stats for the last 24 hours,\" \"Set a reminder for 5:00 PM.\"\n" +
-                "* Do not list in-progress or failed attempts here.\n\n" +
-                "### 4. Next Step & Pending Actions\n" +
-                "What is the immediate next step or the unresolved part of the user's request?\n" +
-                "* State the next logical action (e.g., \"Waiting for user to select Route A or Route B,\" or \"Initiating system cache cleanup\").\n" +
-                "* If the next step is ambiguous, or if you require user permission to proceed (e.g., opening a payment app, changing a system-level setting), stop and explicitly ask the user for clarification.\n\n" +
-                "---\n\n" +
-                "## CRITICAL RULES FOR COMPACTION:\n" +
-                "* **No Vague Summaries:** Never write \"User wanted directions.\" Instead, write \"User requested fastest route to 123 Main St, preferring public transit.\"\n" +
-                "* **Preserve State & Data:** Retain exact names, addresses, numbers, times, app names, and system statistics.\n" +
-                "* **Consolidate System Logs:** Do not repeat step-by-step system logs or API payloads. Summarize the outcome (e.g., \"Location permission granted by user,\" instead of raw permission dialog logs)."
-            )
+            content = JsonPrimitive(COMPACTION_SYSTEM_PROMPT)
         )
 
         val historyText = trimmedHistory().joinToString("\n\n") { msg ->
@@ -741,16 +718,16 @@ class AgentEngine(
         val disabledSkills = settingsProvider().disabledSkills
         val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
             .filter { !disabledSkills.contains(it.id) }
-        
+
         if (activeSkills.isEmpty()) return emptyList()
-        
+
         val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
         return listOf(
             ChatMessage(
-                role = "system", 
+                role = "system",
                 content = JsonPrimitive(
                     "<active-skills>\nThe user is currently using $currentPackage. " +
-                    "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
+                        "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
                 )
             )
         )
@@ -770,7 +747,9 @@ class AgentEngine(
                     "delete anything. You control the device only through the provided tools; never " +
                     "invent tool names or capabilities. If a tool reports a missing permission, " +
                     "explain what to grant and ask again. Use the sleep tool to pause and wait " +
-                    "between operations. Use the search_skills tool when interacting with unfamiliar apps or complex operations to learn the optimal steps. Keep replies short and conversational."
+                    "between operations. Use the search_skills tool when interacting with " +
+                    "unfamiliar apps or complex operations to learn the optimal steps. " +
+                    "Keep replies short and conversational."
             AgentMode.OPERATOR ->
                 "You are Operator, an AI assistant running on the user's Android phone. " +
                     "You can inspect, read, query, create, modify, and delete on the device. " +
@@ -792,7 +771,9 @@ class AgentEngine(
                     "You will receive its complete report when done. " +
                     "Keep replies short and conversational. Be careful with destructive actions.\n" +
                     "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
-                    "When interacting with unfamiliar apps, system settings, or complex workflows, use the search_skills tool to fetch context-aware operational instructions.\n" +
+                    "When interacting with unfamiliar apps, system settings, or complex " +
+                    "workflows, use the search_skills tool to fetch context-aware " +
+                    "operational instructions.\n" +
                     "When using uninstall_app: after calling it, the system will open a dialog. " +
                     "Tell the user to tap OK in the system dialog to finish the uninstall. " +
                     "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +
@@ -1055,9 +1036,48 @@ class AgentEngine(
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
 
-        private const val MAX_IDLE_SECONDS = 300L
-
-
+        private val COMPACTION_SYSTEM_PROMPT = listOf(
+            "You are an advanced Context Compaction Agent for an Android-based personal assistant. " +
+                "Your task is to compress the preceding conversation history and system interaction " +
+                "logs into a highly dense, structured, and actionable continuation summary.",
+            "You must eliminate all conversational filler, repetitive system notifications, and " +
+                "redundant logs while preserving 100% of the user's intent, active tasks, " +
+                "preferences, and the current device/environmental state.",
+            "Generate a structured summary containing exactly the following five sections. " +
+                "Use the exact headers provided below:",
+            "### 1. Active User Goal\n" +
+                "Provide a single, clear sentence defining the user's ultimate objective or current " +
+                "request (e.g., \"User wants to navigate to central park while avoiding tolls,\" or " +
+                "\"User is troubleshooting high battery drain\").",
+            "### 2. Constraints & Preferences\n" +
+                "List all active limitations, user preferences, or environmental constraints " +
+                "established during this session.\n" +
+                "* Use bullet points.\n" +
+                "* Examples: \"Avoid highway tolls,\" \"Prefers walking over driving,\" " +
+                "\"Do not disturb mode is ON,\" \"Low battery mode active (<15%).\"",
+            "### 3. Completed Actions\n" +
+                "A chronological, bulleted list of actions that the assistant has " +
+                "**successfully executed** during this session.\n" +
+                "* Be specific: \"Calculated route via transit,\" \"Retrieved battery usage stats " +
+                "for the last 24 hours,\" \"Set a reminder for 5:00 PM.\"\n" +
+                "* Do not list in-progress or failed attempts here.",
+            "### 4. Next Step & Pending Actions\n" +
+                "What is the immediate next step or the unresolved part of the user's request?\n" +
+                "* State the next logical action (e.g., \"Waiting for user to select Route A or " +
+                "Route B,\" or \"Initiating system cache cleanup\").\n" +
+                "* If the next step is ambiguous, or if you require user permission to proceed " +
+                "(e.g., opening a payment app, changing a system-level setting), stop and " +
+                "explicitly ask the user for clarification.",
+            "---",
+            "## CRITICAL RULES FOR COMPACTION:\n" +
+                "* **No Vague Summaries:** Never write \"User wanted directions.\" Instead, write " +
+                "\"User requested fastest route to 123 Main St, preferring public transit.\"\n" +
+                "* **Preserve State & Data:** Retain exact names, addresses, numbers, times, app " +
+                "names, and system statistics.\n" +
+                "* **Consolidate System Logs:** Do not repeat step-by-step system logs or API " +
+                "payloads. Summarize the outcome (e.g., \"Location permission granted by user,\" " +
+                "instead of raw permission dialog logs)."
+        ).joinToString("\n\n")
 
         /**
          * Parses the body of a QUESTION: tool result into a [PendingQuestion].

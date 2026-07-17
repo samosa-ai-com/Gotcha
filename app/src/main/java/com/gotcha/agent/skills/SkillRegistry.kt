@@ -2,9 +2,8 @@ package com.gotcha.agent.skills
 
 import android.content.Context
 import android.util.Log
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
-import java.io.File
+import kotlinx.serialization.json.Json
 
 object SkillRegistry {
     private val json = Json { ignoreUnknownKeys = true }

@@ -1701,12 +1701,16 @@ object ToolDefinitions {
 
     val searchSkills = tool(
         "search_skills",
-        "Search the skills registry for contextual instructions on how to optimally interact with a given app or perform a system operation.",
+        "Search the skills registry for contextual instructions on how to optimally " +
+            "interact with a given app or perform a system operation.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("query") {
                     put("type", "string")
-                    put("description", "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_search').")
+                    put(
+                        "description",
+                        "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_search')."
+                    )
                 }
             }
             putJsonArray("required") { add("query") }
@@ -1750,7 +1754,7 @@ object ToolDefinitions {
 
         // Tier 4 additions: privileged / rooted execution
         checkRoot, runRootCommand, writeSecureSettings,
-        
+
         searchSkills
     )
 }

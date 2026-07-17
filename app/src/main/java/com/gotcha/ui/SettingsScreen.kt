@@ -740,7 +740,7 @@ fun SettingsScreen(
                     ) { Text("Save Speech Settings") }
                 }
             }
-            
+
             HorizontalDivider(thickness = 1.dp)
 
             // ---- Skills (collapsible, collapsed by default) ----
@@ -762,7 +762,11 @@ fun SettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                    Text(skill.id, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        skill.id,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                     if (skill.description.isNotBlank()) {
                                         Text(skill.description, style = MaterialTheme.typography.bodySmall)
                                     }
