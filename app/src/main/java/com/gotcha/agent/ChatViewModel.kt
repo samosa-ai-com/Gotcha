@@ -160,6 +160,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     init {
         ScreenPerception.appContext = application
+        com.gotcha.agent.skills.SkillRegistry.init(application)
         refreshSettings()
         viewModelScope.launch {
             // Always start on a fresh session so the home screen greets with an

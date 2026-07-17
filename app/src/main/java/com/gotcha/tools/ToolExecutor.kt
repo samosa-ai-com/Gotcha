@@ -449,6 +449,16 @@ class ToolExecutor(
                 key = args.requireString("key") ?: return missing("key"),
                 value = args.requireString("value") ?: return missing("value")
             )
+            "search_skills" -> {
+                val query = args.requireString("query") ?: return missing("query")
+                val results = com.gotcha.agent.skills.SkillRegistry.searchSkills(query)
+                if (results.isEmpty()) {
+                    ToolResult.ok("No skills found matching '$query'.")
+                } else {
+                    val instructions = results.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
+                    ToolResult.ok("Found ${results.size} skills matching '$query':\n\n$instructions")
+                }
+            }
             else -> ToolResult.error("Tool '$name' has no executor.")
         }
     }

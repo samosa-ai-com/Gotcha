@@ -317,6 +317,7 @@ class AgentEngine(
                 addAll(cullOldImages(trimmedHistory()))
                 add(baseEnvironmentBlock(agent))
                 add(currentTimestampMessage())
+                addAll(activeSkillsMessages())
             }
             val response = try {
                 llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
@@ -732,6 +733,30 @@ class AgentEngine(
     }
 
     /**
+     * Injects context-aware skills based on the currently foregrounded package.
+     * This makes the agent behave optimally for the specific app on screen.
+     */
+    private fun activeSkillsMessages(): List<ChatMessage> {
+        val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
+        val disabledSkills = settingsProvider().disabledSkills
+        val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
+            .filter { !disabledSkills.contains(it.id) }
+        
+        if (activeSkills.isEmpty()) return emptyList()
+        
+        val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
+        return listOf(
+            ChatMessage(
+                role = "system", 
+                content = JsonPrimitive(
+                    "<active-skills>\nThe user is currently using $currentPackage. " +
+                    "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
+                )
+            )
+        )
+    }
+
+    /**
      * Agent-specific core prompt + system-reminder, sent at the tail of the
      * message array (right before the latest user message).  Placing these
      * after the conversation history ensures the [baseEnvironmentBlock] +
@@ -745,7 +770,7 @@ class AgentEngine(
                     "delete anything. You control the device only through the provided tools; never " +
                     "invent tool names or capabilities. If a tool reports a missing permission, " +
                     "explain what to grant and ask again. Use the sleep tool to pause and wait " +
-                    "between operations. Keep replies short and conversational."
+                    "between operations. Use the search_skills tool when interacting with unfamiliar apps or complex operations to learn the optimal steps. Keep replies short and conversational."
             AgentMode.OPERATOR ->
                 "You are Operator, an AI assistant running on the user's Android phone. " +
                     "You can inspect, read, query, create, modify, and delete on the device. " +
@@ -767,6 +792,7 @@ class AgentEngine(
                     "You will receive its complete report when done. " +
                     "Keep replies short and conversational. Be careful with destructive actions.\n" +
                     "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
+                    "When interacting with unfamiliar apps, system settings, or complex workflows, use the search_skills tool to fetch context-aware operational instructions.\n" +
                     "When using uninstall_app: after calling it, the system will open a dialog. " +
                     "Tell the user to tap OK in the system dialog to finish the uninstall. " +
                     "Do NOT attempt to uninstall via shell commands (run_command, run_root_command) — " +

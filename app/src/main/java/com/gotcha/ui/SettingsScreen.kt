@@ -95,6 +95,7 @@ fun SettingsScreen(
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
+    var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -107,6 +108,7 @@ fun SettingsScreen(
     // Collapsible sections
     var aiConfigExpanded by remember { mutableStateOf(false) }
     var speechExpanded by remember { mutableStateOf(false) }
+    var skillsExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Dropdown expanded states
@@ -139,7 +141,8 @@ fun SettingsScreen(
         sttApiModel = sttApiModel.trim(),
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
-        themeMode = themeMode
+        themeMode = themeMode,
+        disabledSkills = disabledSkills
     )
 
     val refreshChatModelsAction = {
@@ -735,6 +738,49 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save Speech Settings") }
+                }
+            }
+            
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Skills (collapsible, collapsed by default) ----
+            SectionHeader(
+                title = "Skills / Plugins",
+                expanded = skillsExpanded,
+                onToggle = { skillsExpanded = !skillsExpanded }
+            )
+            AnimatedVisibility(visible = skillsExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val allSkills = com.gotcha.agent.skills.SkillRegistry.getAllSkills()
+                    if (allSkills.isEmpty()) {
+                        Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        allSkills.forEach { skill ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(skill.id, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    if (skill.description.isNotBlank()) {
+                                        Text(skill.description, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Switch(
+                                    checked = !disabledSkills.contains(skill.id),
+                                    onCheckedChange = { enabled ->
+                                        disabledSkills = if (enabled) {
+                                            disabledSkills - skill.id
+                                        } else {
+                                            disabledSkills + skill.id
+                                        }
+                                        onSave(currentSettings())
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

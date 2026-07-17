@@ -38,7 +38,8 @@ data class Settings(
     val sttApiModel: String = "",
     val autoReadReplies: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val disabledSkills: Set<String> = emptySet()
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
@@ -111,7 +112,8 @@ class SettingsRepository(context: Context) {
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         themeMode = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
-        }.getOrDefault(ThemeMode.SYSTEM)
+        }.getOrDefault(ThemeMode.SYSTEM),
+        disabledSkills = prefs.getStringSet(KEY_DISABLED_SKILLS, emptySet()) ?: emptySet()
     )
 
     fun save(settings: Settings) {
@@ -137,6 +139,7 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_THEME_MODE, settings.themeMode.name)
+            .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
             .apply()
     }
 
@@ -178,5 +181,6 @@ class SettingsRepository(context: Context) {
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_DISABLED_SKILLS = "disabled_skills"
     }
 }

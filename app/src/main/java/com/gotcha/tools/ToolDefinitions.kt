@@ -1699,6 +1699,20 @@ object ToolDefinitions {
         }
     )
 
+    val searchSkills = tool(
+        "search_skills",
+        "Search the skills registry for contextual instructions on how to optimally interact with a given app or perform a system operation.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("query") {
+                    put("type", "string")
+                    put("description", "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_search').")
+                }
+            }
+            putJsonArray("required") { add("query") }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi,
@@ -1735,6 +1749,8 @@ object ToolDefinitions {
         lockScreen, disableCamera, setPasswordPolicy,
 
         // Tier 4 additions: privileged / rooted execution
-        checkRoot, runRootCommand, writeSecureSettings
+        checkRoot, runRootCommand, writeSecureSettings,
+        
+        searchSkills
     )
 }

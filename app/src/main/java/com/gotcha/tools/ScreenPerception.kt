@@ -203,6 +203,14 @@ object ScreenPerception {
         return Pair(1080, 2340)
     }
 
+    fun getCurrentPackageName(): String? {
+        val service = GotchaAccessibilityService.instance ?: return null
+        val root = service.rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString()
+        root.recycle()
+        return pkg
+    }
+
     private fun drawCoordinateGrid(bitmap: Bitmap): Bitmap {
         val canvas = Canvas(bitmap)
         val w = bitmap.width.toFloat()
