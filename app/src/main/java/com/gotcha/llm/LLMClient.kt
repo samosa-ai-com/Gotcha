@@ -70,16 +70,18 @@ class LLMClient(
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
         temperature: Float? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        modelOverride: String? = null
     ): ChatResponse {
-        val cacheKey = buildCacheKey(model, messages, tools)
+        val targetModel = modelOverride ?: model
+        val cacheKey = buildCacheKey(targetModel, messages, tools)
 
         if (temperature == null || temperature == 0f) {
             cache.get(cacheKey)?.let { return it }
         }
 
         val request = ChatRequest(
-            model = model,
+            model = targetModel,
             messages = messages,
             tools = tools.ifEmpty { null },
             temperature = temperature,
@@ -98,6 +100,18 @@ class LLMClient(
         }
 
         return response
+    }
+
+    suspend fun cleanText(text: String, modelOverride: String? = null): String {
+        val prompt = "You are a text cleaner. Fix grammar, punctuation, and capitalization " +
+            "in the following text. Do not change the meaning, word choice, or structure " +
+            "beyond what's needed for correctness. Return only the corrected text."
+        val messages = listOf(
+            ChatMessage(role = "system", content = kotlinx.serialization.json.JsonPrimitive(prompt)),
+            ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive(text))
+        )
+        val response = chat(messages = messages, temperature = 0f, modelOverride = modelOverride)
+        return response.choices.firstOrNull()?.message?.textContent ?: text
     }
 
     fun clearCache() {

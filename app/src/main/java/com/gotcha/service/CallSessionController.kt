@@ -207,18 +207,22 @@ class CallSessionController(
                 return@launch
             }
 
-            addTranscript(MessageKind.USER, text)
+            val llmClient = buildClient()
+            val navModel = s.navigatorModel.ifEmpty { s.model }
+            val cleanedText = llmClient?.cleanText(text, navModel) ?: text
+
+            addTranscript(MessageKind.USER, cleanedText)
 
             // Answering an agent question?
             questionGate?.let { gate ->
                 questionGate = null
-                gate.complete(text)
+                gate.complete(cleanedText)
                 return@launch
             }
 
             // Normal turn
             val eng = engine ?: return@launch
-            eng.history += buildTurnMessage(text)
+            eng.history += buildTurnMessage(cleanedText)
             pendingReply = null
             try {
                 eng.run(AgentMode.OPERATOR)

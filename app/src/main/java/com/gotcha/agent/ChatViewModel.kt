@@ -509,6 +509,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
+            var transcript = ""
             if (provider == AudioProvider.API) {
                 _uiState.update { it.copy(isRecording = false) }
                 val audioFile = sttEngine.stopRecording()
@@ -516,18 +517,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to record audio.")
                     return@launch
                 }
-                val transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
                     .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
                     .getOrDefault("")
-                if (transcript.isNotBlank()) {
-                    onResult(transcript)
-                }
             } else if (provider == AudioProvider.ANDROID) {
                 _uiState.update { it.copy(isListening = false) }
-                val transcript = sttEngine.stopAndroidListening()
-                if (transcript.isNotBlank()) {
-                    onResult(transcript)
-                }
+                transcript = sttEngine.stopAndroidListening()
+            }
+
+            if (transcript.isNotBlank()) {
+                val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                val cleaned = client?.cleanText(transcript, navModel) ?: transcript
+                onResult(cleaned)
             }
         }
     }
