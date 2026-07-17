@@ -83,6 +83,7 @@ fun SettingsScreen(
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
+    var maxRepeatedToolCalls by remember { mutableStateOf(initial.maxRepeatedToolCalls.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
     // TTS / STT
@@ -127,6 +128,7 @@ fun SettingsScreen(
         subAgentModel = subAgentModel.trim(),
         navigatorModel = navigatorModel.trim(),
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 300,
+        maxRepeatedToolCalls = maxRepeatedToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 20,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 70000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
         ttsProvider = ttsProvider,
@@ -460,6 +462,14 @@ fun SettingsScreen(
                         value = maxToolRounds,
                         onValueChange = { maxToolRounds = it },
                         label = { Text("Max tool rounds") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = maxRepeatedToolCalls,
+                        onValueChange = { maxRepeatedToolCalls = it },
+                        label = { Text("Max repeated tool calls") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()

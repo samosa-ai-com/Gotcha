@@ -296,7 +296,7 @@ class AgentEngine(
         // Anti-loop guard: if consecutive tool rounds produce the byte-identical
         // set of tool-call names + results (e.g. a tool that keeps returning the
         // same "service not running" error), the model is stuck retrying with no
-        // new information. Break after [MAX_REPEATED_TOOL_ROUNDS] such rounds.
+        // new information. Break after [maxRepeatedToolCalls] such rounds.
         var lastRoundSignature: String? = null
         var repeatedRoundCount = 0
         repeat(settings.maxToolRounds) { iteration ->
@@ -452,7 +452,7 @@ class AgentEngine(
             } + "|" + roundToolResults
             if (roundSignature == lastRoundSignature) {
                 repeatedRoundCount++
-                if (repeatedRoundCount >= MAX_REPEATED_TOOL_ROUNDS) {
+                if (repeatedRoundCount >= settingsProvider().maxRepeatedToolCalls) {
                     events.onUi(
                         MessageKind.ERROR,
                         "Stopped: the same tool action kept returning the same result " +
@@ -1027,12 +1027,9 @@ class AgentEngine(
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
 
-        /**
-         * How many consecutive tool rounds with a byte-identical
-         * (tool names + results) signature are tolerated before the agent loop
-         * bails out. Catches "service not running" / dead-URL retry storms.
-         */
-        private const val MAX_REPEATED_TOOL_ROUNDS = 3
+        private const val MAX_IDLE_SECONDS = 300L
+
+
 
         /**
          * Parses the body of a QUESTION: tool result into a [PendingQuestion].
