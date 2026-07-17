@@ -17,6 +17,7 @@ import java.io.IOException
 sealed interface SamosaSignInResult {
     data class Success(val email: String) : SamosaSignInResult
     data class Error(val message: String) : SamosaSignInResult
+
     /** User dismissed the Google account chooser — not a real failure. */
     data object Cancelled : SamosaSignInResult
 }
@@ -46,8 +47,10 @@ class SamosaAuthManager(
         val idToken = try {
             requestGoogleIdToken(activityContext)
         } catch (e: GetCredentialCancellationException) {
+            Log.d(TAG, "Sign-in cancelled by user", e)
             return SamosaSignInResult.Cancelled
         } catch (e: NoCredentialException) {
+            Log.d(TAG, "No Google credential available", e)
             return SamosaSignInResult.Error(
                 "No Google account available. Add a Google account to this device and try again."
             )
@@ -79,7 +82,7 @@ class SamosaAuthManager(
         ) {
             return GoogleIdTokenCredential.createFrom(credential.data).idToken
         }
-        throw IllegalStateException("Unexpected credential type from Google Sign-In.")
+        error("Unexpected credential type from Google Sign-In.")
     }
 
     private suspend fun register(idToken: String): SamosaSignInResult = try {
@@ -93,6 +96,7 @@ class SamosaAuthManager(
     } catch (e: HttpException) {
         SamosaSignInResult.Error(mapRegisterError(e.code()))
     } catch (e: IOException) {
+        Log.d(TAG, "Network error during register", e)
         SamosaSignInResult.Error("Network error. Check your connection and try again.")
     }
 
