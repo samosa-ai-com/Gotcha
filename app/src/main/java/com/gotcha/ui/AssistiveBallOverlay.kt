@@ -418,16 +418,22 @@ class AssistiveBallOverlay(context: Context) {
         else -> -dp(BALL_SIZE_DP - PEEK_DP)
     }
 
+    /** X offset that places the fully-expanded ball just inside [side]'s edge. */
+    private fun dockedExpandX(side: Int): Int = when (side) {
+        DOCK_SIDE_END -> screenWidth() - dp(BALL_SIZE_DP) - dp(DOCK_MARGIN_DP)
+        else -> dp(DOCK_MARGIN_DP)
+    }
+
     /** Pick the dock side from the ball's current left offset (uses its centre). */
     private fun sideForX(leftX: Int): Int {
         val centre = leftX + dp(BALL_SIZE_DP) / 2
         return if (centre < screenWidth() / 2) DOCK_SIDE_START else DOCK_SIDE_END
     }
 
-    /** Slide the full ball onto the screen and make it fully opaque. */
+    /** Slide the full ball onto the screen (on its current dock side) and make it fully opaque. */
     private fun expandFromEdge() {
         cancelAutoDock()
-        ballParams.x = dp(DOCK_MARGIN_DP)
+        ballParams.x = dockedExpandX(dockSide)
         val view = ballView ?: return
         try {
             windowManager.updateViewLayout(view, ballParams)
