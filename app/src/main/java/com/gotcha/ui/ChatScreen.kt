@@ -87,7 +87,7 @@ fun ChatScreen(
     onSetAgent: (AgentMode) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     onStartListening: () -> Unit = {},
-    onStopRecording: () -> Unit = {},
+    onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
     onReturnToRunning: () -> Unit = {}
 ) {
@@ -378,7 +378,15 @@ fun ChatScreen(
                         state.isRecording || state.isListening -> {
                             // Recording in progress — show red stop button for both providers
                             Button(
-                                onClick = onStopRecording,
+                                onClick = {
+                                    onStopRecording { text ->
+                                        if (input.isNotEmpty()) {
+                                            input += " " + text
+                                        } else {
+                                            input = text
+                                        }
+                                    }
+                                },
                                 modifier = Modifier.size(40.dp),
                                 contentPadding = ButtonDefaults.TextButtonContentPadding,
                                 shape = CircleShape,

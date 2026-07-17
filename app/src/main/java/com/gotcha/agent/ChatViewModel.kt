@@ -505,8 +505,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
-    /** Stop an ongoing recording (Android or API), transcribe, and send. */
-    fun stopRecording() {
+    /** Stop an ongoing recording (Android or API) and pass the transcript to the callback. */
+    fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
             if (provider == AudioProvider.API) {
@@ -516,20 +516,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to record audio.")
                     return@launch
                 }
-                appendUi(MessageKind.ASSISTANT, "[Transcribing speech…]")
                 val transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
                     .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
                     .getOrDefault("")
                 if (transcript.isNotBlank()) {
-                    lastInputWasVoice = true
-                    sendMessage(transcript)
+                    onResult(transcript)
                 }
             } else if (provider == AudioProvider.ANDROID) {
                 _uiState.update { it.copy(isListening = false) }
                 val transcript = sttEngine.stopAndroidListening()
                 if (transcript.isNotBlank()) {
-                    lastInputWasVoice = true
-                    sendMessage(transcript)
+                    onResult(transcript)
                 }
             }
         }
