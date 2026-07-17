@@ -48,6 +48,10 @@ class SttEngine(
     private var listenGate: CompletableDeferred<String>? = null
     private var onceGate: CompletableDeferred<SttOutcome>? = null
 
+    // Continuous push-to-talk state
+    private var isContinuousListening = false
+    private val continuousTranscript = StringBuilder()
+
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
         private set
@@ -111,9 +115,17 @@ class SttEngine(
 
     /** Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening(). */
     fun startAndroidListening(): Boolean {
-        if (currentRecognizer != null) return false
-        val gate = CompletableDeferred<String>()
-        listenGate = gate
+        if (isContinuousListening) return false
+        listenGate = CompletableDeferred<String>()
+        isContinuousListening = true
+        continuousTranscript.clear()
+
+        mainHandler.post { startContinuousListeningCycle() }
+        return true
+    }
+
+    private fun startContinuousListeningCycle() {
+        if (!isContinuousListening) return
         val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
         currentRecognizer = recognizer
         recognizer.setRecognitionListener(object : RecognitionListener {
@@ -123,15 +135,28 @@ class SttEngine(
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
-                gate.complete("")
                 currentRecognizer?.destroy()
                 currentRecognizer = null
+                if (isContinuousListening) {
+                    mainHandler.post { startContinuousListeningCycle() }
+                } else {
+                    listenGate?.complete(continuousTranscript.toString())
+                }
             }
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                gate.complete(matches?.firstOrNull() ?: "")
+                val text = matches?.firstOrNull() ?: ""
+                if (text.isNotBlank()) {
+                    if (continuousTranscript.isNotEmpty()) continuousTranscript.append(" ")
+                    continuousTranscript.append(text)
+                }
                 currentRecognizer?.destroy()
                 currentRecognizer = null
+                if (isContinuousListening) {
+                    mainHandler.post { startContinuousListeningCycle() }
+                } else {
+                    listenGate?.complete(continuousTranscript.toString())
+                }
             }
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -139,16 +164,26 @@ class SttEngine(
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+
+            // Prevent auto-stopping on pauses to mimic API-based continuous recording
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 100000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 100000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 100000L)
         }
-        recognizer.startListening(intent)
-        return true
+        try {
+            recognizer.startListening(intent)
+        } catch (_: Exception) {
+            isContinuousListening = false
+            listenGate?.complete(continuousTranscript.toString())
+        }
     }
 
     /** Stop Android SpeechRecognizer and return the recognized text. */
     suspend fun stopAndroidListening(): String {
+        isContinuousListening = false
         currentRecognizer?.stopListening()
         // The stopListening() call triggers onResults which completes the gate
-        val result = listenGate?.await() ?: ""
+        val result = listenGate?.await() ?: continuousTranscript.toString()
         listenGate = null
         return result
     }
@@ -250,7 +285,10 @@ class SttEngine(
     fun cancelListening(provider: AudioProvider) {
         when (provider) {
             AudioProvider.ANDROID -> {
+                isContinuousListening = false
                 onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
+                listenGate?.complete("")
+                listenGate = null
                 mainHandler.post {
                     try {
                         currentRecognizer?.cancel()
