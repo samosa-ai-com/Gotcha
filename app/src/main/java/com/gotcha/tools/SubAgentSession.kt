@@ -209,10 +209,14 @@ class SubAgentSession(
         val compactionSystem = ChatMessage(
             role = "system",
             content = JsonPrimitive(
-                "You are a context compaction agent. Compress the following sub-agent " +
-                    "tool-call history into a dense summary preserving: what was attempted, " +
-                    "what succeeded, what failed, and key data discovered. Be concise but " +
-                    "do not lose technical specifics."
+                "You are a Context Compaction Agent for a sub-agent. Compress the following sub-agent " +
+                    "tool-call history into a dense summary. You must preserve exactly:\n" +
+                    "1. Goal: What is the specific sub-task being attempted?\n" +
+                    "2. Attempted: What was tried?\n" +
+                    "3. Succeeded: What worked?\n" +
+                    "4. Failed: What failed and why?\n" +
+                    "5. Discovered Data: Key technical specifics, coordinates, text, or states found.\n" +
+                    "Be concise but do not lose technical specifics."
             )
         )
         val compactionUser = ChatMessage(

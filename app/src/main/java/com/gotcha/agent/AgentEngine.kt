@@ -209,24 +209,28 @@ class AgentEngine(
         val compactionSystem = ChatMessage(
             role = "system",
             content = JsonPrimitive(
-                "You are an advanced context compaction agent. Your task is to compress the preceding " +
-                    "conversation history into a highly dense, structured continuation summary. You must " +
-                    "preserve critical context, decisions, and codebase states while eliminating " +
-                    "conversational filler and repetitive tool logs.\n\n" +
-                    "Generate a structured summary containing exactly the following sections:\n" +
-                    "1. **Goal**: What is the ultimate objective of this engineering session?\n" +
-                    "2. **Instructions & Constraints**: What specific guidelines, patterns, user " +
-                    "preferences, or technical limitations have been established?\n" +
-                    "3. **Discoveries & Architecture**: What have we learned about the codebase? Detail " +
-                    "any symbol mappings, logic structures, or debugging conclusions.\n" +
-                    "4. **Accomplished**: What changes have already been completely implemented, " +
-                    "verified, or fixed?\n" +
-                    "5. **Relevant Files**: Which files are currently being modified or are active in " +
-                    "the workspace?\n\n" +
-                    "CRITICAL: Do not lose technical specifics, user-stated constraints, or deep " +
-                    "investigation states.\n\n" +
-                    "Continue if you have next steps, or stop and ask for clarification if you are " +
-                    "unsure how to proceed."
+                "You are an advanced Context Compaction Agent for an Android-based personal assistant. Your task is to compress the preceding conversation history and system interaction logs into a highly dense, structured, and actionable continuation summary.\n\n" +
+                "You must eliminate all conversational filler, repetitive system notifications, and redundant logs while preserving 100% of the user's intent, active tasks, preferences, and the current device/environmental state.\n\n" +
+                "Generate a structured summary containing exactly the following five sections. Use the exact headers provided below:\n\n" +
+                "### 1. Active User Goal\n" +
+                "Provide a single, clear sentence defining the user's ultimate objective or current request (e.g., \"User wants to navigate to central park while avoiding tolls,\" or \"User is troubleshooting high battery drain\").\n\n" +
+                "### 2. Constraints & Preferences\n" +
+                "List all active limitations, user preferences, or environmental constraints established during this session.\n" +
+                "* Use bullet points.\n" +
+                "* Examples: \"Avoid highway tolls,\" \"Prefers walking over driving,\" \"Do not disturb mode is ON,\" \"Low battery mode active (<15%).\"\n\n" +
+                "### 3. Completed Actions\n" +
+                "A chronological, bulleted list of actions that the assistant has **successfully executed** during this session.\n" +
+                "* Be specific: \"Calculated route via transit,\" \"Retrieved battery usage stats for the last 24 hours,\" \"Set a reminder for 5:00 PM.\"\n" +
+                "* Do not list in-progress or failed attempts here.\n\n" +
+                "### 4. Next Step & Pending Actions\n" +
+                "What is the immediate next step or the unresolved part of the user's request?\n" +
+                "* State the next logical action (e.g., \"Waiting for user to select Route A or Route B,\" or \"Initiating system cache cleanup\").\n" +
+                "* If the next step is ambiguous, or if you require user permission to proceed (e.g., opening a payment app, changing a system-level setting), stop and explicitly ask the user for clarification.\n\n" +
+                "---\n\n" +
+                "## CRITICAL RULES FOR COMPACTION:\n" +
+                "* **No Vague Summaries:** Never write \"User wanted directions.\" Instead, write \"User requested fastest route to 123 Main St, preferring public transit.\"\n" +
+                "* **Preserve State & Data:** Retain exact names, addresses, numbers, times, app names, and system statistics.\n" +
+                "* **Consolidate System Logs:** Do not repeat step-by-step system logs or API payloads. Summarize the outcome (e.g., \"Location permission granted by user,\" instead of raw permission dialog logs)."
             )
         )
 
@@ -304,17 +308,15 @@ class AgentEngine(
             events.onActivity("Thinking…")
 
             // Build message array optimized for prompt caching:
-            //   1. Base environment block (fully static — no volatile fields)
+            //   1. Agent instructions (static until agent switches)
             //   2. Full conversation history (images culled non-mutatively)
-            //   3. Current timestamp (volatile — placed after cacheable prefix)
-            //   4. Agent instructions at the tail
-            // The [env block + history] prefix stays byte-identical across
-            // iterations, maximising server-side KV-cache hits.
+            //   3. Base environment block (volatile, e.g. battery)
+            //   4. Current timestamp (volatile)
             val messages = buildList {
-                add(baseEnvironmentBlock(agent))
-                addAll(cullOldImages(trimmedHistory()))
-                add(currentTimestampMessage())
                 addAll(agentInstructionMessages(agent))
+                addAll(cullOldImages(trimmedHistory()))
+                add(baseEnvironmentBlock(agent))
+                add(currentTimestampMessage())
             }
             val response = try {
                 llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
