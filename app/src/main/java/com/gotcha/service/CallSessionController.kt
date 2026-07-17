@@ -384,8 +384,8 @@ class CallSessionController(
         val s = settingsRepository.load()
         return if (s.isConfigured) {
             LLMClient(
-                apiKey = s.apiKey,
-                baseUrl = s.baseUrl,
+                apiKey = s.effectiveApiKey,
+                baseUrl = s.effectiveBaseUrl,
                 model = s.model,
                 context = appContext,
                 apiTimeoutSeconds = s.apiTimeoutSeconds

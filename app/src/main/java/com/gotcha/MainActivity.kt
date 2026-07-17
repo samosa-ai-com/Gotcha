@@ -33,6 +33,8 @@ import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.ModelCategory
+import com.gotcha.auth.SamosaAuthManager
+import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.ThemeMode
@@ -58,9 +60,13 @@ class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var samosaAuthManager: SamosaAuthManager
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
+
+    /** Set when brought to front by the assistive ball (Operator-origin chats). */
+    private var openedFromBall by mutableStateOf(false)
 
     /** In-app theme override, applied immediately when changed in Settings. */
     private var themeMode by mutableStateOf(ThemeMode.SYSTEM)
@@ -96,7 +102,9 @@ class MainActivity : ComponentActivity() {
             window.decorView.isForceDarkAllowed = false
         }
         settingsRepository = SettingsRepository(this)
+        samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
+        openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
 
         // Phase 7: tools report special-access markers; open Settings deep-links.
         // Runtime permissions are no longer requested here — they are pre-configured
@@ -232,6 +240,9 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_OPEN_CHAT, false)) {
             openChatRequested = true
         }
+        if (intent.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false)) {
+            openedFromBall = true
+        }
     }
 
     override fun onStart() {
@@ -320,6 +331,16 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Opened via the assistive ball: return to any running chat, or default a
+        // fresh chat to Operator (ball-initiated chats are Operator by design).
+        LaunchedEffect(openedFromBall) {
+            if (openedFromBall) {
+                currentRoute = Route.HOME
+                chatViewModel.onOpenedFromAssistiveBall()
+                openedFromBall = false
+            }
+        }
+
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = currentRoute == Route.HOME || drawerState.isOpen,
@@ -341,7 +362,9 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.SETTINGS
-                    }
+                    },
+                    maxContextTokens = state.maxContextTokens,
+                    activeTokenCount = state.tokenCount
                 )
             }
         ) {
@@ -393,14 +416,32 @@ class MainActivity : ComponentActivity() {
                         onRefreshChatModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val client = LLMClient(
-                                    apiKey = s.apiKey,
-                                    baseUrl = s.baseUrl,
+                                    apiKey = s.effectiveApiKey,
+                                    baseUrl = s.effectiveBaseUrl,
                                     model = s.model,
                                     context = this@MainActivity,
                                     apiTimeoutSeconds = s.apiTimeoutSeconds
                                 )
                                 client.listModels()
                             }
+                        },
+                        onSamosaSignIn = {
+                            when (val r = samosaAuthManager.signIn(this@MainActivity)) {
+                                is SamosaSignInResult.Success -> {
+                                    // Token is already persisted by the auth manager.
+                                    val token = settingsRepository.load().samosaSessionToken
+                                    chatViewModel.refreshSettings()
+                                    Result.success(r.email to token)
+                                }
+                                is SamosaSignInResult.Cancelled ->
+                                    Result.failure(Exception("Sign-in cancelled."))
+                                is SamosaSignInResult.Error ->
+                                    Result.failure(Exception(r.message))
+                            }
+                        },
+                        onSamosaSignOut = {
+                            samosaAuthManager.signOut()
+                            chatViewModel.refreshSettings()
                         },
                         packageName = packageName
                     )
@@ -426,10 +467,14 @@ class MainActivity : ComponentActivity() {
                         },
                         onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
                         onSwitchAgent = chatViewModel::switchAgent,
+                        onSetAgent = chatViewModel::setAgent,
                         onSpeak = chatViewModel::speak,
                         onStartListening = chatViewModel::startListening,
                         onStopRecording = chatViewModel::stopRecording,
-                        onExportChat = chatViewModel::exportChat
+                        onExportChat = chatViewModel::exportChat,
+                        onReturnToRunning = {
+                            state.runningSessionId?.let { chatViewModel.openSession(it) }
+                        }
                     )
                 }
             }
@@ -445,8 +490,8 @@ class MainActivity : ComponentActivity() {
     /** Cheap "ping" request to validate credentials (Phase 6). */
     private suspend fun testConnection(settings: Settings): Result<String> = runCatching {
         val client = LLMClient(
-            apiKey = settings.apiKey,
-            baseUrl = settings.baseUrl,
+            apiKey = settings.effectiveApiKey,
+            baseUrl = settings.effectiveBaseUrl,
             model = settings.model,
             context = this,
             apiTimeoutSeconds = settings.apiTimeoutSeconds
@@ -461,6 +506,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Intent extra: when true, launch straight into the chat screen. */
         const val EXTRA_OPEN_CHAT = "com.gotcha.OPEN_CHAT"
+
+        /** Intent extra: brought to front by the assistive ball (Operator-origin). */
+        const val EXTRA_FROM_ASSISTIVE_BALL = "com.gotcha.FROM_ASSISTIVE_BALL"
 
         /** SharedPreferences key to track first-launch permission setup. */
         const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"

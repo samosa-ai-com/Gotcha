@@ -16,7 +16,13 @@ class LLMClient(
     private val model: String = "gpt-4o",
     context: Context? = null,
     private val apiTimeoutSeconds: Long = 0L,
-    private val cache: LLMCache = LLMCache(context)
+    private val cache: LLMCache = LLMCache(context),
+    /**
+     * Invoked when the server responds 401 (e.g. an expired/blacklisted Samosa
+     * JWT). Lets the caller clear the stored token and prompt re-authentication.
+     * No-op for the OpenAI-compatible flow unless a caller opts in.
+     */
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
     private val apiService: ApiService
 
@@ -40,7 +46,11 @@ class LLMClient(
             .addInterceptor { chain ->
                 val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")
-                chain.proceed(builder.build())
+                val response = chain.proceed(builder.build())
+                if (response.code == 401) {
+                    onUnauthorized?.invoke()
+                }
+                response
             }
             .addInterceptor(logging)
             .build()

@@ -1,5 +1,8 @@
 package com.gotcha.agent
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class MessageKind { USER, ASSISTANT, TOOL, ERROR, SUBAGENT }
 
 /** A batch of tool calls waiting for the user's confirm/deny (Phase 7). */
@@ -45,6 +48,14 @@ interface AgentEvents {
 
     /** Special-access marker ("special:*") the host should surface/request. */
     fun onPermissionRequest(marker: String)
+
+    /**
+     * History was just compacted: the host should drop its on-screen transcript
+     * so pre-compaction bubbles are no longer shown. The compaction summary is
+     * delivered immediately afterward via [onUi]. Default no-op for hosts that
+     * don't render a persistent transcript.
+     */
+    fun onHistoryReset() {}
 
     /** Ask the user the agent's question; returns "" when unanswered. */
     suspend fun awaitQuestionAnswer(question: PendingQuestion): String

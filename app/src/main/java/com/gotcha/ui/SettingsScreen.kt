@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
 import kotlinx.coroutines.launch
@@ -64,14 +65,25 @@ fun SettingsScreen(
         )
     },
     onRefreshChatModels: suspend (Settings) -> Result<List<String>> = { Result.failure(Exception("Not available")) },
+    /** Runs the Samosa Google Sign-In flow; returns (email, sessionToken) or an error. */
+    onSamosaSignIn: suspend () -> Result<Pair<String, String>> = { Result.failure(Exception("Not available")) },
+    /** Logs out of Samosa (clears JWT + Google state). */
+    onSamosaSignOut: suspend () -> Unit = {},
     packageName: String = ""
 ) {
+    var provider by remember { mutableStateOf(initial.provider) }
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
     var model by remember { mutableStateOf(initial.model) }
+    // Samosa auth state, kept live as the user signs in / out.
+    var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
+    var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
+    var samosaBusy by remember { mutableStateOf(false) }
+    var providerExpanded by remember { mutableStateOf(false) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
+    var maxRepeatedToolCalls by remember { mutableStateOf(initial.maxRepeatedToolCalls.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
     // TTS / STT
@@ -83,6 +95,7 @@ fun SettingsScreen(
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
+    var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -95,6 +108,7 @@ fun SettingsScreen(
     // Collapsible sections
     var aiConfigExpanded by remember { mutableStateOf(false) }
     var speechExpanded by remember { mutableStateOf(false) }
+    var skillsExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Dropdown expanded states
@@ -107,13 +121,17 @@ fun SettingsScreen(
     var navigatorModelExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
+        provider = provider,
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
+        samosaSessionToken = samosaToken,
+        samosaEmail = samosaEmail,
         subAgentModel = subAgentModel.trim(),
         navigatorModel = navigatorModel.trim(),
-        maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 30,
-        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 40000,
+        maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 300,
+        maxRepeatedToolCalls = maxRepeatedToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 20,
+        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 70000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
         ttsProvider = ttsProvider,
         ttsApiBaseUrl = ttsApiBaseUrl.trim(),
@@ -123,8 +141,40 @@ fun SettingsScreen(
         sttApiModel = sttApiModel.trim(),
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
-        themeMode = themeMode
+        themeMode = themeMode,
+        disabledSkills = disabledSkills
     )
+
+    val refreshChatModelsAction = {
+        if (!refreshingChatModels) {
+            refreshingChatModels = true
+            status = "Refreshing models…"
+            scope.launch {
+                val result = onRefreshChatModels(currentSettings())
+                result.onSuccess { models ->
+                    availableChatModels = models
+                    status = "Found ${models.size} models"
+                }.onFailure { e ->
+                    status = "Failed: ${e.message}"
+                }
+                refreshingChatModels = false
+            }
+        }
+    }
+
+    val refreshAudioModelsAction = {
+        if (!refreshingModels) {
+            refreshingModels = true
+            status = "Refreshing audio models…"
+            scope.launch {
+                val (tts, stt) = onRefreshAudioModels(currentSettings())
+                availableTtsModels = tts
+                availableSttModels = stt
+                status = "Found ${tts.size} TTS, ${stt.size} STT models"
+                refreshingModels = false
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -174,33 +224,104 @@ fun SettingsScreen(
             )
             AnimatedVisibility(visible = aiConfigExpanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = { Text("API key") },
-                        singleLine = true,
-                        visualTransformation = if (showKey) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            TextButton(onClick = { showKey = !showKey }) {
-                                Text(if (showKey) "Hide" else "Show")
+                    // ---- LLM provider selector ----
+                    ExposedDropdownMenuBox(
+                        expanded = providerExpanded,
+                        onExpandedChange = { providerExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = provider.label,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("LLM Provider") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
+                            },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = providerExpanded,
+                            onDismissRequest = { providerExpanded = false }
+                        ) {
+                            LlmProvider.entries.forEach { p ->
+                                DropdownMenuItem(
+                                    text = { Text(p.label) },
+                                    onClick = {
+                                        provider = p
+                                        providerExpanded = false
+                                    }
+                                )
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("Base URL (OpenAI-compatible)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        }
+                    }
+
+                    if (provider == LlmProvider.SAMOSA_AI) {
+                        // ---- Samosa AI: Google sign-in (no Base URL / API key) ----
+                        SamosaAuthSection(
+                            email = samosaEmail,
+                            signedIn = samosaToken.isNotBlank(),
+                            busy = samosaBusy,
+                            onSignIn = {
+                                samosaBusy = true
+                                status = "Signing in with Google…"
+                                scope.launch {
+                                    val result = onSamosaSignIn()
+                                    result.onSuccess { (email, token) ->
+                                        samosaEmail = email
+                                        samosaToken = token
+                                        status = "Signed in as $email"
+                                    }.onFailure { e ->
+                                        status = e.message ?: "Sign-in failed."
+                                    }
+                                    samosaBusy = false
+                                }
+                            },
+                            onSignOut = {
+                                samosaBusy = true
+                                status = "Signing out…"
+                                scope.launch {
+                                    onSamosaSignOut()
+                                    samosaToken = ""
+                                    samosaEmail = ""
+                                    availableChatModels = emptyList()
+                                    status = "Signed out of Samosa AI."
+                                    samosaBusy = false
+                                }
+                            }
+                        )
+                    } else {
+                        // ---- OpenAI-compatible: Base URL + API key (unchanged) ----
+                        OutlinedTextField(
+                            value = apiKey,
+                            onValueChange = { apiKey = it },
+                            label = { Text("API key") },
+                            singleLine = true,
+                            visualTransformation = if (showKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showKey = !showKey }) {
+                                    Text(if (showKey) "Hide" else "Show")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = { baseUrl = it },
+                            label = { Text("Base URL (OpenAI-compatible)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     ExposedDropdownMenuBox(
                         expanded = modelExpanded,
-                        onExpandedChange = { modelExpanded = it }
+                        onExpandedChange = {
+                            modelExpanded = it
+                            if (it) refreshChatModelsAction()
+                        }
                     ) {
                         OutlinedTextField(
                             value = model,
@@ -215,9 +336,13 @@ fun SettingsScreen(
                             expanded = modelExpanded,
                             onDismissRequest = { modelExpanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                                onClick = { refreshChatModelsAction() }
+                            )
                             if (availableChatModels.isEmpty()) {
                                 DropdownMenuItem(
-                                    text = { Text("No models — refresh below") },
+                                    text = { Text("No models found") },
                                     onClick = { modelExpanded = false }
                                 )
                             } else {
@@ -242,7 +367,10 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = subAgentModelExpanded,
-                        onExpandedChange = { subAgentModelExpanded = it }
+                        onExpandedChange = {
+                            subAgentModelExpanded = it
+                            if (it) refreshChatModelsAction()
+                        }
                     ) {
                         val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
                         OutlinedTextField(
@@ -261,6 +389,10 @@ fun SettingsScreen(
                             expanded = subAgentModelExpanded,
                             onDismissRequest = { subAgentModelExpanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                                onClick = { refreshChatModelsAction() }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Same as main agent") },
                                 onClick = {
@@ -283,7 +415,10 @@ fun SettingsScreen(
                     }
                     ExposedDropdownMenuBox(
                         expanded = navigatorModelExpanded,
-                        onExpandedChange = { navigatorModelExpanded = it }
+                        onExpandedChange = {
+                            navigatorModelExpanded = it
+                            if (it) refreshChatModelsAction()
+                        }
                     ) {
                         val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
                         OutlinedTextField(
@@ -302,6 +437,10 @@ fun SettingsScreen(
                             expanded = navigatorModelExpanded,
                             onDismissRequest = { navigatorModelExpanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                                onClick = { refreshChatModelsAction() }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Same as main model") },
                                 onClick = {
@@ -322,33 +461,18 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                refreshingChatModels = true
-                                status = "Refreshing models…"
-                                scope.launch {
-                                    val result = onRefreshChatModels(currentSettings())
-                                    result.onSuccess { models ->
-                                        availableChatModels = models
-                                        status = "Found ${models.size} models"
-                                    }.onFailure { e ->
-                                        status = "Failed: ${e.message}"
-                                    }
-                                    refreshingChatModels = false
-                                }
-                            },
-                            enabled = !refreshingChatModels,
-                            modifier = Modifier.weight(1f)
-                        ) { Text(if (refreshingChatModels) "Refreshing…" else "Refresh models") }
-                    }
                     OutlinedTextField(
                         value = maxToolRounds,
                         onValueChange = { maxToolRounds = it },
                         label = { Text("Max tool rounds") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = maxRepeatedToolCalls,
+                        onValueChange = { maxRepeatedToolCalls = it },
+                        label = { Text("Max repeated tool calls") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
@@ -374,7 +498,10 @@ fun SettingsScreen(
                             onSave(currentSettings())
                             status = "Saved."
                         },
-                        enabled = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank(),
+                        enabled = when (provider) {
+                            LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save") }
                     OutlinedButton(
@@ -390,7 +517,10 @@ fun SettingsScreen(
                                 testing = false
                             }
                         },
-                        enabled = !testing && apiKey.isNotBlank() && baseUrl.isNotBlank(),
+                        enabled = !testing && when (provider) {
+                            LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+                            LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Test connection") }
                     OutlinedButton(
@@ -463,7 +593,10 @@ fun SettingsScreen(
                         )
                         ExposedDropdownMenuBox(
                             expanded = ttsModelExpanded,
-                            onExpandedChange = { ttsModelExpanded = it }
+                            onExpandedChange = {
+                                ttsModelExpanded = it
+                                if (it) refreshAudioModelsAction()
+                            }
                         ) {
                             OutlinedTextField(
                                 value = ttsApiModel.ifEmpty { "(select model)" },
@@ -481,9 +614,15 @@ fun SettingsScreen(
                                 expanded = ttsModelExpanded,
                                 onDismissRequest = { ttsModelExpanded = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
+                                    },
+                                    onClick = { refreshAudioModelsAction() }
+                                )
                                 if (availableTtsModels.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No models — refresh below") },
+                                        text = { Text("No models found") },
                                         onClick = { ttsModelExpanded = false }
                                     )
                                 } else {
@@ -538,7 +677,10 @@ fun SettingsScreen(
                         )
                         ExposedDropdownMenuBox(
                             expanded = sttModelExpanded,
-                            onExpandedChange = { sttModelExpanded = it }
+                            onExpandedChange = {
+                                sttModelExpanded = it
+                                if (it) refreshAudioModelsAction()
+                            }
                         ) {
                             OutlinedTextField(
                                 value = sttApiModel.ifEmpty { "(select model)" },
@@ -556,9 +698,15 @@ fun SettingsScreen(
                                 expanded = sttModelExpanded,
                                 onDismissRequest = { sttModelExpanded = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
+                                    },
+                                    onClick = { refreshAudioModelsAction() }
+                                )
                                 if (availableSttModels.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No models — refresh below") },
+                                        text = { Text("No models found") },
                                         onClick = { sttModelExpanded = false }
                                     )
                                 } else {
@@ -583,21 +731,6 @@ fun SettingsScreen(
                         Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
                         Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
                     }
-                    OutlinedButton(
-                        onClick = {
-                            refreshingModels = true
-                            status = "Refreshing audio models…"
-                            scope.launch {
-                                val (tts, stt) = onRefreshAudioModels(currentSettings())
-                                availableTtsModels = tts
-                                availableSttModels = stt
-                                status = "Found ${tts.size} TTS, ${stt.size} STT models"
-                                refreshingModels = false
-                            }
-                        },
-                        enabled = !refreshingModels && (ttsApiBaseUrl.isNotBlank() || sttApiBaseUrl.isNotBlank()),
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (refreshingModels) "Refreshing…" else "Refresh audio models") }
                     Button(
                         onClick = {
                             onSave(currentSettings())
@@ -605,6 +738,53 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save Speech Settings") }
+                }
+            }
+
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Skills (collapsible, collapsed by default) ----
+            SectionHeader(
+                title = "Skills / Plugins",
+                expanded = skillsExpanded,
+                onToggle = { skillsExpanded = !skillsExpanded }
+            )
+            AnimatedVisibility(visible = skillsExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val allSkills = com.gotcha.agent.skills.SkillRegistry.getAllSkills()
+                    if (allSkills.isEmpty()) {
+                        Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        allSkills.forEach { skill ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        skill.id,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (skill.description.isNotBlank()) {
+                                        Text(skill.description, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
+                                Switch(
+                                    checked = !disabledSkills.contains(skill.id),
+                                    onCheckedChange = { enabled ->
+                                        disabledSkills = if (enabled) {
+                                            disabledSkills - skill.id
+                                        } else {
+                                            disabledSkills + skill.id
+                                        }
+                                        onSave(currentSettings())
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -618,6 +798,49 @@ fun SettingsScreen(
                     "except in requests to the base URL above.",
                 style = MaterialTheme.typography.bodySmall
             )
+        }
+    }
+}
+
+@Composable
+private fun SamosaAuthSection(
+    email: String,
+    signedIn: Boolean,
+    busy: Boolean,
+    onSignIn: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+        if (signedIn && email.isNotBlank()) {
+            Text(
+                text = email,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        if (!signedIn) {
+            Text(
+                text = "Sign in with Google to use Samosa AI. Your OpenAI-compatible " +
+                    "settings are kept separately and are unaffected.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (signedIn) {
+            OutlinedButton(
+                onClick = onSignOut,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "Please wait…" else "Log out") }
+        } else {
+            Button(
+                onClick = onSignIn,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
         }
     }
 }

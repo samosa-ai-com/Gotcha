@@ -75,6 +75,9 @@ class AssistiveBallOverlay(context: Context) {
     private var cardView: View? = null
     private var dismissTargetView: View? = null
 
+    /** Which edge the ball docks to when idle. Defaults to the right edge. */
+    private var dockSide: Int = DOCK_SIDE_END
+
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
 
     private val settingsRepository by lazy { SettingsRepository(appContext) }
@@ -132,6 +135,14 @@ class AssistiveBallOverlay(context: Context) {
             try {
                 windowManager.addView(ball, ballParams)
                 ballView = ball
+                // On first enable, show the full, opaque button (centred) so the user
+                // sees it; it auto-docks to the edge after a short idle delay.
+                ball.alpha = 1.0f
+                ballParams.x = (screenWidth() - dp(BALL_SIZE_DP)) / 2
+                try {
+                    windowManager.updateViewLayout(ball, ballParams)
+                } catch (_: Exception) { }
+                scheduleAutoDock()
             } catch (_: Exception) {
                 ballView = null
             }
@@ -140,6 +151,7 @@ class AssistiveBallOverlay(context: Context) {
 
     fun dismiss() {
         mainHandler.post {
+            cancelAutoDock()
             removeLongPressRing()
             removeMenu()
             removeCard()
@@ -172,10 +184,11 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
-    /** Restore the ball after a capture. */
+    /** Restore the ball after a capture (back to its faint edge-peek state). */
     fun showChromeAfterCapture() {
         mainHandler.post {
             ballView?.visibility = View.VISIBLE
+            ballView?.alpha = PEEK_ALPHA
         }
     }
 
@@ -309,6 +322,10 @@ class AssistiveBallOverlay(context: Context) {
                     touchDownRawY = event.rawY
                     dragging = false
                     longPressFired = false
+                    // Reveal the sliver immediately on contact; the ball stays put
+                    // so drag math (relative to startX) stays consistent.
+                    cancelAutoDock()
+                    ballView?.alpha = 1.0f
                     mainHandler.postDelayed(
                         longPressRunnable,
                         if (isCallActive()) LONG_PRESS_END_MS else LONG_PRESS_START_MS
@@ -344,9 +361,20 @@ class AssistiveBallOverlay(context: Context) {
                     when {
                         longPressFired -> { /* handled by the runnable */ }
                         droppedOnTarget -> onDismiss()
-                        dragging -> clampBallIntoBounds()
+                        dragging -> {
+                            // Snap to the edge on the side the ball was dropped on.
+                            dockSide = sideForX(ballParams.x)
+                            clampBallIntoBounds()
+                            scheduleAutoDock()
+                        }
                         isCallActive() -> onToggleChatWindow()
-                        else -> toggleMenu()
+                        else -> {
+                            // Idle tap: slide the full ball on-screen, open the menu,
+                            // then auto-dock back to the edge after a short idle.
+                            expandFromEdge()
+                            toggleMenu()
+                            scheduleAutoDock()
+                        }
                     }
                     true
                 }
@@ -354,7 +382,12 @@ class AssistiveBallOverlay(context: Context) {
                     mainHandler.removeCallbacks(longPressRunnable)
                     hideLongPressRing()
                     removeDismissTarget()
-                    if (dragging) clampBallIntoBounds()
+                    if (dragging) {
+                        // Snap to the edge on the side the ball was dropped on.
+                        dockSide = sideForX(ballParams.x)
+                        clampBallIntoBounds()
+                        scheduleAutoDock()
+                    }
                     true
                 }
                 else -> false
@@ -364,13 +397,88 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun clampBallIntoBounds() {
         val metrics = appContext.resources.displayMetrics
-        val maxX = metrics.widthPixels - dp(BALL_SIZE_DP)
         val maxY = metrics.heightPixels - dp(BALL_SIZE_DP)
-        ballParams.x = ballParams.x.coerceIn(0, maxX.coerceAtLeast(0))
+        // Allow the ball to dock fully off either edge down to its peek position.
+        val minX = -dp(BALL_SIZE_DP - PEEK_DP)
+        val maxX = metrics.widthPixels - dp(PEEK_DP)
+        ballParams.x = ballParams.x.coerceIn(minX, maxX)
         ballParams.y = ballParams.y.coerceIn(0, maxY.coerceAtLeast(0))
         try {
             windowManager.updateViewLayout(ballView, ballParams)
         } catch (_: Exception) { }
+    }
+
+    // ---- Edge-peek expand / dock ----
+
+    private fun screenWidth(): Int = appContext.resources.displayMetrics.widthPixels
+
+    /** X offset (from the left/START edge) that places the ball in its peek sliver. */
+    private fun dockedX(side: Int): Int = when (side) {
+        DOCK_SIDE_END -> screenWidth() - dp(PEEK_DP)
+        else -> -dp(BALL_SIZE_DP - PEEK_DP)
+    }
+
+    /** X offset that places the fully-expanded ball just inside [side]'s edge. */
+    private fun dockedExpandX(side: Int): Int = when (side) {
+        DOCK_SIDE_END -> screenWidth() - dp(BALL_SIZE_DP) - dp(DOCK_MARGIN_DP)
+        else -> dp(DOCK_MARGIN_DP)
+    }
+
+    /** Pick the dock side from the ball's current left offset (uses its centre). */
+    private fun sideForX(leftX: Int): Int {
+        val centre = leftX + dp(BALL_SIZE_DP) / 2
+        return if (centre < screenWidth() / 2) DOCK_SIDE_START else DOCK_SIDE_END
+    }
+
+    /** Slide the full ball onto the screen (on its current dock side) and make it fully opaque. */
+    private fun expandFromEdge() {
+        cancelAutoDock()
+        ballParams.x = dockedExpandX(dockSide)
+        val view = ballView ?: return
+        try {
+            windowManager.updateViewLayout(view, ballParams)
+        } catch (_: Exception) { }
+        ValueAnimator.ofFloat(view.alpha, 1.0f).apply {
+            duration = 180L
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                view.alpha = anim.animatedValue as Float
+            }
+            start()
+        }
+    }
+
+    /** Animate the ball back to the faint, docked-at-edge peek state. */
+    private fun dockToEdge() {
+        val view = ballView ?: return
+        val targetX = dockedX(dockSide)
+        val startX = ballParams.x
+        val startAlpha = view.alpha
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 220L
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                ballParams.x = (startX + (targetX - startX) * p).toInt()
+                try {
+                    windowManager.updateViewLayout(view, ballParams)
+                } catch (_: Exception) { }
+                view.alpha = startAlpha + (PEEK_ALPHA - startAlpha) * p
+            }
+            start()
+        }
+    }
+
+    private val autoDockRunnable = Runnable { if (!isCallActive()) dockToEdge() }
+
+    private fun scheduleAutoDock() {
+        if (isCallActive()) return
+        cancelAutoDock()
+        mainHandler.postDelayed(autoDockRunnable, AUTO_DOCK_DELAY_MS)
+    }
+
+    private fun cancelAutoDock() {
+        mainHandler.removeCallbacks(autoDockRunnable)
     }
 
     // ---- Dismiss target (drag the ball onto the ✕ to hide it) ----
@@ -576,7 +684,8 @@ class AssistiveBallOverlay(context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = dp(16)
+            // Default-dock off the right edge: only PEEK_DP of the ball is visible.
+            x = dockedX(dockSide)
             y = dp(160)
         }
 
@@ -617,5 +726,16 @@ class AssistiveBallOverlay(context: Context) {
         const val DISMISS_TARGET_SIZE_DP = 64
         const val DISMISS_TARGET_MARGIN_DP = 32
         const val DISMISS_SNAP_RADIUS_DP = 56
+
+        // Edge-peek behaviour: when idle the ball docks off an edge, leaving
+        // only a thin, semi-transparent sliver; interaction reveals the full ball.
+        const val PEEK_DP = 28
+        const val PEEK_ALPHA = 0.35f
+        const val DOCK_MARGIN_DP = 16
+        const val AUTO_DOCK_DELAY_MS = 2500L
+
+        // Dock side identifiers (START = left edge, END = right edge).
+        const val DOCK_SIDE_START = 0
+        const val DOCK_SIDE_END = 1
     }
 }

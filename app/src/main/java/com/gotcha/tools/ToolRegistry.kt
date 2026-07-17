@@ -38,8 +38,7 @@ object ToolRegistry {
         "websearch", "webfetch",
         "get_clipboard",
         "read_screen", "read_notifications",
-        "get_firewall_status",
-        "check_root"
+        "check_root", "search_skills"
     )
 
     /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */

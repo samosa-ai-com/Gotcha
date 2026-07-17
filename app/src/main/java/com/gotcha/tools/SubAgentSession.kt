@@ -39,8 +39,8 @@ class SubAgentSession(
         Log.d(TAG, "Starting sub-agent with model=$model: $description")
 
         val subLlm = LLMClient(
-            apiKey = settings.apiKey,
-            baseUrl = settings.baseUrl,
+            apiKey = settings.effectiveApiKey,
+            baseUrl = settings.effectiveBaseUrl,
             model = model,
             context = appContext,
             apiTimeoutSeconds = settings.apiTimeoutSeconds
@@ -54,8 +54,13 @@ class SubAgentSession(
         for (round in 0 until maxRounds) {
             Log.d(TAG, "Sub-agent round ${round + 1}/$maxRounds")
 
+            val messages = buildList {
+                addAll(history)
+                addAll(activeSkillsMessages(settings.disabledSkills))
+            }
+
             val response = try {
-                subLlm.chat(history.toList(), subAgentTools, sessionId = sessionId)
+                subLlm.chat(messages, subAgentTools, sessionId = sessionId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -165,6 +170,9 @@ class SubAgentSession(
                     "You have access to all device tools. " +
                     "Your job is to complete the task delegated to you. " +
                     "Use the available tools to perform the required steps. " +
+                    "When interacting with unfamiliar apps, system settings, or complex " +
+                    "workflows, use the search_skills tool to fetch context-aware " +
+                    "operational instructions.\n" +
                     "When you have fully completed the task and have the final answer, " +
                     "call the ask_final_answer tool with your complete result. " +
                     "Do NOT call ask_final_answer until all work is actually done."
@@ -209,10 +217,14 @@ class SubAgentSession(
         val compactionSystem = ChatMessage(
             role = "system",
             content = JsonPrimitive(
-                "You are a context compaction agent. Compress the following sub-agent " +
-                    "tool-call history into a dense summary preserving: what was attempted, " +
-                    "what succeeded, what failed, and key data discovered. Be concise but " +
-                    "do not lose technical specifics."
+                "You are a Context Compaction Agent for a sub-agent. Compress the following sub-agent " +
+                    "tool-call history into a dense summary. You must preserve exactly:\n" +
+                    "1. Goal: What is the specific sub-task being attempted?\n" +
+                    "2. Attempted: What was tried?\n" +
+                    "3. Succeeded: What worked?\n" +
+                    "4. Failed: What failed and why?\n" +
+                    "5. Discovered Data: Key technical specifics, coordinates, text, or states found.\n" +
+                    "Be concise but do not lose technical specifics."
             )
         )
         val compactionUser = ChatMessage(
@@ -244,6 +256,25 @@ class SubAgentSession(
             // Compaction failed — keep full history and continue
             Log.w(TAG, "Sub-agent context compaction failed, keeping full history")
         }
+    }
+
+    private fun activeSkillsMessages(disabledSkills: Set<String>): List<ChatMessage> {
+        val currentPackage = com.gotcha.tools.ScreenPerception.getCurrentPackageName() ?: return emptyList()
+        val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
+            .filter { !disabledSkills.contains(it.id) }
+
+        if (activeSkills.isEmpty()) return emptyList()
+
+        val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
+        return listOf(
+            ChatMessage(
+                role = "system",
+                content = JsonPrimitive(
+                    "<active-skills>\nThe user is currently using $currentPackage. " +
+                        "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
+                )
+            )
+        )
     }
 
     private companion object {

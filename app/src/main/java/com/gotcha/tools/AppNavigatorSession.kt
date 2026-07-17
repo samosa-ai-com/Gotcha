@@ -38,8 +38,8 @@ class AppNavigatorSession(
     suspend fun run(): AppNavigatorOutput {
         val model = settings.navigatorModel.ifEmpty { settings.model }
         val llmClient = LLMClient(
-            apiKey = settings.apiKey,
-            baseUrl = settings.baseUrl,
+            apiKey = settings.effectiveApiKey,
+            baseUrl = settings.effectiveBaseUrl,
             model = model,
             context = appContext,
             apiTimeoutSeconds = settings.apiTimeoutSeconds

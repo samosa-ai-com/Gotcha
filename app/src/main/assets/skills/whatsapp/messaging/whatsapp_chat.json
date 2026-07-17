@@ -1,0 +1,6 @@
+{
+  "id": "whatsapp_chat",
+  "targetPackageNames": ["com.whatsapp"],
+  "description": "Helps navigate WhatsApp efficiently when chatting with contacts.",
+  "instructions": "To send a WhatsApp message, use 'input_text' with the specific index of the search button (magnifying glass) at the top to find the contact first. Never swipe or scroll randomly to find a contact. Once the contact is opened, use 'input_text' on the message text field at the bottom of the screen to type your message."
+}

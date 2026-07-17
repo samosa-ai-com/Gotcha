@@ -58,7 +58,6 @@ class ToolExecutor(
     private val notificationTool = NotificationTool(appContext)
     private val overlayTool = OverlayTool(appContext)
     private val deviceAdminTool = DeviceAdminTool(appContext)
-    private val vpnTool = VpnTool(appContext)
 
     // Tier 4 tools
     private val rootTool = RootTool()
@@ -441,10 +440,7 @@ class ToolExecutor(
             "set_password_policy" -> deviceAdminTool.setPasswordPolicy(
                 args.requireInt("min_length") ?: return missing("min_length")
             )
-            "set_firewall" -> vpnTool.setFirewall(
-                args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
-            )
-            "get_firewall_status" -> vpnTool.getFirewallStatus()
+
             // ---- Tier 4 ----
             "check_root" -> rootTool.checkRoot()
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
@@ -453,6 +449,16 @@ class ToolExecutor(
                 key = args.requireString("key") ?: return missing("key"),
                 value = args.requireString("value") ?: return missing("value")
             )
+            "search_skills" -> {
+                val query = args.requireString("query") ?: return missing("query")
+                val results = com.gotcha.agent.skills.SkillRegistry.searchSkills(query)
+                if (results.isEmpty()) {
+                    ToolResult.ok("No skills found matching '$query'.")
+                } else {
+                    val instructions = results.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
+                    ToolResult.ok("Found ${results.size} skills matching '$query':\n\n$instructions")
+                }
+            }
             else -> ToolResult.error("Tool '$name' has no executor.")
         }
     }

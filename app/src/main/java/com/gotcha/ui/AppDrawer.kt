@@ -41,7 +41,9 @@ fun AppDrawerContent(
     onNewChat: () -> Unit,
     onSessionClick: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    maxContextTokens: Int = 0,
+    activeTokenCount: Int = 0
 ) {
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
 
@@ -68,13 +70,24 @@ fun AppDrawerContent(
             )
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(sessions, key = { it.id }) { session ->
+                    val tokens = if (session.id == activeSessionId) activeTokenCount else session.tokenCount
+                    val usage = formatContextUsage(tokens, maxContextTokens)
                     NavigationDrawerItem(
                         label = {
-                            Text(
-                                session.title,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Column {
+                                Text(
+                                    session.title,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (usage != null) {
+                                    Text(
+                                        usage,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         },
                         selected = session.id == activeSessionId,
                         onClick = { onSessionClick(session.id) },
@@ -126,5 +139,21 @@ fun AppDrawerContent(
                 }
             }
         )
+    }
+}
+
+/**
+ * Formats a per-chat context readout like "12,345 / 70,000 tokens (18%)".
+ * Returns null when there's nothing meaningful to show yet.
+ */
+private fun formatContextUsage(tokens: Int, maxContextTokens: Int): String? {
+    if (tokens <= 0) return null
+    fun grouped(n: Int): String = "%,d".format(n)
+    return if (maxContextTokens > 0) {
+        val percent = (tokens.toFloat() / maxContextTokens * 100f)
+            .coerceIn(0f, 100f).toInt()
+        "${grouped(tokens)} / ${grouped(maxContextTokens)} tokens ($percent%)"
+    } else {
+        "${grouped(tokens)} tokens"
     }
 }

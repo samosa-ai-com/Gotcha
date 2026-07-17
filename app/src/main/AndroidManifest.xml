@@ -94,6 +94,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.Gotcha">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -154,16 +155,6 @@
             </intent-filter>
         </service>
 
-        <!-- Tier 3: VpnService — local kill-switch firewall (blocks all traffic; user consents once). -->
-        <service
-            android:name=".service.GotchaVpnService"
-            android:exported="false"
-            android:label="@string/app_name"
-            android:permission="android.permission.BIND_VPN_SERVICE">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-        </service>
 
         <!-- Scheduled SMS delivery receiver -->
         <receiver
