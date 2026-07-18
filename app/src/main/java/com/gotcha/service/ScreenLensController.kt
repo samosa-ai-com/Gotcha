@@ -120,6 +120,7 @@ class ScreenLensController(
         }
     }
 
+    @SuppressLint("NewApi")
     private fun onRegionSelected(rectInView: Rect) {
         val overlay = cropOverlay as? ScreenCropOverlayView
         val viewW = overlay?.width ?: 0
@@ -562,22 +563,13 @@ class ScreenLensController(
     }
 
     private fun encodeJpeg(bitmap: Bitmap): String? {
-        return try {
-            val (w, h) = if (bitmap.width > 1024 || bitmap.height > 1024) {
-                val ratio = minOf(1024f / bitmap.width, 1024f / bitmap.height)
-                (bitmap.width * ratio).toInt().coerceAtLeast(1) to
-                    (bitmap.height * ratio).toInt().coerceAtLeast(1)
-            } else {
-                bitmap.width to bitmap.height
-            }
-            val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
-            val output = java.io.ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, 85, output)
-            if (scaled != bitmap) scaled.recycle()
-            android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
-        } catch (_: Exception) {
-            null
-        }
+        return com.gotcha.tools.ScreenPerception.compressBitmap(
+            bitmap = bitmap,
+            maxDimension = 1024,
+            quality = 85,
+            format = Bitmap.CompressFormat.JPEG,
+            recycleInput = false
+        )
     }
 
     private fun recyclePendingCrop() {

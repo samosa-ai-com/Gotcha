@@ -180,34 +180,14 @@ class AssistiveBallService : Service() {
         overlay.isPanelOpen = true
         scope.launch {
             try {
-                var base64: String? = null
-                if (attachScreenshot && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    val service = com.gotcha.service.GotchaAccessibilityService.instance
-                    if (service != null) {
-                        var bitmap = service.takeScreenshotBitmap()
-                        if (bitmap == null) {
-                            kotlinx.coroutines.delay(500)
-                            bitmap = service.takeScreenshotBitmap()
-                        }
-                        if (bitmap != null) {
-                            val (w, h) = if (bitmap.width > 1024 || bitmap.height > 1024) {
-                                val ratio = minOf(1024f / bitmap.width, 1024f / bitmap.height)
-                                (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-                            } else {
-                                bitmap.width to bitmap.height
-                            }
-                            val scaled = android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true)
-                            if (scaled != bitmap) bitmap.recycle()
-                            val output = java.io.ByteArrayOutputStream()
-                            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output)
-                            scaled.recycle()
-                            base64 = android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
-                        }
-                    }
+                val compressed = if (attachScreenshot) {
+                    com.gotcha.tools.ScreenPerception.compressScreenshot(maxDimension = 1024, quality = 85)
+                } else {
+                    null
                 }
 
-                val userMsg = if (base64 != null) {
-                    com.gotcha.llm.visionUserMessage(prompt, base64)
+                val userMsg = if (compressed != null) {
+                    com.gotcha.llm.visionUserMessage(prompt, compressed.base64, compressed.format)
                 } else {
                     com.gotcha.llm.ChatMessage("user", kotlinx.serialization.json.JsonPrimitive(prompt))
                 }

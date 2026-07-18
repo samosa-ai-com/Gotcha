@@ -63,11 +63,12 @@ class ScreenCompanionController(
             addAction(ACTION_APP_CHANGED)
             addAction(ACTION_CLIPBOARD_CHANGED)
         }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(appChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            context.registerReceiver(appChangeReceiver, filter)
-        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            appChangeReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     fun stop() {

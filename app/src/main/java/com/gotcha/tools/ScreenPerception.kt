@@ -368,6 +368,32 @@ object ScreenPerception {
         }
     }
 
+    fun compressBitmap(
+        bitmap: Bitmap,
+        maxDimension: Int = 1024,
+        quality: Int = 85,
+        format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
+        recycleInput: Boolean = false
+    ): String? {
+        return try {
+            val forEncoding = if (maxDimension > 0) downscale(bitmap, maxDimension) else bitmap
+            val output = ByteArrayOutputStream()
+            forEncoding.compress(format, quality, output)
+            if (forEncoding !== bitmap) {
+                forEncoding.recycle()
+            }
+            if (recycleInput) {
+                bitmap.recycle()
+            }
+            Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e("ScreenCapture", "compressBitmap failed: ${e.message}", e)
+            null
+        }
+    }
+
     private fun downscale(bitmap: Bitmap, maxDim: Int): Bitmap {
         val (w, h) = if (bitmap.width > maxDim || bitmap.height > maxDim) {
             val ratio = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
