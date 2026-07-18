@@ -27,6 +27,7 @@ data class Settings(
     val navigatorModel: String = "", // empty = same as main model
     val maxToolRounds: Int = 300,
     val maxRepeatedToolCalls: Int = 20,
+    val maxNavigationToolCalls: Int = 30,
     val maxContextTokens: Int = 70000,
     val apiTimeoutSeconds: Long = 0L,
     // TTS / STT settings
@@ -100,6 +101,7 @@ class SettingsRepository(context: Context) {
         navigatorModel = prefs.getString(KEY_NAVIGATOR_MODEL, "") ?: "",
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 300),
         maxRepeatedToolCalls = prefs.getInt(KEY_MAX_REPEATED_TOOL_CALLS, 20),
+        maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID"),
@@ -128,6 +130,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_NAVIGATOR_MODEL, settings.navigatorModel)
             .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
             .putInt(KEY_MAX_REPEATED_TOOL_CALLS, settings.maxRepeatedToolCalls)
+            .putInt(KEY_MAX_NAVIGATION_TOOL_CALLS, settings.maxNavigationToolCalls)
             .putInt(KEY_MAX_CONTEXT_TOKENS, settings.maxContextTokens)
             .putLong(KEY_API_TIMEOUT, settings.apiTimeoutSeconds)
             .putString(KEY_TTS_PROVIDER, settings.ttsProvider.name)
@@ -170,6 +173,7 @@ class SettingsRepository(context: Context) {
         const val KEY_NAVIGATOR_MODEL = "navigator_model"
         const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"
         const val KEY_MAX_REPEATED_TOOL_CALLS = "max_repeated_tool_calls"
+        const val KEY_MAX_NAVIGATION_TOOL_CALLS = "max_navigation_tool_calls"
         const val KEY_MAX_CONTEXT_TOKENS = "max_context_tokens"
         const val KEY_API_TIMEOUT = "api_timeout"
         const val KEY_TTS_PROVIDER = "tts_provider"

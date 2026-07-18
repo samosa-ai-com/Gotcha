@@ -32,7 +32,7 @@ class AppNavigatorSession(
     private val sessionId: String? = null
 ) {
     private val json = Json { ignoreUnknownKeys = true }
-    private val maxSteps = 30
+    private val maxSteps = settings.maxNavigationToolCalls
     private val actionLog = mutableListOf<String>()
 
     suspend fun run(): AppNavigatorOutput {
