@@ -1485,9 +1485,8 @@ object ToolDefinitions {
 
     val navigateApp = tool(
         "navigate_app",
-        "Open apps and navigate them step by step. Provide a detailed description of " +
-            "what to do — the App Navigator will look at the screen, tap, swipe, type, " +
-            "and scroll until the task is done. " +
+        "Navigate inside apps step by step — open the app, tap, swipe, type, and scroll " +
+            "until the task is done. Provide clear numbered steps as the task description. " +
             "Only available to Operator mode. Cannot be called from within a sub-agent.",
         schema {
             putJsonObject("properties") {
@@ -1495,11 +1494,15 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Detailed step-by-step instructions of what to do in the app. " +
-                            "Include the app name, search terms, what to look for, and what the final " +
-                            "summary should contain. " +
-                            "Example: 'Open Google Maps, search for restaurants near me, scroll through " +
-                            "results, and tell me the top 5 with ratings and distances.'"
+                        "Step-by-step instructions of what to do. Include the app name, what to tap, " +
+                            "what to type, and what to report back. Using numbered steps improves accuracy.\n\n" +
+                            "Example:\n" +
+                            "1. Open the Google Play Store app\n" +
+                            "2. Tap on the search bar at the top\n" +
+                            "3. Type 'Spotify' and press enter\n" +
+                            "4. Tap on the Spotify result\n" +
+                            "5. Scroll down to see the rating\n" +
+                            "6. Report the app rating and number of downloads"
                     )
                 }
             }

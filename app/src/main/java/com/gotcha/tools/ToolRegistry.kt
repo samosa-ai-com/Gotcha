@@ -47,6 +47,7 @@ object ToolRegistry {
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
         "tap", "tap_index", "long_press", "long_press_index", "swipe", "input_text", "press_key",
+        "global_action", "open_app", "list_installed_apps", "search_skills",
         "sleep", "ask_final_answer"
     )
 
@@ -153,7 +154,11 @@ object ToolRegistry {
                         }
                         putJsonObject("index") {
                             put("type", "integer")
-                            put("description", "Optional element index to scroll")
+                            put("description", "Optional element index to scroll within")
+                        }
+                        putJsonObject("distance") {
+                            put("type", "integer")
+                            put("description", "Optional scroll distance in pixels (smaller = shorter scroll)")
                         }
                     }
                     putJsonArray("required") { add("direction") }
@@ -163,7 +168,7 @@ object ToolRegistry {
         "input_text" to ToolDefinition(
             function = FunctionDefinition(
                 "input_text",
-                "Type text into a field. Provide 'index' to target it directly.",
+                "Type text into a field. Provide 'index' to target it directly. After typing, press_key(enter) may be needed to submit.",
                 buildJsonObject {
                     put("type", "object")
                     putJsonObject("properties") {
@@ -173,7 +178,7 @@ object ToolRegistry {
                         }
                         putJsonObject("index") {
                             put("type", "integer")
-                            put("description", "Element index")
+                            put("description", "Element index to target (optional)")
                         }
                     }
                     putJsonArray("required") { add("text") }
@@ -183,13 +188,13 @@ object ToolRegistry {
         "press_key" to ToolDefinition(
             function = FunctionDefinition(
                 "press_key",
-                "Press a system key: back, home, enter.",
+                "Press enter to submit text input, or press back/home for navigation.",
                 buildJsonObject {
                     put("type", "object")
                     putJsonObject("properties") {
                         putJsonObject("key") {
                             put("type", "string")
-                            put("description", "back, home, enter")
+                            put("description", "enter, back, or home")
                         }
                     }
                     putJsonArray("required") { add("key") }
@@ -199,13 +204,13 @@ object ToolRegistry {
         "sleep" to ToolDefinition(
             function = FunctionDefinition(
                 "sleep",
-                "Wait for a short time (max 3s).",
+                "Wait for animations or app loading.",
                 buildJsonObject {
                     put("type", "object")
                     putJsonObject("properties") {
                         putJsonObject("duration_seconds") {
                             put("type", "integer")
-                            put("description", "Seconds (1-3)")
+                            put("description", "Seconds to wait (1-30)")
                         }
                     }
                     putJsonArray("required") { add("duration_seconds") }
@@ -225,6 +230,70 @@ object ToolRegistry {
                         }
                     }
                     putJsonArray("required") { add("answer") }
+                }
+            )
+        ),
+        "open_app" to ToolDefinition(
+            function = FunctionDefinition(
+                "open_app",
+                "Launch an app by its name (e.g. 'Settings', 'Google Maps') or package name.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("package_name") {
+                            put("type", "string")
+                            put("description", "App name or package name (e.g. 'Gmail', 'com.google.android.gm')")
+                        }
+                    }
+                    putJsonArray("required") { add("package_name") }
+                }
+            )
+        ),
+        "global_action" to ToolDefinition(
+            function = FunctionDefinition(
+                "global_action",
+                "Perform a system-level action: recents (overview), notifications (shade), " +
+                    "quick_settings, lock_screen, back, home.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("action") {
+                            put("type", "string")
+                            put("description", "recents, notifications, quick_settings, lock_screen, back, or home")
+                        }
+                    }
+                    putJsonArray("required") { add("action") }
+                }
+            )
+        ),
+        "search_skills" to ToolDefinition(
+            function = FunctionDefinition(
+                "search_skills",
+                "Search for guidance on how to interact with a specific app or perform a system operation.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("query") {
+                            put("type", "string")
+                            put("description", "The app name or operation to search for (e.g. 'Gmail', 'Settings search')")
+                        }
+                    }
+                    putJsonArray("required") { add("query") }
+                }
+            )
+        ),
+        "list_installed_apps" to ToolDefinition(
+            function = FunctionDefinition(
+                "list_installed_apps",
+                "List installed apps to find the correct name or package name for open_app.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("search") {
+                            put("type", "string")
+                            put("description", "Optional search term to filter apps by name")
+                        }
+                    }
                 }
             )
         )
