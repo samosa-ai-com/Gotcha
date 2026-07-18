@@ -37,8 +37,14 @@ class GotchaAccessibilityService : AccessibilityService() {
         initClipboardListener()
     }
 
-    // Passive: we drive the UI on demand from tools rather than reacting to events.
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    // Passive: we drive the UI on demand from tools rather than reacting to events,
+    // except for broadcasting window state changes to the ScreenCompanionController.
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val intent = android.content.Intent("com.gotcha.action.APP_CHANGED")
+            sendBroadcast(intent)
+        }
+    }
 
     override fun onInterrupt() {}
 
@@ -252,7 +258,10 @@ class GotchaAccessibilityService : AccessibilityService() {
     internal fun initClipboardListener() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.addPrimaryClipChangedListener {
-            try { lastClipboardData = cm.primaryClip } catch (_: Exception) {}
+            try {
+                val intent = android.content.Intent("com.gotcha.action.CLIPBOARD_CHANGED")
+                sendBroadcast(intent)
+            } catch (_: Exception) {}
         }
     }
 }
