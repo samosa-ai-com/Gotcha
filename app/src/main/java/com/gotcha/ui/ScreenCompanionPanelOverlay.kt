@@ -29,9 +29,23 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
     private var panelView: View? = null
     private var responseTextView: TextView? = null
+    private var inputEditText: EditText? = null
+    private var micButton: TextView? = null
+    private var speakerButton: TextView? = null
 
     var onDismiss: () -> Unit = {}
     var onSendInput: (text: String) -> Unit = {}
+
+    /** Voice typing (STT): toggled by the mic icon. Host starts/stops recognition. */
+    var onStartVoiceInput: () -> Unit = {}
+    var onStopVoiceInput: () -> Unit = {}
+
+    /** Read aloud (TTS): toggled by the speaker icon on the response block. */
+    var onReadAloud: (text: String) -> Unit = {}
+    var onStopReadAloud: () -> Unit = {}
+
+    private var isListening = false
+    private var isSpeaking = false
 
     private fun dp(value: Int): Int = (value * appContext.resources.displayMetrics.density).toInt()
 
@@ -67,6 +81,24 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             typeface = Typeface.DEFAULT_BOLD
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
+        val speakerBtn = TextView(appContext).apply {
+            text = "🔊"
+            textSize = 18f
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setOnClickListener {
+                if (isSpeaking) {
+                    onStopReadAloud()
+                    setSpeaking(false)
+                } else {
+                    val text = responseTextView?.text?.toString()
+                    if (!text.isNullOrBlank()) {
+                        onReadAloud(text)
+                        setSpeaking(true)
+                    }
+                }
+            }
+        }
+        speakerButton = speakerBtn
         val closeButton = TextView(appContext).apply {
             text = "✕"
             setTextColor(Color.LTGRAY)
@@ -75,6 +107,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             setOnClickListener { dismiss() }
         }
         headerLayout.addView(titleText)
+        headerLayout.addView(speakerBtn)
         headerLayout.addView(closeButton)
         container.addView(headerLayout)
 
@@ -161,6 +194,23 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             textSize = 14f
             maxLines = 3
         }
+        inputEditText = editText
+
+        val micBtn = TextView(appContext).apply {
+            text = "🎤"
+            textSize = 18f
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            setOnClickListener {
+                if (isListening) {
+                    onStopVoiceInput()
+                    setListening(false)
+                } else {
+                    onStartVoiceInput()
+                    setListening(true)
+                }
+            }
+        }
+        micButton = micBtn
 
         val sendButton = Button(appContext).apply {
             text = "Send"
@@ -175,6 +225,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             }
         }
         inputLayout.addView(editText)
+        inputLayout.addView(micBtn)
         inputLayout.addView(sendButton)
         container.addView(inputLayout)
 
@@ -260,6 +311,41 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         }
     }
 
+    /** Append recognised speech to the follow-up input field (voice typing). */
+    fun appendVoiceInput(text: String) {
+        if (text.isBlank()) return
+        mainHandler.post {
+            inputEditText?.let { et ->
+                val existing = et.text?.toString().orEmpty()
+                val joined = if (existing.isBlank()) text else "$existing $text"
+                et.setText(joined)
+                et.setSelection(joined.length)
+            }
+        }
+    }
+
+    /** Reflect STT listening state on the mic icon (tinted while active). */
+    fun setListening(listening: Boolean) {
+        isListening = listening
+        mainHandler.post {
+            micButton?.apply {
+                text = if (listening) "⏺" else "🎤"
+                setTextColor(if (listening) Color.RED else Color.WHITE)
+            }
+        }
+    }
+
+    /** Reflect TTS playback state on the speaker icon (tinted while speaking). */
+    fun setSpeaking(speaking: Boolean) {
+        isSpeaking = speaking
+        mainHandler.post {
+            speakerButton?.apply {
+                text = if (speaking) "⏹" else "🔊"
+                setTextColor(if (speaking) Color.CYAN else Color.WHITE)
+            }
+        }
+    }
+
     fun dismiss() {
         mainHandler.post {
             panelView?.let {
@@ -268,6 +354,11 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
                 } catch (_: Exception) {}
             }
             panelView = null
+            inputEditText = null
+            micButton = null
+            speakerButton = null
+            isListening = false
+            isSpeaking = false
             onDismiss()
         }
     }

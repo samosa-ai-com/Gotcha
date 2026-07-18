@@ -60,6 +60,7 @@ class AssistiveBallOverlay(context: Context) {
     var onDismiss: () -> Unit = {}
     var onOpenApp: () -> Unit = {}
     var onTakeScreenshot: () -> Unit = {}
+    var onStartLens: () -> Unit = {}
     var onStartCall: () -> Unit = {}
     var onEndCall: () -> Unit = {}
     var onToggleChatWindow: () -> Unit = {}
@@ -70,6 +71,7 @@ class AssistiveBallOverlay(context: Context) {
     var isCallActive: () -> Boolean = { false }
 
     private var pendingSmartAction: Pair<String, String>? = null
+    private var pendingSmartActionAlt: Pair<String, String>? = null
     private var lastOfferedLabel: String? = null
     private var smartActionRingView: View? = null
     private var smartActionRingAnimator: ValueAnimator? = null
@@ -204,6 +206,14 @@ class AssistiveBallOverlay(context: Context) {
     // ---- Status card (errors only) ----
 
     fun setSmartActionAvailable(label: String, prompt: String) {
+        setSmartActionAvailable(label, prompt, null, null)
+    }
+
+    /**
+     * Offer a primary smart action plus an optional secondary ("alt") action shown
+     * as a second chip in the menu — e.g. "Extract text?" alongside "Translate".
+     */
+    fun setSmartActionAvailable(label: String, prompt: String, altLabel: String?, altPrompt: String?) {
         mainHandler.post {
             if (isCallActive()) return@post
 
@@ -222,6 +232,11 @@ class AssistiveBallOverlay(context: Context) {
 
             lastOfferedLabel = label
             pendingSmartAction = Pair(label, prompt)
+            pendingSmartActionAlt = if (altLabel != null && altPrompt != null) {
+                Pair(altLabel, altPrompt)
+            } else {
+                null
+            }
             showSmartActionRing()
             mainHandler.removeCallbacks(smartActionClearRunnable)
             mainHandler.postDelayed(smartActionClearRunnable, 45000L) // 45 seconds
@@ -231,6 +246,7 @@ class AssistiveBallOverlay(context: Context) {
     private fun clearSmartAction() {
         mainHandler.post {
             pendingSmartAction = null
+            pendingSmartActionAlt = null
             lastOfferedLabel = null
             removeSmartActionRing()
             removeMenu()
@@ -702,6 +718,23 @@ class AssistiveBallOverlay(context: Context) {
             )
         }
 
+        pendingSmartActionAlt?.let { (label, prompt) ->
+            container.addView(
+                tapButton(label, colors) {
+                    val currentPrompt = prompt
+                    clearSmartAction()
+                    onSmartActionSelected(currentPrompt)
+                }.apply {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(ColorUtils.setAlphaComponent(Color.CYAN, 24))
+                        setStroke(dp(1), ColorUtils.setAlphaComponent(Color.CYAN, 160))
+                    }
+                    setTextColor(Color.CYAN)
+                }
+            )
+        }
+
         container.addView(
             tapButton("\uD83D\uDCF1  Open App", colors) {
                 removeMenu()
@@ -712,6 +745,12 @@ class AssistiveBallOverlay(context: Context) {
             tapButton("\uD83D\uDCF7  Screenshot", colors) {
                 removeMenu()
                 onTakeScreenshot()
+            }
+        )
+        container.addView(
+            tapButton("\uD83D\uDD0D  Lens", colors) {
+                removeMenu()
+                onStartLens()
             }
         )
 

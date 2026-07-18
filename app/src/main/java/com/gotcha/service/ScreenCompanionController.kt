@@ -20,7 +20,17 @@ class ScreenCompanionController(
     private val context: Context,
     private val scope: CoroutineScope,
     private val onSmartActionReady: (label: String, prompt: String) -> Unit,
-    private val onReadClipboardRequest: () -> Unit = {}
+    private val onReadClipboardRequest: () -> Unit = {},
+    /**
+     * Offer a primary action plus an optional secondary ("alt") action — used to
+     * pair "Extract text?" with "Translate Screenshot" on a screenshot trigger.
+     */
+    private val onSmartActionPairReady: (
+        label: String,
+        prompt: String,
+        altLabel: String,
+        altPrompt: String
+    ) -> Unit = { l, p, _, _ -> onSmartActionReady(l, p) }
 ) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -73,9 +83,11 @@ class ScreenCompanionController(
             withContext(Dispatchers.Default) {
                 if (triggerType == "Screenshot") {
                     withContext(Dispatchers.Main) {
-                        onSmartActionReady(
+                        onSmartActionPairReady(
                             "📸 Screenshot taken. Extract text?",
-                            "Extract the text from this screenshot."
+                            "Extract the text from this screenshot.",
+                            "🌐 Translate Screenshot",
+                            TRANSLATE_SCREENSHOT_PROMPT
                         )
                     }
                     return@withContext
@@ -123,6 +135,14 @@ class ScreenCompanionController(
                                 "Explain the error code or stack trace shown on the screen."
                             )
                         }
+                    } else {
+                        // Structured-data (address / phone / currency / calendar) scan.
+                        val smart = SmartActionDetector.detect(screenText, allowChat = false)
+                        if (smart != null) {
+                            withContext(Dispatchers.Main) {
+                                onSmartActionReady(smart.label, smart.prompt)
+                            }
+                        }
                     }
                 }
             }
@@ -132,5 +152,15 @@ class ScreenCompanionController(
     companion object {
         const val ACTION_APP_CHANGED = "com.gotcha.action.APP_CHANGED"
         const val ACTION_CLIPBOARD_CHANGED = "com.gotcha.action.CLIPBOARD_CHANGED"
+
+        /**
+         * OCR-translate prompt for the "Translate Screenshot" action. The word
+         * "screenshot" in it also drives [AssistiveBallService] to attach the
+         * captured image to the request.
+         */
+        const val TRANSLATE_SCREENSHOT_PROMPT =
+            "Extract any text present on this screenshot, translate it to English " +
+                "(or the user's system language), and display both the original text " +
+                "and its translation side-by-side using a markdown table."
     }
 }

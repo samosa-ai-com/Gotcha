@@ -39,6 +39,7 @@ import java.io.File
  *
  * Started/stopped from the in-app toggle via [ACTION_START] / [ACTION_STOP].
  */
+@Suppress("TooManyFunctions")
 class AssistiveBallService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -52,6 +53,7 @@ class AssistiveBallService : Service() {
     private lateinit var callController: CallSessionController
     private lateinit var screenCompanionController: ScreenCompanionController
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
+    private lateinit var screenLensController: ScreenLensController
     private val llmClient by lazy {
         val s = settingsRepository.load()
         com.gotcha.llm.LLMClient(
@@ -86,43 +88,11 @@ class AssistiveBallService : Service() {
 
         setupScreenCompanionPanel()
 
+        // Lens mode: interactive crop selection + capture.
+        setupScreenLensController()
+
         // Screen Companion Controller
-        screenCompanionController = ScreenCompanionController(
-            context = this,
-            scope = scope,
-            onSmartActionReady = { label, prompt ->
-                overlay.setSmartActionAvailable(label, prompt)
-            },
-            onReadClipboardRequest = {
-                android.util.Log.d("AssistiveBallService", "onReadClipboardRequest called")
-                overlay.readClipboardWithFocus { clip ->
-                    android.util.Log.d(
-                        "AssistiveBallService",
-                        "readClipboardWithFocus: null=${clip == null}, count=${clip?.itemCount ?: 0}"
-                    )
-                    com.gotcha.service.GotchaAccessibilityService.lastClipboardData = clip
-                    val clipText = clip?.getItemAt(0)?.text?.toString()
-                    android.util.Log.d("AssistiveBallService", "clipText = $clipText")
-                    if (!clipText.isNullOrBlank()) {
-                        if (android.util.Patterns.WEB_URL.matcher(clipText).find()) {
-                            android.util.Log.d("AssistiveBallService", "Setting smart action: Link copied. Summarize?")
-                            overlay.setSmartActionAvailable(
-                                "🔗 Link copied. Summarize?",
-                                "Summarize the content of the copied URL: $clipText"
-                            )
-                        } else {
-                            android.util.Log.d("AssistiveBallService", "Setting smart action: Text copied. Translate?")
-                            overlay.setSmartActionAvailable(
-                                "📋 Text copied. Translate?",
-                                "Translate the copied text to English if it is not, otherwise summarize it:\n\n$clipText"
-                            )
-                        }
-                    } else {
-                        android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
-                    }
-                }
-            }
-        )
+        setupScreenCompanionController()
         screenCompanionController.start()
 
         // Assistive ball (shown when idle, hidden during a call)
@@ -138,6 +108,7 @@ class AssistiveBallService : Service() {
                 startActivity(intent)
             }
             onTakeScreenshot = { takeScreenshot() }
+            onStartLens = { screenLensController.start() }
             onStartCall = { callController.startCall() }
             onEndCall = { callController.endCall() }
             onToggleChatWindow = { } // no-op during calls (ball is hidden)
@@ -179,6 +150,12 @@ class AssistiveBallService : Service() {
     }
 
     private fun handleSmartActionSelected(prompt: String, history: MutableList<com.gotcha.llm.ChatMessage>) {
+        // Native structured actions (dial / navigate / schedule) fire an Android
+        // intent instead of querying the LLM.
+        if (SmartActionDetector.isNativeAction(prompt)) {
+            handleNativeAction(prompt)
+            return
+        }
         val attachScreenshot = prompt.contains("screenshot", ignoreCase = true) ||
             prompt.contains("screen", ignoreCase = true) ||
             prompt.contains("webpage", ignoreCase = true)
@@ -242,12 +219,147 @@ class AssistiveBallService : Service() {
         }
     }
 
+    private fun setupScreenLensController() {
+        screenLensController = ScreenLensController(
+            context = this,
+            scope = scope,
+            onAskAboutCrop = { prompt, base64 ->
+                handleCropQuery(prompt, base64)
+            },
+            onError = { overlay.showError(it) }
+        )
+    }
+
+    private fun setupScreenCompanionController() {
+        screenCompanionController = ScreenCompanionController(
+            context = this,
+            scope = scope,
+            onSmartActionReady = { label, prompt ->
+                overlay.setSmartActionAvailable(label, prompt)
+            },
+            onSmartActionPairReady = { label, prompt, altLabel, altPrompt ->
+                overlay.setSmartActionAvailable(label, prompt, altLabel, altPrompt)
+            },
+            onReadClipboardRequest = { handleClipboardRead() }
+        )
+    }
+
+    /** Read the clipboard (via a focus-stealing activity) and offer a smart action. */
+    private fun handleClipboardRead() {
+        android.util.Log.d("AssistiveBallService", "onReadClipboardRequest called")
+        overlay.readClipboardWithFocus { clip ->
+            android.util.Log.d(
+                "AssistiveBallService",
+                "readClipboardWithFocus: null=${clip == null}, count=${clip?.itemCount ?: 0}"
+            )
+            com.gotcha.service.GotchaAccessibilityService.lastClipboardData = clip
+            val clipText = clip?.getItemAt(0)?.text?.toString()
+            android.util.Log.d("AssistiveBallService", "clipText = $clipText")
+            if (clipText.isNullOrBlank()) {
+                android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
+                return@readClipboardWithFocus
+            }
+            if (android.util.Patterns.WEB_URL.matcher(clipText).find()) {
+                android.util.Log.d("AssistiveBallService", "Setting smart action: Link copied. Summarize?")
+                overlay.setSmartActionAvailable(
+                    "🔗 Link copied. Summarize?",
+                    "Summarize the content of the copied URL: $clipText"
+                )
+                return@readClipboardWithFocus
+            }
+            // Prefer a structured action (dial / navigate / convert / schedule / reply)
+            // when the copied text carries recognisable data; otherwise fall back to
+            // the generic translate/summarize offer.
+            val smart = SmartActionDetector.detect(clipText, allowChat = true)
+            if (smart != null) {
+                android.util.Log.d("AssistiveBallService", "Setting smart action: ${smart.label}")
+                overlay.setSmartActionAvailable(smart.label, smart.prompt)
+            } else {
+                android.util.Log.d("AssistiveBallService", "Setting smart action: Text copied. Translate?")
+                overlay.setSmartActionAvailable(
+                    "📋 Text copied. Translate?",
+                    "Translate the copied text to English if it is not, otherwise summarize it:\n\n$clipText"
+                )
+            }
+        }
+    }
+
+    /**
+     * Resolve a native structured action (encoded by [SmartActionDetector]) into
+     * an Android system intent — navigate on a map, open the dialer, or create a
+     * calendar event. Failures are surfaced on the ball's error card.
+     */
+    private fun handleNativeAction(prompt: String) {
+        val decoded = SmartActionDetector.decode(prompt) ?: return
+        val (type, payload) = decoded
+        try {
+            val intent = when (type) {
+                SmartActionDetector.TYPE_NAVIGATE ->
+                    Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(payload)))
+                SmartActionDetector.TYPE_DIAL ->
+                    Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + android.net.Uri.encode(payload)))
+                SmartActionDetector.TYPE_CALENDAR ->
+                    Intent(Intent.ACTION_INSERT).apply {
+                        data = android.provider.CalendarContract.Events.CONTENT_URI
+                        putExtra(android.provider.CalendarContract.Events.TITLE, payload)
+                    }
+                else -> null
+            } ?: return
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            overlay.showError("Couldn't open action: ${e.message}")
+        }
+    }
+
+    /**
+     * Send a Lens-cropped image (base64 JPEG) to the LLM with [prompt] and stream
+     * the answer into the Screen Companion panel.
+     */
+    private fun handleCropQuery(prompt: String, base64Jpeg: String) {
+        val history = activeCompanionHistory
+        screenCompanionPanel.show(prompt)
+        overlay.isPanelOpen = true
+        scope.launch {
+            try {
+                history.clear()
+                history.add(
+                    com.gotcha.llm.ChatMessage(
+                        "system",
+                        kotlinx.serialization.json.JsonPrimitive(
+                            "You are Screen Companion. Provide a short, precise answer."
+                        )
+                    )
+                )
+                history.add(com.gotcha.llm.visionUserMessage(prompt, base64Jpeg, "jpeg"))
+                val response = llmClient.chat(history.toList())
+                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                history.add(
+                    com.gotcha.llm.ChatMessage(
+                        "assistant",
+                        kotlinx.serialization.json.JsonPrimitive(replyText)
+                    )
+                )
+                screenCompanionPanel.updateResponse(replyText)
+            } catch (e: Exception) {
+                screenCompanionPanel.updateResponse("Error: ${e.message}")
+            }
+        }
+    }
+
     private fun setupScreenCompanionPanel() {
         screenCompanionPanel = com.gotcha.ui.ScreenCompanionPanelOverlay(this).apply {
             onDismiss = {
                 overlay.isPanelOpen = false
                 activeCompanionHistory.clear()
+                // Stop any in-flight voice I/O so nothing keeps the mic/TTS alive.
+                stopPanelVoiceInput()
+                ttsEngine.stop()
             }
+            onStartVoiceInput = { startPanelVoiceInput() }
+            onStopVoiceInput = { stopPanelVoiceInput() }
+            onReadAloud = { text -> readPanelResponseAloud(text) }
+            onStopReadAloud = { ttsEngine.stop() }
             onSendInput = { input ->
                 activeCompanionHistory.add(com.gotcha.llm.ChatMessage("user", kotlinx.serialization.json.JsonPrimitive(input)))
                 val currentHistory = activeCompanionHistory.toList()
@@ -270,6 +382,89 @@ class AssistiveBallService : Service() {
             }
         }
     }
+
+    // ---- Screen Companion panel voice I/O (STT / TTS) ----
+
+    /** Start voice typing in the panel using the configured STT provider. */
+    private fun startPanelVoiceInput() {
+        val s = settingsRepository.load()
+        when (s.sttProvider) {
+            com.gotcha.audio.AudioProvider.ANDROID -> {
+                if (!hasMicPermission()) {
+                    overlay.showError("Microphone permission not granted.")
+                    screenCompanionPanel.setListening(false)
+                    return
+                }
+                if (!sttEngine.startAndroidListening()) {
+                    overlay.showError("Failed to start speech recognition.")
+                    screenCompanionPanel.setListening(false)
+                }
+            }
+            com.gotcha.audio.AudioProvider.API -> {
+                if (s.sttApiBaseUrl.isBlank() || s.sttApiModel.isBlank()) {
+                    overlay.showError("Configure an STT API URL and model in settings.")
+                    screenCompanionPanel.setListening(false)
+                    return
+                }
+                if (!hasMicPermission()) {
+                    overlay.showError("Microphone permission not granted.")
+                    screenCompanionPanel.setListening(false)
+                    return
+                }
+                if (!sttEngine.startRecording()) {
+                    overlay.showError("Failed to start recording.")
+                    screenCompanionPanel.setListening(false)
+                }
+            }
+            com.gotcha.audio.AudioProvider.NONE -> {
+                overlay.showError("No STT provider configured. Enable one in settings.")
+                screenCompanionPanel.setListening(false)
+            }
+        }
+    }
+
+    /** Stop voice typing, transcribe, and append the result to the panel input. */
+    private fun stopPanelVoiceInput() {
+        val s = settingsRepository.load()
+        val provider = s.sttProvider
+        if (provider == com.gotcha.audio.AudioProvider.NONE) {
+            screenCompanionPanel.setListening(false)
+            return
+        }
+        scope.launch {
+            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel)
+            screenCompanionPanel.setListening(false)
+            result
+                .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
+                .onFailure { e -> overlay.showError("Transcription failed: ${e.message}") }
+        }
+    }
+
+    /** Read the panel's current response aloud using the configured TTS provider. */
+    private fun readPanelResponseAloud(text: String) {
+        val s = settingsRepository.load()
+        if (s.ttsProvider == com.gotcha.audio.AudioProvider.NONE) {
+            overlay.showError("No TTS provider configured. Enable one in settings.")
+            screenCompanionPanel.setSpeaking(false)
+            return
+        }
+        scope.launch {
+            ttsEngine.speak(
+                text = text,
+                provider = s.ttsProvider,
+                apiModel = s.ttsApiModel,
+                voice = ""
+            )
+            // Playback completed (or was stopped) — reset the speaker icon.
+            screenCompanionPanel.setSpeaking(false)
+        }
+    }
+
+    private fun hasMicPermission(): Boolean =
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -295,6 +490,7 @@ class AssistiveBallService : Service() {
         screenCompanionPanel.dismiss()
         overlay.dismiss()
         screenCompanionController.stop()
+        screenLensController.cancel()
         ttsEngine.shutdown()
         scope.cancel()
         super.onDestroy()
