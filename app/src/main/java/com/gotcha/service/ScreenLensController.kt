@@ -60,6 +60,9 @@ class ScreenLensController(
     private var cropOverlay: View? = null
     private var actionMenu: View? = null
 
+    /** Small floating "Copy text" / "Translate" chips anchored above the rectangle. */
+    private var textChips: View? = null
+
     /** The current cropped bitmap; owned and recycled only by this controller. */
     private var pendingCrop: Bitmap? = null
 
@@ -164,7 +167,8 @@ class ScreenLensController(
             }
             withContext(Dispatchers.Main) {
                 pendingCrop = cropped
-                showActionMenu(contextualActions, regionText)
+                showTextChips(finalRect, regionText)
+                showActionMenu(contextualActions)
             }
         }
     }
@@ -207,7 +211,94 @@ class ScreenLensController(
         }
     }
 
-    private fun showActionMenu(contextualActions: List<SmartAction>, regionText: String?) {
+    /**
+     * Float small "Copy text" / "Translate" chips just above the selection
+     * rectangle, so the user can act on the selection's text directly without
+     * opening the full menu. Only shown when the selection contains text.
+     */
+    private fun showTextChips(rectInView: Rect, regionText: String?) {
+        removeTextChips()
+        val text = regionText?.trim()
+        if (text.isNullOrBlank()) return
+
+        val row = LinearLayout(appContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(Color.parseColor("#F21E1E1E"))
+                setStroke(dp(1), Color.parseColor("#66568CD8"))
+            }
+        }
+        row.addView(
+            smallChip("📝 Copy text") {
+                copyTextToClipboard(text)
+                finishMenu(recycle = true)
+            }
+        )
+        row.addView(
+            smallChip("🌐 Translate") {
+                finishMenu(recycle = true)
+                onContextualAction(
+                    "Translate the following text to English (or the user's system " +
+                        "language if it is already English). Show only the translation:\n\n$text"
+                )
+            }
+        )
+
+        // Measure so we can centre the row over the rectangle and place it above it.
+        row.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val rowW = row.measuredWidth.coerceAtLeast(dp(160))
+        val rowH = row.measuredHeight.coerceAtLeast(dp(40))
+        val metrics = appContext.resources.displayMetrics
+
+        var x = rectInView.centerX() - rowW / 2
+        x = x.coerceIn(dp(8), (metrics.widthPixels - rowW - dp(8)).coerceAtLeast(dp(8)))
+        // Prefer just above the rectangle; if there's no room, place just below it.
+        var y = rectInView.top - rowH - dp(8)
+        if (y < dp(8)) y = (rectInView.bottom + dp(8)).coerceAtMost(metrics.heightPixels - rowH - dp(8))
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = x
+            this.y = y
+        }
+        try {
+            windowManager.addView(row, params)
+            textChips = row
+        } catch (_: Exception) {
+            textChips = null
+        }
+    }
+
+    private fun smallChip(label: String, onClick: () -> Unit): TextView = TextView(appContext).apply {
+        text = label
+        setTextColor(Color.WHITE)
+        textSize = 13f
+        gravity = Gravity.CENTER
+        setPadding(dp(14), dp(8), dp(14), dp(8))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(14).toFloat()
+            setColor(Color.parseColor("#33568CD8"))
+            setStroke(dp(1), Color.parseColor("#66B06FD0"))
+        }
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) }
+        setOnClickListener { onClick() }
+    }
+
+    private fun showActionMenu(contextualActions: List<SmartAction>) {
         removeActionMenu()
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
@@ -231,16 +322,7 @@ class ScreenLensController(
             )
         }
 
-        // "Copy text" when the selection contains readable text.
-        val selectedText = regionText?.trim()
-        if (!selectedText.isNullOrBlank()) {
-            container.addView(
-                menuButton("📝  Copy text") {
-                    copyTextToClipboard(selectedText)
-                    finishMenu(recycle = true)
-                }
-            )
-        }
+        // (Text ops — Copy text / Translate — live as inline chips on the rectangle.)
 
         container.addView(
             menuButton("🔍  Ask about this") {
@@ -346,6 +428,7 @@ class ScreenLensController(
      */
     private fun finishMenu(recycle: Boolean) {
         removeActionMenu()
+        removeTextChips()
         removeCropOverlay()
         if (recycle) recyclePendingCrop()
     }
@@ -492,8 +575,14 @@ class ScreenLensController(
         }
 
     private fun removeCropOverlay() {
+        removeTextChips()
         cropOverlay?.let { safeRemove(it) }
         cropOverlay = null
+    }
+
+    private fun removeTextChips() {
+        textChips?.let { safeRemove(it) }
+        textChips = null
     }
 
     private fun removeActionMenu() {

@@ -55,6 +55,9 @@ class AssistiveBallService : Service() {
      * message. Set when the user picks "Ask about this"; cleared once consumed.
      */
     private var pendingCropImage: String? = null
+
+    /** True while the panel mic is actively recording, so dismiss won't try to transcribe silence. */
+    private var panelVoiceActive = false
     private lateinit var overlay: com.gotcha.ui.AssistiveBallOverlay
     private lateinit var chatWindow: CallChatWindow
     private lateinit var callController: CallSessionController
@@ -404,8 +407,13 @@ class AssistiveBallService : Service() {
                 overlay.isPanelOpen = false
                 activeCompanionHistory.clear()
                 pendingCropImage = null
-                // Stop any in-flight voice I/O so nothing keeps the mic/TTS alive.
-                stopPanelVoiceInput()
+                // Only stop/transcribe if the mic was actually recording; otherwise
+                // a no-op stop would surface a spurious "Transcription failed" toast.
+                if (panelVoiceActive) {
+                    stopPanelVoiceInput()
+                } else {
+                    sttEngine.cancelListening(settingsRepository.load().sttProvider)
+                }
                 ttsEngine.stop()
             }
             onStartVoiceInput = { startPanelVoiceInput() }
@@ -455,7 +463,9 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (!sttEngine.startAndroidListening()) {
+                if (sttEngine.startAndroidListening()) {
+                    panelVoiceActive = true
+                } else {
                     overlay.showError("Failed to start speech recognition.")
                     screenCompanionPanel.setListening(false)
                 }
@@ -471,7 +481,9 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (!sttEngine.startRecording()) {
+                if (sttEngine.startRecording()) {
+                    panelVoiceActive = true
+                } else {
                     overlay.showError("Failed to start recording.")
                     screenCompanionPanel.setListening(false)
                 }
@@ -485,6 +497,12 @@ class AssistiveBallService : Service() {
 
     /** Stop voice typing, transcribe, and append the result to the panel input. */
     private fun stopPanelVoiceInput() {
+        // Nothing was recording — don't run a transcribe that would fail on silence.
+        if (!panelVoiceActive) {
+            screenCompanionPanel.setListening(false)
+            return
+        }
+        panelVoiceActive = false
         val s = settingsRepository.load()
         val provider = s.sttProvider
         if (provider == com.gotcha.audio.AudioProvider.NONE) {
