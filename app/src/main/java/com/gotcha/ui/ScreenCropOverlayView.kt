@@ -4,24 +4,34 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.PorterDuff
+import android.graphics.Path
+import android.graphics.RadialGradient
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.random.Random
 
 /**
- * Full-screen, semi-transparent overlay that lets the user drag a bounding box
- * to select a screen region ("Lens" mode). While dragging, the selected region
- * is punched clear of the dim scrim so the user sees exactly what they're
- * capturing. On release, [onSelection] fires with the selected [Rect] in view
- * pixels (empty/degenerate selections are ignored).
+ * Full-screen premium "Lens" overlay. The user draws ANY free-form shape; on
+ * release its bounding rectangle (max width/height of the drawn path) becomes the
+ * selection. [onSelection] fires with that [Rect] in view pixels; a tap (no real
+ * drag) calls [onCancel].
  *
- * The view is added to the WindowManager by [ScreenLensController]; it is focusable
- * and touchable so it intercepts the drag gesture.
+ * Visual treatment (matches the app logo's pink/blue theme):
+ *  - a soft pink glow bleeding in from all four screen edges,
+ *  - drifting glowing particles (pink + blue) whose density is higher near the
+ *    edges and sparse in the centre,
+ *  - while drawing, the traced path is stroked in a pink→blue gradient and its
+ *    live bounding box is outlined.
+ *
+ * The particle field animates via [postInvalidateOnAnimation]; it is deterministic
+ * only in look, not in exact positions (seeded from the view size).
  */
 @SuppressLint("ViewConstructor")
 class ScreenCropOverlayView(
@@ -30,102 +40,221 @@ class ScreenCropOverlayView(
     private val onCancel: () -> Unit
 ) : View(context) {
 
-    private var startX = 0f
-    private var startY = 0f
-    private var currentX = 0f
-    private var currentY = 0f
-    private var selecting = false
+    private val density = resources.displayMetrics.density
 
-    private val scrimPaint = Paint().apply {
-        color = Color.parseColor("#99000000")
-    }
-    private val clearPaint = Paint().apply {
-        xfermode = android.graphics.PorterDuffXfermode(PorterDuff.Mode.CLEAR)
-    }
-    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    // ---- Free-form drawing state ----
+    private val path = Path()
+    private var minX = 0f
+    private var minY = 0f
+    private var maxX = 0f
+    private var maxY = 0f
+    private var drawing = false
+    private var moved = false
+
+    // ---- Paints ----
+    private val dimPaint = Paint().apply { color = Color.parseColor("#66101018") }
+    private val edgeGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        color = Color.CYAN
-        strokeWidth = 2f * resources.displayMetrics.density
+        strokeWidth = 4f * density
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
     }
+    private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * density
+        color = Color.parseColor("#CCE081C0")
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f * density, 8f * density), 0f)
+    }
+    private val particlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 14f * resources.displayMetrics.density
+        textSize = 15f * density
         textAlign = Paint.Align.CENTER
+        setShadowLayer(6f, 0f, 0f, Color.parseColor("#E081C0"))
     }
 
+    private val particles = ArrayList<Particle>()
+    private var lastFrameNs = 0L
+
     init {
-        // Enable an offscreen layer so PorterDuff.CLEAR punches through the scrim.
-        setLayerType(LAYER_TYPE_HARDWARE, null)
         isFocusableInTouchMode = true
+        // Software layer keeps radial/linear gradient + shadow rendering correct.
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        buildEdgeGlow(w, h)
+        seedParticles(w, h)
+    }
+
+    private fun buildEdgeGlow(w: Int, h: Int) {
+        // A large radial gradient that is transparent in the centre and pink at the
+        // rim, giving an edge-vignette wash.
+        val cx = w / 2f
+        val cy = h / 2f
+        val radius = max(w, h) * 0.75f
+        edgeGlowPaint.shader = RadialGradient(
+            cx, cy, radius,
+            intArrayOf(
+                Color.TRANSPARENT,
+                Color.TRANSPARENT,
+                Color.parseColor("#22E081C0"),
+                Color.parseColor("#553E7BFF"),
+                Color.parseColor("#66FF5FBF")
+            ),
+            floatArrayOf(0f, 0.45f, 0.72f, 0.9f, 1f),
+            Shader.TileMode.CLAMP
+        )
+    }
+
+    private fun seedParticles(w: Int, h: Int) {
+        particles.clear()
+        if (w == 0 || h == 0) return
+        val rnd = Random(w * 31L + h)
+        // Density scales with screen area; edge-biased placement via rejection.
+        val target = ((w * h) / (26000f * density)).toInt().coerceIn(40, 220)
+        var placed = 0
+        var guard = 0
+        while (placed < target && guard < target * 12) {
+            guard++
+            val x = rnd.nextFloat() * w
+            val y = rnd.nextFloat() * h
+            // edgeScore ~1 at edges, ~0 at centre.
+            val ex = 1f - (2f * x / w - 1f).let { it * it }
+            val ey = 1f - (2f * y / h - 1f).let { it * it }
+            val centreness = (1f - ex) * (1f - ey) // ~1 at centre corners... invert below
+            // Keep more particles near edges: accept with prob higher when centreness low.
+            val keepProb = 0.15f + 0.85f * (1f - centreness)
+            if (rnd.nextFloat() > keepProb) continue
+            particles.add(
+                Particle(
+                    x = x,
+                    y = y,
+                    vx = (rnd.nextFloat() - 0.5f) * 14f * density,
+                    vy = (rnd.nextFloat() - 0.5f) * 14f * density,
+                    radius = (1.2f + rnd.nextFloat() * 2.6f) * density,
+                    pink = rnd.nextBoolean(),
+                    phase = rnd.nextFloat() * 6.283f,
+                    twinkle = 0.6f + rnd.nextFloat() * 1.8f
+                )
+            )
+            placed++
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
-        if (selecting) {
-            val r = currentRectF()
-            canvas.drawRect(r, clearPaint)
-            canvas.drawRect(r, borderPaint)
-        } else {
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), edgeGlowPaint)
+
+        stepAndDrawParticles(canvas)
+
+        if (drawing && moved) {
+            // Gradient stroke for the traced path.
+            pathPaint.shader = LinearGradient(
+                minX, minY, maxX, maxY,
+                Color.parseColor("#FF6FC0"), Color.parseColor("#5B8CFF"),
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawPath(path, pathPaint)
+            canvas.drawRect(RectF(minX, minY, maxX, maxY), boxPaint)
+        } else if (!drawing) {
             canvas.drawText(
-                "Drag to select a region • tap outside to cancel",
+                "Draw around anything • tap to cancel",
                 width / 2f,
                 height * 0.12f,
                 hintPaint
             )
+        }
+        postInvalidateOnAnimation()
+    }
+
+    private fun stepAndDrawParticles(canvas: Canvas) {
+        val now = System.nanoTime()
+        val dt = if (lastFrameNs == 0L) 0.016f else ((now - lastFrameNs) / 1_000_000_000f).coerceIn(0f, 0.05f)
+        lastFrameNs = now
+        val t = now / 1_000_000_000f
+        val w = width.toFloat()
+        val h = height.toFloat()
+        for (p in particles) {
+            p.x += p.vx * dt
+            p.y += p.vy * dt
+            // Wrap around edges so the field stays populated.
+            if (p.x < -p.radius) p.x = w + p.radius
+            if (p.x > w + p.radius) p.x = -p.radius
+            if (p.y < -p.radius) p.y = h + p.radius
+            if (p.y > h + p.radius) p.y = -p.radius
+
+            val glowAlpha = (0.35f + 0.65f * (0.5f + 0.5f * kotlin.math.sin(t * p.twinkle + p.phase)))
+            val core = if (p.pink) 0xFF5FBF else 0x5B8CFF
+            val a = (glowAlpha * 255).toInt().coerceIn(0, 255)
+            // Outer glow.
+            particlePaint.shader = RadialGradient(
+                p.x, p.y, p.radius * 3.2f,
+                Color.argb((a * 0.5f).toInt(), (core shr 16) and 0xFF, (core shr 8) and 0xFF, core and 0xFF),
+                Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+            canvas.drawCircle(p.x, p.y, p.radius * 3.2f, particlePaint)
+            // Bright core.
+            particlePaint.shader = null
+            particlePaint.color = Color.argb(a, 255, 255, 255)
+            canvas.drawCircle(p.x, p.y, p.radius * 0.6f, particlePaint)
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                startX = event.x
-                startY = event.y
-                currentX = event.x
-                currentY = event.y
-                selecting = true
-                invalidate()
+                drawing = true
+                moved = false
+                path.reset()
+                path.moveTo(event.x, event.y)
+                minX = event.x
+                maxX = event.x
+                minY = event.y
+                maxY = event.y
             }
             MotionEvent.ACTION_MOVE -> {
-                currentX = event.x
-                currentY = event.y
-                invalidate()
+                path.lineTo(event.x, event.y)
+                minX = min(minX, event.x)
+                maxX = max(maxX, event.x)
+                minY = min(minY, event.y)
+                maxY = max(maxY, event.y)
+                if (max(maxX - minX, maxY - minY) > 8f * density) moved = true
             }
             MotionEvent.ACTION_UP -> {
-                selecting = false
-                val rect = currentRect()
-                if (rect.width() > MIN_SIZE_PX && rect.height() > MIN_SIZE_PX) {
+                drawing = false
+                val rect = Rect(minX.toInt(), minY.toInt(), maxX.toInt(), maxY.toInt())
+                if (moved && rect.width() > MIN_SIZE_PX && rect.height() > MIN_SIZE_PX) {
                     onSelection(rect)
                 } else {
-                    // A tap (no real drag) cancels Lens mode.
                     onCancel()
                 }
-                invalidate()
             }
             MotionEvent.ACTION_CANCEL -> {
-                selecting = false
+                drawing = false
                 onCancel()
             }
         }
         return true
     }
 
-    private fun currentRectF(): RectF = RectF(
-        min(startX, currentX),
-        min(startY, currentY),
-        max(startX, currentX),
-        max(startY, currentY)
+    @Suppress("LongParameterList")
+    private class Particle(
+        var x: Float,
+        var y: Float,
+        val vx: Float,
+        val vy: Float,
+        val radius: Float,
+        val pink: Boolean,
+        val phase: Float,
+        val twinkle: Float
     )
 
-    private fun currentRect(): Rect {
-        val l = min(startX, currentX).toInt()
-        val t = min(startY, currentY).toInt()
-        val r = max(startX, currentX).toInt()
-        val b = max(startY, currentY).toInt()
-        return Rect(l, t, r, b)
-    }
-
     private companion object {
-        val MIN_SIZE_PX get() = 24
+        const val MIN_SIZE_PX = 24
     }
 }

@@ -207,6 +207,40 @@ class GotchaAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Collect visible text from nodes that intersect [regionInScreen] (screen
+     * pixels). Used by Lens mode to detect structured data (currency, dates, etc.)
+     * inside the user's selection without OCR. Returns joined text or null.
+     */
+    fun dumpTextInRegion(regionInScreen: android.graphics.Rect, limit: Int = 60): String? {
+        val root = rootInActiveWindow ?: return null
+        val out = ArrayList<String>()
+        collectTextInRegion(root, regionInScreen, out, limit)
+        root.recycle()
+        return if (out.isEmpty()) null else out.joinToString(" ")
+    }
+
+    private fun collectTextInRegion(
+        node: AccessibilityNodeInfo?,
+        region: android.graphics.Rect,
+        out: MutableList<String>,
+        limit: Int
+    ) {
+        if (node == null || out.size >= limit) return
+        val bounds = android.graphics.Rect()
+        node.getBoundsInScreen(bounds)
+        if (android.graphics.Rect.intersects(bounds, region)) {
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            if (!text.isNullOrEmpty()) {
+                out.add(text)
+            } else if (!desc.isNullOrEmpty()) out.add(desc)
+        }
+        for (i in 0 until node.childCount) {
+            collectTextInRegion(node.getChild(i), region, out, limit)
+        }
+    }
+
     /** Tap the first clickable node whose text/description contains [query] (case-insensitive). */
     fun tapByText(query: String): Boolean {
         val root = rootInActiveWindow ?: return false

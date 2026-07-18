@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -48,12 +49,19 @@ class AssistiveBallService : Service() {
     private lateinit var ttsEngine: TtsEngine
     private lateinit var sttEngine: SttEngine
     private var activeCompanionHistory = mutableListOf<com.gotcha.llm.ChatMessage>()
+
+    /**
+     * A Lens crop (base64 JPEG) waiting to be attached to the user's next panel
+     * message. Set when the user picks "Ask about this"; cleared once consumed.
+     */
+    private var pendingCropImage: String? = null
     private lateinit var overlay: com.gotcha.ui.AssistiveBallOverlay
     private lateinit var chatWindow: CallChatWindow
     private lateinit var callController: CallSessionController
     private lateinit var screenCompanionController: ScreenCompanionController
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
     private lateinit var screenLensController: ScreenLensController
+    private val webFetchTool by lazy { com.gotcha.tools.WebFetchTool() }
     private val llmClient by lazy {
         val s = settingsRepository.load()
         com.gotcha.llm.LLMClient(
@@ -150,16 +158,26 @@ class AssistiveBallService : Service() {
     }
 
     private fun handleSmartActionSelected(prompt: String, history: MutableList<com.gotcha.llm.ChatMessage>) {
-        // Native structured actions (dial / navigate / schedule) fire an Android
-        // intent instead of querying the LLM.
+        // Native structured actions are handled without an LLM round-trip.
         if (SmartActionDetector.isNativeAction(prompt)) {
-            handleNativeAction(prompt)
+            val decoded = SmartActionDetector.decode(prompt)
+            if (decoded?.first == SmartActionDetector.TYPE_FETCH) {
+                // "Summarize link": fetch the page text, then summarize it.
+                handleFetchAndSummarize(decoded.second, history)
+            } else {
+                // dial / navigate / schedule → fire an Android intent.
+                handleNativeAction(prompt)
+            }
             return
         }
+        // Only these explicitly-visual actions attach a screenshot. (A generic
+        // prompt that merely mentions "screen" must NOT pull in an image.)
         val attachScreenshot = prompt.contains("screenshot", ignoreCase = true) ||
-            prompt.contains("screen", ignoreCase = true) ||
-            prompt.contains("webpage", ignoreCase = true)
+            prompt.contains("webpage shown", ignoreCase = true) ||
+            prompt.contains("shown on screen", ignoreCase = true) ||
+            prompt.contains("shown on the screen", ignoreCase = true)
         screenCompanionPanel.show(prompt)
+        overlay.isPanelOpen = true
         scope.launch {
             try {
                 var base64: String? = null
@@ -219,12 +237,62 @@ class AssistiveBallService : Service() {
         }
     }
 
+    /**
+     * Fetch [url]'s content with [webFetchTool] and ask the LLM to summarize the
+     * page *text* (never a screenshot). This is the correct behaviour for the
+     * "Summarize link?" action — the earlier version wrongly attached a screenshot.
+     */
+    private fun handleFetchAndSummarize(url: String, history: MutableList<com.gotcha.llm.ChatMessage>) {
+        screenCompanionPanel.show("Summarize link:\n$url")
+        overlay.isPanelOpen = true
+        screenCompanionPanel.updateResponse("Fetching $url …")
+        scope.launch {
+            val fetched = withContext(Dispatchers.IO) { webFetchTool.fetch(url, "text") }
+            if (!fetched.success) {
+                screenCompanionPanel.updateResponse("Couldn't fetch the link: ${fetched.message}")
+                return@launch
+            }
+            screenCompanionPanel.updateResponse("Summarizing …")
+            try {
+                history.clear()
+                history.add(
+                    com.gotcha.llm.ChatMessage(
+                        "system",
+                        kotlinx.serialization.json.JsonPrimitive(
+                            "You are Screen Companion. Summarize the provided web page content " +
+                                "concisely: a one-line gist, then 3-5 key bullet points."
+                        )
+                    )
+                )
+                history.add(
+                    com.gotcha.llm.ChatMessage(
+                        "user",
+                        kotlinx.serialization.json.JsonPrimitive(
+                            "Summarize this page ($url):\n\n${fetched.message.take(MAX_FETCH_CHARS)}"
+                        )
+                    )
+                )
+                val response = llmClient.chat(history.toList())
+                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                history.add(
+                    com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
+                )
+                screenCompanionPanel.updateResponse(replyText)
+            } catch (e: Exception) {
+                screenCompanionPanel.updateResponse("Error: ${e.message}")
+            }
+        }
+    }
+
     private fun setupScreenLensController() {
         screenLensController = ScreenLensController(
             context = this,
             scope = scope,
-            onAskAboutCrop = { prompt, base64 ->
-                handleCropQuery(prompt, base64)
+            onAskAboutCrop = { base64 ->
+                openCompanionWithImage(base64)
+            },
+            onContextualAction = { prompt ->
+                handleSmartActionSelected(prompt, activeCompanionHistory)
             },
             onError = { overlay.showError(it) }
         )
@@ -259,12 +327,11 @@ class AssistiveBallService : Service() {
                 android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
                 return@readClipboardWithFocus
             }
-            if (android.util.Patterns.WEB_URL.matcher(clipText).find()) {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: Link copied. Summarize?")
-                overlay.setSmartActionAvailable(
-                    "🔗 Link copied. Summarize?",
-                    "Summarize the content of the copied URL: $clipText"
-                )
+            val url = SmartActionDetector.extractUrl(clipText)
+            if (url != null) {
+                android.util.Log.d("AssistiveBallService", "Setting smart action: Summarize link ($url)")
+                val fetch = SmartActionDetector.fetchAction(url)
+                overlay.setSmartActionAvailable(fetch.label, fetch.prompt)
                 return@readClipboardWithFocus
             }
             // Prefer a structured action (dial / navigate / convert / schedule / reply)
@@ -313,38 +380,25 @@ class AssistiveBallService : Service() {
     }
 
     /**
-     * Send a Lens-cropped image (base64 JPEG) to the LLM with [prompt] and stream
-     * the answer into the Screen Companion panel.
+     * Open the Screen Companion panel with a Lens crop attached, but do NOT query
+     * the LLM yet — the user types their own question, and the image rides along
+     * with that first message (see [pendingCropImage] handling in [setupScreenCompanionPanel]).
      */
-    private fun handleCropQuery(prompt: String, base64Jpeg: String) {
-        val history = activeCompanionHistory
-        screenCompanionPanel.show(prompt)
+    private fun openCompanionWithImage(base64Jpeg: String) {
+        activeCompanionHistory.clear()
+        activeCompanionHistory.add(
+            com.gotcha.llm.ChatMessage(
+                "system",
+                kotlinx.serialization.json.JsonPrimitive(
+                    "You are Screen Companion. The user has attached a captured screen region. " +
+                        "Answer their question about it precisely."
+                )
+            )
+        )
+        pendingCropImage = base64Jpeg
         overlay.isPanelOpen = true
-        scope.launch {
-            try {
-                history.clear()
-                history.add(
-                    com.gotcha.llm.ChatMessage(
-                        "system",
-                        kotlinx.serialization.json.JsonPrimitive(
-                            "You are Screen Companion. Provide a short, precise answer."
-                        )
-                    )
-                )
-                history.add(com.gotcha.llm.visionUserMessage(prompt, base64Jpeg, "jpeg"))
-                val response = llmClient.chat(history.toList())
-                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
-                history.add(
-                    com.gotcha.llm.ChatMessage(
-                        "assistant",
-                        kotlinx.serialization.json.JsonPrimitive(replyText)
-                    )
-                )
-                screenCompanionPanel.updateResponse(replyText)
-            } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
-            }
-        }
+        screenCompanionPanel.show("📸 Region attached — ask a question about it below.")
+        screenCompanionPanel.updateResponse("Ask me anything about the selected region.")
     }
 
     private fun setupScreenCompanionPanel() {
@@ -352,6 +406,7 @@ class AssistiveBallService : Service() {
             onDismiss = {
                 overlay.isPanelOpen = false
                 activeCompanionHistory.clear()
+                pendingCropImage = null
                 // Stop any in-flight voice I/O so nothing keeps the mic/TTS alive.
                 stopPanelVoiceInput()
                 ttsEngine.stop()
@@ -361,7 +416,15 @@ class AssistiveBallService : Service() {
             onReadAloud = { text -> readPanelResponseAloud(text) }
             onStopReadAloud = { ttsEngine.stop() }
             onSendInput = { input ->
-                activeCompanionHistory.add(com.gotcha.llm.ChatMessage("user", kotlinx.serialization.json.JsonPrimitive(input)))
+                // If a Lens crop is pending, attach it to this first message.
+                val pending = pendingCropImage
+                val userMsg = if (pending != null) {
+                    pendingCropImage = null
+                    com.gotcha.llm.visionUserMessage(input, pending, "jpeg")
+                } else {
+                    com.gotcha.llm.ChatMessage("user", kotlinx.serialization.json.JsonPrimitive(input))
+                }
+                activeCompanionHistory.add(userMsg)
                 val currentHistory = activeCompanionHistory.toList()
                 updateResponse("Thinking...")
                 scope.launch {
@@ -637,6 +700,9 @@ class AssistiveBallService : Service() {
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
         private const val CHANNEL_ID = "assistive_ball"
         private const val NOTIFICATION_ID = 4711
+
+        /** Cap on fetched page text handed to the LLM for link summarization. */
+        private const val MAX_FETCH_CHARS = 12000
 
         fun startIntent(context: Context): Intent =
             Intent(context, AssistiveBallService::class.java).setAction(ACTION_START)

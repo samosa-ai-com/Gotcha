@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
-import android.util.Patterns
 import com.gotcha.agent.ScreenSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -119,14 +118,12 @@ class ScreenCompanionController(
                         pkg.contains("com.gotcha")
 
                     val screenText = ScreenSnapshot.captureScreenText(limit = 40) ?: return@withContext
-                    val hasLink = Patterns.WEB_URL.matcher(screenText).find() || screenText.contains("http", ignoreCase = true)
+                    val url = SmartActionDetector.extractUrl(screenText)
 
-                    if (hasLink && !isIgnoredForLinks) {
+                    if (url != null && !isIgnoredForLinks) {
                         withContext(Dispatchers.Main) {
-                            onSmartActionReady(
-                                "🔗 Link detected. Summarize?",
-                                "Summarize the content of the webpage shown on screen."
-                            )
+                            val fetch = SmartActionDetector.fetchAction(url)
+                            onSmartActionReady(fetch.label, fetch.prompt)
                         }
                     } else if (screenText.contains("Exception") || screenText.contains("Error", ignoreCase = true)) {
                         withContext(Dispatchers.Main) {
