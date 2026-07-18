@@ -50,6 +50,10 @@ class ScreenLensController(
     private val onAskAboutCrop: (base64Jpeg: String) -> Unit,
     /** Route a detected structured action (native intent or LLM prompt) to the host. */
     private val onContextualAction: (prompt: String) -> Unit,
+    /** Open the companion panel with the crop attached AND auto-send [prompt] (OCR/translate). */
+    private val onImagePrompt: (base64Jpeg: String, prompt: String) -> Unit,
+    /** OCR the crop and copy the recognized text to the clipboard (async). */
+    private val onOcrToClipboard: (base64Jpeg: String) -> Unit,
     private val onError: (String) -> Unit
 ) {
     private val appContext = context.applicationContext
@@ -79,7 +83,14 @@ class ScreenLensController(
             val overlay = ScreenCropOverlayView(
                 appContext,
                 onSelection = { rect -> onRegionSelected(rect) },
-                onCancel = { cancel() }
+                onCancel = { cancel() },
+                // Redrawing after the menu showed: drop the menu/chips + stale crop
+                // and let the user re-select. The overlay itself stays up.
+                onReselectStart = {
+                    removeActionMenu()
+                    removeTextChips()
+                    recyclePendingCrop()
+                }
             )
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -214,12 +225,12 @@ class ScreenLensController(
     /**
      * Float small "Copy text" / "Translate" chips just above the selection
      * rectangle, so the user can act on the selection's text directly without
-     * opening the full menu. Only shown when the selection contains text.
+     * opening the full menu. Always shown: if the region has accessibility text we
+     * act on it directly; otherwise we fall back to OCR via the crop image (LLM).
      */
     private fun showTextChips(rectInView: Rect, regionText: String?) {
         removeTextChips()
-        val text = regionText?.trim()
-        if (text.isNullOrBlank()) return
+        val text = regionText?.trim()?.takeIf { it.isNotBlank() }
 
         val row = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -232,17 +243,40 @@ class ScreenLensController(
         }
         row.addView(
             smallChip("📝 Copy text") {
-                copyTextToClipboard(text)
-                finishMenu(recycle = true)
+                if (text != null) {
+                    copyTextToClipboard(text)
+                    finishMenu(recycle = true)
+                } else {
+                    // No accessibility text — OCR the crop, then copy the result.
+                    val base64 = pendingCrop?.let { encodeJpeg(it) }
+                    finishMenu(recycle = true)
+                    if (base64 != null) onOcrToClipboard(base64) else onError("Couldn't read selection")
+                }
             }
         )
         row.addView(
             smallChip("🌐 Translate") {
-                finishMenu(recycle = true)
-                onContextualAction(
-                    "Translate the following text to English (or the user's system " +
-                        "language if it is already English). Show only the translation:\n\n$text"
-                )
+                if (text != null) {
+                    finishMenu(recycle = true)
+                    onContextualAction(
+                        "Translate the following text to English (or the user's system " +
+                            "language if it is already English). Show only the translation:\n\n$text"
+                    )
+                } else {
+                    // No accessibility text — attach the crop and translate via vision.
+                    val base64 = pendingCrop?.let { encodeJpeg(it) }
+                    finishMenu(recycle = true)
+                    if (base64 != null) {
+                        onImagePrompt(
+                            base64,
+                            "Read the text in this image and translate it to English (or the " +
+                                "user's system language if it is already English). Show the " +
+                                "original text and its translation."
+                        )
+                    } else {
+                        onError("Couldn't read selection")
+                    }
+                }
             }
         )
 

@@ -40,7 +40,7 @@ import java.io.File
  *
  * Started/stopped from the in-app toggle via [ACTION_START] / [ACTION_STOP].
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LargeClass")
 class AssistiveBallService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -294,6 +294,12 @@ class AssistiveBallService : Service() {
             onContextualAction = { prompt ->
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             },
+            onImagePrompt = { base64, prompt ->
+                openCompanionWithImageAndQuery(base64, prompt)
+            },
+            onOcrToClipboard = { base64 ->
+                ocrCropToClipboard(base64)
+            },
             onError = { overlay.showError(it) }
         )
     }
@@ -399,6 +405,69 @@ class AssistiveBallService : Service() {
         overlay.isPanelOpen = true
         screenCompanionPanel.show("📸 Region attached — ask a question about it below.")
         screenCompanionPanel.updateResponse("Ask me anything about the selected region.")
+    }
+
+    /**
+     * Open the panel with a Lens crop attached AND immediately query the LLM with
+     * [prompt] (used by the inline "Translate" chip on image regions).
+     */
+    private fun openCompanionWithImageAndQuery(base64Jpeg: String, prompt: String) {
+        activeCompanionHistory.clear()
+        activeCompanionHistory.add(
+            com.gotcha.llm.ChatMessage(
+                "system",
+                kotlinx.serialization.json.JsonPrimitive(
+                    "You are Screen Companion. The user has attached a captured screen region."
+                )
+            )
+        )
+        activeCompanionHistory.add(com.gotcha.llm.visionUserMessage(prompt, base64Jpeg, "jpeg"))
+        overlay.isPanelOpen = true
+        screenCompanionPanel.show("📸 Region attached")
+        screenCompanionPanel.updateResponse("Thinking...")
+        val currentHistory = activeCompanionHistory.toList()
+        scope.launch {
+            try {
+                val response = llmClient.chat(currentHistory)
+                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                activeCompanionHistory.add(
+                    com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
+                )
+                screenCompanionPanel.updateResponse(replyText)
+            } catch (e: Exception) {
+                screenCompanionPanel.updateResponse("Error: ${e.message}")
+            }
+        }
+    }
+
+    /** OCR a Lens crop via the LLM and copy the recognized text to the clipboard. */
+    private fun ocrCropToClipboard(base64Jpeg: String) {
+        overlay.showError("Reading text…")
+        val history = listOf(
+            com.gotcha.llm.ChatMessage(
+                "system",
+                kotlinx.serialization.json.JsonPrimitive(
+                    "You are an OCR engine. Return ONLY the exact text visible in the image, " +
+                        "with no commentary, labels, or quotes. If there is no text, return an empty string."
+                )
+            ),
+            com.gotcha.llm.visionUserMessage("Extract all text from this image.", base64Jpeg, "jpeg")
+        )
+        scope.launch {
+            try {
+                val response = llmClient.chat(history)
+                val text = response.choices.firstOrNull()?.message?.textContent?.trim().orEmpty()
+                if (text.isBlank()) {
+                    overlay.showError("No text found in selection")
+                } else {
+                    val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lens text", text))
+                    overlay.showError("Text copied")
+                }
+            } catch (e: Exception) {
+                overlay.showError("Couldn't read text: ${e.message}")
+            }
+        }
     }
 
     private fun setupScreenCompanionPanel() {

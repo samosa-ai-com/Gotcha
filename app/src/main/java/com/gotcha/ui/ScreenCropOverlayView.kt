@@ -37,7 +37,10 @@ import kotlin.random.Random
 class ScreenCropOverlayView(
     context: Context,
     private val onSelection: (Rect) -> Unit,
-    private val onCancel: () -> Unit
+    private val onCancel: () -> Unit,
+    /** Fired when the user starts drawing again after a selection was frozen, so the
+     *  host can tear down the menu/chips and let the user re-select from scratch. */
+    private val onReselectStart: () -> Unit = {}
 ) : View(context) {
 
     private val density = resources.displayMetrics.density
@@ -275,10 +278,16 @@ class ScreenCropOverlayView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Once a selection is frozen (menu shown) or during capture, ignore touches.
-        if (frozenRect != null || captureMode) return false
+        // While a screenshot is being captured, ignore touches.
+        if (captureMode) return false
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                // A new drag after a frozen selection restarts the selection: clear
+                // the old rect and ask the host to tear down the menu/chips.
+                if (frozenRect != null) {
+                    frozenRect = null
+                    onReselectStart()
+                }
                 drawing = true
                 moved = false
                 path.reset()
