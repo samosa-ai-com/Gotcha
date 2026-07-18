@@ -102,6 +102,8 @@ class ScreenCompanionController(
                         pkg.contains("chrome", ignoreCase = true) ||
                         pkg.contains("firefox", ignoreCase = true) ||
                         pkg.contains("chromium", ignoreCase = true) ||
+                        pkg.contains("messaging", ignoreCase = true) ||
+                        pkg.contains("messages", ignoreCase = true) ||
                         pkg.contains("com.gotcha")
 
                     val screenText = ScreenSnapshot.captureScreenText(limit = 40) ?: return@withContext
