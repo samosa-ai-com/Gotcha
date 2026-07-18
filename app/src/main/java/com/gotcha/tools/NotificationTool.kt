@@ -71,7 +71,10 @@ class NotificationTool(private val context: Context) {
             val component = ComponentName(context, GotchaNotificationListenerService::class.java)
             val controllers: List<MediaController> = msm.getActiveSessions(component)
             val controller = controllers.firstOrNull()
-                ?: return ToolResult.error("No app is currently playing media.")
+                ?: return ToolResult.error(
+                    "No app is currently playing media. You may open a music or video app with open_app first, " +
+                        "then try media_control again."
+                )
             controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
             controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
             ToolResult.ok("Sent media '$action' to ${controller.packageName}.")

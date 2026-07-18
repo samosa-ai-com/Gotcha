@@ -49,15 +49,24 @@ class AccessibilityTool(private val context: Context) {
                 if (service.tapByText(text)) {
                     ToolResult.ok("Tapped an element matching \"$text\".")
                 } else {
-                    ToolResult.error("Found no clickable element matching \"$text\" on screen.")
+                    ToolResult.error(
+                        "Found no clickable element matching \"$text\" on screen. " +
+                            "Use read_screen to see available elements and try tap_index with the correct index."
+                    )
                 }
             x != null && y != null ->
                 if (service.tapAt(x.toFloat(), y.toFloat())) {
                     ToolResult.ok("Tapped at ($x, $y).")
                 } else {
-                    ToolResult.error("Could not dispatch the tap gesture.")
+                    ToolResult.error(
+                        "Could not dispatch the tap gesture. The accessibility service may be busy — you may try " +
+                            "read_screen first to refresh state."
+                    )
                 }
-            else -> ToolResult.error("Provide either 'text' to match, or both 'x' and 'y' coordinates.")
+            else -> ToolResult.error(
+                "Provide either 'text' to match, or both 'x' and 'y' coordinates. You may also use tap_index with " +
+                    "an index from read_screen."
+            )
         }
     }
 
@@ -69,15 +78,24 @@ class AccessibilityTool(private val context: Context) {
                 if (service.longPressByText(text)) {
                     ToolResult.ok("Long-pressed an element matching \"$text\".")
                 } else {
-                    ToolResult.error("Found no element matching \"$text\" on screen.")
+                    ToolResult.error(
+                        "Found no element matching \"$text\" on screen. You may use read_screen to see available elements, " +
+                            "then try long_press_index with the correct index."
+                    )
                 }
             x != null && y != null ->
                 if (service.longPressAt(x.toFloat(), y.toFloat())) {
                     ToolResult.ok("Long-pressed at ($x, $y).")
                 } else {
-                    ToolResult.error("Could not dispatch the long-press gesture.")
+                    ToolResult.error(
+                        "Could not dispatch the long-press gesture. The accessibility service may be busy — you may try " +
+                            "read_screen first to refresh state, then retry."
+                    )
                 }
-            else -> ToolResult.error("Provide either 'text' to match, or both 'x' and 'y' coordinates.")
+            else -> ToolResult.error(
+                "Provide either 'text' to match, or both 'x' and 'y' coordinates. You may also use long_press_index with " +
+                    "an index from read_screen."
+            )
         }
     }
 
@@ -109,7 +127,9 @@ class AccessibilityTool(private val context: Context) {
             return if (service.swipe(sx, sy, ex, ey)) {
                 ToolResult.ok("Swiped from (${sx.toInt()}, ${sy.toInt()}) to (${ex.toInt()}, ${ey.toInt()}).")
             } else {
-                ToolResult.error("Could not dispatch the swipe gesture.")
+                ToolResult.error(
+                    "Could not dispatch the swipe gesture. You may ensure the screen is not animating and try again."
+                )
             }
         }
         val metrics = context.resources.displayMetrics
@@ -128,7 +148,9 @@ class AccessibilityTool(private val context: Context) {
         return if (service.swipe(sx, sy, ex, ey, 500)) {
             ToolResult.ok("Swiped $direction.")
         } else {
-            ToolResult.error("Could not dispatch the swipe gesture.")
+            ToolResult.error(
+                "Could not dispatch the swipe gesture. The screen may be animating — you could wait and try again."
+            )
         }
     }
 
@@ -142,7 +164,10 @@ class AccessibilityTool(private val context: Context) {
         index: Int
     ): ToolResult? {
         val element = ScreenPerception.resolveElementByIndex(index)
-            ?: return ToolResult.error("No UI element with index $index found on screen.")
+            ?: return ToolResult.error(
+                "No UI element with index $index found on screen. The screen may have changed — use read_screen " +
+                    "to refresh the element list."
+            )
         val parts = element.bounds.split(",").map { it.trim().toIntOrNull() }
         if (parts.size != 4 || parts.any { it == null }) return null
         val cx = (parts[0]!! + parts[2]!!) / 2f
@@ -167,7 +192,10 @@ class AccessibilityTool(private val context: Context) {
                 left + w * 0.2f,
                 (top + bottom) / 2f
             ) // Scroll Right (physical swipe left)
-            else -> return ToolResult.error("Provide a direction (up/down/left/right) when using index.")
+            else -> return ToolResult.error(
+                "Provide a direction (up/down/left/right) when using index. You may also try swipe without an index to " +
+                    "scroll the whole screen."
+            )
         }
         return if (service.swipe(sx, sy, ex, ey, 500)) {
             ToolResult.ok("Swiped $direction on element $index.")
@@ -181,7 +209,10 @@ class AccessibilityTool(private val context: Context) {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
         if (index != null) {
             val element = ScreenPerception.resolveElementByIndex(index)
-                ?: return ToolResult.error("No UI element with index $index found on screen.")
+                ?: return ToolResult.error(
+                    "No UI element with index $index found on screen. The screen may have changed — use " +
+                        "read_screen to refresh the element list"
+                )
             if (service.typeTextIntoNodeByBounds(element.bounds, text)) {
                 return ToolResult.ok("Typed \"$text\" into element $index.")
             }
@@ -211,7 +242,10 @@ class AccessibilityTool(private val context: Context) {
     fun tapByIndex(index: Int): ToolResult {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
         val element = ScreenPerception.resolveElementByIndex(index)
-            ?: return ToolResult.error("No UI element with index $index found on screen.")
+            ?: return ToolResult.error(
+                "No UI element with index $index found on screen. The screen may have changed — use read_screen " +
+                    "to refresh the element list."
+            )
         val parts = element.bounds.split(",").map { it.trim().toIntOrNull() }
         if (parts.size != 4 || parts.any { it == null }) {
             return ToolResult.error("Invalid bounds for element $index.")
@@ -221,7 +255,10 @@ class AccessibilityTool(private val context: Context) {
         return if (service.tapAt(cx, cy)) {
             ToolResult.ok("Tapped element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()}).")
         } else {
-            ToolResult.error("Could not dispatch the tap gesture for element $index.")
+            ToolResult.error(
+                "Could not dispatch the tap gesture for element $index. The accessibility service may be busy — try " +
+                    "read_screen first and retry."
+            )
         }
     }
 
@@ -229,7 +266,10 @@ class AccessibilityTool(private val context: Context) {
     fun longPressByIndex(index: Int): ToolResult {
         val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
         val element = ScreenPerception.resolveElementByIndex(index)
-            ?: return ToolResult.error("No UI element with index $index found on screen.")
+            ?: return ToolResult.error(
+                "No UI element with index $index found on screen. The screen may have changed — use read_screen " +
+                    "to refresh the element list."
+            )
         val parts = element.bounds.split(",").map { it.trim().toIntOrNull() }
         if (parts.size != 4 || parts.any { it == null }) {
             return ToolResult.error("Invalid bounds for element $index.")
@@ -241,7 +281,10 @@ class AccessibilityTool(private val context: Context) {
                 "Long-pressed element $index: \"${element.text.take(50)}\" at (${cx.toInt()}, ${cy.toInt()})."
             )
         } else {
-            ToolResult.error("Could not dispatch the long-press gesture for element $index.")
+            ToolResult.error(
+                "Could not dispatch the long-press gesture for element $index. The accessibility service may be busy — try " +
+                    "read_screen first and retry."
+            )
         }
     }
 

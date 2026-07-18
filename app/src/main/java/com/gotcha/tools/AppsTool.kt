@@ -67,7 +67,9 @@ class AppsTool(private val context: Context) {
                 )
             }
         } catch (e: Exception) {
-            ToolResult.error("Could not list apps: ${e.message}")
+            ToolResult.error(
+                "Could not list apps: ${e.message}. You may check that the system is not restricting package visibility."
+            )
         }
     }
 
@@ -78,7 +80,11 @@ class AppsTool(private val context: Context) {
      */
     fun uninstallApp(packageName: String): ToolResult {
         val pkg = packageName.trim()
-        if (pkg.isEmpty()) return ToolResult.error("Please provide the app name or package name.")
+        if (pkg.isEmpty()) {
+            return ToolResult.error(
+                "Please provide the app name or package name. You may use list_installed_apps to discover the correct name."
+            )
+        }
         val pm = context.packageManager
 
         // Try exact package match first
@@ -108,7 +114,8 @@ class AppsTool(private val context: Context) {
         }
 
         return ToolResult.error(
-            "No app found matching '$packageName'. Use list_installed_apps to find the correct package name."
+            "No app found matching '$packageName'. You may use list_installed_apps to find the correct package name or try " +
+                "a shorter part of the app name."
         )
     }
 
@@ -129,7 +136,11 @@ class AppsTool(private val context: Context) {
             } catch (_: Exception) {
                 false
             }
-            if (!installed) return ToolResult.error("No app with package '$packageName' is installed.")
+            if (!installed) {
+                return ToolResult.error(
+                    "No app with package '$packageName' is installed. You may use list_installed_apps to verify the correct name."
+                )
+            }
 
             val label = try {
                 pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
