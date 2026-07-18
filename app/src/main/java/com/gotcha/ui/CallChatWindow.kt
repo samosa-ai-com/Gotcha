@@ -459,7 +459,11 @@ class CallChatWindow(context: Context) {
                 return@post
             }
 
-            val ringSize = (BTN_SIZE_DP * 1.5f * density).toInt()
+            // Window must be big enough to hold the largest aura the wave /
+            // breathe reaches (radius up to ~btnPx * 2.24), otherwise the round
+            // glow gets clipped to the window's square edge. Sized generously
+            // and centered; it's transparent and non-touchable so this is free.
+            val ringSize = (BTN_SIZE_DP * 5f * density).toInt()
             val drawable = RingDrawable().apply {
                 ringRadius = 0f
                 strokeWidth = 2.5f * density
