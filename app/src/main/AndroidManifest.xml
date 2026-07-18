@@ -103,6 +103,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.ClipboardReaderActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
+
         <!-- Shares captured photos with the camera app (take_photo). -->
         <provider
             android:name="androidx.core.content.FileProvider"
