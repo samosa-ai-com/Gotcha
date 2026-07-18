@@ -9,6 +9,7 @@ import com.gotcha.llm.ToolCall
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
@@ -46,6 +47,7 @@ class AppNavigatorSession(
         )
         val navTools = ToolRegistry.toolsForNavigator()
 
+        var lastUserContent: JsonElement? = null
         for (step in 1..maxSteps) {
             onStep("Analyzing screen", "running", "")
 
@@ -56,41 +58,8 @@ class AppNavigatorSession(
 
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }
-
-            // Send the tree (which is now organically filtered)
-            val obsText = if (screenshot != null) {
-                ScreenPerception.buildObservationText(screenshot, uiTree)
-            } else {
-                "── UI Elements ──\n$uiTree\n── Screenshot ──\n(failed to capture)"
-            }
-
-            val userMsg = buildString {
-                appendLine("## Task")
-                appendLine(task)
-                appendLine()
-                appendLine("## Previous Actions")
-                appendLine(actionLogText)
-                appendLine()
-                appendLine("## Current Screen")
-                appendLine(obsText)
-            }
-
-            val userContent = if (screenshot != null) {
-                buildJsonArray {
-                    addJsonObject {
-                        put("type", "text")
-                        put("text", userMsg)
-                    }
-                    addJsonObject {
-                        put("type", "image_url")
-                        putJsonObject("image_url") {
-                            put("url", "data:image/${screenshot.format};base64,${screenshot.base64}")
-                        }
-                    }
-                }
-            } else {
-                JsonPrimitive(userMsg)
-            }
+            val userContent = buildUserContent(screenshot, uiTree, actionLogText)
+            lastUserContent = userContent
 
             // 3. Single-turn LLM call with navigation tools
             val response: ChatResponse = try {
@@ -144,11 +113,94 @@ class AppNavigatorSession(
             }
         }
 
+        val finalAnswer = generateHandoverSummary(llmClient, lastUserContent)
+
         return AppNavigatorOutput(
-            finalAnswer = "Reached $maxSteps steps without completing the task.",
+            finalAnswer = finalAnswer,
             steps = actionLog.toList(),
             success = false
         )
+    }
+
+    private fun buildUserContent(
+        screenshot: ScreenPerception.CompressedScreenshot?,
+        uiTree: String,
+        actionLogText: String
+    ): JsonElement {
+        val obsText = if (screenshot != null) {
+            ScreenPerception.buildObservationText(screenshot, uiTree)
+        } else {
+            "── UI Elements ──\n$uiTree\n── Screenshot ──\n(failed to capture)"
+        }
+
+        val userMsg = buildString {
+            appendLine("## Task")
+            appendLine(task)
+            appendLine()
+            appendLine("## Previous Actions")
+            appendLine(actionLogText)
+            appendLine()
+            appendLine("## Current Screen")
+            appendLine(obsText)
+        }
+
+        return if (screenshot != null) {
+            buildJsonArray {
+                addJsonObject {
+                    put("type", "text")
+                    put("text", userMsg)
+                }
+                addJsonObject {
+                    put("type", "image_url")
+                    putJsonObject("image_url") {
+                        put("url", "data:image/${screenshot.format};base64,${screenshot.base64}")
+                    }
+                }
+            }
+        } else {
+            JsonPrimitive(userMsg)
+        }
+    }
+
+    private suspend fun generateHandoverSummary(
+        llmClient: LLMClient,
+        lastUserContent: JsonElement?
+    ): String {
+        val summaryPrompt = """
+            The navigation agent has reached the maximum limit of $maxSteps steps and must now stop.
+            Please generate a concise handover handout/summary for the main agent detailing:
+            1. What was accomplished so far.
+            2. The steps taken.
+            3. The specific problem, roadblock, or error faced.
+            4. Explicit recommendation/instructions for the main agent on what to do next.
+
+            Format your response clearly. Start with a statement that the navigation task failed because the step limit was reached, and explicitly instruct the main agent NOT to attempt the navigation tool again for this task.
+        """.trimIndent()
+
+        return if (lastUserContent != null) {
+            try {
+                onStep("Generating handover summary", "running", "")
+                val summaryResponse = llmClient.chat(
+                    messages = listOf(
+                        ChatMessage(role = "system", content = JsonPrimitive(NAVIGATOR_SYSTEM_PROMPT)),
+                        ChatMessage(role = "user", content = lastUserContent),
+                        ChatMessage(role = "system", content = JsonPrimitive(summaryPrompt))
+                    ),
+                    tools = emptyList(),
+                    sessionId = sessionId
+                )
+                val summary = summaryResponse.choices.firstOrNull()?.message?.textContent
+                if (!summary.isNullOrBlank()) {
+                    summary
+                } else {
+                    "Reached $maxSteps steps without completing the task. No summary could be generated."
+                }
+            } catch (e: Throwable) {
+                "Reached $maxSteps steps without completing the task. Failed to generate summary: ${e.message}"
+            }
+        } else {
+            "Reached $maxSteps steps without completing the task."
+        }
     }
 
     private suspend fun executeWithRetry(call: ToolCall): ToolResult {
