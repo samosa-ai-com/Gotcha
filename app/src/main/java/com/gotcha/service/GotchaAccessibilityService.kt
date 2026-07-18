@@ -241,6 +241,58 @@ class GotchaAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * Grow [region] (screen pixels) to include any UI element it substantially
+     * overlaps, so a selection drawn around ~most of a control snaps to the whole
+     * control. An element is included when the intersection covers at least
+     * [coverage] of EITHER the element's area or the drawn region's area (the
+     * latter lets a small scribble inside a big element still snap to it). Returns
+     * the unioned rectangle, or the original [region] when nothing qualifies.
+     */
+    fun snapRegionToElements(
+        region: android.graphics.Rect,
+        coverage: Float = 0.6f
+    ): android.graphics.Rect {
+        val root = rootInActiveWindow ?: return region
+        val result = android.graphics.Rect(region)
+        val regionArea = region.width().toLong() * region.height().toLong()
+        accumulateSnap(root, region, regionArea, coverage, result)
+        root.recycle()
+        return result
+    }
+
+    private fun accumulateSnap(
+        node: AccessibilityNodeInfo?,
+        region: android.graphics.Rect,
+        regionArea: Long,
+        coverage: Float,
+        acc: android.graphics.Rect
+    ) {
+        if (node == null) return
+        val bounds = android.graphics.Rect()
+        node.getBoundsInScreen(bounds)
+        if (!bounds.isEmpty && android.graphics.Rect.intersects(bounds, region)) {
+            val inter = android.graphics.Rect(bounds)
+            if (inter.intersect(region)) {
+                val interArea = inter.width().toLong() * inter.height().toLong()
+                val nodeArea = bounds.width().toLong() * bounds.height().toLong()
+                val coversNode = nodeArea > 0 && interArea >= coverage * nodeArea
+                val coversRegion = regionArea > 0 && interArea >= coverage * regionArea
+                // Skip full-screen containers/root so we snap to actual controls,
+                // not the window that swallows everything.
+                val metrics = resources.displayMetrics
+                val screenArea = metrics.widthPixels.toLong() * metrics.heightPixels.toLong()
+                val sane = nodeArea in 1 until (screenArea * 8 / 10)
+                if ((coversNode || coversRegion) && sane) {
+                    acc.union(bounds)
+                }
+            }
+        }
+        for (i in 0 until node.childCount) {
+            accumulateSnap(node.getChild(i), region, regionArea, coverage, acc)
+        }
+    }
+
     /** Tap the first clickable node whose text/description contains [query] (case-insensitive). */
     fun tapByText(query: String): Boolean {
         val root = rootInActiveWindow ?: return false

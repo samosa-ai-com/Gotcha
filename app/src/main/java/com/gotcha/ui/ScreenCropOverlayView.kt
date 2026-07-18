@@ -51,6 +51,15 @@ class ScreenCropOverlayView(
     private var drawing = false
     private var moved = false
 
+    /** A finalized selection to keep drawn while the action menu is shown. */
+    private var frozenRect: RectF? = null
+
+    /**
+     * When true, all overlay chrome (scrim, glow, particles, selection) is hidden
+     * so a screenshot taken behind us does not capture it. Restored right after.
+     */
+    private var captureMode = false
+
     // ---- Paints ----
     private val dimPaint = Paint().apply { color = Color.parseColor("#66101018") }
     private val edgeGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -60,11 +69,32 @@ class ScreenCropOverlayView(
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
+
+    /** Thin premium pinkish-blue glowing border around the whole screen edge. */
+    private val screenBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 3f * density
+        color = Color.parseColor("#B0568CD8")
+    }
+    private val screenBorderGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 8f * density
+        color = Color.parseColor("#55A0459E")
+        maskFilter = android.graphics.BlurMaskFilter(14f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+
+    /** Selection-rectangle border: premium pinkish-blue, glowing. */
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 1.5f * density
-        color = Color.parseColor("#CCE081C0")
-        pathEffect = android.graphics.DashPathEffect(floatArrayOf(12f * density, 8f * density), 0f)
+        strokeWidth = 3f * density
+        color = Color.parseColor("#D0B06FD0")
+        pathEffect = android.graphics.DashPathEffect(floatArrayOf(14f * density, 8f * density), 0f)
+    }
+    private val boxGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 7f * density
+        color = Color.parseColor("#55568CD8")
+        maskFilter = android.graphics.BlurMaskFilter(12f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
     }
     private val particlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -146,28 +176,67 @@ class ScreenCropOverlayView(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (captureMode) {
+            // Draw nothing this frame so a screenshot behind us stays clean, but
+            // keep animating so we resume smoothly.
+            postInvalidateOnAnimation()
+            return
+        }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), edgeGlowPaint)
 
         stepAndDrawParticles(canvas)
 
-        if (drawing && moved) {
-            // Gradient stroke for the traced path.
-            pathPaint.shader = LinearGradient(
-                minX, minY, maxX, maxY,
-                Color.parseColor("#FF6FC0"), Color.parseColor("#5B8CFF"),
-                Shader.TileMode.CLAMP
-            )
-            canvas.drawPath(path, pathPaint)
-            canvas.drawRect(RectF(minX, minY, maxX, maxY), boxPaint)
-        } else if (!drawing) {
-            canvas.drawText(
+        drawScreenBorder(canvas)
+
+        val frozen = frozenRect
+        when {
+            drawing && moved -> {
+                // Gradient stroke for the traced path.
+                pathPaint.shader = LinearGradient(
+                    minX, minY, maxX, maxY,
+                    Color.parseColor("#FF6FC0"), Color.parseColor("#5B8CFF"),
+                    Shader.TileMode.CLAMP
+                )
+                canvas.drawPath(path, pathPaint)
+                drawSelectionBox(canvas, RectF(minX, minY, maxX, maxY))
+            }
+            frozen != null -> drawSelectionBox(canvas, frozen)
+            else -> canvas.drawText(
                 "Draw around anything • tap to cancel",
                 width / 2f,
                 height * 0.12f,
                 hintPaint
             )
         }
+        postInvalidateOnAnimation()
+    }
+
+    /** A thin, premium pinkish-blue glowing frame just inside the screen edges. */
+    private fun drawScreenBorder(canvas: Canvas) {
+        val inset = screenBorderGlowPaint.strokeWidth / 2f + 1f
+        val r = RectF(inset, inset, width - inset, height - inset)
+        val radius = 24f * density
+        canvas.drawRoundRect(r, radius, radius, screenBorderGlowPaint)
+        canvas.drawRoundRect(r, radius, radius, screenBorderPaint)
+    }
+
+    private fun drawSelectionBox(canvas: Canvas, rect: RectF) {
+        val radius = 10f * density
+        canvas.drawRoundRect(rect, radius, radius, boxGlowPaint)
+        canvas.drawRoundRect(rect, radius, radius, boxPaint)
+    }
+
+    /** Freeze [rect] (view px) so it stays drawn while the action menu is shown. */
+    fun freezeSelection(rect: Rect) {
+        frozenRect = RectF(rect)
+        drawing = false
+        postInvalidateOnAnimation()
+    }
+
+    /** Toggle capture mode: when true the overlay draws nothing (see [onDraw]). */
+    fun setCaptureMode(enabled: Boolean) {
+        captureMode = enabled
         postInvalidateOnAnimation()
     }
 
@@ -206,6 +275,8 @@ class ScreenCropOverlayView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // Once a selection is frozen (menu shown) or during capture, ignore touches.
+        if (frozenRect != null || captureMode) return false
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 drawing = true
@@ -228,7 +299,9 @@ class ScreenCropOverlayView(
             MotionEvent.ACTION_UP -> {
                 drawing = false
                 val rect = Rect(minX.toInt(), minY.toInt(), maxX.toInt(), maxY.toInt())
-                if (moved && rect.width() > MIN_SIZE_PX && rect.height() > MIN_SIZE_PX) {
+                // Accept any real drag (even a thin line — the controller expands it
+                // to a minimum band). A tap with no movement cancels.
+                if (moved && max(rect.width(), rect.height()) > MIN_SIZE_PX) {
                     onSelection(rect)
                 } else {
                     onCancel()

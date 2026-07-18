@@ -46,8 +46,19 @@ object SmartActionDetector {
     /** Separator between the encoded action type and its payload. */
     const val PAYLOAD_SEP = "|"
 
+    /**
+     * Street addresses: a house number, a street name, and a street-type suffix
+     * (optionally followed by a unit and/or a ", City, ST 12345" tail). The suffix
+     * list is broadened and an optional trailing punctuation-mark allowance makes
+     * everyday addresses match more reliably.
+     */
     private val addressPattern: Pattern = Pattern.compile(
-        "\\d+\\s+[a-zA-Z0-9\\s,]+ (Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way)\\b",
+        "\\b\\d{1,6}\\s+[A-Za-z0-9.'\\-]+(?:\\s+[A-Za-z0-9.'\\-]+){0,5}\\s+" +
+            "(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd|Way|" +
+            "Court|Ct|Place|Pl|Terrace|Ter|Circle|Cir|Highway|Hwy|Parkway|Pkwy|" +
+            "Square|Sq|Trail|Trl|Close|Crescent|Cres)\\b\\.?" +
+            "(?:\\s*(?:#|Apt\\.?|Suite|Ste\\.?|Unit)\\s*\\w+)?" +
+            "(?:,\\s*[A-Za-z .'\\-]+(?:,\\s*[A-Z]{2})?(?:\\s*\\d{5}(?:-\\d{4})?)?)?",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -72,11 +83,23 @@ object SmartActionDetector {
         "([¥€£$])\\s?\\d{1,5}(\\.\\d{2})?"
     )
 
+    /**
+     * Calendar events. Matches any of:
+     *  - a keyword ("meeting"/"call"/…) near a weekday,
+     *  - a weekday/relative-day followed by a clock time,
+     *  - a month name + day (+ optional year) optionally with a clock time —
+     *    e.g. "July 20 at 9:10 a.m.", "Dec 3", "Jan 5 2027 3pm",
+     *  - a bare clock time with an am/pm marker (with or without dots).
+     */
     private val calendarPattern: Pattern = Pattern.compile(
-        "\\b(meeting|appointment|event|call|lunch|dinner)\\b.{0,40}?" +
+        "\\b(meeting|appointment|event|call|lunch|dinner|reminder|deadline)\\b.{0,40}?" +
             "\\b(today|tomorrow|mon(day)?|tue(sday)?|wed(nesday)?|thu(rsday)?|fri(day)?|sat(urday)?|sun(day)?)\\b" +
             "|\\b(today|tomorrow|mon(day)?|tue(sday)?|wed(nesday)?|thu(rsday)?|fri(day)?|sat(urday)?|sun(day)?)\\b" +
-            "\\s+at\\s+\\d{1,2}(:\\d{2})?\\s?(am|pm)",
+            "\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?" +
+            "|\\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|" +
+            "sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\\s+\\d{1,2}(st|nd|rd|th)?" +
+            "(,?\\s+\\d{4})?(\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?)?" +
+            "|\\b\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -102,7 +125,7 @@ object SmartActionDetector {
 
         if (allowChat && looksLikeChatMessage(text)) {
             return SmartAction(
-                label = "💬 Message copied. Draft reply?",
+                label = "💬 Draft reply: ${snippet(text.trim(), 24)}",
                 prompt = "Draft a short, friendly reply to this message. Return only the " +
                     "reply text:\n\n$text"
             )
@@ -131,7 +154,7 @@ object SmartActionDetector {
         if (!m.find()) return null
         val number = m.group().trim()
         return SmartAction(
-            label = "📞 Dial $number?",
+            label = "📞 Dial ${snippet(number, 20)}",
             prompt = encode(TYPE_DIAL, number)
         )
     }
@@ -139,9 +162,9 @@ object SmartActionDetector {
     private fun detectAddress(text: String): SmartAction? {
         val m = addressPattern.matcher(text)
         if (!m.find()) return null
-        val address = m.group().trim()
+        val address = m.group().trim().trimEnd(',')
         return SmartAction(
-            label = "📍 Navigate to address?",
+            label = "📍 Navigate: ${snippet(address, 28)}",
             prompt = encode(TYPE_NAVIGATE, address)
         )
     }
@@ -151,7 +174,7 @@ object SmartActionDetector {
         if (!m.find()) return null
         val price = m.group().trim()
         return SmartAction(
-            label = "💵 Convert $price?",
+            label = "💵 Convert ${snippet(price, 16)}",
             prompt = "Convert the price \"$price\" to USD and to common major " +
                 "currencies (EUR, GBP, INR). Show the approximate exchange rate " +
                 "you used. Keep it brief."
@@ -163,7 +186,7 @@ object SmartActionDetector {
         if (!m.find()) return null
         val event = m.group().trim()
         return SmartAction(
-            label = "📅 Add \"$event\" to calendar?",
+            label = "📅 Add to calendar: ${snippet(event, 26)}",
             prompt = encode(TYPE_CALENDAR, event)
         )
     }
@@ -188,7 +211,23 @@ object SmartActionDetector {
 
     /** Build a native "fetch this URL and summarize" action. */
     fun fetchAction(url: String): SmartAction =
-        SmartAction(label = "🔗 Summarize link?", prompt = encode(TYPE_FETCH, url.trim()))
+        SmartAction(label = "🔗 Summarize: ${snippet(prettyUrl(url), 30)}", prompt = encode(TYPE_FETCH, url.trim()))
+
+    /** Strip scheme/`www.` for a friendlier label (keeps the full URL in the payload). */
+    private fun prettyUrl(url: String): String =
+        url.trim()
+            .replace(Regex("^https?://", RegexOption.IGNORE_CASE), "")
+            .removePrefix("www.")
+
+    /**
+     * A short preview of detected data for action labels: up to [max] chars, then
+     * an ellipsis, so the user can see WHAT was detected before acting. Collapses
+     * internal whitespace/newlines to single spaces.
+     */
+    fun snippet(value: String, max: Int = 24): String {
+        val clean = value.replace(Regex("\\s+"), " ").trim()
+        return if (clean.length <= max) clean else clean.take(max).trimEnd() + "…"
+    }
 
     /**
      * Extract the first http(s) URL from [text], normalising a bare `www.`/domain

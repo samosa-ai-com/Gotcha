@@ -1,5 +1,6 @@
 package com.gotcha.service
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -41,6 +42,7 @@ import java.io.FileOutputStream
  *
  * All window mutations are posted to the main thread.
  */
+@Suppress("TooManyFunctions")
 class ScreenLensController(
     private val context: Context,
     private val scope: CoroutineScope,
@@ -53,6 +55,7 @@ class ScreenLensController(
     private val appContext = context.applicationContext
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val dragSlop = android.view.ViewConfiguration.get(appContext).scaledTouchSlop
 
     private var cropOverlay: View? = null
     private var actionMenu: View? = null
@@ -104,44 +107,83 @@ class ScreenLensController(
     }
 
     private fun onRegionSelected(rectInView: Rect) {
-        val overlay = cropOverlay
+        val overlay = cropOverlay as? ScreenCropOverlayView
         val viewW = overlay?.width ?: 0
         val viewH = overlay?.height ?: 0
-        // Hide the scrim overlay before capturing so it isn't baked into the shot.
-        removeCropOverlay()
+
+        // 1) Enforce a minimum size: a thin line/scribble becomes a usable band.
+        val minPx = (MIN_SELECTION_DP * appContext.resources.displayMetrics.density).toInt()
+        val padded = expandToMinimum(rectInView, minPx, viewW, viewH)
+
         scope.launch {
             val service = GotchaAccessibilityService.instance
             if (service == null) {
                 withContext(Dispatchers.Main) { onError("Accessibility service not available") }
                 return@launch
             }
-            // Detect structured data inside the selection via accessibility text
-            // (full-screen overlay ⇒ view coords are screen coords).
-            val regionText = service.dumpTextInRegion(rectInView)
+            // 2) Snap to UI elements the selection substantially overlaps, so drawing
+            //    around ~most of a control captures the whole control.
+            val snapped = service.snapRegionToElements(padded).also {
+                it.intersect(0, 0, viewW.coerceAtLeast(1), viewH.coerceAtLeast(1))
+            }
+            val finalRect = if (snapped.width() >= minPx && snapped.height() >= minPx) snapped else padded
+
+            // Freeze the selection on the overlay so it stays visible (with the live
+            // particle animation) while the action menu is up.
+            withContext(Dispatchers.Main) { overlay?.freezeSelection(finalRect) }
+
+            // Detect structured data inside the selection via accessibility text.
+            val regionText = service.dumpTextInRegion(finalRect)
             val contextualActions = regionText?.let { SmartActionDetector.detectContextual(it) } ?: emptyList()
 
-            // Small delay so the removed overlay is gone from the real display.
-            kotlinx.coroutines.delay(120)
+            // Hide the overlay's chrome only for the capture instant so it isn't
+            // baked into the screenshot, then restore it behind the menu.
+            withContext(Dispatchers.Main) { overlay?.setCaptureMode(true) }
+            kotlinx.coroutines.delay(80)
             var full = service.takeScreenshotBitmap()
             if (full == null) {
-                kotlinx.coroutines.delay(500)
+                kotlinx.coroutines.delay(400)
                 full = service.takeScreenshotBitmap()
             }
+            withContext(Dispatchers.Main) { overlay?.setCaptureMode(false) }
             if (full == null) {
-                withContext(Dispatchers.Main) { onError("Screenshot failed — try again") }
+                withContext(Dispatchers.Main) {
+                    removeCropOverlay()
+                    onError("Screenshot failed — try again")
+                }
                 return@launch
             }
-            val cropped = cropToSelection(full, rectInView, viewW, viewH)
+            val cropped = cropToSelection(full, finalRect, viewW, viewH)
             full.recycle()
             if (cropped == null) {
-                withContext(Dispatchers.Main) { onError("Selection was empty") }
+                withContext(Dispatchers.Main) {
+                    removeCropOverlay()
+                    onError("Selection was empty")
+                }
                 return@launch
             }
             withContext(Dispatchers.Main) {
                 pendingCrop = cropped
-                showActionMenu(contextualActions)
+                showActionMenu(contextualActions, regionText)
             }
         }
+    }
+
+    /** Grow [rect] so each side is at least [minPx], clamped to the view bounds. */
+    private fun expandToMinimum(rect: Rect, minPx: Int, viewW: Int, viewH: Int): Rect {
+        val out = Rect(rect)
+        if (out.width() < minPx) {
+            val cx = out.centerX()
+            out.left = cx - minPx / 2
+            out.right = cx + minPx / 2
+        }
+        if (out.height() < minPx) {
+            val cy = out.centerY()
+            out.top = cy - minPx / 2
+            out.bottom = cy + minPx / 2
+        }
+        if (viewW > 0 && viewH > 0) out.intersect(0, 0, viewW, viewH)
+        return out
     }
 
     /**
@@ -165,7 +207,7 @@ class ScreenLensController(
         }
     }
 
-    private fun showActionMenu(contextualActions: List<SmartAction>) {
+    private fun showActionMenu(contextualActions: List<SmartAction>, regionText: String?) {
         removeActionMenu()
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
@@ -173,10 +215,11 @@ class ScreenLensController(
             background = GradientDrawable().apply {
                 cornerRadius = dp(20).toFloat()
                 setColor(Color.parseColor("#F21E1E1E"))
-                setStroke(dp(1), Color.parseColor("#66E081C0"))
+                setStroke(dp(1), Color.parseColor("#66568CD8"))
             }
         }
-        container.addView(menuTitle("Lens selection"))
+        // Draggable handle: grab this bar to move the menu over the selection.
+        container.addView(dragHandle("⠿  Lens selection  ·  drag to move"))
 
         // Contextual actions detected inside the selection come first.
         contextualActions.forEach { action ->
@@ -184,6 +227,17 @@ class ScreenLensController(
                 menuButton(action.label, highlight = true) {
                     finishMenu(recycle = true)
                     onContextualAction(action.prompt)
+                }
+            )
+        }
+
+        // "Copy text" when the selection contains readable text.
+        val selectedText = regionText?.trim()
+        if (!selectedText.isNullOrBlank()) {
+            container.addView(
+                menuButton("📝  Copy text") {
+                    copyTextToClipboard(selectedText)
+                    finishMenu(recycle = true)
                 }
             )
         }
@@ -211,6 +265,7 @@ class ScreenLensController(
                 // Hand ownership to the async saver, which recycles when done.
                 pendingCrop = null
                 removeActionMenu()
+                removeCropOverlay()
                 if (bmp != null) saveToDownloads(bmp) else onError("Nothing to save")
             }
         )
@@ -227,8 +282,13 @@ class ScreenLensController(
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER
+            gravity = Gravity.TOP or Gravity.START
+            // Start centred; the user can drag it anywhere via the handle.
+            val metrics = appContext.resources.displayMetrics
+            x = (metrics.widthPixels - dp(280)) / 2
+            y = (metrics.heightPixels / 3)
         }
+        attachDragToMenu(container, params)
         try {
             windowManager.addView(container, params)
             actionMenu = container
@@ -237,10 +297,68 @@ class ScreenLensController(
         }
     }
 
-    /** Dismiss the menu and optionally recycle the crop the menu was acting on. */
+    /** Make the menu window draggable by touching its handle row. */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun attachDragToMenu(container: View, params: WindowManager.LayoutParams) {
+        var downRawX = 0f
+        var downRawY = 0f
+        var startX = 0
+        var startY = 0
+        container.setOnTouchListener { _, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    downRawX = event.rawX
+                    downRawY = event.rawY
+                    startX = params.x
+                    startY = params.y
+                    false // let child buttons still receive the tap
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val dx = (event.rawX - downRawX).toInt()
+                    val dy = (event.rawY - downRawY).toInt()
+                    if (kotlin.math.abs(dx) > dragSlop || kotlin.math.abs(dy) > dragSlop) {
+                        params.x = startX + dx
+                        params.y = startY + dy
+                        try {
+                            windowManager.updateViewLayout(container, params)
+                        } catch (_: Exception) {}
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun dragHandle(label: String): TextView = TextView(appContext).apply {
+        text = label
+        setTextColor(Color.parseColor("#9FB6E0"))
+        textSize = 12f
+        gravity = Gravity.CENTER
+        setPadding(dp(12), dp(8), dp(12), dp(10))
+    }
+
+    /**
+     * Dismiss the menu AND the (now-persisted) selection overlay, and optionally
+     * recycle the crop the menu was acting on.
+     */
     private fun finishMenu(recycle: Boolean) {
         removeActionMenu()
+        removeCropOverlay()
         if (recycle) recyclePendingCrop()
+    }
+
+    private fun copyTextToClipboard(text: String) {
+        try {
+            val clipboard = appContext.getSystemService(Context.CLIPBOARD_SERVICE)
+                as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lens text", text))
+            toast("Text copied")
+        } catch (e: Exception) {
+            onError("Copy failed: ${e.message}")
+        }
     }
 
     private fun copyImageToClipboard(bitmap: Bitmap) {
@@ -354,13 +472,6 @@ class ScreenLensController(
         android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    private fun menuTitle(text: String): TextView = TextView(appContext).apply {
-        this.text = text
-        setTextColor(Color.parseColor("#E081C0"))
-        textSize = 13f
-        setPadding(dp(12), dp(6), dp(12), dp(10))
-    }
-
     private fun menuButton(label: String, highlight: Boolean = false, onClick: () -> Unit): TextView =
         TextView(appContext).apply {
             text = label
@@ -406,4 +517,9 @@ class ScreenLensController(
 
     private fun dp(value: Int): Int =
         (value * appContext.resources.displayMetrics.density).toInt()
+
+    private companion object {
+        /** Minimum side length of a Lens selection, so a thin line still captures a band. */
+        const val MIN_SELECTION_DP = 44
+    }
 }

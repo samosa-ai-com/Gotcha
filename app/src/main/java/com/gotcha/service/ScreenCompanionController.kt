@@ -125,13 +125,6 @@ class ScreenCompanionController(
                             val fetch = SmartActionDetector.fetchAction(url)
                             onSmartActionReady(fetch.label, fetch.prompt)
                         }
-                    } else if (screenText.contains("Exception") || screenText.contains("Error", ignoreCase = true)) {
-                        withContext(Dispatchers.Main) {
-                            onSmartActionReady(
-                                "⚠️ Error detected. Explain?",
-                                "Explain the error code or stack trace shown on the screen."
-                            )
-                        }
                     } else {
                         // Structured-data (address / phone / currency / calendar) scan.
                         val smart = SmartActionDetector.detect(screenText, allowChat = false)

@@ -72,7 +72,7 @@ class SmartActionDetectorTest {
         assertNull(SmartActionDetector.detect(text, allowChat = false))
         val action = SmartActionDetector.detect(text, allowChat = true)
         assertNotNull(action)
-        assertTrue(action!!.label.contains("Message"))
+        assertTrue(action!!.label.contains("Draft reply"))
     }
 
     @Test
@@ -105,8 +105,45 @@ class SmartActionDetectorTest {
     }
 
     @Test
+    fun `contextual detection finds month-day time event`() {
+        // Regression: "July 20 at 9:10 a.m." was previously missed.
+        val actions = SmartActionDetector.detectContextual("Flight on July 20 at 9:10 a.m.")
+        val cal = actions.firstOrNull { it.label.contains("calendar") }
+        assertNotNull(cal)
+        assertEquals(SmartActionDetector.TYPE_CALENDAR, SmartActionDetector.decode(cal!!.prompt)!!.first)
+    }
+
+    @Test
+    fun `contextual detection finds address with city and zip`() {
+        val actions = SmartActionDetector.detectContextual("Ship to 350 5th Ave, New York, NY 10118")
+        val addr = actions.firstOrNull { it.label.contains("Navigate") }
+        assertNotNull(addr)
+        assertEquals(SmartActionDetector.TYPE_NAVIGATE, SmartActionDetector.decode(addr!!.prompt)!!.first)
+    }
+
+    @Test
     fun `contextual detection returns empty for plain prose`() {
         assertTrue(SmartActionDetector.detectContextual("just some words here").isEmpty())
+    }
+
+    // ---- Snippets in labels ----
+
+    @Test
+    fun `snippet truncates long values with an ellipsis`() {
+        assertEquals("hello", SmartActionDetector.snippet("hello", 10))
+        assertEquals("hello…", SmartActionDetector.snippet("hello world", 5))
+        assertEquals("a b c", SmartActionDetector.snippet("a   b\nc", 10))
+    }
+
+    @Test
+    fun `fetch action label shows a url snippet`() {
+        val action = SmartActionDetector.fetchAction("https://www.example.com/very/long/path/here")
+        assertTrue(action.label.contains("example.com"))
+        // The full URL is preserved in the payload.
+        assertEquals(
+            "https://www.example.com/very/long/path/here",
+            SmartActionDetector.decode(action.prompt)!!.second
+        )
     }
 
     @Test

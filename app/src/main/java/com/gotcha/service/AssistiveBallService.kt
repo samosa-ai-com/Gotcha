@@ -170,12 +170,9 @@ class AssistiveBallService : Service() {
             }
             return
         }
-        // Only these explicitly-visual actions attach a screenshot. (A generic
-        // prompt that merely mentions "screen" must NOT pull in an image.)
-        val attachScreenshot = prompt.contains("screenshot", ignoreCase = true) ||
-            prompt.contains("webpage shown", ignoreCase = true) ||
-            prompt.contains("shown on screen", ignoreCase = true) ||
-            prompt.contains("shown on the screen", ignoreCase = true)
+        // Only an explicit screenshot action attaches an image. (A generic prompt
+        // that merely mentions "screen" must NOT pull one in.)
+        val attachScreenshot = prompt.contains("screenshot", ignoreCase = true)
         screenCompanionPanel.show(prompt)
         overlay.isPanelOpen = true
         scope.launch {
@@ -344,7 +341,7 @@ class AssistiveBallService : Service() {
             } else {
                 android.util.Log.d("AssistiveBallService", "Setting smart action: Text copied. Translate?")
                 overlay.setSmartActionAvailable(
-                    "📋 Text copied. Translate?",
+                    "📋 Translate: ${SmartActionDetector.snippet(clipText, 24)}",
                     "Translate the copied text to English if it is not, otherwise summarize it:\n\n$clipText"
                 )
             }
