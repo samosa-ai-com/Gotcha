@@ -138,6 +138,9 @@ dependencies {
         exclude(group = "com.atlassian.commonmark", module = "commonmark")
     }
 
+    // ML Kit on-device text recognition (for Lens mode OCR)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+
     // CameraX for automated photo capture
     val cameraxVersion = "1.4.0"
     implementation("androidx.camera:camera-core:$cameraxVersion")

@@ -53,7 +53,7 @@ class ScreenLensController(
     /** Open the companion panel with the crop attached AND auto-send [prompt] (OCR/translate). */
     private val onImagePrompt: (base64Jpeg: String, prompt: String) -> Unit,
     /** OCR the crop and copy the recognized text to the clipboard (async). */
-    private val onOcrToClipboard: (base64Jpeg: String) -> Unit,
+    private val onOcrToClipboard: (crop: Bitmap) -> Unit,
     private val onError: (String) -> Unit
 ) {
     private val appContext = context.applicationContext
@@ -248,9 +248,9 @@ class ScreenLensController(
                     finishMenu(recycle = true)
                 } else {
                     // No accessibility text — OCR the crop, then copy the result.
-                    val base64 = pendingCrop?.let { encodeJpeg(it) }
+                    val crop = pendingCrop?.let { it.copy(it.config, false) }
                     finishMenu(recycle = true)
-                    if (base64 != null) onOcrToClipboard(base64) else onError("Couldn't read selection")
+                    if (crop != null) onOcrToClipboard(crop) else onError("Couldn't read selection")
                 }
             }
         )

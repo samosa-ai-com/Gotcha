@@ -297,8 +297,8 @@ class AssistiveBallService : Service() {
             onImagePrompt = { base64, prompt ->
                 openCompanionWithImageAndQuery(base64, prompt)
             },
-            onOcrToClipboard = { base64 ->
-                ocrCropToClipboard(base64)
+            onOcrToClipboard = { bitmap ->
+                ocrCropToClipboard(bitmap)
             },
             onError = { overlay.showError(it) }
         )
@@ -440,29 +440,24 @@ class AssistiveBallService : Service() {
         }
     }
 
-    /** OCR a Lens crop via the LLM and copy the recognized text to the clipboard. */
-    private fun ocrCropToClipboard(base64Jpeg: String) {
+    /** OCR a Lens crop via ML Kit on-device text recognition and copy to clipboard. */
+    private fun ocrCropToClipboard(bitmap: android.graphics.Bitmap) {
         overlay.showError("Reading text…")
-        val history = listOf(
-            com.gotcha.llm.ChatMessage(
-                "system",
-                kotlinx.serialization.json.JsonPrimitive(
-                    "You are an OCR engine. Return ONLY the exact text visible in the image, " +
-                        "with no commentary, labels, or quotes. If there is no text, return an empty string."
-                )
-            ),
-            com.gotcha.llm.visionUserMessage("Extract all text from this image.", base64Jpeg, "jpeg")
-        )
         scope.launch {
             try {
-                val response = llmClient.chat(history)
-                val text = response.choices.firstOrNull()?.message?.textContent?.trim().orEmpty()
+                val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                    com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                )
+                val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                val result = withContext(Dispatchers.Default) {
+                    com.google.android.gms.tasks.Tasks.await(recognizer.process(image))
+                }
+                val text = result.text.trim()
                 if (text.isBlank()) {
                     overlay.showError("No text found in selection")
                 } else {
                     val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lens text", text))
-                    overlay.showError("Text copied")
                 }
             } catch (e: Exception) {
                 overlay.showError("Couldn't read text: ${e.message}")
