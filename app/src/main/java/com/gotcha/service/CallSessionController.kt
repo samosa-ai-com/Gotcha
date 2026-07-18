@@ -245,7 +245,7 @@ class CallSessionController(
             pendingReply = null
 
             // Narrate start-of-turn to give the user immediate feedback
-            narrate("Let me look into that")
+            narrate(pickTurnStartPhrase())
             onActionRingColor(Category.FOREGROUND.ringColorArgb)
 
             try {
@@ -468,6 +468,34 @@ class CallSessionController(
         val now = System.currentTimeMillis()
         return category != lastNarratedCategory || (now - lastNarrationTimeMs) > NARRATION_THROTTLE_MS
     }
+
+    private fun pickTurnStartPhrase(): String {
+        val total = turnStartPhrases.sumOf { it.second }
+        var roll = kotlin.random.Random.nextFloat() * total
+        for ((phrase, weight) in turnStartPhrases) {
+            roll -= weight
+            if (roll <= 0f) return phrase
+        }
+        return turnStartPhrases.last().first
+    }
+
+    private val turnStartPhrases = listOf(
+        "Gotcha" to 5,
+        "Let me look into that" to 2,
+        "Hmm hmm" to 2,
+        "Got it" to 2,
+        "On it" to 1,
+        "Working on it" to 1,
+        "One moment" to 1,
+        "Let me check" to 1,
+        "I'm on it" to 1,
+        "Sure thing" to 1,
+        "Okay" to 1,
+        "Alright" to 1,
+        "Let me see" to 1,
+        "Give me a second" to 1,
+        "Hang on" to 1
+    )
 
     private fun triggerEndVibration() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

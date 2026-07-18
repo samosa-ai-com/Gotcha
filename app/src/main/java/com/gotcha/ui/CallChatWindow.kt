@@ -1,5 +1,7 @@
 package com.gotcha.ui
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
@@ -30,6 +32,7 @@ import kotlin.math.abs
  * ring drawn as a separate [WindowManager] overlay) to fire — taps alone
  * are ignored.
  */
+@Suppress("TooManyFunctions")
 class CallChatWindow(context: Context) {
 
     private val appContext = context.applicationContext
@@ -56,6 +59,7 @@ class CallChatWindow(context: Context) {
     // Action button ring overlay (static colored ring during tool execution)
     private var actionRingOverlayView: View? = null
     private var actionRingDrawable: RingDrawable? = null
+    private var actionRingAnimator: ValueAnimator? = null
 
     private var currentState: CallState = CallState.IDLE
 
@@ -187,6 +191,7 @@ class CallChatWindow(context: Context) {
     }
 
     private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
+        val density = appContext.resources.displayMetrics.density
         val bg = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             if (isEnd) {
@@ -210,6 +215,8 @@ class CallChatWindow(context: Context) {
             text = emoji
             textSize = 18f
             gravity = Gravity.CENTER
+            setIncludeFontPadding(false)
+            translationY = -1.5f * density
             setTextColor(Color.WHITE)
             setShadowLayer(4f, 0f, 2f, Color.parseColor("#80000000"))
             this.background = bg
@@ -310,16 +317,16 @@ class CallChatWindow(context: Context) {
             val cy = (rootParams?.y ?: 0) + btnPx / 2
 
             if (actionRingOverlayView != null) {
-                // Update existing ring color
                 actionRingDrawable?.strokeColor = color
+                startActionRingAnimation(color)
                 return@post
             }
 
             val ringSize = (BTN_SIZE_DP * 1.5f * density).toInt()
             val drawable = RingDrawable().apply {
-                ringRadius = btnPx * 0.65f
+                ringRadius = 0f
                 strokeWidth = 2.5f * density
-                strokeColor = color
+                strokeColor = ColorUtils.setAlphaComponent(color, 0)
                 fillColor = android.graphics.Color.TRANSPARENT
             }
             actionRingDrawable = drawable
@@ -347,13 +354,92 @@ class CallChatWindow(context: Context) {
             try {
                 windowManager.addView(view, params)
                 actionRingOverlayView = view
+                startActionRingAnimation(color)
             } catch (_: Exception) {
                 actionRingOverlayView = null
             }
         }
     }
 
+    /** Wave ripple → gentle breathing pulse. */
+    private fun startActionRingAnimation(color: Int) {
+        actionRingAnimator?.cancel()
+        val drawable = actionRingDrawable ?: return
+        val density = appContext.resources.displayMetrics.density
+        val btnPx = (BTN_SIZE_DP * density).toInt()
+        val baseRadius = btnPx * 0.65f
+        val baseStroke = 2.5f * density
+
+        val wave = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 600L
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+
+                val radiusScale: Float = when {
+                    p < 0.45f -> {
+                        val t = p / 0.45f
+                        0.2f + (1.35f - 0.2f) * t * t * (3f - 2f * t)
+                    }
+                    p < 0.75f -> {
+                        val t = (p - 0.45f) / 0.3f
+                        1.35f - (1.35f - 0.85f) * t * t
+                    }
+                    else -> {
+                        val t = (p - 0.75f) / 0.25f
+                        0.85f + (1f - 0.85f) * t * t * (3f - 2f * t)
+                    }
+                }
+                drawable.ringRadius = baseRadius * radiusScale
+
+                val strokeScale: Float = when {
+                    p < 0.25f -> 1f + (2.8f - 1f) * (p / 0.25f)
+                    p < 0.45f -> 2.8f - (2.8f - 1f) * ((p - 0.25f) / 0.2f)
+                    else -> 1f
+                }
+                drawable.strokeWidth = baseStroke * strokeScale
+
+                val alpha = if (p < 0.12f) p / 0.12f else 1f
+                drawable.strokeColor = ColorUtils.setAlphaComponent(
+                    color, (alpha * 255).toInt()
+                )
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    startActionRingBreathe(color)
+                }
+            })
+            start()
+        }
+        actionRingAnimator = wave
+    }
+
+    /** Looping gentle pulse on alpha + radius. */
+    private fun startActionRingBreathe(color: Int) {
+        val drawable = actionRingDrawable ?: return
+        val baseRadius = drawable.ringRadius
+
+        val breathe = ValueAnimator.ofFloat(0.4f, 1f).apply {
+            duration = 2000L
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                drawable.strokeColor = ColorUtils.setAlphaComponent(
+                    color, (p * 255).toInt()
+                )
+                // Subtle radius pulse for "alive" feel
+                drawable.ringRadius = baseRadius * (0.97f + 0.03f * p)
+            }
+            start()
+        }
+        actionRingAnimator = breathe
+    }
+
     private fun removeActionRingOverlay() {
+        actionRingAnimator?.cancel()
+        actionRingAnimator = null
         actionRingOverlayView?.let {
             try { windowManager.removeView(it) } catch (_: Exception) { }
             actionRingOverlayView = null
