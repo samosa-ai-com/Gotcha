@@ -33,6 +33,9 @@ import com.gotcha.data.ThemeMode
 import kotlin.math.abs
 import kotlin.math.hypot
 
+/** Accessibility label for the ball root view — used by UiAutomator to find the overlay. */
+const val ASSISTIVE_BALL_CONTENT_DESCRIPTION = "Gotcha assistive ball"
+
 /**
  * The floating "assistive ball" drawn over other apps via SYSTEM_ALERT_WINDOW,
  * reworked into a Messenger-Bubbles-style call head:
@@ -339,6 +342,7 @@ class AssistiveBallOverlay(context: Context) {
     @SuppressLint("ClickableViewAccessibility")
     private fun buildBall(): View {
         return ImageView(appContext).apply {
+            contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
             setImageResource(R.mipmap.ic_launcher_round)
             scaleType = ImageView.ScaleType.CENTER_CROP
             // Clip the square launcher icon into a circular "ball".

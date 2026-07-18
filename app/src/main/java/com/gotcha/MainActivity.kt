@@ -136,7 +136,9 @@ class MainActivity : ComponentActivity() {
             }
             // Request MediaProjection consent for screenshot capture
             // Always request if not granted in this process session (cleared on process kill)
-            if (ScreenPerception.mediaProjectionResultData == null) {
+            if (ScreenPerception.mediaProjectionResultData == null &&
+                !prefs.getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
+            ) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     val mpManager = getSystemService(
                         Context.MEDIA_PROJECTION_SERVICE
@@ -512,6 +514,9 @@ class MainActivity : ComponentActivity() {
 
         /** SharedPreferences key to track first-launch permission setup. */
         const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"
+
+        /** SharedPreferences key: when true, skip the MediaProjection consent prompt (test-only). */
+        const val KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT = "suppress_media_projection_prompt"
 
         /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */
         @Volatile

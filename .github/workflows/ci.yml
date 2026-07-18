@@ -5,6 +5,8 @@ on:
     branches: [master, development, development, rishabh-development]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -45,4 +47,79 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/testDebugUnitTest/
+          retention-days: 14
+
+  instrumented-smoke:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run smoke instrumented tests (API 34, GMD)
+        run: |
+          ./gradlew :app:smokeGroupDebugAndroidTest --stacktrace \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+
+      - name: Upload instrumented test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-smoke-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          retention-days: 14
+
+  instrumented-full:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run full instrumented test matrix (API 27/30/33/34, GMD)
+        run: |
+          ./gradlew :app:fullGroupDebugAndroidTest --stacktrace \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            -Dorg.gradle.workers.max=2 \
+            -Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1 \
+            -Pandroid.experimental.testOptions.managedDevices.setupTimeoutMinutes=20
+
+      - name: Upload instrumented test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-full-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
           retention-days: 14

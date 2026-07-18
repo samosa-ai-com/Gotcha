@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -222,7 +223,8 @@ fun SettingsScreen(
             SectionHeader(
                 title = "AI Configuration",
                 expanded = aiConfigExpanded,
-                onToggle = { aiConfigExpanded = !aiConfigExpanded }
+                onToggle = { aiConfigExpanded = !aiConfigExpanded },
+                modifier = Modifier.testTag("settings_ai_config_header")
             )
             AnimatedVisibility(visible = aiConfigExpanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -308,14 +310,14 @@ fun SettingsScreen(
                                     Text(if (showKey) "Hide" else "Show")
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().testTag("settings_api_key")
                         )
                         OutlinedTextField(
                             value = baseUrl,
                             onValueChange = { baseUrl = it },
                             label = { Text("Base URL (OpenAI-compatible)") },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().testTag("settings_base_url")
                         )
                     }
                     ExposedDropdownMenuBox(
@@ -332,7 +334,7 @@ fun SettingsScreen(
                             label = { Text("Main model") },
                             placeholder = { Text("(select model)") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                            modifier = Modifier.fillMaxWidth().menuAnchor().testTag("settings_model")
                         )
                         ExposedDropdownMenu(
                             expanded = modelExpanded,
@@ -512,7 +514,7 @@ fun SettingsScreen(
                             LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
                             LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
                         },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().testTag("settings_save")
                     ) { Text("Save") }
                     OutlinedButton(
                         onClick = {
@@ -859,10 +861,11 @@ private fun SamosaAuthSection(
 private fun SectionHeader(
     title: String,
     expanded: Boolean,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
             .padding(vertical = 8.dp),
