@@ -14,7 +14,6 @@ import com.gotcha.agent.ScreenSnapshot
 import com.gotcha.agent.friendlyAgentError
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
-import com.gotcha.audio.SttOutcome
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
@@ -391,49 +390,20 @@ class CallSessionController(
     }
 
     /**
-     * Try voice confirmation first, fall back to visual overlay on silence.
+     * Show a visual confirmation overlay over all apps for destructive actions.
+     * Denies on timeout after 90 seconds.
      */
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-
-        // Always show visual overlay as fallback
+        speakText("I need a confirmation — check the dialog on your screen.")
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
             summary = description,
             onAllow = { gate.complete(true) },
             onDeny = { gate.complete(false) }
         )
-
-        // Phase 1: Voice confirmation (fast path)
-        speakText("I'm about to $description. Say yes or no.")
-        delay(200)
-        val voiceAnswer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            withTimeoutOrNull(VOICE_CONFIRM_TIMEOUT_MS) {
-                val outcome = sttEngine.listenOnceAndroid()
-                when (outcome) {
-                    is SttOutcome.Text -> outcome.text.lowercase().trim()
-                    is SttOutcome.Error -> null
-                }
-            }
-        } else {
-            null
-        }
-
-        if (voiceAnswer != null) {
-            if (isAffirmative(voiceAnswer)) {
-                addTranscript(MessageKind.USER, "Yes")
-            } else if (isNegative(voiceAnswer)) {
-                addTranscript(MessageKind.USER, "No")
-                return false.also { confirmationOverlay.dismiss() }
-            }
-        }
-
-        // Phase 2: Visual fallback
-        if (voiceAnswer == null) {
-            speakText("I didn't catch that. Tap Allow or Deny on the screen.")
-        }
-        val approved = withTimeoutOrNull(VISUAL_CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
+        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
         confirmationOverlay.dismiss()
         _state.value = CallState.THINKING
         return approved
@@ -512,20 +482,9 @@ class CallSessionController(
         }
     }
 
-    private fun isAffirmative(text: String): Boolean = text in setOf(
-        "yes", "yeah", "yep", "sure", "go ahead", "okay", "ok",
-        "confirm", "do it", "allow", "true", "please"
-    )
-
-    private fun isNegative(text: String): Boolean = text in setOf(
-        "no", "nope", "nah", "cancel", "stop", "deny",
-        "don't", "dont", "never", "false", "nay"
-    )
-
     companion object {
         private const val NARRATION_THROTTLE_MS = 3_000L
-        private const val VOICE_CONFIRM_TIMEOUT_MS = 5_000L
-        private const val VISUAL_CONFIRM_TIMEOUT_MS = 55_000L
+        private const val CONFIRM_TIMEOUT_MS = 90_000L
         const val CALLS_WORKING_ROOT = "/storage/emulated/0/Gotcha/calls"
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
