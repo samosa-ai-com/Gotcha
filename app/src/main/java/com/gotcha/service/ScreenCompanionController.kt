@@ -34,6 +34,7 @@ class ScreenCompanionController(
 
     private val appChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            android.util.Log.d("ScreenCompanionController", "appChangeReceiver received action: ${intent?.action}")
             if (intent?.action == ACTION_APP_CHANGED) {
                 performLightweightScan(triggerType = "AppChange")
             } else if (intent?.action == ACTION_CLIPBOARD_CHANGED) {
@@ -81,6 +82,10 @@ class ScreenCompanionController(
                 }
 
                 if (triggerType == "Clipboard") {
+                    android.util.Log.d(
+                        "ScreenCompanionController",
+                        "Clipboard trigger: request read on Main"
+                    )
                     // We must read clipboard from Main thread via overlay to avoid SecurityException
                     withContext(Dispatchers.Main) {
                         onReadClipboardRequest()

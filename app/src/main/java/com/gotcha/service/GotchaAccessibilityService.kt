@@ -3,8 +3,6 @@ package com.gotcha.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Path
 import android.os.Build
@@ -40,9 +38,99 @@ class GotchaAccessibilityService : AccessibilityService() {
     // Passive: we drive the UI on demand from tools rather than reacting to events,
     // except for broadcasting window state changes to the ScreenCompanionController.
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val intent = android.content.Intent("com.gotcha.action.APP_CHANGED")
+        if (event == null) return
+
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val intent = android.content.Intent("com.gotcha.action.APP_CHANGED").apply {
+                setPackage(packageName)
+            }
             sendBroadcast(intent)
+        }
+
+        // Detect copy actions or clipboard toast alerts
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            val source = event.source
+            if (source != null) {
+                val text = source.text?.toString() ?: ""
+                val desc = source.contentDescription?.toString() ?: ""
+                val viewId = source.viewIdResourceName ?: ""
+                if (isCopyString(text) || isCopyString(desc) || viewId.lowercase().contains("copy")) {
+                    android.util.Log.d(
+                        "GotchaAccessibilityService",
+                        "Copy click: text=$text, desc=$desc, id=$viewId"
+                    )
+                    triggerClipboardBroadcast()
+                }
+                source.recycle()
+            }
+            val eventTexts = event.text ?: emptyList()
+            for (t in eventTexts) {
+                val textStr = t?.toString() ?: ""
+                if (isCopyString(textStr)) {
+                    android.util.Log.d("GotchaAccessibilityService", "Copy event text: $textStr")
+                    triggerClipboardBroadcast()
+                    break
+                }
+            }
+        } else if (event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            val eventTexts = event.text ?: emptyList()
+            for (t in eventTexts) {
+                val textStr = t?.toString() ?: ""
+                if (isClipboardToast(textStr)) {
+                    android.util.Log.d(
+                        "GotchaAccessibilityService",
+                        "Clipboard toast: $textStr"
+                    )
+                    triggerClipboardBroadcast()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun isCopyString(s: String): Boolean {
+        val lower = s.lowercase().trim()
+        return lower == "copy" ||
+            lower == "复制" ||
+            lower == "剪切" ||
+            lower == "copying" ||
+            lower == "copier" ||
+            lower == "copiar" ||
+            lower == "kopieren" ||
+            lower == "copia" ||
+            lower == "コピー" ||
+            lower == "복사"
+    }
+
+    private fun isClipboardToast(s: String): Boolean {
+        val lower = s.lowercase()
+        return lower.contains("copy") ||
+            lower.contains("copied") ||
+            lower.contains("clipboard") ||
+            lower.contains("复制") ||
+            lower.contains("剪贴") ||
+            lower.contains("剪切板") ||
+            lower.contains("copi") ||
+            lower.contains("kopier") ||
+            lower.contains("clip")
+    }
+
+    private fun triggerClipboardBroadcast() {
+        try {
+            val intent = android.content.Intent("com.gotcha.action.CLIPBOARD_CHANGED").apply {
+                setPackage(packageName)
+            }
+            sendBroadcast(intent)
+            android.util.Log.d(
+                "GotchaAccessibilityService",
+                "Sent CLIPBOARD_CHANGED broadcast"
+            )
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "GotchaAccessibilityService",
+                "Failed to send broadcast",
+                e
+            )
         }
     }
 
@@ -256,12 +344,9 @@ class GotchaAccessibilityService : AccessibilityService() {
 
     /** Register a clipboard listener to cache clipboard content. */
     internal fun initClipboardListener() {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.addPrimaryClipChangedListener {
-            try {
-                val intent = android.content.Intent("com.gotcha.action.CLIPBOARD_CHANGED")
-                sendBroadcast(intent)
-            } catch (_: Exception) {}
-        }
+        android.util.Log.d(
+            "GotchaAccessibilityService",
+            "initClipboardListener: using event-based detection"
+        )
     }
 }

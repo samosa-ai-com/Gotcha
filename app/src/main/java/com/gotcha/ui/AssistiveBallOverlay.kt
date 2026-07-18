@@ -205,6 +205,16 @@ class AssistiveBallOverlay(context: Context) {
     fun setSmartActionAvailable(label: String, prompt: String) {
         mainHandler.post {
             if (isCallActive()) return@post
+
+            val currentLabel = pendingSmartAction?.first ?: ""
+            if (currentLabel.contains("copied", ignoreCase = true) && !label.contains("copied", ignoreCase = true)) {
+                android.util.Log.d(
+                    "AssistiveBallOverlay",
+                    "Preventing overwrite of active clipboard action '$currentLabel' by passive action '$label'"
+                )
+                return@post
+            }
+
             pendingSmartAction = Pair(label, prompt)
             showSmartActionRing()
             mainHandler.removeCallbacks(smartActionClearRunnable)
@@ -855,13 +865,16 @@ class AssistiveBallOverlay(context: Context) {
         const val DOCK_SIDE_END = 1
     }
     fun readClipboardWithFocus(onResult: (android.content.ClipData?) -> Unit) {
+        android.util.Log.d("AssistiveBallOverlay", "readClipboardWithFocus called. Setting onClipboardRead callback.")
         ClipboardReaderActivity.onClipboardRead = onResult
         val intent = android.content.Intent(appContext, ClipboardReaderActivity::class.java).apply {
             addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION)
         }
         try {
+            android.util.Log.d("AssistiveBallOverlay", "Starting ClipboardReaderActivity...")
             appContext.startActivity(intent)
-        } catch (e: SecurityException) {
+            android.util.Log.d("AssistiveBallOverlay", "startActivity called successfully")
+        } catch (e: Exception) {
             android.util.Log.e("AssistiveBallOverlay", "Failed to start ClipboardReaderActivity", e)
             onResult(null)
         }

@@ -94,23 +94,31 @@ class AssistiveBallService : Service() {
                 overlay.setSmartActionAvailable(label, prompt)
             },
             onReadClipboardRequest = {
-                /* ... */
-
+                android.util.Log.d("AssistiveBallService", "onReadClipboardRequest called")
                 overlay.readClipboardWithFocus { clip ->
+                    android.util.Log.d(
+                        "AssistiveBallService",
+                        "readClipboardWithFocus: null=${clip == null}, count=${clip?.itemCount ?: 0}"
+                    )
                     com.gotcha.service.GotchaAccessibilityService.lastClipboardData = clip
                     val clipText = clip?.getItemAt(0)?.text?.toString()
+                    android.util.Log.d("AssistiveBallService", "clipText = $clipText")
                     if (!clipText.isNullOrBlank()) {
                         if (android.util.Patterns.WEB_URL.matcher(clipText).find()) {
+                            android.util.Log.d("AssistiveBallService", "Setting smart action: Link copied. Summarize?")
                             overlay.setSmartActionAvailable(
                                 "🔗 Link copied. Summarize?",
-                                "Summarize the content of the copied URL."
+                                "Summarize the content of the copied URL: $clipText"
                             )
                         } else {
+                            android.util.Log.d("AssistiveBallService", "Setting smart action: Text copied. Translate?")
                             overlay.setSmartActionAvailable(
                                 "📋 Text copied. Translate?",
-                                "Translate the copied text to English if it is not, otherwise summarize it."
+                                "Translate the copied text to English if it is not, otherwise summarize it:\n\n$clipText"
                             )
                         }
+                    } else {
+                        android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
                     }
                 }
             }
@@ -171,7 +179,9 @@ class AssistiveBallService : Service() {
     }
 
     private fun handleSmartActionSelected(prompt: String, history: MutableList<com.gotcha.llm.ChatMessage>) {
-        val attachScreenshot = prompt.contains("screenshot", ignoreCase = true)
+        val attachScreenshot = prompt.contains("screenshot", ignoreCase = true) ||
+            prompt.contains("screen", ignoreCase = true) ||
+            prompt.contains("webpage", ignoreCase = true)
         screenCompanionPanel.show(prompt)
         scope.launch {
             try {

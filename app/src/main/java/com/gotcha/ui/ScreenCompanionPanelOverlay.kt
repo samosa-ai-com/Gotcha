@@ -38,7 +38,12 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     @SuppressLint("ClickableViewAccessibility")
     fun show(initialPrompt: String, resultText: String? = null) {
-        if (panelView != null) return
+        if (panelView != null) {
+            try {
+                windowManager.removeView(panelView)
+            } catch (_: Exception) {}
+            panelView = null
+        }
 
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
