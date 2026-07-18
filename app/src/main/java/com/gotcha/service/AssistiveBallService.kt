@@ -92,6 +92,7 @@ class AssistiveBallService : Service() {
         }
 
         callController.onError = { overlay.showError(it) }
+        callController.onActionRingColor = { color -> chatWindow.setActionRingColor(color) }
         callController.onCaptureChrome = { hide ->
             if (hide) {
                 overlay.hideChromeForCapture()

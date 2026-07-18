@@ -2,6 +2,9 @@ package com.gotcha.service
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.core.content.ContextCompat
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
@@ -11,6 +14,7 @@ import com.gotcha.agent.ScreenSnapshot
 import com.gotcha.agent.friendlyAgentError
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
+import com.gotcha.audio.SttOutcome
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
@@ -18,6 +22,8 @@ import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
+import com.gotcha.tools.Category
+import com.gotcha.tools.ToolCategories
 import com.gotcha.ui.ConfirmationOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -72,6 +78,11 @@ class CallSessionController(
     @Volatile
     private var pendingReply: String? = null
 
+    /** Fire-and-forget TTS narration for tool progress (preemptible). */
+    private var narrationJob: Job? = null
+    private var lastNarrationTimeMs = 0L
+    private var lastNarratedCategory: Category? = null
+
     private val _state = MutableStateFlow(CallState.IDLE)
     val state: StateFlow<CallState> = _state.asStateFlow()
 
@@ -87,6 +98,9 @@ class CallSessionController(
 
     /** Set by the service: surface a start-call failure to the user. */
     var onError: (String) -> Unit = { }
+
+    /** Set by the service: update the mic-button ring color during tool execution. */
+    var onActionRingColor: (Int?) -> Unit = { }
 
     fun isActive(): Boolean = _state.value != CallState.IDLE && _state.value != CallState.ENDING
 
@@ -117,6 +131,7 @@ class CallSessionController(
             workingDirRoot = CALLS_WORKING_ROOT
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
+        newEngine.callMode = true
         newEngine.setupWorkingDir()
         engine = newEngine
         _state.value = CallState.STARTING
@@ -134,6 +149,8 @@ class CallSessionController(
      */
     fun stopAgent() {
         if (!isActive() || _state.value == CallState.ENDING) return
+        narrationJob?.cancel()
+        narrationJob = null
         currentTurnJob?.cancel()
         currentTurnJob = null
         ttsEngine.stop()
@@ -142,6 +159,7 @@ class CallSessionController(
         questionGate?.complete("")
         questionGate = null
         pendingReply = null
+        onActionRingColor(null)
         _state.value = CallState.READY
     }
 
@@ -149,6 +167,8 @@ class CallSessionController(
     fun endCall() {
         val endingEngine = engine ?: return
         _state.value = CallState.ENDING
+        narrationJob?.cancel()
+        narrationJob = null
         loopJob?.cancel()
         loopJob = null
         currentTurnJob?.cancel()
@@ -224,6 +244,11 @@ class CallSessionController(
             val eng = engine ?: return@launch
             eng.history += buildTurnMessage(cleanedText)
             pendingReply = null
+
+            // Narrate start-of-turn to give the user immediate feedback
+            narrate("Let me look into that")
+            onActionRingColor(Category.FOREGROUND.ringColorArgb)
+
             try {
                 eng.run(AgentMode.OPERATOR)
             } catch (e: CancellationException) {
@@ -237,6 +262,8 @@ class CallSessionController(
             val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
             speakText(reply)
+            triggerEndVibration()
+            onActionRingColor(null)
             _state.value = CallState.READY
         }
     }
@@ -297,6 +324,18 @@ class CallSessionController(
 
     override fun onActivity(activity: String?) {
         _statusLine.value = activity
+        if (_state.value != CallState.THINKING) return
+        val toolName = activity?.removePrefix("Running:")?.removeSuffix("…")?.trim()
+        if (toolName != null && toolName != "Thinking") {
+            val category = ToolCategories.classify(toolName)
+            onActionRingColor(category.ringColorArgb)
+            if (category.isNarratable && canNarrate(category)) {
+                val msg = category.narration ?: return
+                narrate(msg)
+                lastNarrationTimeMs = System.currentTimeMillis()
+                lastNarratedCategory = category
+            }
+        }
     }
 
     override fun onTokenCount(totalTokens: Int) {
@@ -310,6 +349,17 @@ class CallSessionController(
     override fun onSubAgentUpdate(running: String?, currentAction: String?) {
         _statusLine.value = running?.let { r ->
             if (currentAction.isNullOrBlank()) r else "$r — $currentAction"
+        }
+        // Narration for sub-agent steps (throttled, category-based)
+        if (running != null && _state.value == CallState.THINKING) {
+            val inferredTool = currentAction?.substringBefore("(")?.trim() ?: running
+            val category = ToolCategories.classify(inferredTool)
+            onActionRingColor(category.ringColorArgb)
+            if (category.isNarratable && canNarrate(category) && !currentAction.isNullOrBlank()) {
+                narrate(currentAction.take(60))
+                lastNarrationTimeMs = System.currentTimeMillis()
+                lastNarratedCategory = category
+            }
         }
     }
 
@@ -341,20 +391,49 @@ class CallSessionController(
     }
 
     /**
-     * Destructive actions still require a deliberate visual tap (not a
-     * possibly-misheard "yes"): reuse the over-other-apps ConfirmationOverlay.
+     * Try voice confirmation first, fall back to visual overlay on silence.
      */
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        speakText("I need a confirmation — check the dialog on your screen.")
+
+        // Always show visual overlay as fallback
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
             summary = description,
             onAllow = { gate.complete(true) },
             onDeny = { gate.complete(false) }
         )
-        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
+
+        // Phase 1: Voice confirmation (fast path)
+        speakText("I'm about to $description. Say yes or no.")
+        delay(200)
+        val voiceAnswer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            withTimeoutOrNull(VOICE_CONFIRM_TIMEOUT_MS) {
+                val outcome = sttEngine.listenOnceAndroid()
+                when (outcome) {
+                    is SttOutcome.Text -> outcome.text.lowercase().trim()
+                    is SttOutcome.Error -> null
+                }
+            }
+        } else {
+            null
+        }
+
+        if (voiceAnswer != null) {
+            if (isAffirmative(voiceAnswer)) {
+                addTranscript(MessageKind.USER, "Yes")
+            } else if (isNegative(voiceAnswer)) {
+                addTranscript(MessageKind.USER, "No")
+                return false.also { confirmationOverlay.dismiss() }
+            }
+        }
+
+        // Phase 2: Visual fallback
+        if (voiceAnswer == null) {
+            speakText("I didn't catch that. Tap Allow or Deny on the screen.")
+        }
+        val approved = withTimeoutOrNull(VISUAL_CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
         confirmationOverlay.dismiss()
         _state.value = CallState.THINKING
         return approved
@@ -399,11 +478,57 @@ class CallSessionController(
         }
     }
 
+    private fun narrate(text: String) {
+        if (text.isBlank() || _state.value != CallState.THINKING) return
+        val s = settingsRepository.load()
+        if (s.ttsProvider == AudioProvider.NONE) return
+        narrationJob?.cancel()
+        narrationJob = scope.launch {
+            val voice = if (s.ttsProvider == AudioProvider.API) {
+                if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
+                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+            } else {
+                ""
+            }
+            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice)
+        }
+    }
+
+    private fun canNarrate(category: Category): Boolean {
+        val now = System.currentTimeMillis()
+        return category != lastNarratedCategory || (now - lastNarrationTimeMs) > NARRATION_THROTTLE_MS
+    }
+
+    private fun triggerEndVibration() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibrator?.hasVibrator() == true) {
+            vibrator.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 50, 100, 50),
+                    -1
+                )
+            )
+        }
+    }
+
+    private fun isAffirmative(text: String): Boolean = text in setOf(
+        "yes", "yeah", "yep", "sure", "go ahead", "okay", "ok",
+        "confirm", "do it", "allow", "true", "please"
+    )
+
+    private fun isNegative(text: String): Boolean = text in setOf(
+        "no", "nope", "nah", "cancel", "stop", "deny",
+        "don't", "dont", "never", "false", "nay"
+    )
+
     companion object {
+        private const val NARRATION_THROTTLE_MS = 3_000L
+        private const val VOICE_CONFIRM_TIMEOUT_MS = 5_000L
+        private const val VISUAL_CONFIRM_TIMEOUT_MS = 55_000L
         const val CALLS_WORKING_ROOT = "/storage/emulated/0/Gotcha/calls"
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
-        private const val CONFIRM_TIMEOUT_MS = 60_000L
         private const val TOOL_TEXT_LIMIT = 300
     }
 }

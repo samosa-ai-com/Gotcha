@@ -53,6 +53,10 @@ class CallChatWindow(context: Context) {
     private var ringOverlayView: View? = null
     private var ringOverlayAnimator: ValueAnimator? = null
 
+    // Action button ring overlay (static colored ring during tool execution)
+    private var actionRingOverlayView: View? = null
+    private var actionRingDrawable: RingDrawable? = null
+
     private var currentState: CallState = CallState.IDLE
 
     // Drag state
@@ -91,6 +95,7 @@ class CallChatWindow(context: Context) {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
             removeRingOverlay()
+            removeActionRingOverlay()
             rootView?.let {
                 try { windowManager.removeView(it) } catch (_: Exception) { }
             }
@@ -260,9 +265,9 @@ class CallChatWindow(context: Context) {
             windowManager.addView(view, params)
             ringOverlayView = view
 
-            val btnPx = dp(BTN_SIZE_DP.toFloat())
-            val minRadius = btnPx * 0.50f
-            val maxRadius = btnPx * 1.60f
+            val btnSizeDp = dp(BTN_SIZE_DP.toFloat())
+            val minRadius = btnSizeDp * 0.50f
+            val maxRadius = btnSizeDp * 1.60f
             val strokePx = 2.5f * density
             val fillBase = Color.parseColor("#FF6B6B")
             val strokeBase = Color.parseColor("#FF6B6B")
@@ -288,6 +293,71 @@ class CallChatWindow(context: Context) {
             }
         } catch (_: Exception) {
             ringOverlayView = null
+        }
+    }
+
+    /** Show or hide a thin static ring around the action (mic) button. */
+    fun setActionRingColor(color: Int?) {
+        mainHandler.post {
+            if (color == null) {
+                removeActionRingOverlay()
+                return@post
+            }
+            val density = appContext.resources.displayMetrics.density
+            val paddingPx = (8 * density).toInt()
+            val btnPx = (BTN_SIZE_DP * density).toInt()
+            val cx = (rootParams?.x ?: 0) + paddingPx + btnPx / 2
+            val cy = (rootParams?.y ?: 0) + btnPx / 2
+
+            if (actionRingOverlayView != null) {
+                // Update existing ring color
+                actionRingDrawable?.strokeColor = color
+                return@post
+            }
+
+            val ringSize = (BTN_SIZE_DP * 1.5f * density).toInt()
+            val drawable = RingDrawable().apply {
+                ringRadius = btnPx * 0.65f
+                strokeWidth = 2.5f * density
+                strokeColor = color
+                fillColor = android.graphics.Color.TRANSPARENT
+            }
+            actionRingDrawable = drawable
+
+            val view = View(appContext).apply { background = drawable }
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            val params = WindowManager.LayoutParams(
+                ringSize,
+                ringSize,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = cx - ringSize / 2
+                y = cy - ringSize / 2
+            }
+            try {
+                windowManager.addView(view, params)
+                actionRingOverlayView = view
+            } catch (_: Exception) {
+                actionRingOverlayView = null
+            }
+        }
+    }
+
+    private fun removeActionRingOverlay() {
+        actionRingOverlayView?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) { }
+            actionRingOverlayView = null
+            actionRingDrawable = null
         }
     }
 
