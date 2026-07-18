@@ -70,6 +70,7 @@ class AssistiveBallOverlay(context: Context) {
     var isCallActive: () -> Boolean = { false }
 
     private var pendingSmartAction: Pair<String, String>? = null
+    private var lastOfferedLabel: String? = null
     private var smartActionRingView: View? = null
     private var smartActionRingAnimator: ValueAnimator? = null
     private val smartActionClearRunnable = Runnable { clearSmartAction() }
@@ -215,16 +216,22 @@ class AssistiveBallOverlay(context: Context) {
                 return@post
             }
 
+            if (label == lastOfferedLabel) {
+                return@post
+            }
+
+            lastOfferedLabel = label
             pendingSmartAction = Pair(label, prompt)
             showSmartActionRing()
             mainHandler.removeCallbacks(smartActionClearRunnable)
-            mainHandler.postDelayed(smartActionClearRunnable, 120000L) // 2 minutes
+            mainHandler.postDelayed(smartActionClearRunnable, 45000L) // 45 seconds
         }
     }
 
     private fun clearSmartAction() {
         mainHandler.post {
             pendingSmartAction = null
+            lastOfferedLabel = null
             removeSmartActionRing()
             removeMenu()
         }
@@ -237,7 +244,7 @@ class AssistiveBallOverlay(context: Context) {
         val ballPx = dp(BALL_SIZE_DP)
         val drawable = RingDrawable().apply {
             fillColor = Color.TRANSPARENT
-            strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, 160)
+            strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, 120)
             strokeWidth = 2f * density
         }
         val view = View(appContext).apply { background = drawable }
@@ -262,15 +269,26 @@ class AssistiveBallOverlay(context: Context) {
             val maxRadius = ballPx * 0.65f
 
             smartActionRingAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = 1500L
+                duration = 1200L
                 repeatMode = ValueAnimator.REVERSE
-                repeatCount = ValueAnimator.INFINITE
+                repeatCount = 5
                 interpolator = AccelerateDecelerateInterpolator()
                 addUpdateListener { anim ->
                     val p = anim.animatedValue as Float
                     drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
-                    drawable.strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, (60 + 100 * (1f - p)).toInt())
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, (40 + 80 * (1f - p)).toInt())
                 }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        smartActionRingView?.animate()
+                            ?.alpha(0f)
+                            ?.setDuration(500L)
+                            ?.withEndAction {
+                                removeSmartActionRing()
+                            }
+                            ?.start()
+                    }
+                })
                 start()
             }
         } catch (_: Exception) {

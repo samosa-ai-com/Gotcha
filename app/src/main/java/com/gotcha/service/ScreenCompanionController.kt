@@ -94,8 +94,20 @@ class ScreenCompanionController(
                 }
 
                 if (triggerType == "AppChange") {
+                    val root = GotchaAccessibilityService.instance?.rootInActiveWindow
+                    val pkg = root?.packageName?.toString() ?: ""
+                    root?.recycle()
+
+                    val isIgnoredForLinks = pkg.contains("browser", ignoreCase = true) ||
+                        pkg.contains("chrome", ignoreCase = true) ||
+                        pkg.contains("firefox", ignoreCase = true) ||
+                        pkg.contains("chromium", ignoreCase = true) ||
+                        pkg.contains("com.gotcha")
+
                     val screenText = ScreenSnapshot.captureScreenText(limit = 40) ?: return@withContext
-                    if (Patterns.WEB_URL.matcher(screenText).find() || screenText.contains("http", ignoreCase = true)) {
+                    val hasLink = Patterns.WEB_URL.matcher(screenText).find() || screenText.contains("http", ignoreCase = true)
+
+                    if (hasLink && !isIgnoredForLinks) {
                         withContext(Dispatchers.Main) {
                             onSmartActionReady(
                                 "🔗 Link detected. Summarize?",
