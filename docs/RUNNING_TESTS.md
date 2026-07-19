@@ -143,9 +143,13 @@ making a visible AVD from it):
 - **CI** (`.github/workflows/ci.yml`) — `instrumented-smoke` runs on every
   push/PR (API 34 only); `instrumented-full` runs nightly and on manual
   `workflow_dispatch` (API 27/30/33/34 as a job matrix). CI does **not** use
-  GMD: GMD's emulator handling never booted on the GitHub runners (the
-  emulator process died instantly with empty stderr on all 5 GMD retries,
-  KVM confirmed working), so CI uses `reactivecircus/android-emulator-runner`
-  to boot the AVD and then runs plain `:app:connectedDebugAndroidTest`
-  against it. GMD remains the local workflow; the CI matrix mirrors the GMD
-  device definitions in `app/build.gradle.kts`.
+  GMD: the emulator failed to boot on the GitHub runners and GMD swallowed
+  its stderr, reporting only "Error message from emulator process = []".
+  Switching to `reactivecircus/android-emulator-runner` surfaced the real
+  error — `FATAL | Not enough space to create userdata partition` (the
+  emulator needs ~7.4 GB free; the runner had ~6.5 GB) — fixed by the
+  "Free disk space" step that removes unused preinstalled toolchains.
+  emulator-runner stays because it reports emulator output and manages
+  boot/wait itself; CI runs plain `:app:connectedDebugAndroidTest`. GMD
+  remains the local workflow; the CI matrix mirrors the GMD device
+  definitions in `app/build.gradle.kts`.
