@@ -8,6 +8,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.rule.GrantPermissionRule
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
@@ -33,6 +34,16 @@ class AssistiveBallTest {
 
     @get:Rule
     val composeRule = createEmptyComposeRule()
+
+    // AssistiveBallService starts as a microphone-type foreground service; on
+    // API 34+ that throws SecurityException unless RECORD_AUDIO is granted at
+    // start time. The real app requests it during first-launch onboarding,
+    // which TestSeed skips — so grant it here to match the state a real user
+    // is in when the ball toggle is reachable. (Passed locally only because
+    // reused GMD AVDs kept an earlier grant; fresh CI devices crashed.)
+    @get:Rule
+    val grantMic: GrantPermissionRule =
+        GrantPermissionRule.grant(android.Manifest.permission.RECORD_AUDIO)
 
     private var scenario: ActivityScenario<MainActivity>? = null
     private val mockLlm = MockLlm()
