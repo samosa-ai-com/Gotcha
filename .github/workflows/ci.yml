@@ -63,6 +63,24 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Temporary: the first real run failed with "Unable to start Android emulator
+      # ... Error message from emulator process = []" (empty — the process died before
+      # producing any output). That's almost always missing /dev/kvm access, but the
+      # workflow already follows the standard documented recipe for granting it, so
+      # this prints hard evidence instead of guessing at another blind fix.
+      - name: KVM diagnostics
+        run: |
+          echo "--- /dev/kvm ---"
+          ls -la /dev/kvm || echo "MISSING /dev/kvm"
+          echo "--- current user groups ---"
+          groups
+          echo "--- CPU virtualization flags (vmx/svm) ---"
+          grep -Em1 'vmx|svm' /proc/cpuinfo || echo "NO vmx/svm flag present in /proc/cpuinfo"
+          echo "--- disk space ---"
+          df -h /
+          echo "--- memory ---"
+          free -h
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -98,6 +116,24 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+
+      # Temporary: the first real run failed with "Unable to start Android emulator
+      # ... Error message from emulator process = []" (empty — the process died before
+      # producing any output). That's almost always missing /dev/kvm access, but the
+      # workflow already follows the standard documented recipe for granting it, so
+      # this prints hard evidence instead of guessing at another blind fix.
+      - name: KVM diagnostics
+        run: |
+          echo "--- /dev/kvm ---"
+          ls -la /dev/kvm || echo "MISSING /dev/kvm"
+          echo "--- current user groups ---"
+          groups
+          echo "--- CPU virtualization flags (vmx/svm) ---"
+          grep -Em1 'vmx|svm' /proc/cpuinfo || echo "NO vmx/svm flag present in /proc/cpuinfo"
+          echo "--- disk space ---"
+          df -h /
+          echo "--- memory ---"
+          free -h
 
       - uses: actions/setup-java@v4
         with:
