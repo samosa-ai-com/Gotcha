@@ -49,6 +49,12 @@ jobs:
             app/build/test-results/testDebugUnitTest/
           retention-days: 14
 
+  # GMD's own emulator handling never booted on these runners: the emulator
+  # process died instantly with empty stderr on all 5 GMD retries, with KVM
+  # confirmed working (kvm_amd loaded, /dev/kvm rw). emulator-runner creates,
+  # boots, and waits for the AVD itself — TESTING_PLAN.md lists it as the CI
+  # fallback to GMD. GMD stays the local workflow; device configs below mirror
+  # the GMD definitions in app/build.gradle.kts.
   instrumented-smoke:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
@@ -62,15 +68,6 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          # The udev rule above only fixes /dev/kvm's *permissions*; it does not load
-          # the CPU-specific KVM submodule. Confirmed via a real run: /dev/kvm existed
-          # as crw-rw-rw- and /proc/cpuinfo showed the svm flag, yet the emulator still
-          # died with zero output — i.e. the device node was accessible but VM creation
-          # itself wasn't actually wired up. Load both submodules; whichever doesn't
-          # match this host's vendor (Intel vs AMD) harmlessly no-ops.
-          sudo modprobe kvm_amd || true
-          sudo modprobe kvm_intel || true
-          lsmod | grep kvm || echo "NO kvm kernel module loaded"
 
       - uses: actions/setup-java@v4
         with:
@@ -79,10 +76,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Run smoke instrumented tests (API 34, GMD)
-        run: |
-          ./gradlew :app:smokeGroupDebugAndroidTest --stacktrace \
-            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect
+      - name: Run smoke instrumented tests (API 34)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: aosp_atd
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload instrumented test reports
         if: always()
@@ -97,7 +100,26 @@ jobs:
   instrumented-full:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Mirrors the GMD "full" group in app/build.gradle.kts. API 27/30 use
+        # plain default images (no usable ATD image at those levels — see the
+        # notes in build.gradle.kts); 33/34 use ATD.
+        include:
+          - api-level: 27
+            target: default
+            profile: pixel_2
+          - api-level: 30
+            target: default
+            profile: pixel_2
+          - api-level: 33
+            target: aosp_atd
+            profile: pixel_6
+          - api-level: 34
+            target: aosp_atd
+            profile: pixel_6
     steps:
       - uses: actions/checkout@v4
 
@@ -107,15 +129,6 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          # The udev rule above only fixes /dev/kvm's *permissions*; it does not load
-          # the CPU-specific KVM submodule. Confirmed via a real run: /dev/kvm existed
-          # as crw-rw-rw- and /proc/cpuinfo showed the svm flag, yet the emulator still
-          # died with zero output — i.e. the device node was accessible but VM creation
-          # itself wasn't actually wired up. Load both submodules; whichever doesn't
-          # match this host's vendor (Intel vs AMD) harmlessly no-ops.
-          sudo modprobe kvm_amd || true
-          sudo modprobe kvm_intel || true
-          lsmod | grep kvm || echo "NO kvm kernel module loaded"
 
       - uses: actions/setup-java@v4
         with:
@@ -124,19 +137,22 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Run full instrumented test matrix (API 27/30/33/34, GMD)
-        run: |
-          ./gradlew :app:fullGroupDebugAndroidTest --stacktrace \
-            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
-            -Dorg.gradle.workers.max=2 \
-            -Pandroid.experimental.testOptions.managedDevices.maxConcurrentDevices=1 \
-            -Pandroid.experimental.testOptions.managedDevices.setupTimeoutMinutes=20
+      - name: Run instrumented tests (API ${{ matrix.api-level }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: ${{ matrix.target }}
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload instrumented test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: instrumented-full-reports
+          name: instrumented-full-reports-api${{ matrix.api-level }}
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
