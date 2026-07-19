@@ -99,11 +99,13 @@ android {
                     apiLevel = 29
                     systemImageSource = "aosp"
                 }
-                // Android 11
+                // Android 11 — the aosp-atd x86 image for this API level appears to hang
+                // on boot on Windows/WHPX (confirmed: qemu process alive but memory flat,
+                // never progresses); the plain aosp x86 image (same as api29) boots fine.
                 create("api30") {
                     device = "Pixel 2"
                     apiLevel = 30
-                    systemImageSource = "aosp-atd"
+                    systemImageSource = "aosp"
                 }
                 // Android 12
                 create("api31") {
