@@ -62,24 +62,15 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-
-      # Temporary: the first real run failed with "Unable to start Android emulator
-      # ... Error message from emulator process = []" (empty — the process died before
-      # producing any output). That's almost always missing /dev/kvm access, but the
-      # workflow already follows the standard documented recipe for granting it, so
-      # this prints hard evidence instead of guessing at another blind fix.
-      - name: KVM diagnostics
-        run: |
-          echo "--- /dev/kvm ---"
-          ls -la /dev/kvm || echo "MISSING /dev/kvm"
-          echo "--- current user groups ---"
-          groups
-          echo "--- CPU virtualization flags (vmx/svm) ---"
-          grep -Em1 'vmx|svm' /proc/cpuinfo || echo "NO vmx/svm flag present in /proc/cpuinfo"
-          echo "--- disk space ---"
-          df -h /
-          echo "--- memory ---"
-          free -h
+          # The udev rule above only fixes /dev/kvm's *permissions*; it does not load
+          # the CPU-specific KVM submodule. Confirmed via a real run: /dev/kvm existed
+          # as crw-rw-rw- and /proc/cpuinfo showed the svm flag, yet the emulator still
+          # died with zero output — i.e. the device node was accessible but VM creation
+          # itself wasn't actually wired up. Load both submodules; whichever doesn't
+          # match this host's vendor (Intel vs AMD) harmlessly no-ops.
+          sudo modprobe kvm_amd || true
+          sudo modprobe kvm_intel || true
+          lsmod | grep kvm || echo "NO kvm kernel module loaded"
 
       - uses: actions/setup-java@v4
         with:
@@ -116,24 +107,15 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-
-      # Temporary: the first real run failed with "Unable to start Android emulator
-      # ... Error message from emulator process = []" (empty — the process died before
-      # producing any output). That's almost always missing /dev/kvm access, but the
-      # workflow already follows the standard documented recipe for granting it, so
-      # this prints hard evidence instead of guessing at another blind fix.
-      - name: KVM diagnostics
-        run: |
-          echo "--- /dev/kvm ---"
-          ls -la /dev/kvm || echo "MISSING /dev/kvm"
-          echo "--- current user groups ---"
-          groups
-          echo "--- CPU virtualization flags (vmx/svm) ---"
-          grep -Em1 'vmx|svm' /proc/cpuinfo || echo "NO vmx/svm flag present in /proc/cpuinfo"
-          echo "--- disk space ---"
-          df -h /
-          echo "--- memory ---"
-          free -h
+          # The udev rule above only fixes /dev/kvm's *permissions*; it does not load
+          # the CPU-specific KVM submodule. Confirmed via a real run: /dev/kvm existed
+          # as crw-rw-rw- and /proc/cpuinfo showed the svm flag, yet the emulator still
+          # died with zero output — i.e. the device node was accessible but VM creation
+          # itself wasn't actually wired up. Load both submodules; whichever doesn't
+          # match this host's vendor (Intel vs AMD) harmlessly no-ops.
+          sudo modprobe kvm_amd || true
+          sudo modprobe kvm_intel || true
+          lsmod | grep kvm || echo "NO kvm kernel module loaded"
 
       - uses: actions/setup-java@v4
         with:
