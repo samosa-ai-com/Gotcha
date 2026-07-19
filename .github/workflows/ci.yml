@@ -76,6 +76,34 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Cache the system image, the AVD, and its boot snapshot so runs after
+      # the first skip the ~1 GB image download and the slow cold boot. The
+      # snapshot is generated once on cache miss (the echo-only runner step),
+      # and test runs boot from it with -no-snapshot-save so the cached clean
+      # state is never overwritten.
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+            /usr/local/lib/android/sdk/system-images/*
+          key: avd-34-aosp_atd-pixel_6
+
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: aosp_atd
+          profile: pixel_6
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: echo "Generated AVD snapshot for caching."
+
       - name: Run smoke instrumented tests (API 34)
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -83,8 +111,9 @@ jobs:
           arch: x86_64
           target: aosp_atd
           profile: pixel_6
+          force-avd-creation: false
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload instrumented test reports
@@ -137,6 +166,31 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Same caching scheme as instrumented-smoke; the api-34 key is shared
+      # with that job since the AVD definition is identical.
+      - name: AVD cache
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+            /usr/local/lib/android/sdk/system-images/*
+          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-${{ matrix.profile }}
+
+      - name: Create AVD and generate snapshot for caching
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          arch: x86_64
+          target: ${{ matrix.target }}
+          profile: ${{ matrix.profile }}
+          force-avd-creation: false
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: echo "Generated AVD snapshot for caching."
+
       - name: Run instrumented tests (API ${{ matrix.api-level }})
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -144,8 +198,9 @@ jobs:
           arch: x86_64
           target: ${{ matrix.target }}
           profile: ${{ matrix.profile }}
+          force-avd-creation: false
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
 
       - name: Upload instrumented test reports
