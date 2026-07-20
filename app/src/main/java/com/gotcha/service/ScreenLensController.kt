@@ -249,7 +249,7 @@ class ScreenLensController(
                     finishMenu(recycle = true)
                 } else {
                     // No accessibility text — OCR the crop, then copy the result.
-                    val crop = pendingCrop?.let { it.copy(it.config, false) }
+                    val crop = pendingCrop?.let { it.copy(android.graphics.Bitmap.Config.ARGB_8888, false) }
                     finishMenu(recycle = true)
                     if (crop != null) onOcrToClipboard(crop) else onError("Couldn't read selection")
                 }

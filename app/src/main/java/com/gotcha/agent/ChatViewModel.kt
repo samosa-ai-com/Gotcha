@@ -518,6 +518,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
 
             if (transcript.isNotBlank()) {
+                lastInputWasVoice = true
                 val navModel = settings.navigatorModel.ifEmpty { settings.model }
                 val cleaned = client?.cleanText(transcript, navModel) ?: transcript
                 onResult(cleaned)

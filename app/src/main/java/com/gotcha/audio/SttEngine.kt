@@ -232,10 +232,7 @@ class SttEngine(
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 20000L)
             putExtra("android.speech.extra.DICTATION_MODE", true)
             if (android.os.Build.VERSION.SDK_INT >= 33) {
-                putExtra(
-                    RecognizerIntent.EXTRA_SEGMENTED_SESSION,
-                    RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS
-                )
+                putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, true)
             }
         }
         try {

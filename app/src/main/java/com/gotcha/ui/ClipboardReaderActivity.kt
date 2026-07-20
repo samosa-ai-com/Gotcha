@@ -64,9 +64,9 @@ class ClipboardReaderActivity : Activity() {
         finish()
     }
 
-    @Suppress("DEPRECATION")
-    override fun overridePendingTransition(enterAnim: Int, exitAnim: Int) {
-        super.overridePendingTransition(0, 0)
+    override fun onDestroy() {
+        onClipboardRead = null
+        super.onDestroy()
     }
 
     companion object {

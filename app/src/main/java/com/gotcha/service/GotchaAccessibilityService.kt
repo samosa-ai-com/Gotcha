@@ -57,7 +57,7 @@ class GotchaAccessibilityService : AccessibilityService() {
                 if (isCopyString(text) || isCopyString(desc) || viewId.lowercase().contains("copy")) {
                     android.util.Log.d(
                         "GotchaAccessibilityService",
-                        "Copy click: text=$text, desc=$desc, id=$viewId"
+                        "Copy click detected: id=$viewId"
                     )
                     triggerClipboardBroadcast()
                 }
@@ -67,7 +67,7 @@ class GotchaAccessibilityService : AccessibilityService() {
             for (t in eventTexts) {
                 val textStr = t?.toString() ?: ""
                 if (isCopyString(textStr)) {
-                    android.util.Log.d("GotchaAccessibilityService", "Copy event text: $textStr")
+                    android.util.Log.d("GotchaAccessibilityService", "Copy event text detected")
                     triggerClipboardBroadcast()
                     break
                 }
@@ -79,7 +79,7 @@ class GotchaAccessibilityService : AccessibilityService() {
                 if (isClipboardToast(textStr)) {
                     android.util.Log.d(
                         "GotchaAccessibilityService",
-                        "Clipboard toast: $textStr"
+                        "Clipboard toast detected"
                     )
                     triggerClipboardBroadcast()
                     break

@@ -308,7 +308,7 @@ class AssistiveBallService : Service() {
             )
             com.gotcha.service.GotchaAccessibilityService.lastClipboardData = clip
             val clipText = clip?.getItemAt(0)?.text?.toString()
-            android.util.Log.d("AssistiveBallService", "clipText = $clipText")
+            android.util.Log.d("AssistiveBallService", "clip length=${clipText?.length ?: 0}")
             if (clipText.isNullOrBlank()) {
                 android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
                 return@readClipboardWithFocus

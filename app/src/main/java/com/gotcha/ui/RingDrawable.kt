@@ -80,16 +80,17 @@ class RingDrawable : Drawable() {
         val cx = bounds.exactCenterX()
         val cy = bounds.exactCenterY()
 
-        if (auraIntensity > 0f && auraRadius > 0f && auraColor != Color.TRANSPARENT) {
+        if (auraIntensity > 0f && auraRadius > 0f && ringRadius > 0f && auraColor != Color.TRANSPARENT) {
             if (!auraShaderValid) {
                 val baseAlpha = Color.alpha(auraColor)
                 val peakAlpha = (baseAlpha * auraIntensity).toInt().coerceIn(0, 255)
                 val peakColor = ColorUtils.setAlphaComponent(auraColor, peakAlpha)
                 val innerFade = ColorUtils.setAlphaComponent(auraColor, (peakAlpha * 0.3f).toInt())
                 val glowColors = intArrayOf(innerFade, peakColor, Color.TRANSPARENT)
+                val ratio = (ringRadius / auraRadius).coerceIn(0f, 1f)
                 val glowPositions = floatArrayOf(
-                    (ringRadius / auraRadius) * 0.7f,
-                    ringRadius / auraRadius,
+                    (ratio * 0.7f).coerceIn(0f, ratio),
+                    ratio,
                     1f
                 )
                 auraPaint.shader = RadialGradient(

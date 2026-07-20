@@ -26,6 +26,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     private val appContext = context.applicationContext
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val markwon = Markwon.create(appContext)
 
     private var panelView: View? = null
     private var responseTextView: TextView? = null
@@ -305,7 +306,6 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     fun updateResponse(markdownText: String) {
         mainHandler.post {
             responseTextView?.let { tv ->
-                val markwon = Markwon.create(appContext)
                 markwon.setMarkdown(tv, markdownText)
             }
         }
