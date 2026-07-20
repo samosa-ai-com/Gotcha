@@ -83,6 +83,86 @@ android {
         htmlReport = true
         sarifReport = true
     }
+
+    testOptions {
+        animationsDisabled = true
+        managedDevices {
+            localDevices {
+                create("api27") {
+                    device = "Pixel 2"
+                    apiLevel = 27
+                    systemImageSource = "aosp"
+                }
+                // Android 10 — no ATD image at this API level; falls back to full aosp.
+                create("api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+                // Android 11 — the aosp-atd x86 image for this API level appears to hang
+                // on boot on Windows/WHPX (confirmed: qemu process alive but memory flat,
+                // never progresses); the plain aosp x86 image (same as api29) boots fine.
+                create("api30") {
+                    device = "Pixel 2"
+                    apiLevel = 30
+                    systemImageSource = "aosp"
+                }
+                // Android 12
+                create("api31") {
+                    device = "Pixel 4"
+                    apiLevel = 31
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 13
+                create("api33") {
+                    device = "Pixel 6"
+                    apiLevel = 33
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 14
+                create("api34") {
+                    device = "Pixel 6"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 15
+                create("api35") {
+                    device = "Pixel 8"
+                    apiLevel = 35
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 16 — no ATD image published for this API level yet;
+                // Gradle's own error suggested "google" as the available source.
+                create("api36") {
+                    device = "Pixel 8"
+                    apiLevel = 36
+                    systemImageSource = "google"
+                }
+            }
+            groups {
+                create("smoke") {
+                    targetDevices.add(allDevices["api34"])
+                }
+                create("full") {
+                    targetDevices.add(allDevices["api27"])
+                    targetDevices.add(allDevices["api30"])
+                    targetDevices.add(allDevices["api33"])
+                    targetDevices.add(allDevices["api34"])
+                }
+                // Android 10 through Android 16 — the range requested for manual
+                // multi-version verification. Excludes api27 (Android 8.1, minSdk-only).
+                create("android10to16") {
+                    targetDevices.add(allDevices["api29"])
+                    targetDevices.add(allDevices["api30"])
+                    targetDevices.add(allDevices["api31"])
+                    targetDevices.add(allDevices["api33"])
+                    targetDevices.add(allDevices["api34"])
+                    targetDevices.add(allDevices["api35"])
+                    targetDevices.add(allDevices["api36"])
+                }
+            }
+        }
+    }
 }
 
 detekt {
@@ -159,4 +239,15 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
+    // Instrumented tests
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

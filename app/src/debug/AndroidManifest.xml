@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.gotcha">
+
+    <application>
+        <!-- Test-only hook to seed settings via adb broadcast; absent from release. -->
+        <receiver
+            android:name=".debug.TestHooksReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.gotcha.debug.SEED_SETTINGS" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

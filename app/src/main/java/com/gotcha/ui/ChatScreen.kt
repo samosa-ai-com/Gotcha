@@ -59,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -214,7 +215,7 @@ fun ChatScreen(
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth().testTag("message_list")
                 ) {
                     items(state.messages, key = { it.id }) { message ->
                         MessageBubble(message = message, onSpeak = onSpeak)
@@ -348,7 +349,7 @@ fun ChatScreen(
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag("chat_input"),
                     shape = RoundedCornerShape(24.dp),
                     placeholder = {
                         Text(if (otherChatRunning) "Finish the running chat first…" else "Let's Go")
@@ -419,7 +420,7 @@ fun ChatScreen(
                                     pendingImageUri = null
                                     pendingImageBase64 = null
                                 },
-                                modifier = Modifier.size(40.dp),
+                                modifier = Modifier.size(40.dp).testTag("send_button"),
                                 enabled = state.isConfigured && !otherChatRunning &&
                                     (input.isNotBlank() || pendingImageBase64 != null)
                             ) {

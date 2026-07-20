@@ -1,0 +1,11 @@
+appId: com.gotcha
+---
+- launchApp
+- tapOn: "Open menu"
+- tapOn: "Settings"
+- tapOn: "Light"
+- assertVisible: "Light"
+- tapOn: "Dark"
+- assertVisible: "Dark"
+- tapOn: "AI Configuration"
+- assertVisible: "Base URL (OpenAI-compatible)"
