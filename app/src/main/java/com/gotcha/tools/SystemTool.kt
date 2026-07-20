@@ -150,7 +150,9 @@ class SystemTool(private val context: Context) {
                     )
                 }
             }
-            ToolResult.error("No launchable app found matching '$packageName'.")
+            ToolResult.error(
+                "No launchable app found matching '$packageName'. You may use list_installed_apps to find the correct name or package name."
+            )
         } catch (e: Exception) {
             ToolResult.error("Could not open app: ${e.message}")
         }

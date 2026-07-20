@@ -20,11 +20,17 @@ class GrepTool(private val context: Context) {
 
     @Suppress("CyclomaticComplexMethod", "NestedBlockDepth", "LoopWithTooManyJumpStatements")
     fun grep(path: String, pattern: String, include: String?): ToolResult {
-        if (pattern.isBlank()) return ToolResult.error("Search pattern cannot be empty.")
+        if (pattern.isBlank()) {
+            return ToolResult.error(
+                "Search pattern cannot be empty. Provide a text pattern or regex to search for (e.g. 'error', 'TODO', 'function')."
+            )
+        }
         val regex = try {
             Regex(pattern, setOf(RegexOption.IGNORE_CASE))
         } catch (e: Exception) {
-            return ToolResult.error("Invalid regex pattern: ${e.message}")
+            return ToolResult.error(
+                "Invalid regex pattern: ${e.message}. You may try a simpler text pattern without special characters."
+            )
         }
 
         val resolved = resolver.resolveForRead(path)
@@ -35,7 +41,11 @@ class GrepTool(private val context: Context) {
                 val root = resolved.file
                 val perm = resolver.checkReadPermission(root)
                 if (perm != null) return perm
-                if (!root.exists()) return ToolResult.error("Path '$path' does not exist.")
+                if (!root.exists()) {
+                    return ToolResult.error(
+                        "Path '$path' does not exist. You may verify the path with list_files or glob first."
+                    )
+                }
 
                 val includeGlob = include?.let {
                     try {
@@ -106,7 +116,11 @@ class GrepTool(private val context: Context) {
                 }
 
                 return if (results.isEmpty()) {
-                    ToolResult.ok("No matches found for pattern '$pattern' in '$path'.")
+                    ToolResult.ok(
+                        "No matches found for pattern '$pattern' in '$path'. You may try a different pattern, a broader path, or check " +
+                            "the " +
+                            "file content with read_file first."
+                    )
                 } else {
                     val truncated = if (matchCount >= MAX_MATCHES || filesSearched >= MAX_FILES) {
                         "\n…(truncated, max $MAX_MATCHES matches)"

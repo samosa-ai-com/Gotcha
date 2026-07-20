@@ -36,7 +36,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
-import java.io.ByteArrayOutputStream
 
 @kotlinx.serialization.Serializable
 data class UiMessage(
@@ -326,7 +325,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             return
         }
         val msg = if (imageBase64 != null) {
-            visionUserMessage(trimmed, imageBase64)
+            visionUserMessage(trimmed, imageBase64, "jpeg")
         } else {
             ChatMessage(role = "user", content = JsonPrimitive(trimmed))
         }
@@ -405,20 +404,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
 
-            val (w, h) = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
-                val ratio = minOf(maxDimension.toFloat() / bitmap.width, maxDimension.toFloat() / bitmap.height)
-                (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-            } else {
-                bitmap.width to bitmap.height
-            }
-
-            val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
-            if (scaled != bitmap) bitmap.recycle()
-
-            val output = ByteArrayOutputStream()
-            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, output)
-            scaled.recycle()
-            android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
+            com.gotcha.tools.ScreenPerception.compressBitmap(
+                bitmap = bitmap,
+                maxDimension = maxDimension,
+                quality = 85,
+                format = Bitmap.CompressFormat.JPEG,
+                recycleInput = true
+            )
         } catch (_: Exception) {
             null
         }
@@ -505,10 +497,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
-    /** Stop an ongoing recording (Android or API), transcribe, and send. */
-    fun stopRecording() {
+    /** Stop an ongoing recording (Android or API) and pass the transcript to the callback. */
+    fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
+            var transcript = ""
             if (provider == AudioProvider.API) {
                 _uiState.update { it.copy(isRecording = false) }
                 val audioFile = sttEngine.stopRecording()
@@ -516,21 +509,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to record audio.")
                     return@launch
                 }
-                appendUi(MessageKind.ASSISTANT, "[Transcribing speech…]")
-                val transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
                     .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
                     .getOrDefault("")
-                if (transcript.isNotBlank()) {
-                    lastInputWasVoice = true
-                    sendMessage(transcript)
-                }
             } else if (provider == AudioProvider.ANDROID) {
                 _uiState.update { it.copy(isListening = false) }
-                val transcript = sttEngine.stopAndroidListening()
-                if (transcript.isNotBlank()) {
-                    lastInputWasVoice = true
-                    sendMessage(transcript)
-                }
+                transcript = sttEngine.stopAndroidListening()
+            }
+
+            if (transcript.isNotBlank()) {
+                lastInputWasVoice = true
+                val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                val cleaned = client?.cleanText(transcript, navModel) ?: transcript
+                onResult(cleaned)
             }
         }
     }

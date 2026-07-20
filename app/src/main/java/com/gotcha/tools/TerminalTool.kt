@@ -33,14 +33,19 @@ class TerminalTool(
         timeoutSeconds: Int? = null
     ): ToolResult = withContext(Dispatchers.IO) {
         val trimmed = command.trim()
-        if (trimmed.isEmpty()) return@withContext ToolResult.error("Empty command.")
+        if (trimmed.isEmpty()) {
+            return@withContext ToolResult.error(
+                "Empty command. Provide a shell command to run (e.g. 'ls', 'ps', 'getprop')."
+            )
+        }
 
         val timeout = (timeoutSeconds ?: defaultTimeoutSeconds).toLong()
             .coerceIn(1, 120)
 
         denyPatterns.firstOrNull { it.containsMatchIn(trimmed) }?.let {
             return@withContext ToolResult.error(
-                "Command blocked by safety policy (matched deny-list): $trimmed"
+                "Command blocked by safety policy (matched deny-list): $trimmed. You may use available tools" +
+                    "(list_files, grep, etc.) instead."
             )
         }
 
@@ -69,7 +74,8 @@ class TerminalTool(
             if (!finished) {
                 process.destroyForcibly()
                 return@withContext ToolResult.error(
-                    "Command timed out after ${timeout}s and was killed: $trimmed"
+                    "Command timed out after ${timeout}s and was killed: $trimmed. You may try a simpler command or split " +
+                        "it into smaller steps."
                 )
             }
             outThread.join(2000)

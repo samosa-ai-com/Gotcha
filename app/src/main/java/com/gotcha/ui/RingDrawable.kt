@@ -5,34 +5,33 @@ import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.drawable.Drawable
+import androidx.core.graphics.ColorUtils
 
 /**
  * A drawable that renders a ring (filled disk + outline) at a configurable
- * radius from the center of its bounds. Used for the long-press growing-ring
- * effect on the assistive ball and the call end button.
+ * radius from the center of its bounds, with an optional soft glow aura.
  *
- * Unlike scaling a [android.graphics.drawable.GradientDrawable], the stroke
- * width and fill here are independent of the [ringRadius] — animating the
- * radius changes the ring's size without distorting its stroke.
- *
- * Properties are settable from a [android.animation.ValueAnimator] for smooth
- * interpolation: grow [ringRadius] from a small value to a max while
- * simultaneously fading the fill.
+ * The aura is a radial gradient that peaks at [ringRadius] and fades outward
+ * to [auraRadius], creating a soft halo effect around the ring.
  */
 class RingDrawable : Drawable() {
 
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val auraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
-    /** How far the ring extends from the center, in pixels. */
+    private var auraShaderValid = false
+
     var ringRadius: Float = 0f
         set(value) {
             field = value
+            auraShaderValid = false
             invalidateSelf()
         }
 
-    /** Outline thickness in pixels. Independent of [ringRadius]. */
     var strokeWidth: Float = 0f
         set(value) {
             field = value
@@ -40,28 +39,75 @@ class RingDrawable : Drawable() {
             invalidateSelf()
         }
 
-    /** Color painted inside the ring (between the center and [ringRadius]). */
     var fillColor: Int = Color.TRANSPARENT
         set(value) {
             field = value
             invalidateSelf()
         }
 
-    /** Outline color drawn at [ringRadius]. */
     var strokeColor: Int = Color.TRANSPARENT
         set(value) {
             field = value
             invalidateSelf()
         }
 
+    /** Outer radius of the soft glow aura. 0 disables the aura. */
+    var auraRadius: Float = 0f
+        set(value) {
+            field = value
+            auraShaderValid = false
+            invalidateSelf()
+        }
+
+    /** Color used for the glow aura (alpha is scaled by [auraIntensity]). */
+    var auraColor: Int = Color.TRANSPARENT
+        set(value) {
+            field = value
+            auraShaderValid = false
+            invalidateSelf()
+        }
+
+    /** Glow intensity 0..1, scales the aura color's alpha. */
+    var auraIntensity: Float = 0f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+            auraShaderValid = false
+            invalidateSelf()
+        }
+
     override fun draw(canvas: Canvas) {
-        if (ringRadius <= 0f || bounds.isEmpty) return
+        if (bounds.isEmpty) return
         val cx = bounds.exactCenterX()
         val cy = bounds.exactCenterY()
+
+        if (auraIntensity > 0f && auraRadius > 0f && ringRadius > 0f && auraColor != Color.TRANSPARENT) {
+            if (!auraShaderValid) {
+                val baseAlpha = Color.alpha(auraColor)
+                val peakAlpha = (baseAlpha * auraIntensity).toInt().coerceIn(0, 255)
+                val peakColor = ColorUtils.setAlphaComponent(auraColor, peakAlpha)
+                val innerFade = ColorUtils.setAlphaComponent(auraColor, (peakAlpha * 0.3f).toInt())
+                val glowColors = intArrayOf(innerFade, peakColor, Color.TRANSPARENT)
+                val ratio = (ringRadius / auraRadius).coerceIn(0f, 1f)
+                val glowPositions = floatArrayOf(
+                    (ratio * 0.7f).coerceIn(0f, ratio),
+                    ratio,
+                    1f
+                )
+                auraPaint.shader = RadialGradient(
+                    cx, cy, auraRadius,
+                    glowColors, glowPositions,
+                    Shader.TileMode.CLAMP
+                )
+                auraShaderValid = true
+            }
+            canvas.drawCircle(cx, cy, auraRadius, auraPaint)
+        }
+
         if (fillColor != Color.TRANSPARENT) {
             fillPaint.color = fillColor
             canvas.drawCircle(cx, cy, ringRadius, fillPaint)
         }
+
         if (strokeColor != Color.TRANSPARENT && strokeWidth > 0f) {
             strokePaint.color = strokeColor
             strokePaint.strokeWidth = strokeWidth
@@ -77,6 +123,7 @@ class RingDrawable : Drawable() {
     override fun setColorFilter(colorFilter: ColorFilter?) {
         fillPaint.colorFilter = colorFilter
         strokePaint.colorFilter = colorFilter
+        auraPaint.colorFilter = colorFilter
     }
 
     @Suppress("Deprecated")

@@ -66,6 +66,9 @@ class AgentEngine(
     var sessionId: String? = null
     var tokenCount: Int = 0
 
+    /** When true, the system prompt includes a voice-call brevity reminder. */
+    var callMode: Boolean = false
+
     lateinit var toolExecutor: ToolExecutor
         private set
 
@@ -793,6 +796,13 @@ class AgentEngine(
                     "You are in OPERATOR mode. You are permitted to inspect, create, modify, and " +
                     "delete on the device using the provided tools. Be careful with destructive " +
                     "actions — confirm with the user when the result seems significant.\n" +
+                    if (callMode) {
+                        "\nThis is a VOICE CALL — everything you say is read aloud via TTS.\n" +
+                            "Keep responses to 1-2 short sentences. No markdown, no lists, no code blocks.\n" +
+                            "Do not ask follow-up questions unless absolutely necessary.\n"
+                    } else {
+                        ""
+                    } +
                     "</system-reminder>"
         }
         return listOf(

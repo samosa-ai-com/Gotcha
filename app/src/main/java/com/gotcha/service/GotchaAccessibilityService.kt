@@ -3,8 +3,6 @@ package com.gotcha.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Path
 import android.os.Build
@@ -37,8 +35,104 @@ class GotchaAccessibilityService : AccessibilityService() {
         initClipboardListener()
     }
 
-    // Passive: we drive the UI on demand from tools rather than reacting to events.
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    // Passive: we drive the UI on demand from tools rather than reacting to events,
+    // except for broadcasting window state changes to the ScreenCompanionController.
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val intent = android.content.Intent("com.gotcha.action.APP_CHANGED").apply {
+                setPackage(packageName)
+            }
+            sendBroadcast(intent)
+        }
+
+        // Detect copy actions or clipboard toast alerts
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            val source = event.source
+            if (source != null) {
+                val text = source.text?.toString() ?: ""
+                val desc = source.contentDescription?.toString() ?: ""
+                val viewId = source.viewIdResourceName ?: ""
+                if (isCopyString(text) || isCopyString(desc) || viewId.lowercase().contains("copy")) {
+                    android.util.Log.d(
+                        "GotchaAccessibilityService",
+                        "Copy click detected: id=$viewId"
+                    )
+                    triggerClipboardBroadcast()
+                }
+                source.recycle()
+            }
+            val eventTexts = event.text ?: emptyList()
+            for (t in eventTexts) {
+                val textStr = t?.toString() ?: ""
+                if (isCopyString(textStr)) {
+                    android.util.Log.d("GotchaAccessibilityService", "Copy event text detected")
+                    triggerClipboardBroadcast()
+                    break
+                }
+            }
+        } else if (event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            val eventTexts = event.text ?: emptyList()
+            for (t in eventTexts) {
+                val textStr = t?.toString() ?: ""
+                if (isClipboardToast(textStr)) {
+                    android.util.Log.d(
+                        "GotchaAccessibilityService",
+                        "Clipboard toast detected"
+                    )
+                    triggerClipboardBroadcast()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun isCopyString(s: String): Boolean {
+        val lower = s.lowercase().trim()
+        return lower == "copy" ||
+            lower == "复制" ||
+            lower == "剪切" ||
+            lower == "copying" ||
+            lower == "copier" ||
+            lower == "copiar" ||
+            lower == "kopieren" ||
+            lower == "copia" ||
+            lower == "コピー" ||
+            lower == "복사"
+    }
+
+    private fun isClipboardToast(s: String): Boolean {
+        val lower = s.lowercase()
+        return lower.contains("copy") ||
+            lower.contains("copied") ||
+            lower.contains("clipboard") ||
+            lower.contains("复制") ||
+            lower.contains("剪贴") ||
+            lower.contains("剪切板") ||
+            lower.contains("copi") ||
+            lower.contains("kopier") ||
+            lower.contains("clip")
+    }
+
+    private fun triggerClipboardBroadcast() {
+        try {
+            val intent = android.content.Intent("com.gotcha.action.CLIPBOARD_CHANGED").apply {
+                setPackage(packageName)
+            }
+            sendBroadcast(intent)
+            android.util.Log.d(
+                "GotchaAccessibilityService",
+                "Sent CLIPBOARD_CHANGED broadcast"
+            )
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "GotchaAccessibilityService",
+                "Failed to send broadcast",
+                e
+            )
+        }
+    }
 
     override fun onInterrupt() {}
 
@@ -110,6 +204,92 @@ class GotchaAccessibilityService : AccessibilityService() {
         } else if (!desc.isNullOrEmpty()) out.add(desc)
         for (i in 0 until node.childCount) {
             collectText(node.getChild(i), out, limit)
+        }
+    }
+
+    /**
+     * Collect visible text from nodes that intersect [regionInScreen] (screen
+     * pixels). Used by Lens mode to detect structured data (currency, dates, etc.)
+     * inside the user's selection without OCR. Returns joined text or null.
+     */
+    fun dumpTextInRegion(regionInScreen: android.graphics.Rect, limit: Int = 60): String? {
+        val root = rootInActiveWindow ?: return null
+        val out = ArrayList<String>()
+        collectTextInRegion(root, regionInScreen, out, limit)
+        root.recycle()
+        return if (out.isEmpty()) null else out.joinToString(" ")
+    }
+
+    private fun collectTextInRegion(
+        node: AccessibilityNodeInfo?,
+        region: android.graphics.Rect,
+        out: MutableList<String>,
+        limit: Int
+    ) {
+        if (node == null || out.size >= limit) return
+        val bounds = android.graphics.Rect()
+        node.getBoundsInScreen(bounds)
+        if (android.graphics.Rect.intersects(bounds, region)) {
+            val text = node.text?.toString()?.trim()
+            val desc = node.contentDescription?.toString()?.trim()
+            if (!text.isNullOrEmpty()) {
+                out.add(text)
+            } else if (!desc.isNullOrEmpty()) out.add(desc)
+        }
+        for (i in 0 until node.childCount) {
+            collectTextInRegion(node.getChild(i), region, out, limit)
+        }
+    }
+
+    /**
+     * Grow [region] (screen pixels) to include any UI element it substantially
+     * overlaps, so a selection drawn around ~most of a control snaps to the whole
+     * control. An element is included when the intersection covers at least
+     * [coverage] of EITHER the element's area or the drawn region's area (the
+     * latter lets a small scribble inside a big element still snap to it). Returns
+     * the unioned rectangle, or the original [region] when nothing qualifies.
+     */
+    fun snapRegionToElements(
+        region: android.graphics.Rect,
+        coverage: Float = 0.6f
+    ): android.graphics.Rect {
+        val root = rootInActiveWindow ?: return region
+        val result = android.graphics.Rect(region)
+        val regionArea = region.width().toLong() * region.height().toLong()
+        accumulateSnap(root, region, regionArea, coverage, result)
+        root.recycle()
+        return result
+    }
+
+    private fun accumulateSnap(
+        node: AccessibilityNodeInfo?,
+        region: android.graphics.Rect,
+        regionArea: Long,
+        coverage: Float,
+        acc: android.graphics.Rect
+    ) {
+        if (node == null) return
+        val bounds = android.graphics.Rect()
+        node.getBoundsInScreen(bounds)
+        if (!bounds.isEmpty && android.graphics.Rect.intersects(bounds, region)) {
+            val inter = android.graphics.Rect(bounds)
+            if (inter.intersect(region)) {
+                val interArea = inter.width().toLong() * inter.height().toLong()
+                val nodeArea = bounds.width().toLong() * bounds.height().toLong()
+                val coversNode = nodeArea > 0 && interArea >= coverage * nodeArea
+                val coversRegion = regionArea > 0 && interArea >= coverage * regionArea
+                // Skip full-screen containers/root so we snap to actual controls,
+                // not the window that swallows everything.
+                val metrics = resources.displayMetrics
+                val screenArea = metrics.widthPixels.toLong() * metrics.heightPixels.toLong()
+                val sane = nodeArea in 1 until (screenArea * 8 / 10)
+                if ((coversNode || coversRegion) && sane) {
+                    acc.union(bounds)
+                }
+            }
+        }
+        for (i in 0 until node.childCount) {
+            accumulateSnap(node.getChild(i), region, regionArea, coverage, acc)
         }
     }
 
@@ -250,9 +430,9 @@ class GotchaAccessibilityService : AccessibilityService() {
 
     /** Register a clipboard listener to cache clipboard content. */
     internal fun initClipboardListener() {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.addPrimaryClipChangedListener {
-            try { lastClipboardData = cm.primaryClip } catch (_: Exception) {}
-        }
+        android.util.Log.d(
+            "GotchaAccessibilityService",
+            "initClipboardListener: using event-based detection"
+        )
     }
 }

@@ -31,9 +31,16 @@ class SmsTool(private val context: Context) {
     ): ToolResult {
         val trimmed = number.trim()
         if (!trimmed.matches(numberPattern)) {
-            return ToolResult.error("'$number' does not look like a valid phone number.")
+            return ToolResult.error(
+                "'$number' does not look like a valid phone number. You may use find_contact or read_call_log to look " +
+                    "up the correct number."
+            )
         }
-        if (message.isBlank()) return ToolResult.error("The message text is empty.")
+        if (message.isBlank()) {
+            return ToolResult.error(
+                "The message text is empty. Please provide the text you want to send."
+            )
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED
         ) {

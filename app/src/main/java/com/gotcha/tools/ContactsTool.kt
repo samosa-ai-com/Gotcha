@@ -13,7 +13,10 @@ class ContactsTool(private val context: Context) {
     @Suppress("CyclomaticComplexMethod")
     fun findContact(name: String? = null, number: String? = null): ToolResult {
         if (name.isNullOrBlank() && number.isNullOrBlank()) {
-            return ToolResult.error("Provide either a name or a phone number to search for.")
+            return ToolResult.error(
+                "Provide either a name or a phone number to search for. You may check the call log with read_call_log " +
+                    "first to find recent contacts."
+            )
         }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
@@ -49,7 +52,11 @@ class ContactsTool(private val context: Context) {
                 selectionArgs.toTypedArray(),
                 "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} ASC"
             ).use { cursor ->
-                if (cursor == null) return ToolResult.error("Could not read contacts.")
+                if (cursor == null) {
+                    return ToolResult.error(
+                        "Could not read contacts. You may check that the Contacts permission is granted in Settings → Permissions."
+                    )
+                }
                 val nameIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
                 val numIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val typeIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE)
@@ -78,7 +85,10 @@ class ContactsTool(private val context: Context) {
             }
             if (contacts.isEmpty()) {
                 val hint = if (!name.isNullOrBlank()) "'$name'" else "'$number'"
-                return ToolResult.ok("No contact matching $hint was found.")
+                return ToolResult.ok(
+                    "No contact matching $hint was found. You may try a partial name, search by phone number instead, or check " +
+                        "read_call_log for recently contacted people."
+                )
             }
             // Group by contact name for richer output
             val grouped = contacts.groupBy { it["name"]!! }
@@ -101,7 +111,9 @@ class ContactsTool(private val context: Context) {
             }
             ToolResult.ok(sb.toString().trimEnd())
         } catch (e: Exception) {
-            ToolResult.error("Could not look up contacts: ${e.message}")
+            ToolResult.error(
+                "Could not look up contacts: ${e.message}. You may verify the Contacts permission is granted and try again."
+            )
         }
     }
 
@@ -172,8 +184,16 @@ class ContactsTool(private val context: Context) {
     ): ToolResult {
         val displayName = name.trim()
         val phone = number.trim()
-        if (displayName.isEmpty()) return ToolResult.error("Please provide a name for the new contact.")
-        if (phone.isEmpty()) return ToolResult.error("Please provide a phone number for the new contact.")
+        if (displayName.isEmpty()) {
+            return ToolResult.error(
+                "Please provide a name for the new contact. You may use find_contact to look up the correct spelling if needed."
+            )
+        }
+        if (phone.isEmpty()) {
+            return ToolResult.error(
+                "Please provide a phone number for the new contact. You may use find_contact or read_call_log to find the number."
+            )
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -266,7 +286,9 @@ class ContactsTool(private val context: Context) {
             }
             ToolResult.ok("Added contact '$displayName'$extras.")
         } catch (e: Exception) {
-            ToolResult.error("Could not add the contact: ${e.message}")
+            ToolResult.error(
+                "Could not add the contact: ${e.message}. You may check that the Contacts permission is granted and try again."
+            )
         }
     }
 

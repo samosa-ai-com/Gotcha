@@ -47,7 +47,7 @@ import kotlin.math.hypot
  * [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY] window, gated on
  * [Settings.canDrawOverlays], with all window mutations posted to the main thread.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LargeClass")
 class AssistiveBallOverlay(context: Context) {
 
     private val appContext = context.applicationContext
@@ -60,12 +60,22 @@ class AssistiveBallOverlay(context: Context) {
     var onDismiss: () -> Unit = {}
     var onOpenApp: () -> Unit = {}
     var onTakeScreenshot: () -> Unit = {}
+    var onStartLens: () -> Unit = {}
     var onStartCall: () -> Unit = {}
     var onEndCall: () -> Unit = {}
     var onToggleChatWindow: () -> Unit = {}
+    var onSmartActionSelected: (prompt: String) -> Unit = {}
+    var isPanelOpen: Boolean = false
 
     /** Queried per gesture: is a voice call active (any non-idle state)? */
     var isCallActive: () -> Boolean = { false }
+
+    private var pendingSmartAction: Pair<String, String>? = null
+    private var pendingSmartActionAlt: Pair<String, String>? = null
+    private var lastOfferedLabel: String? = null
+    private var smartActionRingView: View? = null
+    private var smartActionRingAnimator: ValueAnimator? = null
+    private val smartActionClearRunnable = Runnable { clearSmartAction() }
 
     private var ballView: View? = null
     private var ringView: View? = null
@@ -156,6 +166,7 @@ class AssistiveBallOverlay(context: Context) {
             removeMenu()
             removeCard()
             removeDismissTarget()
+            clearSmartAction()
             ballView?.let { safeRemove(it) }
             ballView = null
         }
@@ -193,6 +204,133 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     // ---- Status card (errors only) ----
+
+    fun setSmartActionAvailable(label: String, prompt: String) {
+        setSmartActionAvailable(label, prompt, null, null)
+    }
+
+    /**
+     * Offer a primary smart action plus an optional secondary ("alt") action shown
+     * as a second chip in the menu — e.g. "Extract text?" alongside "Translate".
+     */
+    fun setSmartActionAvailable(label: String, prompt: String, altLabel: String?, altPrompt: String?) {
+        mainHandler.post {
+            if (isCallActive()) return@post
+
+            val currentLabel = pendingSmartAction?.first ?: ""
+            if (currentLabel.contains("copied", ignoreCase = true) && !label.contains("copied", ignoreCase = true)) {
+                android.util.Log.d(
+                    "AssistiveBallOverlay",
+                    "Preventing overwrite of active clipboard action '$currentLabel' by passive action '$label'"
+                )
+                return@post
+            }
+
+            if (label == lastOfferedLabel) {
+                return@post
+            }
+
+            lastOfferedLabel = label
+            pendingSmartAction = Pair(label, prompt)
+            pendingSmartActionAlt = if (altLabel != null && altPrompt != null) {
+                Pair(altLabel, altPrompt)
+            } else {
+                null
+            }
+            showSmartActionRing()
+            mainHandler.removeCallbacks(smartActionClearRunnable)
+            mainHandler.postDelayed(smartActionClearRunnable, 45000L) // 45 seconds
+        }
+    }
+
+    private fun clearSmartAction() {
+        mainHandler.post {
+            pendingSmartAction = null
+            pendingSmartActionAlt = null
+            lastOfferedLabel = null
+            removeSmartActionRing()
+            removeMenu()
+        }
+    }
+
+    private fun showSmartActionRing() {
+        removeSmartActionRing()
+        val density = appContext.resources.displayMetrics.density
+        val viewSize = (BALL_SIZE_DP * 1.5f * density).toInt()
+        val ballPx = dp(BALL_SIZE_DP)
+        val drawable = RingDrawable().apply {
+            fillColor = Color.TRANSPARENT
+            strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, 120)
+            strokeWidth = 2f * density
+        }
+        val view = View(appContext).apply { background = drawable }
+        val params = WindowManager.LayoutParams(
+            viewSize,
+            viewSize,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = ballParams.x + ballPx / 2 - viewSize / 2
+            y = ballParams.y + ballPx / 2 - viewSize / 2
+        }
+        try {
+            windowManager.addView(view, params)
+            smartActionRingView = view
+
+            val minRadius = ballPx * 0.45f
+            val maxRadius = ballPx * 0.65f
+
+            smartActionRingAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = 1200L
+                repeatMode = ValueAnimator.REVERSE
+                repeatCount = 5
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val p = anim.animatedValue as Float
+                    drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, (40 + 80 * (1f - p)).toInt())
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        smartActionRingView?.animate()
+                            ?.alpha(0f)
+                            ?.setDuration(500L)
+                            ?.withEndAction {
+                                removeSmartActionRing()
+                            }
+                            ?.start()
+                    }
+                })
+                start()
+            }
+        } catch (_: Exception) {
+            smartActionRingView = null
+        }
+    }
+
+    private fun removeSmartActionRing() {
+        smartActionRingAnimator?.cancel()
+        smartActionRingAnimator = null
+        smartActionRingView?.let { safeRemove(it) }
+        smartActionRingView = null
+    }
+
+    private fun updateSmartActionRingPosition() {
+        smartActionRingView?.let {
+            try {
+                val viewSize = it.layoutParams.width
+                val ballPx = dp(BALL_SIZE_DP)
+                val params = it.layoutParams as WindowManager.LayoutParams
+                params.x = ballParams.x + ballPx / 2 - viewSize / 2
+                params.y = ballParams.y + ballPx / 2 - viewSize / 2
+                windowManager.updateViewLayout(it, params)
+            } catch (_: Exception) {}
+        }
+    }
 
     fun showError(text: String) = showCard(text, showClose = true)
 
@@ -348,6 +486,8 @@ class AssistiveBallOverlay(context: Context) {
                         ballParams.y = startY + dy
                         try {
                             windowManager.updateViewLayout(ballView, ballParams)
+                            ballView?.requestFocus()
+                            updateSmartActionRingPosition()
                         } catch (_: Exception) { }
                         updateDismissTargetHighlight(isOverDismissTarget())
                     }
@@ -405,6 +545,7 @@ class AssistiveBallOverlay(context: Context) {
         ballParams.y = ballParams.y.coerceIn(0, maxY.coerceAtLeast(0))
         try {
             windowManager.updateViewLayout(ballView, ballParams)
+            updateSmartActionRingPosition()
         } catch (_: Exception) { }
     }
 
@@ -437,6 +578,7 @@ class AssistiveBallOverlay(context: Context) {
         val view = ballView ?: return
         try {
             windowManager.updateViewLayout(view, ballParams)
+            updateSmartActionRingPosition()
         } catch (_: Exception) { }
         ValueAnimator.ofFloat(view.alpha, 1.0f).apply {
             duration = 180L
@@ -462,6 +604,7 @@ class AssistiveBallOverlay(context: Context) {
                 ballParams.x = (startX + (targetX - startX) * p).toInt()
                 try {
                     windowManager.updateViewLayout(view, ballParams)
+                    updateSmartActionRingPosition()
                 } catch (_: Exception) { }
                 view.alpha = startAlpha + (PEEK_ALPHA - startAlpha) * p
             }
@@ -558,6 +701,40 @@ class AssistiveBallOverlay(context: Context) {
             }
         }
 
+        pendingSmartAction?.let { (label, prompt) ->
+            container.addView(
+                tapButton(label, colors) {
+                    val currentPrompt = prompt
+                    clearSmartAction()
+                    onSmartActionSelected(currentPrompt)
+                }.apply {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(ColorUtils.setAlphaComponent(Color.CYAN, 40))
+                        setStroke(dp(1), Color.CYAN)
+                    }
+                    setTextColor(Color.CYAN)
+                }
+            )
+        }
+
+        pendingSmartActionAlt?.let { (label, prompt) ->
+            container.addView(
+                tapButton(label, colors) {
+                    val currentPrompt = prompt
+                    clearSmartAction()
+                    onSmartActionSelected(currentPrompt)
+                }.apply {
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(ColorUtils.setAlphaComponent(Color.CYAN, 24))
+                        setStroke(dp(1), ColorUtils.setAlphaComponent(Color.CYAN, 160))
+                    }
+                    setTextColor(Color.CYAN)
+                }
+            )
+        }
+
         container.addView(
             tapButton("\uD83D\uDCF1  Open App", colors) {
                 removeMenu()
@@ -568,6 +745,12 @@ class AssistiveBallOverlay(context: Context) {
             tapButton("\uD83D\uDCF7  Screenshot", colors) {
                 removeMenu()
                 onTakeScreenshot()
+            }
+        )
+        container.addView(
+            tapButton("\uD83D\uDD0D  Lens", colors) {
+                removeMenu()
+                onStartLens()
             }
         )
 
@@ -737,5 +920,20 @@ class AssistiveBallOverlay(context: Context) {
         // Dock side identifiers (START = left edge, END = right edge).
         const val DOCK_SIDE_START = 0
         const val DOCK_SIDE_END = 1
+    }
+    fun readClipboardWithFocus(onResult: (android.content.ClipData?) -> Unit) {
+        android.util.Log.d("AssistiveBallOverlay", "readClipboardWithFocus called. Setting onClipboardRead callback.")
+        ClipboardReaderActivity.onClipboardRead = onResult
+        val intent = android.content.Intent(appContext, ClipboardReaderActivity::class.java).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        }
+        try {
+            android.util.Log.d("AssistiveBallOverlay", "Starting ClipboardReaderActivity...")
+            appContext.startActivity(intent)
+            android.util.Log.d("AssistiveBallOverlay", "startActivity called successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("AssistiveBallOverlay", "Failed to start ClipboardReaderActivity", e)
+            onResult(null)
+        }
     }
 }

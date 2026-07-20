@@ -88,7 +88,9 @@ class CalendarTool(private val context: Context) {
                 selectionArgs,
                 "${CalendarContract.Instances.BEGIN} ASC"
             ).use { cursor ->
-                if (cursor == null) return ToolResult.error("Could not read the calendar.")
+                if (cursor == null) {
+                    return ToolResult.error("Could not read the calendar (permission may not be granted).")
+                }
                 val idIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.EVENT_ID)
                 val titleIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.TITLE)
                 val beginIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.BEGIN)
@@ -146,7 +148,11 @@ class CalendarTool(private val context: Context) {
         reminderMinutes: Int? = null,
         calendarName: String? = null
     ): ToolResult {
-        if (title.isBlank()) return ToolResult.error("Please provide a title for the event.")
+        if (title.isBlank()) {
+            return ToolResult.error(
+                "Please provide a title for the event. The title is required to create one."
+            )
+        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -156,11 +162,17 @@ class CalendarTool(private val context: Context) {
             )
         }
         val startMs = parseWhen(start)
-            ?: return ToolResult.error("Could not understand the start time '$start'. Use 'yyyy-MM-dd HH:mm' or epoch millis.")
+            ?: return ToolResult.error(
+                "Could not understand the start time '$start'. Use 'yyyy-MM-dd HH:mm' (e.g. '2026-07-17 15:30') " +
+                    "or epoch milliseconds."
+            )
         val endMs = if (end.isNullOrBlank()) {
             startMs + 60 * 60 * 1000
         } else {
-            parseWhen(end) ?: return ToolResult.error("Could not understand the end time '$end'.")
+            parseWhen(end) ?: return ToolResult.error(
+                "Could not understand the end time '$end'. Use 'yyyy-MM-dd HH:mm' (e.g. " +
+                    "'2026-07-17 17:00') or epoch milliseconds."
+            )
         }
 
         if (allDay == true) {
@@ -180,7 +192,10 @@ class CalendarTool(private val context: Context) {
             } else {
                 null
                     ?: defaultWritableCalendarId()
-                    ?: return ToolResult.error("No writable calendar was found on this device.")
+                    ?: return ToolResult.error(
+                        "No writable calendar was found on this device. You may add a Google account or use the " +
+                            "device's calendar app to set one up."
+                    )
             }
 
             val values = ContentValues().apply {
@@ -194,7 +209,10 @@ class CalendarTool(private val context: Context) {
                 if (!description.isNullOrBlank()) put(CalendarContract.Events.DESCRIPTION, description)
             }
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-                ?: return ToolResult.error("The calendar rejected the new event.")
+                ?: return ToolResult.error(
+                    "The calendar rejected the new event. You may check that the calendar is writable and try " +
+                        "again."
+                )
 
             // Add reminder if requested
             if (reminderMinutes != null && reminderMinutes >= 0) {
@@ -238,11 +256,17 @@ class CalendarTool(private val context: Context) {
             val values = ContentValues()
             if (title != null) values.put(CalendarContract.Events.TITLE, title)
             if (start != null) {
-                val ms = parseWhen(start) ?: return ToolResult.error("Could not understand the start time '$start'.")
+                val ms = parseWhen(start) ?: return ToolResult.error(
+                    "Could not understand the start time '$start'. Use 'yyyy-MM-dd " +
+                        "HH:mm' (e.g. '2026-07-17 15:30') or epoch milliseconds."
+                )
                 values.put(CalendarContract.Events.DTSTART, ms)
             }
             if (end != null) {
-                val ms = parseWhen(end) ?: return ToolResult.error("Could not understand the end time '$end'.")
+                val ms = parseWhen(end) ?: return ToolResult.error(
+                    "Could not understand the end time '$end'. Use 'yyyy-MM-dd HH:mm' " +
+                        "(e.g. '2026-07-17 17:00') or epoch milliseconds."
+                )
                 values.put(CalendarContract.Events.DTEND, ms)
             }
             if (location != null) values.put(CalendarContract.Events.EVENT_LOCATION, location)
@@ -252,7 +276,9 @@ class CalendarTool(private val context: Context) {
             val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
             val rows = context.contentResolver.update(uri, values, null, null)
             if (rows == 0) {
-                return ToolResult.error("Event $eventId not found or could not be updated.")
+                return ToolResult.error(
+                    "Event $eventId not found or could not be updated. You may use list_calendar_events to find the correct event ID."
+                )
             }
 
             // Update reminders: clear existing, add new if requested
@@ -295,7 +321,9 @@ class CalendarTool(private val context: Context) {
             val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
             val rows = context.contentResolver.delete(uri, null, null)
             if (rows == 0) {
-                return ToolResult.error("Event $eventId not found or could not be deleted.")
+                return ToolResult.error(
+                    "Event $eventId not found or could not be deleted. You may use list_calendar_events to verify the correct event ID."
+                )
             }
             ToolResult.ok("Deleted event $eventId.")
         } catch (e: Exception) {

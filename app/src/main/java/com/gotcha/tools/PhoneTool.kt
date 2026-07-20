@@ -22,18 +22,26 @@ class PhoneTool(private val context: Context) {
     fun dialNumber(number: String): ToolResult {
         val trimmed = number.trim()
         if (trimmed.isEmpty() || !trimmed.matches(numberPattern)) {
-            return ToolResult.error("'$number' does not look like a valid phone number.")
+            return ToolResult.error(
+                "'$number' does not look like a valid phone number. You may try find_contact or read_call_log to look " +
+                    "up the correct number."
+            )
         }
         val digitsOnly = trimmed.filter { it.isDigit() }
         if (digitsOnly.isEmpty()) {
-            return ToolResult.error("'$number' has no digits — a phone number needs at least one digit.")
+            return ToolResult.error(
+                "'$number' has no digits — a phone number needs at least one digit. You may find a contact first with find_contact or " +
+                    "check the call log with read_call_log."
+            )
         }
         return try {
             val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$trimmed")).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             if (intent.resolveActivity(context.packageManager) == null) {
-                return ToolResult.error("No dialer app is available on this device.")
+                return ToolResult.error(
+                    "No dialer app is available on this device. You may try call_number instead if the Phone permission is granted."
+                )
             }
             context.startActivity(intent)
             ToolResult.ok("Opened the dialer with $trimmed. The user must press call themselves.")
@@ -45,7 +53,10 @@ class PhoneTool(private val context: Context) {
     fun callNumber(number: String, speakerphone: Boolean? = null, simSlot: String? = null): ToolResult {
         val trimmed = number.trim()
         if (trimmed.isEmpty() || !trimmed.matches(numberPattern)) {
-            return ToolResult.error("'$number' does not look like a valid phone number.")
+            return ToolResult.error(
+                "'$number' does not look like a valid phone number. You may look up the correct number with find_contact or " +
+                    "check recent calls with read_call_log."
+            )
         }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED
@@ -85,7 +96,10 @@ class PhoneTool(private val context: Context) {
                 "The Phone permission is not granted. Go to Settings → Permissions → Phone and enable it, then ask again."
             )
         } catch (e: Exception) {
-            ToolResult.error("Could not place the call: ${e.message}")
+            ToolResult.error(
+                "Could not place the call: ${e.message}. You may try dial_number instead (opens dialer without calling), or check " +
+                    "the number with find_contact first."
+            )
         }
     }
 
@@ -186,7 +200,11 @@ class PhoneTool(private val context: Context) {
                 selectionArgs.toTypedArray().ifEmpty { null },
                 "${CallLog.Calls.DATE} DESC"
             ).use { cursor ->
-                if (cursor == null) return ToolResult.error("Could not read the call log.")
+                if (cursor == null) {
+                    return ToolResult.error(
+                        "Could not read the call log. You may check the Call Log permission in Settings → Permissions."
+                    )
+                }
                 val numberIdx = cursor.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
                 val nameIdx = cursor.getColumnIndexOrThrow(CallLog.Calls.CACHED_NAME)
                 val typeIdx = cursor.getColumnIndexOrThrow(CallLog.Calls.TYPE)

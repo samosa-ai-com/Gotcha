@@ -21,7 +21,11 @@ class GlobTool(private val context: Context) {
     }
 
     fun glob(path: String, pattern: String): ToolResult {
-        if (pattern.isBlank()) return ToolResult.error("Glob pattern cannot be empty.")
+        if (pattern.isBlank()) {
+            return ToolResult.error(
+                "Glob pattern cannot be empty. Use '*' for all files, '**/*.kt' for Kotlin files recursively."
+            )
+        }
 
         val resolved = resolver.resolveForRead(path)
         return when (resolved) {
@@ -31,7 +35,11 @@ class GlobTool(private val context: Context) {
                 val root = resolved.file
                 val perm = resolver.checkReadPermission(root)
                 if (perm != null) return perm
-                if (!root.exists()) return ToolResult.error("Path '$path' does not exist.")
+                if (!root.exists()) {
+                    return ToolResult.error(
+                        "Path '$path' does not exist. You may verify the path with list_files first."
+                    )
+                }
 
                 val regex = globToRegex(pattern)
                 val results = mutableListOf<String>()
@@ -63,7 +71,9 @@ class GlobTool(private val context: Context) {
                 }
 
                 if (results.isEmpty()) {
-                    return ToolResult.ok("No files matching '$pattern' found in '$path'.")
+                    return ToolResult.ok(
+                        "No files matching '$pattern' found in '$path'. You may try a broader pattern (e.g. '*', '**', or '**/*.txt')."
+                    )
                 }
                 val truncated = if (aborted) "\n…(truncated, max $MAX_RESULTS results)" else ""
                 return ToolResult.ok(

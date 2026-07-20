@@ -111,7 +111,10 @@ class MediaCaptureTool(private val context: Context) {
             )
         }
         if (recorder != null) {
-            return ToolResult.error("A recording is already in progress. Stop it before starting a new one.")
+            return ToolResult.error(
+                "A recording is already in progress. You may stop it with stop_audio_recording before starting a new one, or check " +
+                    "status with get_audio_recording_status."
+            )
         }
         return try {
             val file = if (!outputPath.isNullOrBlank()) {
@@ -183,7 +186,10 @@ class MediaCaptureTool(private val context: Context) {
     }
 
     fun stopAudioRecording(): ToolResult {
-        val rec = recorder ?: return ToolResult.error("No recording is in progress.")
+        val rec = recorder ?: return ToolResult.error(
+            "No recording is in progress. Use start_audio_recording to begin one, or check " +
+                "status with get_audio_recording_status."
+        )
         return try {
             rec.stop()
             val file = recordingFile
@@ -222,8 +228,15 @@ class MediaCaptureTool(private val context: Context) {
     }
 
     fun pauseAudioRecording(): ToolResult {
-        val rec = recorder ?: return ToolResult.error("No recording is in progress.")
-        if (recordingPaused) return ToolResult.error("Recording is already paused.")
+        val rec = recorder ?: return ToolResult.error(
+            "No recording is in progress. Use start_audio_recording to begin one, or check " +
+                "status with get_audio_recording_status."
+        )
+        if (recordingPaused) {
+            return ToolResult.error(
+                "Recording is already paused. You may resume it with resume_audio_recording or stop it with stop_audio_recording."
+            )
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             return ToolResult.error("Pause/resume requires Android 7.0+ (API 24).")
         }
@@ -237,8 +250,15 @@ class MediaCaptureTool(private val context: Context) {
     }
 
     fun resumeAudioRecording(): ToolResult {
-        val rec = recorder ?: return ToolResult.error("No recording is in progress.")
-        if (!recordingPaused) return ToolResult.error("Recording is not paused.")
+        val rec = recorder ?: return ToolResult.error(
+            "No recording is in progress. Use start_audio_recording to begin one, or check " +
+                "status with get_audio_recording_status."
+        )
+        if (!recordingPaused) {
+            return ToolResult.error(
+                "Recording is not paused. Use pause_audio_recording first, or stop the recording with stop_audio_recording."
+            )
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             return ToolResult.error("Pause/resume requires Android 7.0+ (API 24).")
         }

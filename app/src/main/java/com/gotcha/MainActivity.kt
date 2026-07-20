@@ -470,7 +470,7 @@ class MainActivity : ComponentActivity() {
                         onSetAgent = chatViewModel::setAgent,
                         onSpeak = chatViewModel::speak,
                         onStartListening = chatViewModel::startListening,
-                        onStopRecording = chatViewModel::stopRecording,
+                        onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
