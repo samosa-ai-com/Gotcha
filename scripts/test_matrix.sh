@@ -53,12 +53,35 @@ declare -a summary_avd
 declare -a summary_status
 declare -a summary_duration
 
+# Nothing listening on the port means it's available. Uses bash's /dev/tcp
+# rather than netstat/lsof, which differ between Git Bash and Linux.
+port_is_free() {
+    ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+
+# An emulator claims two consecutive ports (console, then adb) and normally
+# picks the first free pair itself. We pass -port so the serial is predictable,
+# which makes finding that pair our job — without it, a stale AVD or an Android
+# Studio emulator on 5554 would send every adb call below to the wrong device.
+find_free_port() {
+    local port
+    for (( port = 5554; port <= 5584; port += 2 )); do
+        if port_is_free "$port" && port_is_free "$((port + 1))" \
+            && ! "$ADB" devices 2>/dev/null | grep -q "^emulator-$port[[:space:]]"; then
+            echo "$port"
+            return 0
+        fi
+    done
+    return 1
+}
+
 boot_avd() {
     local avd="$1"
     local extra_flags="$2"
     echo "[$avd] booting headless…"
     # shellcheck disable=SC2086
-    "$EMULATOR" -avd "$avd" -no-snapshot -no-audio -no-boot-anim -no-window $extra_flags \
+    "$EMULATOR" -avd "$avd" -port "$EMU_PORT" \
+        -no-snapshot -no-audio -no-boot-anim -no-window $extra_flags \
         > "$RESULTS_ROOT/$avd/emulator.log" 2>&1 &
     EMULATOR_PID=$!
 
@@ -87,9 +110,16 @@ run_one_avd() {
     start_ts=$(date +%s)
     local status="pass"
 
-    # Allocate a deterministic-ish port per run so ANDROID_SERIAL is known.
-    EMU_PORT=5554
+    # Claim a port up front so ANDROID_SERIAL is known before the AVD boots.
+    if ! EMU_PORT="$(find_free_port)"; then
+        echo "[$avd] no free emulator port pair in 5554-5584" >&2
+        summary_avd+=("$avd")
+        summary_status+=("fail-port")
+        summary_duration+=("0s")
+        return
+    fi
     local serial="emulator-$EMU_PORT"
+    echo "[$avd] using $serial"
 
     local extra_flags=""
     if [[ "$avd" == *"26"* ]]; then
