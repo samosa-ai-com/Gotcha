@@ -199,33 +199,37 @@ class ScreenLensController(
             }
         }
 
-        val hasText = !cleanText.isNullOrBlank()
-        if (hasText && cleanText != null) {
+        if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
                 chipButton("📝 Select text") {
                     showSelectableTextCard(cleanText)
                 }
             )
-            chipsLayout.addView(
-                chipButton("📋 Copy text") {
-                    val crop = pendingCrop
-                    if (crop != null && !crop.isRecycled) {
-                        onOcrToClipboard(crop)
-                    }
-                    cancel()
-                }
-            )
-            chipsLayout.addView(
-                chipButton("🌐 Translate") {
-                    val crop = pendingCrop
-                    if (crop != null && !crop.isRecycled) {
-                        val base64 = bitmapToBase64(crop)
-                        onImagePrompt(base64, ScreenCompanionController.TRANSLATE_SCREENSHOT_PROMPT)
-                        cancel()
-                    }
-                }
-            )
         }
+
+        chipsLayout.addView(
+            chipButton("📋 Copy text") {
+                val crop = pendingCrop
+                if (crop != null && !crop.isRecycled) {
+                    val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
+                    if (cropCopy != null) {
+                        onOcrToClipboard(cropCopy)
+                    }
+                }
+                cancel()
+            }
+        )
+
+        chipsLayout.addView(
+            chipButton("🌐 Translate") {
+                val crop = pendingCrop
+                if (crop != null && !crop.isRecycled) {
+                    val base64 = bitmapToBase64(crop)
+                    onImagePrompt(base64, ScreenCompanionController.TRANSLATE_SCREENSHOT_PROMPT)
+                }
+                cancel()
+            }
+        )
 
         chipsLayout.addView(
             chipButton("💾 Save image") {
