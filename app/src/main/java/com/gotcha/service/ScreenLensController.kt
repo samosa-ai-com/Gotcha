@@ -200,7 +200,12 @@ class ScreenLensController(
         }
 
         val hasText = !cleanText.isNullOrBlank()
-        if (hasText) {
+        if (hasText && cleanText != null) {
+            chipsLayout.addView(
+                chipButton("📝 Select text") {
+                    showSelectableTextCard(cleanText)
+                }
+            )
             chipsLayout.addView(
                 chipButton("📋 Copy text") {
                     val crop = pendingCrop
@@ -261,6 +266,89 @@ class ScreenLensController(
             setTextColor(android.graphics.Color.WHITE)
             setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (6 * density).toInt())
             setOnClickListener { onClick() }
+        }
+    }
+
+    private fun showSelectableTextCard(text: String) {
+        removeActionMenu()
+        val density = appContext.resources.displayMetrics.density
+
+        val cardLayout = android.widget.LinearLayout(appContext).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 18f * density
+                setColor(android.graphics.Color.parseColor("#F51E293B"))
+                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#334155"))
+            }
+        }
+
+        val titleView = TextView(appContext).apply {
+            this.text = "📝 Extracted Text"
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(0, 0, 0, (8 * density).toInt())
+        }
+        cardLayout.addView(titleView)
+
+        val textView = TextView(appContext).apply {
+            this.text = text
+            textSize = 13f
+            setTextColor(android.graphics.Color.parseColor("#E2E8F0"))
+            setTextIsSelectable(true)
+        }
+
+        val scroll = android.widget.ScrollView(appContext).apply {
+            addView(textView)
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                (180 * density).toInt()
+            )
+        }
+        cardLayout.addView(scroll)
+
+        val btnRow = android.widget.LinearLayout(appContext).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, (10 * density).toInt(), 0, 0)
+        }
+
+        btnRow.addView(
+            chipButton("📋 Copy All") {
+                val clipService = Context.CLIPBOARD_SERVICE
+                val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
+                clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", text))
+                android.widget.Toast.makeText(
+                    appContext,
+                    "Copied to clipboard",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+                cancel()
+            }
+        )
+
+        btnRow.addView(
+            chipButton("✕ Close") {
+                cancel()
+            }
+        )
+        cardLayout.addView(btnRow)
+
+        val params = WindowManager.LayoutParams(
+            (300 * density).toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+        }
+
+        try {
+            windowManager.addView(cardLayout, params)
+            actionMenu = cardLayout
+        } catch (_: Exception) {
+            actionMenu = null
         }
     }
 

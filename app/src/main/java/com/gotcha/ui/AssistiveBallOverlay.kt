@@ -333,8 +333,14 @@ class AssistiveBallOverlay(context: Context) {
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             val metrics = appContext.resources.displayMetrics
-            leftMargin = (ballParams.x).coerceIn(0, (metrics.widthPixels - dp(MENU_WIDTH_DP)).coerceAtLeast(0))
-            topMargin = (ballParams.y + dp(64)).coerceIn(0, (metrics.heightPixels - dp(280)).coerceAtLeast(0))
+            val estimatedMenuHeight = dp(280)
+            val spaceBelow = metrics.heightPixels - (ballParams.y + dp(64))
+            leftMargin = (ballParams.x).coerceIn(dp(8), (metrics.widthPixels - dp(MENU_WIDTH_DP) - dp(8)).coerceAtLeast(0))
+            topMargin = if (spaceBelow >= estimatedMenuHeight) {
+                (ballParams.y + dp(64)).coerceIn(dp(16), (metrics.heightPixels - estimatedMenuHeight).coerceAtLeast(0))
+            } else {
+                (ballParams.y - estimatedMenuHeight - dp(8)).coerceIn(dp(16), (metrics.heightPixels - estimatedMenuHeight).coerceAtLeast(0))
+            }
         }
         rootLayout.addView(menuCard, cardParams)
 

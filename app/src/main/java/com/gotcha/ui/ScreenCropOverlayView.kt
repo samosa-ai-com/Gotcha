@@ -209,9 +209,19 @@ class ScreenCropOverlayView(
     }
 
     private fun drawAnnotatedEntities(canvas: Canvas) {
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        val viewOffsetX = location[0].toFloat()
+        val viewOffsetY = location[1].toFloat()
+
         for (item in annotatedEntities) {
             val bounds = item.boundsOnScreen
-            val rectF = RectF(bounds)
+            val rectF = RectF(
+                bounds.left.toFloat() - viewOffsetX,
+                bounds.top.toFloat() - viewOffsetY,
+                bounds.right.toFloat() - viewOffsetX,
+                bounds.bottom.toFloat() - viewOffsetY
+            )
 
             // Draw bounding box
             val radius = 8f * density
@@ -295,16 +305,27 @@ class ScreenCropOverlayView(
 
         // Check if touch hits an annotated entity box/chip
         if (event.action == MotionEvent.ACTION_UP && !moved) {
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            val viewOffsetX = location[0].toFloat()
+            val viewOffsetY = location[1].toFloat()
+
             val touchX = event.x
             val touchY = event.y
             for (item in annotatedEntities) {
-                val bounds = RectF(item.boundsOnScreen)
+                val bounds = item.boundsOnScreen
+                val rectF = RectF(
+                    bounds.left.toFloat() - viewOffsetX,
+                    bounds.top.toFloat() - viewOffsetY,
+                    bounds.right.toFloat() - viewOffsetX,
+                    bounds.bottom.toFloat() - viewOffsetY
+                )
                 val chipH = 24f * density
                 val expandedBounds = RectF(
-                    bounds.left - 16f,
-                    bounds.top - chipH - 16f,
-                    bounds.right + 16f,
-                    bounds.bottom + 16f
+                    rectF.left - 16f,
+                    rectF.top - chipH - 16f,
+                    rectF.right + 16f,
+                    rectF.bottom + 16f
                 )
                 if (expandedBounds.contains(touchX, touchY)) {
                     val prompt = item.entity.primaryAction?.prompt

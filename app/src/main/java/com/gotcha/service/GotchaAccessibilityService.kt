@@ -312,16 +312,26 @@ class GotchaAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<Pair<String, android.graphics.Rect>>()
 
+        fun findValidBounds(node: AccessibilityNodeInfo): android.graphics.Rect? {
+            var curr: AccessibilityNodeInfo? = node
+            while (curr != null) {
+                val r = android.graphics.Rect()
+                curr.getBoundsInScreen(r)
+                if (r.width() > 10 && r.height() > 10) {
+                    return r
+                }
+                curr = curr.parent
+            }
+            return null
+        }
+
         fun walk(node: AccessibilityNodeInfo?) {
             if (node == null) return
-            if (node.isVisibleToUser) {
-                val txt = (node.text?.toString() ?: node.contentDescription?.toString())?.trim()
-                if (!txt.isNullOrBlank()) {
-                    val rect = android.graphics.Rect()
-                    node.getBoundsInScreen(rect)
-                    if (rect.width() > 5 && rect.height() > 5) {
-                        nodes.add(Pair(txt, rect))
-                    }
+            val txt = (node.text?.toString() ?: node.contentDescription?.toString())?.trim()
+            if (!txt.isNullOrBlank()) {
+                val rect = findValidBounds(node)
+                if (rect != null) {
+                    nodes.add(Pair(txt, rect))
                 }
             }
             for (i in 0 until node.childCount) {
