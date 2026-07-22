@@ -261,17 +261,10 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun buildBall(): View {
         val size = dp(BALL_SIZE_DP)
-        val colors = palette()
         return android.widget.ImageView(appContext).apply {
             contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
             setImageResource(R.mipmap.ic_launcher_round)
             scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-            background = RingDrawable().apply {
-                fillColor = colors.surface
-                strokeColor = Color.parseColor("#FF3E7BFF")
-                strokeWidth = 2.5f * appContext.resources.displayMetrics.density
-                ringRadius = size / 2f - 3f * appContext.resources.displayMetrics.density
-            }
             alpha = PEEK_ALPHA
             setOnTouchListener(ballTouchListener())
             layoutParams = LinearLayout.LayoutParams(size, size)
@@ -836,8 +829,8 @@ class AssistiveBallOverlay(context: Context) {
         const val DISMISS_TARGET_MARGIN_DP = 32
         const val DISMISS_SNAP_RADIUS_DP = 56
 
-        const val PEEK_DP = 36
-        const val PEEK_ALPHA = 0.85f
+        const val PEEK_DP = 28
+        const val PEEK_ALPHA = 0.35f
         const val DOCK_MARGIN_DP = 16
         const val AUTO_DOCK_DELAY_MS = 2500L
 

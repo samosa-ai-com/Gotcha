@@ -231,7 +231,10 @@ class ScreenLensController(
             chipButton("💾 Save image") {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
-                    saveCropToGallery(crop)
+                    val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
+                    if (cropCopy != null) {
+                        saveCropToGallery(cropCopy)
+                    }
                 }
                 cancel()
             }
@@ -472,6 +475,8 @@ class ScreenLensController(
                 withContext(Dispatchers.Main) {
                     onError("Failed to save image: ${e.message}")
                 }
+            } finally {
+                if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
     }
