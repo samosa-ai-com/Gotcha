@@ -66,6 +66,14 @@ data class DetectedEntity(
 }
 
 /**
+ * An entity mapped to absolute screen bounds for the Lens auto-annotate overlay.
+ */
+data class AnnotatedEntity(
+    val entity: DetectedEntity,
+    val boundsOnScreen: android.graphics.Rect
+)
+
+/**
  * Lightweight text scanner that recognises structured data types — physical
  * addresses, phone numbers, foreign-currency prices, calendar events, URLs, emails,
  * OTPs, and tracking numbers.

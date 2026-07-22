@@ -121,14 +121,21 @@ class ScreenCompanionController(
                     if (currentHash == lastScreenTextHash) return@withContext
                     lastScreenTextHash = currentHash
 
-                    val entities = SmartActionDetector.detectAll(screenText, allowChat = false)
-                    if (entities.isNotEmpty()) {
-                        withContext(Dispatchers.Main) {
-                            AssistiveBallService.onProactiveEntitiesDiscovered(entities, pkg)
-                            val topAction = entities.first().primaryAction
+                    val allEntities = SmartActionDetector.detectAll(screenText, allowChat = false)
+                    val actionableEntities = allEntities.filter { item ->
+                        item.confidence >= 0.85f &&
+                            item.type != com.gotcha.service.EntityType.CHAT_REPLY &&
+                            item.type != com.gotcha.service.EntityType.GENERIC_TEXT
+                    }
+                    withContext(Dispatchers.Main) {
+                        if (actionableEntities.isNotEmpty()) {
+                            AssistiveBallService.onProactiveEntitiesDiscovered(actionableEntities, pkg)
+                            val topAction = actionableEntities.first().primaryAction
                             if (topAction != null) {
                                 onSmartActionReady(topAction.label, topAction.prompt)
                             }
+                        } else {
+                            AssistiveBallService.onProactiveEntitiesDiscovered(emptyList(), pkg)
                         }
                     }
                 }

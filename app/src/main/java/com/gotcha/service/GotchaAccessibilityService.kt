@@ -26,6 +26,8 @@ import kotlin.coroutines.resume
  * for null and returns a permission hint otherwise.
  */
 // One function per accessibility capability (tap, swipe, type, …) by design; size is inherent.
+data class ScreenNodeText(val text: String, val bounds: android.graphics.Rect)
+
 @Suppress("TooManyFunctions")
 class GotchaAccessibilityService : AccessibilityService() {
 
@@ -300,6 +302,33 @@ class GotchaAccessibilityService : AccessibilityService() {
         val performed = match?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
         root.recycle()
         return performed
+    }
+
+    /** Traverses active window nodes and extracts visible text along with screen bounds. */
+    fun extractScreenNodeTexts(): List<ScreenNodeText> {
+        val root = rootInActiveWindow ?: return emptyList()
+        val results = mutableListOf<ScreenNodeText>()
+
+        fun walk(node: AccessibilityNodeInfo?) {
+            if (node == null) return
+            if (node.isVisibleToUser) {
+                val txt = (node.text?.toString() ?: node.contentDescription?.toString())?.trim()
+                if (!txt.isNullOrBlank() && txt.length >= 3) {
+                    val rect = android.graphics.Rect()
+                    node.getBoundsInScreen(rect)
+                    if (rect.width() > 10 && rect.height() > 10) {
+                        results.add(ScreenNodeText(txt, rect))
+                    }
+                }
+            }
+            for (i in 0 until node.childCount) {
+                walk(node.getChild(i))
+            }
+        }
+
+        walk(root)
+        root.recycle()
+        return results
     }
 
     fun longPressByText(query: String): Boolean {
