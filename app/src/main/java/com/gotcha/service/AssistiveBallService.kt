@@ -455,7 +455,6 @@ class AssistiveBallService : Service() {
 
     /** OCR a Lens crop via ML Kit on-device text recognition and copy to clipboard. */
     private fun ocrCropToClipboard(bitmap: android.graphics.Bitmap) {
-        overlay.showError("Reading text…")
         scope.launch {
             try {
                 val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -467,14 +466,23 @@ class AssistiveBallService : Service() {
                 }
                 val text = result.text.trim()
                 if (text.isBlank()) {
-                    overlay.showError("No text found in selection")
+                    showToast("No text found in selection")
                 } else {
                     val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lens text", text))
+                    showToast("Copied to clipboard")
                 }
             } catch (e: Exception) {
-                overlay.showError("Couldn't read text: ${e.message}")
+                showToast("Couldn't read text: ${e.message}")
+            } finally {
+                if (!bitmap.isRecycled) bitmap.recycle()
             }
+        }
+    }
+
+    private fun showToast(msg: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 

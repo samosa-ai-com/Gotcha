@@ -201,14 +201,14 @@ class ScreenLensController(
 
         if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
-                chipButton("📝 Select text") {
+                chipButton("📝 Select") {
                     showSelectableTextCard(cleanText)
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("📋 Copy text") {
+            chipButton("📋 Copy") {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -232,7 +232,7 @@ class ScreenLensController(
         )
 
         chipsLayout.addView(
-            chipButton("💾 Save image") {
+            chipButton("💾 Save") {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -245,7 +245,7 @@ class ScreenLensController(
         )
 
         chipsLayout.addView(
-            chipButton("❓ Ask about this") {
+            chipButton("❓ Ask") {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val base64 = bitmapToBase64(crop)
@@ -253,6 +253,24 @@ class ScreenLensController(
                     cancel()
                 }
             }
+        )
+
+        val chipBarHeight = (42 * density).toInt()
+        val chipBarWidth = (300 * density).toInt()
+        val screenHeight = overlay.height
+        val screenWidth = overlay.width
+
+        val targetY = if (finalRect.bottom + chipBarHeight + (12 * density).toInt() <= screenHeight) {
+            finalRect.bottom + (12 * density).toInt()
+        } else if (finalRect.top - chipBarHeight - (12 * density).toInt() >= 0) {
+            finalRect.top - chipBarHeight - (12 * density).toInt()
+        } else {
+            (16 * density).toInt()
+        }
+
+        val targetX = (finalRect.centerX() - chipBarWidth / 2).coerceIn(
+            (12 * density).toInt(),
+            (screenWidth - chipBarWidth - (12 * density).toInt()).coerceAtLeast(0)
         )
 
         val params = WindowManager.LayoutParams(
@@ -263,8 +281,8 @@ class ScreenLensController(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = (finalRect.centerX() - (120 * density)).toInt().coerceIn(0, overlay.width - 240)
-            y = (finalRect.top - (48 * density)).toInt().coerceAtLeast((16 * density).toInt())
+            x = targetX
+            y = targetY
         }
 
         try {
