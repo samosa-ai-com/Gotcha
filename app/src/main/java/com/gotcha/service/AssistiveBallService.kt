@@ -75,8 +75,11 @@ class AssistiveBallService : Service() {
         )
     }
 
+    val proactiveSessionManager = ProactiveSessionManager()
+
     override fun onCreate() {
         super.onCreate()
+        instance = this
         settingsRepository = SettingsRepository(this)
         val s = settingsRepository.load()
         ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.apiKey)
@@ -356,6 +359,36 @@ class AssistiveBallService : Service() {
                         data = android.provider.CalendarContract.Events.CONTENT_URI
                         putExtra(android.provider.CalendarContract.Events.TITLE, payload)
                     }
+                SmartActionDetector.TYPE_SMS ->
+                    Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + android.net.Uri.encode(payload)))
+                SmartActionDetector.TYPE_VIEW ->
+                    Intent(Intent.ACTION_VIEW, android.net.Uri.parse(payload))
+                SmartActionDetector.TYPE_MAILTO ->
+                    Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:" + android.net.Uri.encode(payload)))
+                SmartActionDetector.TYPE_SHARE ->
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            this.type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, payload)
+                        },
+                        "Share"
+                    )
+                SmartActionDetector.TYPE_CONTACT ->
+                    Intent(Intent.ACTION_INSERT).apply {
+                        data = android.provider.ContactsContract.Contacts.CONTENT_URI
+                        putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, payload)
+                    }
+                SmartActionDetector.TYPE_WHATSAPP -> {
+                    val cleanPhone = payload.replace(Regex("[^0-9+]"), "")
+                    val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=" + android.net.Uri.encode(cleanPhone))
+                    Intent(Intent.ACTION_VIEW, uri)
+                }
+                SmartActionDetector.TYPE_COPY -> {
+                    val clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Gotcha", payload))
+                    android.widget.Toast.makeText(this, "Copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                    null
+                }
                 else -> null
             } ?: return
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -606,6 +639,7 @@ class AssistiveBallService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         _isRunning.value = false
         callController.endCall()
         chatWindow.hide()
@@ -762,6 +796,18 @@ class AssistiveBallService : Service() {
 
         /** Cap on fetched page text handed to the LLM for link summarization. */
         private const val MAX_FETCH_CHARS = 12000
+
+        @Volatile
+        var instance: AssistiveBallService? = null
+            private set
+
+        fun onProactiveEntitiesDiscovered(entities: List<DetectedEntity>, packageName: String? = null) {
+            val service = instance ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val sessionItems = service.proactiveSessionManager.mergeEntities(entities, packageName)
+                service.overlay.setProactiveSessionItems(sessionItems)
+            }
+        }
 
         fun startIntent(context: Context): Intent =
             Intent(context, AssistiveBallService::class.java).setAction(ACTION_START)

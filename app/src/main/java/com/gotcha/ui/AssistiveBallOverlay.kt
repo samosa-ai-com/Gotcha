@@ -1,11 +1,9 @@
 package com.gotcha.ui
 
 import android.animation.ValueAnimator
-import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -18,10 +16,8 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
-import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -30,27 +26,16 @@ import androidx.core.graphics.ColorUtils
 import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.ThemeMode
+import com.gotcha.service.EntityType
+import com.gotcha.service.ProactiveSessionItem
+import com.gotcha.service.SmartActionDetector
 import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Accessibility label for the ball root view — used by UiAutomator to find the overlay. */
 const val ASSISTIVE_BALL_CONTENT_DESCRIPTION = "Gotcha assistive ball"
 
-/**
- * The floating "assistive ball" drawn over other apps via SYSTEM_ALERT_WINDOW,
- * reworked into a Messenger-Bubbles-style call head:
- *
- *  - Tap: Open App / Screenshot menu when idle; toggles the call chat window
- *    during a call.
- *  - Long-press (3s idle / 5s during a call): start or end a voice call.
- *  - Drag: moves the ball; an ✕ target appears at the bottom of the screen
- *    and dropping the ball on it hides the ball (Messenger-style dismiss).
- *
- * Structurally modelled on [ConfirmationOverlay]: a [WindowManager] +
- * [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY] window, gated on
- * [Settings.canDrawOverlays], with all window mutations posted to the main thread.
- */
-@Suppress("TooManyFunctions", "LargeClass")
+@Suppress("TooManyFunctions", "LargeClass", "MaxLineLength", "ComplexCondition")
 class AssistiveBallOverlay(context: Context) {
 
     private val appContext = context.applicationContext
@@ -70,9 +55,9 @@ class AssistiveBallOverlay(context: Context) {
     var onSmartActionSelected: (prompt: String) -> Unit = {}
     var isPanelOpen: Boolean = false
 
-    /** Queried per gesture: is a voice call active (any non-idle state)? */
     var isCallActive: () -> Boolean = { false }
 
+    private var proactiveSessionItems: List<ProactiveSessionItem> = emptyList()
     private var pendingSmartAction: Pair<String, String>? = null
     private var pendingSmartActionAlt: Pair<String, String>? = null
     private var lastOfferedLabel: String? = null
@@ -88,17 +73,13 @@ class AssistiveBallOverlay(context: Context) {
     private var cardView: View? = null
     private var dismissTargetView: View? = null
 
-    /** Which edge the ball docks to when idle. Defaults to the right edge. */
     private var dockSide: Int = DOCK_SIDE_END
-
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
-
     private val settingsRepository by lazy { SettingsRepository(appContext) }
     private val figtree: Typeface? by lazy {
         runCatching { ResourcesCompat.getFont(appContext, R.font.figtree) }.getOrNull()
     }
 
-    /** Colors mirroring the app's Material scheme (ui/theme/Color.kt) for raw views. */
     private class OverlayPalette(
         val surface: Int,
         val onSurface: Int,
@@ -107,7 +88,6 @@ class AssistiveBallOverlay(context: Context) {
         val buttonText: Int
     )
 
-    /** Follows the in-app theme setting; SYSTEM tracks the device dark mode. */
     private fun isDarkTheme(): Boolean {
         val mode = runCatching { settingsRepository.load().themeMode }.getOrDefault(ThemeMode.SYSTEM)
         return when (mode) {
@@ -121,80 +101,28 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun palette(): OverlayPalette = if (isDarkTheme()) {
         OverlayPalette(
-            surface = 0xFF1E293B.toInt(), // DarkSurface
+            surface = 0xFF1E293B.toInt(),
             onSurface = 0xFFE2E8F0.toInt(),
-            outline = 0xFF334155.toInt(), // DarkSurfaceVariant
+            outline = 0xFF334155.toInt(),
             buttonBg = 0xFF334155.toInt(),
             buttonText = 0xFFE2E8F0.toInt()
         )
     } else {
         OverlayPalette(
-            surface = 0xFFFBFDF9.toInt(), // LightSurface
+            surface = 0xFFFBFDF9.toInt(),
             onSurface = 0xFF191C1A.toInt(),
-            outline = 0xFFDBE5E0.toInt(), // LightSurfaceVariant
-            buttonBg = 0xFFE8F6F2.toInt(), // LightPrimaryContainer
-            buttonText = 0xFF002117.toInt() // LightOnPrimaryContainer
+            outline = 0xFFDBE5E0.toInt(),
+            buttonBg = 0xFFE8F6F2.toInt(),
+            buttonText = 0xFF002117.toInt()
         )
     }
 
-    /** Whether we currently hold the "Display over other apps" permission. */
     fun canShow(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(appContext)
 
-    fun show() {
-        mainHandler.post {
-            if (ballView != null) return@post
-            val ball = buildBall()
-            try {
-                windowManager.addView(ball, ballParams)
-                ballView = ball
-                // On first enable, show the full, opaque button (centred) so the user
-                // sees it; it auto-docks to the edge after a short idle delay.
-                ball.alpha = 1.0f
-                ballParams.x = (screenWidth() - dp(BALL_SIZE_DP)) / 2
-                try {
-                    windowManager.updateViewLayout(ball, ballParams)
-                } catch (_: Exception) { }
-                scheduleAutoDock()
-            } catch (_: Exception) {
-                ballView = null
-            }
-        }
-    }
-
-    fun dismiss() {
-        mainHandler.post {
-            cancelAutoDock()
-            removeLongPressRing()
-            removeMenu()
-            removeCard()
-            removeDismissTarget()
-            clearSmartAction()
-            ballView?.let { safeRemove(it) }
-            ballView = null
-        }
-    }
-
-    /** Tint the ball's rim green while a call is active so the 5s end gesture is discoverable. */
-    fun setCallActive(active: Boolean) {
-        mainHandler.post {
-            (ballView as? ImageView)?.foreground = ballRim(active)
-        }
-    }
-
-    // ---- Capture chrome ----
-
-    /**
-     * Hide all of our own overlay windows (menu, status card, and the ball) so they are
-     * not baked into a screen capture taken for the call's screen context. Call
-     * [showChromeAfterCapture] once the screenshot has been taken.
-     */
     fun hideChromeForCapture() {
         mainHandler.post {
-            removeLongPressRing()
-            removeMenu()
-            removeCard()
-            ballView?.visibility = View.GONE
+            ballView?.visibility = View.INVISIBLE
         }
     }
 
@@ -206,43 +134,121 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
-    // ---- Status card (errors only) ----
+    fun setCallActive(active: Boolean) {
+        mainHandler.post {
+            if (active) {
+                hideChromeForCapture()
+                removeMenu()
+            } else {
+                showChromeAfterCapture()
+            }
+        }
+    }
+
+    fun show() {
+        mainHandler.post {
+            if (ballView != null) return@post
+            val ball = buildBall()
+            try {
+                windowManager.addView(ball, ballParams)
+                ballView = ball
+            } catch (_: Exception) {
+                ballView = null
+            }
+        }
+    }
+
+    fun dismiss() {
+        mainHandler.post {
+            removeSmartActionRing()
+            removeLongPressRing()
+            removeMenu()
+            removeCard()
+            removeDismissTarget()
+            ballView?.let { safeRemove(it) }
+            ballView = null
+        }
+    }
+
+    fun setProactiveSessionItems(items: List<ProactiveSessionItem>) {
+        mainHandler.post {
+            proactiveSessionItems = items
+            if (items.isNotEmpty()) {
+                val topEntity = items.first().entity
+                topEntity.primaryAction?.let { action ->
+                    setSmartActionAvailable(action.label, action.prompt)
+                }
+            }
+        }
+    }
+
+    fun setSmartActionPairAvailable(label: String, prompt: String, altLabel: String, altPrompt: String) {
+        setSmartActionAvailable(label, prompt, altLabel, altPrompt)
+    }
 
     fun setSmartActionAvailable(label: String, prompt: String) {
         setSmartActionAvailable(label, prompt, null, null)
     }
 
-    /**
-     * Offer a primary smart action plus an optional secondary ("alt") action shown
-     * as a second chip in the menu — e.g. "Extract text?" alongside "Translate".
-     */
     fun setSmartActionAvailable(label: String, prompt: String, altLabel: String?, altPrompt: String?) {
         mainHandler.post {
             if (isCallActive()) return@post
-
             val currentLabel = pendingSmartAction?.first ?: ""
             if (currentLabel.contains("copied", ignoreCase = true) && !label.contains("copied", ignoreCase = true)) {
-                android.util.Log.d(
-                    "AssistiveBallOverlay",
-                    "Preventing overwrite of active clipboard action '$currentLabel' by passive action '$label'"
-                )
                 return@post
             }
-
-            if (label == lastOfferedLabel) {
-                return@post
-            }
+            if (label == lastOfferedLabel) return@post
 
             lastOfferedLabel = label
             pendingSmartAction = Pair(label, prompt)
-            pendingSmartActionAlt = if (altLabel != null && altPrompt != null) {
-                Pair(altLabel, altPrompt)
-            } else {
-                null
-            }
+            pendingSmartActionAlt = if (altLabel != null && altPrompt != null) Pair(altLabel, altPrompt) else null
             showSmartActionRing()
             mainHandler.removeCallbacks(smartActionClearRunnable)
-            mainHandler.postDelayed(smartActionClearRunnable, 45000L) // 45 seconds
+            mainHandler.postDelayed(smartActionClearRunnable, 45000L)
+        }
+    }
+
+    fun showError(message: String) {
+        showCard("⚠️ $message", showClose = true)
+    }
+
+    fun showCard(message: String, showClose: Boolean = true) {
+        mainHandler.post {
+            removeCard()
+            val colors = palette()
+            val container = LinearLayout(appContext).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(20), dp(16), dp(20), dp(16))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(20).toFloat()
+                    setColor(colors.surface)
+                    setStroke(dp(1), colors.outline)
+                }
+            }
+            val scroll = ScrollView(appContext).apply {
+                addView(
+                    TextView(appContext).apply {
+                        text = message
+                        typeface = figtree ?: Typeface.DEFAULT
+                        setTextColor(colors.onSurface)
+                        textSize = 14f
+                    }
+                )
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(240)
+                )
+            }
+            container.addView(scroll)
+            if (showClose) {
+                container.addView(tapButton("Close", colors) { hideCard() })
+            }
+            try {
+                windowManager.addView(container, cardLayoutParams())
+                cardView = container
+            } catch (_: Exception) {
+                cardView = null
+            }
         }
     }
 
@@ -254,6 +260,225 @@ class AssistiveBallOverlay(context: Context) {
             removeSmartActionRing()
             removeMenu()
         }
+    }
+
+    private fun buildBall(): View {
+        val size = dp(BALL_SIZE_DP)
+        return View(appContext).apply {
+            contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
+            background = RingDrawable().apply {
+                fillColor = Color.parseColor("#44101018")
+                strokeColor = Color.parseColor("#88568CD8")
+                strokeWidth = 2f * appContext.resources.displayMetrics.density
+            }
+            alpha = PEEK_ALPHA
+            setOnTouchListener(ballTouchListener())
+            layoutParams = LinearLayout.LayoutParams(size, size)
+        }
+    }
+
+    private fun toggleMenu() {
+        if (menuView != null) removeMenu() else showMenu()
+    }
+
+    private fun showMenu() {
+        removeMenu()
+        val colors = palette()
+        val container = LinearLayout(appContext).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(colors.surface)
+                setStroke(dp(1), colors.outline)
+            }
+        }
+
+        // Render Proactive Multi-Entity Grouped List
+        if (proactiveSessionItems.isNotEmpty()) {
+            val scroll = ScrollView(appContext).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(220)
+                )
+            }
+            val listContent = LinearLayout(appContext).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+
+            for (item in proactiveSessionItems.take(4)) {
+                val entity = item.entity
+                val headerText = TextView(appContext).apply {
+                    text = "${getCategoryIcon(entity.type)}  ${SmartActionDetector.snippet(entity.normalizedValue, 22)}"
+                    typeface = figtree ?: Typeface.DEFAULT
+                    textSize = 12f
+                    setTextColor(colors.onSurface)
+                    setPadding(dp(8), dp(6), dp(8), dp(2))
+                }
+                listContent.addView(headerText)
+
+                val chipRow = LinearLayout(appContext).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(dp(4), dp(2), dp(4), dp(6))
+                }
+                for (action in entity.actions) {
+                    chipRow.addView(
+                        tapButton(action.label, colors) {
+                            val currentPrompt = action.prompt
+                            clearSmartAction()
+                            onSmartActionSelected(currentPrompt)
+                        }.apply {
+                            textSize = 11f
+                            setPadding(dp(8), dp(4), dp(8), dp(4))
+                        }
+                    )
+                }
+                listContent.addView(chipRow)
+            }
+            scroll.addView(listContent)
+            container.addView(scroll)
+        } else {
+            pendingSmartAction?.let { (label, prompt) ->
+                container.addView(
+                    tapButton(label, colors) {
+                        clearSmartAction()
+                        onSmartActionSelected(prompt)
+                    }
+                )
+            }
+        }
+
+        container.addView(
+            tapButton("📱 Open App", colors) {
+                removeMenu()
+                onOpenApp()
+            }
+        )
+        container.addView(
+            tapButton("📸 Screenshot", colors) {
+                removeMenu()
+                onTakeScreenshot()
+            }
+        )
+        container.addView(
+            tapButton("🔍 Lens", colors) {
+                removeMenu()
+                onStartLens()
+            }
+        )
+
+        val params = menuLayoutParams()
+        try {
+            windowManager.addView(container, params)
+            menuView = container
+        } catch (_: Exception) {
+            menuView = null
+        }
+    }
+
+    private fun getCategoryIcon(type: EntityType): String = when (type) {
+        EntityType.OTP -> "🔑"
+        EntityType.PHONE -> "📞"
+        EntityType.ADDRESS -> "📍"
+        EntityType.EMAIL -> "📧"
+        EntityType.URL -> "🌐"
+        EntityType.CALENDAR -> "📅"
+        EntityType.CURRENCY -> "💵"
+        EntityType.TRACKING_NUMBER -> "📦"
+        EntityType.CHAT_REPLY -> "💬"
+        EntityType.GENERIC_TEXT -> "📋"
+    }
+
+    private fun tapButton(label: String, colors: OverlayPalette, onClick: () -> Unit): TextView {
+        return TextView(appContext).apply {
+            text = label
+            typeface = figtree ?: Typeface.DEFAULT
+            textSize = 13f
+            setTextColor(colors.buttonText)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(colors.buttonBg)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) }
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun removeMenu() {
+        menuView?.let { safeRemove(it) }
+        menuView = null
+    }
+
+    private fun hideCard() {
+        mainHandler.post { removeCard() }
+    }
+
+    private fun removeCard() {
+        cardView?.let { safeRemove(it) }
+        cardView = null
+    }
+
+    private fun showLongPressRing() {
+        removeLongPressRing()
+        val density = appContext.resources.displayMetrics.density
+        val viewSize = (BALL_SIZE_DP * 3.2f * density).toInt()
+        val ballPx = dp(BALL_SIZE_DP)
+        val drawable = RingDrawable().apply {
+            fillColor = Color.TRANSPARENT
+            strokeColor = Color.WHITE
+            strokeWidth = 2.5f * density
+        }
+        val view = View(appContext).apply { background = drawable }
+        val params = WindowManager.LayoutParams(
+            viewSize,
+            viewSize,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = ballParams.x + ballPx / 2 - viewSize / 2
+            y = ballParams.y + ballPx / 2 - viewSize / 2
+        }
+        try {
+            windowManager.addView(view, params)
+            ringView = view
+            ringDrawable = drawable
+
+            val minRadius = ballPx * 0.50f
+            val maxRadius = ballPx * 1.60f
+            ringAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = LONG_PRESS_START_MS
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val p = anim.animatedValue as Float
+                    drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(Color.WHITE, ((1f - p * 0.6f) * 255).toInt())
+                }
+                start()
+            }
+        } catch (_: Exception) {
+            ringView = null
+        }
+    }
+
+    private fun hideLongPressRing() {
+        removeLongPressRing()
+    }
+
+    private fun removeLongPressRing() {
+        ringAnimator?.cancel()
+        ringAnimator = null
+        ringView?.let { safeRemove(it) }
+        ringView = null
+        ringDrawable = null
     }
 
     private fun showSmartActionRing() {
@@ -286,7 +511,6 @@ class AssistiveBallOverlay(context: Context) {
 
             val minRadius = ballPx * 0.45f
             val maxRadius = ballPx * 0.65f
-
             smartActionRingAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 1200L
                 repeatMode = ValueAnimator.REVERSE
@@ -297,17 +521,6 @@ class AssistiveBallOverlay(context: Context) {
                     drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
                     drawable.strokeColor = ColorUtils.setAlphaComponent(Color.CYAN, (40 + 80 * (1f - p)).toInt())
                 }
-                addListener(object : android.animation.AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: android.animation.Animator) {
-                        smartActionRingView?.animate()
-                            ?.alpha(0f)
-                            ?.setDuration(500L)
-                            ?.withEndAction {
-                                removeSmartActionRing()
-                            }
-                            ?.start()
-                    }
-                })
                 start()
             }
         } catch (_: Exception) {
@@ -323,126 +536,19 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun updateSmartActionRingPosition() {
-        smartActionRingView?.let {
-            try {
-                val viewSize = it.layoutParams.width
-                val ballPx = dp(BALL_SIZE_DP)
-                val params = it.layoutParams as WindowManager.LayoutParams
-                params.x = ballParams.x + ballPx / 2 - viewSize / 2
-                params.y = ballParams.y + ballPx / 2 - viewSize / 2
-                windowManager.updateViewLayout(it, params)
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun showError(text: String) = showCard(text, showClose = true)
-
-    // ---- Ball ----
-
-    @SuppressLint("ClickableViewAccessibility")
-    private fun buildBall(): View {
-        return ImageView(appContext).apply {
-            contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
-            setImageResource(R.mipmap.ic_launcher_round)
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            // Clip the square launcher icon into a circular "ball".
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setOval(0, 0, view.width, view.height)
-                }
-            }
-            clipToOutline = true
-            // Subtle rim so the logo reads on any background (green during calls).
-            foreground = ballRim(isCallActive())
-            setOnTouchListener(ballTouchListener())
-        }
-    }
-
-    private fun ballRim(callActive: Boolean) = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        if (callActive) {
-            setStroke(dp(2), Color.parseColor("#CC34C759"))
-        } else {
-            setStroke(dp(1), Color.parseColor("#66FFFFFF"))
-        }
-    }
-
-    // ---- Long-press ring ----
-
-    /** Show a growing ring around the ball during the 3s hold to start a call. */
-    private fun showLongPressRing() {
-        removeLongPressRing()
+        val view = smartActionRingView ?: return
         val density = appContext.resources.displayMetrics.density
-        // View is 3.5x the ball so the ring can grow to ~1.6x the ball radius
-        // without hitting the view's bounds. The screen edge may still clip
-        // when the ball is near the edge — that's intended.
-        val viewSize = (BALL_SIZE_DP * 3.5f * density).toInt()
+        val viewSize = (BALL_SIZE_DP * 1.5f * density).toInt()
         val ballPx = dp(BALL_SIZE_DP)
-        val drawable = RingDrawable()
-        val view = View(appContext).apply { background = drawable }
-        val params = WindowManager.LayoutParams(
-            viewSize,
-            viewSize,
-            overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
+        val params = (view.layoutParams as WindowManager.LayoutParams).apply {
             x = ballParams.x + ballPx / 2 - viewSize / 2
             y = ballParams.y + ballPx / 2 - viewSize / 2
         }
         try {
-            windowManager.addView(view, params)
-            ringView = view
-            ringDrawable = drawable
-
-            val minRadius = ballPx * 0.50f
-            val maxRadius = ballPx * 1.60f
-            val strokePx = 2.5f * density
-            val fillBase = Color.WHITE
-            val strokeBase = Color.WHITE
-
-            ringAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = LONG_PRESS_START_MS
-                interpolator = AccelerateDecelerateInterpolator()
-                addUpdateListener { anim ->
-                    val p = anim.animatedValue as Float
-                    drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
-                    // Stroke fades from full to ~40% opacity as it expands
-                    drawable.strokeColor = ColorUtils.setAlphaComponent(
-                        strokeBase,
-                        ((1f - p * 0.6f) * 255).toInt()
-                    )
-                    drawable.strokeWidth = strokePx
-                    // Fill tints the area between ball and ring, fades out
-                    drawable.fillColor = ColorUtils.setAlphaComponent(
-                        fillBase,
-                        ((0.18f * (1f - p)) * 255).toInt()
-                    )
-                }
-                start()
-            }
-        } catch (_: Exception) {
-            ringView = null
-            ringDrawable = null
-        }
+            windowManager.updateViewLayout(view, params)
+        } catch (_: Exception) { }
     }
 
-    private fun hideLongPressRing() {
-        removeLongPressRing()
-    }
-
-    private fun removeLongPressRing() {
-        ringAnimator?.cancel()
-        ringAnimator = null
-        ringView?.let { safeRemove(it) }
-        ringView = null
-        ringDrawable = null
-    }
-
-    @Suppress("CyclomaticComplexMethod")
     private fun ballTouchListener(): View.OnTouchListener {
         var startX = 0
         var startY = 0
@@ -464,8 +570,6 @@ class AssistiveBallOverlay(context: Context) {
                     touchDownRawY = event.rawY
                     dragging = false
                     longPressFired = false
-                    // Reveal the sliver immediately on contact; the ball stays put
-                    // so drag math (relative to startX) stays consistent.
                     cancelAutoDock()
                     ballView?.alpha = 1.0f
                     mainHandler.postDelayed(
@@ -503,18 +607,15 @@ class AssistiveBallOverlay(context: Context) {
                     val droppedOnTarget = dragging && isOverDismissTarget()
                     removeDismissTarget()
                     when {
-                        longPressFired -> { /* handled by the runnable */ }
+                        longPressFired -> { }
                         droppedOnTarget -> onDismiss()
                         dragging -> {
-                            // Snap to the edge on the side the ball was dropped on.
                             dockSide = sideForX(ballParams.x)
                             clampBallIntoBounds()
                             scheduleAutoDock()
                         }
                         isCallActive() -> onToggleChatWindow()
                         else -> {
-                            // Idle tap: slide the full ball on-screen, open the menu,
-                            // then auto-dock back to the edge after a short idle.
                             expandFromEdge()
                             toggleMenu()
                             scheduleAutoDock()
@@ -527,7 +628,6 @@ class AssistiveBallOverlay(context: Context) {
                     hideLongPressRing()
                     removeDismissTarget()
                     if (dragging) {
-                        // Snap to the edge on the side the ball was dropped on.
                         dockSide = sideForX(ballParams.x)
                         clampBallIntoBounds()
                         scheduleAutoDock()
@@ -542,7 +642,6 @@ class AssistiveBallOverlay(context: Context) {
     private fun clampBallIntoBounds() {
         val metrics = appContext.resources.displayMetrics
         val maxY = metrics.heightPixels - dp(BALL_SIZE_DP)
-        // Allow the ball to dock fully off either edge down to its peek position.
         val minX = -dp(BALL_SIZE_DP - PEEK_DP)
         val maxX = metrics.widthPixels - dp(PEEK_DP)
         ballParams.x = ballParams.x.coerceIn(minX, maxX)
@@ -553,29 +652,23 @@ class AssistiveBallOverlay(context: Context) {
         } catch (_: Exception) { }
     }
 
-    // ---- Edge-peek expand / dock ----
-
     private fun screenWidth(): Int = appContext.resources.displayMetrics.widthPixels
 
-    /** X offset (from the left/START edge) that places the ball in its peek sliver. */
     private fun dockedX(side: Int): Int = when (side) {
         DOCK_SIDE_END -> screenWidth() - dp(PEEK_DP)
         else -> -dp(BALL_SIZE_DP - PEEK_DP)
     }
 
-    /** X offset that places the fully-expanded ball just inside [side]'s edge. */
     private fun dockedExpandX(side: Int): Int = when (side) {
         DOCK_SIDE_END -> screenWidth() - dp(BALL_SIZE_DP) - dp(DOCK_MARGIN_DP)
         else -> dp(DOCK_MARGIN_DP)
     }
 
-    /** Pick the dock side from the ball's current left offset (uses its centre). */
     private fun sideForX(leftX: Int): Int {
         val centre = leftX + dp(BALL_SIZE_DP) / 2
         return if (centre < screenWidth() / 2) DOCK_SIDE_START else DOCK_SIDE_END
     }
 
-    /** Slide the full ball onto the screen (on its current dock side) and make it fully opaque. */
     private fun expandFromEdge() {
         cancelAutoDock()
         ballParams.x = dockedExpandX(dockSide)
@@ -594,7 +687,6 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
-    /** Animate the ball back to the faint, docked-at-edge peek state. */
     private fun dockToEdge() {
         val view = ballView ?: return
         val targetX = dockedX(dockSide)
@@ -627,8 +719,6 @@ class AssistiveBallOverlay(context: Context) {
     private fun cancelAutoDock() {
         mainHandler.removeCallbacks(autoDockRunnable)
     }
-
-    // ---- Dismiss target (drag the ball onto the ✕ to hide it) ----
 
     private fun showDismissTarget() {
         if (dismissTargetView != null) return
@@ -673,7 +763,6 @@ class AssistiveBallOverlay(context: Context) {
         dismissTargetView?.scaleY = scale
     }
 
-    /** True when the ball's centre is within snapping distance of the ✕ target's centre. */
     private fun isOverDismissTarget(): Boolean {
         if (dismissTargetView == null) return false
         val metrics = appContext.resources.displayMetrics
@@ -686,171 +775,10 @@ class AssistiveBallOverlay(context: Context) {
         return distance <= dp(DISMISS_SNAP_RADIUS_DP)
     }
 
-    // ---- Expanded menu (idle only; taps during a call toggle the chat window) ----
-
-    private fun toggleMenu() {
-        if (menuView != null) removeMenu() else showMenu()
-    }
-
-    private fun showMenu() {
-        removeMenu()
-        val colors = palette()
-        val container = LinearLayout(appContext).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(20).toFloat()
-                setColor(colors.surface)
-                setStroke(dp(1), colors.outline)
-            }
-        }
-
-        pendingSmartAction?.let { (label, prompt) ->
-            container.addView(
-                tapButton(label, colors) {
-                    val currentPrompt = prompt
-                    clearSmartAction()
-                    onSmartActionSelected(currentPrompt)
-                }.apply {
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
-                        setColor(ColorUtils.setAlphaComponent(Color.CYAN, 40))
-                        setStroke(dp(1), Color.CYAN)
-                    }
-                    setTextColor(Color.CYAN)
-                }
-            )
-        }
-
-        pendingSmartActionAlt?.let { (label, prompt) ->
-            container.addView(
-                tapButton(label, colors) {
-                    val currentPrompt = prompt
-                    clearSmartAction()
-                    onSmartActionSelected(currentPrompt)
-                }.apply {
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
-                        setColor(ColorUtils.setAlphaComponent(Color.CYAN, 24))
-                        setStroke(dp(1), ColorUtils.setAlphaComponent(Color.CYAN, 160))
-                    }
-                    setTextColor(Color.CYAN)
-                }
-            )
-        }
-
-        container.addView(
-            tapButton("\uD83D\uDCF1  Open App", colors) {
-                removeMenu()
-                onOpenApp()
-            }
-        )
-        container.addView(
-            tapButton("\uD83D\uDCF7  Screenshot", colors) {
-                removeMenu()
-                onTakeScreenshot()
-            }
-        )
-        container.addView(
-            tapButton("\uD83D\uDD0D  Lens", colors) {
-                removeMenu()
-                onStartLens()
-            }
-        )
-
-        val params = menuLayoutParams()
-        try {
-            windowManager.addView(container, params)
-            menuView = container
-        } catch (_: Exception) {
-            menuView = null
-        }
-    }
-
-    private fun tapButton(label: String, colors: OverlayPalette, onClick: () -> Unit): TextView {
-        return TextView(appContext).apply {
-            text = label
-            typeface = figtree ?: Typeface.DEFAULT
-            textSize = 14f
-            setTextColor(colors.buttonText)
-            gravity = Gravity.CENTER
-            setPadding(dp(16), dp(10), dp(16), dp(10))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
-                setColor(colors.buttonBg)
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) }
-            setOnClickListener { onClick() }
-        }
-    }
-
-    private fun removeMenu() {
-        menuView?.let { safeRemove(it) }
-        menuView = null
-    }
-
-    // ---- Card ----
-
-    private fun showCard(message: String, showClose: Boolean) {
-        mainHandler.post {
-            removeCard()
-            val colors = palette()
-            val container = LinearLayout(appContext).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(20), dp(16), dp(20), dp(16))
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(20).toFloat()
-                    setColor(colors.surface)
-                    setStroke(dp(1), colors.outline)
-                }
-            }
-            val scroll = ScrollView(appContext).apply {
-                addView(
-                    TextView(appContext).apply {
-                        text = message
-                        typeface = figtree ?: Typeface.DEFAULT
-                        setTextColor(colors.onSurface)
-                        textSize = 14f
-                    }
-                )
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(240)
-                )
-            }
-            container.addView(scroll)
-            if (showClose) {
-                container.addView(tapButton("Close", colors) { hideCard() })
-            }
-            try {
-                windowManager.addView(container, cardLayoutParams())
-                cardView = container
-            } catch (_: Exception) {
-                cardView = null
-            }
-        }
-    }
-
-    fun hideCard() {
-        mainHandler.post { removeCard() }
-    }
-
-    private fun removeCard() {
-        cardView?.let { safeRemove(it) }
-        cardView = null
-    }
-
-    // ---- Helpers ----
-
     private fun safeRemove(view: View) {
         try {
             windowManager.removeView(view)
-        } catch (_: Exception) {
-            // Already detached; ignore.
-        }
+        } catch (_: Exception) { }
     }
 
     private fun overlayType(): Int =
@@ -871,7 +799,6 @@ class AssistiveBallOverlay(context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // Default-dock off the right edge: only PEEK_DP of the ball is visible.
             x = dockedX(dockSide)
             y = dp(160)
         }
@@ -885,7 +812,6 @@ class AssistiveBallOverlay(context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            // Anchor near the ball, clamped so the menu stays on screen.
             val metrics = appContext.resources.displayMetrics
             x = (ballParams.x).coerceIn(0, (metrics.widthPixels - dp(MENU_WIDTH_DP)).coerceAtLeast(0))
             y = (ballParams.y + dp(64)).coerceIn(0, (metrics.heightPixels - dp(140)).coerceAtLeast(0))
@@ -905,39 +831,33 @@ class AssistiveBallOverlay(context: Context) {
     private fun dp(value: Int): Int =
         (value * appContext.resources.displayMetrics.density).toInt()
 
+    fun readClipboardWithFocus(onResult: (android.content.ClipData?) -> Unit) {
+        ClipboardReaderActivity.onClipboardRead = onResult
+        val intent = android.content.Intent(appContext, ClipboardReaderActivity::class.java).apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        }
+        try {
+            appContext.startActivity(intent)
+        } catch (_: Exception) {
+            onResult(null)
+        }
+    }
+
     private companion object {
         const val BALL_SIZE_DP = 56
-        const val MENU_WIDTH_DP = 200
+        const val MENU_WIDTH_DP = 220
         const val LONG_PRESS_START_MS = 2000L
         const val LONG_PRESS_END_MS = 2000L
         const val DISMISS_TARGET_SIZE_DP = 64
         const val DISMISS_TARGET_MARGIN_DP = 32
         const val DISMISS_SNAP_RADIUS_DP = 56
 
-        // Edge-peek behaviour: when idle the ball docks off an edge, leaving
-        // only a thin, semi-transparent sliver; interaction reveals the full ball.
         const val PEEK_DP = 28
         const val PEEK_ALPHA = 0.35f
         const val DOCK_MARGIN_DP = 16
         const val AUTO_DOCK_DELAY_MS = 2500L
 
-        // Dock side identifiers (START = left edge, END = right edge).
         const val DOCK_SIDE_START = 0
         const val DOCK_SIDE_END = 1
-    }
-    fun readClipboardWithFocus(onResult: (android.content.ClipData?) -> Unit) {
-        android.util.Log.d("AssistiveBallOverlay", "readClipboardWithFocus called. Setting onClipboardRead callback.")
-        ClipboardReaderActivity.onClipboardRead = onResult
-        val intent = android.content.Intent(appContext, ClipboardReaderActivity::class.java).apply {
-            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        }
-        try {
-            android.util.Log.d("AssistiveBallOverlay", "Starting ClipboardReaderActivity...")
-            appContext.startActivity(intent)
-            android.util.Log.d("AssistiveBallOverlay", "startActivity called successfully")
-        } catch (e: Exception) {
-            android.util.Log.e("AssistiveBallOverlay", "Failed to start ClipboardReaderActivity", e)
-            onResult(null)
-        }
     }
 }

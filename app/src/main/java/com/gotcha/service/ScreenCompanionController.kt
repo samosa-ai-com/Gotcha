@@ -10,20 +10,20 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import com.gotcha.agent.ScreenSnapshot
+import com.gotcha.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@Suppress("TooManyFunctions")
 class ScreenCompanionController(
     private val context: Context,
     private val scope: CoroutineScope,
     private val onSmartActionReady: (label: String, prompt: String) -> Unit,
     private val onReadClipboardRequest: () -> Unit = {},
-    /**
-     * Offer a primary action plus an optional secondary ("alt") action — used to
-     * pair "Extract text?" with "Translate Screenshot" on a screenshot trigger.
-     */
     private val onSmartActionPairReady: (
         label: String,
         prompt: String,
@@ -33,6 +33,8 @@ class ScreenCompanionController(
 ) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var scanDebounceJob: Job? = null
+    private var lastScreenTextHash: Int = 0
 
     private val screenshotObserver = object : ContentObserver(mainHandler) {
         override fun onChange(selfChange: Boolean, uri: Uri?) {
@@ -43,7 +45,6 @@ class ScreenCompanionController(
 
     private val appChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            android.util.Log.d("ScreenCompanionController", "appChangeReceiver received action: ${intent?.action}")
             if (intent?.action == ACTION_APP_CHANGED) {
                 performLightweightScan(triggerType = "AppChange")
             } else if (intent?.action == ACTION_CLIPBOARD_CHANGED) {
@@ -79,59 +80,54 @@ class ScreenCompanionController(
     }
 
     private fun performLightweightScan(triggerType: String) {
-        scope.launch {
-            withContext(Dispatchers.Default) {
-                if (triggerType == "Screenshot") {
-                    withContext(Dispatchers.Main) {
-                        onSmartActionPairReady(
-                            "📸 Screenshot taken. Extract text?",
-                            "Extract the text from this screenshot.",
-                            "🌐 Translate Screenshot",
-                            TRANSLATE_SCREENSHOT_PROMPT
-                        )
-                    }
-                    return@withContext
-                }
+        val settings = runCatching { SettingsRepository(context).load() }.getOrNull()
+        if (settings != null && !settings.proactiveEnabled) return
 
-                if (triggerType == "Clipboard") {
-                    android.util.Log.d(
-                        "ScreenCompanionController",
-                        "Clipboard trigger: request read on Main"
-                    )
-                    // We must read clipboard from Main thread via overlay to avoid SecurityException
-                    withContext(Dispatchers.Main) {
-                        onReadClipboardRequest()
-                    }
-                    return@withContext
-                }
+        if (triggerType == "Screenshot") {
+            onSmartActionPairReady(
+                "📸 Screenshot taken. Extract text?",
+                "Extract the text from this screenshot.",
+                "🌐 Translate Screenshot",
+                TRANSLATE_SCREENSHOT_PROMPT
+            )
+            return
+        }
 
-                if (triggerType == "AppChange") {
+        if (triggerType == "Clipboard") {
+            if (settings == null || settings.proactiveScanClipboard) {
+                onReadClipboardRequest()
+            }
+            return
+        }
+
+        if (triggerType == "AppChange") {
+            if (settings != null && !settings.proactiveScanScreen) return
+
+            // Debounce 600ms trailing
+            scanDebounceJob?.cancel()
+            scanDebounceJob = scope.launch {
+                delay(DEBOUNCE_DELAY_MS)
+                withContext(Dispatchers.Default) {
                     val root = GotchaAccessibilityService.instance?.rootInActiveWindow
                     val pkg = root?.packageName?.toString() ?: ""
                     root?.recycle()
 
-                    val isIgnoredForLinks = pkg.contains("browser", ignoreCase = true) ||
-                        pkg.contains("chrome", ignoreCase = true) ||
-                        pkg.contains("firefox", ignoreCase = true) ||
-                        pkg.contains("chromium", ignoreCase = true) ||
-                        pkg.contains("messaging", ignoreCase = true) ||
-                        pkg.contains("messages", ignoreCase = true) ||
-                        pkg.contains("com.gotcha")
+                    if (settings != null && settings.proactiveAppBlacklist.contains(pkg)) {
+                        return@withContext
+                    }
 
-                    val screenText = ScreenSnapshot.captureScreenText(limit = 40) ?: return@withContext
-                    val url = SmartActionDetector.extractUrl(screenText)
+                    val screenText = ScreenSnapshot.captureScreenText(limit = 120) ?: return@withContext
+                    val currentHash = screenText.hashCode()
+                    if (currentHash == lastScreenTextHash) return@withContext
+                    lastScreenTextHash = currentHash
 
-                    if (url != null && !isIgnoredForLinks) {
+                    val entities = SmartActionDetector.detectAll(screenText, allowChat = false)
+                    if (entities.isNotEmpty()) {
                         withContext(Dispatchers.Main) {
-                            val fetch = SmartActionDetector.fetchAction(url)
-                            onSmartActionReady(fetch.label, fetch.prompt)
-                        }
-                    } else {
-                        // Structured-data (address / phone / currency / calendar) scan.
-                        val smart = SmartActionDetector.detect(screenText, allowChat = false)
-                        if (smart != null) {
-                            withContext(Dispatchers.Main) {
-                                onSmartActionReady(smart.label, smart.prompt)
+                            AssistiveBallService.onProactiveEntitiesDiscovered(entities, pkg)
+                            val topAction = entities.first().primaryAction
+                            if (topAction != null) {
+                                onSmartActionReady(topAction.label, topAction.prompt)
                             }
                         }
                     }
@@ -143,12 +139,8 @@ class ScreenCompanionController(
     companion object {
         const val ACTION_APP_CHANGED = "com.gotcha.action.APP_CHANGED"
         const val ACTION_CLIPBOARD_CHANGED = "com.gotcha.action.CLIPBOARD_CHANGED"
+        private const val DEBOUNCE_DELAY_MS = 600L
 
-        /**
-         * OCR-translate prompt for the "Translate Screenshot" action. The word
-         * "screenshot" in it also drives [AssistiveBallService] to attach the
-         * captured image to the request.
-         */
         const val TRANSLATE_SCREENSHOT_PROMPT =
             "Extract any text present on this screenshot, translate it to English " +
                 "(or the user's system language), and display both the original text " +
