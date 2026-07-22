@@ -78,6 +78,16 @@ class SmartActionDetectorTest {
     }
 
     @Test
+    fun `detectAll suppresses URL detection when domain is part of an email address`() {
+        val entities = SmartActionDetector.detectAll("Reach out at contact@mywebsite.com")
+        val emails = entities.filter { it.type == EntityType.EMAIL }
+        val urls = entities.filter { it.type == EntityType.URL }
+        assertEquals(1, emails.size)
+        assertEquals("contact@mywebsite.com", emails.first().normalizedValue)
+        assertTrue("URL list should be empty when domain is inside email", urls.isEmpty())
+    }
+
+    @Test
     fun `detectAll finds tracking numbers`() {
         val entities = SmartActionDetector.detectAll("Your package 1Z9999999999999999 is out for delivery")
         val tracking = entities.firstOrNull { it.type == EntityType.TRACKING_NUMBER }

@@ -46,17 +46,11 @@ class ScreenLensController(
         mainHandler.post {
             removeActionMenu()
             removeCropOverlay()
+            removeTextChips()
             recyclePendingCrop()
 
             val service = GotchaAccessibilityService.instance
-            val nodeTexts = service?.extractScreenNodeTexts() ?: emptyList()
-            val annotatedEntities = mutableListOf<AnnotatedEntity>()
-            for (nodeText in nodeTexts) {
-                val entities = SmartActionDetector.detectAll(nodeText.text, allowChat = false)
-                for (entity in entities) {
-                    annotatedEntities.add(AnnotatedEntity(entity, nodeText.bounds))
-                }
-            }
+            val annotatedEntities = service?.extractScreenEntitiesWithBounds() ?: emptyList()
 
             val overlay = ScreenCropOverlayView(
                 appContext,
@@ -79,7 +73,8 @@ class ScreenLensController(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
@@ -98,6 +93,7 @@ class ScreenLensController(
         mainHandler.post {
             removeCropOverlay()
             removeActionMenu()
+            removeTextChips()
             recyclePendingCrop()
         }
     }

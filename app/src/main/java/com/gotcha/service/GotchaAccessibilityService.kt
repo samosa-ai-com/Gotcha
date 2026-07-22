@@ -304,20 +304,23 @@ class GotchaAccessibilityService : AccessibilityService() {
         return performed
     }
 
-    /** Traverses active window nodes and extracts visible text along with screen bounds. */
-    fun extractScreenNodeTexts(): List<ScreenNodeText> {
+    /**
+     * Traverses active screen tree, builds full screen text with character offsets,
+     * runs SmartActionDetector.detectAll, and constructs union bounding boxes for every entity.
+     */
+    fun extractScreenEntitiesWithBounds(): List<AnnotatedEntity> {
         val root = rootInActiveWindow ?: return emptyList()
-        val results = mutableListOf<ScreenNodeText>()
+        val nodes = mutableListOf<Pair<String, android.graphics.Rect>>()
 
         fun walk(node: AccessibilityNodeInfo?) {
             if (node == null) return
             if (node.isVisibleToUser) {
                 val txt = (node.text?.toString() ?: node.contentDescription?.toString())?.trim()
-                if (!txt.isNullOrBlank() && txt.length >= 3) {
+                if (!txt.isNullOrBlank()) {
                     val rect = android.graphics.Rect()
                     node.getBoundsInScreen(rect)
-                    if (rect.width() > 10 && rect.height() > 10) {
-                        results.add(ScreenNodeText(txt, rect))
+                    if (rect.width() > 5 && rect.height() > 5) {
+                        nodes.add(Pair(txt, rect))
                     }
                 }
             }
@@ -328,7 +331,40 @@ class GotchaAccessibilityService : AccessibilityService() {
 
         walk(root)
         root.recycle()
-        return results
+
+        if (nodes.isEmpty()) return emptyList()
+
+        val fullTextBuilder = StringBuilder()
+        val nodeRanges = mutableListOf<Pair<IntRange, android.graphics.Rect>>()
+        for ((txt, rect) in nodes) {
+            val startIdx = fullTextBuilder.length
+            fullTextBuilder.append(txt).append("\n")
+            val endIdx = fullTextBuilder.length
+            nodeRanges.add(Pair(startIdx..endIdx, rect))
+        }
+
+        val fullText = fullTextBuilder.toString()
+        val entities = SmartActionDetector.detectAll(fullText, allowChat = false)
+        val annotated = mutableListOf<AnnotatedEntity>()
+
+        for (entity in entities) {
+            val unionRect = android.graphics.Rect()
+            var count = 0
+            for ((range, rect) in nodeRanges) {
+                if (range.first <= entity.span.last && entity.span.first <= range.last) {
+                    if (count == 0) {
+                        unionRect.set(rect)
+                    } else {
+                        unionRect.union(rect)
+                    }
+                    count++
+                }
+            }
+            if (count > 0 && unionRect.width() > 0 && unionRect.height() > 0) {
+                annotated.add(AnnotatedEntity(entity, unionRect))
+            }
+        }
+        return annotated
     }
 
     fun longPressByText(query: String): Boolean {

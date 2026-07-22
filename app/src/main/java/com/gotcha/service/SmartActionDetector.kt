@@ -564,12 +564,17 @@ object SmartActionDetector {
     }
 
     private fun deduplicateAndRank(entities: List<DetectedEntity>): List<DetectedEntity> {
+        val emailSpans = entities.filter { it.type == EntityType.EMAIL }.map { it.span }
         val sorted = entities.sortedWith(
             compareByDescending<DetectedEntity> { calculateScore(it) }
                 .thenByDescending { it.rawValue.length }
         )
         val result = mutableListOf<DetectedEntity>()
         for (entity in sorted) {
+            if (entity.type == EntityType.URL) {
+                val insideEmail = emailSpans.any { emailSpan -> spansOverlap(entity.span, emailSpan) }
+                if (insideEmail) continue
+            }
             val overlaps = result.any { existing ->
                 spansOverlap(entity.span, existing.span) && existing.normalizedValue == entity.normalizedValue
             }

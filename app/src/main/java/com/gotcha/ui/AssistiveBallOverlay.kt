@@ -268,6 +268,7 @@ class AssistiveBallOverlay(context: Context) {
                 fillColor = colors.surface
                 strokeColor = Color.parseColor("#FF3E7BFF")
                 strokeWidth = 2.5f * appContext.resources.displayMetrics.density
+                ringRadius = size / 2f - 3f * appContext.resources.displayMetrics.density
             }
             alpha = PEEK_ALPHA
             setOnTouchListener(ballTouchListener())
