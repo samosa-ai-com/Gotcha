@@ -108,11 +108,14 @@ class ScreenCompanionController(
             scanDebounceJob = scope.launch {
                 delay(DEBOUNCE_DELAY_MS)
                 withContext(Dispatchers.Default) {
+                    val freshSettings = runCatching { SettingsRepository(context).load() }.getOrNull()
+
                     val root = GotchaAccessibilityService.instance?.rootInActiveWindow
                     val pkg = root?.packageName?.toString() ?: ""
                     root?.recycle()
 
-                    if (settings != null && settings.proactiveAppBlacklist.contains(pkg)) {
+                    val effectiveSettings = freshSettings ?: settings
+                    if (effectiveSettings != null && effectiveSettings.proactiveAppBlacklist.contains(pkg)) {
                         return@withContext
                     }
 
@@ -121,7 +124,7 @@ class ScreenCompanionController(
                     if (currentHash == lastScreenTextHash) return@withContext
                     lastScreenTextHash = currentHash
 
-                    val prefCurrency = settings?.preferredCurrency ?: "USD"
+                    val prefCurrency = effectiveSettings?.preferredCurrency ?: "USD"
                     val allEntities = SmartActionDetector.detectAll(screenText, allowChat = false, targetCurrency = prefCurrency)
                     val actionableEntities = allEntities.filter { item ->
                         item.confidence >= 0.85f &&

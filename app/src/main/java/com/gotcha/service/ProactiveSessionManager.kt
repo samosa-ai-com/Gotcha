@@ -52,7 +52,6 @@ class ProactiveSessionManager(
             val key = "${entity.type}:${entity.normalizedValue}"
             val existing = itemsMap[key]
             if (existing != null) {
-                existing.lastUpdatedTimestamp = now
                 itemsMap[key] = existing.copy(
                     entity = entity,
                     lastUpdatedTimestamp = now,

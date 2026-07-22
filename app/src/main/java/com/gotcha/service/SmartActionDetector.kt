@@ -480,7 +480,7 @@ object SmartActionDetector {
         }
     }
 
-    private fun extractCurrencyCode(price: String): String = when {
+    fun extractCurrencyCode(price: String): String = when {
         price.contains("₹") || price.contains("INR", ignoreCase = true) || price.contains("Rs", ignoreCase = true) -> "INR"
         price.contains("€") || price.contains("EUR", ignoreCase = true) -> "EUR"
         price.contains("£") || price.contains("GBP", ignoreCase = true) -> "GBP"
@@ -717,15 +717,18 @@ object SmartActionDetector {
             lang.contains("chinese") -> Regex("[\\u4E00-\\u9FFF]").containsMatchIn(clean)
             lang.contains("spanish") -> {
                 Regex("[ñ¿¡áéíóú]").containsMatchIn(clean.lowercase()) ||
-                    clean.lowercase().split("\\s+".toRegex()).any { it in setOf("el", "la", "los", "las", "por", "para", "con") }
+                    clean.lowercase().split("\\s+".toRegex())
+                        .count { it.trimEnd('.', ',', '!', '?') in setOf("el", "la", "los", "las", "por", "para", "con") } >= 2
             }
             lang.contains("french") -> {
                 Regex("[éèêëàâçœ]").containsMatchIn(clean.lowercase()) ||
-                    clean.lowercase().split("\\s+".toRegex()).any { it in setOf("les", "une", "dans", "pour", "avec", "est") }
+                    clean.lowercase().split("\\s+".toRegex())
+                        .count { it.trimEnd('.', ',', '!', '?') in setOf("les", "une", "dans", "pour", "avec", "est") } >= 2
             }
             lang.contains("german") -> {
                 Regex("[äöüß]").containsMatchIn(clean.lowercase()) ||
-                    clean.lowercase().split("\\s+".toRegex()).any { it in setOf("der", "die", "das", "ein", "eine", "mit") }
+                    clean.lowercase().split("\\s+".toRegex())
+                        .count { it.trimEnd('.', ',', '!', '?') in setOf("der", "die", "das", "ein", "eine", "mit") } >= 2
             }
             else -> false
         }

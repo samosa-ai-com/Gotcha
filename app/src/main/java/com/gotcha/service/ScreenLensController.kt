@@ -473,6 +473,11 @@ class ScreenLensController(
         pendingCrop = null
     }
 
+    /**
+     * Save a cropped bitmap to the device gallery. Takes ownership of [bitmap] —
+     * the caller must NOT use or recycle it after this call; the method will
+     * recycle it in its `finally` block once writing completes.
+     */
     private fun saveCropToGallery(bitmap: Bitmap) {
         scope.launch(Dispatchers.IO) {
             try {

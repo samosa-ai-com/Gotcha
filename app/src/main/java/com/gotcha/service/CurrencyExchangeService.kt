@@ -17,18 +17,16 @@ object CurrencyExchangeService {
         .readTimeout(5, TimeUnit.SECONDS)
         .build()
 
-    fun extractCurrencyCode(price: String): String = when {
-        price.contains("₹") || price.contains("INR", ignoreCase = true) || price.contains("Rs", ignoreCase = true) -> "INR"
-        price.contains("€") || price.contains("EUR", ignoreCase = true) -> "EUR"
-        price.contains("£") || price.contains("GBP", ignoreCase = true) -> "GBP"
-        price.contains("¥") || price.contains("JPY", ignoreCase = true) -> "JPY"
-        price.contains("CNY", ignoreCase = true) -> "CNY"
-        price.contains("CAD", ignoreCase = true) -> "CAD"
-        price.contains("AUD", ignoreCase = true) -> "AUD"
-        price.contains("$") || price.contains("USD", ignoreCase = true) -> "USD"
-        else -> "USD"
-    }
+    fun extractCurrencyCode(price: String): String =
+        SmartActionDetector.extractCurrencyCode(price).ifBlank { "USD" }
 
+    /**
+     * Strips non-numeric characters from [price] to extract the raw amount.
+     *
+     * Assumes standard decimal format (e.g. "₹1,23,456.89" → 123456.89).
+     * European format with comma decimals ("1.234,56") is NOT supported and
+     * will produce an incorrect value.
+     */
     fun parseAmount(price: String): Double? {
         val clean = price.replace(Regex("[^0-9.]"), "").trim()
         return clean.toDoubleOrNull()

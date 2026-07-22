@@ -847,10 +847,11 @@ class AssistiveBallService : Service() {
             private set
 
         fun onProactiveEntitiesDiscovered(entities: List<DetectedEntity>, packageName: String? = null) {
-            val service = instance ?: return
+            if (instance == null) return
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                val sessionItems = service.proactiveSessionManager.mergeEntities(entities, packageName)
-                service.overlay.setProactiveSessionItems(sessionItems)
+                val currentService = instance ?: return@post
+                val sessionItems = currentService.proactiveSessionManager.mergeEntities(entities, packageName)
+                currentService.overlay.setProactiveSessionItems(sessionItems)
             }
         }
 
