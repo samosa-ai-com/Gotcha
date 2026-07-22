@@ -98,6 +98,15 @@ fun SettingsScreen(
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
+    var proactiveEnabled by remember { mutableStateOf(initial.proactiveEnabled) }
+    var proactiveScanScreen by remember { mutableStateOf(initial.proactiveScanScreen) }
+    var proactiveScanClipboard by remember { mutableStateOf(initial.proactiveScanClipboard) }
+    var proactiveScanNotifications by remember { mutableStateOf(initial.proactiveScanNotifications) }
+    var proactiveOtpEnabled by remember { mutableStateOf(initial.proactiveOtpEnabled) }
+    var proactiveAutoCopyOtp by remember { mutableStateOf(initial.proactiveAutoCopyOtp) }
+    var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
+    var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
+
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -111,6 +120,7 @@ fun SettingsScreen(
     var aiConfigExpanded by remember { mutableStateOf(false) }
     var speechExpanded by remember { mutableStateOf(false) }
     var skillsExpanded by remember { mutableStateOf(false) }
+    var proactiveExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Dropdown expanded states
@@ -121,6 +131,8 @@ fun SettingsScreen(
     var modelExpanded by remember { mutableStateOf(false) }
     var subAgentModelExpanded by remember { mutableStateOf(false) }
     var navigatorModelExpanded by remember { mutableStateOf(false) }
+    var languageExpanded by remember { mutableStateOf(false) }
+    var currencyExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
         provider = provider,
@@ -145,7 +157,16 @@ fun SettingsScreen(
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
         themeMode = themeMode,
-        disabledSkills = disabledSkills
+        disabledSkills = disabledSkills,
+        proactiveEnabled = proactiveEnabled,
+        proactiveScanScreen = proactiveScanScreen,
+        proactiveScanClipboard = proactiveScanClipboard,
+        proactiveScanNotifications = proactiveScanNotifications,
+        proactiveOtpEnabled = proactiveOtpEnabled,
+        proactiveAutoCopyOtp = proactiveAutoCopyOtp,
+        proactiveAppBlacklist = initial.proactiveAppBlacklist,
+        preferredLanguage = preferredLanguage,
+        preferredCurrency = preferredCurrency
     )
 
     val refreshChatModelsAction = {
@@ -800,6 +821,128 @@ fun SettingsScreen(
                 }
             }
 
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Proactive Assistance ----
+            SectionHeader(
+                title = "Proactive Assistance",
+                expanded = proactiveExpanded,
+                onToggle = { proactiveExpanded = !proactiveExpanded }
+            )
+            AnimatedVisibility(visible = proactiveExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SettingsToggleRow(
+                        label = "Master Proactive Offers",
+                        checked = proactiveEnabled,
+                        onCheckedChange = { proactiveEnabled = it },
+                        isLarge = true
+                    )
+                    if (proactiveEnabled) {
+                        SettingsToggleRow(
+                            label = "Scan Screen Content",
+                            checked = proactiveScanScreen,
+                            onCheckedChange = { proactiveScanScreen = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Scan Clipboard",
+                            checked = proactiveScanClipboard,
+                            onCheckedChange = { proactiveScanClipboard = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Scan Notifications",
+                            checked = proactiveScanNotifications,
+                            onCheckedChange = { proactiveScanNotifications = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Detect OTP / Codes",
+                            checked = proactiveOtpEnabled,
+                            onCheckedChange = { proactiveOtpEnabled = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Auto-Copy OTP to Clipboard",
+                            checked = proactiveAutoCopyOtp,
+                            onCheckedChange = { proactiveAutoCopyOtp = it }
+                        )
+
+                        val languages = listOf(
+                            "English", "Spanish", "French", "German", "Hindi",
+                            "Japanese", "Chinese", "Italian", "Portuguese"
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = languageExpanded,
+                            onExpandedChange = { languageExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = preferredLanguage,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Preferred Language") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = languageExpanded,
+                                onDismissRequest = { languageExpanded = false }
+                            ) {
+                                languages.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = { Text(lang) },
+                                        onClick = {
+                                            preferredLanguage = lang
+                                            languageExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        val currencies = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
+                        ExposedDropdownMenuBox(
+                            expanded = currencyExpanded,
+                            onExpandedChange = { currencyExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = preferredCurrency,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Preferred Currency") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = currencyExpanded,
+                                onDismissRequest = { currencyExpanded = false }
+                            ) {
+                                currencies.forEach { curr ->
+                                    DropdownMenuItem(
+                                        text = { Text(curr) },
+                                        onClick = {
+                                            preferredCurrency = curr
+                                            currencyExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            onSave(currentSettings())
+                            status = "Saved Proactive Settings."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save Proactive Settings") }
+                }
+            }
+
             // Status text
             status?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium)
@@ -880,5 +1023,25 @@ private fun SectionHeader(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    isLarge: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

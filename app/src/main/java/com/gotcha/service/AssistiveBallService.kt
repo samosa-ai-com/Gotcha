@@ -75,8 +75,11 @@ class AssistiveBallService : Service() {
         )
     }
 
+    val proactiveSessionManager = ProactiveSessionManager()
+
     override fun onCreate() {
         super.onCreate()
+        instance = this
         settingsRepository = SettingsRepository(this)
         val s = settingsRepository.load()
         ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.apiKey)
@@ -126,6 +129,7 @@ class AssistiveBallService : Service() {
             onSmartActionSelected = { prompt ->
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             }
+            onRequestClipboardCheck = { handleClipboardRead() }
             isCallActive = { callController.isActive() }
         }
 
@@ -320,18 +324,38 @@ class AssistiveBallService : Service() {
                 overlay.setSmartActionAvailable(fetch.label, fetch.prompt)
                 return@readClipboardWithFocus
             }
-            // Prefer a structured action (dial / navigate / convert / schedule / reply)
-            // when the copied text carries recognisable data; otherwise fall back to
-            // the generic translate/summarize offer.
-            val smart = SmartActionDetector.detect(clipText, allowChat = true)
-            if (smart != null) {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: ${smart.label}")
+            val settings = runCatching { com.gotcha.data.SettingsRepository(applicationContext).load() }.getOrNull()
+            val preferredLang = settings?.preferredLanguage ?: "English"
+            val preferredCurr = settings?.preferredCurrency ?: "USD"
+            val isAlreadyTargetLang = SmartActionDetector.isTextInLanguage(clipText, preferredLang)
+
+            val smart = SmartActionDetector.detect(
+                clipText,
+                allowChat = true,
+                targetCurrency = preferredCurr,
+                targetLanguage = preferredLang
+            )
+
+            if (!isAlreadyTargetLang) {
+                val translateLabel = "🌐 Translate: ${SmartActionDetector.snippet(clipText, 20)}"
+                val translatePrompt = "Translate the copied text to $preferredLang:\n\n$clipText"
+
+                if (smart != null && !smart.label.contains("Translate", ignoreCase = true)) {
+                    overlay.setSmartActionPairAvailable(
+                        translateLabel,
+                        translatePrompt,
+                        smart.label,
+                        smart.prompt
+                    )
+                } else {
+                    overlay.setSmartActionAvailable(translateLabel, translatePrompt)
+                }
+            } else if (smart != null) {
                 overlay.setSmartActionAvailable(smart.label, smart.prompt)
             } else {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: Text copied. Translate?")
                 overlay.setSmartActionAvailable(
-                    "📋 Translate: ${SmartActionDetector.snippet(clipText, 24)}",
-                    "Translate the copied text to English if it is not, otherwise summarize it:\n\n$clipText"
+                    "📋 Summarize: ${SmartActionDetector.snippet(clipText, 24)}",
+                    "Summarize the copied text:\n\n$clipText"
                 )
             }
         }
@@ -356,6 +380,52 @@ class AssistiveBallService : Service() {
                         data = android.provider.CalendarContract.Events.CONTENT_URI
                         putExtra(android.provider.CalendarContract.Events.TITLE, payload)
                     }
+                SmartActionDetector.TYPE_SMS ->
+                    Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + android.net.Uri.encode(payload)))
+                SmartActionDetector.TYPE_VIEW ->
+                    Intent(Intent.ACTION_VIEW, android.net.Uri.parse(payload))
+                SmartActionDetector.TYPE_MAILTO ->
+                    Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:" + android.net.Uri.encode(payload)))
+                SmartActionDetector.TYPE_SHARE ->
+                    Intent.createChooser(
+                        Intent(Intent.ACTION_SEND).apply {
+                            this.type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, payload)
+                        },
+                        "Share"
+                    )
+                SmartActionDetector.TYPE_CONTACT ->
+                    Intent(Intent.ACTION_INSERT).apply {
+                        data = android.provider.ContactsContract.Contacts.CONTENT_URI
+                        putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, payload)
+                    }
+                SmartActionDetector.TYPE_WHATSAPP -> {
+                    val cleanPhone = payload.replace(Regex("[^0-9+]"), "")
+                    val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=" + android.net.Uri.encode(cleanPhone))
+                    Intent(Intent.ACTION_VIEW, uri)
+                }
+                SmartActionDetector.TYPE_COPY -> {
+                    val clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Gotcha", payload))
+                    android.widget.Toast.makeText(this, "Copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                    null
+                }
+                SmartActionDetector.TYPE_CONVERT -> {
+                    val parts = payload.split("|")
+                    val price = parts.getOrNull(0) ?: payload
+                    val targetCurr = parts.getOrNull(1) ?: "USD"
+                    scope.launch(Dispatchers.IO) {
+                        val result = CurrencyExchangeService.convert(price, targetCurr)
+                        withContext(Dispatchers.Main) {
+                            if (result != null) {
+                                overlay.showCard(result, showClose = true)
+                            } else {
+                                overlay.showError("Could not fetch exchange rate for $price")
+                            }
+                        }
+                    }
+                    null
+                }
                 else -> null
             } ?: return
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -422,7 +492,6 @@ class AssistiveBallService : Service() {
 
     /** OCR a Lens crop via ML Kit on-device text recognition and copy to clipboard. */
     private fun ocrCropToClipboard(bitmap: android.graphics.Bitmap) {
-        overlay.showError("Reading text…")
         scope.launch {
             try {
                 val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -434,14 +503,23 @@ class AssistiveBallService : Service() {
                 }
                 val text = result.text.trim()
                 if (text.isBlank()) {
-                    overlay.showError("No text found in selection")
+                    showToast("No text found in selection")
                 } else {
                     val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lens text", text))
+                    showToast("Copied to clipboard")
                 }
             } catch (e: Exception) {
-                overlay.showError("Couldn't read text: ${e.message}")
+                showToast("Couldn't read text: ${e.message}")
+            } finally {
+                if (!bitmap.isRecycled) bitmap.recycle()
             }
+        }
+    }
+
+    private fun showToast(msg: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -606,6 +684,7 @@ class AssistiveBallService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         _isRunning.value = false
         callController.endCall()
         chatWindow.hide()
@@ -762,6 +841,19 @@ class AssistiveBallService : Service() {
 
         /** Cap on fetched page text handed to the LLM for link summarization. */
         private const val MAX_FETCH_CHARS = 12000
+
+        @Volatile
+        var instance: AssistiveBallService? = null
+            private set
+
+        fun onProactiveEntitiesDiscovered(entities: List<DetectedEntity>, packageName: String? = null) {
+            if (instance == null) return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val currentService = instance ?: return@post
+                val sessionItems = currentService.proactiveSessionManager.mergeEntities(entities, packageName)
+                currentService.overlay.setProactiveSessionItems(sessionItems)
+            }
+        }
 
         fun startIntent(context: Context): Intent =
             Intent(context, AssistiveBallService::class.java).setAction(ACTION_START)

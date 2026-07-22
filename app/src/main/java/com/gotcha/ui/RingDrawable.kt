@@ -103,15 +103,18 @@ class RingDrawable : Drawable() {
             canvas.drawCircle(cx, cy, auraRadius, auraPaint)
         }
 
+        val defaultRadius = kotlin.math.min(bounds.width(), bounds.height()) / 2f - strokeWidth / 2f
+        val effectiveRadius = if (ringRadius > 0f) ringRadius else defaultRadius
+
         if (fillColor != Color.TRANSPARENT) {
             fillPaint.color = fillColor
-            canvas.drawCircle(cx, cy, ringRadius, fillPaint)
+            canvas.drawCircle(cx, cy, effectiveRadius, fillPaint)
         }
 
         if (strokeColor != Color.TRANSPARENT && strokeWidth > 0f) {
             strokePaint.color = strokeColor
             strokePaint.strokeWidth = strokeWidth
-            canvas.drawCircle(cx, cy, ringRadius, strokePaint)
+            canvas.drawCircle(cx, cy, effectiveRadius, strokePaint)
         }
     }
 

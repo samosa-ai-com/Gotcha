@@ -13,39 +13,23 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.view.MotionEvent
 import android.view.View
+import com.gotcha.service.AnnotatedEntity
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 
-/**
- * Full-screen premium "Lens" overlay. The user draws ANY free-form shape; on
- * release its bounding rectangle (max width/height of the drawn path) becomes the
- * selection. [onSelection] fires with that [Rect] in view pixels; a tap (no real
- * drag) calls [onCancel].
- *
- * Visual treatment (matches the app logo's pink/blue theme):
- *  - a soft pink glow bleeding in from all four screen edges,
- *  - drifting glowing particles (pink + blue) whose density is higher near the
- *    edges and sparse in the centre,
- *  - while drawing, the traced path is stroked in a pink→blue gradient and its
- *    live bounding box is outlined.
- *
- * The particle field animates via [postInvalidateOnAnimation]; it is deterministic
- * only in look, not in exact positions (seeded from the view size).
- */
 @SuppressLint("ViewConstructor")
+@Suppress("TooManyFunctions", "LargeClass", "MaxLineLength")
 class ScreenCropOverlayView(
     context: Context,
     private val onSelection: (Rect) -> Unit,
     private val onCancel: () -> Unit,
-    /** Fired when the user starts drawing again after a selection was frozen, so the
-     *  host can tear down the menu/chips and let the user re-select from scratch. */
-    private val onReselectStart: () -> Unit = {}
+    private val onReselectStart: () -> Unit = {},
+    private val onAnnotatedEntitySelected: (prompt: String) -> Unit = {}
 ) : View(context) {
 
     private val density = resources.displayMetrics.density
 
-    // ---- Free-form drawing state ----
     private val path = Path()
     private var minX = 0f
     private var minY = 0f
@@ -54,16 +38,11 @@ class ScreenCropOverlayView(
     private var drawing = false
     private var moved = false
 
-    /** A finalized selection to keep drawn while the action menu is shown. */
     private var frozenRect: RectF? = null
-
-    /**
-     * When true, all overlay chrome (scrim, glow, particles, selection) is hidden
-     * so a screenshot taken behind us does not capture it. Restored right after.
-     */
     private var captureMode = false
 
-    // ---- Paints ----
+    private var annotatedEntities: List<AnnotatedEntity> = emptyList()
+
     private val dimPaint = Paint().apply { color = Color.parseColor("#66101018") }
     private val edgeGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val pathPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -73,7 +52,6 @@ class ScreenCropOverlayView(
         strokeJoin = Paint.Join.ROUND
     }
 
-    /** Thin premium pinkish-blue glowing border around the whole screen edge. */
     private val screenBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 3f * density
@@ -86,7 +64,6 @@ class ScreenCropOverlayView(
         maskFilter = android.graphics.BlurMaskFilter(14f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
     }
 
-    /** Selection-rectangle border: premium pinkish-blue, glowing. */
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 3f * density
@@ -99,6 +76,22 @@ class ScreenCropOverlayView(
         color = Color.parseColor("#55568CD8")
         maskFilter = android.graphics.BlurMaskFilter(12f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
     }
+
+    private val entityBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2.5f * density
+        color = Color.parseColor("#FF00E5FF")
+    }
+    private val entityChipBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.parseColor("#EE1E293B")
+    }
+    private val entityChipTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 12f * density
+        textAlign = Paint.Align.LEFT
+    }
+
     private val particlePaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val hintPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -112,8 +105,12 @@ class ScreenCropOverlayView(
 
     init {
         isFocusableInTouchMode = true
-        // Software layer keeps radial/linear gradient + shadow rendering correct.
         setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
+
+    fun setAnnotatedEntities(entities: List<AnnotatedEntity>) {
+        this.annotatedEntities = entities
+        postInvalidateOnAnimation()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -123,8 +120,6 @@ class ScreenCropOverlayView(
     }
 
     private fun buildEdgeGlow(w: Int, h: Int) {
-        // A large radial gradient that is transparent in the centre and pink at the
-        // rim, giving an edge-vignette wash.
         val cx = w / 2f
         val cy = h / 2f
         val radius = max(w, h) * 0.75f
@@ -146,7 +141,6 @@ class ScreenCropOverlayView(
         particles.clear()
         if (w == 0 || h == 0) return
         val rnd = Random(w * 31L + h)
-        // Density scales with screen area; edge-biased placement via rejection.
         val target = ((w * h) / (26000f * density)).toInt().coerceIn(40, 220)
         var placed = 0
         var guard = 0
@@ -154,11 +148,9 @@ class ScreenCropOverlayView(
             guard++
             val x = rnd.nextFloat() * w
             val y = rnd.nextFloat() * h
-            // edgeScore ~1 at edges, ~0 at centre.
             val ex = 1f - (2f * x / w - 1f).let { it * it }
             val ey = 1f - (2f * y / h - 1f).let { it * it }
-            val centreness = (1f - ex) * (1f - ey) // ~1 at centre corners... invert below
-            // Keep more particles near edges: accept with prob higher when centreness low.
+            val centreness = (1f - ex) * (1f - ey)
             val keepProb = 0.15f + 0.85f * (1f - centreness)
             if (rnd.nextFloat() > keepProb) continue
             particles.add(
@@ -180,8 +172,6 @@ class ScreenCropOverlayView(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (captureMode) {
-            // Draw nothing this frame so a screenshot behind us stays clean, but
-            // keep animating so we resume smoothly.
             postInvalidateOnAnimation()
             return
         }
@@ -189,13 +179,16 @@ class ScreenCropOverlayView(
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), edgeGlowPaint)
 
         stepAndDrawParticles(canvas)
-
         drawScreenBorder(canvas)
+
+        // Draw Auto-Annotated Bounding Boxes & Action Chips ONLY when NOT dragging a selection and NO selection is frozen
+        if (!drawing && frozenRect == null) {
+            drawAnnotatedEntities(canvas)
+        }
 
         val frozen = frozenRect
         when {
             drawing && moved -> {
-                // Gradient stroke for the traced path.
                 pathPaint.shader = LinearGradient(
                     minX, minY, maxX, maxY,
                     Color.parseColor("#FF6FC0"), Color.parseColor("#5B8CFF"),
@@ -205,17 +198,54 @@ class ScreenCropOverlayView(
                 drawSelectionBox(canvas, RectF(minX, minY, maxX, maxY))
             }
             frozen != null -> drawSelectionBox(canvas, frozen)
-            else -> canvas.drawText(
-                "Draw around anything • tap to cancel",
-                width / 2f,
-                height * 0.12f,
-                hintPaint
-            )
+            else -> if (annotatedEntities.isEmpty()) {
+                canvas.drawText(
+                    "Draw around anything • tap to cancel",
+                    width / 2f,
+                    height * 0.12f,
+                    hintPaint
+                )
+            }
         }
         postInvalidateOnAnimation()
     }
 
-    /** A thin, premium pinkish-blue glowing frame just inside the screen edges. */
+    private fun drawAnnotatedEntities(canvas: Canvas) {
+        val location = IntArray(2)
+        getLocationOnScreen(location)
+        val viewOffsetX = location[0].toFloat()
+        val viewOffsetY = location[1].toFloat()
+
+        for (item in annotatedEntities) {
+            val bounds = item.boundsOnScreen
+            val rectF = RectF(
+                bounds.left.toFloat() - viewOffsetX,
+                bounds.top.toFloat() - viewOffsetY,
+                bounds.right.toFloat() - viewOffsetX,
+                bounds.bottom.toFloat() - viewOffsetY
+            )
+
+            // Draw bounding box
+            val radius = 8f * density
+            canvas.drawRoundRect(rectF, radius, radius, entityBoxPaint)
+
+            // Draw primary action chip pill anchored above the box
+            val action = item.entity.primaryAction ?: continue
+            val labelStr = action.label
+            val textWidth = entityChipTextPaint.measureText(labelStr)
+            val chipW = textWidth + 16f * density
+            val chipH = 24f * density
+
+            val chipLeft = (rectF.left).coerceIn(8f * density, width - chipW - 8f * density)
+            val chipTop = (rectF.top - chipH - 4f * density).coerceAtLeast(8f * density)
+            val chipRect = RectF(chipLeft, chipTop, chipLeft + chipW, chipTop + chipH)
+
+            canvas.drawRoundRect(chipRect, 12f * density, 12f * density, entityChipBgPaint)
+            canvas.drawRoundRect(chipRect, 12f * density, 12f * density, entityBoxPaint)
+            canvas.drawText(labelStr, chipLeft + 8f * density, chipTop + 16f * density, entityChipTextPaint)
+        }
+    }
+
     private fun drawScreenBorder(canvas: Canvas) {
         val inset = screenBorderGlowPaint.strokeWidth / 2f + 1f
         val r = RectF(inset, inset, width - inset, height - inset)
@@ -230,14 +260,12 @@ class ScreenCropOverlayView(
         canvas.drawRoundRect(rect, radius, radius, boxPaint)
     }
 
-    /** Freeze [rect] (view px) so it stays drawn while the action menu is shown. */
     fun freezeSelection(rect: Rect) {
         frozenRect = RectF(rect)
         drawing = false
         postInvalidateOnAnimation()
     }
 
-    /** Toggle capture mode: when true the overlay draws nothing (see [onDraw]). */
     fun setCaptureMode(enabled: Boolean) {
         captureMode = enabled
         postInvalidateOnAnimation()
@@ -253,7 +281,6 @@ class ScreenCropOverlayView(
         for (p in particles) {
             p.x += p.vx * dt
             p.y += p.vy * dt
-            // Wrap around edges so the field stays populated.
             if (p.x < -p.radius) p.x = w + p.radius
             if (p.x > w + p.radius) p.x = -p.radius
             if (p.y < -p.radius) p.y = h + p.radius
@@ -262,7 +289,6 @@ class ScreenCropOverlayView(
             val glowAlpha = (0.35f + 0.65f * (0.5f + 0.5f * kotlin.math.sin(t * p.twinkle + p.phase)))
             val core = if (p.pink) 0xFF5FBF else 0x5B8CFF
             val a = (glowAlpha * 255).toInt().coerceIn(0, 255)
-            // Outer glow.
             particlePaint.shader = RadialGradient(
                 p.x, p.y, p.radius * 3.2f,
                 Color.argb((a * 0.5f).toInt(), (core shr 16) and 0xFF, (core shr 8) and 0xFF, core and 0xFF),
@@ -270,7 +296,6 @@ class ScreenCropOverlayView(
                 Shader.TileMode.CLAMP
             )
             canvas.drawCircle(p.x, p.y, p.radius * 3.2f, particlePaint)
-            // Bright core.
             particlePaint.shader = null
             particlePaint.color = Color.argb(a, 255, 255, 255)
             canvas.drawCircle(p.x, p.y, p.radius * 0.6f, particlePaint)
@@ -278,12 +303,44 @@ class ScreenCropOverlayView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // While a screenshot is being captured, ignore touches.
         if (captureMode) return false
+
+        // Check if touch hits an annotated entity box/chip
+        if (event.action == MotionEvent.ACTION_UP && !moved) {
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+            val viewOffsetX = location[0].toFloat()
+            val viewOffsetY = location[1].toFloat()
+
+            val touchX = event.x
+            val touchY = event.y
+            for (item in annotatedEntities) {
+                val bounds = item.boundsOnScreen
+                val rectF = RectF(
+                    bounds.left.toFloat() - viewOffsetX,
+                    bounds.top.toFloat() - viewOffsetY,
+                    bounds.right.toFloat() - viewOffsetX,
+                    bounds.bottom.toFloat() - viewOffsetY
+                )
+                val chipH = 24f * density
+                val expandedBounds = RectF(
+                    rectF.left - 16f,
+                    rectF.top - chipH - 16f,
+                    rectF.right + 16f,
+                    rectF.bottom + 16f
+                )
+                if (expandedBounds.contains(touchX, touchY)) {
+                    val prompt = item.entity.primaryAction?.prompt
+                    if (prompt != null) {
+                        onAnnotatedEntitySelected(prompt)
+                        return true
+                    }
+                }
+            }
+        }
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // A new drag after a frozen selection restarts the selection: clear
-                // the old rect and ask the host to tear down the menu/chips.
                 if (frozenRect != null) {
                     frozenRect = null
                     onReselectStart()
@@ -308,8 +365,6 @@ class ScreenCropOverlayView(
             MotionEvent.ACTION_UP -> {
                 drawing = false
                 val rect = Rect(minX.toInt(), minY.toInt(), maxX.toInt(), maxY.toInt())
-                // Accept any real drag (even a thin line — the controller expands it
-                // to a minimum band). A tap with no movement cancels.
                 if (moved && max(rect.width(), rect.height()) > MIN_SIZE_PX) {
                     onSelection(rect)
                 } else {
