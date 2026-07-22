@@ -1,12 +1,20 @@
 package com.gotcha.audio
 
 import android.util.Log
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.logging.HttpLoggingInterceptor
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -21,6 +29,10 @@ class AudioApi(
     private val timeoutSeconds: Long = 30L
 ) {
     private val client: OkHttpClient
+    private val jsonParser = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+    }
 
     init {
         val logging = HttpLoggingInterceptor().apply {
@@ -46,39 +58,38 @@ class AudioApi(
     fun listAudioModels(): List<AudioModel> {
         return try {
             val url = "${baseUrl.trimEnd('/')}/models"
-            Log.d("AudioApi", "Fetching models from: $url")
+            try { Log.d("AudioApi", "Fetching models from: $url") } catch (_: Throwable) {}
             val request = Request.Builder().url(url).get().build()
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                Log.w("AudioApi", "Models request failed: HTTP ${response.code}")
+                try { Log.w("AudioApi", "Models request failed: HTTP ${response.code}") } catch (_: Throwable) {}
                 return emptyList()
             }
             val body = response.body?.string() ?: return emptyList()
-            Log.d("AudioApi", "Models response (first 200 chars): ${body.take(200)}")
-            val json = JSONObject(body)
-            val data = json.optJSONArray("data") ?: return emptyList()
-            (0 until data.length()).mapNotNull { i ->
-                val obj = data.optJSONObject(i) ?: return@mapNotNull null
-                val id = obj.optString("id", "") ?: return@mapNotNull null
-                val task = obj.optString("task", null)
+            try { Log.d("AudioApi", "Models response (first 200 chars): ${body.take(200)}") } catch (_: Throwable) {}
+            val jsonObj = jsonParser.parseToJsonElement(body).jsonObject
+            val dataArr = jsonObj["data"]?.jsonArray ?: return emptyList()
+            dataArr.mapNotNull { element ->
+                val modelObj = element.jsonObject
+                val id = modelObj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val task = modelObj["task"]?.jsonPrimitive?.contentOrNull
                 val category = AudioModel.categorize(id, task)
-                // Parse voice list for TTS models
                 val voices = if (category == ModelCategory.TTS) {
-                    val voicesArr = obj.optJSONArray("voices")
-                    if (voicesArr != null) {
-                        (0 until voicesArr.length()).mapNotNull { j ->
-                            voicesArr.optJSONObject(j)?.optString("id", null)
+                    modelObj["voices"]?.jsonArray?.mapNotNull { v ->
+                        when (v) {
+                            is JsonObject -> v["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                                ?: v["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                            is JsonPrimitive -> v.contentOrNull?.takeIf { it.isNotBlank() }
+                            else -> null
                         }
-                    } else {
-                        emptyList()
-                    }
+                    } ?: emptyList()
                 } else {
                     emptyList()
                 }
                 AudioModel(id, category, voices)
             }
         } catch (e: Exception) {
-            Log.e("AudioApi", "Failed to list models", e)
+            try { Log.e("AudioApi", "Failed to list models", e) } catch (_: Throwable) {}
             emptyList()
         }
     }
@@ -102,8 +113,8 @@ class AudioApi(
         val response = client.newCall(request).execute()
         val responseBody = response.body?.string() ?: throw IOException("Empty response")
         if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $responseBody")
-        val json = JSONObject(responseBody)
-        json.optString("text", "") ?: ""
+        val jsonObj = jsonParser.parseToJsonElement(responseBody).jsonObject
+        jsonObj["text"]?.jsonPrimitive?.contentOrNull ?: ""
     }
 
     /**
@@ -112,7 +123,7 @@ class AudioApi(
      */
     fun synthesize(text: String, model: String, voice: String): Result<ByteArray> = runCatching {
         val url = "${baseUrl.trimEnd('/')}/audio/speech"
-        val json = JSONObject().apply {
+        val json = buildJsonObject {
             put("model", model)
             put("input", text)
             put("voice", voice)

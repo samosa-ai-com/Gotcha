@@ -96,12 +96,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
         settings.ttsApiBaseUrl,
-        settings.apiKey
+        settings.effectiveTtsApiKey
     )
     private val sttEngine: SttEngine = SttEngine(
         getApplication(),
         settings.sttApiBaseUrl,
-        settings.apiKey
+        settings.effectiveSttApiKey
     )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
@@ -283,8 +283,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } else {
             null
         }
-        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveApiKey)
-        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveApiKey)
+        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveTtsApiKey)
+        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveSttApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
         updateContextUsage()
     }
@@ -443,11 +443,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             val defaultVoice = _uiState.value.ttsModels
                 .firstOrNull { it.id == settings.ttsApiModel }
                 ?.defaultVoice ?: "af_heart"
+            val voice = settings.ttsVoice.ifBlank { defaultVoice }
             ttsEngine.speak(
                 text = text,
                 provider = settings.ttsProvider,
                 apiModel = settings.ttsApiModel,
-                voice = defaultVoice
+                voice = voice
             )
         }
     }

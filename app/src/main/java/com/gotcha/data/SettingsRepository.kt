@@ -33,9 +33,12 @@ data class Settings(
     // TTS / STT settings
     val ttsProvider: AudioProvider = AudioProvider.ANDROID,
     val ttsApiBaseUrl: String = "",
+    val ttsApiKey: String = "",
     val ttsApiModel: String = "",
+    val ttsVoice: String = "",
     val sttProvider: AudioProvider = AudioProvider.ANDROID,
     val sttApiBaseUrl: String = "",
+    val sttApiKey: String = "",
     val sttApiModel: String = "",
     val autoReadReplies: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
@@ -72,6 +75,14 @@ data class Settings(
             LlmProvider.SAMOSA_AI -> samosaSessionToken
             LlmProvider.OPENAI_COMPATIBLE -> apiKey
         }
+
+    /** Bearer token for TTS endpoint (falls back to effectiveApiKey if blank). */
+    val effectiveTtsApiKey: String
+        get() = ttsApiKey.ifBlank { effectiveApiKey }
+
+    /** Bearer token for STT endpoint (falls back to effectiveApiKey if blank). */
+    val effectiveSttApiKey: String
+        get() = sttApiKey.ifBlank { effectiveApiKey }
 
     /** True when Samosa AI is selected and a session token exists. */
     val isSamosaAuthenticated: Boolean
@@ -116,9 +127,12 @@ class SettingsRepository(context: Context) {
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID"),
         ttsApiBaseUrl = prefs.getString(KEY_TTS_API_URL, "") ?: "",
+        ttsApiKey = prefs.getString(KEY_TTS_API_KEY, "") ?: "",
         ttsApiModel = prefs.getString(KEY_TTS_API_MODEL, "") ?: "",
+        ttsVoice = prefs.getString(KEY_TTS_VOICE, "") ?: "",
         sttProvider = AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID"),
         sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
+        sttApiKey = prefs.getString(KEY_STT_API_KEY, "") ?: "",
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
@@ -154,9 +168,12 @@ class SettingsRepository(context: Context) {
             .putLong(KEY_API_TIMEOUT, settings.apiTimeoutSeconds)
             .putString(KEY_TTS_PROVIDER, settings.ttsProvider.name)
             .putString(KEY_TTS_API_URL, settings.ttsApiBaseUrl)
+            .putString(KEY_TTS_API_KEY, settings.ttsApiKey)
             .putString(KEY_TTS_API_MODEL, settings.ttsApiModel)
+            .putString(KEY_TTS_VOICE, settings.ttsVoice)
             .putString(KEY_STT_PROVIDER, settings.sttProvider.name)
             .putString(KEY_STT_API_URL, settings.sttApiBaseUrl)
+            .putString(KEY_STT_API_KEY, settings.sttApiKey)
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
@@ -206,9 +223,12 @@ class SettingsRepository(context: Context) {
         const val KEY_API_TIMEOUT = "api_timeout"
         const val KEY_TTS_PROVIDER = "tts_provider"
         const val KEY_TTS_API_URL = "tts_api_url"
+        const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_API_MODEL = "tts_api_model"
+        const val KEY_TTS_VOICE = "tts_voice"
         const val KEY_STT_PROVIDER = "stt_provider"
         const val KEY_STT_API_URL = "stt_api_url"
+        const val KEY_STT_API_KEY = "stt_api_key"
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"

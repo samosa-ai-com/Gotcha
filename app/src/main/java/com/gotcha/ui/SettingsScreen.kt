@@ -91,9 +91,12 @@ fun SettingsScreen(
     // TTS / STT
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
     var ttsApiBaseUrl by remember { mutableStateOf(initial.ttsApiBaseUrl) }
+    var ttsApiKey by remember { mutableStateOf(initial.ttsApiKey) }
     var sttProvider by remember { mutableStateOf(initial.sttProvider) }
     var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
+    var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
     var ttsApiModel by remember { mutableStateOf(initial.ttsApiModel) }
+    var ttsVoice by remember { mutableStateOf(initial.ttsVoice) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
@@ -112,6 +115,8 @@ fun SettingsScreen(
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableChatModels by remember { mutableStateOf<List<String>>(emptyList()) }
     var showKey by remember { mutableStateOf(false) }
+    var showTtsKey by remember { mutableStateOf(false) }
+    var showSttKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var refreshingModels by remember { mutableStateOf(false) }
@@ -127,6 +132,7 @@ fun SettingsScreen(
     var ttsProviderExpanded by remember { mutableStateOf(false) }
     var sttProviderExpanded by remember { mutableStateOf(false) }
     var ttsModelExpanded by remember { mutableStateOf(false) }
+    var ttsVoiceExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var subAgentModelExpanded by remember { mutableStateOf(false) }
@@ -150,9 +156,12 @@ fun SettingsScreen(
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
         ttsProvider = ttsProvider,
         ttsApiBaseUrl = ttsApiBaseUrl.trim(),
+        ttsApiKey = ttsApiKey.trim(),
         ttsApiModel = ttsApiModel.trim(),
+        ttsVoice = ttsVoice.trim(),
         sttProvider = sttProvider,
         sttApiBaseUrl = sttApiBaseUrl.trim(),
+        sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
@@ -624,6 +633,24 @@ fun SettingsScreen(
                             placeholder = { Text("http://10.0.2.2:8969/v1") },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        OutlinedTextField(
+                            value = ttsApiKey,
+                            onValueChange = { ttsApiKey = it },
+                            label = { Text("TTS API Key (optional)") },
+                            singleLine = true,
+                            placeholder = { Text("Leave blank to use main API key") },
+                            visualTransformation = if (showTtsKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showTtsKey = !showTtsKey }) {
+                                    Text(if (showTtsKey) "Hide" else "Show")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         ExposedDropdownMenuBox(
                             expanded = ttsModelExpanded,
                             onExpandedChange = {
@@ -671,6 +698,62 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                        val selectedTtsModelObj = availableTtsModels.firstOrNull { it.id == ttsApiModel }
+                        val modelVoices = selectedTtsModelObj?.voices ?: emptyList()
+                        if (modelVoices.isNotEmpty()) {
+                            ExposedDropdownMenuBox(
+                                expanded = ttsVoiceExpanded,
+                                onExpandedChange = { ttsVoiceExpanded = it }
+                            ) {
+                                val voiceLabel = ttsVoice.ifEmpty {
+                                    "Default (${selectedTtsModelObj?.defaultVoice ?: "af_heart"})"
+                                }
+                                OutlinedTextField(
+                                    value = voiceLabel,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("TTS Voice (optional)") },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                            expanded = ttsVoiceExpanded
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = ttsVoiceExpanded,
+                                    onDismissRequest = { ttsVoiceExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text("Default (${selectedTtsModelObj?.defaultVoice ?: "af_heart"})")
+                                        },
+                                        onClick = {
+                                            ttsVoice = ""
+                                            ttsVoiceExpanded = false
+                                        }
+                                    )
+                                    modelVoices.forEach { voiceId ->
+                                        DropdownMenuItem(
+                                            text = { Text(voiceId) },
+                                            onClick = {
+                                                ttsVoice = voiceId
+                                                ttsVoiceExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = ttsVoice,
+                                onValueChange = { ttsVoice = it },
+                                label = { Text("TTS Voice (optional)") },
+                                singleLine = true,
+                                placeholder = { Text("e.g. af_heart, alloy, echo") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                     ExposedDropdownMenuBox(
                         expanded = sttProviderExpanded,
@@ -706,6 +789,24 @@ fun SettingsScreen(
                             label = { Text("STT API Base URL") },
                             singleLine = true,
                             placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = sttApiKey,
+                            onValueChange = { sttApiKey = it },
+                            label = { Text("STT API Key (optional)") },
+                            singleLine = true,
+                            placeholder = { Text("Leave blank to use main API key") },
+                            visualTransformation = if (showSttKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showSttKey = !showSttKey }) {
+                                    Text(if (showSttKey) "Hide" else "Show")
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                         ExposedDropdownMenuBox(

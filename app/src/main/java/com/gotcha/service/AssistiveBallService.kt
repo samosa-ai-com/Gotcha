@@ -82,8 +82,8 @@ class AssistiveBallService : Service() {
         instance = this
         settingsRepository = SettingsRepository(this)
         val s = settingsRepository.load()
-        ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.apiKey)
-        sttEngine = SttEngine(this, s.sttApiBaseUrl, s.apiKey)
+        ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.effectiveTtsApiKey)
+        sttEngine = SttEngine(this, s.sttApiBaseUrl, s.effectiveSttApiKey)
         callController = CallSessionController(
             appContext = applicationContext,
             scope = scope,
@@ -653,7 +653,7 @@ class AssistiveBallService : Service() {
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
-                voice = ""
+                voice = s.ttsVoice
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
