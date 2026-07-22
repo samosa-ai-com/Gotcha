@@ -825,58 +825,38 @@ fun SettingsScreen(
             )
             AnimatedVisibility(visible = proactiveExpanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Master Proactive Offers", style = MaterialTheme.typography.bodyLarge)
-                        Switch(checked = proactiveEnabled, onCheckedChange = { proactiveEnabled = it })
-                    }
+                    SettingsToggleRow(
+                        label = "Master Proactive Offers",
+                        checked = proactiveEnabled,
+                        onCheckedChange = { proactiveEnabled = it },
+                        isLarge = true
+                    )
                     if (proactiveEnabled) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Scan Screen Content", style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = proactiveScanScreen, onCheckedChange = { proactiveScanScreen = it })
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Scan Clipboard", style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = proactiveScanClipboard, onCheckedChange = { proactiveScanClipboard = it })
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Scan Notifications", style = MaterialTheme.typography.bodyMedium)
-                            Switch(
-                                checked = proactiveScanNotifications,
-                                onCheckedChange = { proactiveScanNotifications = it }
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Detect OTP / Codes", style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = proactiveOtpEnabled, onCheckedChange = { proactiveOtpEnabled = it })
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Auto-Copy OTP to Clipboard", style = MaterialTheme.typography.bodyMedium)
-                            Switch(checked = proactiveAutoCopyOtp, onCheckedChange = { proactiveAutoCopyOtp = it })
-                        }
+                        SettingsToggleRow(
+                            label = "Scan Screen Content",
+                            checked = proactiveScanScreen,
+                            onCheckedChange = { proactiveScanScreen = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Scan Clipboard",
+                            checked = proactiveScanClipboard,
+                            onCheckedChange = { proactiveScanClipboard = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Scan Notifications",
+                            checked = proactiveScanNotifications,
+                            onCheckedChange = { proactiveScanNotifications = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Detect OTP / Codes",
+                            checked = proactiveOtpEnabled,
+                            onCheckedChange = { proactiveOtpEnabled = it }
+                        )
+                        SettingsToggleRow(
+                            label = "Auto-Copy OTP to Clipboard",
+                            checked = proactiveAutoCopyOtp,
+                            onCheckedChange = { proactiveAutoCopyOtp = it }
+                        )
                     }
                     Button(
                         onClick = {
@@ -968,5 +948,25 @@ private fun SectionHeader(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    isLarge: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

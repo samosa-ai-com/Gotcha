@@ -47,7 +47,7 @@ data class Settings(
     val proactiveScanClipboard: Boolean = true,
     val proactiveScanNotifications: Boolean = true,
     val proactiveOtpEnabled: Boolean = true,
-    val proactiveAutoCopyOtp: Boolean = false,
+    val proactiveAutoCopyOtp: Boolean = true,
     val proactiveAppBlacklist: Set<String> = emptySet()
 ) {
     /** True when the active provider has everything it needs to make requests. */
@@ -129,7 +129,7 @@ class SettingsRepository(context: Context) {
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
         proactiveScanNotifications = prefs.getBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, true),
         proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
-        proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, false),
+        proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
         proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet()
     )
 

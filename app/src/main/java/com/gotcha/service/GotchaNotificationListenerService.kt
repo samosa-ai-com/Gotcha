@@ -38,12 +38,22 @@ class GotchaNotificationListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
         val pkg = sbn.packageName ?: ""
+        val context = applicationContext
+
+        // Check settings & blacklist FIRST before processing or broadcasting
+        val settings = runCatching { SettingsRepository(context).load() }.getOrNull() ?: return
+        if (!settings.proactiveEnabled || !settings.proactiveScanNotifications) return
+        if (settings.proactiveAppBlacklist.contains(pkg)) return
+
+        // Evict stale entries older than 60s to prevent unbounded memory growth
         val now = System.currentTimeMillis()
+        lastNotificationTimeMap.entries.removeIf { now - it.value > 60_000L }
+
+        // Debounce duplicate notifications from the same package within 10s
         val lastTime = lastNotificationTimeMap[pkg] ?: 0L
         if (now - lastTime < 10_000L) return
         lastNotificationTimeMap[pkg] = now
 
-        val context = applicationContext
         val extras = sbn.notification?.extras
         val title = extras?.getCharSequence("android.title")?.toString() ?: ""
         val text = extras?.getCharSequence("android.text")?.toString() ?: ""
@@ -55,10 +65,6 @@ class GotchaNotificationListenerService : NotificationListenerService() {
             putExtra(EXTRA_TEXT, text)
         }
         context.sendBroadcast(intent)
-
-        val settings = runCatching { SettingsRepository(context).load() }.getOrNull() ?: return
-        if (!settings.proactiveEnabled || !settings.proactiveScanNotifications) return
-        if (settings.proactiveAppBlacklist.contains(pkg)) return
 
         val fullText = "$title $text".trim()
         if (fullText.isBlank()) return
