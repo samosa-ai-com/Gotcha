@@ -104,6 +104,8 @@ fun SettingsScreen(
     var proactiveScanNotifications by remember { mutableStateOf(initial.proactiveScanNotifications) }
     var proactiveOtpEnabled by remember { mutableStateOf(initial.proactiveOtpEnabled) }
     var proactiveAutoCopyOtp by remember { mutableStateOf(initial.proactiveAutoCopyOtp) }
+    var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
+    var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
 
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -129,6 +131,8 @@ fun SettingsScreen(
     var modelExpanded by remember { mutableStateOf(false) }
     var subAgentModelExpanded by remember { mutableStateOf(false) }
     var navigatorModelExpanded by remember { mutableStateOf(false) }
+    var languageExpanded by remember { mutableStateOf(false) }
+    var currencyExpanded by remember { mutableStateOf(false) }
 
     fun currentSettings() = Settings(
         provider = provider,
@@ -160,7 +164,9 @@ fun SettingsScreen(
         proactiveScanNotifications = proactiveScanNotifications,
         proactiveOtpEnabled = proactiveOtpEnabled,
         proactiveAutoCopyOtp = proactiveAutoCopyOtp,
-        proactiveAppBlacklist = initial.proactiveAppBlacklist
+        proactiveAppBlacklist = initial.proactiveAppBlacklist,
+        preferredLanguage = preferredLanguage,
+        preferredCurrency = preferredCurrency
     )
 
     val refreshChatModelsAction = {
@@ -857,6 +863,75 @@ fun SettingsScreen(
                             checked = proactiveAutoCopyOtp,
                             onCheckedChange = { proactiveAutoCopyOtp = it }
                         )
+
+                        val languages = listOf(
+                            "English", "Spanish", "French", "German", "Hindi",
+                            "Japanese", "Chinese", "Italian", "Portuguese"
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = languageExpanded,
+                            onExpandedChange = { languageExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = preferredLanguage,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Preferred Language") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = languageExpanded,
+                                onDismissRequest = { languageExpanded = false }
+                            ) {
+                                languages.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = { Text(lang) },
+                                        onClick = {
+                                            preferredLanguage = lang
+                                            languageExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        val currencies = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
+                        ExposedDropdownMenuBox(
+                            expanded = currencyExpanded,
+                            onExpandedChange = { currencyExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = preferredCurrency,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Preferred Currency") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = currencyExpanded,
+                                onDismissRequest = { currencyExpanded = false }
+                            ) {
+                                currencies.forEach { curr ->
+                                    DropdownMenuItem(
+                                        text = { Text(curr) },
+                                        onClick = {
+                                            preferredCurrency = curr
+                                            currencyExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                     Button(
                         onClick = {

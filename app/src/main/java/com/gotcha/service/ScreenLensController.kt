@@ -220,16 +220,24 @@ class ScreenLensController(
             }
         )
 
-        chipsLayout.addView(
-            chipButton("🌐 Translate") {
-                val crop = pendingCrop
-                if (crop != null && !crop.isRecycled) {
-                    val base64 = bitmapToBase64(crop)
-                    onImagePrompt(base64, ScreenCompanionController.TRANSLATE_SCREENSHOT_PROMPT)
+        val settings = runCatching { com.gotcha.data.SettingsRepository(appContext).load() }.getOrNull()
+        val preferredLang = settings?.preferredLanguage ?: "English"
+        val isAlreadyInPreferredLang = !cleanText.isNullOrBlank() && SmartActionDetector.isTextInLanguage(cleanText, preferredLang)
+
+        if (!isAlreadyInPreferredLang) {
+            chipsLayout.addView(
+                chipButton("🌐 Translate") {
+                    val crop = pendingCrop
+                    if (crop != null && !crop.isRecycled) {
+                        val base64 = bitmapToBase64(crop)
+                        val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
+                            "and display both original and translated text."
+                        onImagePrompt(base64, prompt)
+                    }
+                    cancel()
                 }
-                cancel()
-            }
-        )
+            )
+        }
 
         chipsLayout.addView(
             chipButton("💾 Save") {

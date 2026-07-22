@@ -121,7 +121,8 @@ class ScreenCompanionController(
                     if (currentHash == lastScreenTextHash) return@withContext
                     lastScreenTextHash = currentHash
 
-                    val allEntities = SmartActionDetector.detectAll(screenText, allowChat = false)
+                    val prefCurrency = settings?.preferredCurrency ?: "USD"
+                    val allEntities = SmartActionDetector.detectAll(screenText, allowChat = false, targetCurrency = prefCurrency)
                     val actionableEntities = allEntities.filter { item ->
                         item.confidence >= 0.85f &&
                             item.type != com.gotcha.service.EntityType.CHAT_REPLY &&

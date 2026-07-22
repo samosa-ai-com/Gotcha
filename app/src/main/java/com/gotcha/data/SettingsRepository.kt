@@ -48,7 +48,9 @@ data class Settings(
     val proactiveScanNotifications: Boolean = true,
     val proactiveOtpEnabled: Boolean = true,
     val proactiveAutoCopyOtp: Boolean = true,
-    val proactiveAppBlacklist: Set<String> = emptySet()
+    val proactiveAppBlacklist: Set<String> = emptySet(),
+    val preferredLanguage: String = "English",
+    val preferredCurrency: String = "USD"
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
@@ -130,7 +132,9 @@ class SettingsRepository(context: Context) {
         proactiveScanNotifications = prefs.getBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, true),
         proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
-        proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet()
+        proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet(),
+        preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
+        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD"
     )
 
     fun save(settings: Settings) {
@@ -165,6 +169,8 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_PROACTIVE_OTP_ENABLED, settings.proactiveOtpEnabled)
             .putBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, settings.proactiveAutoCopyOtp)
             .putStringSet(KEY_PROACTIVE_BLACKLIST, settings.proactiveAppBlacklist)
+            .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
+            .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .apply()
     }
 
@@ -215,5 +221,7 @@ class SettingsRepository(context: Context) {
         const val KEY_PROACTIVE_OTP_ENABLED = "proactive_otp_enabled"
         const val KEY_PROACTIVE_AUTO_COPY_OTP = "proactive_auto_copy_otp"
         const val KEY_PROACTIVE_BLACKLIST = "proactive_blacklist"
+        const val KEY_PREFERRED_LANGUAGE = "preferred_language"
+        const val KEY_PREFERRED_CURRENCY = "preferred_currency"
     }
 }

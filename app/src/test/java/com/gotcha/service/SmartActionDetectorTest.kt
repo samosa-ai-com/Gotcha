@@ -69,6 +69,33 @@ class SmartActionDetectorTest {
     }
 
     @Test
+    fun `detectCurrencies omits conversion when price is already in target currency`() {
+        val entitiesUsd = SmartActionDetector.detectAll("Price is $50.00 USD", targetCurrency = "USD")
+        val currencyUsd = entitiesUsd.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull(currencyUsd)
+        assertFalse(
+            "Should not offer Convert when currency is already target USD",
+            currencyUsd!!.actions.any { it.label.contains("Convert to USD") }
+        )
+
+        val entitiesEur = SmartActionDetector.detectAll("Price is €50.00", targetCurrency = "USD")
+        val currencyEur = entitiesEur.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull(currencyEur)
+        assertTrue(
+            "Should offer Convert to USD when currency is EUR",
+            currencyEur!!.actions.any { it.label.contains("Convert to USD") }
+        )
+    }
+
+    @Test
+    fun `isTextInLanguage detects whether text matches target language`() {
+        assertTrue(SmartActionDetector.isTextInLanguage("Call us at (415) 555-0199 for assistance", "English"))
+        assertFalse(SmartActionDetector.isTextInLanguage("Hola amigo ¿cómo estás?", "English"))
+        assertTrue(SmartActionDetector.isTextInLanguage("Hola amigo ¿cómo estás?", "Spanish"))
+        assertTrue(SmartActionDetector.isTextInLanguage("आप कैसे हैं", "Hindi"))
+    }
+
+    @Test
     fun `detectAll finds email addresses and generates compose mail actions`() {
         val entities = SmartActionDetector.detectAll("Contact john.doe@company.org for details")
         val email = entities.firstOrNull { it.type == EntityType.EMAIL }

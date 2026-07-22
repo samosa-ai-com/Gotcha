@@ -172,7 +172,11 @@ object SmartActionDetector {
     /**
      * Scan text and return ALL detected entities, ranked and deduplicated.
      */
-    fun detectAll(text: String, allowChat: Boolean = false): List<DetectedEntity> {
+    fun detectAll(
+        text: String,
+        allowChat: Boolean = false,
+        targetCurrency: String = "USD"
+    ): List<DetectedEntity> {
         if (text.isBlank()) return emptyList()
 
         val rawEntities = mutableListOf<DetectedEntity>()
@@ -193,7 +197,7 @@ object SmartActionDetector {
         detectUrls(text, rawEntities)
 
         // 6. Currency
-        detectCurrencies(text, rawEntities)
+        detectCurrencies(text, rawEntities, targetCurrency)
 
         // 7. Calendar
         detectCalendars(text, rawEntities)
@@ -458,23 +462,50 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectCurrencies(text: String, out: MutableList<DetectedEntity>) {
+    private fun extractCurrencyCode(price: String): String = when {
+        price.contains("₹") || price.contains("INR", ignoreCase = true) || price.contains("Rs", ignoreCase = true) -> "INR"
+        price.contains("€") || price.contains("EUR", ignoreCase = true) -> "EUR"
+        price.contains("£") || price.contains("GBP", ignoreCase = true) -> "GBP"
+        price.contains("¥") || price.contains("JPY", ignoreCase = true) -> "JPY"
+        price.contains("CNY", ignoreCase = true) -> "CNY"
+        price.contains("CAD", ignoreCase = true) -> "CAD"
+        price.contains("AUD", ignoreCase = true) -> "AUD"
+        price.contains("$") || price.contains("USD", ignoreCase = true) -> "USD"
+        else -> ""
+    }
+
+    private fun detectCurrencies(
+        text: String,
+        out: MutableList<DetectedEntity>,
+        targetCurrency: String = "USD"
+    ) {
         val m = currencyPattern.matcher(text)
+        val targetCode = targetCurrency.uppercase().take(3)
         while (m.find()) {
             val price = m.group().trim()
-            val actions = listOf(
-                SmartAction(
-                    label = "💵 Convert ${snippet(price, 16)}",
-                    prompt = "Convert the price \"$price\" to USD and to common major currencies (EUR, GBP, INR). Show the exchange rate. Keep it brief.",
-                    actionType = ActionType.LLM_CONVERT_CURRENCY,
-                    isPrimary = true
-                ),
+            val priceCode = extractCurrencyCode(price)
+
+            val actions = mutableListOf<SmartAction>()
+            // Only suggest conversion if the price is NOT already in the target currency
+            if (priceCode.isNotBlank() && !priceCode.equals(targetCode, ignoreCase = true)) {
+                actions.add(
+                    SmartAction(
+                        label = "💵 Convert to $targetCode",
+                        prompt = "Convert the price \"$price\" to $targetCode and show the exchange rate. Keep it brief.",
+                        actionType = ActionType.LLM_CONVERT_CURRENCY,
+                        isPrimary = true
+                    )
+                )
+            }
+            actions.add(
                 SmartAction(
                     label = "📋 Copy price",
                     prompt = encode(TYPE_COPY, price),
-                    actionType = ActionType.NATIVE_COPY
+                    actionType = ActionType.NATIVE_COPY,
+                    isPrimary = actions.isEmpty()
                 )
             )
+
             out.add(
                 DetectedEntity(
                     type = EntityType.CURRENCY,
@@ -646,5 +677,38 @@ object SmartActionDetector {
         val sep = body.indexOf(PAYLOAD_SEP)
         if (sep < 0) return null
         return body.substring(0, sep) to body.substring(sep + PAYLOAD_SEP.length)
+    }
+
+    /**
+     * Check if [text] is already in [languageName] to conditionally offer translation.
+     */
+    fun isTextInLanguage(text: String, languageName: String): Boolean {
+        val clean = text.trim()
+        if (clean.length < 3) return true
+        val lang = languageName.lowercase()
+        return when {
+            lang.contains("english") -> {
+                val nonEnglishScripts = Regex("[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF\\u0600-\\u06FF]")
+                if (nonEnglishScripts.containsMatchIn(clean)) return false
+                val nonEnglishDiacritics = Regex("[ñ¿¡áéíóúàèìòùâêîôûäöüßçœ]")
+                !nonEnglishDiacritics.containsMatchIn(clean.lowercase())
+            }
+            lang.contains("hindi") -> Regex("[\\u0900-\\u097F]").containsMatchIn(clean)
+            lang.contains("japanese") -> Regex("[\\u3040-\\u30FF\\u4E00-\\u9FFF]").containsMatchIn(clean)
+            lang.contains("chinese") -> Regex("[\\u4E00-\\u9FFF]").containsMatchIn(clean)
+            lang.contains("spanish") -> {
+                Regex("[ñ¿¡áéíóú]").containsMatchIn(clean.lowercase()) ||
+                    clean.lowercase().split("\\s+".toRegex()).any { it in setOf("el", "la", "los", "las", "por", "para", "con") }
+            }
+            lang.contains("french") -> {
+                Regex("[éèêëàâçœ]").containsMatchIn(clean.lowercase()) ||
+                    clean.lowercase().split("\\s+".toRegex()).any { it in setOf("les", "une", "dans", "pour", "avec", "est") }
+            }
+            lang.contains("german") -> {
+                Regex("[äöüß]").containsMatchIn(clean.lowercase()) ||
+                    clean.lowercase().split("\\s+".toRegex()).any { it in setOf("der", "die", "das", "ein", "eine", "mit") }
+            }
+            else -> false
+        }
     }
 }
