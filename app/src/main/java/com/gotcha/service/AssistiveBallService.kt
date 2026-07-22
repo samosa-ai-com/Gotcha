@@ -129,6 +129,7 @@ class AssistiveBallService : Service() {
             onSmartActionSelected = { prompt ->
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             }
+            onRequestClipboardCheck = { handleClipboardRead() }
             isCallActive = { callController.isActive() }
         }
 
@@ -407,6 +408,22 @@ class AssistiveBallService : Service() {
                     val clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                     clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Gotcha", payload))
                     android.widget.Toast.makeText(this, "Copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                    null
+                }
+                SmartActionDetector.TYPE_CONVERT -> {
+                    val parts = payload.split("|")
+                    val price = parts.getOrNull(0) ?: payload
+                    val targetCurr = parts.getOrNull(1) ?: "USD"
+                    scope.launch(Dispatchers.IO) {
+                        val result = CurrencyExchangeService.convert(price, targetCurr)
+                        withContext(Dispatchers.Main) {
+                            if (result != null) {
+                                overlay.showCard(result, showClose = true)
+                            } else {
+                                overlay.showError("Could not fetch exchange rate for $price")
+                            }
+                        }
+                    }
                     null
                 }
                 else -> null

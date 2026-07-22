@@ -54,6 +54,7 @@ class AssistiveBallOverlay(context: Context) {
     var onEndCall: () -> Unit = {}
     var onToggleChatWindow: () -> Unit = {}
     var onSmartActionSelected: (prompt: String) -> Unit = {}
+    var onRequestClipboardCheck: () -> Unit = {}
     var isPanelOpen: Boolean = false
 
     var isCallActive: () -> Boolean = { false }
@@ -277,6 +278,10 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun showMenu() {
         removeMenu()
+        // Trigger a fresh clipboard read if no smart action is already staged.
+        if (pendingSmartAction == null) {
+            onRequestClipboardCheck()
+        }
         val colors = palette()
 
         val rootLayout = FrameLayout(appContext).apply {

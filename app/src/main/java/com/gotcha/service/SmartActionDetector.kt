@@ -94,6 +94,7 @@ object SmartActionDetector {
     const val TYPE_CONTACT = "CONTACT"
     const val TYPE_MAILTO = "MAILTO"
     const val TYPE_WHATSAPP = "WHATSAPP"
+    const val TYPE_CONVERT = "CONVERT"
 
     /** Separator between the encoded action type and its payload. */
     const val PAYLOAD_SEP = "|"
@@ -207,7 +208,7 @@ object SmartActionDetector {
         detectTracking(text, rawEntities)
 
         // 9. Chat reply fallback (if allowChat set)
-        if (allowChat && looksLikeChatMessage(text)) {
+        if (allowChat && looksLikeChatMessage(text, targetLanguage)) {
             val normalized = text.trim()
             val isAlreadyTargetLang = isTextInLanguage(normalized, targetLanguage)
             val actions = mutableListOf<SmartAction>()
@@ -508,7 +509,7 @@ object SmartActionDetector {
                 actions.add(
                     SmartAction(
                         label = "💵 Convert to $targetCode",
-                        prompt = "Convert the price \"$price\" to $targetCode and show the exchange rate. Keep it brief.",
+                        prompt = encode(TYPE_CONVERT, "$price|$targetCode"),
                         actionType = ActionType.LLM_CONVERT_CURRENCY,
                         isPrimary = true
                     )
@@ -639,14 +640,15 @@ object SmartActionDetector {
     private fun calculateScore(entity: DetectedEntity): Int =
         entity.type.basePriority + (entity.confidence * 10).toInt()
 
-    private fun looksLikeChatMessage(text: String): Boolean {
+    private fun looksLikeChatMessage(text: String, targetLanguage: String = "English"): Boolean {
         val trimmed = text.trim()
-        if (trimmed.length !in 2..300) return false
-        val hasSpeakerPrefix = Regex("^[A-Za-z][\\w .]{0,24}:\\s+\\S").containsMatchIn(trimmed)
+        if (trimmed.length !in 2..400) return false
+        val hasSpeakerPrefix = Regex("^[A-Za-z\\u0900-\\u097F][\\w .]{0,24}:\\s+\\S").containsMatchIn(trimmed)
+        val isForeignScript = !isTextInLanguage(trimmed, targetLanguage)
         val looksConversational = trimmed.endsWith("?") ||
             Regex("\\b(hey|hi|hello|thanks|please|can you|are you|you free|lmk|wyd)\\b", RegexOption.IGNORE_CASE)
                 .containsMatchIn(trimmed)
-        return hasSpeakerPrefix || looksConversational
+        return hasSpeakerPrefix || looksConversational || isForeignScript
     }
 
     private fun encode(type: String, payload: String): String =

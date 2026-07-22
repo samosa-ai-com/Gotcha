@@ -205,7 +205,9 @@ class SmartActionDetectorTest {
         val actions = SmartActionDetector.detectContextual("The jacket costs €89.99")
         assertTrue(actions.any { it.label.contains("Convert") })
         val currency = actions.first { it.label.contains("Convert") }
-        assertFalse(SmartActionDetector.isNativeAction(currency.prompt))
+        // Currency conversion now uses the native TYPE_CONVERT action (not an LLM prompt)
+        assertTrue(SmartActionDetector.isNativeAction(currency.prompt))
+        assertEquals(SmartActionDetector.TYPE_CONVERT, SmartActionDetector.decode(currency.prompt)!!.first)
     }
 
     @Test
