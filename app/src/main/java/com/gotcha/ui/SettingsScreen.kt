@@ -98,6 +98,13 @@ fun SettingsScreen(
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
+    var proactiveEnabled by remember { mutableStateOf(initial.proactiveEnabled) }
+    var proactiveScanScreen by remember { mutableStateOf(initial.proactiveScanScreen) }
+    var proactiveScanClipboard by remember { mutableStateOf(initial.proactiveScanClipboard) }
+    var proactiveScanNotifications by remember { mutableStateOf(initial.proactiveScanNotifications) }
+    var proactiveOtpEnabled by remember { mutableStateOf(initial.proactiveOtpEnabled) }
+    var proactiveAutoCopyOtp by remember { mutableStateOf(initial.proactiveAutoCopyOtp) }
+
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -111,6 +118,7 @@ fun SettingsScreen(
     var aiConfigExpanded by remember { mutableStateOf(false) }
     var speechExpanded by remember { mutableStateOf(false) }
     var skillsExpanded by remember { mutableStateOf(false) }
+    var proactiveExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Dropdown expanded states
@@ -145,7 +153,14 @@ fun SettingsScreen(
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
         themeMode = themeMode,
-        disabledSkills = disabledSkills
+        disabledSkills = disabledSkills,
+        proactiveEnabled = proactiveEnabled,
+        proactiveScanScreen = proactiveScanScreen,
+        proactiveScanClipboard = proactiveScanClipboard,
+        proactiveScanNotifications = proactiveScanNotifications,
+        proactiveOtpEnabled = proactiveOtpEnabled,
+        proactiveAutoCopyOtp = proactiveAutoCopyOtp,
+        proactiveAppBlacklist = initial.proactiveAppBlacklist
     )
 
     val refreshChatModelsAction = {
@@ -797,6 +812,79 @@ fun SettingsScreen(
                             }
                         }
                     }
+                }
+            }
+
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Proactive Assistance ----
+            SectionHeader(
+                title = "Proactive Assistance",
+                expanded = proactiveExpanded,
+                onToggle = { proactiveExpanded = !proactiveExpanded }
+            )
+            AnimatedVisibility(visible = proactiveExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Master Proactive Offers", style = MaterialTheme.typography.bodyLarge)
+                        Switch(checked = proactiveEnabled, onCheckedChange = { proactiveEnabled = it })
+                    }
+                    if (proactiveEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Scan Screen Content", style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = proactiveScanScreen, onCheckedChange = { proactiveScanScreen = it })
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Scan Clipboard", style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = proactiveScanClipboard, onCheckedChange = { proactiveScanClipboard = it })
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Scan Notifications", style = MaterialTheme.typography.bodyMedium)
+                            Switch(
+                                checked = proactiveScanNotifications,
+                                onCheckedChange = { proactiveScanNotifications = it }
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Detect OTP / Codes", style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = proactiveOtpEnabled, onCheckedChange = { proactiveOtpEnabled = it })
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Auto-Copy OTP to Clipboard", style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = proactiveAutoCopyOtp, onCheckedChange = { proactiveAutoCopyOtp = it })
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            onSave(currentSettings())
+                            status = "Saved Proactive Settings."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save Proactive Settings") }
                 }
             }
 

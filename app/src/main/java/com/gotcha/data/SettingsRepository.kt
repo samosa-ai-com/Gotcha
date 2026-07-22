@@ -46,7 +46,8 @@ data class Settings(
     val proactiveScanScreen: Boolean = true,
     val proactiveScanClipboard: Boolean = true,
     val proactiveScanNotifications: Boolean = true,
-    val proactiveAutoCopyOtp: Boolean = true,
+    val proactiveOtpEnabled: Boolean = true,
+    val proactiveAutoCopyOtp: Boolean = false,
     val proactiveAppBlacklist: Set<String> = emptySet()
 ) {
     /** True when the active provider has everything it needs to make requests. */
@@ -127,7 +128,8 @@ class SettingsRepository(context: Context) {
         proactiveScanScreen = prefs.getBoolean(KEY_PROACTIVE_SCAN_SCREEN, true),
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
         proactiveScanNotifications = prefs.getBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, true),
-        proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
+        proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
+        proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, false),
         proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet()
     )
 
@@ -160,6 +162,7 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_PROACTIVE_SCAN_SCREEN, settings.proactiveScanScreen)
             .putBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, settings.proactiveScanClipboard)
             .putBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, settings.proactiveScanNotifications)
+            .putBoolean(KEY_PROACTIVE_OTP_ENABLED, settings.proactiveOtpEnabled)
             .putBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, settings.proactiveAutoCopyOtp)
             .putStringSet(KEY_PROACTIVE_BLACKLIST, settings.proactiveAppBlacklist)
             .apply()
@@ -209,6 +212,7 @@ class SettingsRepository(context: Context) {
         const val KEY_PROACTIVE_SCAN_SCREEN = "proactive_scan_screen"
         const val KEY_PROACTIVE_SCAN_CLIPBOARD = "proactive_scan_clipboard"
         const val KEY_PROACTIVE_SCAN_NOTIFICATIONS = "proactive_scan_notifications"
+        const val KEY_PROACTIVE_OTP_ENABLED = "proactive_otp_enabled"
         const val KEY_PROACTIVE_AUTO_COPY_OTP = "proactive_auto_copy_otp"
         const val KEY_PROACTIVE_BLACKLIST = "proactive_blacklist"
     }

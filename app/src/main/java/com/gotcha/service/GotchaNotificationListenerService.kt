@@ -33,18 +33,33 @@ class GotchaNotificationListenerService : NotificationListenerService() {
         super.onDestroy()
     }
 
+    private val lastNotificationTimeMap = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
+        val pkg = sbn.packageName ?: ""
+        val now = System.currentTimeMillis()
+        val lastTime = lastNotificationTimeMap[pkg] ?: 0L
+        if (now - lastTime < 10_000L) return
+        lastNotificationTimeMap[pkg] = now
+
         val context = applicationContext
+        val extras = sbn.notification?.extras
+        val title = extras?.getCharSequence("android.title")?.toString() ?: ""
+        val text = extras?.getCharSequence("android.text")?.toString() ?: ""
+
+        val intent = android.content.Intent(ACTION_NOTIFICATION_POSTED).apply {
+            setPackage(context.packageName)
+            putExtra(EXTRA_PACKAGE_NAME, pkg)
+            putExtra(EXTRA_TITLE, title)
+            putExtra(EXTRA_TEXT, text)
+        }
+        context.sendBroadcast(intent)
+
         val settings = runCatching { SettingsRepository(context).load() }.getOrNull() ?: return
         if (!settings.proactiveEnabled || !settings.proactiveScanNotifications) return
-
-        val pkg = sbn.packageName ?: ""
         if (settings.proactiveAppBlacklist.contains(pkg)) return
 
-        val extras = sbn.notification?.extras ?: return
-        val title = extras.getCharSequence("android.title")?.toString() ?: ""
-        val text = extras.getCharSequence("android.text")?.toString() ?: ""
         val fullText = "$title $text".trim()
         if (fullText.isBlank()) return
 
@@ -88,6 +103,11 @@ class GotchaNotificationListenerService : NotificationListenerService() {
     fun dismissAll() = cancelAllNotifications()
 
     companion object {
+        const val ACTION_NOTIFICATION_POSTED = "com.gotcha.ACTION_NOTIFICATION_POSTED"
+        const val EXTRA_PACKAGE_NAME = "package_name"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_TEXT = "text"
+
         /** The live service instance while the user has granted access; null otherwise. */
         @Volatile
         var instance: GotchaNotificationListenerService? = null
