@@ -262,8 +262,10 @@ class AssistiveBallOverlay(context: Context) {
     private fun buildBall(): View {
         val size = dp(BALL_SIZE_DP)
         val colors = palette()
-        return View(appContext).apply {
+        return android.widget.ImageView(appContext).apply {
             contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
+            setImageResource(R.mipmap.ic_launcher_round)
+            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
             background = RingDrawable().apply {
                 fillColor = colors.surface
                 strokeColor = Color.parseColor("#FF3E7BFF")
@@ -284,7 +286,6 @@ class AssistiveBallOverlay(context: Context) {
         removeMenu()
         val colors = palette()
 
-        // Full-screen transparent root overlay that closes the menu on outside clicks
         val rootLayout = FrameLayout(appContext).apply {
             setOnClickListener {
                 removeMenu()
@@ -299,7 +300,6 @@ class AssistiveBallOverlay(context: Context) {
                 setColor(colors.surface)
                 setStroke(dp(1), colors.outline)
             }
-            // Stop clicks inside the card from closing the menu
             setOnClickListener { }
         }
 
@@ -328,19 +328,33 @@ class AssistiveBallOverlay(context: Context) {
         )
         menuCard.addView(appNavRow)
 
-        val cardParams = FrameLayout.LayoutParams(
-            dp(MENU_WIDTH_DP),
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            val metrics = appContext.resources.displayMetrics
-            val estimatedMenuHeight = dp(280)
-            val spaceBelow = metrics.heightPixels - (ballParams.y + dp(64))
-            leftMargin = (ballParams.x).coerceIn(dp(8), (metrics.widthPixels - dp(MENU_WIDTH_DP) - dp(8)).coerceAtLeast(0))
-            topMargin = if (spaceBelow >= estimatedMenuHeight) {
-                (ballParams.y + dp(64)).coerceIn(dp(16), (metrics.heightPixels - estimatedMenuHeight).coerceAtLeast(0))
-            } else {
-                (ballParams.y - estimatedMenuHeight - dp(8)).coerceIn(dp(16), (metrics.heightPixels - estimatedMenuHeight).coerceAtLeast(0))
-            }
+        val metrics = appContext.resources.displayMetrics
+        val screenHeight = metrics.heightPixels
+        val screenWidth = metrics.widthPixels
+        val menuWidth = dp(MENU_WIDTH_DP)
+        val maxCardHeight = (screenHeight - dp(48)).coerceAtLeast(dp(200))
+
+        menuCard.measure(
+            View.MeasureSpec.makeMeasureSpec(menuWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(maxCardHeight, View.MeasureSpec.AT_MOST)
+        )
+        val actualCardHeight = menuCard.measuredHeight.coerceAtMost(maxCardHeight)
+
+        val ballY = ballParams.y
+        val spaceBelow = screenHeight - (ballY + dp(64))
+        val spaceAbove = ballY - dp(8)
+
+        val maxTop = (screenHeight - actualCardHeight - dp(16)).coerceAtLeast(dp(16))
+        val topMargin = if (spaceBelow >= actualCardHeight || spaceBelow >= spaceAbove) {
+            (ballY + dp(64)).coerceIn(dp(16), maxTop)
+        } else {
+            (ballY - actualCardHeight - dp(8)).coerceIn(dp(16), maxTop)
+        }
+        val leftMargin = (ballParams.x).coerceIn(dp(8), (screenWidth - menuWidth - dp(8)).coerceAtLeast(dp(8)))
+
+        val cardParams = FrameLayout.LayoutParams(menuWidth, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
+            this.leftMargin = leftMargin
+            this.topMargin = topMargin
         }
         rootLayout.addView(menuCard, cardParams)
 

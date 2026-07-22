@@ -181,8 +181,10 @@ class ScreenCropOverlayView(
         stepAndDrawParticles(canvas)
         drawScreenBorder(canvas)
 
-        // Draw Auto-Annotated Bounding Boxes & Action Chips
-        drawAnnotatedEntities(canvas)
+        // Draw Auto-Annotated Bounding Boxes & Action Chips ONLY when NOT dragging a selection and NO selection is frozen
+        if (!drawing && frozenRect == null) {
+            drawAnnotatedEntities(canvas)
+        }
 
         val frozen = frozenRect
         when {
