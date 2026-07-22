@@ -88,6 +88,54 @@ class SmartActionDetectorTest {
     }
 
     @Test
+    fun `detectAll finds Indian-format comma-grouped currency INR`() {
+        val entities = SmartActionDetector.detectAll("Total is INR1,23,456")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("Should detect INR1,23,456 as a currency", currency)
+        assertTrue("rawValue should contain the full number", currency!!.rawValue.contains("1,23,456"))
+        assertTrue(currency.actions.any { it.label.contains("Convert") })
+    }
+
+    @Test
+    fun `detectAll finds rupee symbol with Indian comma grouping and decimal`() {
+        val entities = SmartActionDetector.detectAll("Price is ₹12,34,567.89")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("Should detect ₹12,34,567.89 as a currency", currency)
+        assertTrue(currency!!.rawValue.contains("12,34,567.89"))
+        assertTrue(currency.actions.any { it.label.contains("Convert") })
+    }
+
+    @Test
+    fun `detectAll finds western comma-formatted dollar amount`() {
+        val entities = SmartActionDetector.detectAll("Total is $1,234,567.89 USD")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("Should detect $1,234,567.89 USD as a currency", currency)
+    }
+
+    @Test
+    fun `detectAll finds Rs format with Indian comma grouping`() {
+        val entities = SmartActionDetector.detectAll("Cost Rs. 12,34,567")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("Should detect Rs. 12,34,567 as a currency", currency)
+        assertTrue(currency!!.rawValue.contains("12,34,567"))
+    }
+
+    @Test
+    fun `detectAll finds euro symbol with comma-grouped thousands`() {
+        val entities = SmartActionDetector.detectAll("Price is €1,234.56", targetCurrency = "USD")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("Should detect €1,234.56 as a currency", currency)
+        assertTrue(currency!!.actions.any { it.label.contains("Convert") })
+    }
+
+    @Test
+    fun `detectAll still finds plain digit currency amounts`() {
+        val entities = SmartActionDetector.detectAll("Price is ₹1250")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("Should still detect plain ₹1250", currency)
+    }
+
+    @Test
     fun `isTextInLanguage detects whether text matches target language`() {
         assertTrue(SmartActionDetector.isTextInLanguage("Call us at (415) 555-0199 for assistance", "English"))
         assertFalse(SmartActionDetector.isTextInLanguage("Hola amigo ¿cómo estás?", "English"))

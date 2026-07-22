@@ -171,12 +171,7 @@ class AssistiveBallOverlay(context: Context) {
     fun setProactiveSessionItems(items: List<ProactiveSessionItem>) {
         mainHandler.post {
             proactiveSessionItems = items
-            if (items.isNotEmpty()) {
-                val topEntity = items.first().entity
-                topEntity.primaryAction?.let { action ->
-                    setSmartActionAvailable(action.label, action.prompt)
-                }
-            } else {
+            if (items.isEmpty()) {
                 clearSmartAction()
             }
         }
@@ -193,10 +188,6 @@ class AssistiveBallOverlay(context: Context) {
     fun setSmartActionAvailable(label: String, prompt: String, altLabel: String?, altPrompt: String?) {
         mainHandler.post {
             if (isCallActive()) return@post
-            val currentLabel = pendingSmartAction?.first ?: ""
-            if (currentLabel.contains("copied", ignoreCase = true) && !label.contains("copied", ignoreCase = true)) {
-                return@post
-            }
             if (label == lastOfferedLabel) return@post
 
             lastOfferedLabel = label
@@ -366,6 +357,25 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun buildProactiveMenuContent(menuCard: LinearLayout, colors: OverlayPalette) {
+        // Always show clipboard/smart action at the top
+        pendingSmartAction?.let { (label, prompt) ->
+            menuCard.addView(
+                tapButton(label, colors) {
+                    removeMenu()
+                    onSmartActionSelected(prompt)
+                }
+            )
+        }
+        pendingSmartActionAlt?.let { (altLabel, altPrompt) ->
+            menuCard.addView(
+                tapButton(altLabel, colors) {
+                    removeMenu()
+                    onSmartActionSelected(altPrompt)
+                }
+            )
+        }
+
+        // Then show proactive screen-scan entities if any
         if (proactiveSessionItems.isNotEmpty()) {
             val scroll = ScrollView(appContext).apply {
                 layoutParams = LinearLayout.LayoutParams(
@@ -421,23 +431,6 @@ class AssistiveBallOverlay(context: Context) {
             }
             scroll.addView(listContent)
             menuCard.addView(scroll)
-        } else {
-            pendingSmartAction?.let { (label, prompt) ->
-                menuCard.addView(
-                    tapButton(label, colors) {
-                        removeMenu()
-                        onSmartActionSelected(prompt)
-                    }
-                )
-            }
-            pendingSmartActionAlt?.let { (altLabel, altPrompt) ->
-                menuCard.addView(
-                    tapButton(altLabel, colors) {
-                        removeMenu()
-                        onSmartActionSelected(altPrompt)
-                    }
-                )
-            }
         }
     }
 

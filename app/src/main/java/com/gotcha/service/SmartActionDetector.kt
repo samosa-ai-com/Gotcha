@@ -130,8 +130,8 @@ object SmartActionDetector {
     )
 
     private val currencyPattern: Pattern = Pattern.compile(
-        "([¥€£$]|₹|INR|Rs\\.?)\\s?\\d{1,6}(\\.\\d{2})?\\b" +
-            "|\\b\\d{1,6}(\\.\\d{2})?\\s?(USD|EUR|GBP|INR|JPY|CAD|AUD|₹|Rs\\.?)\\b",
+        "([¥€£$]|₹|INR|Rs\\.?)\\s?\\d{1,6}(?:,\\d{2,3})*(?:\\.\\d{2})?\\b" +
+            "|\\b\\d{1,6}(?:,\\d{2,3})*(?:\\.\\d{2})?\\s?(USD|EUR|GBP|INR|JPY|CAD|AUD|₹|Rs\\.?)\\b",
         Pattern.CASE_INSENSITIVE
     )
 
