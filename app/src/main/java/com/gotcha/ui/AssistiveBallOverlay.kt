@@ -425,6 +425,14 @@ class AssistiveBallOverlay(context: Context) {
                     }
                 )
             }
+            pendingSmartActionAlt?.let { (altLabel, altPrompt) ->
+                menuCard.addView(
+                    tapButton(altLabel, colors) {
+                        removeMenu()
+                        onSmartActionSelected(altPrompt)
+                    }
+                )
+            }
         }
     }
 

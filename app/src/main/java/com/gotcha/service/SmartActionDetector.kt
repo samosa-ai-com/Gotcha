@@ -175,7 +175,8 @@ object SmartActionDetector {
     fun detectAll(
         text: String,
         allowChat: Boolean = false,
-        targetCurrency: String = "USD"
+        targetCurrency: String = "USD",
+        targetLanguage: String = "English"
     ): List<DetectedEntity> {
         if (text.isBlank()) return emptyList()
 
@@ -208,24 +209,35 @@ object SmartActionDetector {
         // 9. Chat reply fallback (if allowChat set)
         if (allowChat && looksLikeChatMessage(text)) {
             val normalized = text.trim()
-            val actions = listOf(
+            val isAlreadyTargetLang = isTextInLanguage(normalized, targetLanguage)
+            val actions = mutableListOf<SmartAction>()
+
+            if (!isAlreadyTargetLang) {
+                actions.add(
+                    SmartAction(
+                        label = "🌐 Translate to $targetLanguage",
+                        prompt = "Translate the following text to $targetLanguage:\n\n$text",
+                        actionType = ActionType.LLM_TRANSLATE,
+                        isPrimary = true
+                    )
+                )
+            }
+            actions.add(
                 SmartAction(
                     label = "💬 Draft reply: ${snippet(normalized, 24)}",
                     prompt = "Draft a short, friendly reply to this message. Return only the reply text:\n\n$text",
                     actionType = ActionType.LLM_CHAT_REPLY,
-                    isPrimary = true
-                ),
+                    isPrimary = isAlreadyTargetLang
+                )
+            )
+            actions.add(
                 SmartAction(
                     label = "📋 Copy text",
                     prompt = encode(TYPE_COPY, normalized),
                     actionType = ActionType.NATIVE_COPY
-                ),
-                SmartAction(
-                    label = "🌐 Translate",
-                    prompt = "Translate the following text to English:\n\n$text",
-                    actionType = ActionType.LLM_TRANSLATE
                 )
             )
+
             rawEntities.add(
                 DetectedEntity(
                     type = EntityType.CHAT_REPLY,
@@ -246,8 +258,13 @@ object SmartActionDetector {
      * Proactive detection wrapper for backward compatibility.
      * Returns the primary action of the highest-ranked entity, or null.
      */
-    fun detect(text: String, allowChat: Boolean = false): SmartAction? {
-        val entities = detectAll(text, allowChat)
+    fun detect(
+        text: String,
+        allowChat: Boolean = false,
+        targetCurrency: String = "USD",
+        targetLanguage: String = "English"
+    ): SmartAction? {
+        val entities = detectAll(text, allowChat, targetCurrency, targetLanguage)
         // Proactive detect historically excluded currency & calendar unless in Lens mode
         val filtered = entities.filter { it.type != EntityType.CURRENCY && it.type != EntityType.CALENDAR }
         return filtered.firstOrNull()?.primaryAction

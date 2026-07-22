@@ -323,18 +323,38 @@ class AssistiveBallService : Service() {
                 overlay.setSmartActionAvailable(fetch.label, fetch.prompt)
                 return@readClipboardWithFocus
             }
-            // Prefer a structured action (dial / navigate / convert / schedule / reply)
-            // when the copied text carries recognisable data; otherwise fall back to
-            // the generic translate/summarize offer.
-            val smart = SmartActionDetector.detect(clipText, allowChat = true)
-            if (smart != null) {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: ${smart.label}")
+            val settings = runCatching { com.gotcha.data.SettingsRepository(applicationContext).load() }.getOrNull()
+            val preferredLang = settings?.preferredLanguage ?: "English"
+            val preferredCurr = settings?.preferredCurrency ?: "USD"
+            val isAlreadyTargetLang = SmartActionDetector.isTextInLanguage(clipText, preferredLang)
+
+            val smart = SmartActionDetector.detect(
+                clipText,
+                allowChat = true,
+                targetCurrency = preferredCurr,
+                targetLanguage = preferredLang
+            )
+
+            if (!isAlreadyTargetLang) {
+                val translateLabel = "🌐 Translate: ${SmartActionDetector.snippet(clipText, 20)}"
+                val translatePrompt = "Translate the copied text to $preferredLang:\n\n$clipText"
+
+                if (smart != null && !smart.label.contains("Translate", ignoreCase = true)) {
+                    overlay.setSmartActionPairAvailable(
+                        translateLabel,
+                        translatePrompt,
+                        smart.label,
+                        smart.prompt
+                    )
+                } else {
+                    overlay.setSmartActionAvailable(translateLabel, translatePrompt)
+                }
+            } else if (smart != null) {
                 overlay.setSmartActionAvailable(smart.label, smart.prompt)
             } else {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: Text copied. Translate?")
                 overlay.setSmartActionAvailable(
-                    "📋 Translate: ${SmartActionDetector.snippet(clipText, 24)}",
-                    "Translate the copied text to English if it is not, otherwise summarize it:\n\n$clipText"
+                    "📋 Summarize: ${SmartActionDetector.snippet(clipText, 24)}",
+                    "Summarize the copied text:\n\n$clipText"
                 )
             }
         }
