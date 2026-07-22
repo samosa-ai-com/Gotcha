@@ -9,7 +9,84 @@ import org.junit.Test
 
 class SmartActionDetectorTest {
 
-    // ---- Proactive detect() ----
+    // ---- Multi-Entity detectAll() ----
+
+    @Test
+    fun `detectAll detects multiple entities in composite text`() {
+        val text = """
+            Here is the info:
+            Call us at (415) 555-2671 or email support@example.com.
+            Visit https://example.com/help or 1600 Amphitheatre Pkwy, Mountain View, CA 94043.
+            Your verification OTP code is 849201.
+        """.trimIndent()
+
+        val entities = SmartActionDetector.detectAll(text)
+        assertTrue(entities.isNotEmpty())
+
+        val types = entities.map { it.type }
+        assertTrue(types.contains(EntityType.OTP))
+        assertTrue(types.contains(EntityType.PHONE))
+        assertTrue(types.contains(EntityType.EMAIL))
+        assertTrue(types.contains(EntityType.URL))
+        assertTrue(types.contains(EntityType.ADDRESS))
+
+        // OTP has highest priority (100) and should be ranked first
+        assertEquals(EntityType.OTP, entities.first().type)
+        assertEquals("849201", entities.first().normalizedValue)
+    }
+
+    @Test
+    fun `detectAll handles multi-line addresses accurately`() {
+        val text = """
+            Shipping Address:
+            1600 Amphitheatre Pkwy
+            Building 43
+            Mountain View, CA 94043
+        """.trimIndent()
+
+        val entities = SmartActionDetector.detectAll(text)
+        val address = entities.firstOrNull { it.type == EntityType.ADDRESS }
+        assertNotNull(address)
+        assertTrue(address!!.normalizedValue.contains("Amphitheatre Pkwy"))
+        assertTrue(address.normalizedValue.contains("Mountain View"))
+    }
+
+    @Test
+    fun `extractUrl cleans trailing punctuation and handles query params correctly`() {
+        val url1 = SmartActionDetector.extractUrl("Check this link: (https://example.com/page?id=123&ref=test).")
+        assertEquals("https://example.com/page?id=123&ref=test", url1)
+
+        val url2 = SmartActionDetector.extractUrl("Visit www.github.com/repo!")
+        assertEquals("https://www.github.com/repo", url2)
+    }
+
+    @Test
+    fun `detectAll finds INR and dollar currency prices`() {
+        val text = "Item price is ₹1250 ($15.00 USD)"
+        val entities = SmartActionDetector.detectAll(text)
+        val currencies = entities.filter { it.type == EntityType.CURRENCY }
+        assertTrue(currencies.isNotEmpty())
+    }
+
+    @Test
+    fun `detectAll finds email addresses and generates compose mail actions`() {
+        val entities = SmartActionDetector.detectAll("Contact john.doe@company.org for details")
+        val email = entities.firstOrNull { it.type == EntityType.EMAIL }
+        assertNotNull(email)
+        assertEquals("john.doe@company.org", email!!.normalizedValue)
+        assertTrue(email.actions.any { it.actionType == ActionType.NATIVE_COMPOSE_MAIL })
+    }
+
+    @Test
+    fun `detectAll finds tracking numbers`() {
+        val entities = SmartActionDetector.detectAll("Your package 1Z9999999999999999 is out for delivery")
+        val tracking = entities.firstOrNull { it.type == EntityType.TRACKING_NUMBER }
+        assertNotNull(tracking)
+        assertEquals("1Z9999999999999999", tracking!!.normalizedValue)
+        assertTrue(tracking.actions.any { it.label.contains("UPS") })
+    }
+
+    // ---- Legacy / Backward Compatibility detect() ----
 
     @Test
     fun `detects punctuated phone number and encodes a dial action`() {
@@ -38,7 +115,6 @@ class SmartActionDetectorTest {
 
     @Test
     fun `does not treat a bare digit run as a phone number`() {
-        // Order id / tracking number — no separators, no parens, no +.
         assertNull(SmartActionDetector.detect("Your order 4155552671 has shipped"))
     }
 
@@ -91,7 +167,6 @@ class SmartActionDetectorTest {
     fun `contextual detection finds currency`() {
         val actions = SmartActionDetector.detectContextual("The jacket costs €89.99")
         assertTrue(actions.any { it.label.contains("Convert") })
-        // Currency conversion is an LLM query, not a native intent.
         val currency = actions.first { it.label.contains("Convert") }
         assertFalse(SmartActionDetector.isNativeAction(currency.prompt))
     }
@@ -106,7 +181,6 @@ class SmartActionDetectorTest {
 
     @Test
     fun `contextual detection finds month-day time event`() {
-        // Regression: "July 20 at 9:10 a.m." was previously missed.
         val actions = SmartActionDetector.detectContextual("Flight on July 20 at 9:10 a.m.")
         val cal = actions.firstOrNull { it.label.contains("calendar") }
         assertNotNull(cal)
@@ -139,7 +213,6 @@ class SmartActionDetectorTest {
     fun `fetch action label shows a url snippet`() {
         val action = SmartActionDetector.fetchAction("https://www.example.com/very/long/path/here")
         assertTrue(action.label.contains("example.com"))
-        // The full URL is preserved in the payload.
         assertEquals(
             "https://www.example.com/very/long/path/here",
             SmartActionDetector.decode(action.prompt)!!.second
