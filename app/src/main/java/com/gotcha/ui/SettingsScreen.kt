@@ -587,11 +587,6 @@ fun SettingsScreen(
 
             HorizontalDivider(thickness = 1.dp)
 
-            // ---- Permissions (collapsible, expanded by default) ----
-            PermissionsSection(packageName = packageName)
-
-            HorizontalDivider(thickness = 1.dp)
-
             // ---- Speech (collapsible, collapsed by default) ----
             SectionHeader(
                 title = "Speech (TTS / STT)",
@@ -936,6 +931,11 @@ fun SettingsScreen(
                     ) { Text("Save Speech Settings") }
                 }
             }
+
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Permissions ----
+            PermissionsSection(packageName = packageName)
 
             HorizontalDivider(thickness = 1.dp)
 
