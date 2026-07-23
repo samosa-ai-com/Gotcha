@@ -2,4 +2,6 @@
 <paths>
     <!-- Captured photos live under getExternalFilesDir("Pictures"). -->
     <external-files-path name="captures" path="." />
+    <!-- Lens-mode cropped images shared for "Copy Image" (content:// clip). -->
+    <cache-path name="lens" path="lens/" />
 </paths>

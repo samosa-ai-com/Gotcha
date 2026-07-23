@@ -1485,9 +1485,8 @@ object ToolDefinitions {
 
     val navigateApp = tool(
         "navigate_app",
-        "Open apps and navigate them step by step. Provide a detailed description of " +
-            "what to do — the App Navigator will look at the screen, tap, swipe, type, " +
-            "and scroll until the task is done. " +
+        "Navigate inside apps step by step — open the app, tap, swipe, type, and scroll " +
+            "until the task is done. Provide clear numbered steps as the task description. " +
             "Only available to Operator mode. Cannot be called from within a sub-agent.",
         schema {
             putJsonObject("properties") {
@@ -1495,11 +1494,15 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Detailed step-by-step instructions of what to do in the app. " +
-                            "Include the app name, search terms, what to look for, and what the final " +
-                            "summary should contain. " +
-                            "Example: 'Open Google Maps, search for restaurants near me, scroll through " +
-                            "results, and tell me the top 5 with ratings and distances.'"
+                        "Step-by-step instructions of what to do. Include the app name, what to tap, " +
+                            "what to type, and what to report back. Using numbered steps improves accuracy.\n\n" +
+                            "Example:\n" +
+                            "1. Open the Google Play Store app\n" +
+                            "2. Tap on the search bar at the top\n" +
+                            "3. Type 'Spotify' and press enter\n" +
+                            "4. Tap on the Spotify result\n" +
+                            "5. Scroll down to see the rating\n" +
+                            "6. Report the app rating and number of downloads"
                     )
                 }
             }
@@ -1645,31 +1648,6 @@ object ToolDefinitions {
         }
     )
 
-    // ---- Tier 3 addition: VpnService (local traffic firewall) ----
-
-    val setFirewall = tool(
-        "set_firewall",
-        "Enable or disable a local VPN that blocks ALL device network traffic — an on-device " +
-            "internet kill-switch. Nothing is inspected or sent anywhere; while it is on, every " +
-            "packet is dropped so no app can reach the network. Enabling needs a one-time system " +
-            "VPN consent the first time.",
-        schema {
-            putJsonObject("properties") {
-                putJsonObject("enabled") {
-                    put("type", "boolean")
-                    put("description", "true to block all network traffic, false to restore connectivity.")
-                }
-            }
-            putJsonArray("required") { add("enabled") }
-        }
-    )
-
-    val getFirewallStatus = tool(
-        "get_firewall_status",
-        "Report whether the local traffic-blocking VPN firewall is currently on or off.",
-        schema { putJsonObject("properties") {} }
-    )
-
     // ---- Tier 4 additions (privileged / rooted execution) ----
 
     val checkRoot = tool(
@@ -1724,6 +1702,24 @@ object ToolDefinitions {
         }
     )
 
+    val searchSkills = tool(
+        "search_skills",
+        "Search the skills registry for contextual instructions on how to optimally " +
+            "interact with a given app or perform a system operation.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("query") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_search')."
+                    )
+                }
+            }
+            putJsonArray("required") { add("query") }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi,
@@ -1758,9 +1754,10 @@ object ToolDefinitions {
         readNotifications, dismissNotifications, mediaControl,
         showOverlay, hideOverlay,
         lockScreen, disableCamera, setPasswordPolicy,
-        // Tier 3 addition: VpnService firewall
-        setFirewall, getFirewallStatus,
+
         // Tier 4 additions: privileged / rooted execution
-        checkRoot, runRootCommand, writeSecureSettings
+        checkRoot, runRootCommand, writeSecureSettings,
+
+        searchSkills
     )
 }

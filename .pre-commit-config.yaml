@@ -1,0 +1,28 @@
+# Pre-commit hooks for Gotcha.
+# Mirrors the fast CI gates (see .github/workflows/ci.yml). Detekt is the primary
+# Kotlin static-analysis gate; the repo has no baseline, so the whole tree must pass.
+# Install:  pre-commit install
+# Run all:  pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.(png|jpg|jpeg|webp|gradlew|jar)$|gradle/wrapper/'
+      - id: end-of-file-fixer
+        exclude: '\.(png|jpg|jpeg|webp|jar)$|gradle/wrapper/'
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=2048']
+
+  - repo: local
+    hooks:
+      - id: detekt
+        name: detekt
+        description: Kotlin static analysis (matches CI gate)
+        entry: ./gradlew :app:detekt
+        language: system
+        types: [kotlin]
+        pass_filenames: false
+        require_serial: true

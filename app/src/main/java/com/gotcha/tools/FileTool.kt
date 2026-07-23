@@ -81,7 +81,10 @@ class FileTool(private val context: Context) {
         if (!file.exists()) {
             val archiveResult = tryReadArchiveEntry(originalPath)
             if (archiveResult != null) return archiveResult
-            return ToolResult.error("Path '$originalPath' does not exist (resolved: ${file.canonicalPath}).")
+            return ToolResult.error(
+                "Path '$originalPath' does not exist (resolved: ${file.canonicalPath}). You may use list_files or glob " +
+                    "to discover valid paths."
+            )
         }
         if (file.isDirectory) return listResolved(file, originalPath, null, null, null, false, null)
         val ext = file.extension.lowercase()
@@ -174,7 +177,11 @@ class FileTool(private val context: Context) {
             val bytes = file.readBytes()
             val mime = resolver.detectMime(bytes)
             if (mime == null || !resolver.isImageMime(mime)) {
-                return ToolResult.error("File '${file.name}' is not a recognized image format.")
+                return ToolResult.error(
+                    "File '${file.name}' is not a recognized image format. Supported: ${IMAGE_EXTENSIONS.joinToString(
+                        ", "
+                    )}. Use read_file without format detection for text/binary."
+                )
             }
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
@@ -300,7 +307,10 @@ class FileTool(private val context: Context) {
             } else {
                 ""
             }
-            return ToolResult.error("Entry '$entryPath' not found in '${archiveFile.name}'.$hint")
+            return ToolResult.error(
+                "Entry '$entryPath' not found in '${archiveFile.name}'.$hint You may use read_file on the archive directly (without an " +
+                    "entry path) to list its contents first."
+            )
         }
         if (entry.isDirectory) {
             val children = zf.entries().asSequence()
@@ -475,7 +485,11 @@ class FileTool(private val context: Context) {
             is FileResolver.ResolveResult.Error -> ToolResult.error(resolved.message)
             is FileResolver.ResolveResult.Ok -> {
                 val f = resolved.file
-                if (!f.exists()) return ToolResult.error("Path '$path' does not exist.")
+                if (!f.exists()) {
+                    return ToolResult.error(
+                        "Path '$path' does not exist. You may use list_files or glob to discover valid paths."
+                    )
+                }
                 val perm = resolver.checkReadPermission(f)
                 if (perm != null) return perm
                 val type = when {

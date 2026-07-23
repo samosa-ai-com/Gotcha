@@ -6,7 +6,6 @@ import com.gotcha.service.GotchaAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 
 /**
  * Accessibility-based screen capture for overlay features (voice calls).
@@ -41,25 +40,13 @@ object ScreenSnapshot {
         }
         if (bitmap == null) return null
         return withContext(Dispatchers.Default) {
-            try {
-                val (w, h) = if (bitmap.width > MAX_DIMENSION || bitmap.height > MAX_DIMENSION) {
-                    val ratio = minOf(
-                        MAX_DIMENSION.toFloat() / bitmap.width,
-                        MAX_DIMENSION.toFloat() / bitmap.height
-                    )
-                    (bitmap.width * ratio).toInt() to (bitmap.height * ratio).toInt()
-                } else {
-                    bitmap.width to bitmap.height
-                }
-                val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
-                if (scaled != bitmap) bitmap.recycle()
-                val output = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
-                scaled.recycle()
-                android.util.Base64.encodeToString(output.toByteArray(), android.util.Base64.NO_WRAP)
-            } catch (_: Exception) {
-                null
-            }
+            com.gotcha.tools.ScreenPerception.compressBitmap(
+                bitmap = bitmap,
+                maxDimension = MAX_DIMENSION,
+                quality = JPEG_QUALITY,
+                format = Bitmap.CompressFormat.JPEG,
+                recycleInput = true
+            )
         }
     }
 

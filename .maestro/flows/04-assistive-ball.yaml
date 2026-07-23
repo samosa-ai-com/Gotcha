@@ -1,0 +1,13 @@
+appId: com.gotcha
+---
+# Requires scripts/maestro_run.sh to have granted the SYSTEM_ALERT_WINDOW appop first
+# (Maestro cannot send shell/appops commands itself).
+- launchApp
+- tapOn: "Turn on assistive ball"
+- pressKey: Home
+- assertVisible: "Gotcha assistive ball"
+- tapOn: "Gotcha assistive ball"
+- assertVisible: "Open App"
+- tapOn: "Open App"
+- assertVisible:
+    text: "Let's Go"

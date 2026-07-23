@@ -207,8 +207,8 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 }
             ),
             PermissionItem(
-                "Device Admin",
-                "Lock screen, enforce password policy",
+                "Device Admin (Optional)",
+                "DANGEROUS: Lock screen, enforce password policy. Only enable if you really need these.",
                 null,
                 "special:device_admin",
                 { c ->
@@ -253,26 +253,6 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 null,
                 "special:overlay_access",
                 { c -> Settings.canDrawOverlays(c) }
-            ),
-            PermissionItem(
-                "VPN",
-                "Block all network traffic (firewall kill-switch)",
-                null,
-                "special:vpn_consent",
-                { c ->
-                    try {
-                        val cm = c.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
-                        cm?.let { mgr ->
-                            val network = mgr.activeNetwork
-                            if (network != null) {
-                                mgr.getNetworkCapabilities(network)
-                                    ?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) ?: false
-                            } else {
-                                false
-                            }
-                        } ?: false
-                    } catch (_: SecurityException) { false }
-                }
             )
         )
     )

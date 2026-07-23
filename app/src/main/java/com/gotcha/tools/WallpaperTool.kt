@@ -26,13 +26,16 @@ class WallpaperTool(private val context: Context) {
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     return@withContext ToolResult.error(
-                        "Image download failed (HTTP ${response.code}) from $imageUrl."
+                        "Image download failed (HTTP ${response.code}) from $imageUrl. You may verify the URL with webfetch first."
                     )
                 }
                 val body = response.body
-                    ?: return@withContext ToolResult.error("Empty response from $imageUrl.")
+                    ?: return@withContext ToolResult.error("Empty response from $imageUrl. You may try a different image URL.")
                 val bitmap = BitmapFactory.decodeStream(body.byteStream())
-                    ?: return@withContext ToolResult.error("Downloaded data is not a decodable image.")
+                    ?: return@withContext ToolResult.error(
+                        "Downloaded data is not a decodable image. The URL may not point to a valid " +
+                            "image file."
+                    )
                 WallpaperManager.getInstance(context).setBitmap(bitmap)
             }
             ToolResult.ok("Wallpaper updated from $imageUrl.")

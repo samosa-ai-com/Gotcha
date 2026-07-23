@@ -17,8 +17,16 @@ class EditTool(private val context: Context) {
     }
 
     fun edit(path: String, oldString: String, newString: String, replaceAll: Boolean): ToolResult {
-        if (oldString.isBlank()) return ToolResult.error("oldString cannot be blank.")
-        if (newString == oldString) return ToolResult.error("newString must differ from oldString.")
+        if (oldString.isBlank()) {
+            return ToolResult.error(
+                "oldString cannot be blank. Provide the exact text you want to replace."
+            )
+        }
+        if (newString == oldString) {
+            return ToolResult.error(
+                "newString must differ from oldString. Provide the replacement text."
+            )
+        }
 
         val resolved = resolver.resolveForWrite(path)
         return when (resolved) {
@@ -30,10 +38,15 @@ class EditTool(private val context: Context) {
                 if (perm != null) return perm
                 if (!file.exists()) {
                     return ToolResult.error(
-                        "File '$path' does not exist (resolved: ${file.canonicalPath})."
+                        "File '$path' does not exist (resolved: ${file.canonicalPath}). " +
+                            "You may verify the path with list_files or glob first."
                     )
                 }
-                if (!file.isFile) return ToolResult.error("'$path' is not a regular file.")
+                if (!file.isFile) {
+                    return ToolResult.error(
+                        "'$path' is not a regular file. You may use list_files to see what is at that path."
+                    )
+                }
                 if (file.length() > MAX_FILE_BYTES) return ToolResult.error("File too large to edit (max 1 MB).")
 
                 try {
@@ -45,13 +58,14 @@ class EditTool(private val context: Context) {
                     if (count == 0) {
                         return ToolResult.error(
                             "No match found for the specified text in '$path'. " +
-                                "The text must match exactly, including whitespace and indentation."
+                                "You may use grep or read_file to locate the exact text first — the match must be exact, including " +
+                                "whitespace and indentation."
                         )
                     }
                     if (count > 1 && !replaceAll) {
                         return ToolResult.error(
                             "Found $count matches in '$path'. " +
-                                "Provide more surrounding context or use replaceAll=true."
+                                "You may provide more surrounding context in oldString, or pass replaceAll=true to replace all occurrences."
                         )
                     }
 

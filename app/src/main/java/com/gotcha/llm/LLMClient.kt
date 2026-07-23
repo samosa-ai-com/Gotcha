@@ -16,7 +16,13 @@ class LLMClient(
     private val model: String = "gpt-4o",
     context: Context? = null,
     private val apiTimeoutSeconds: Long = 0L,
-    private val cache: LLMCache = LLMCache(context)
+    private val cache: LLMCache = LLMCache(context),
+    /**
+     * Invoked when the server responds 401 (e.g. an expired/blacklisted Samosa
+     * JWT). Lets the caller clear the stored token and prompt re-authentication.
+     * No-op for the OpenAI-compatible flow unless a caller opts in.
+     */
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
     private val apiService: ApiService
 
@@ -40,7 +46,11 @@ class LLMClient(
             .addInterceptor { chain ->
                 val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")
-                chain.proceed(builder.build())
+                val response = chain.proceed(builder.build())
+                if (response.code == 401) {
+                    onUnauthorized?.invoke()
+                }
+                response
             }
             .addInterceptor(logging)
             .build()
@@ -60,16 +70,18 @@ class LLMClient(
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
         temperature: Float? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        modelOverride: String? = null
     ): ChatResponse {
-        val cacheKey = buildCacheKey(model, messages, tools)
+        val targetModel = modelOverride ?: model
+        val cacheKey = buildCacheKey(targetModel, messages, tools)
 
         if (temperature == null || temperature == 0f) {
             cache.get(cacheKey)?.let { return it }
         }
 
         val request = ChatRequest(
-            model = model,
+            model = targetModel,
             messages = messages,
             tools = tools.ifEmpty { null },
             temperature = temperature,
@@ -88,6 +100,23 @@ class LLMClient(
         }
 
         return response
+    }
+
+    suspend fun cleanText(text: String, modelOverride: String? = null): String {
+        val prompt = "You are a text cleaner. Fix grammar, punctuation, and capitalization " +
+            "in the following text. Do not change the meaning, word choice, or structure " +
+            "beyond what's needed for correctness. Return only the corrected text."
+        val messages = listOf(
+            ChatMessage(role = "system", content = kotlinx.serialization.json.JsonPrimitive(prompt)),
+            ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive(text))
+        )
+        return try {
+            val response = chat(messages = messages, temperature = 0f, modelOverride = modelOverride)
+            response.choices.firstOrNull()?.message?.textContent ?: text
+        } catch (_: Exception) {
+            // Fall back to original text if the LLM fails (e.g., 401 Unauthorized)
+            text
+        }
     }
 
     fun clearCache() {

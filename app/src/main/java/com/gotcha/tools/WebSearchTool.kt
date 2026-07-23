@@ -25,7 +25,11 @@ class WebSearchTool {
 
     fun search(query: String, numResults: Int): ToolResult {
         val trimmed = query.trim()
-        if (trimmed.isEmpty()) return ToolResult.error("Search query cannot be empty.")
+        if (trimmed.isEmpty()) {
+            return ToolResult.error(
+                "Search query cannot be empty. Provide keywords or a question to search for."
+            )
+        }
         val count = numResults.coerceIn(1, 10)
 
         return try {
@@ -41,10 +45,15 @@ class WebSearchTool {
                 .build()
 
             val response = client.newCall(request).execute()
-            val body = response.body ?: return ToolResult.error("Empty response (HTTP ${response.code}).")
+            val body = response.body ?: return ToolResult.error(
+                "Empty response (HTTP ${response.code}). The search engine may be " +
+                    "temporarily unavailable."
+            )
 
             if (!response.isSuccessful) {
-                return ToolResult.error("Search failed (HTTP ${response.code}).")
+                return ToolResult.error(
+                    "Search failed (HTTP ${response.code}). The search engine may be rate-limiting or temporarily down."
+                )
             }
 
             val html = body.string()
@@ -53,7 +62,9 @@ class WebSearchTool {
 
             if (resultRows.isEmpty()) {
                 // DDG sometimes puts ads-only on first page; check for "no results" indicator
-                return ToolResult.ok("No search results found for '$trimmed'. Try a different query.")
+                return ToolResult.ok(
+                    "No search results found for '$trimmed'. You may try different keywords or rephrase the query."
+                )
             }
 
             val results = mutableListOf<String>()
@@ -81,14 +92,22 @@ class WebSearchTool {
             }
 
             if (results.isEmpty()) {
-                return ToolResult.ok("Found search results page but could not extract any results for '$trimmed'.")
+                return ToolResult.ok(
+                    "Found search results page but could not extract any results for '$trimmed'. You may try a different query " +
+                        "or use webfetch on a known URL."
+                )
             }
 
             ToolResult.ok("Search results for '$trimmed' (top ${results.size}):\n\n${results.joinToString("\n")}")
         } catch (e: java.net.UnknownHostException) {
-            ToolResult.error("Could not reach the search engine: ${e.message}")
+            ToolResult.error(
+                "Could not reach the search engine: ${e.message}. You may check your internet connection or try webfetch on a known URL."
+            )
         } catch (_: java.net.SocketTimeoutException) {
-            ToolResult.error("Search timed out after ${TIMEOUT_SECONDS}s.")
+            ToolResult.error(
+                "Search timed out after ${TIMEOUT_SECONDS}s. The search engine may be slow — you may try a simpler query or " +
+                    "use webfetch on a known URL."
+            )
         } catch (e: Exception) {
             ToolResult.error("Search failed: ${e.message}")
         }

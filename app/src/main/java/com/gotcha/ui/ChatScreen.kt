@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -57,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,12 +85,18 @@ fun ChatScreen(
     onToggleAssistiveBall: (Boolean) -> Unit = {},
     onPickImage: (Uri) -> String?,
     onSwitchAgent: () -> Unit,
+    onSetAgent: (AgentMode) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     onStartListening: () -> Unit = {},
-    onStopRecording: () -> Unit = {},
-    onExportChat: () -> Unit = {}
+    onStopRecording: ((String) -> Unit) -> Unit = {},
+    onExportChat: () -> Unit = {},
+    onReturnToRunning: () -> Unit = {}
 ) {
     val isHome = state.messages.isEmpty()
+    // A run is active in a DIFFERENT chat than the one being viewed: sending here
+    // is blocked (one agent at a time), and a banner offers a jump back.
+    val otherChatRunning = state.runningSessionId != null &&
+        state.runningSessionId != state.activeSessionId
     var input by rememberSaveable { mutableStateOf("") }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
@@ -197,11 +206,16 @@ fun ChatScreen(
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    AgentModeSelector(
+                        selected = state.activeAgent,
+                        onSelect = onSetAgent
+                    )
                 }
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth().testTag("message_list")
                 ) {
                     items(state.messages, key = { it.id }) { message ->
                         MessageBubble(message = message, onSpeak = onSpeak)
@@ -261,6 +275,33 @@ fun ChatScreen(
                 }
             }
 
+            // "Agent working in another chat" banner — tap to jump back to it.
+            if (otherChatRunning) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .clickable { onReturnToRunning() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "⚡ Agent working in “${state.runningSessionTitle ?: "another chat"}” — tap to return",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
             // Image attachment preview
             if (pendingImageBase64 != null) {
                 Box(
@@ -301,17 +342,19 @@ fun ChatScreen(
             ) {
                 IconButton(
                     onClick = { imagePickerLauncher.launch("image/*") },
-                    enabled = !state.isBusy && state.isConfigured
+                    enabled = !state.isBusy && state.isConfigured && !otherChatRunning
                 ) {
                     Text("+", style = MaterialTheme.typography.titleLarge)
                 }
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag("chat_input"),
                     shape = RoundedCornerShape(24.dp),
-                    placeholder = { Text("Let's Go") },
-                    enabled = !state.isBusy && state.isConfigured,
+                    placeholder = {
+                        Text(if (otherChatRunning) "Finish the running chat first…" else "Let's Go")
+                    },
+                    enabled = !state.isBusy && state.isConfigured && !otherChatRunning,
                     maxLines = 6,
                     singleLine = false
                 )
@@ -336,7 +379,15 @@ fun ChatScreen(
                         state.isRecording || state.isListening -> {
                             // Recording in progress — show red stop button for both providers
                             Button(
-                                onClick = onStopRecording,
+                                onClick = {
+                                    onStopRecording { text ->
+                                        if (input.isNotEmpty()) {
+                                            input += " " + text
+                                        } else {
+                                            input = text
+                                        }
+                                    }
+                                },
                                 modifier = Modifier.size(40.dp),
                                 contentPadding = ButtonDefaults.TextButtonContentPadding,
                                 shape = CircleShape,
@@ -356,7 +407,7 @@ fun ChatScreen(
                             IconButton(
                                 onClick = onStartListening,
                                 modifier = Modifier.size(40.dp),
-                                enabled = state.isConfigured
+                                enabled = state.isConfigured && !otherChatRunning
                             ) {
                                 Icon(Icons.Default.Mic, contentDescription = "Voice input")
                             }
@@ -369,8 +420,9 @@ fun ChatScreen(
                                     pendingImageUri = null
                                     pendingImageBase64 = null
                                 },
-                                modifier = Modifier.size(40.dp),
-                                enabled = state.isConfigured && (input.isNotBlank() || pendingImageBase64 != null)
+                                modifier = Modifier.size(40.dp).testTag("send_button"),
+                                enabled = state.isConfigured && !otherChatRunning &&
+                                    (input.isNotBlank() || pendingImageBase64 != null)
                             ) {
                                 Icon(Icons.Default.Send, contentDescription = "Send")
                             }
@@ -429,6 +481,63 @@ fun ChatScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
+        )
+    }
+}
+
+/**
+ * Home-screen segmented control to choose the agent before the first message.
+ * Monitor = read-only, Operator = full device control.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentModeSelector(
+    selected: AgentMode,
+    onSelect: (AgentMode) -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            "Agent",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selected == AgentMode.MONITOR,
+                onClick = { onSelect(AgentMode.MONITOR) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Outlined.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                label = { Text("Monitor") }
+            )
+            FilterChip(
+                selected = selected == AgentMode.OPERATOR,
+                onClick = { onSelect(AgentMode.OPERATOR) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.TouchApp,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                label = { Text("Operator") }
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            if (selected == AgentMode.MONITOR) {
+                "Read-only — observes but cannot change your device."
+            } else {
+                "Full control — can make changes to your device."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

@@ -203,6 +203,14 @@ object ScreenPerception {
         return Pair(1080, 2340)
     }
 
+    fun getCurrentPackageName(): String? {
+        val service = GotchaAccessibilityService.instance ?: return null
+        val root = service.rootInActiveWindow ?: return null
+        val pkg = root.packageName?.toString()
+        root.recycle()
+        return pkg
+    }
+
     private fun drawCoordinateGrid(bitmap: Bitmap): Bitmap {
         val canvas = Canvas(bitmap)
         val w = bitmap.width.toFloat()
@@ -356,6 +364,32 @@ object ScreenPerception {
             }
         } catch (e: Exception) {
             Log.e("ScreenCapture", "Path3: screencap failed: ${e.message}")
+            null
+        }
+    }
+
+    fun compressBitmap(
+        bitmap: Bitmap,
+        maxDimension: Int = 1024,
+        quality: Int = 85,
+        format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG,
+        recycleInput: Boolean = false
+    ): String? {
+        return try {
+            val forEncoding = if (maxDimension > 0) downscale(bitmap, maxDimension) else bitmap
+            val output = ByteArrayOutputStream()
+            forEncoding.compress(format, quality, output)
+            if (forEncoding !== bitmap) {
+                forEncoding.recycle()
+            }
+            if (recycleInput) {
+                bitmap.recycle()
+            }
+            Base64.encodeToString(output.toByteArray(), Base64.NO_WRAP)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e("ScreenCapture", "compressBitmap failed: ${e.message}", e)
             null
         }
     }
