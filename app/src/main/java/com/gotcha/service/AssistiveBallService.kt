@@ -284,7 +284,18 @@ class AssistiveBallService : Service() {
             onOcrToClipboard = { bitmap ->
                 ocrCropToClipboard(bitmap)
             },
-            onError = { overlay.showError(it) }
+            onError = { overlay.showError(it) },
+            onCaptureChrome = { hide ->
+                if (hide) {
+                    overlay.hideChromeForCapture()
+                    chatWindow.setVisibleForCapture(false)
+                    screenCompanionPanel.setVisibleForCapture(false)
+                } else {
+                    overlay.showChromeAfterCapture()
+                    chatWindow.setVisibleForCapture(true)
+                    screenCompanionPanel.setVisibleForCapture(true)
+                }
+            }
         )
     }
 
@@ -714,22 +725,33 @@ class AssistiveBallService : Service() {
     private fun takeScreenshot() {
         scope.launch(Dispatchers.IO) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                overlay.showError("Screenshot requires Android 11+")
+                withContext(Dispatchers.Main) { overlay.showError("Screenshot requires Android 11+") }
                 return@launch
             }
             try {
                 val service = GotchaAccessibilityService.instance
                 if (service == null) {
-                    overlay.showError("Accessibility service not available")
+                    withContext(Dispatchers.Main) { overlay.showError("Accessibility service not available") }
                     return@launch
                 }
+                withContext(Dispatchers.Main) {
+                    overlay.hideChromeForCapture()
+                    chatWindow.setVisibleForCapture(false)
+                    screenCompanionPanel.setVisibleForCapture(false)
+                }
+                delay(250L)
                 var bitmap = service.takeScreenshotBitmap()
                 if (bitmap == null) {
-                    delay(1200L)
+                    delay(800L)
                     bitmap = service.takeScreenshotBitmap()
                 }
+                withContext(Dispatchers.Main) {
+                    overlay.showChromeAfterCapture()
+                    chatWindow.setVisibleForCapture(true)
+                    screenCompanionPanel.setVisibleForCapture(true)
+                }
                 if (bitmap == null) {
-                    overlay.showError("Screenshot failed — try again")
+                    withContext(Dispatchers.Main) { overlay.showError("Screenshot failed — try again") }
                     return@launch
                 }
                 val timestamp = java.text.SimpleDateFormat(
@@ -755,13 +777,18 @@ class AssistiveBallService : Service() {
                     contentResolver.openOutputStream(uri)?.use { out ->
                         bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                     }
-                    overlay.showError("Screenshot saved: $fileName")
+                    withContext(Dispatchers.Main) { overlay.showError("Screenshot saved: $fileName") }
                 } else {
-                    overlay.showError("Screenshot save failed")
+                    withContext(Dispatchers.Main) { overlay.showError("Screenshot save failed") }
                 }
                 bitmap.recycle()
             } catch (e: Throwable) {
-                overlay.showError("Screenshot error: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    overlay.showChromeAfterCapture()
+                    chatWindow.setVisibleForCapture(true)
+                    screenCompanionPanel.setVisibleForCapture(true)
+                    overlay.showError("Screenshot error: ${e.message}")
+                }
             }
         }
     }
