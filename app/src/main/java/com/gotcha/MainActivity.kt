@@ -471,6 +471,7 @@ class MainActivity : ComponentActivity() {
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSpeak = chatViewModel::speak,
+                        onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = chatViewModel::startListening,
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,

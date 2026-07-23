@@ -74,6 +74,7 @@ data class ChatUiState(
     val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
+    val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
 )
@@ -439,22 +440,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     /** Speak the given text aloud using the configured TTS provider. */
     fun speak(text: String) {
+        if (settings.ttsProvider == AudioProvider.NONE) return
         viewModelScope.launch {
-            val defaultVoice = _uiState.value.ttsModels
-                .firstOrNull { it.id == settings.ttsApiModel }
-                ?.defaultVoice ?: "af_heart"
-            val voice = settings.ttsVoice.ifBlank { defaultVoice }
-            ttsEngine.speak(
-                text = text,
-                provider = settings.ttsProvider,
-                apiModel = settings.ttsApiModel,
-                voice = voice
-            )
+            ttsEngine.stop()
+            _uiState.update { it.copy(isSpeaking = true) }
+            try {
+                val defaultVoice = _uiState.value.ttsModels
+                    .firstOrNull { it.id == settings.ttsApiModel }
+                    ?.defaultVoice ?: "af_heart"
+                val voice = settings.ttsVoice.ifBlank { defaultVoice }
+                ttsEngine.speak(
+                    text = text,
+                    provider = settings.ttsProvider,
+                    apiModel = settings.ttsApiModel,
+                    voice = voice
+                )
+            } finally {
+                _uiState.update { it.copy(isSpeaking = false) }
+            }
         }
+    }
+
+    /** Stop any ongoing TTS speech output. */
+    fun stopSpeaking() {
+        ttsEngine.stop()
+        _uiState.update { it.copy(isSpeaking = false) }
     }
 
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
+        stopSpeaking()
         if (_uiState.value.isListening || _uiState.value.isRecording) return
         when (settings.sttProvider) {
             AudioProvider.ANDROID -> {
