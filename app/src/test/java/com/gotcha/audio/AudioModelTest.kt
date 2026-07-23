@@ -59,7 +59,7 @@ class AudioModelTest {
         val model = AudioModel(
             id = "kokoro-82m",
             category = ModelCategory.TTS,
-            voices = listOf("bm_lewis", "af_heart")
+            voices = listOf(VoiceInfo(id = "bm_lewis"), VoiceInfo(id = "af_heart"))
         )
         assertEquals("bm_lewis", model.defaultVoice)
     }

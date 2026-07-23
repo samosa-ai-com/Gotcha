@@ -98,6 +98,7 @@ fun SettingsScreen(
     var ttsApiModel by remember { mutableStateOf(initial.ttsApiModel) }
     var ttsVoice by remember { mutableStateOf(initial.ttsVoice) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
+    var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
@@ -134,6 +135,7 @@ fun SettingsScreen(
     var ttsModelExpanded by remember { mutableStateOf(false) }
     var ttsVoiceExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
+    var sttLanguageExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var subAgentModelExpanded by remember { mutableStateOf(false) }
     var navigatorModelExpanded by remember { mutableStateOf(false) }
@@ -163,6 +165,7 @@ fun SettingsScreen(
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
+        sttLanguage = sttLanguage.trim(),
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
         themeMode = themeMode,
@@ -705,8 +708,13 @@ fun SettingsScreen(
                                 expanded = ttsVoiceExpanded,
                                 onExpandedChange = { ttsVoiceExpanded = it }
                             ) {
-                                val voiceLabel = ttsVoice.ifEmpty {
-                                    "Default (${selectedTtsModelObj?.defaultVoice ?: "af_heart"})"
+                                val selectedVoiceObj = modelVoices.firstOrNull { it.id == ttsVoice }
+                                val defaultObj = modelVoices.firstOrNull { it.id == selectedTtsModelObj?.defaultVoice }
+                                val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedTtsModelObj?.defaultVoice ?: "af_heart"
+                                val voiceLabel = if (ttsVoice.isEmpty()) {
+                                    "Default ($defaultVoiceLabel)"
+                                } else {
+                                    selectedVoiceObj?.displayLabel ?: ttsVoice
                                 }
                                 OutlinedTextField(
                                     value = voiceLabel,
@@ -725,19 +733,17 @@ fun SettingsScreen(
                                     onDismissRequest = { ttsVoiceExpanded = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = {
-                                            Text("Default (${selectedTtsModelObj?.defaultVoice ?: "af_heart"})")
-                                        },
+                                        text = { Text("Default ($defaultVoiceLabel)") },
                                         onClick = {
                                             ttsVoice = ""
                                             ttsVoiceExpanded = false
                                         }
                                     )
-                                    modelVoices.forEach { voiceId ->
+                                    modelVoices.forEach { voiceInfo ->
                                         DropdownMenuItem(
-                                            text = { Text(voiceId) },
+                                            text = { Text(voiceInfo.displayLabel) },
                                             onClick = {
-                                                ttsVoice = voiceId
+                                                ttsVoice = voiceInfo.id
                                                 ttsVoiceExpanded = false
                                             }
                                         )
@@ -855,6 +861,62 @@ fun SettingsScreen(
                                     }
                                 }
                             }
+                        }
+                        val selectedSttModelObj = availableSttModels.firstOrNull { it.id == sttApiModel }
+                        val modelLanguages = selectedSttModelObj?.languages ?: emptyList()
+                        if (modelLanguages.isNotEmpty()) {
+                            ExposedDropdownMenuBox(
+                                expanded = sttLanguageExpanded,
+                                onExpandedChange = { sttLanguageExpanded = it }
+                            ) {
+                                val langLabel = if (sttLanguage.isEmpty()) {
+                                    "Auto-detect / Default"
+                                } else {
+                                    sttLanguage
+                                }
+                                OutlinedTextField(
+                                    value = langLabel,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("STT Language (optional)") },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                            expanded = sttLanguageExpanded
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = sttLanguageExpanded,
+                                    onDismissRequest = { sttLanguageExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Auto-detect / Default") },
+                                        onClick = {
+                                            sttLanguage = ""
+                                            sttLanguageExpanded = false
+                                        }
+                                    )
+                                    modelLanguages.forEach { lang ->
+                                        DropdownMenuItem(
+                                            text = { Text(lang) },
+                                            onClick = {
+                                                sttLanguage = lang
+                                                sttLanguageExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = sttLanguage,
+                                onValueChange = { sttLanguage = it },
+                                label = { Text("STT Language (optional)") },
+                                singleLine = true,
+                                placeholder = { Text("e.g. en, es, zh, ja, hi") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                     Row(

@@ -40,6 +40,7 @@ data class Settings(
     val sttApiBaseUrl: String = "",
     val sttApiKey: String = "",
     val sttApiModel: String = "",
+    val sttLanguage: String = "",
     val autoReadReplies: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -134,6 +135,7 @@ class SettingsRepository(context: Context) {
         sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
         sttApiKey = prefs.getString(KEY_STT_API_KEY, "") ?: "",
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
+        sttLanguage = prefs.getString(KEY_STT_LANGUAGE, "") ?: "",
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         themeMode = runCatching {
@@ -175,6 +177,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_STT_API_URL, settings.sttApiBaseUrl)
             .putString(KEY_STT_API_KEY, settings.sttApiKey)
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
+            .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_THEME_MODE, settings.themeMode.name)
@@ -230,6 +233,7 @@ class SettingsRepository(context: Context) {
         const val KEY_STT_API_URL = "stt_api_url"
         const val KEY_STT_API_KEY = "stt_api_key"
         const val KEY_STT_API_MODEL = "stt_api_model"
+        const val KEY_STT_LANGUAGE = "stt_language"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_THEME_MODE = "theme_mode"

@@ -115,9 +115,17 @@ class SttEngine(
     }
 
     /** Transcribe audio using the API provider. */
-    suspend fun transcribeApi(audioFile: File, model: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun transcribeApi(
+        audioFile: File,
+        model: String,
+        language: String = ""
+    ): Result<String> = withContext(Dispatchers.IO) {
         val api = audioApi ?: return@withContext Result.failure(Exception("API not configured"))
-        api.transcribe(audioFile, model)
+        api.transcribe(
+            audioFile = audioFile,
+            model = model,
+            language = language
+        )
     }
 
     // ---- Android STT (SpeechRecognizer) ----
@@ -360,11 +368,14 @@ class SttEngine(
     }
 
     /**
-     * Stop listening and return the transcript. Provider-agnostic.
-     * For ANDROID: returns the recognized text.
+     * Stop recording/listening and transcribe audio using [provider] and [model].
      * For API: stops the recorder, transcribes, returns the text or error.
      */
-    suspend fun stopListeningAndTranscribe(provider: AudioProvider, model: String): Result<String> {
+    suspend fun stopListeningAndTranscribe(
+        provider: AudioProvider,
+        model: String,
+        language: String = ""
+    ): Result<String> {
         return when (provider) {
             AudioProvider.ANDROID -> {
                 val text = stopAndroidListening()
@@ -379,7 +390,7 @@ class SttEngine(
                 if (file == null) {
                     return Result.failure(Exception("Recording failed"))
                 }
-                transcribeApi(file, model)
+                transcribeApi(file, model, language)
             }
             AudioProvider.NONE -> Result.failure(Exception("STT not configured"))
         }

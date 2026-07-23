@@ -510,7 +510,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to record audio.")
                     return@launch
                 }
-                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel, settings.sttLanguage)
                     .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
                     .getOrDefault("")
             } else if (provider == AudioProvider.ANDROID) {

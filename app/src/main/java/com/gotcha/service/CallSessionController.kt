@@ -218,7 +218,7 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
-            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel)
+            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, s.sttLanguage)
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {

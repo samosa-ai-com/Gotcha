@@ -47,7 +47,12 @@ class AudioApiTest {
         assertEquals(1, models.size)
         assertEquals("kokoro-tts", models[0].id)
         assertEquals(ModelCategory.TTS, models[0].category)
-        assertEquals(listOf("af_heart", "af_bella", "am_adam"), models[0].voices)
+        val expectedVoices = listOf(
+            VoiceInfo(id = "af_heart"),
+            VoiceInfo(id = "af_bella"),
+            VoiceInfo(id = "am_adam")
+        )
+        assertEquals(expectedVoices, models[0].voices)
         assertEquals("af_heart", models[0].defaultVoice)
 
         val recordedRequest = server.takeRequest()
@@ -55,17 +60,23 @@ class AudioApiTest {
     }
 
     @Test
-    fun `listAudioModels parses object array voices`() {
+    fun `listAudioModels parses object array voices with language and gender`() {
         val jsonResponse = """
             {
               "data": [
                 {
-                  "id": "tts-model-1",
-                  "task": "tts",
+                  "id": "speaches-ai/Kokoro-82M-v1.0-ONNX",
+                  "task": "text-to-speech",
+                  "language": ["multilingual"],
                   "voices": [
-                    {"id": "voice_alpha", "name": "Alpha"},
-                    {"id": "voice_beta", "name": "Beta"}
+                    {"id": "af_heart", "name": "af_heart", "language": "en-us", "gender": "female"},
+                    {"id": "am_adam", "name": "am_adam", "language": "en-us", "gender": "male"}
                   ]
+                },
+                {
+                  "id": "faster-whisper-medium",
+                  "task": "automatic-speech-recognition",
+                  "language": ["en", "es", "fr"]
                 }
               ]
             }
@@ -74,7 +85,20 @@ class AudioApiTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(jsonResponse))
 
         val models = audioApi.listAudioModels()
-        assertEquals(1, models.size)
-        assertEquals(listOf("voice_alpha", "voice_beta"), models[0].voices)
+        assertEquals(2, models.size)
+
+        val tts = models[0]
+        assertEquals("speaches-ai/Kokoro-82M-v1.0-ONNX", tts.id)
+        assertEquals(listOf("multilingual"), tts.languages)
+        assertEquals(2, tts.voices.size)
+        assertEquals("af_heart", tts.voices[0].id)
+        assertEquals("en-us", tts.voices[0].language)
+        assertEquals("female", tts.voices[0].gender)
+        assertEquals("af_heart (en-us, female)", tts.voices[0].displayLabel)
+
+        val stt = models[1]
+        assertEquals("faster-whisper-medium", stt.id)
+        assertEquals(ModelCategory.STT, stt.category)
+        assertEquals(listOf("en", "es", "fr"), stt.languages)
     }
 }

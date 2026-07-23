@@ -74,19 +74,36 @@ class AudioApi(
                 val id = modelObj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 val task = modelObj["task"]?.jsonPrimitive?.contentOrNull
                 val category = AudioModel.categorize(id, task)
+                val languages = when (val langElem = modelObj["language"]) {
+                    is kotlinx.serialization.json.JsonArray -> langElem.mapNotNull { l ->
+                        l.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }
+                    }
+                    is JsonPrimitive -> listOfNotNull(langElem.contentOrNull?.takeIf { it.isNotBlank() })
+                    else -> emptyList()
+                }
                 val voices = if (category == ModelCategory.TTS) {
-                    modelObj["voices"]?.jsonArray?.mapNotNull { v ->
+                    modelObj["voices"]?.jsonArray?.mapNotNull innerMap@{ v ->
                         when (v) {
-                            is JsonObject -> v["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                                ?: v["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                            is JsonPrimitive -> v.contentOrNull?.takeIf { it.isNotBlank() }
+                            is JsonObject -> {
+                                val vId = v["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                                    ?: v["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                                    ?: return@innerMap null
+                                val vName = v["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                                val vLang = v["language"]?.jsonPrimitive?.contentOrNull ?: ""
+                                val vGender = v["gender"]?.jsonPrimitive?.contentOrNull ?: ""
+                                VoiceInfo(id = vId, name = vName, language = vLang, gender = vGender)
+                            }
+                            is JsonPrimitive -> {
+                                val vId = v.contentOrNull?.takeIf { it.isNotBlank() } ?: return@innerMap null
+                                VoiceInfo(id = vId)
+                            }
                             else -> null
                         }
                     } ?: emptyList()
                 } else {
                     emptyList()
                 }
-                AudioModel(id, category, voices)
+                AudioModel(id = id, category = category, languages = languages, voices = voices)
             }
         } catch (e: Exception) {
             try { Log.e("AudioApi", "Failed to list models", e) } catch (_: Throwable) {}
@@ -95,15 +112,19 @@ class AudioApi(
     }
 
     /** Speech-to-text: upload audio and return transcription. */
-    fun transcribe(audioFile: File, model: String): Result<String> = runCatching {
+    fun transcribe(audioFile: File, model: String, language: String? = null): Result<String> = runCatching {
         val url = "${baseUrl.trimEnd('/')}/audio/transcriptions"
         val boundary = "Boundary-${System.currentTimeMillis()}"
+        val extraFields = mutableMapOf("model" to model)
+        if (!language.isNullOrBlank()) {
+            extraFields["language"] = language.trim()
+        }
         val body = buildMultipartBody(
             boundary,
             audioFile,
             "file",
             "audio/m4a",
-            mapOf("model" to model)
+            extraFields
         )
         val request = Request.Builder()
             .url(url)
