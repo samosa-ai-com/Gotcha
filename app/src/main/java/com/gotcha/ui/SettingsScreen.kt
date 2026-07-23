@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -209,6 +210,12 @@ fun SettingsScreen(
                 status = "Found ${tts.size} TTS, ${stt.size} STT models"
                 refreshingModels = false
             }
+        }
+    }
+
+    LaunchedEffect(ttsProvider, sttProvider) {
+        if (ttsProvider == AudioProvider.API || sttProvider == AudioProvider.API) {
+            refreshAudioModelsAction()
         }
     }
 
@@ -858,60 +865,45 @@ fun SettingsScreen(
                             }
                         }
                         val selectedSttModelObj = availableSttModels.firstOrNull { it.id == sttApiModel }
-                        val modelLanguages = selectedSttModelObj?.languages ?: emptyList()
-                        if (modelLanguages.isNotEmpty()) {
-                            ExposedDropdownMenuBox(
-                                expanded = sttLanguageExpanded,
-                                onExpandedChange = { sttLanguageExpanded = it }
-                            ) {
-                                val langLabel = if (sttLanguage.isEmpty()) {
-                                    "Auto-detect / Default"
-                                } else {
-                                    sttLanguage
-                                }
-                                OutlinedTextField(
-                                    value = langLabel,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("STT Language (optional)") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = sttLanguageExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sttLanguageExpanded,
-                                    onDismissRequest = { sttLanguageExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Auto-detect / Default") },
-                                        onClick = {
-                                            sttLanguage = ""
-                                            sttLanguageExpanded = false
-                                        }
-                                    )
-                                    modelLanguages.forEach { lang ->
-                                        DropdownMenuItem(
-                                            text = { Text(lang) },
-                                            onClick = {
-                                                sttLanguage = lang
-                                                sttLanguageExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
+                        val languagesList = selectedSttModelObj?.languages?.takeIf { it.isNotEmpty() }
+                            ?: COMMON_STT_LANGUAGES
+                        ExposedDropdownMenuBox(
+                            expanded = sttLanguageExpanded,
+                            onExpandedChange = { sttLanguageExpanded = it }
+                        ) {
                             OutlinedTextField(
                                 value = sttLanguage,
                                 onValueChange = { sttLanguage = it },
                                 label = { Text("STT Language (optional)") },
-                                singleLine = true,
-                                placeholder = { Text("e.g. en, es, zh, ja, hi") },
-                                modifier = Modifier.fillMaxWidth()
+                                placeholder = { Text("Auto-detect / Default (or select below)") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = sttLanguageExpanded
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
                             )
+                            ExposedDropdownMenu(
+                                expanded = sttLanguageExpanded,
+                                onDismissRequest = { sttLanguageExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Auto-detect / Default (empty)") },
+                                    onClick = {
+                                        sttLanguage = ""
+                                        sttLanguageExpanded = false
+                                    }
+                                )
+                                languagesList.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = { Text(lang) },
+                                        onClick = {
+                                            sttLanguage = lang
+                                            sttLanguageExpanded = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                     Row(
@@ -1208,3 +1200,13 @@ private fun SettingsToggleRow(
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
+
+private val COMMON_STT_LANGUAGES = listOf(
+    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar",
+    "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu",
+    "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa",
+    "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn",
+    "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc",
+    "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn",
+    "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su"
+)
