@@ -129,7 +129,10 @@ class AssistiveBallService : Service() {
             onSmartActionSelected = { prompt ->
                 handleSmartActionSelected(prompt, activeCompanionHistory)
             }
-            onRequestClipboardCheck = { handleClipboardRead() }
+            onRequestClipboardCheck = {
+                handleClipboardRead()
+                screenCompanionController.triggerScan(force = true)
+            }
             isCallActive = { callController.isActive() }
         }
 

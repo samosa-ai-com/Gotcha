@@ -218,8 +218,10 @@ dependencies {
         exclude(group = "com.atlassian.commonmark", module = "commonmark")
     }
 
-    // ML Kit on-device text recognition (for Lens mode OCR)
+    // ML Kit on-device text recognition (for Lens mode OCR) and barcode scanning
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // CameraX for automated photo capture
     val cameraxVersion = "1.4.0"

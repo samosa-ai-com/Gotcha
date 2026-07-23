@@ -443,6 +443,8 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun getCategoryIcon(type: EntityType): String = when (type) {
+        EntityType.QR_CODE -> "📷"
+        EntityType.BARCODE -> "📊"
         EntityType.OTP -> "🔑"
         EntityType.PHONE -> "📞"
         EntityType.ADDRESS -> "📍"
