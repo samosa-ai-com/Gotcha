@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
@@ -43,6 +45,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -61,6 +64,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -87,6 +91,7 @@ fun ChatScreen(
     onSwitchAgent: () -> Unit,
     onSetAgent: (AgentMode) -> Unit = {},
     onSpeak: (String) -> Unit = {},
+    onStopSpeaking: () -> Unit = {},
     onStartListening: () -> Unit = {},
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
@@ -171,6 +176,15 @@ fun ChatScreen(
                                 }
                             )
                         }
+                        if (state.isSpeaking) {
+                            IconButton(onClick = onStopSpeaking) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.VolumeOff,
+                                    contentDescription = "Stop reading aloud",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                         IconButton(onClick = onExportChat, enabled = !state.isBusy) {
                             Icon(Icons.Default.Share, contentDescription = "Export chat")
                         }
@@ -218,7 +232,12 @@ fun ChatScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth().testTag("message_list")
                 ) {
                     items(state.messages, key = { it.id }) { message ->
-                        MessageBubble(message = message, onSpeak = onSpeak)
+                        MessageBubble(
+                            message = message,
+                            onSpeak = onSpeak,
+                            isSpeaking = state.isSpeaking,
+                            onStopSpeaking = onStopSpeaking
+                        )
                     }
                 }
             }
@@ -332,6 +351,53 @@ fun ChatScreen(
                         modifier = Modifier.align(Alignment.TopEnd)
                     ) {
                         Icon(Icons.Default.Close, contentDescription = "Remove image")
+                    }
+                }
+            }
+
+            if (state.isSpeaking) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .clickable { onStopSpeaking() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.VolumeUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Reading aloud…",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Stop",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Stop,
+                                contentDescription = "Stop speaking",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }

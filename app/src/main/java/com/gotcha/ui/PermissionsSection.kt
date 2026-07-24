@@ -41,7 +41,7 @@ import android.provider.Settings as AndroidSettings
 fun PermissionsSection(packageName: String) {
     val context = LocalContext.current
     val groups = remember { allPermissionGroups() }
-    var expandedGroups by remember { mutableStateOf(groups.associate { it.name to true }) }
+    var userToggledGroups by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
 
     // Trigger recomposition on every activity resume so permission state is re-read from Android
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -66,11 +66,14 @@ fun PermissionsSection(packageName: String) {
     )
 
     for (group in groups) {
-        val expanded = expandedGroups[group.name] ?: true
+        val hasUngrantedPermission = remember(resumeSignal, group) {
+            group.items.any { !it.isGranted(context) }
+        }
+        val expanded = userToggledGroups[group.name] ?: hasUngrantedPermission
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expandedGroups = expandedGroups + (group.name to !expanded) }
+                .clickable { userToggledGroups = userToggledGroups + (group.name to !expanded) }
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

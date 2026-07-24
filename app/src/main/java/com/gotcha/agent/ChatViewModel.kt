@@ -74,6 +74,7 @@ data class ChatUiState(
     val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
+    val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
 )
@@ -96,12 +97,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
         settings.ttsApiBaseUrl,
-        settings.apiKey
+        settings.effectiveTtsApiKey
     )
     private val sttEngine: SttEngine = SttEngine(
         getApplication(),
         settings.sttApiBaseUrl,
-        settings.apiKey
+        settings.effectiveSttApiKey
     )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
@@ -283,8 +284,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } else {
             null
         }
-        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveApiKey)
-        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveApiKey)
+        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveTtsApiKey)
+        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveSttApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
         updateContextUsage()
     }
@@ -439,21 +440,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     /** Speak the given text aloud using the configured TTS provider. */
     fun speak(text: String) {
+        if (settings.ttsProvider == AudioProvider.NONE) return
         viewModelScope.launch {
-            val defaultVoice = _uiState.value.ttsModels
-                .firstOrNull { it.id == settings.ttsApiModel }
-                ?.defaultVoice ?: "af_heart"
-            ttsEngine.speak(
-                text = text,
-                provider = settings.ttsProvider,
-                apiModel = settings.ttsApiModel,
-                voice = defaultVoice
-            )
+            ttsEngine.stop()
+            _uiState.update { it.copy(isSpeaking = true) }
+            try {
+                val defaultVoice = _uiState.value.ttsModels
+                    .firstOrNull { it.id == settings.ttsApiModel }
+                    ?.defaultVoice ?: "af_heart"
+                val voice = settings.ttsVoice.ifBlank { defaultVoice }
+                ttsEngine.speak(
+                    text = text,
+                    provider = settings.ttsProvider,
+                    apiModel = settings.ttsApiModel,
+                    voice = voice
+                )
+            } finally {
+                _uiState.update { it.copy(isSpeaking = false) }
+            }
         }
+    }
+
+    /** Stop any ongoing TTS speech output. */
+    fun stopSpeaking() {
+        ttsEngine.stop()
+        _uiState.update { it.copy(isSpeaking = false) }
     }
 
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
+        stopSpeaking()
         if (_uiState.value.isListening || _uiState.value.isRecording) return
         when (settings.sttProvider) {
             AudioProvider.ANDROID -> {
@@ -509,7 +525,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to record audio.")
                     return@launch
                 }
-                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel)
+                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel, settings.sttLanguage)
                     .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
                     .getOrDefault("")
             } else if (provider == AudioProvider.ANDROID) {

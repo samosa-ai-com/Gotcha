@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -79,6 +80,12 @@ class ScreenCompanionController(
         } catch (_: Exception) {}
     }
 
+    fun triggerScan(force: Boolean = true) {
+        if (force) lastScreenTextHash = 0
+        performLightweightScan(triggerType = "AppChange")
+    }
+
+    @Suppress("CyclomaticComplexMethod")
     private fun performLightweightScan(triggerType: String) {
         val settings = runCatching { SettingsRepository(context).load() }.getOrNull()
         if (settings != null && !settings.proactiveEnabled) return
@@ -119,13 +126,38 @@ class ScreenCompanionController(
                         return@withContext
                     }
 
-                    val screenText = ScreenSnapshot.captureScreenText(limit = 120) ?: return@withContext
+                    val screenText = ScreenSnapshot.captureScreenText(limit = 120) ?: ""
                     val currentHash = screenText.hashCode()
-                    if (currentHash == lastScreenTextHash) return@withContext
-                    lastScreenTextHash = currentHash
+                    if (screenText.isNotEmpty() && currentHash == lastScreenTextHash) return@withContext
+                    if (screenText.isNotEmpty()) lastScreenTextHash = currentHash
+
+                    val visualQrEntities = try {
+                        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            GotchaAccessibilityService.instance?.takeScreenshotBitmap()
+                        } else { null }
+                        if (bitmap != null) {
+                            val scanned = QrCodeScanner.scanBitmap(bitmap)
+                            bitmap.recycle()
+                            scanned
+                        } else {
+                            emptyList()
+                        }
+                    } catch (_: Throwable) {
+                        emptyList()
+                    }
 
                     val prefCurrency = effectiveSettings?.preferredCurrency ?: "USD"
-                    val allEntities = SmartActionDetector.detectAll(screenText, allowChat = false, targetCurrency = prefCurrency)
+                    val textEntities = if (screenText.isNotEmpty()) {
+                        SmartActionDetector.detectAll(screenText, allowChat = false, targetCurrency = prefCurrency)
+                    } else {
+                        emptyList()
+                    }
+
+                    val allEntities = (visualQrEntities + textEntities).sortedWith(
+                        compareByDescending<DetectedEntity> { it.type.basePriority }
+                            .thenByDescending { it.confidence }
+                    )
+
                     val actionableEntities = allEntities.filter { item ->
                         item.confidence >= 0.85f &&
                             item.type != com.gotcha.service.EntityType.CHAT_REPLY &&

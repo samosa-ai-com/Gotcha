@@ -310,4 +310,13 @@ class SmartActionDetectorTest {
     fun `decode returns null for non-native prompts`() {
         assertNull(SmartActionDetector.decode("Just a normal prompt"))
     }
+
+    @Test
+    fun `qr code and barcode entities have highest priority over OTP and phone`() {
+        val text = "Your OTP is 123456. Connect to WIFI:S:HomeNet;P:secret123;T:WPA;;"
+        val entities = SmartActionDetector.detectAll(text)
+        assertTrue(entities.isNotEmpty())
+        assertEquals(EntityType.QR_CODE, entities.first().type)
+        assertTrue(entities.first().normalizedValue.contains("HomeNet"))
+    }
 }

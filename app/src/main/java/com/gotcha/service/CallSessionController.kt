@@ -218,7 +218,7 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
-            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel)
+            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, s.sttLanguage)
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {
@@ -420,8 +420,10 @@ class CallSessionController(
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return
         val voice = if (s.ttsProvider == AudioProvider.API) {
-            if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-            ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+            s.ttsVoice.ifBlank {
+                if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
+                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+            }
         } else {
             ""
         }
@@ -455,8 +457,10 @@ class CallSessionController(
         narrationJob?.cancel()
         narrationJob = scope.launch {
             val voice = if (s.ttsProvider == AudioProvider.API) {
-                if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                s.ttsVoice.ifBlank {
+                    if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
+                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                }
             } else {
                 ""
             }

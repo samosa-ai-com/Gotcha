@@ -123,6 +123,10 @@ class AssistiveBallOverlay(context: Context) {
     fun hideChromeForCapture() {
         mainHandler.post {
             ballView?.visibility = View.INVISIBLE
+            ringView?.visibility = View.INVISIBLE
+            menuView?.visibility = View.INVISIBLE
+            cardView?.visibility = View.INVISIBLE
+            dismissTargetView?.visibility = View.INVISIBLE
         }
     }
 
@@ -130,6 +134,10 @@ class AssistiveBallOverlay(context: Context) {
         mainHandler.post {
             ballView?.visibility = View.VISIBLE
             ballView?.alpha = PEEK_ALPHA
+            ringView?.visibility = View.VISIBLE
+            menuView?.visibility = View.VISIBLE
+            cardView?.visibility = View.VISIBLE
+            dismissTargetView?.visibility = View.VISIBLE
         }
     }
 
@@ -435,6 +443,8 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun getCategoryIcon(type: EntityType): String = when (type) {
+        EntityType.QR_CODE -> "📷"
+        EntityType.BARCODE -> "📊"
         EntityType.OTP -> "🔑"
         EntityType.PHONE -> "📞"
         EntityType.ADDRESS -> "📍"

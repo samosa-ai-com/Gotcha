@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,10 +92,14 @@ fun SettingsScreen(
     // TTS / STT
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
     var ttsApiBaseUrl by remember { mutableStateOf(initial.ttsApiBaseUrl) }
+    var ttsApiKey by remember { mutableStateOf(initial.ttsApiKey) }
     var sttProvider by remember { mutableStateOf(initial.sttProvider) }
     var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
+    var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
     var ttsApiModel by remember { mutableStateOf(initial.ttsApiModel) }
+    var ttsVoice by remember { mutableStateOf(initial.ttsVoice) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
+    var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
@@ -112,6 +117,8 @@ fun SettingsScreen(
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableChatModels by remember { mutableStateOf<List<String>>(emptyList()) }
     var showKey by remember { mutableStateOf(false) }
+    var showTtsKey by remember { mutableStateOf(false) }
+    var showSttKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     var refreshingModels by remember { mutableStateOf(false) }
@@ -127,7 +134,9 @@ fun SettingsScreen(
     var ttsProviderExpanded by remember { mutableStateOf(false) }
     var sttProviderExpanded by remember { mutableStateOf(false) }
     var ttsModelExpanded by remember { mutableStateOf(false) }
+    var ttsVoiceExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
+    var sttLanguageExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var subAgentModelExpanded by remember { mutableStateOf(false) }
     var navigatorModelExpanded by remember { mutableStateOf(false) }
@@ -150,10 +159,14 @@ fun SettingsScreen(
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
         ttsProvider = ttsProvider,
         ttsApiBaseUrl = ttsApiBaseUrl.trim(),
+        ttsApiKey = ttsApiKey.trim(),
         ttsApiModel = ttsApiModel.trim(),
+        ttsVoice = ttsVoice.trim(),
         sttProvider = sttProvider,
         sttApiBaseUrl = sttApiBaseUrl.trim(),
+        sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
+        sttLanguage = sttLanguage.trim(),
         autoReadReplies = autoReadReplies,
         assistiveBallEnabled = initial.assistiveBallEnabled,
         themeMode = themeMode,
@@ -197,6 +210,12 @@ fun SettingsScreen(
                 status = "Found ${tts.size} TTS, ${stt.size} STT models"
                 refreshingModels = false
             }
+        }
+    }
+
+    LaunchedEffect(ttsProvider, sttProvider) {
+        if (ttsProvider == AudioProvider.API || sttProvider == AudioProvider.API) {
+            refreshAudioModelsAction()
         }
     }
 
@@ -575,11 +594,6 @@ fun SettingsScreen(
 
             HorizontalDivider(thickness = 1.dp)
 
-            // ---- Permissions (collapsible, expanded by default) ----
-            PermissionsSection(packageName = packageName)
-
-            HorizontalDivider(thickness = 1.dp)
-
             // ---- Speech (collapsible, collapsed by default) ----
             SectionHeader(
                 title = "Speech (TTS / STT)",
@@ -622,6 +636,24 @@ fun SettingsScreen(
                             label = { Text("TTS API Base URL") },
                             singleLine = true,
                             placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = ttsApiKey,
+                            onValueChange = { ttsApiKey = it },
+                            label = { Text("TTS API Key (optional)") },
+                            singleLine = true,
+                            placeholder = { Text("Leave blank to use main API key") },
+                            visualTransformation = if (showTtsKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showTtsKey = !showTtsKey }) {
+                                    Text(if (showTtsKey) "Hide" else "Show")
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                         ExposedDropdownMenuBox(
@@ -671,6 +703,65 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                        val selectedTtsModelObj = availableTtsModels.firstOrNull { it.id == ttsApiModel }
+                        val modelVoices = selectedTtsModelObj?.voices ?: emptyList()
+                        if (modelVoices.isNotEmpty()) {
+                            ExposedDropdownMenuBox(
+                                expanded = ttsVoiceExpanded,
+                                onExpandedChange = { ttsVoiceExpanded = it }
+                            ) {
+                                val selectedVoiceObj = modelVoices.firstOrNull { it.id == ttsVoice }
+                                val defaultObj = modelVoices.firstOrNull { it.id == selectedTtsModelObj?.defaultVoice }
+                                val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedTtsModelObj?.defaultVoice ?: "af_heart"
+                                val voiceLabel = if (ttsVoice.isEmpty()) {
+                                    "Default ($defaultVoiceLabel)"
+                                } else {
+                                    selectedVoiceObj?.displayLabel ?: ttsVoice
+                                }
+                                OutlinedTextField(
+                                    value = voiceLabel,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("TTS Voice (optional)") },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(
+                                            expanded = ttsVoiceExpanded
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = ttsVoiceExpanded,
+                                    onDismissRequest = { ttsVoiceExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Default ($defaultVoiceLabel)") },
+                                        onClick = {
+                                            ttsVoice = ""
+                                            ttsVoiceExpanded = false
+                                        }
+                                    )
+                                    modelVoices.forEach { voiceInfo ->
+                                        DropdownMenuItem(
+                                            text = { Text(voiceInfo.displayLabel) },
+                                            onClick = {
+                                                ttsVoice = voiceInfo.id
+                                                ttsVoiceExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            OutlinedTextField(
+                                value = ttsVoice,
+                                onValueChange = { ttsVoice = it },
+                                label = { Text("TTS Voice (optional)") },
+                                singleLine = true,
+                                placeholder = { Text("e.g. af_heart, alloy, echo") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                     ExposedDropdownMenuBox(
                         expanded = sttProviderExpanded,
@@ -706,6 +797,24 @@ fun SettingsScreen(
                             label = { Text("STT API Base URL") },
                             singleLine = true,
                             placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = sttApiKey,
+                            onValueChange = { sttApiKey = it },
+                            label = { Text("STT API Key (optional)") },
+                            singleLine = true,
+                            placeholder = { Text("Leave blank to use main API key") },
+                            visualTransformation = if (showSttKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showSttKey = !showSttKey }) {
+                                    Text(if (showSttKey) "Hide" else "Show")
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                         ExposedDropdownMenuBox(
@@ -755,6 +864,47 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                        val selectedSttModelObj = availableSttModels.firstOrNull { it.id == sttApiModel }
+                        val languagesList = selectedSttModelObj?.languages?.takeIf { it.isNotEmpty() }
+                            ?: COMMON_STT_LANGUAGES
+                        ExposedDropdownMenuBox(
+                            expanded = sttLanguageExpanded,
+                            onExpandedChange = { sttLanguageExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = sttLanguage,
+                                onValueChange = { sttLanguage = it },
+                                label = { Text("STT Language (optional)") },
+                                placeholder = { Text("Auto-detect / Default (or select below)") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = sttLanguageExpanded
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = sttLanguageExpanded,
+                                onDismissRequest = { sttLanguageExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Auto-detect / Default (empty)") },
+                                    onClick = {
+                                        sttLanguage = ""
+                                        sttLanguageExpanded = false
+                                    }
+                                )
+                                languagesList.forEach { lang ->
+                                    DropdownMenuItem(
+                                        text = { Text(lang) },
+                                        onClick = {
+                                            sttLanguage = lang
+                                            sttLanguageExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -773,6 +923,11 @@ fun SettingsScreen(
                     ) { Text("Save Speech Settings") }
                 }
             }
+
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Permissions ----
+            PermissionsSection(packageName = packageName)
 
             HorizontalDivider(thickness = 1.dp)
 
@@ -1045,3 +1200,13 @@ private fun SettingsToggleRow(
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
+
+private val COMMON_STT_LANGUAGES = listOf(
+    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar",
+    "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu",
+    "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa",
+    "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn",
+    "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc",
+    "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn",
+    "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su"
+)
