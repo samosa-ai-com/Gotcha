@@ -55,55 +55,58 @@ class AudioApi(
     }
 
     /** Fetch available models from the API and categorize them by the `task` field. */
+    @Suppress("CyclomaticComplexMethod")
     fun listAudioModels(): List<AudioModel> {
         return try {
             val url = "${baseUrl.trimEnd('/')}/models"
             try { Log.d("AudioApi", "Fetching models from: $url") } catch (_: Throwable) {}
             val request = Request.Builder().url(url).get().build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                try { Log.w("AudioApi", "Models request failed: HTTP ${response.code}") } catch (_: Throwable) {}
-                return emptyList()
-            }
-            val body = response.body?.string() ?: return emptyList()
-            try { Log.d("AudioApi", "Models response (first 200 chars): ${body.take(200)}") } catch (_: Throwable) {}
-            val jsonObj = jsonParser.parseToJsonElement(body).jsonObject
-            val dataArr = jsonObj["data"]?.jsonArray ?: return emptyList()
-            dataArr.mapNotNull { element ->
-                val modelObj = element.jsonObject
-                val id = modelObj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                val task = modelObj["task"]?.jsonPrimitive?.contentOrNull
-                val category = AudioModel.categorize(id, task)
-                val languages = when (val langElem = modelObj["language"]) {
-                    is kotlinx.serialization.json.JsonArray -> langElem.mapNotNull { l ->
-                        l.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }
-                    }
-                    is JsonPrimitive -> listOfNotNull(langElem.contentOrNull?.takeIf { it.isNotBlank() })
-                    else -> emptyList()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    try { Log.w("AudioApi", "Models request failed: HTTP ${response.code}") } catch (_: Throwable) {}
+                    return@use emptyList()
                 }
-                val voices = if (category == ModelCategory.TTS) {
-                    modelObj["voices"]?.jsonArray?.mapNotNull innerMap@{ v ->
-                        when (v) {
-                            is JsonObject -> {
-                                val vId = v["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                                    ?: v["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                                    ?: return@innerMap null
-                                val vName = v["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                                val vLang = v["language"]?.jsonPrimitive?.contentOrNull ?: ""
-                                val vGender = v["gender"]?.jsonPrimitive?.contentOrNull ?: ""
-                                VoiceInfo(id = vId, name = vName, language = vLang, gender = vGender)
-                            }
-                            is JsonPrimitive -> {
-                                val vId = v.contentOrNull?.takeIf { it.isNotBlank() } ?: return@innerMap null
-                                VoiceInfo(id = vId)
-                            }
-                            else -> null
+                val body = response.body?.string() ?: return@use emptyList()
+                try { Log.d("AudioApi", "Models response (first 200 chars): ${body.take(200)}") } catch (_: Throwable) {
+                }
+                val jsonObj = jsonParser.parseToJsonElement(body).jsonObject
+                val dataArr = jsonObj["data"]?.jsonArray ?: return@use emptyList()
+                dataArr.mapNotNull { element ->
+                    val modelObj = element.jsonObject
+                    val id = modelObj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val task = modelObj["task"]?.jsonPrimitive?.contentOrNull
+                    val category = AudioModel.categorize(id, task)
+                    val languages = when (val langElem = modelObj["language"]) {
+                        is kotlinx.serialization.json.JsonArray -> langElem.mapNotNull { l ->
+                            l.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }
                         }
-                    } ?: emptyList()
-                } else {
-                    emptyList()
+                        is JsonPrimitive -> listOfNotNull(langElem.contentOrNull?.takeIf { it.isNotBlank() })
+                        else -> emptyList()
+                    }
+                    val voices = if (category == ModelCategory.TTS) {
+                        modelObj["voices"]?.jsonArray?.mapNotNull innerMap@{ v ->
+                            when (v) {
+                                is JsonObject -> {
+                                    val vId = v["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                                        ?: v["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                                        ?: return@innerMap null
+                                    val vName = v["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                                    val vLang = v["language"]?.jsonPrimitive?.contentOrNull ?: ""
+                                    val vGender = v["gender"]?.jsonPrimitive?.contentOrNull ?: ""
+                                    VoiceInfo(id = vId, name = vName, language = vLang, gender = vGender)
+                                }
+                                is JsonPrimitive -> {
+                                    val vId = v.contentOrNull?.takeIf { it.isNotBlank() } ?: return@innerMap null
+                                    VoiceInfo(id = vId)
+                                }
+                                else -> null
+                            }
+                        } ?: emptyList()
+                    } else {
+                        emptyList()
+                    }
+                    AudioModel(id = id, category = category, languages = languages, voices = voices)
                 }
-                AudioModel(id = id, category = category, languages = languages, voices = voices)
             }
         } catch (e: Exception) {
             try { Log.e("AudioApi", "Failed to list models", e) } catch (_: Throwable) {}
@@ -131,11 +134,12 @@ class AudioApi(
             .header("Content-Type", "multipart/form-data; boundary=$boundary")
             .post(body)
             .build()
-        val response = client.newCall(request).execute()
-        val responseBody = response.body?.string() ?: throw IOException("Empty response")
-        if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $responseBody")
-        val jsonObj = jsonParser.parseToJsonElement(responseBody).jsonObject
-        jsonObj["text"]?.jsonPrimitive?.contentOrNull ?: ""
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: throw IOException("Empty response")
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $responseBody")
+            val jsonObj = jsonParser.parseToJsonElement(responseBody).jsonObject
+            jsonObj["text"]?.jsonPrimitive?.contentOrNull ?: ""
+        }
     }
 
     /**
@@ -158,12 +162,13 @@ class AudioApi(
             .url(url)
             .post(requestBody)
             .build()
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            val errBody = response.body?.string() ?: "no body"
-            throw IOException("HTTP ${response.code}: $errBody")
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errBody = response.body?.string() ?: "no body"
+                throw IOException("HTTP ${response.code}: $errBody")
+            }
+            response.body?.bytes() ?: throw IOException("Empty response body")
         }
-        response.body?.bytes() ?: throw IOException("Empty response body")
     }
 
     private fun buildMultipartBody(
