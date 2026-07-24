@@ -80,12 +80,22 @@ private fun ImapCard(imap: com.gotcha.connectors.imap.ImapConnector) {
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
             )
-            Text(
-                "Generate one at Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords, " +
-                    "or directly at myaccount.google.com/apppasswords (requires 2-Step Verification). " +
-                    "Other providers: check their IMAP app-password docs.",
-                style = MaterialTheme.typography.bodySmall
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "Needs an app password, not your regular password. Requires " +
+                        "2-Step Verification to be enabled first.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Generate one at myaccount.google.com/apppasswords, or via " +
+                        "Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Other providers: check their IMAP app-password documentation.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             TextButton(onClick = {
                 imapHost = "imap.gmail.com"
                 imapPort = "993"
@@ -179,13 +189,22 @@ private fun GoogleCard(
         Text("Gmail (BYO OAuth)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
         Text(google.statusLine(), style = MaterialTheme.typography.bodyMedium)
         Text(
-            "Full read/write Gmail access using your own Google Cloud OAuth client — no shared " +
-                "app, no verification wait. Steps: 1) create a Google Cloud project, 2) enable the " +
-                "Gmail API, 3) configure the OAuth consent screen (External, add yourself as a test " +
-                "user — or publish to skip weekly reconnects), 4) create a Desktop app OAuth client, " +
-                "5) paste its Client ID and secret below, 6) tap Connect.",
+            "Full read/write Gmail access using your own Google Cloud OAuth client — " +
+                "no shared app, no verification wait.",
             style = MaterialTheme.typography.bodySmall
         )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("1. Create a Google Cloud project.", style = MaterialTheme.typography.bodySmall)
+            Text("2. Enable the Gmail API.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "3. Configure the OAuth consent screen (External, add yourself as a " +
+                    "test user — or publish it to skip weekly reconnects).",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Text("4. Create a Desktop app OAuth client.", style = MaterialTheme.typography.bodySmall)
+            Text("5. Paste its Client ID and secret below.", style = MaterialTheme.typography.bodySmall)
+            Text("6. Tap Connect.", style = MaterialTheme.typography.bodySmall)
+        }
 
         if (!google.isConnected() || google.needsReconnect()) {
             OutlinedTextField(
