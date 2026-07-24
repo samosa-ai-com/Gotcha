@@ -15,7 +15,7 @@ object ToolRegistry {
     private val definitions: Map<String, ToolDefinition> =
         ToolDefinitions.all.associateBy { it.function.name }
 
-    val sensitiveTools: Set<String> = emptySet()
+    val sensitiveTools: Set<String> = setOf("send_email")
 
     val destructiveTools: Set<String> = setOf(
         "uninstall_app",
@@ -32,13 +32,14 @@ object ToolRegistry {
         "get_app_usage", "get_data_usage",
         "open_app", "list_installed_apps",
         "list_files", "read_file", "grep", "glob",
-        "todowrite", "list_alarms", "list_timers",
+        "todowrite", "list_alarms", "list_timers", "show_alarms",
         "question",
         "sleep",
         "websearch", "webfetch",
         "get_clipboard",
         "read_screen", "read_notifications",
-        "check_root", "search_skills"
+        "check_root", "search_skills",
+        "list_emails", "read_email"
     )
 
     /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */

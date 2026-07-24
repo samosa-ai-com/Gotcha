@@ -32,32 +32,7 @@ class CalendarTool(private val context: Context) {
             )
         }
         return try {
-            val now = System.currentTimeMillis()
-            val rangeStart: Long
-            val rangeEnd: Long
-            val rangeDesc: String
-
-            if (fromDate != null || toDate != null) {
-                val df = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                rangeStart = if (fromDate != null) {
-                    try { df.parse(fromDate)?.time ?: now } catch (_: Exception) { now }
-                } else {
-                    now
-                }
-                rangeEnd = if (toDate != null) {
-                    try { df.parse(toDate)?.time?.plus(86_400_000L - 1) ?: (now + 86400000L) } catch (
-                        _: Exception
-                    ) { now + 86400000L }
-                } else {
-                    rangeStart + 86400000L
-                }
-                rangeDesc = "${fromDate ?: "today"} → ${toDate ?: "tomorrow"}"
-            } else {
-                val days = (daysAhead ?: 7).coerceIn(1, 365)
-                rangeStart = now
-                rangeEnd = now + days * 24L * 60 * 60 * 1000
-                rangeDesc = "next $days day(s)"
-            }
+            val (rangeStart, rangeEnd, rangeDesc) = resolveRange(daysAhead, fromDate, toDate)
 
             val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
             ContentUris.appendId(builder, rangeStart)
@@ -101,29 +76,9 @@ class CalendarTool(private val context: Context) {
                 val calIdx = cursor.getColumnIndexOrThrow(CalendarContract.Instances.CALENDAR_DISPLAY_NAME)
                 val out = StringBuilder()
                 var count = 0
+                val indices = EventCursorIndices(idIdx, titleIdx, beginIdx, endIdx, locIdx, descIdx, statusIdx, calIdx)
                 while (cursor.moveToNext() && count < 50) {
-                    val eventId = cursor.getLong(idIdx)
-                    val title = cursor.getString(titleIdx) ?: "(untitled)"
-                    val begin = readable.format(Date(cursor.getLong(beginIdx)))
-                    val end = readable.format(Date(cursor.getLong(endIdx)))
-                    val loc = cursor.getString(locIdx)
-                    val desc = cursor.getString(descIdx)
-                    val status = when (cursor.getInt(statusIdx)) {
-                        CalendarContract.Instances.STATUS_CONFIRMED -> "confirmed"
-                        CalendarContract.Instances.STATUS_TENTATIVE -> "tentative"
-                        CalendarContract.Instances.STATUS_CANCELED -> "cancelled"
-                        else -> null
-                    }
-                    val calName = cursor.getString(calIdx)
-
-                    out.append("[id=$eventId]  $begin")
-                    if (status != null) out.append(" [$status]")
-                    out.append("  $title")
-                    if (calName != null) out.append("  📅 $calName")
-                    out.append("\n    ends $end")
-                    if (!loc.isNullOrBlank()) out.append("\n    📍 $loc")
-                    if (!desc.isNullOrBlank()) out.append("\n    ${desc.take(200)}")
-                    out.append("\n")
+                    out.append(formatEventRow(cursor, indices))
                     count++
                 }
                 if (count == 0) {
@@ -146,7 +101,11 @@ class CalendarTool(private val context: Context) {
         description: String? = null,
         allDay: Boolean? = null,
         reminderMinutes: Int? = null,
-        calendarName: String? = null
+        calendarName: String? = null,
+        attendees: List<String>? = null,
+        recurrence: String? = null,
+        recurrenceCount: Int? = null,
+        recurrenceUntil: String? = null
     ): ToolResult {
         if (title.isBlank()) {
             return ToolResult.error(
@@ -161,77 +120,121 @@ class CalendarTool(private val context: Context) {
                 "Adding a calendar event needs the Calendar permission. I have requested it — please grant it and ask again."
             )
         }
-        val startMs = parseWhen(start)
+        var startMs = CalendarRecurrence.parseWhen(start)
             ?: return ToolResult.error(
                 "Could not understand the start time '$start'. Use 'yyyy-MM-dd HH:mm' (e.g. '2026-07-17 15:30') " +
                     "or epoch milliseconds."
             )
-        val endMs = if (end.isNullOrBlank()) {
+        var endMs = if (end.isNullOrBlank()) {
             startMs + 60 * 60 * 1000
         } else {
-            parseWhen(end) ?: return ToolResult.error(
+            CalendarRecurrence.parseWhen(end) ?: return ToolResult.error(
                 "Could not understand the end time '$end'. Use 'yyyy-MM-dd HH:mm' (e.g. " +
                     "'2026-07-17 17:00') or epoch milliseconds."
             )
         }
 
         if (allDay == true) {
-            // all-day events: set to midnight of the start date
-            val cal = java.util.Calendar.getInstance()
-            cal.timeInMillis = startMs
-            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            cal.set(java.util.Calendar.MINUTE, 0)
-            cal.set(java.util.Calendar.SECOND, 0)
-            cal.set(java.util.Calendar.MILLISECOND, 0)
-            // startMs is already set above from parseWhen
+            // All-day events must use UTC-midnight boundaries with EVENT_TIMEZONE="UTC"
+            // (Android calendar provider convention), else they render on the wrong day.
+            startMs = CalendarRecurrence.utcMidnight(startMs)
+            endMs = CalendarRecurrence.utcMidnight(endMs).let { if (it <= startMs) startMs + 86_400_000L else it }
+        }
+
+        val rrule = recurrence?.let {
+            CalendarRecurrence.buildRRule(it, recurrenceCount, recurrenceUntil)
+                ?: return ToolResult.error(
+                    "Unknown recurrence '$it'. Use one of: daily, weekly, monthly, yearly."
+                )
         }
 
         return try {
-            val calendarId = if (!calendarName.isNullOrBlank()) {
-                findCalendarByName(calendarName)
-            } else {
-                null
-                    ?: defaultWritableCalendarId()
-                    ?: return ToolResult.error(
-                        "No writable calendar was found on this device. You may add a Google account or use the " +
-                            "device's calendar app to set one up."
-                    )
-            }
+            val calendarId = resolveCalendarId(calendarName)
+                ?: return ToolResult.error(calendarIdErrorMessage(calendarName))
 
-            val values = ContentValues().apply {
-                put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                put(CalendarContract.Events.TITLE, title)
-                put(CalendarContract.Events.DTSTART, startMs)
-                put(CalendarContract.Events.DTEND, endMs)
-                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
-                if (allDay == true) put(CalendarContract.Events.ALL_DAY, 1)
-                if (!location.isNullOrBlank()) put(CalendarContract.Events.EVENT_LOCATION, location)
-                if (!description.isNullOrBlank()) put(CalendarContract.Events.DESCRIPTION, description)
-            }
+            val values = buildEventValues(
+                NewEventSpec(calendarId, title, startMs, endMs, rrule, allDay, location, description)
+            )
             val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
                 ?: return ToolResult.error(
                     "The calendar rejected the new event. You may check that the calendar is writable and try " +
                         "again."
                 )
+            val eventId = uri.lastPathSegment!!.toLong()
 
-            // Add reminder if requested
-            if (reminderMinutes != null && reminderMinutes >= 0) {
-                val reminderValues = ContentValues().apply {
-                    put(CalendarContract.Reminders.EVENT_ID, uri.lastPathSegment!!.toLong())
-                    put(CalendarContract.Reminders.MINUTES, reminderMinutes)
-                    put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
-                }
-                context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
-            }
+            insertReminder(eventId, reminderMinutes)
+            // Add attendees if requested — synced Google calendars send real invites.
+            addAttendees(eventId, attendees)
 
-            val extras = buildString {
-                if (allDay == true) append(" all-day")
-                if (reminderMinutes != null && reminderMinutes >= 0) append(", reminder $reminderMinutes min before")
-            }
+            val extras = createEventExtrasSummary(allDay, rrule, recurrence, reminderMinutes, attendees)
             ToolResult.ok("Added '$title' on ${readable.format(Date(startMs))}$extras.")
         } catch (e: Exception) {
             ToolResult.error("Could not create the event: ${e.message}")
         }
+    }
+
+    private fun resolveCalendarId(calendarName: String?): Long? =
+        if (!calendarName.isNullOrBlank()) findCalendarByName(calendarName) else defaultWritableCalendarId()
+
+    private fun calendarIdErrorMessage(calendarName: String?): String =
+        if (!calendarName.isNullOrBlank()) {
+            "No calendar named '$calendarName' was found. Available calendars: " +
+                listCalendarNames().joinToString(", ").ifBlank { "(none)" } +
+                ". Omit calendarName to use the default writable calendar."
+        } else {
+            "No writable calendar was found on this device. You may add a Google account or use the " +
+                "device's calendar app to set one up."
+        }
+
+    private data class NewEventSpec(
+        val calendarId: Long,
+        val title: String,
+        val startMs: Long,
+        val endMs: Long,
+        val rrule: String?,
+        val allDay: Boolean?,
+        val location: String?,
+        val description: String?
+    )
+
+    private fun buildEventValues(spec: NewEventSpec): ContentValues = ContentValues().apply {
+        put(CalendarContract.Events.CALENDAR_ID, spec.calendarId)
+        put(CalendarContract.Events.TITLE, spec.title)
+        put(CalendarContract.Events.DTSTART, spec.startMs)
+        if (spec.rrule != null) {
+            // Recurring events use DURATION instead of DTEND (CalendarContract requirement).
+            put(CalendarContract.Events.DURATION, CalendarRecurrence.iso8601Duration(spec.endMs - spec.startMs))
+            put(CalendarContract.Events.RRULE, spec.rrule)
+        } else {
+            put(CalendarContract.Events.DTEND, spec.endMs)
+        }
+        put(CalendarContract.Events.EVENT_TIMEZONE, if (spec.allDay == true) "UTC" else TimeZone.getDefault().id)
+        if (spec.allDay == true) put(CalendarContract.Events.ALL_DAY, 1)
+        if (!spec.location.isNullOrBlank()) put(CalendarContract.Events.EVENT_LOCATION, spec.location)
+        if (!spec.description.isNullOrBlank()) put(CalendarContract.Events.DESCRIPTION, spec.description)
+    }
+
+    private fun insertReminder(eventId: Long, reminderMinutes: Int?) {
+        if (reminderMinutes == null || reminderMinutes < 0) return
+        val reminderValues = ContentValues().apply {
+            put(CalendarContract.Reminders.EVENT_ID, eventId)
+            put(CalendarContract.Reminders.MINUTES, reminderMinutes)
+            put(CalendarContract.Reminders.METHOD, CalendarContract.Reminders.METHOD_ALERT)
+        }
+        context.contentResolver.insert(CalendarContract.Reminders.CONTENT_URI, reminderValues)
+    }
+
+    private fun createEventExtrasSummary(
+        allDay: Boolean?,
+        rrule: String?,
+        recurrence: String?,
+        reminderMinutes: Int?,
+        attendees: List<String>?
+    ): String = buildString {
+        if (allDay == true) append(" all-day")
+        if (rrule != null) append(", repeating $recurrence")
+        if (reminderMinutes != null && reminderMinutes >= 0) append(", reminder $reminderMinutes min before")
+        if (!attendees.isNullOrEmpty()) append(", ${attendees.size} attendee(s) invited")
     }
 
     fun editEvent(
@@ -242,7 +245,11 @@ class CalendarTool(private val context: Context) {
         location: String? = null,
         description: String? = null,
         allDay: Boolean? = null,
-        reminderMinutes: Int? = null
+        reminderMinutes: Int? = null,
+        attendees: List<String>? = null,
+        recurrence: String? = null,
+        recurrenceCount: Int? = null,
+        recurrenceUntil: String? = null
     ): ToolResult {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR)
             != PackageManager.PERMISSION_GRANTED
@@ -254,24 +261,43 @@ class CalendarTool(private val context: Context) {
         }
         return try {
             val values = ContentValues()
+            var startMs: Long? = null
+            var endMs: Long? = null
             if (title != null) values.put(CalendarContract.Events.TITLE, title)
             if (start != null) {
-                val ms = parseWhen(start) ?: return ToolResult.error(
+                startMs = CalendarRecurrence.parseWhen(start) ?: return ToolResult.error(
                     "Could not understand the start time '$start'. Use 'yyyy-MM-dd " +
                         "HH:mm' (e.g. '2026-07-17 15:30') or epoch milliseconds."
                 )
-                values.put(CalendarContract.Events.DTSTART, ms)
+                values.put(CalendarContract.Events.DTSTART, startMs)
             }
             if (end != null) {
-                val ms = parseWhen(end) ?: return ToolResult.error(
+                endMs = CalendarRecurrence.parseWhen(end) ?: return ToolResult.error(
                     "Could not understand the end time '$end'. Use 'yyyy-MM-dd HH:mm' " +
                         "(e.g. '2026-07-17 17:00') or epoch milliseconds."
                 )
-                values.put(CalendarContract.Events.DTEND, ms)
             }
             if (location != null) values.put(CalendarContract.Events.EVENT_LOCATION, location)
             if (description != null) values.put(CalendarContract.Events.DESCRIPTION, description)
             if (allDay != null) values.put(CalendarContract.Events.ALL_DAY, if (allDay) 1 else 0)
+
+            if (recurrence != null) {
+                val rrule = CalendarRecurrence.buildRRule(recurrence, recurrenceCount, recurrenceUntil)
+                    ?: return ToolResult.error(
+                        "Unknown recurrence '$recurrence'. Use one of: daily, weekly, monthly, yearly."
+                    )
+                values.put(CalendarContract.Events.RRULE, rrule)
+                if (startMs != null && endMs != null) {
+                    values.put(CalendarContract.Events.DURATION, CalendarRecurrence.iso8601Duration(endMs - startMs))
+                } else if (endMs != null) {
+                    // Recurring events use DURATION, not DTEND — caller must supply both to change length.
+                    return ToolResult.error(
+                        "To change the length of a recurring event, provide both 'start' and 'end'."
+                    )
+                }
+            } else if (endMs != null) {
+                values.put(CalendarContract.Events.DTEND, endMs)
+            }
 
             val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
             val rows = context.contentResolver.update(uri, values, null, null)
@@ -280,6 +306,8 @@ class CalendarTool(private val context: Context) {
                     "Event $eventId not found or could not be updated. You may use list_calendar_events to find the correct event ID."
                 )
             }
+
+            if (attendees != null) replaceAttendees(eventId, attendees)
 
             // Update reminders: clear existing, add new if requested
             if (reminderMinutes != null) {
@@ -331,6 +359,145 @@ class CalendarTool(private val context: Context) {
         }
     }
 
+    private data class EventCursorIndices(
+        val id: Int,
+        val title: Int,
+        val begin: Int,
+        val end: Int,
+        val location: Int,
+        val description: Int,
+        val status: Int,
+        val calendarName: Int
+    )
+
+    private fun formatEventRow(cursor: android.database.Cursor, idx: EventCursorIndices): String {
+        val eventId = cursor.getLong(idx.id)
+        val title = cursor.getString(idx.title) ?: "(untitled)"
+        val begin = readable.format(Date(cursor.getLong(idx.begin)))
+        val end = readable.format(Date(cursor.getLong(idx.end)))
+        val loc = cursor.getString(idx.location)
+        val desc = cursor.getString(idx.description)
+        val status = when (cursor.getInt(idx.status)) {
+            CalendarContract.Instances.STATUS_CONFIRMED -> "confirmed"
+            CalendarContract.Instances.STATUS_TENTATIVE -> "tentative"
+            CalendarContract.Instances.STATUS_CANCELED -> "cancelled"
+            else -> null
+        }
+        val calName = cursor.getString(idx.calendarName)
+
+        return buildString {
+            append("[id=$eventId]  $begin")
+            if (status != null) append(" [$status]")
+            append("  $title")
+            if (calName != null) append("  📅 $calName")
+            append("\n    ends $end")
+            if (!loc.isNullOrBlank()) append("\n    📍 $loc")
+            if (!desc.isNullOrBlank()) append("\n    ${desc.take(200)}")
+            reminderMinutesFor(eventId).takeIf { it.isNotEmpty() }?.let {
+                append("\n    ⏰ reminder(s): ${it.joinToString(", ") { m -> "${m}m before" }}")
+            }
+            attendeesFor(eventId).takeIf { it.isNotEmpty() }?.let {
+                append("\n    👤 attendees: ${it.joinToString(", ")}")
+            }
+            append("\n")
+        }
+    }
+
+    private fun resolveRange(daysAhead: Int?, fromDate: String?, toDate: String?): Triple<Long, Long, String> {
+        val now = System.currentTimeMillis()
+        if (fromDate == null && toDate == null) {
+            val days = (daysAhead ?: 7).coerceIn(1, 365)
+            return Triple(now, now + days * 24L * 60 * 60 * 1000, "next $days day(s)")
+        }
+        val df = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val rangeStart = if (fromDate != null) {
+            try { df.parse(fromDate)?.time ?: now } catch (_: Exception) { now }
+        } else {
+            now
+        }
+        val rangeEnd = if (toDate != null) {
+            try {
+                df.parse(toDate)?.time?.plus(86_400_000L - 1) ?: (now + 86400000L)
+            } catch (_: Exception) {
+                now + 86400000L
+            }
+        } else {
+            rangeStart + 86400000L
+        }
+        return Triple(rangeStart, rangeEnd, "${fromDate ?: "today"} → ${toDate ?: "tomorrow"}")
+    }
+
+    private fun reminderMinutesFor(eventId: Long): List<Int> {
+        val minutes = mutableListOf<Int>()
+        context.contentResolver.query(
+            CalendarContract.Reminders.CONTENT_URI,
+            arrayOf(CalendarContract.Reminders.MINUTES),
+            "${CalendarContract.Reminders.EVENT_ID} = ?",
+            arrayOf(eventId.toString()),
+            null
+        )?.use { cursor ->
+            val idx = cursor.getColumnIndexOrThrow(CalendarContract.Reminders.MINUTES)
+            while (cursor.moveToNext()) minutes.add(cursor.getInt(idx))
+        }
+        return minutes
+    }
+
+    private fun attendeesFor(eventId: Long): List<String> {
+        val emails = mutableListOf<String>()
+        context.contentResolver.query(
+            CalendarContract.Attendees.CONTENT_URI,
+            arrayOf(CalendarContract.Attendees.ATTENDEE_EMAIL),
+            "${CalendarContract.Attendees.EVENT_ID} = ?",
+            arrayOf(eventId.toString()),
+            null
+        )?.use { cursor ->
+            val idx = cursor.getColumnIndexOrThrow(CalendarContract.Attendees.ATTENDEE_EMAIL)
+            while (cursor.moveToNext()) cursor.getString(idx)?.let { emails.add(it) }
+        }
+        return emails
+    }
+
+    private fun addAttendees(eventId: Long, attendees: List<String>?) {
+        if (attendees.isNullOrEmpty()) return
+        attendees.forEach { email ->
+            if (email.isBlank()) return@forEach
+            val values = ContentValues().apply {
+                put(CalendarContract.Attendees.EVENT_ID, eventId)
+                put(CalendarContract.Attendees.ATTENDEE_EMAIL, email.trim())
+                put(CalendarContract.Attendees.ATTENDEE_RELATIONSHIP, CalendarContract.Attendees.RELATIONSHIP_ATTENDEE)
+                put(CalendarContract.Attendees.ATTENDEE_TYPE, CalendarContract.Attendees.TYPE_REQUIRED)
+                put(CalendarContract.Attendees.ATTENDEE_STATUS, CalendarContract.Attendees.ATTENDEE_STATUS_NONE)
+            }
+            context.contentResolver.insert(CalendarContract.Attendees.CONTENT_URI, values)
+        }
+    }
+
+    private fun replaceAttendees(eventId: Long, attendees: List<String>) {
+        context.contentResolver.delete(
+            CalendarContract.Attendees.CONTENT_URI,
+            "${CalendarContract.Attendees.EVENT_ID} = ?",
+            arrayOf(eventId.toString())
+        )
+        addAttendees(eventId, attendees)
+    }
+
+    private fun listCalendarNames(): List<String> {
+        val names = mutableListOf<String>()
+        context.contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            arrayOf(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME)
+            while (cursor.moveToNext()) {
+                cursor.getString(nameIdx)?.let { names.add(it) }
+            }
+        }
+        return names
+    }
+
     private fun findCalendarByName(name: String): Long? {
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
@@ -351,23 +518,6 @@ class CalendarTool(private val context: Context) {
                     return cursor.getLong(idIdx)
                 }
             }
-        }
-        return null
-    }
-
-    private fun parseWhen(value: String): Long? {
-        val v = value.trim()
-        v.toLongOrNull()?.let { return it }
-        val formats = listOf(
-            "yyyy-MM-dd HH:mm",
-            "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ss"
-        )
-        for (f in formats) {
-            try {
-                return SimpleDateFormat(f, Locale.getDefault()).parse(v)?.time
-            } catch (_: Exception) { }
         }
         return null
     }

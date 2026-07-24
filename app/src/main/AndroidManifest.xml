@@ -81,6 +81,23 @@
         <intent>
             <action android:name="android.intent.action.DISMISS_ALARM" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DISMISS_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SNOOZE_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
+        <!-- Needed so compose_email can resolve an installed email app. -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
     </queries>
 
     <application

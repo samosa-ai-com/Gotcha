@@ -1,0 +1,7 @@
+{
+    "id": "calendar_operations",
+    "targetPackageNames": ["com.google.android.calendar"],
+    "name": "Calendar Skills",
+    "description": "Prefer the calendar connector tools over driving the Calendar app UI.",
+    "instructions": "Never automate the Calendar app's UI to view or manage events — use the dedicated tools instead, which read/write the device's calendar accounts directly:\n1. list_calendar_events supports date ranges and text search, and shows reminders and attendees per event.\n2. create_calendar_event supports all_day, calendar_name (to pick a specific account like 'Work'), attendees (real invites on a synced Google calendar), and recurrence (daily/weekly/monthly/yearly with recurrence_count or recurrence_until).\n3. edit_calendar_event updates only the fields you provide; get the event_id from list_calendar_events first.\n4. delete_calendar_event always asks the user to confirm before removing anything — irreversible.\nOnly fall back to UI automation (open_app + navigate_app) for things these tools can't do, e.g. viewing a calendar not synced to this device or the app's own settings."
+}

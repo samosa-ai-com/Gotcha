@@ -63,6 +63,10 @@ class ToolExecutor(
     private val rootTool = RootTool()
     private val actionLog = ActionLog(appContext)
 
+    init {
+        com.gotcha.connectors.ConnectorRegistry.init(appContext)
+    }
+
     /**
      * Execute [name] with [args] on behalf of the given [agent].
      * Returns an error without running the tool if the agent mode disallows it.
@@ -127,10 +131,25 @@ class ToolExecutor(
         return withContext(Dispatchers.IO) { calendarTool.doDeleteEvent(eventId) }
     }
 
+    /** Execute an email send the user already confirmed (payload from CONFIRM_SEND_EMAIL:). */
+    suspend fun executeSendEmail(argsBase64: String): ToolResult {
+        val email = com.gotcha.connectors.ConnectorRegistry.email()
+            ?: return ToolResult.error("Email connectors are not initialized.")
+        val result = withContext(Dispatchers.IO) { email.executeSendConfirmed(argsBase64) }
+        actionLog.record("send_email", "(confirmed send)", result)
+        return result
+    }
+
+    /** Human-readable description of a pending send, for the confirmation dialog. */
+    fun describeSendEmail(argsBase64: String): String =
+        com.gotcha.connectors.ConnectorRegistry.email()?.describeSend(argsBase64)
+            ?: "Send an email (details unavailable)."
+
     // Single when-dispatch over the entire fixed tool catalog; size and branch count are
     // inherent to the design (see AGENTS.md).
     @Suppress("CyclomaticComplexMethod", "LongMethod")
     private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
+        com.gotcha.connectors.ConnectorRegistry.toolHandler(name)?.let { return it.invoke(name, args) }
         return when (name) {
             "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
             "get_storage_info" -> storageTool.getStorageInfo()
@@ -226,7 +245,11 @@ class ToolExecutor(
                 description = args.requireString("description"),
                 allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
                 reminderMinutes = args.requireInt("reminder_minutes"),
-                calendarName = args.requireString("calendar_name")
+                calendarName = args.requireString("calendar_name"),
+                attendees = args.requireStringList("attendees"),
+                recurrence = args.requireString("recurrence"),
+                recurrenceCount = args.requireInt("recurrence_count"),
+                recurrenceUntil = args.requireString("recurrence_until")
             )
             "edit_calendar_event" -> calendarTool.editEvent(
                 eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id"),
@@ -236,7 +259,11 @@ class ToolExecutor(
                 location = args.requireString("location"),
                 description = args.requireString("description"),
                 allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
-                reminderMinutes = args.requireInt("reminder_minutes")
+                reminderMinutes = args.requireInt("reminder_minutes"),
+                attendees = args.requireStringList("attendees"),
+                recurrence = args.requireString("recurrence"),
+                recurrenceCount = args.requireInt("recurrence_count"),
+                recurrenceUntil = args.requireString("recurrence_until")
             )
             "delete_calendar_event" -> calendarTool.deleteEvent(
                 eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id")
@@ -252,10 +279,14 @@ class ToolExecutor(
                 seconds = args.requireInt("seconds") ?: 0,
                 message = args.requireString("message"),
                 hours = args.requireInt("hours"),
-                minutes = args.requireInt("minutes")
+                minutes = args.requireInt("minutes"),
+                system = args["system"]?.jsonPrimitive?.booleanOrNull ?: false
             )
             "list_alarms" -> alarmTool.listAlarms()
             "list_timers" -> alarmTool.listTimers()
+            "show_alarms" -> alarmTool.showAlarms()
+            "snooze_alarm" -> alarmTool.snoozeAlarm(minutes = args.requireInt("minutes"))
+            "dismiss_timer" -> alarmTool.dismissTimer()
             "edit_alarm" -> alarmTool.editAlarm(
                 id = args.requireInt("alarm_id")?.toLong() ?: return missing("alarm_id"),
                 hour = args.requireInt("hour"),
@@ -425,7 +456,10 @@ class ToolExecutor(
                 index = args.requireInt("index")
             )
             "global_action" -> accessibilityTool.globalAction(args.requireString("action") ?: return missing("action"))
-            "read_notifications" -> notificationTool.readNotifications(args.requireInt("limit") ?: 15)
+            "read_notifications" -> notificationTool.readNotifications(
+                limit = args.requireInt("limit") ?: 15,
+                app = args.requireString("app")
+            )
             "dismiss_notifications" -> notificationTool.dismissNotifications(args.requireString("key"))
             "media_control" -> notificationTool.mediaControl(args.requireString("action") ?: return missing("action"))
             "show_overlay" -> overlayTool.showOverlay(
@@ -472,6 +506,9 @@ class ToolExecutor(
 
     private fun JsonObject.requireBoolean(key: String): Boolean? =
         this[key]?.jsonPrimitive?.booleanOrNull
+
+    private fun JsonObject.requireStringList(key: String): List<String>? =
+        this[key]?.jsonArray?.mapNotNull { it.jsonPrimitive?.content }
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")

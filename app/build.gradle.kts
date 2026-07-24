@@ -211,6 +211,13 @@ dependencies {
     // HTML parsing for webfetch tool
     implementation("org.jsoup:jsoup:1.17.2")
 
+    // Connectors: Custom Tabs for the BYO-OAuth consent flow
+    implementation("androidx.browser:browser:1.8.0")
+
+    // Connectors: IMAP/SMTP email (JavaMail for Android)
+    implementation("com.sun.mail:android-mail:1.6.7")
+    implementation("com.sun.mail:android-activation:1.6.7")
+
     // Markdown rendering
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")

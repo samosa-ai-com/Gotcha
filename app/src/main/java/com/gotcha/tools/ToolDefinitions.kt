@@ -507,6 +507,32 @@ object ToolDefinitions {
                         "Calendar account name to add the event to (e.g. 'Work', 'Personal'). Defaults to the primary writable calendar."
                     )
                 }
+                putJsonObject("attendees") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put(
+                        "description",
+                        "Optional attendee email addresses. On a synced Google calendar this sends real invites."
+                    )
+                }
+                putJsonObject("recurrence") {
+                    put("type", "string")
+                    put("description", "Optional repeat frequency: daily, weekly, monthly, or yearly.")
+                }
+                putJsonObject("recurrence_count") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Number of occurrences (with recurrence). Omit for recurrence_until or indefinite."
+                    )
+                }
+                putJsonObject("recurrence_until") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Last occurrence date (with recurrence), same format as start. Omit for recurrence_count or indefinite."
+                    )
+                }
             }
             putJsonArray("required") {
                 add("title")
@@ -555,6 +581,23 @@ object ToolDefinitions {
                         "description",
                         "New reminder before event in minutes. -1 to remove reminder. Omit to keep current."
                     )
+                }
+                putJsonObject("attendees") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put("description", "Replace the attendee list with these email addresses. Omit to keep current.")
+                }
+                putJsonObject("recurrence") {
+                    put("type", "string")
+                    put("description", "New repeat frequency: daily, weekly, monthly, or yearly. Omit to keep current.")
+                }
+                putJsonObject("recurrence_count") {
+                    put("type", "integer")
+                    put("description", "Number of occurrences (with recurrence).")
+                }
+                putJsonObject("recurrence_until") {
+                    put("type", "string")
+                    put("description", "Last occurrence date (with recurrence), same format as start.")
                 }
             }
             putJsonArray("required") { add("event_id") }
@@ -619,9 +662,10 @@ object ToolDefinitions {
 
     val setTimer = tool(
         "set_timer",
-        "Start a countdown timer. Timers are managed in-app (a notification fires when done), not in " +
-            "the system clock app. Returns a timer ID that can be used to delete it later. " +
-            "List timers with list_timers. Delete with delete_timer.",
+        "Start a countdown timer. By default it's managed in-app (a notification fires when done), " +
+            "not in the system clock app. Returns a timer ID that can be used to delete it later. " +
+            "List timers with list_timers. Delete with delete_timer (dismiss a ringing system timer " +
+            "with dismiss_timer instead).",
         schema {
             putJsonObject("properties") {
                 putJsonObject("seconds") {
@@ -640,9 +684,46 @@ object ToolDefinitions {
                     put("type", "string")
                     put("description", "Optional timer label.")
                 }
+                putJsonObject("system") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "If true, start the timer in the system clock app instead of in-app. " +
+                            "Default false."
+                    )
+                }
             }
             putJsonArray("required") { add("seconds") }
         }
+    )
+
+    val showAlarms = tool(
+        "show_alarms",
+        "Open the system clock app's alarms list so the user can see all alarms, including ones " +
+            "not created by this assistant.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val snoozeAlarm = tool(
+        "snooze_alarm",
+        "Snooze the currently ringing alarm. Only has an effect if an alarm is actively ringing " +
+            "in the clock app right now.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("minutes") {
+                    put("type", "integer")
+                    put("description", "Snooze duration in minutes. Omit to use the clock app's default.")
+                }
+            }
+        }
+    )
+
+    val dismissTimer = tool(
+        "dismiss_timer",
+        "Dismiss a currently ringing system-clock-app timer. Only has an effect if a timer is " +
+            "actively ringing there right now; support varies by clock app. Distinct from " +
+            "delete_timer, which only removes a timer this assistant is tracking.",
+        schema { putJsonObject("properties") {} }
     )
 
     val toggleTorch = tool(
@@ -1547,13 +1628,21 @@ object ToolDefinitions {
 
     val readNotifications = tool(
         "read_notifications",
-        "Read the currently active notifications from all apps (app, time, title/text, and a " +
-            "dismiss key). Needs Notification access.",
+        "Read the currently active notifications from all apps (app, time, title/text/expanded " +
+            "text, and a dismiss key). Needs Notification access.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("limit") {
                     put("type", "integer")
                     put("description", "How many recent notifications to return (1-50). Default 15.")
+                }
+                putJsonObject("app") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Optional filter: only notifications from this app (matches package name " +
+                            "or app label, e.g. 'gmail' or 'com.google.android.gm')."
+                    )
                 }
             }
         }
@@ -1720,6 +1809,133 @@ object ToolDefinitions {
         }
     )
 
+    // ---- Email connector tools (Settings → Connectors: Gmail BYO-OAuth or IMAP) ----
+
+    val listEmails = tool(
+        "list_emails",
+        "List emails from the connected account's inbox (Gmail or IMAP connector). " +
+            "Returns one row per message: [id] read-state | date | from | subject + snippet. " +
+            "Use the returned id with read_email / mark_email_read. Requires an email " +
+            "connector in Settings; if none is connected, use compose_email or the Gmail app.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("query") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Optional search text. With Gmail connected this is full Gmail query " +
+                            "syntax (e.g. 'from:alice is:unread newer_than:7d'); with IMAP it " +
+                            "matches subject/from/body."
+                    )
+                }
+                putJsonObject("unread_only") {
+                    put("type", "boolean")
+                    put("description", "Only return unread messages. Default false.")
+                }
+                putJsonObject("max") {
+                    put("type", "integer")
+                    put("description", "Max messages to return (1-50). Default 10.")
+                }
+            }
+        }
+    )
+
+    val readEmail = tool(
+        "read_email",
+        "Read one email's full headers and plain-text body by the id returned from list_emails " +
+            "(e.g. 'gmail:18c...' or 'imap:INBOX:42'). Does not change the unread state.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("id") {
+                    put("type", "string")
+                    put("description", "Message id from list_emails.")
+                }
+            }
+            putJsonArray("required") { add("id") }
+        }
+    )
+
+    val sendEmail = tool(
+        "send_email",
+        "Send a plain-text email from the connected account (Gmail or IMAP connector). " +
+            "The user always sees a confirmation dialog with recipient, subject and a body " +
+            "preview before anything is sent. If no email connector is connected, use " +
+            "compose_email instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("to") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put("description", "Recipient email addresses.")
+                }
+                putJsonObject("cc") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put("description", "Optional CC addresses.")
+                }
+                putJsonObject("bcc") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put("description", "Optional BCC addresses.")
+                }
+                putJsonObject("subject") {
+                    put("type", "string")
+                    put("description", "Subject line.")
+                }
+                putJsonObject("body") {
+                    put("type", "string")
+                    put("description", "Plain-text message body.")
+                }
+            }
+            putJsonArray("required") {
+                add("to")
+                add("subject")
+                add("body")
+            }
+        }
+    )
+
+    val markEmailRead = tool(
+        "mark_email_read",
+        "Mark an email as read or unread by its id from list_emails.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("id") {
+                    put("type", "string")
+                    put("description", "Message id from list_emails.")
+                }
+                putJsonObject("read") {
+                    put("type", "boolean")
+                    put("description", "true = mark read (default), false = mark unread.")
+                }
+            }
+            putJsonArray("required") { add("id") }
+        }
+    )
+
+    val composeEmail = tool(
+        "compose_email",
+        "Open the user's email app with a pre-filled draft (recipient/subject/body) that they " +
+            "review and send themselves. Works without any connector — use this when no email " +
+            "account is connected, or when the user wants to review before sending.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("to") {
+                    put("type", "string")
+                    put("description", "Recipient address (optional).")
+                }
+                putJsonObject("subject") {
+                    put("type", "string")
+                    put("description", "Subject line (optional).")
+                }
+                putJsonObject("body") {
+                    put("type", "string")
+                    put("description", "Message body (optional).")
+                }
+            }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi,
@@ -1758,6 +1974,12 @@ object ToolDefinitions {
         // Tier 4 additions: privileged / rooted execution
         checkRoot, runRootCommand, writeSecureSettings,
 
-        searchSkills
+        searchSkills,
+
+        // Email connector tools
+        listEmails, readEmail, sendEmail, markEmailRead, composeEmail,
+
+        // Clock enhancements
+        showAlarms, snoozeAlarm, dismissTimer
     )
 }

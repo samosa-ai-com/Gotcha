@@ -389,6 +389,8 @@ class AgentEngine(
                         handleDeleteConfirm("CONFIRM_DELETE_TIMER:", "timer", call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_CALENDAR_EVENT:")) {
                         handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
+                    } else if (result.success && result.message.startsWith("CONFIRM_SEND_EMAIL:")) {
+                        handleSendEmailConfirm(call, result)
                     } else {
                         history += ChatMessage(
                             role = "tool",
@@ -603,6 +605,33 @@ class AgentEngine(
                 content = JsonPrimitive(msg),
                 toolCallId = call.id
             )
+            events.onUi(MessageKind.TOOL, "${call.function.name}: $msg")
+        }
+    }
+
+    /**
+     * Handles a tool result prefixed with CONFIRM_SEND_EMAIL:base64(args).
+     * Shows the recipient/subject/body preview and, if approved, performs the send.
+     */
+    private suspend fun handleSendEmailConfirm(call: ToolCall, result: ToolResult) {
+        val payload = result.message.removePrefix("CONFIRM_SEND_EMAIL:")
+        val description = toolExecutor.describeSendEmail(payload)
+        val approved = events.awaitConfirmation(listOf("send_email"), description)
+
+        if (approved) {
+            val actualResult = toolExecutor.executeSendEmail(payload)
+            history += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(actualResult.message),
+                toolCallId = call.id
+            )
+            events.onUi(
+                if (actualResult.success) MessageKind.TOOL else MessageKind.ERROR,
+                "${call.function.name}: ${actualResult.message}"
+            )
+        } else {
+            val msg = "User declined to send the email."
+            history += ChatMessage(role = "tool", content = JsonPrimitive(msg), toolCallId = call.id)
             events.onUi(MessageKind.TOOL, "${call.function.name}: $msg")
         }
     }

@@ -18,11 +18,21 @@ import java.util.Locale
  */
 class NotificationTool(private val context: Context) {
 
-    fun readNotifications(limit: Int): ToolResult {
+    fun readNotifications(limit: Int, app: String? = null): ToolResult {
         val service = requireService() ?: return notEnabled()
-        val notifications = service.currentNotifications()
+        var notifications = service.currentNotifications().toList()
         if (notifications.isEmpty()) return ToolResult.ok("There are no active notifications.")
         val pm = context.packageManager
+
+        if (!app.isNullOrBlank()) {
+            val needle = app.trim()
+            notifications = notifications.filter { sbn ->
+                sbn.packageName.contains(needle, ignoreCase = true) ||
+                    appLabel(pm, sbn.packageName).contains(needle, ignoreCase = true)
+            }
+            if (notifications.isEmpty()) return ToolResult.ok("No active notifications from '$app'.")
+        }
+
         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         val out = notifications
             .sortedByDescending { it.postTime }
@@ -31,15 +41,29 @@ class NotificationTool(private val context: Context) {
                 val extras = sbn.notification.extras
                 val title = extras.getCharSequence("android.title")?.toString()?.trim().orEmpty()
                 val text = extras.getCharSequence("android.text")?.toString()?.trim().orEmpty()
-                val app = try {
-                    pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString()
-                } catch (_: Exception) {
-                    sbn.packageName
-                }
+                val bigText = extras.getCharSequence("android.bigText")?.toString()?.trim().orEmpty()
+                val textLines = extras.getCharSequenceArray("android.textLines")
+                    ?.mapNotNull { it?.toString()?.trim() }
+                    ?.filter { it.isNotEmpty() }
+                    .orEmpty()
+                val appName = appLabel(pm, sbn.packageName)
                 val body = listOf(title, text).filter { it.isNotEmpty() }.joinToString(" — ")
-                "- [${fmt.format(Date(sbn.postTime))}] $app: ${body.ifEmpty { "(no text)" }} {key=${sbn.key}}"
+                val extraDetail = listOfNotNull(
+                    bigText.takeIf { it.isNotEmpty() && it != text },
+                    textLines.takeIf { it.isNotEmpty() }?.joinToString(" / ")
+                ).joinToString(" | ")
+                val line = "- [${fmt.format(
+                    Date(sbn.postTime)
+                )}] $appName: ${body.ifEmpty { "(no text)" }} {key=${sbn.key}}"
+                if (extraDetail.isNotEmpty()) "$line\n    $extraDetail" else line
             }
         return ToolResult.ok("Active notifications (${notifications.size}):\n$out")
+    }
+
+    private fun appLabel(pm: android.content.pm.PackageManager, packageName: String): String = try {
+        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    } catch (_: Exception) {
+        packageName
     }
 
     /** Dismiss a specific notification by key, or all of them when [key] is blank/null. */

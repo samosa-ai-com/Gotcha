@@ -118,6 +118,7 @@ fun SettingsScreen(
     var refreshingChatModels by remember { mutableStateOf(false) }
     // Collapsible sections
     var aiConfigExpanded by remember { mutableStateOf(false) }
+    var connectorsExpanded by remember { mutableStateOf(false) }
     var speechExpanded by remember { mutableStateOf(false) }
     var skillsExpanded by remember { mutableStateOf(false) }
     var proactiveExpanded by remember { mutableStateOf(false) }
@@ -571,6 +572,18 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Clear debug screenshots") }
                 }
+            }
+
+            HorizontalDivider(thickness = 1.dp)
+
+            // ---- Connectors (collapsible, collapsed by default) ----
+            SectionHeader(
+                title = "Connectors",
+                expanded = connectorsExpanded,
+                onToggle = { connectorsExpanded = !connectorsExpanded }
+            )
+            AnimatedVisibility(visible = connectorsExpanded) {
+                ConnectorsSection()
             }
 
             HorizontalDivider(thickness = 1.dp)

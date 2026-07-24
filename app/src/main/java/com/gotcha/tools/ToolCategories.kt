@@ -14,7 +14,7 @@ object ToolCategories {
         "global_action", "open_app",
         "read_screen", "read_screen_raw",
         "navigate_app", "task",
-        "dial_number"
+        "dial_number", "compose_email", "show_alarms"
     )
 
     private val backgroundTools = setOf(
@@ -26,7 +26,7 @@ object ToolCategories {
         "set_wallpaper", "set_clipboard",
         "call_number", "send_sms", "add_contact",
         "create_calendar_event", "edit_calendar_event",
-        "set_alarm", "set_timer",
+        "set_alarm", "set_timer", "snooze_alarm", "dismiss_timer",
         "take_photo",
         "start_audio_recording", "stop_audio_recording",
         "pause_audio_recording", "resume_audio_recording",
@@ -34,7 +34,8 @@ object ToolCategories {
         "show_overlay", "hide_overlay",
         "lock_screen", "disable_camera", "set_password_policy",
         "dismiss_notifications", "media_control",
-        "vibrate", "write_secure_settings"
+        "vibrate", "write_secure_settings",
+        "send_email", "mark_email_read"
     )
 
     fun classify(toolName: String): Category = when {
