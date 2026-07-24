@@ -83,9 +83,10 @@ at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 For any provider (Gmail included) that supports IMAP with an app password,
 Settings → Connectors → Email (IMAP) is the simpler default: enter your email
 address and an app password (Google Account → Security → 2-Step Verification →
-App passwords — requires 2-Step Verification to be enabled), use the "Use
-Gmail preset" button for Gmail's IMAP/SMTP hosts, or fill in another provider's
-host/port. This gets full read/write email access with no OAuth setup, at the
+App passwords, or directly at myaccount.google.com/apppasswords — requires
+2-Step Verification to be enabled), use the "Use Gmail preset" button for
+Gmail's IMAP/SMTP hosts, or fill in another provider's host/port. This gets
+full read/write email access with no OAuth setup, at the
 cost of scoping to "everything IMAP/SMTP can do" rather than Gmail's more
 granular `gmail.modify` scope.
 

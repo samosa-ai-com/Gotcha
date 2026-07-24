@@ -81,8 +81,9 @@ private fun ImapCard(imap: com.gotcha.connectors.imap.ImapConnector) {
                 modifier = Modifier.fillMaxWidth()
             )
             Text(
-                "Generate one at Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords " +
-                    "(requires 2-Step Verification). Other providers: check their IMAP app-password docs.",
+                "Generate one at Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords, " +
+                    "or directly at myaccount.google.com/apppasswords (requires 2-Step Verification). " +
+                    "Other providers: check their IMAP app-password docs.",
                 style = MaterialTheme.typography.bodySmall
             )
             TextButton(onClick = {
