@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -57,7 +58,9 @@ import com.halilibo.richtext.ui.material3.Material3RichText
 @Composable
 fun MessageBubble(
     message: UiMessage,
-    onSpeak: (String) -> Unit = {}
+    onSpeak: (String) -> Unit = {},
+    isSpeaking: Boolean = false,
+    onStopSpeaking: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isUser = message.kind == MessageKind.USER
@@ -219,14 +222,28 @@ fun MessageBubble(
                         horizontalArrangement = Arrangement.End
                     ) {
                         IconButton(
-                            onClick = { onSpeak(message.text) },
+                            onClick = {
+                                if (isSpeaking) {
+                                    onStopSpeaking()
+                                } else {
+                                    onSpeak(message.text)
+                                }
+                            },
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.VolumeUp,
-                                contentDescription = "Speak",
+                                imageVector = if (isSpeaking) {
+                                    Icons.AutoMirrored.Rounded.VolumeOff
+                                } else {
+                                    Icons.AutoMirrored.Rounded.VolumeUp
+                                },
+                                contentDescription = if (isSpeaking) "Stop reading" else "Speak",
                                 modifier = Modifier.size(18.dp),
-                                tint = contentColor.copy(alpha = 0.7f)
+                                tint = if (isSpeaking) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    contentColor.copy(alpha = 0.7f)
+                                }
                             )
                         }
                     }

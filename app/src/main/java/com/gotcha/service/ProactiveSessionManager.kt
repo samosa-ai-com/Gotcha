@@ -47,6 +47,14 @@ class ProactiveSessionManager(
         // Purge expired items
         itemsMap.entries.removeIf { (_, item) -> now - item.lastUpdatedTimestamp > ttlMs }
 
+        // When new QR_CODE or BARCODE entities are discovered, clear older ones
+        val hasNewQrOrBarcode = newEntities.any { it.type == EntityType.QR_CODE || it.type == EntityType.BARCODE }
+        if (hasNewQrOrBarcode) {
+            itemsMap.entries.removeIf { (_, item) ->
+                item.entity.type == EntityType.QR_CODE || item.entity.type == EntityType.BARCODE
+            }
+        }
+
         // Merge new entities
         for (entity in newEntities) {
             val key = "${entity.type}:${entity.normalizedValue}"

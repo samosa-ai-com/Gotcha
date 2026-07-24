@@ -105,7 +105,10 @@ class TtsEngine(
     private suspend fun speakApi(text: String, model: String, voice: String): Boolean {
         val api = audioApi ?: return false
         if (model.isBlank()) return false
-        val result = api.synthesize(text, model, voice)
+        val effectiveVoice = voice.ifBlank {
+            apiTtsModels.firstOrNull { it.id == model }?.defaultVoice ?: "af_heart"
+        }
+        val result = api.synthesize(text, model, effectiveVoice)
         if (result.isFailure) return false
         val audioBytes = result.getOrThrow()
         return playPcmAudio(audioBytes)

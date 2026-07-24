@@ -50,6 +50,12 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
     private fun dp(value: Int): Int = (value * appContext.resources.displayMetrics.density).toInt()
 
+    fun setVisibleForCapture(visible: Boolean) {
+        mainHandler.post {
+            panelView?.visibility = if (visible) View.VISIBLE else View.GONE
+        }
+    }
+
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     @SuppressLint("ClickableViewAccessibility")
     fun show(initialPrompt: String, resultText: String? = null) {

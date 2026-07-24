@@ -26,7 +26,8 @@ class ScreenLensController(
     private val onContextualAction: (prompt: String) -> Unit,
     private val onImagePrompt: (base64Jpeg: String, prompt: String) -> Unit,
     private val onOcrToClipboard: (crop: Bitmap) -> Unit,
-    private val onError: (String) -> Unit
+    private val onError: (String) -> Unit,
+    private val onCaptureChrome: (hide: Boolean) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -123,14 +124,20 @@ class ScreenLensController(
             val regionText = service.dumpTextInRegion(finalRect)
             val contextualActions = regionText?.let { SmartActionDetector.detectContextual(it) } ?: emptyList()
 
-            withContext(Dispatchers.Main) { overlay?.setCaptureMode(true) }
-            kotlinx.coroutines.delay(80)
+            withContext(Dispatchers.Main) {
+                overlay?.setCaptureMode(true)
+                onCaptureChrome(true)
+            }
+            kotlinx.coroutines.delay(250L)
             var full = service.takeScreenshotBitmap()
             if (full == null) {
-                kotlinx.coroutines.delay(400)
+                kotlinx.coroutines.delay(600L)
                 full = service.takeScreenshotBitmap()
             }
-            withContext(Dispatchers.Main) { overlay?.setCaptureMode(false) }
+            withContext(Dispatchers.Main) {
+                onCaptureChrome(false)
+                overlay?.setCaptureMode(false)
+            }
             if (full == null) {
                 withContext(Dispatchers.Main) {
                     removeCropOverlay()

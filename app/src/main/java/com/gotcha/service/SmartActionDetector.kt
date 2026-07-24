@@ -6,6 +6,8 @@ import java.util.regex.Pattern
  * High-level entity types recognized by [SmartActionDetector], ordered by default priority.
  */
 enum class EntityType(val basePriority: Int) {
+    QR_CODE(200),
+    BARCODE(190),
     OTP(100),
     PHONE(80),
     ADDRESS(80),
@@ -182,6 +184,9 @@ object SmartActionDetector {
         if (text.isBlank()) return emptyList()
 
         val rawEntities = mutableListOf<DetectedEntity>()
+
+        // 0. QR & Barcode patterns in text
+        detectQrAndBarcodes(text, rawEntities)
 
         // 1. OTP
         detectOtps(text, rawEntities)
@@ -651,8 +656,37 @@ object SmartActionDetector {
         return hasSpeakerPrefix || looksConversational || isForeignScript
     }
 
-    private fun encode(type: String, payload: String): String =
+    fun encode(type: String, payload: String): String =
         "$ACTION_PREFIX$type$PAYLOAD_SEP$payload"
+
+    private fun detectQrAndBarcodes(text: String, out: MutableList<DetectedEntity>) {
+        if (text.isBlank()) return
+        val wifiPattern = Pattern.compile("WIFI:S:([^;]+);(?:T:([^;]+);)?(?:P:([^;]+);)?", Pattern.CASE_INSENSITIVE)
+        val mWifi = wifiPattern.matcher(text)
+        while (mWifi.find()) {
+            val ssid = mWifi.group(1) ?: "Wi-Fi"
+            val pass = mWifi.group(3) ?: ""
+            val fullMatch = mWifi.group(0) ?: text
+            val actions = listOf(
+                SmartAction(
+                    label = "📶 Connect Wi-Fi: $ssid",
+                    prompt = encode(TYPE_COPY, "SSID: $ssid, Password: $pass"),
+                    actionType = ActionType.NATIVE_COPY,
+                    isPrimary = true
+                )
+            )
+            out.add(
+                DetectedEntity(
+                    type = EntityType.QR_CODE,
+                    rawValue = fullMatch,
+                    normalizedValue = "Wi-Fi QR: $ssid",
+                    span = mWifi.start()..mWifi.end(),
+                    confidence = 0.95f,
+                    actions = actions
+                )
+            )
+        }
+    }
 
     /** Build a native "fetch this URL and summarize" action. */
     fun fetchAction(url: String): SmartAction =

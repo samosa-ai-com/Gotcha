@@ -403,11 +403,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
-                                val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.apiKey)
+                                val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.effectiveTtsApiKey)
                                 val ttsAll = ttsApi.listAudioModels()
                                 val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
                                 val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
-                                    val sttApi = AudioApi(s.sttApiBaseUrl, s.apiKey)
+                                    val sttApi = AudioApi(s.sttApiBaseUrl, s.effectiveSttApiKey)
                                     sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
                                 } else {
                                     ttsAll.filter { it.category == ModelCategory.STT }
@@ -471,6 +471,7 @@ class MainActivity : ComponentActivity() {
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSpeak = chatViewModel::speak,
+                        onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = chatViewModel::startListening,
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
