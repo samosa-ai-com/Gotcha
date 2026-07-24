@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
@@ -131,7 +132,9 @@ class ScreenCompanionController(
                     if (screenText.isNotEmpty()) lastScreenTextHash = currentHash
 
                     val visualQrEntities = try {
-                        val bitmap = GotchaAccessibilityService.instance?.takeScreenshotBitmap()
+                        val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            GotchaAccessibilityService.instance?.takeScreenshotBitmap()
+                        } else { null }
                         if (bitmap != null) {
                             val scanned = QrCodeScanner.scanBitmap(bitmap)
                             bitmap.recycle()
