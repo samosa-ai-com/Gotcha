@@ -103,8 +103,9 @@ The app calls `POST {baseUrl}chat/completions`, so the Base URL must be the part
 > need to enable cleartext traffic (see Troubleshooting).
 
 ### Verify the connection
-1. Tap **Test connection**. It sends a cheap "ping" request and shows
-   `✓ Connected: …` on success or the error on failure.
+1. Tap **Test connection**. It sends a cheap "ping" request and shows a centred
+   overlay — `Testing connection…` while it runs, then `✓ Connected: …` on
+   success or the error on failure, which fades out after ~2.5 s.
 2. Tap **Save**. Then **← Back** to reach the chat screen. Chat input stays
    disabled until a key is saved.
 
