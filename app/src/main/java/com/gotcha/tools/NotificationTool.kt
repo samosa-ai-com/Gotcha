@@ -189,7 +189,12 @@ class NotificationTool(private val context: Context) {
             )
         }
 
-    /** Applies [action], falling back to a media key event if transport controls refuse it. */
+    /**
+     * Applies [action] through the session's transport controls, which — unlike
+     * media key events — keep play and pause distinct and make seek possible.
+     * TOGGLE is the exception: TransportControls has no toggle, so it goes out
+     * as a PLAY_PAUSE key event.
+     */
     private fun applyAction(
         controller: MediaController,
         action: MediaAction,

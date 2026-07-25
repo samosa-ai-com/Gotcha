@@ -2,6 +2,7 @@ package com.gotcha.tools
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.aggregate.AggregateMetric
 import androidx.health.connect.client.aggregate.AggregationResult
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
@@ -46,6 +47,33 @@ class HealthTool(private val context: Context) {
             HealthPermission.getReadPermission(ExerciseSessionRecord::class)
         )
 
+        /**
+         * The summary metrics each read permission unlocks. Health Connect
+         * throws a SecurityException if an [AggregateRequest] names a metric
+         * whose permission is missing, so the request has to be assembled from
+         * the grants the user actually gave rather than from the full set.
+         */
+        private val SUMMARY_METRICS: Map<String, Set<AggregateMetric<*>>> = mapOf(
+            HealthPermission.getReadPermission(StepsRecord::class) to
+                setOf(StepsRecord.COUNT_TOTAL),
+            HealthPermission.getReadPermission(DistanceRecord::class) to
+                setOf(DistanceRecord.DISTANCE_TOTAL),
+            HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class) to
+                setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
+            HealthPermission.getReadPermission(SleepSessionRecord::class) to
+                setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),
+            HealthPermission.getReadPermission(HeartRateRecord::class) to
+                setOf(HeartRateRecord.BPM_AVG, HeartRateRecord.BPM_MAX),
+            HealthPermission.getReadPermission(RestingHeartRateRecord::class) to
+                setOf(RestingHeartRateRecord.BPM_AVG),
+            HealthPermission.getReadPermission(WeightRecord::class) to
+                setOf(WeightRecord.WEIGHT_AVG)
+        )
+
+        /** Metrics safe to aggregate given [granted]; empty if none of them are. */
+        fun summaryMetricsFor(granted: Set<String>): Set<AggregateMetric<*>> =
+            SUMMARY_METRICS.filterKeys { it in granted }.values.flatten().toSet()
+
         private const val PLAY_LISTING = "Health Connect"
         private const val MAX_RECORDS = 50
 
@@ -83,17 +111,26 @@ class HealthTool(private val context: Context) {
         )
     }
 
-    private fun needsPermission(): ToolResult = ToolResult.permissionNeeded(
+    /** [type] names the specific data type that was missing, when one is known. */
+    private fun needsPermission(type: String? = null): ToolResult = ToolResult.permissionNeeded(
         ToolResult.HEALTH_CONNECT,
-        "Reading health data needs Health Connect permissions, which have not been granted. " +
-            "I have opened the permission screen — please allow the data types you're happy to " +
-            "share and ask again."
+        if (type.isNullOrBlank()) {
+            "Reading health data needs Health Connect permissions, which have not been granted. " +
+                "I have opened the permission screen — please allow the data types you're happy " +
+                "to share and ask again."
+        } else {
+            "Reading '$type' needs its own Health Connect permission, which has not been " +
+                "granted. I have opened the permission screen — please allow '$type' there and " +
+                "ask again, or ask about a data type you have already shared."
+        }
     )
 
-    private suspend fun granted(client: HealthConnectClient): Boolean {
-        val granted = client.permissionController.getGrantedPermissions().any { it in PERMISSIONS }
+    /** The subset of [PERMISSIONS] the user has actually granted; empty means none. */
+    private suspend fun grantedPermissions(client: HealthConnectClient): Set<String> {
+        val granted = client.permissionController.getGrantedPermissions()
+            .filterTo(mutableSetOf()) { it in PERMISSIONS }
         // Keep the Settings permission row in sync — it can only read a cached value.
-        HealthPermissionState.set(granted)
+        HealthPermissionState.set(granted.isNotEmpty())
         return granted
     }
 
@@ -102,25 +139,17 @@ class HealthTool(private val context: Context) {
     suspend fun getSummary(daysArg: Int?): ToolResult {
         val client = clientOrNull() ?: return unavailable()
         return try {
-            if (!granted(client)) return needsPermission()
+            val granted = grantedPermissions(client)
+            // Workouts have no summary metric, so a grant covering only those
+            // leaves nothing to aggregate — treat that like no grant at all.
+            val metrics = summaryMetricsFor(granted)
+            if (metrics.isEmpty()) return needsPermission()
             val days = HealthFormat.days(daysArg)
             val (start, end) = HealthFormat.window(Instant.now(), days)
             val filter = TimeRangeFilter.between(start, end)
 
             val aggregate: AggregationResult = client.aggregate(
-                AggregateRequest(
-                    metrics = setOf(
-                        StepsRecord.COUNT_TOTAL,
-                        DistanceRecord.DISTANCE_TOTAL,
-                        ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
-                        SleepSessionRecord.SLEEP_DURATION_TOTAL,
-                        HeartRateRecord.BPM_AVG,
-                        HeartRateRecord.BPM_MAX,
-                        RestingHeartRateRecord.BPM_AVG,
-                        WeightRecord.WEIGHT_AVG
-                    ),
-                    timeRangeFilter = filter
-                )
+                AggregateRequest(metrics = metrics, timeRangeFilter = filter)
             )
 
             val steps = aggregate[StepsRecord.COUNT_TOTAL]
@@ -159,7 +188,11 @@ class HealthTool(private val context: Context) {
                     RECORD_TYPE_NAMES.joinToString(", ") + "."
             )
         return try {
-            if (!granted(client)) return needsPermission()
+            // Only this record type's own grant matters — asking about steps
+            // must not require the user to have shared their weight.
+            if (HealthPermission.getReadPermission(recordType) !in grantedPermissions(client)) {
+                return needsPermission(type)
+            }
             val days = HealthFormat.days(daysArg)
             val (start, end) = HealthFormat.window(Instant.now(), days)
             val records = client.readRecords(

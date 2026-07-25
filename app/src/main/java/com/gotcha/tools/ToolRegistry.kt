@@ -15,7 +15,10 @@ object ToolRegistry {
     private val definitions: Map<String, ToolDefinition> =
         ToolDefinitions.all.associateBy { it.function.name }
 
-    val sensitiveTools: Set<String> = setOf("send_email")
+    // Empty by design: AgentEngine.requestConfirmation() auto-approves, so an
+    // entry here would imply a gate that does not exist. send_email has its own
+    // confirmation via the CONFIRM_SEND_EMAIL flow in EmailTools.
+    val sensitiveTools: Set<String> = emptySet()
 
     val destructiveTools: Set<String> = setOf(
         "uninstall_app",

