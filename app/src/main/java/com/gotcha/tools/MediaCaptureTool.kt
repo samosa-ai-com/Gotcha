@@ -31,6 +31,15 @@ class MediaCaptureTool(private val context: Context) {
     private var recordingStartTime: Long = 0L
     private var recordingPaused: Boolean = false
 
+    /**
+     * Where the last completed recording was saved, and how long it ran.
+     * Kept so a repeated [stopAudioRecording] can report the already-saved file
+     * instead of a bare "no recording in progress" error — models routinely
+     * issue a second, redundant stop, and an error there reads as a failure.
+     */
+    private var lastSavedPath: String? = null
+    private var lastSavedDurationSeconds: Long = 0L
+
     suspend fun takePhoto(camera: String?): ToolResult {
         Log.d(TAG, "takePhoto: camera=$camera")
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
@@ -117,6 +126,10 @@ class MediaCaptureTool(private val context: Context) {
                     "status with get_audio_recording_status."
             )
         }
+        // Drop the previous recording's details up front: if this start fails, a
+        // following stop must report the real error, not a stale saved file.
+        lastSavedPath = null
+        lastSavedDurationSeconds = 0L
         return try {
             val file = if (!outputPath.isNullOrBlank()) {
                 val resolved = FileResolver(context).resolveForWrite(outputPath)
@@ -189,10 +202,7 @@ class MediaCaptureTool(private val context: Context) {
     }
 
     fun stopAudioRecording(): ToolResult {
-        val rec = recorder ?: return ToolResult.error(
-            "No recording is in progress. Use start_audio_recording to begin one, or check " +
-                "status with get_audio_recording_status."
-        )
+        val rec = recorder ?: return alreadyStoppedResult()
         return try {
             rec.stop()
             val file = recordingFile
@@ -204,12 +214,32 @@ class MediaCaptureTool(private val context: Context) {
                 com.gotcha.data.GotchaStorage.publishToGallery(context, file)
             }
             releaseRecorder()
-            ToolResult.ok("Recording saved to $path (${dur / 60}m ${dur % 60}s).")
+            lastSavedPath = path
+            lastSavedDurationSeconds = dur
+            ToolResult.ok("Recording saved to $path (${formatDuration(dur)}).")
         } catch (e: Exception) {
             releaseRecorder()
             ToolResult.error("Could not stop the recording cleanly: ${e.message}")
         }
     }
+
+    /**
+     * Nothing is recording. If a recording was already stopped and saved, that is
+     * the state the caller wanted, so report success with the saved file rather
+     * than an error — otherwise a redundant second stop looks like a failure.
+     */
+    private fun alreadyStoppedResult(): ToolResult {
+        val path = lastSavedPath ?: return ToolResult.error(
+            "No recording is in progress. Use start_audio_recording to begin one, or check " +
+                "status with get_audio_recording_status."
+        )
+        return ToolResult.ok(
+            "No recording is currently running — it was already stopped and saved to $path " +
+                "(${formatDuration(lastSavedDurationSeconds)}). Nothing further to do."
+        )
+    }
+
+    private fun formatDuration(seconds: Long): String = "${seconds / 60}m ${seconds % 60}s"
 
     fun getAudioRecordingStatus(): ToolResult {
         val rec = recorder

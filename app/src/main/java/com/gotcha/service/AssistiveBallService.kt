@@ -65,15 +65,40 @@ class AssistiveBallService : Service() {
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
     private lateinit var screenLensController: ScreenLensController
     private val webFetchTool by lazy { com.gotcha.tools.WebFetchTool() }
-    private val llmClient by lazy {
-        val s = settingsRepository.load()
-        com.gotcha.llm.LLMClient(
-            apiKey = s.effectiveApiKey,
-            baseUrl = s.effectiveBaseUrl,
-            model = s.model,
-            context = this
-        )
-    }
+    private var cachedLlmClient: com.gotcha.llm.LLMClient? = null
+    private var cachedLlmKey: String? = null
+
+    /**
+     * The companion panel's LLM client. Rebuilt whenever the settings it depends
+     * on change, so edits in Settings take effect without restarting the service
+     * (a plain `by lazy` pinned the very first values for the service's lifetime).
+     *
+     * [Settings.apiTimeoutSeconds] must be passed through: omitting it left the
+     * client on LLMClient's `0L` default, which OkHttp reads as *no timeout*, so
+     * a stalled request hung the panel on "Thinking..." forever — it has no stop
+     * button, and the `catch` that would show an error never runs.
+     */
+    private val llmClient: com.gotcha.llm.LLMClient
+        get() {
+            val s = settingsRepository.load()
+            val key = listOf(
+                s.effectiveApiKey.hashCode(),
+                s.effectiveBaseUrl,
+                s.model,
+                s.apiTimeoutSeconds
+            ).joinToString("|")
+            cachedLlmClient?.let { if (cachedLlmKey == key) return it }
+            return com.gotcha.llm.LLMClient(
+                apiKey = s.effectiveApiKey,
+                baseUrl = s.effectiveBaseUrl,
+                model = s.model,
+                context = this,
+                apiTimeoutSeconds = s.apiTimeoutSeconds
+            ).also {
+                cachedLlmClient = it
+                cachedLlmKey = key
+            }
+        }
 
     val proactiveSessionManager = ProactiveSessionManager()
 
