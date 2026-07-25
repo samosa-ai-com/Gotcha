@@ -1,8 +1,11 @@
 package com.gotcha.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,13 +46,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/**
+ * A transient message shown as a centred overlay on top of the settings content.
+ * [sticky] messages stay until replaced (used while an operation is still running).
+ */
+private data class SettingsOverlay(val text: String, val sticky: Boolean = false)
+
+/** How long a non-sticky overlay message stays on screen. */
+private const val OVERLAY_DURATION_MS = 2500L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,6 +135,7 @@ fun SettingsScreen(
     var showTtsKey by remember { mutableStateOf(false) }
     var showSttKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var overlay by remember { mutableStateOf<SettingsOverlay?>(null) }
     var testing by remember { mutableStateOf(false) }
     var refreshingModels by remember { mutableStateOf(false) }
     var refreshingChatModels by remember { mutableStateOf(false) }
@@ -219,6 +235,17 @@ fun SettingsScreen(
         }
     }
 
+    // Auto-dismiss transient overlay messages. Each assignment creates a new
+    // SettingsOverlay instance, so repeating the same text restarts the timer.
+    LaunchedEffect(overlay) {
+        overlay?.let {
+            if (!it.sticky) {
+                delay(OVERLAY_DURATION_MS)
+                overlay = null
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -227,10 +254,10 @@ fun SettingsScreen(
             )
         }
     ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -559,12 +586,17 @@ fun SettingsScreen(
                     OutlinedButton(
                         onClick = {
                             testing = true
-                            status = "Testing connection…"
+                            // Sticky while the request is in flight, then the result
+                            // replaces it and fades out on its own.
+                            overlay = SettingsOverlay("Testing connection…", sticky = true)
+                            status = null
                             scope.launch {
                                 val result = onTestConnection(currentSettings())
-                                status = result.fold(
-                                    onSuccess = { "✓ Connected: $it" },
-                                    onFailure = { "✗ Connection failed: ${it.message}" }
+                                overlay = SettingsOverlay(
+                                    result.fold(
+                                        onSuccess = { "✓ Connected: $it" },
+                                        onFailure = { "✗ Connection failed: ${it.message}" }
+                                    )
                                 )
                                 testing = false
                             }
@@ -1107,6 +1139,42 @@ fun SettingsScreen(
                 "The API key is stored encrypted on this device and never leaves it " +
                     "except in requests to the base URL above.",
                 style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.Center))
+        } // Box
+    }
+}
+
+/**
+ * Centred, non-interactive toast-style overlay used for transient feedback
+ * (e.g. connection test progress and result).
+ */
+@Composable
+private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modifier) {
+    // Keep the last text around so it stays readable through the fade-out.
+    var lastText by remember { mutableStateOf("") }
+    message?.let { lastText = it.text }
+    AnimatedVisibility(
+        visible = message != null,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            tonalElevation = 6.dp,
+            shadowElevation = 6.dp,
+            modifier = Modifier.padding(32.dp).testTag("settings_overlay")
+        ) {
+            Text(
+                text = lastText,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
             )
         }
     }
