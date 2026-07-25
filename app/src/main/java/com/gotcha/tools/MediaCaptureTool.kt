@@ -28,6 +28,9 @@ class MediaCaptureTool(private val context: Context) {
 
     private var recorder: MediaRecorder? = null
     private var recordingFile: File? = null
+    private var recordingUri: android.net.Uri? = null
+    private var recordingPfd: android.os.ParcelFileDescriptor? = null
+    private var recordingDisplayPath: String = ""
     private var recordingStartTime: Long = 0L
     private var recordingPaused: Boolean = false
 
@@ -130,20 +133,39 @@ class MediaCaptureTool(private val context: Context) {
         // following stop must report the real error, not a stale saved file.
         lastSavedPath = null
         lastSavedDurationSeconds = 0L
+        recordingFile = null
+        recordingUri = null
+        recordingPfd = null
         return try {
-            val file = if (!outputPath.isNullOrBlank()) {
+            if (!outputPath.isNullOrBlank()) {
                 val resolved = FileResolver(context).resolveForWrite(outputPath)
-                when (resolved) {
+                val file = when (resolved) {
                     is FileResolver.ResolveResult.Ok -> resolved.file.also { it.parentFile?.mkdirs() }
                     is FileResolver.ResolveResult.PermissionNeeded -> return resolved.result
                     is FileResolver.ResolveResult.Error -> return ToolResult.error(resolved.message)
                 }
+                recordingFile = file
+                recordingDisplayPath = file.absolutePath
             } else {
-                val dir = com.gotcha.data.GotchaStorage.subdir(
-                    File(FileResolver.WORKING_DIR_BASE),
-                    com.gotcha.data.GotchaStorage.Kind.RECORDINGS
-                )
-                File(dir, "recording_${timestamp()}.m4a")
+                // Default location: the system-wide public Recordings folder, not
+                // the per-chat working directory — recordings should be findable
+                // like any other device recording, independent of which chat made them.
+                when (
+                    val target = com.gotcha.data.GotchaStorage.createRecordingTarget(
+                        context,
+                        "recording_${timestamp()}.m4a"
+                    )
+                ) {
+                    is com.gotcha.data.GotchaStorage.RecordingTarget.DirectFile -> {
+                        recordingFile = target.file
+                        recordingDisplayPath = target.file.absolutePath
+                    }
+                    is com.gotcha.data.GotchaStorage.RecordingTarget.MediaStoreEntry -> {
+                        recordingUri = target.uri
+                        recordingPfd = target.pfd
+                        recordingDisplayPath = target.displayPath
+                    }
+                }
             }
 
             val audioSource = when (source?.trim()?.lowercase()) {
@@ -180,22 +202,27 @@ class MediaCaptureTool(private val context: Context) {
             if (maxDurationSeconds != null && maxDurationSeconds > 0) {
                 rec.setMaxDuration(maxDurationSeconds * 1000)
             }
-            rec.setOutputFile(file.absolutePath)
+            val pfd = recordingPfd
+            if (pfd != null) {
+                rec.setOutputFile(pfd.fileDescriptor)
+            } else {
+                rec.setOutputFile(recordingFile!!.absolutePath)
+            }
             rec.prepare()
             rec.start()
             recorder = rec
-            recordingFile = file
             recordingStartTime = System.currentTimeMillis()
             recordingPaused = false
 
             val extras = buildString {
                 if (source != null) append(" ($source)")
                 if (maxDurationSeconds != null && maxDurationSeconds > 0) append(", max ${maxDurationSeconds}s")
-                append(" at ${file.absolutePath}")
+                append(" at $recordingDisplayPath")
                 if (quality != null) append(", $quality quality")
             }
             ToolResult.ok("Recording started$extras.")
         } catch (e: Exception) {
+            recordingUri?.let { com.gotcha.data.GotchaStorage.discardPendingRecording(context, it) }
             releaseRecorder()
             ToolResult.error("Could not start recording: ${e.message}")
         }
@@ -205,13 +232,17 @@ class MediaCaptureTool(private val context: Context) {
         val rec = recorder ?: return alreadyStoppedResult()
         return try {
             rec.stop()
-            val file = recordingFile
-            val path = file?.absolutePath ?: "unknown"
+            val path = recordingDisplayPath
             val dur = (System.currentTimeMillis() - recordingStartTime) / 1000
-            // Make the file accessible to other apps
-            file?.setReadable(true, false)
+            val file = recordingFile
+            val uri = recordingUri
             if (file != null) {
+                // Make the file accessible to other apps
+                file.setReadable(true, false)
                 com.gotcha.data.GotchaStorage.publishToGallery(context, file)
+            }
+            if (uri != null) {
+                com.gotcha.data.GotchaStorage.finalizeRecording(context, uri)
             }
             releaseRecorder()
             lastSavedPath = path
@@ -245,7 +276,7 @@ class MediaCaptureTool(private val context: Context) {
         val rec = recorder
         if (rec == null) return ToolResult.ok("No recording is active.")
         val elapsed = (System.currentTimeMillis() - recordingStartTime) / 1000
-        val path = recordingFile?.absolutePath ?: "unknown"
+        val path = recordingDisplayPath.ifEmpty { "unknown" }
         val state = if (recordingPaused) "paused" else "recording"
         return ToolResult.ok("$state for ${elapsed / 60}m ${elapsed % 60}s at $path.")
     }
@@ -296,8 +327,12 @@ class MediaCaptureTool(private val context: Context) {
 
     private fun releaseRecorder() {
         try { recorder?.release() } catch (_: Exception) {}
+        try { recordingPfd?.close() } catch (_: Exception) {}
         recorder = null
         recordingFile = null
+        recordingUri = null
+        recordingPfd = null
+        recordingDisplayPath = ""
         recordingStartTime = 0L
         recordingPaused = false
     }

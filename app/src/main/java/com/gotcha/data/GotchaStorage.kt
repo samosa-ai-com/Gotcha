@@ -4,8 +4,10 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
 import java.io.File
 import java.io.IOException
@@ -145,5 +147,55 @@ object GotchaStorage {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         } ?: throw IOException("Could not open Pictures/Gotcha for writing")
         return "Pictures/Gotcha"
+    }
+
+    sealed class RecordingTarget {
+        /** Pre-Q direct filesystem path, or a caller-supplied [FileResolver] path. */
+        data class DirectFile(val file: File) : RecordingTarget()
+        /** Q+ MediaStore entry; [MediaRecorder] writes through the held fd. */
+        data class MediaStoreEntry(val uri: Uri, val pfd: ParcelFileDescriptor, val displayPath: String) :
+            RecordingTarget()
+    }
+
+    /**
+     * Opens a target for [fileName] in the system-wide public Recordings folder
+     * (visible to the system Recorder/Files apps), not the per-chat working
+     * directory.
+     *
+     * API 29+ has no direct filesystem access to public folders without "All
+     * files access", so recordings go through a MediaStore insert + file
+     * descriptor instead; [MediaRecorder.setOutputFile] accepts that fd directly.
+     */
+    fun createRecordingTarget(context: Context, fileName: String): RecordingTarget {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "audio/mp4")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Recordings")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IOException("Could not create $fileName in Recordings")
+            val pfd = resolver.openFileDescriptor(uri, "w")
+                ?: throw IOException("Could not open Recordings for writing")
+            return RecordingTarget.MediaStoreEntry(uri, pfd, "Recordings/$fileName")
+        }
+        val dir = Environment.getExternalStoragePublicDirectory("Recordings")
+        dir.mkdirs()
+        return RecordingTarget.DirectFile(File(dir, fileName))
+    }
+
+    /** Clears the pending flag so other apps can see/play the finished recording. */
+    fun finalizeRecording(context: Context, uri: Uri) {
+        val values = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+        context.contentResolver.update(uri, values, null, null)
+    }
+
+    /** Removes an abandoned pending entry if [startAudioRecording] failed after the insert. */
+    fun discardPendingRecording(context: Context, uri: Uri) {
+        try {
+            context.contentResolver.delete(uri, null, null)
+        } catch (_: Exception) { }
     }
 }
