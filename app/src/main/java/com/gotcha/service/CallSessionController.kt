@@ -517,7 +517,7 @@ class CallSessionController(
     companion object {
         private const val NARRATION_THROTTLE_MS = 3_000L
         private const val CONFIRM_TIMEOUT_MS = 90_000L
-        const val CALLS_WORKING_ROOT = "/storage/emulated/0/Gotcha/calls"
+        val CALLS_WORKING_ROOT: String get() = com.gotcha.data.GotchaStorage.callsRoot().absolutePath
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
         private const val TOOL_TEXT_LIMIT = 300

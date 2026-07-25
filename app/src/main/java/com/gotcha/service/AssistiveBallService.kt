@@ -762,28 +762,14 @@ class AssistiveBallService : Service() {
                     java.util.Locale.US
                 ).format(java.util.Date())
                 val fileName = "Screenshot_$timestamp.png"
-                val contentValues = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
-                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(
-                            android.provider.MediaStore.Images.Media.RELATIVE_PATH,
-                            android.os.Environment.DIRECTORY_PICTURES + "/Gotcha"
-                        )
-                    }
+                val dir = com.gotcha.data.GotchaStorage.screenshotsRoot()
+                dir.mkdirs()
+                val file = java.io.File(dir, fileName)
+                file.outputStream().use { out ->
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                 }
-                val uri = contentResolver.insert(
-                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
-                )
-                if (uri != null) {
-                    contentResolver.openOutputStream(uri)?.use { out ->
-                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                    }
-                    withContext(Dispatchers.Main) { overlay.showError("Screenshot saved: $fileName") }
-                } else {
-                    withContext(Dispatchers.Main) { overlay.showError("Screenshot save failed") }
-                }
+                com.gotcha.data.GotchaStorage.publishToGallery(applicationContext, file)
+                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved: $fileName") }
                 bitmap.recycle()
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {

@@ -121,11 +121,15 @@ class SttEngine(
         language: String = ""
     ): Result<String> = withContext(Dispatchers.IO) {
         val api = audioApi ?: return@withContext Result.failure(Exception("API not configured"))
-        api.transcribe(
-            audioFile = audioFile,
-            model = model,
-            language = language
-        )
+        try {
+            api.transcribe(
+                audioFile = audioFile,
+                model = model,
+                language = language
+            )
+        } finally {
+            audioFile.delete()
+        }
     }
 
     // ---- Android STT (SpeechRecognizer) ----

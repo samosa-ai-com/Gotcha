@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
+import com.gotcha.data.GotchaStorage
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
@@ -54,7 +55,7 @@ class AgentEngine(
     private val historyRepository: ChatHistoryRepository,
     private val settingsProvider: () -> Settings,
     private val clientProvider: () -> LLMClient?,
-    private val workingDirRoot: String = "/storage/emulated/0/Gotcha/chats",
+    private val workingDirRoot: String = GotchaStorage.chatsRoot().absolutePath,
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
     /** Supplies the active agent mode to persist so it survives restarts. */
@@ -164,24 +165,39 @@ class AgentEngine(
         )
     }
 
-    fun workingDir(): java.io.File = java.io.File(workingDirRoot, sessionId ?: "unknown")
+    private fun resolveWorkingDir(create: Boolean): java.io.File {
+        val id = sessionId ?: "unknown"
+        return if (workingDirRoot == GotchaStorage.chatsRoot().absolutePath) {
+            // Chat dirs are named "Slug_shortId" and renamed in place as the
+            // title becomes known; call working dirs (below) have no title.
+            GotchaStorage.ensureChatDir(id, currentTitle(), create)
+        } else {
+            java.io.File(workingDirRoot, id).also { if (create) it.mkdirs() }
+        }
+    }
+
+    fun workingDir(): java.io.File = resolveWorkingDir(create = false)
 
     /**
-     * Sets up the per-chat working directory at {workingDirRoot}/{sessionId}/.
+     * Sets up the per-chat working directory, renaming it in place if the
+     * title has changed since it was created (contents preserved).
      *
      * Updates [FileResolver.WORKING_DIR_BASE] so file tools resolve relative
      * paths against this directory.
      */
-    fun setupWorkingDir() {
-        val dir = workingDir()
-        if (!dir.exists()) dir.mkdirs()
+    fun setupWorkingDir(create: Boolean = true) {
+        val dir = resolveWorkingDir(create)
         FileResolver.WORKING_DIR_BASE = dir.absolutePath
         Log.d(TAG, "setupWorkingDir: ${dir.absolutePath}")
     }
 
+    /** Derived from the first user message; stable for the rest of the session. */
+    fun currentTitle(): String =
+        history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
+
     suspend fun saveCurrentSession() {
         val id = sessionId ?: return
-        val title = history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
+        val title = currentTitle()
         historyRepository.saveSession(
             ChatSession(
                 id = id,
@@ -275,7 +291,7 @@ class AgentEngine(
         // two agents running tool rounds concurrently race last-writer-wins.
         // The full fix is threading a cwd through ToolExecutor into the file
         // tools (FileResolver already accepts one); deferred for now.
-        FileResolver.WORKING_DIR_BASE = workingDir().absolutePath
+        setupWorkingDir()
         checkAndCompactHistory(llm)
         // Anti-loop guard: if consecutive tool rounds produce the byte-identical
         // set of tool-call names + results (e.g. a tool that keeps returning the
@@ -424,7 +440,7 @@ class AgentEngine(
             executeToolCalls()
             saveCurrentSession()
             // Re-assert after each round; a concurrent engine may have moved it.
-            FileResolver.WORKING_DIR_BASE = workingDir().absolutePath
+            setupWorkingDir()
 
             // Anti-loop guard: signature = tool-call names + the tool result text
             // appended this round. Identical signatures across consecutive rounds
@@ -947,7 +963,7 @@ class AgentEngine(
     private suspend fun captureCompressedScreenshot(
         drawGrid: Boolean = true
     ): ScreenPerception.CompressedScreenshot? {
-        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
+        val saveDir = GotchaStorage.subdir(workingDir(), GotchaStorage.Kind.DEBUG)
         return ScreenPerception.compressScreenshot(drawGrid = drawGrid, saveDir = saveDir)
     }
 
@@ -956,7 +972,7 @@ class AgentEngine(
      * Used by read_screen_raw for maximum visual detail.
      */
     private suspend fun captureFullResScreenshot(): ScreenPerception.CompressedScreenshot? {
-        val saveDir = java.io.File(FileResolver.WORKING_DIR_BASE, "debug_screenshots")
+        val saveDir = GotchaStorage.subdir(workingDir(), GotchaStorage.Kind.DEBUG)
         return ScreenPerception.compressScreenshot(
             maxDimension = 0,
             drawGrid = false,
@@ -1016,8 +1032,7 @@ class AgentEngine(
                 "yyyyMMdd_HHmmss",
                 java.util.Locale.US
             ).format(java.util.Date())
-            val dir = java.io.File(FileResolver.WORKING_DIR_BASE)
-            if (!dir.exists()) dir.mkdirs()
+            val dir = GotchaStorage.subdir(workingDir(), GotchaStorage.Kind.SCREENSHOTS)
             val file = java.io.File(dir, "screenshot_$ts.png")
             val rawBytes = android.util.Base64.decode(
                 screenshot.base64,

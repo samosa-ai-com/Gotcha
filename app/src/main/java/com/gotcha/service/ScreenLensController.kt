@@ -489,29 +489,19 @@ class ScreenLensController(
         scope.launch(Dispatchers.IO) {
             try {
                 val filename = "Gotcha_Lens_${System.currentTimeMillis()}.png"
-                val resolver = appContext.contentResolver
-                val contentValues = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(
-                            android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
-                            android.os.Environment.DIRECTORY_PICTURES + "/Gotcha"
-                        )
-                    }
+                val dir = com.gotcha.data.GotchaStorage.screenshotsRoot()
+                dir.mkdirs()
+                val file = java.io.File(dir, filename)
+                file.outputStream().use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
                 }
-                val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                    }
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(
-                            appContext,
-                            "Saved image to Pictures/Gotcha",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                com.gotcha.data.GotchaStorage.publishToGallery(appContext, file)
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        appContext,
+                        "Saved image to Gotcha/Screenshots",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

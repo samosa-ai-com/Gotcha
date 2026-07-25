@@ -1,12 +1,10 @@
 package com.gotcha.tools
 
 import android.Manifest
-import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
 import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -47,8 +45,10 @@ class MediaCaptureTool(private val context: Context) {
             ?: return ToolResult.error("Camera system is not ready yet. Try again in a moment.")
 
         return try {
-            val dir = File(FileResolver.WORKING_DIR_BASE, "Pictures")
-            dir.mkdirs()
+            val dir = com.gotcha.data.GotchaStorage.subdir(
+                File(FileResolver.WORKING_DIR_BASE),
+                com.gotcha.data.GotchaStorage.Kind.PICTURES
+            )
             val file = File(dir, "photo_${timestamp()}.jpg")
 
             val cameraSelector = if (camera?.trim()?.lowercase() == "front") {
@@ -78,6 +78,7 @@ class MediaCaptureTool(private val context: Context) {
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                                 Log.d(TAG, "takePhoto: image saved to ${file.absolutePath}")
+                                com.gotcha.data.GotchaStorage.publishToGallery(context, file)
                                 cont.resume(ToolResult.ok("Photo saved to ${file.absolutePath}."))
                             }
                             override fun onError(exception: ImageCaptureException) {
@@ -118,15 +119,17 @@ class MediaCaptureTool(private val context: Context) {
         }
         return try {
             val file = if (!outputPath.isNullOrBlank()) {
-                val resolved = if (outputPath.startsWith("/")) {
-                    outputPath
-                } else {
-                    File(FileResolver.WORKING_DIR_BASE, outputPath).absolutePath
+                val resolved = FileResolver(context).resolveForWrite(outputPath)
+                when (resolved) {
+                    is FileResolver.ResolveResult.Ok -> resolved.file.also { it.parentFile?.mkdirs() }
+                    is FileResolver.ResolveResult.PermissionNeeded -> return resolved.result
+                    is FileResolver.ResolveResult.Error -> return ToolResult.error(resolved.message)
                 }
-                File(resolved).also { it.parentFile?.mkdirs() }
             } else {
-                val dir = File(FileResolver.WORKING_DIR_BASE, "Recordings")
-                dir.mkdirs()
+                val dir = com.gotcha.data.GotchaStorage.subdir(
+                    File(FileResolver.WORKING_DIR_BASE),
+                    com.gotcha.data.GotchaStorage.Kind.RECORDINGS
+                )
                 File(dir, "recording_${timestamp()}.m4a")
             }
 
@@ -197,18 +200,8 @@ class MediaCaptureTool(private val context: Context) {
             val dur = (System.currentTimeMillis() - recordingStartTime) / 1000
             // Make the file accessible to other apps
             file?.setReadable(true, false)
-            // Scan into MediaStore so music players can discover it
             if (file != null) {
-                try {
-                    val values = ContentValues().apply {
-                        put(MediaStore.Audio.Media.IS_PENDING, 0)
-                        put(MediaStore.Audio.Media.DATA, file.absolutePath)
-                        put(MediaStore.Audio.Media.TITLE, file.nameWithoutExtension)
-                        put(MediaStore.Audio.Media.DURATION, dur * 1000)
-                        put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
-                    }
-                    context.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
-                } catch (_: Exception) { }
+                com.gotcha.data.GotchaStorage.publishToGallery(context, file)
             }
             releaseRecorder()
             ToolResult.ok("Recording saved to $path (${dur / 60}m ${dur % 60}s).")

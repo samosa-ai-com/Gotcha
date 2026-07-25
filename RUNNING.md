@@ -71,6 +71,27 @@ checks on every run, so any new finding fails CI immediately.
 The unit tests shell out to a POSIX `sh` (TerminalTool), so they need Linux,
 macOS, or Git Bash — on plain Windows they fail; use CI instead.
 
+## On-disk layout
+
+All Gotcha-managed files on shared storage live under one root, `data/GotchaStorage.kt`:
+
+```
+/storage/emulated/0/Gotcha/
+  chats/<Slug_shortId>/        <- agent working dir (cwd for file tools)
+      Pictures/                <- camera captures
+      Recordings/              <- audio captures
+      Screenshots/             <- agent read_screen_raw captures
+      .debug/                  <- perception overlay dumps
+  calls/<sessionId>/           <- voice-call working dirs
+  old_chats/<Slug_shortId>/    <- archived on chat delete
+  Screenshots/                 <- assistive-ball + Lens captures
+  Downloads/
+```
+
+Chat folders are named `slug(title)_<first 8 chars of the session UUID>` and renamed in place
+when the title becomes known. Deleting a chat moves its working directory to `old_chats/` instead
+of deleting it. See `STORAGE_PLAN.md` for the full rationale.
+
 ## 5. Configure the LLM (required before chatting)
 
 The app talks to **any OpenAI-compatible `/chat/completions` endpoint**. On the

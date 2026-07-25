@@ -38,7 +38,7 @@ class FileResolver(private val context: Context) {
             "This operation needs storage write permission. " +
                 "Go to Settings → Permissions → Storage Write and grant it, then ask again."
 
-        var WORKING_DIR_BASE: String = "/storage/emulated/0/Gotcha"
+        var WORKING_DIR_BASE: String = com.gotcha.data.GotchaStorage.root().absolutePath
 
         fun formatSizeStatic(bytes: Long): String = when {
             bytes >= 1024L * 1024 * 1024 -> "%.1f GB".format(bytes.toDouble() / (1024 * 1024 * 1024))
