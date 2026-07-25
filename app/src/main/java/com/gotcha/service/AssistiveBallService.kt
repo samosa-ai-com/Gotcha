@@ -178,11 +178,9 @@ class AssistiveBallService : Service() {
             callController.state.collect { state ->
                 val active = state != CallState.IDLE && state != CallState.ENDING
                 if (active) {
-                    overlay.hideChromeForCapture()
                     chatWindow.show()
                 } else if (state == CallState.IDLE) {
                     chatWindow.hide()
-                    overlay.showChromeAfterCapture()
                 }
                 chatWindow.setState(state)
                 overlay.setCallActive(active)

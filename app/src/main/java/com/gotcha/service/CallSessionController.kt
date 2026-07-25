@@ -135,7 +135,9 @@ class CallSessionController(
         engine = newEngine
         _state.value = CallState.STARTING
         scope.launch {
-            speakText("Call started. I'm ready when you are.")
+            if (!speakText("Call started. I'm ready when you are.")) {
+                reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            }
             _state.value = CallState.READY
         }
         return true
@@ -222,6 +224,12 @@ class CallSessionController(
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {
+                // "No speech detected" is a normal outcome, not a config error — only
+                // surface a dialog for actual STT failures (e.g. a bad API key/model).
+                val error = result.exceptionOrNull()
+                if (error != null && error.message != "No speech detected") {
+                    reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                }
                 _state.value = CallState.READY
                 return@launch
             }
@@ -254,16 +262,17 @@ class CallSessionController(
                 throw e
             } catch (e: Exception) {
                 val msg = friendlyAgentError(e)
-                addTranscript(MessageKind.ERROR, msg)
-                onError(msg)
-                triggerErrorVibration()
+                reportError(msg)
                 pendingReply = msg
             }
 
             val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
-            speakText(reply)
-            triggerEndVibration()
+            if (speakText(reply)) {
+                triggerEndVibration()
+            } else {
+                reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
+            }
             onActionRingColor(null)
             _state.value = CallState.READY
         }
@@ -370,10 +379,7 @@ class CallSessionController(
     }
 
     override fun onPermissionRequest(marker: String) {
-        val msg = "A permission is needed that can't be granted during a call — open Gotcha to grant it."
-        addTranscript(MessageKind.ERROR, msg)
-        onError(msg)
-        triggerErrorVibration()
+        reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
     }
 
     /** The agent asked a question: speak it and wait for a PTT answer. */
@@ -387,7 +393,9 @@ class CallSessionController(
             }
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
-        speakText(prompt)
+        if (!speakText(prompt)) {
+            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+        }
         val gate = CompletableDeferred<String>()
         questionGate = gate
         val answer = withTimeoutOrNull(QUESTION_TIMEOUT_MS) { gate.await() } ?: ""
@@ -403,7 +411,9 @@ class CallSessionController(
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        speakText("I need a confirmation — check the dialog on your screen.")
+        if (!speakText("I need a confirmation — check the dialog on your screen.")) {
+            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+        }
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
             summary = description,
@@ -422,10 +432,22 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
-    /** Speak with the configured TTS provider; suspends until speech finishes. */
-    private suspend fun speakText(text: String) {
+    /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
+    private fun reportError(message: String) {
+        addTranscript(MessageKind.ERROR, message)
+        onError(message)
+        triggerErrorVibration()
+    }
+
+    /**
+     * Speak with the configured TTS provider; suspends until speech finishes.
+     * Returns false (without reporting — callers decide whether a given
+     * utterance is important enough to surface) if playback failed, e.g. a
+     * misconfigured API TTS provider.
+     */
+    private suspend fun speakText(text: String): Boolean {
         val s = settingsRepository.load()
-        if (s.ttsProvider == AudioProvider.NONE) return
+        if (s.ttsProvider == AudioProvider.NONE) return true
         val voice = if (s.ttsProvider == AudioProvider.API) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
@@ -434,7 +456,7 @@ class CallSessionController(
         } else {
             ""
         }
-        ttsEngine.speak(
+        return ttsEngine.speak(
             text = text,
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
