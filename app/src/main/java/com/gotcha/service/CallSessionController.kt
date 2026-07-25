@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 enum class CallState { IDLE, STARTING, READY, LISTENING, THINKING, SPEAKING, WAITING_USER, PAUSED, ENDING }
 
@@ -121,6 +122,18 @@ class CallSessionController(
             return false
         }
 
+        val s = settingsRepository.load()
+        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.sttApiBaseUrl, s.sttApiModel)
+        if (sttError != null) {
+            onError(sttError)
+            return false
+        }
+        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.ttsApiBaseUrl, s.ttsApiModel)
+        if (ttsError != null) {
+            onError(ttsError)
+            return false
+        }
+
         val newEngine = AgentEngine(
             appContext = appContext,
             events = this,
@@ -135,7 +148,9 @@ class CallSessionController(
         engine = newEngine
         _state.value = CallState.STARTING
         scope.launch {
-            speakText("Call started. I'm ready when you are.")
+            if (!speakText("Call started. I'm ready when you are.")) {
+                reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            }
             _state.value = CallState.READY
         }
         return true
@@ -222,6 +237,12 @@ class CallSessionController(
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {
+                // "No speech detected" is a normal outcome, not a config error — only
+                // surface a dialog for actual STT failures (e.g. a bad API key/model).
+                val error = result.exceptionOrNull()
+                if (error != null && error.message != "No speech detected") {
+                    reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                }
                 _state.value = CallState.READY
                 return@launch
             }
@@ -254,14 +275,17 @@ class CallSessionController(
                 throw e
             } catch (e: Exception) {
                 val msg = friendlyAgentError(e)
-                addTranscript(MessageKind.ERROR, msg)
+                reportError(msg)
                 pendingReply = msg
             }
 
             val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
-            speakText(reply)
-            triggerEndVibration()
+            if (speakText(reply)) {
+                triggerEndVibration()
+            } else {
+                reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
+            }
             onActionRingColor(null)
             _state.value = CallState.READY
         }
@@ -315,9 +339,14 @@ class CallSessionController(
         }
         addTranscript(kind, display)
         // Errors the engine reports internally (LLM failures) would otherwise
-        // be silent in a voice-first UI — speak them as the turn's reply.
-        if (kind == MessageKind.ERROR && pendingReply == null) {
-            pendingReply = text
+        // be silent in a voice-first UI — speak them, but also surface them
+        // visually (dialog) and haptically since the user may not be listening.
+        if (kind == MessageKind.ERROR) {
+            onError(text)
+            triggerErrorVibration()
+            if (pendingReply == null) {
+                pendingReply = text
+            }
         }
     }
 
@@ -363,10 +392,7 @@ class CallSessionController(
     }
 
     override fun onPermissionRequest(marker: String) {
-        addTranscript(
-            MessageKind.ERROR,
-            "A permission is needed that can't be granted during a call — open Gotcha to grant it."
-        )
+        reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
     }
 
     /** The agent asked a question: speak it and wait for a PTT answer. */
@@ -380,7 +406,9 @@ class CallSessionController(
             }
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
-        speakText(prompt)
+        if (!speakText(prompt)) {
+            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+        }
         val gate = CompletableDeferred<String>()
         questionGate = gate
         val answer = withTimeoutOrNull(QUESTION_TIMEOUT_MS) { gate.await() } ?: ""
@@ -396,7 +424,9 @@ class CallSessionController(
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        speakText("I need a confirmation — check the dialog on your screen.")
+        if (!speakText("I need a confirmation — check the dialog on your screen.")) {
+            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+        }
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
             summary = description,
@@ -415,10 +445,22 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
-    /** Speak with the configured TTS provider; suspends until speech finishes. */
-    private suspend fun speakText(text: String) {
+    /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
+    private fun reportError(message: String) {
+        addTranscript(MessageKind.ERROR, message)
+        onError(message)
+        triggerErrorVibration()
+    }
+
+    /**
+     * Speak with the configured TTS provider; suspends until speech finishes.
+     * Returns false (without reporting — callers decide whether a given
+     * utterance is important enough to surface) if playback failed, e.g. a
+     * misconfigured API TTS provider.
+     */
+    private suspend fun speakText(text: String): Boolean {
         val s = settingsRepository.load()
-        if (s.ttsProvider == AudioProvider.NONE) return
+        if (s.ttsProvider == AudioProvider.NONE) return true
         val voice = if (s.ttsProvider == AudioProvider.API) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
@@ -427,13 +469,32 @@ class CallSessionController(
         } else {
             ""
         }
-        ttsEngine.speak(
+        return ttsEngine.speak(
             text = text,
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
             voice = voice
         )
     }
+
+    /**
+     * Null when [provider]/[baseUrl]/[model] can actually be used for a call;
+     * otherwise a user-facing reason. A call is voice-first end to end, so an
+     * unconfigured or broken STT/TTS setup must block it before it starts
+     * rather than surface only once the user is already mid-call.
+     */
+    private fun audioConfigError(label: String, provider: AudioProvider, baseUrl: String, model: String): String? =
+        when (provider) {
+            AudioProvider.NONE -> "$label is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT)."
+            AudioProvider.API -> when {
+                baseUrl.isBlank() || baseUrl.trim().toHttpUrlOrNull() == null ->
+                    "$label API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT)."
+                model.isBlank() ->
+                    "$label API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                else -> null
+            }
+            AudioProvider.ANDROID -> null
+        }
 
     private fun buildClient(): LLMClient? {
         val s = settingsRepository.load()
@@ -514,10 +575,24 @@ class CallSessionController(
         }
     }
 
+    /** Distinct (longer, triple-buzz) pattern so an error doesn't feel like a normal turn end. */
+    private fun triggerErrorVibration() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibrator?.hasVibrator() == true) {
+            vibrator.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 100, 80, 100, 80, 100),
+                    -1
+                )
+            )
+        }
+    }
+
     companion object {
         private const val NARRATION_THROTTLE_MS = 3_000L
         private const val CONFIRM_TIMEOUT_MS = 90_000L
-        const val CALLS_WORKING_ROOT = "/storage/emulated/0/Gotcha/calls"
+        val CALLS_WORKING_ROOT: String get() = com.gotcha.data.GotchaStorage.callsRoot().absolutePath
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
         private const val TOOL_TEXT_LIMIT = 300

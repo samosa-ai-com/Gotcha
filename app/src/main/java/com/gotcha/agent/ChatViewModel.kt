@@ -22,6 +22,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.ui.ConfirmationOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -144,6 +145,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private fun viewingEngineSession(): Boolean =
         _uiState.value.activeSessionId == agentEngine.sessionId
 
+    /**
+     * True when [ChatSession.title] is still the legacy truncated-first-message
+     * fallback rather than an LLM-generated title, so it's eligible to be
+     * (re)generated next time the session is saved.
+     */
+    private fun ChatSession.isFallbackTitle(): Boolean {
+        val fallback = messages.firstOrNull { it.role == "user" }?.textContent?.take(30)
+        return title.isBlank() || title == fallback
+    }
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -167,9 +178,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             // empty chat; past sessions remain one tap away in the drawer.
             agentEngine.sessionId = java.util.UUID.randomUUID().toString()
             agentEngine.tokenCount = 0
-            agentEngine.setupWorkingDir()
+            agentEngine.restoreTitle(null)
+            agentEngine.setupWorkingDir(create = false)
             _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
             updateContextUsage()
+            migrateChatDirsIfNeeded()
             refreshSessions()
         }
     }
@@ -387,8 +400,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             if (saved != null) {
                 agentEngine.history.addAll(saved.messages)
                 agentEngine.tokenCount = saved.tokenCount
+                agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
             } else {
                 agentEngine.tokenCount = 0
+                agentEngine.restoreTitle(null)
             }
             agentEngine.setupWorkingDir()
         }
@@ -629,7 +644,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.history.clear()
             agentEngine.sessionId = newId
             agentEngine.tokenCount = 0
-            agentEngine.setupWorkingDir()
+            agentEngine.restoreTitle(null)
+            agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
         }
@@ -641,6 +657,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             )
         }
         applyContextUsage(0)
+    }
+
+    /**
+     * One-time migration: rename any pre-existing UUID-named chat working dirs
+     * to the readable "Slug_shortId" scheme. The "done" flag is only persisted
+     * once every session was handled, so a partial migration (a rename blocked by
+     * a missing storage grant, say) is retried on the next launch instead of
+     * leaving UUID-named dirs stranded forever.
+     */
+    private suspend fun migrateChatDirsIfNeeded() {
+        val prefs = settingsRepository.prefs
+        if (prefs.getBoolean(MIGRATED_CHAT_DIRS_KEY, false)) return
+        val sessions = historyRepository.listSessions()
+        val chatsRoot = com.gotcha.data.GotchaStorage.chatsRoot()
+        var allMigrated = true
+        for (session in sessions) {
+            try {
+                val rawDir = java.io.File(chatsRoot, session.id)
+                if (!rawDir.exists() || !rawDir.isDirectory) continue
+                val target = java.io.File(
+                    chatsRoot,
+                    com.gotcha.data.GotchaStorage.chatDirName(session.title, session.id)
+                )
+                // An already-migrated target is not a failure: keep the raw dir
+                // out of the way rather than clobbering the renamed one.
+                if (!rawDir.renameTo(target) && !target.isDirectory) {
+                    allMigrated = false
+                    android.util.Log.w("Gotcha", "migrateChatDirsIfNeeded: rename failed for ${session.id}")
+                }
+            } catch (e: Exception) {
+                allMigrated = false
+                android.util.Log.w("Gotcha", "migrateChatDirsIfNeeded: failed for ${session.id}", e)
+            }
+        }
+        if (allMigrated) prefs.edit().putBoolean(MIGRATED_CHAT_DIRS_KEY, true).apply()
     }
 
     fun refreshSessions() {
@@ -680,6 +731,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.history.addAll(session.messages)
                 agentEngine.sessionId = session.id
                 agentEngine.tokenCount = session.tokenCount
+                agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent
@@ -720,6 +772,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     fun deleteSession(id: String) {
         viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                com.gotcha.data.GotchaStorage.archiveChatDir(id)
+            }
             historyRepository.deleteSession(id)
             if (agentEngine.sessionId == id) {
                 clearChat()
@@ -921,5 +976,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+        const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
     }
 }

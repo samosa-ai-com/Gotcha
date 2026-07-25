@@ -38,7 +38,18 @@ class FileResolver(private val context: Context) {
             "This operation needs storage write permission. " +
                 "Go to Settings → Permissions → Storage Write and grant it, then ask again."
 
-        var WORKING_DIR_BASE: String = "/storage/emulated/0/Gotcha"
+        private var workingDirOverride: String? = null
+
+        /**
+         * Working directory for relative paths. Resolved lazily rather than at
+         * class-load time: touching [com.gotcha.data.GotchaStorage.root] pulls in
+         * `Environment.getExternalStorageDirectory()`, which throws under the
+         * android.jar stubs used by JVM unit tests, and would otherwise pin a
+         * value before [com.gotcha.agent.AgentEngine] sets the per-session dir.
+         */
+        var WORKING_DIR_BASE: String
+            get() = workingDirOverride ?: com.gotcha.data.GotchaStorage.root().absolutePath
+            set(value) { workingDirOverride = value }
 
         fun formatSizeStatic(bytes: Long): String = when {
             bytes >= 1024L * 1024 * 1024 -> "%.1f GB".format(bytes.toDouble() / (1024 * 1024 * 1024))

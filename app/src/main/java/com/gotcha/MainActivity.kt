@@ -427,7 +427,6 @@ class MainActivity : ComponentActivity() {
                         onSave = { settings ->
                             settingsRepository.save(settings)
                             chatViewModel.refreshSettings()
-                            currentRoute = Route.HOME
                         },
                         onTestConnection = ::testConnection,
                         onClearLlmCache = {
@@ -438,11 +437,8 @@ class MainActivity : ComponentActivity() {
                             ).clearCache()
                         },
                         onClearDebugScreenshots = {
-                            val baseDir = java.io.File("/storage/emulated/0/Gotcha")
-                            if (baseDir.exists()) {
-                                baseDir.walkTopDown()
-                                    .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
-                                    .forEach { it.delete() }
+                            com.gotcha.data.GotchaStorage.chatsRoot().listFiles()?.forEach { chatDir ->
+                                java.io.File(chatDir, ".debug").deleteRecursively()
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
