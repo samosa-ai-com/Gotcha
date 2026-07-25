@@ -575,7 +575,8 @@ fun SettingsScreen(
                     Button(
                         onClick = {
                             onSave(currentSettings())
-                            status = "Saved."
+                            overlay = SettingsOverlay("Saved.")
+                            status = null
                         },
                         enabled = when (provider) {
                             LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
@@ -610,14 +611,16 @@ fun SettingsScreen(
                     OutlinedButton(
                         onClick = {
                             onClearLlmCache()
-                            status = "LLM response cache cleared."
+                            overlay = SettingsOverlay("LLM response cache cleared.")
+                            status = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Clear LLM cache") }
                     OutlinedButton(
                         onClick = {
                             onClearDebugScreenshots()
-                            status = "Debug screenshots cleared."
+                            overlay = SettingsOverlay("Debug screenshots cleared.")
+                            status = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Clear debug screenshots") }
@@ -949,7 +952,8 @@ fun SettingsScreen(
                     Button(
                         onClick = {
                             onSave(currentSettings())
-                            status = "Saved."
+                            overlay = SettingsOverlay("Saved.")
+                            status = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save Speech Settings") }
@@ -1123,7 +1127,8 @@ fun SettingsScreen(
                     Button(
                         onClick = {
                             onSave(currentSettings())
-                            status = "Saved Proactive Settings."
+                            overlay = SettingsOverlay("Saved Proactive Settings.")
+                            status = null
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Save Proactive Settings") }
