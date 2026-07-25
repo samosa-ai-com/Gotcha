@@ -427,7 +427,6 @@ class MainActivity : ComponentActivity() {
                         onSave = { settings ->
                             settingsRepository.save(settings)
                             chatViewModel.refreshSettings()
-                            currentRoute = Route.HOME
                         },
                         onTestConnection = ::testConnection,
                         onClearLlmCache = {
