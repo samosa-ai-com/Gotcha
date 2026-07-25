@@ -221,6 +221,9 @@ dependencies {
     implementation("com.sun.mail:android-mail:1.6.7")
     implementation("com.sun.mail:android-activation:1.6.7")
 
+    // Health Connect: on-device fitness/health records (no cloud API, no credentials)
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+
     // Markdown rendering
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")

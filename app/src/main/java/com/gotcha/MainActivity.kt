@@ -87,6 +87,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    /**
+     * Health Connect uses its own permission contract rather than the standard
+     * runtime dialog, so it needs a launcher of its own.
+     */
+    private val healthConnectLauncher = registerForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        com.gotcha.tools.HealthPermissionState.set(granted.isNotEmpty())
+        val message = if (granted.isEmpty()) {
+            "No health permissions granted."
+        } else {
+            "Health Connect: ${granted.size} permission(s) granted."
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
     /** Requests all runtime permissions at once on first launch. */
     private val firstLaunchLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
@@ -232,7 +248,35 @@ class MainActivity : ComponentActivity() {
                     mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
                 }
             }
+            ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
+        }
+    }
+
+    /**
+     * Opens Health Connect's permission screen, or steers to the Play listing when
+     * no provider is installed (Android 13 and below ship it as a separate app).
+     */
+    private fun requestHealthConnect() {
+        val status = androidx.health.connect.client.HealthConnectClient.getSdkStatus(this)
+        if (status == androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) {
+            healthConnectLauncher.launch(com.gotcha.tools.HealthTool.PERMISSIONS)
+            return
+        }
+        Toast.makeText(
+            this,
+            "Health Connect is not available — install or update it from the Play Store.",
+            Toast.LENGTH_LONG
+        ).show()
+        runCatching {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "market://details?id=com.google.android.apps.healthdata"
+                    )
+                )
+            )
         }
     }
 
