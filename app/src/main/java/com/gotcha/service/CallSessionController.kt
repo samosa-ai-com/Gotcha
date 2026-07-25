@@ -255,6 +255,8 @@ class CallSessionController(
             } catch (e: Exception) {
                 val msg = friendlyAgentError(e)
                 addTranscript(MessageKind.ERROR, msg)
+                onError(msg)
+                triggerErrorVibration()
                 pendingReply = msg
             }
 
@@ -315,9 +317,14 @@ class CallSessionController(
         }
         addTranscript(kind, display)
         // Errors the engine reports internally (LLM failures) would otherwise
-        // be silent in a voice-first UI — speak them as the turn's reply.
-        if (kind == MessageKind.ERROR && pendingReply == null) {
-            pendingReply = text
+        // be silent in a voice-first UI — speak them, but also surface them
+        // visually (dialog) and haptically since the user may not be listening.
+        if (kind == MessageKind.ERROR) {
+            onError(text)
+            triggerErrorVibration()
+            if (pendingReply == null) {
+                pendingReply = text
+            }
         }
     }
 
@@ -363,10 +370,10 @@ class CallSessionController(
     }
 
     override fun onPermissionRequest(marker: String) {
-        addTranscript(
-            MessageKind.ERROR,
-            "A permission is needed that can't be granted during a call — open Gotcha to grant it."
-        )
+        val msg = "A permission is needed that can't be granted during a call — open Gotcha to grant it."
+        addTranscript(MessageKind.ERROR, msg)
+        onError(msg)
+        triggerErrorVibration()
     }
 
     /** The agent asked a question: speak it and wait for a PTT answer. */
@@ -508,6 +515,20 @@ class CallSessionController(
             vibrator.vibrate(
                 VibrationEffect.createWaveform(
                     longArrayOf(0, 50, 100, 50),
+                    -1
+                )
+            )
+        }
+    }
+
+    /** Distinct (longer, triple-buzz) pattern so an error doesn't feel like a normal turn end. */
+    private fun triggerErrorVibration() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (vibrator?.hasVibrator() == true) {
+            vibrator.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 100, 80, 100, 80, 100),
                     -1
                 )
             )
