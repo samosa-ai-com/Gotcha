@@ -26,7 +26,7 @@ object ToolRegistry {
 
     val monitorTools: Set<String> = setOf(
         "dial_number", "read_call_log", "find_contact", "read_recent_sms",
-        "list_calendar_events",
+        "list_calendar_events", "check_availability",
         "get_storage_info", "get_battery_info", "get_location", "get_volume",
         "get_audio_recording_status",
         "get_app_usage", "get_data_usage",
@@ -39,7 +39,11 @@ object ToolRegistry {
         "get_clipboard",
         "read_screen", "read_notifications",
         "check_root", "search_skills",
-        "list_emails", "read_email"
+        "list_emails", "read_email",
+        "list_tasks",
+        "notion_search", "notion_read_page",
+        "get_health_summary", "get_health_records",
+        "get_now_playing"
     )
 
     /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */

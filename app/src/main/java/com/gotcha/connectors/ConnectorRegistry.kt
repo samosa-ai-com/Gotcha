@@ -1,9 +1,15 @@
 package com.gotcha.connectors
 
 import android.content.Context
+import com.gotcha.connectors.calendar.CalendarToolDevice
+import com.gotcha.connectors.calendar.CalendarTools
 import com.gotcha.connectors.google.GoogleConnector
 import com.gotcha.connectors.imap.ImapConnector
 import com.gotcha.connectors.mail.EmailTools
+import com.gotcha.connectors.microsoft.MicrosoftConnector
+import com.gotcha.connectors.microsoft.TaskTools
+import com.gotcha.connectors.notion.NotionConnector
+import com.gotcha.connectors.notion.NotionTools
 import com.gotcha.tools.ToolResult
 import kotlinx.serialization.json.JsonObject
 
@@ -16,6 +22,9 @@ object ConnectorRegistry {
 
     @Volatile
     private var connectors: List<Connector> = emptyList()
+
+    @Volatile
+    private var routers: List<ToolRouter> = emptyList()
 
     @Volatile
     private var emailTools: EmailTools? = null
@@ -31,8 +40,24 @@ object ConnectorRegistry {
             val store = ConnectorCredentialStore(appContext)
             val imap = ImapConnector(store)
             val google = GoogleConnector(store)
-            connectors = listOf(imap, google)
-            emailTools = EmailTools(appContext, imap, google)
+            val microsoft = MicrosoftConnector(store)
+            val notion = NotionConnector(store)
+            connectors = listOf(imap, google, microsoft, notion)
+
+            val email = EmailTools(appContext, imap, google, microsoft)
+            emailTools = email
+            routers = listOf(
+                email,
+                TaskTools { microsoft },
+                CalendarTools(
+                    // Stateless ContentResolver wrapper — safe to hold a second instance
+                    // beside ToolExecutor's, which still serves the confirmed-delete path.
+                    device = CalendarToolDevice(com.gotcha.tools.CalendarTool(appContext)),
+                    google = { google },
+                    microsoft = { microsoft }
+                ),
+                NotionTools { notion }
+            )
             initialized = true
         }
     }
@@ -49,8 +74,6 @@ object ConnectorRegistry {
      * else null. ToolExecutor calls this first; null falls through to the
      * built-in dispatch.
      */
-    fun toolHandler(name: String): (suspend (String, JsonObject) -> ToolResult)? {
-        val email = emailTools ?: return null
-        return if (name in email.toolNames) email::execute else null
-    }
+    fun toolHandler(name: String): (suspend (String, JsonObject) -> ToolResult)? =
+        routers.firstOrNull { name in it.toolNames }?.let { router -> router::execute }
 }

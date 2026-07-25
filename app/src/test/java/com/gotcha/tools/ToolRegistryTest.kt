@@ -47,4 +47,74 @@ class ToolRegistryTest {
     fun `unknown tools are rejected`() {
         assertTrue(!ToolRegistry.contains("install_apk"))
     }
+
+    /**
+     * Connector routers claim tool names by string. A name that is not in the
+     * catalog would make the tool invisible to the model — and a typo would fail
+     * silently, since ToolExecutor rejects unregistered names before dispatch.
+     */
+    @Test
+    fun `every connector-router tool name is in the catalog`() {
+        val routerToolNames = listOf(
+            com.gotcha.connectors.mail.EmailTools(
+                gmailBackend = { null },
+                microsoftBackend = { null },
+                imapBackend = { null },
+                composeLauncher = { _, _, _ -> ToolResult.ok("") }
+            ),
+            com.gotcha.connectors.microsoft.TaskTools { null },
+            com.gotcha.connectors.notion.NotionTools { null },
+            com.gotcha.connectors.calendar.CalendarTools(
+                device = NoopDeviceCalendar,
+                google = { null },
+                microsoft = { null }
+            )
+        ).flatMap { it.toolNames }
+
+        assertTrue("no router claimed any tools", routerToolNames.isNotEmpty())
+        routerToolNames.forEach { name ->
+            assertTrue("router claims '$name' but it is not a registered tool", ToolRegistry.contains(name))
+        }
+    }
+
+    /** Routers must not claim the same tool — ConnectorRegistry resolves to the first match. */
+    @Test
+    fun `connector routers do not claim overlapping tool names`() {
+        val claimed = listOf(
+            com.gotcha.connectors.microsoft.TaskTools { null }.toolNames,
+            com.gotcha.connectors.notion.NotionTools { null }.toolNames,
+            com.gotcha.connectors.calendar.CalendarTools(
+                device = NoopDeviceCalendar,
+                google = { null },
+                microsoft = { null }
+            ).toolNames
+        )
+        val all = claimed.flatten()
+        assertEquals("a tool is claimed by more than one router", all.size, all.toSet().size)
+    }
+
+    private object NoopDeviceCalendar : com.gotcha.connectors.calendar.DeviceCalendar {
+        override fun listEvents(
+            daysAhead: Int?,
+            fromDate: String?,
+            toDate: String?,
+            search: String?
+        ): ToolResult = ToolResult.ok("")
+
+        @Suppress("LongParameterList")
+        override fun createEvent(
+            title: String,
+            start: String,
+            end: String?,
+            location: String?,
+            description: String?,
+            allDay: Boolean?,
+            reminderMinutes: Int?,
+            calendarName: String?,
+            attendees: List<String>?,
+            recurrence: String?,
+            recurrenceCount: Int?,
+            recurrenceUntil: String?
+        ): ToolResult = ToolResult.ok("")
+    }
 }

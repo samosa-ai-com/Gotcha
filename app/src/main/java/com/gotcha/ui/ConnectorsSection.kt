@@ -2,12 +2,13 @@ package com.gotcha.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -15,273 +16,226 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gotcha.connectors.ConnectorRegistry
-import com.gotcha.connectors.google.GoogleOAuthFlow
+import com.gotcha.connectors.google.GoogleConnector
+import com.gotcha.connectors.imap.ImapConnector
 import com.gotcha.connectors.imap.ImapCredentials
-import kotlinx.coroutines.launch
+import com.gotcha.connectors.microsoft.MicrosoftConnector
+import com.gotcha.connectors.notion.NotionConnector
+import com.gotcha.connectors.oauth.OAuthConnectFlow
 
 /**
- * Settings → Connectors: one card per connector (IMAP app-password, Gmail
- * BYO-OAuth). Talks to [ConnectorRegistry] directly since connectors own their
- * own credential storage — there is nothing for the Settings/SettingsRepository
- * layer to persist.
+ * Settings → Connectors: one card per connector, built from the two reusable
+ * shapes in ConnectorCards.kt. Talks to [ConnectorRegistry] directly since
+ * connectors own their own credential storage — there is nothing for the
+ * Settings/SettingsRepository layer to persist.
  */
 @Composable
 fun ConnectorsSection() {
     val context = LocalContext.current
     remember { ConnectorRegistry.init(context) }
-    val imap = remember { ConnectorRegistry.byId("imap") as com.gotcha.connectors.imap.ImapConnector }
-    val google = remember { ConnectorRegistry.byId("google") as com.gotcha.connectors.google.GoogleConnector }
+    val imap = remember { ConnectorRegistry.byId("imap") as ImapConnector }
+    val google = remember { ConnectorRegistry.byId("google") as GoogleConnector }
+    val microsoft = remember { ConnectorRegistry.byId("microsoft") as MicrosoftConnector }
+    val notion = remember { ConnectorRegistry.byId("notion") as NotionConnector }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ImapCard(imap)
         HorizontalDivider(thickness = 1.dp)
-        GoogleCard(google, context)
+        GoogleCard(google)
+        HorizontalDivider(thickness = 1.dp)
+        MicrosoftCard(microsoft)
+        HorizontalDivider(thickness = 1.dp)
+        NotionCard(notion)
     }
 }
 
 @Composable
-private fun ImapCard(imap: com.gotcha.connectors.imap.ImapConnector) {
-    var refreshTick by remember { mutableStateOf(0) }
-    var email by remember { mutableStateOf(imap.credentials()?.email ?: "") }
-    var appPassword by remember { mutableStateOf("") }
-    var imapHost by remember { mutableStateOf(imap.credentials()?.imapHost ?: "imap.gmail.com") }
-    var imapPort by remember { mutableStateOf((imap.credentials()?.imapPort ?: 993).toString()) }
-    var smtpHost by remember { mutableStateOf(imap.credentials()?.smtpHost ?: "smtp.gmail.com") }
-    var smtpPort by remember { mutableStateOf((imap.credentials()?.smtpPort ?: 465).toString()) }
-    var status by remember { mutableStateOf("") }
+private fun NotionCard(notion: NotionConnector) {
+    val token = rememberTokenField("Internal integration token", "", secret = true)
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Email (IMAP)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-        Text(imap.statusLine(), style = MaterialTheme.typography.bodyMedium)
+    TokenConnectorCard(
+        title = "Notion",
+        statusLine = notion::statusLine,
+        isConnected = notion::isConnected,
+        fields = listOf(token),
+        blurb = "Search, read and write Notion pages using an internal integration in your own " +
+            "workspace — no OAuth app to register.",
+        steps = listOf(
+            "1. Go to notion.so/my-integrations ▸ New integration, in your workspace.",
+            "2. Give it Read, Insert and Update content capabilities.",
+            "3. Copy the Internal Integration Secret and paste it below.",
+            "4. Important: open each page you want reachable and use ⋯ ▸ Connections ▸ " +
+                "add the integration. Pages that are not shared stay invisible to it."
+        ),
+        onConnect = { notion.connect(token.value) },
+        onDisconnect = notion::disconnect
+    )
+}
 
-        if (!imap.isConnected()) {
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email address") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = appPassword,
-                onValueChange = { appPassword = it },
-                label = { Text("App password") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    "Needs an app password, not your regular password. Requires " +
-                        "2-Step Verification to be enabled first.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    "Generate one at myaccount.google.com/apppasswords, or via " +
-                        "Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text(
-                    "Other providers: check their IMAP app-password documentation.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+@Composable
+private fun ImapCard(imap: ImapConnector) {
+    val saved = imap.credentials()
+    val email = rememberTokenField("Email address", saved?.email ?: "", keyboard = KeyboardType.Email)
+    val appPassword = rememberTokenField("App password", "", secret = true)
+    val imapHost = rememberTokenField("IMAP host", saved?.imapHost ?: "imap.gmail.com")
+    val imapPort = rememberTokenField("IMAP port", (saved?.imapPort ?: 993).toString(), keyboard = KeyboardType.Number)
+    val smtpHost = rememberTokenField("SMTP host", saved?.smtpHost ?: "smtp.gmail.com")
+    val smtpPort = rememberTokenField("SMTP port", (saved?.smtpPort ?: 465).toString(), keyboard = KeyboardType.Number)
+    val fields = listOf(email, appPassword, imapHost, imapPort, smtpHost, smtpPort)
+
+    TokenConnectorCard(
+        title = "Email (IMAP)",
+        statusLine = imap::statusLine,
+        isConnected = imap::isConnected,
+        fields = fields,
+        steps = listOf(
+            "Needs an app password, not your regular password. Requires " +
+                "2-Step Verification to be enabled first.",
+            "Generate one at myaccount.google.com/apppasswords, or via " +
+                "Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords.",
+            "Other providers: check their IMAP app-password documentation."
+        ),
+        aboveFields = {
             TextButton(onClick = {
-                imapHost = "imap.gmail.com"
-                imapPort = "993"
-                smtpHost = "smtp.gmail.com"
-                smtpPort = "465"
+                imapHost.value = "imap.gmail.com"
+                imapPort.value = "993"
+                smtpHost.value = "smtp.gmail.com"
+                smtpPort.value = "465"
             }) { Text("Use Gmail preset") }
-            OutlinedTextField(
-                value = imapHost,
-                onValueChange = { imapHost = it },
-                label = { Text("IMAP host") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+        },
+        onConnect = {
+            imap.connect(
+                ImapCredentials(
+                    email = email.value.trim(),
+                    appPassword = appPassword.value.trim(),
+                    imapHost = imapHost.value.trim(),
+                    imapPort = imapPort.value.toIntOrNull() ?: 993,
+                    smtpHost = smtpHost.value.trim(),
+                    smtpPort = smtpPort.value.toIntOrNull() ?: 465
+                )
             )
-            OutlinedTextField(
-                value = imapPort,
-                onValueChange = { imapPort = it },
-                label = { Text("IMAP port") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = smtpHost,
-                onValueChange = { smtpHost = it },
-                label = { Text("SMTP host") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = smtpPort,
-                onValueChange = { smtpPort = it },
-                label = { Text("SMTP port") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = {
-                    val port = imapPort.toIntOrNull() ?: 993
-                    val sPort = smtpPort.toIntOrNull() ?: 465
-                    imap.connect(
-                        ImapCredentials(
-                            email = email.trim(),
-                            appPassword = appPassword.trim(),
-                            imapHost = imapHost.trim(),
-                            imapPort = port,
-                            smtpHost = smtpHost.trim(),
-                            smtpPort = sPort
-                        )
-                    )
-                    status = "Saved. Credentials are verified on first use."
-                    refreshTick++
-                },
-                enabled = email.isNotBlank() && appPassword.isNotBlank() &&
-                    imapHost.isNotBlank() && smtpHost.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Connect") }
-        } else {
-            OutlinedButton(
-                onClick = {
-                    imap.disconnect()
-                    appPassword = ""
-                    status = "Disconnected."
-                    refreshTick++
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Disconnect") }
-        }
-        if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
-        // Force recomposition of statusLine() after connect/disconnect.
-        if (refreshTick >= 0) Unit
-    }
+            "Saved. Credentials are verified on first use."
+        },
+        onDisconnect = imap::disconnect
+    )
 }
 
 @Composable
-private fun GoogleCard(
-    google: com.gotcha.connectors.google.GoogleConnector,
-    context: android.content.Context
-) {
-    val scope = rememberCoroutineScope()
-    var refreshTick by remember { mutableStateOf(0) }
-    var clientId by remember { mutableStateOf(google.credentials()?.clientId ?: "") }
-    var clientSecret by remember { mutableStateOf(google.credentials()?.clientSecret ?: "") }
-    var pastedUrl by remember { mutableStateOf("") }
-    var showPasteFallback by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("") }
-    val flow = remember(google) { GoogleOAuthFlow(context, google) }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Gmail (BYO OAuth)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
-        Text(google.statusLine(), style = MaterialTheme.typography.bodyMedium)
-        Text(
-            "Full read/write Gmail access using your own Google Cloud OAuth client — " +
-                "no shared app, no verification wait.",
-            style = MaterialTheme.typography.bodySmall
+private fun GoogleCard(google: GoogleConnector) {
+    val context = LocalContext.current
+    // Which Google services to request consent for. Adding one later needs a reconnect,
+    // because the refresh token only carries the scopes granted at consent time.
+    var wantGmail by remember {
+        mutableStateOf(google.credentials()?.scopes?.contains(GoogleConnector.SCOPE_GMAIL_MODIFY) ?: true)
+    }
+    var wantCalendar by remember { mutableStateOf(google.hasCalendar()) }
+    val scopes = {
+        buildList {
+            if (wantGmail) add(GoogleConnector.SCOPE_GMAIL_MODIFY)
+            if (wantCalendar) add(GoogleConnector.SCOPE_CALENDAR)
+        }.ifEmpty { listOf(GoogleConnector.SCOPE_GMAIL_MODIFY) }
+    }
+    val flow = remember(google) {
+        OAuthConnectFlow(
+            context = context,
+            configFor = { id, secret -> google.oauthConfig(id, secret.orEmpty(), scopes()) },
+            onTokens = { id, secret, tokens ->
+                google.completeConnect(id, secret.orEmpty(), tokens, scopes())
+            },
+            accountLabel = { google.credentials()?.accountEmail.orEmpty() }
         )
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("1. Create a Google Cloud project.", style = MaterialTheme.typography.bodySmall)
-            Text("2. Enable the Gmail API.", style = MaterialTheme.typography.bodySmall)
+    }
+
+    OAuthConnectorCard(
+        title = "Google (Gmail, Calendar)",
+        statusLine = google::statusLine,
+        isConnected = google::isConnected,
+        needsReconnect = google::needsReconnect,
+        initialClientId = google.credentials()?.clientId ?: "",
+        initialClientSecret = google.credentials()?.clientSecret ?: "",
+        flow = flow,
+        onDisconnect = google::disconnect,
+        blurb = "Full read/write Gmail and Google Calendar access using your own Google Cloud " +
+            "OAuth client — no shared app, no verification wait.",
+        steps = listOf(
+            "1. Create a Google Cloud project.",
+            "2. Enable the Gmail API and/or the Google Calendar API — whichever you tick below.",
+            "3. Configure the OAuth consent screen (External, add yourself as a " +
+                "test user — or publish it to skip weekly reconnects).",
+            "4. Create a Desktop app OAuth client.",
+            "5. Paste its Client ID and secret below.",
+            "6. Tap Connect."
+        ),
+        extraFields = {
+            Text("Services to authorise:", style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = wantGmail, onCheckedChange = { wantGmail = it })
+                Text("Gmail", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.width(16.dp))
+                Checkbox(checked = wantCalendar, onCheckedChange = { wantCalendar = it })
+                Text("Calendar", style = MaterialTheme.typography.bodyMedium)
+            }
             Text(
-                "3. Configure the OAuth consent screen (External, add yourself as a " +
-                    "test user — or publish it to skip weekly reconnects).",
+                "Changing this needs a reconnect — the saved sign-in only carries the scopes " +
+                    "granted at consent time.",
                 style = MaterialTheme.typography.bodySmall
             )
-            Text("4. Create a Desktop app OAuth client.", style = MaterialTheme.typography.bodySmall)
-            Text("5. Paste its Client ID and secret below.", style = MaterialTheme.typography.bodySmall)
-            Text("6. Tap Connect.", style = MaterialTheme.typography.bodySmall)
         }
+    )
+}
 
-        if (!google.isConnected() || google.needsReconnect()) {
-            OutlinedTextField(
-                value = clientId,
-                onValueChange = { clientId = it },
-                label = { Text("Client ID") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = clientSecret,
-                onValueChange = { clientSecret = it },
-                label = { Text("Client secret") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = {
-                    busy = true
-                    status = "Opening sign-in…"
-                    scope.launch {
-                        when (val outcome = flow.connect(clientId, clientSecret)) {
-                            is GoogleOAuthFlow.Outcome.Connected ->
-                                status = "Connected as ${outcome.email}."
-                            is GoogleOAuthFlow.Outcome.Failed ->
-                                status = outcome.message
-                        }
-                        busy = false
-                        refreshTick++
-                    }
-                },
-                enabled = !busy && clientId.isNotBlank() && clientSecret.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "Waiting for sign-in…" else "Connect") }
-
-            TextButton(onClick = { showPasteFallback = !showPasteFallback }) {
-                Text(if (showPasteFallback) "Hide paste-URL fallback" else "Browser didn't return? Paste redirect URL")
-            }
-            if (showPasteFallback) {
-                OutlinedTextField(
-                    value = pastedUrl,
-                    onValueChange = { pastedUrl = it },
-                    label = { Text("Pasted redirect URL") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Button(
-                    onClick = {
-                        busy = true
-                        scope.launch {
-                            when (val outcome = flow.connectWithPastedUrl(clientId, clientSecret, pastedUrl)) {
-                                is GoogleOAuthFlow.Outcome.Connected ->
-                                    status = "Connected as ${outcome.email}."
-                                is GoogleOAuthFlow.Outcome.Failed ->
-                                    status = outcome.message
-                            }
-                            busy = false
-                            refreshTick++
-                        }
-                    },
-                    enabled = !busy && pastedUrl.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Finish sign-in with pasted URL") }
-            }
-        } else {
-            OutlinedButton(
-                onClick = {
-                    google.disconnect()
-                    clientSecret = ""
-                    status = "Disconnected."
-                    refreshTick++
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Disconnect") }
-        }
-        if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
-        if (refreshTick >= 0) Unit
+@Composable
+private fun MicrosoftCard(microsoft: MicrosoftConnector) {
+    val context = LocalContext.current
+    // "common" covers personal and work accounts; a tenant id/domain locks it to one org.
+    var tenant by remember {
+        mutableStateOf(microsoft.credentials()?.tenant ?: MicrosoftConnector.DEFAULT_TENANT)
     }
+    val flow = remember(microsoft) {
+        OAuthConnectFlow(
+            context = context,
+            configFor = { id, _ -> microsoft.oauthConfig(id, tenant.trim()) },
+            onTokens = { id, _, tokens -> microsoft.completeConnect(id, tenant.trim(), tokens) },
+            accountLabel = { microsoft.credentials()?.accountEmail.orEmpty() }
+        )
+    }
+
+    OAuthConnectorCard(
+        title = "Microsoft (Outlook, Calendar, To Do)",
+        statusLine = microsoft::statusLine,
+        isConnected = microsoft::isConnected,
+        needsReconnect = microsoft::needsReconnect,
+        initialClientId = microsoft.credentials()?.clientId ?: "",
+        // Public client — PKCE only, so there is no secret to paste.
+        initialClientSecret = null,
+        flow = flow,
+        onDisconnect = microsoft::disconnect,
+        blurb = "Outlook mail, calendar and To Do using your own Entra app registration. " +
+            "One sign-in covers all three.",
+        steps = listOf(
+            "1. Go to portal.azure.com ▸ Microsoft Entra ID ▸ App registrations ▸ New.",
+            "2. Under \"Redirect URI\" pick \"Public client/native\" and enter http://localhost.",
+            "3. In API permissions add delegated Microsoft Graph permissions: " +
+                "offline_access, User.Read, Mail.ReadWrite, Mail.Send, Calendars.ReadWrite, " +
+                "Tasks.ReadWrite.",
+            "4. Copy the Application (client) ID from the Overview page.",
+            "5. Paste it below and tap Connect. Leave Tenant as \"common\" for personal accounts."
+        ),
+        extraFields = {
+            OutlinedTextField(
+                value = tenant,
+                onValueChange = { tenant = it },
+                label = { Text("Tenant (common, or your organisation's tenant ID)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    )
 }

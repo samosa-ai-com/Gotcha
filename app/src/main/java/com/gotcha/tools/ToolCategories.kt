@@ -35,7 +35,9 @@ object ToolCategories {
         "lock_screen", "disable_camera", "set_password_policy",
         "dismiss_notifications", "media_control",
         "vibrate", "write_secure_settings",
-        "send_email", "mark_email_read"
+        "send_email", "mark_email_read",
+        "create_task", "complete_task",
+        "notion_create_page", "notion_append_to_page"
     )
 
     fun classify(toolName: String): Category = when {

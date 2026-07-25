@@ -440,9 +440,19 @@ object ToolDefinitions {
     val listCalendarEvents = tool(
         "list_calendar_events",
         "List calendar events within a date range. Supports looking ahead (days_ahead) or explicit " +
-            "from/to dates, title keyword search, and shows status, description preview, and calendar name.",
+            "from/to dates, title keyword search, and shows status, description preview, and calendar name. " +
+            "Reads the phone's own calendars by default; set source to read a connected Google or " +
+            "Outlook account instead.",
         schema {
             putJsonObject("properties") {
+                putJsonObject("source") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Which calendar to read: 'device' (default, the phone's own calendars), " +
+                            "'google' or 'microsoft' (needs that connector in Settings)."
+                    )
+                }
                 putJsonObject("days_ahead") {
                     put("type", "integer")
                     put(
@@ -469,9 +479,19 @@ object ToolDefinitions {
     val createCalendarEvent = tool(
         "create_calendar_event",
         "Add an event to a calendar. Supports optional description, all-day flag, reminder, " +
-            "and calendar selection. Defaults to the primary writable calendar.",
+            "and calendar selection. Writes to the phone's primary writable calendar by default; " +
+            "set source to write to a connected Google or Outlook account instead.",
         schema {
             putJsonObject("properties") {
+                putJsonObject("source") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Where to create it: 'device' (default), 'google' or 'microsoft' " +
+                            "(needs that connector in Settings). all_day, reminder_minutes and " +
+                            "recurrence apply to source='device' only."
+                    )
+                }
                 putJsonObject("title") {
                     put("type", "string")
                     put("description", "Event title.")
@@ -541,10 +561,44 @@ object ToolDefinitions {
         }
     )
 
+    val checkAvailability = tool(
+        "check_availability",
+        "Find when the user is busy and free in a date range, using the free/busy data of a " +
+            "connected Google Calendar or Outlook account. This is the only way to get real " +
+            "availability — the phone's own calendar copy cannot answer it. Returns merged busy " +
+            "blocks plus free slots of at least duration_minutes. Requires a connected account; " +
+            "for on-device calendars fall back to list_calendar_events.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("days_ahead") {
+                    put("type", "integer")
+                    put("description", "How many days ahead to check (1-365). Default 7.")
+                }
+                putJsonObject("from_date") {
+                    put("type", "string")
+                    put("description", "Start date, e.g. '2026-01-01'. Overrides days_ahead.")
+                }
+                putJsonObject("to_date") {
+                    put("type", "string")
+                    put("description", "End date, e.g. '2026-01-31'. Defaults to one day after from_date.")
+                }
+                putJsonObject("duration_minutes") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Minimum length of a usable free slot, in minutes. Default 30."
+                    )
+                }
+            }
+        }
+    )
+
     val editCalendarEvent = tool(
         "edit_calendar_event",
-        "Update an existing calendar event. Only the fields you provide will be changed. " +
-            "Get the event ID from list_calendar_events first.",
+        "Update an existing calendar event on the phone's own calendar. Only the fields you " +
+            "provide will be changed. Get the event ID from list_calendar_events first — this " +
+            "works on bare numeric device ids only, not on 'gcal:'/'ms:' ids from a connected " +
+            "account.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("event_id") {
@@ -606,8 +660,9 @@ object ToolDefinitions {
 
     val deleteCalendarEvent = tool(
         "delete_calendar_event",
-        "Permanently delete a calendar event. Requires explicit user confirmation (destructive action). " +
-            "Get the event ID from list_calendar_events first.",
+        "Permanently delete an event from the phone's own calendar. Requires explicit user " +
+            "confirmation (destructive action). Get the event ID from list_calendar_events first — " +
+            "bare numeric device ids only, not 'gcal:'/'ms:' ids from a connected account.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("event_id") {
@@ -1664,17 +1719,43 @@ object ToolDefinitions {
 
     val mediaControl = tool(
         "media_control",
-        "Control the currently playing media session: play, pause, next, previous, or stop. " +
-            "Needs Notification access.",
+        "Control a media session in whichever app is playing — Spotify, YouTube Music, a " +
+            "podcast player, anything with a media notification. Works without any per-service " +
+            "API or account. When several apps hold a session, the one actually playing is " +
+            "chosen; pass 'app' to target a specific one. Needs Notification access. " +
+            "Use get_now_playing first if you need to know what is playing.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("action") {
                     put("type", "string")
-                    put("description", "One of: play, pause, next, previous, stop.")
+                    put(
+                        "description",
+                        "One of: play, pause, toggle, next, previous, stop, seek, fast_forward, rewind."
+                    )
+                }
+                putJsonObject("app") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Optional: target this app specifically (matches package name or app " +
+                            "label, e.g. 'spotify'). Omit to use whichever app is playing."
+                    )
+                }
+                putJsonObject("position_seconds") {
+                    put("type", "integer")
+                    put("description", "Required for action='seek': position to jump to, in seconds.")
                 }
             }
             putJsonArray("required") { add("action") }
         }
+    )
+
+    val getNowPlaying = tool(
+        "get_now_playing",
+        "Report what every app with an active media session is currently playing: app, playback " +
+            "state, title, artist, album, and position/duration. Use this to answer 'what song is " +
+            "this?' or to pick the right 'app' value for media_control. Needs Notification access.",
+        schema { putJsonObject("properties") {} }
     )
 
     val showOverlay = tool(
@@ -1936,6 +2017,210 @@ object ToolDefinitions {
         }
     )
 
+    // ---- Persistent to-do tools (Microsoft To Do connector) ----
+
+    val listTasks = tool(
+        "list_tasks",
+        "List the user's real, persistent to-do items from their connected Microsoft To Do " +
+            "account. These sync to the user's other devices — this is NOT the same as " +
+            "todowrite, which is only your own scratch plan for the current conversation. " +
+            "Returns rows of [id] state | title | due date; use the id with complete_task.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("list") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Optional task-list name (e.g. 'Groceries'). Defaults to the account's main list."
+                    )
+                }
+                putJsonObject("include_completed") {
+                    put("type", "boolean")
+                    put("description", "Include already-completed tasks. Default false.")
+                }
+                putJsonObject("max") {
+                    put("type", "integer")
+                    put("description", "Max tasks to return (1-100). Default 25.")
+                }
+            }
+        }
+    )
+
+    val createTask = tool(
+        "create_task",
+        "Add a persistent to-do item to the user's connected Microsoft To Do account, so it " +
+            "survives this conversation and syncs to their other devices. Use todowrite instead " +
+            "when you only need to track your own steps for the current task.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("title") {
+                    put("type", "string")
+                    put("description", "What the task is, e.g. 'Renew passport'.")
+                }
+                putJsonObject("notes") {
+                    put("type", "string")
+                    put("description", "Optional longer description.")
+                }
+                putJsonObject("due_date") {
+                    put("type", "string")
+                    put("description", "Optional due date as YYYY-MM-DD.")
+                }
+                putJsonObject("list") {
+                    put("type", "string")
+                    put("description", "Optional task-list name. Defaults to the account's main list.")
+                }
+            }
+            putJsonArray("required") { add("title") }
+        }
+    )
+
+    val completeTask = tool(
+        "complete_task",
+        "Mark a to-do item complete (or reopen it) by the id returned from list_tasks, " +
+            "e.g. 'ms:<listId>:<taskId>'.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("id") {
+                    put("type", "string")
+                    put("description", "Task id from list_tasks.")
+                }
+                putJsonObject("completed") {
+                    put("type", "boolean")
+                    put("description", "true = mark complete (default), false = reopen.")
+                }
+            }
+            putJsonArray("required") { add("id") }
+        }
+    )
+
+    // ---- Notion connector tools ----
+
+    val notionSearch = tool(
+        "notion_search",
+        "Search the user's Notion workspace for pages and databases. Only pages that have been " +
+            "explicitly shared with the integration are visible — an empty result usually means " +
+            "the page was never shared, not that it does not exist. Returns [id] rows; use the " +
+            "id with notion_read_page or notion_append_to_page.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("query") {
+                    put("type", "string")
+                    put("description", "Text to match against page titles. Omit to list everything shared.")
+                }
+                putJsonObject("max") {
+                    put("type", "integer")
+                    put("description", "Max results to return (1-100). Default 20.")
+                }
+            }
+        }
+    )
+
+    val notionReadPage = tool(
+        "notion_read_page",
+        "Read a Notion page's title and full text content as Markdown, using a page id from " +
+            "notion_search.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("page_id") {
+                    put("type", "string")
+                    put("description", "Page id from notion_search.")
+                }
+            }
+            putJsonArray("required") { add("page_id") }
+        }
+    )
+
+    val notionCreatePage = tool(
+        "notion_create_page",
+        "Create a new Notion page underneath an existing one. Notion has no workspace root an " +
+            "integration can write to, so a parent_page_id is always required — find one with " +
+            "notion_search first. Content accepts Markdown (headings, bullets, numbered lists, " +
+            "to-dos, quotes).",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("title") {
+                    put("type", "string")
+                    put("description", "Title of the new page.")
+                }
+                putJsonObject("parent_page_id") {
+                    put("type", "string")
+                    put("description", "Id of the page to create this one under, from notion_search.")
+                }
+                putJsonObject("content") {
+                    put("type", "string")
+                    put("description", "Optional Markdown body for the new page.")
+                }
+            }
+            putJsonArray("required") {
+                add("title")
+                add("parent_page_id")
+            }
+        }
+    )
+
+    val notionAppendToPage = tool(
+        "notion_append_to_page",
+        "Append Markdown content to the end of an existing Notion page. Adds to the page — it " +
+            "never replaces or deletes what is already there.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("page_id") {
+                    put("type", "string")
+                    put("description", "Page id from notion_search.")
+                }
+                putJsonObject("content") {
+                    put("type", "string")
+                    put("description", "Markdown content to append.")
+                }
+            }
+            putJsonArray("required") {
+                add("page_id")
+                add("content")
+            }
+        }
+    )
+
+    // ---- Health Connect tools (on-device, read-only) ----
+
+    val getHealthSummary = tool(
+        "get_health_summary",
+        "Summarise the user's health and fitness data from Health Connect over the last N days: " +
+            "steps, distance, active calories, sleep, average/peak/resting heart rate and weight. " +
+            "Reads on-device data only — nothing is uploaded and nothing is ever written. Metrics " +
+            "with no data are omitted rather than reported as zero.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("days") {
+                    put("type", "integer")
+                    put("description", "How many days back to summarise (1-365). Default 7.")
+                }
+            }
+        }
+    )
+
+    val getHealthRecords = tool(
+        "get_health_records",
+        "List individual Health Connect records of one type, for questions the summary cannot " +
+            "answer (e.g. 'which days did I walk over 10000 steps?', 'when did I work out?'). " +
+            "Read-only.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("type") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Record type: " + HealthTool.RECORD_TYPE_NAMES.joinToString(", ") + "."
+                    )
+                }
+                putJsonObject("days") {
+                    put("type", "integer")
+                    put("description", "How many days back to read (1-365). Default 7.")
+                }
+            }
+            putJsonArray("required") { add("type") }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi,
@@ -1943,6 +2228,7 @@ object ToolDefinitions {
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,
         listCalendarEvents, createCalendarEvent, editCalendarEvent, deleteCalendarEvent,
+        checkAvailability,
         setAlarm, setTimer, listAlarms, listTimers, editAlarm, deleteAlarm, deleteTimer,
         toggleTorch, setVolume, getVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
@@ -1967,7 +2253,7 @@ object ToolDefinitions {
         // Tier 3 additions
         readScreen, readScreenRaw, tap, longPress, swipe, tapIndex, longPressIndex, pressKey, inputText, globalAction,
         navigateApp,
-        readNotifications, dismissNotifications, mediaControl,
+        readNotifications, dismissNotifications, mediaControl, getNowPlaying,
         showOverlay, hideOverlay,
         lockScreen, disableCamera, setPasswordPolicy,
 
@@ -1978,6 +2264,15 @@ object ToolDefinitions {
 
         // Email connector tools
         listEmails, readEmail, sendEmail, markEmailRead, composeEmail,
+
+        // Persistent to-do connector tools
+        listTasks, createTask, completeTask,
+
+        // Notion connector tools
+        notionSearch, notionReadPage, notionCreatePage, notionAppendToPage,
+
+        // Health Connect (on-device, read-only)
+        getHealthSummary, getHealthRecords,
 
         // Clock enhancements
         showAlarms, snoozeAlarm, dismissTimer

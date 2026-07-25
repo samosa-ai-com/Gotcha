@@ -1,0 +1,12 @@
+{
+    "id": "media_playback",
+    "targetPackageNames": [
+        "com.spotify.music",
+        "com.google.android.apps.youtube.music",
+        "com.google.android.youtube",
+        "com.soundcloud.android"
+    ],
+    "name": "Media Playback Skills",
+    "description": "Control playback through the media-session tools rather than tapping player UI.",
+    "instructions": "Never tap through a music or video app's UI to pause, skip or scrub. Any app with a media notification exposes a media session, and two tools drive it with no per-service account or API:\n1. get_now_playing — what every active session is playing: app, state, title, artist, album, position/duration. Use it to answer 'what song is this?' and to find the right 'app' value before controlling a specific player.\n2. media_control(action, app?, position_seconds?) — play, pause, toggle, next, previous, stop, seek, fast_forward, rewind.\n\nWhen several apps hold a session, media_control picks the one actually playing, which is usually what the user means. Pass 'app' (package name or app label, e.g. 'spotify') when they name a specific player or when get_now_playing shows more than one thing playing.\n\nseek requires position_seconds — an absolute position from the start of the track, not a relative jump. For a relative nudge use fast_forward or rewind instead.\n\nThese tools control playback but cannot start it: they need something already loaded in a player. To begin playing a specific track or playlist, use open_app and then UI automation, or ask the user to start it. Both tools need Notification access; if it is not granted the tool says so and the settings screen is opened."
+}

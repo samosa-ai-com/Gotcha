@@ -61,6 +61,7 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
+    private val healthTool = HealthTool(appContext)
     private val actionLog = ActionLog(appContext)
 
     init {
@@ -231,26 +232,9 @@ class ToolExecutor(
                 search = args.requireString("search"),
                 includeSent = args["include_sent"]?.jsonPrimitive?.booleanOrNull
             )
-            "list_calendar_events" -> calendarTool.listEvents(
-                daysAhead = args.requireInt("days_ahead"),
-                fromDate = args.requireString("from_date"),
-                toDate = args.requireString("to_date"),
-                search = args.requireString("search")
-            )
-            "create_calendar_event" -> calendarTool.createEvent(
-                title = args.requireString("title") ?: return missing("title"),
-                start = args.requireString("start") ?: return missing("start"),
-                end = args.requireString("end"),
-                location = args.requireString("location"),
-                description = args.requireString("description"),
-                allDay = args["all_day"]?.jsonPrimitive?.booleanOrNull,
-                reminderMinutes = args.requireInt("reminder_minutes"),
-                calendarName = args.requireString("calendar_name"),
-                attendees = args.requireStringList("attendees"),
-                recurrence = args.requireString("recurrence"),
-                recurrenceCount = args.requireInt("recurrence_count"),
-                recurrenceUntil = args.requireString("recurrence_until")
-            )
+            // list_calendar_events / create_calendar_event / check_availability are owned by
+            // ConnectorRegistry's CalendarTools router, which delegates the default
+            // source="device" back to this same CalendarTool.
             "edit_calendar_event" -> calendarTool.editEvent(
                 eventId = args.requireInt("event_id")?.toLong() ?: return missing("event_id"),
                 title = args.requireString("title"),
@@ -461,7 +445,17 @@ class ToolExecutor(
                 app = args.requireString("app")
             )
             "dismiss_notifications" -> notificationTool.dismissNotifications(args.requireString("key"))
-            "media_control" -> notificationTool.mediaControl(args.requireString("action") ?: return missing("action"))
+            "get_health_summary" -> healthTool.getSummary(args.requireInt("days"))
+            "get_health_records" -> healthTool.getRecords(
+                type = args.requireString("type") ?: return missing("type"),
+                daysArg = args.requireInt("days")
+            )
+            "media_control" -> notificationTool.mediaControl(
+                action = args.requireString("action") ?: return missing("action"),
+                app = args.requireString("app"),
+                positionSeconds = args.requireInt("position_seconds")
+            )
+            "get_now_playing" -> notificationTool.getNowPlaying()
             "show_overlay" -> overlayTool.showOverlay(
                 text = args.requireString("text") ?: return missing("text"),
                 durationMs = args.requireInt("duration_ms") ?: 4000
