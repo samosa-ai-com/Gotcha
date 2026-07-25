@@ -19,7 +19,12 @@ data class OAuth2Config(
     val authUrl: String,
     val tokenUrl: String,
     val clientId: String,
-    val clientSecret: String,
+    /**
+     * Null/blank for public clients that authenticate with PKCE only (e.g. a
+     * Microsoft Entra "Mobile and desktop applications" registration). The
+     * client_secret form field is then omitted entirely — Entra rejects it.
+     */
+    val clientSecret: String?,
     val scopes: List<String>,
     val extraAuthParams: Map<String, String> = emptyMap()
 )
@@ -82,7 +87,7 @@ class OAuth2Helper(
             .add("code", code)
             .add("redirect_uri", redirectUri)
             .add("client_id", cfg.clientId)
-            .add("client_secret", cfg.clientSecret)
+            .addClientSecret(cfg)
             .add("code_verifier", codeVerifier)
             .build()
         return requestToken(cfg.tokenUrl, form, currentRefreshToken = null)
@@ -93,10 +98,14 @@ class OAuth2Helper(
             .add("grant_type", "refresh_token")
             .add("refresh_token", refreshToken)
             .add("client_id", cfg.clientId)
-            .add("client_secret", cfg.clientSecret)
+            .addClientSecret(cfg)
             .build()
         return requestToken(cfg.tokenUrl, form, currentRefreshToken = refreshToken)
     }
+
+    /** Adds client_secret only for confidential clients; public clients must omit it. */
+    private fun FormBody.Builder.addClientSecret(cfg: OAuth2Config): FormBody.Builder =
+        cfg.clientSecret?.takeIf { it.isNotBlank() }?.let { add("client_secret", it) } ?: this
 
     private suspend fun requestToken(
         tokenUrl: String,

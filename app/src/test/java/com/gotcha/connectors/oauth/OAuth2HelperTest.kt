@@ -85,6 +85,32 @@ class OAuth2HelperTest {
         assertTrue(body.contains("refresh_token=rt-old"))
     }
 
+    @Test
+    fun `public client omits client_secret entirely`() = runTest {
+        val publicCfg = cfg.copy(clientSecret = null)
+        server.enqueue(MockResponse().setBody("""{"access_token":"at-3","expires_in":3600}"""))
+        helper.exchangeCode(publicCfg, "code", "http://127.0.0.1:8080", "verifier")
+        val exchangeBody = URLDecoder.decode(server.takeRequest().body.readUtf8(), "UTF-8")
+        assertTrue(
+            "public clients must not send client_secret",
+            !exchangeBody.contains("client_secret")
+        )
+        assertTrue(exchangeBody.contains("client_id=client-id"))
+
+        server.enqueue(MockResponse().setBody("""{"access_token":"at-4","expires_in":3600}"""))
+        helper.refresh(publicCfg, "rt")
+        val refreshBody = URLDecoder.decode(server.takeRequest().body.readUtf8(), "UTF-8")
+        assertTrue(!refreshBody.contains("client_secret"))
+    }
+
+    @Test
+    fun `blank client secret is treated as absent`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"access_token":"at-5","expires_in":3600}"""))
+        helper.refresh(cfg.copy(clientSecret = ""), "rt")
+        val body = URLDecoder.decode(server.takeRequest().body.readUtf8(), "UTF-8")
+        assertTrue(!body.contains("client_secret"))
+    }
+
     @Test(expected = OAuthInvalidGrant::class)
     fun `invalid_grant throws typed exception`() = runTest {
         server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":"invalid_grant"}"""))
