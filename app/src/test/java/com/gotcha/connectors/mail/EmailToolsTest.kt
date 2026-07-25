@@ -52,6 +52,7 @@ class EmailToolsTest {
         val imap = FakeBackend("imap")
         val tools = EmailTools(
             gmailBackend = { gmail },
+            microsoftBackend = { null },
             imapBackend = { imap },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -68,6 +69,7 @@ class EmailToolsTest {
         }
         val tools = EmailTools(
             gmailBackend = { null },
+            microsoftBackend = { null },
             imapBackend = { imap },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -81,6 +83,7 @@ class EmailToolsTest {
     fun `list_emails with no backend steers to settings`() = runTest {
         val tools = EmailTools(
             gmailBackend = { null },
+            microsoftBackend = { null },
             imapBackend = { null },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -91,6 +94,72 @@ class EmailToolsTest {
     }
 
     @Test
+    fun `list_emails prefers microsoft over imap when gmail absent`() = runTest {
+        val microsoft = FakeBackend("ms").apply {
+            listResult = listOf(EmailSummary("ms:AAA", "e@f.com", "Hey", "2024-02-01", true, "snip3"))
+        }
+        val imap = FakeBackend("imap")
+        val tools = EmailTools(
+            gmailBackend = { null },
+            microsoftBackend = { microsoft },
+            imapBackend = { imap },
+            composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
+        )
+        val result = tools.execute("list_emails", buildArgs {})
+        assertTrue(result.success)
+        assertTrue(result.message.contains("ms:AAA"))
+        assertEquals(-1, imap.lastMax) // imap never called
+    }
+
+    @Test
+    fun `gmail still outranks microsoft`() = runTest {
+        val gmail = FakeBackend("gmail").apply {
+            listResult = listOf(EmailSummary("gmail:9", "a@b.com", "G", "2024-01-01", false, "s"))
+        }
+        val microsoft = FakeBackend("ms")
+        val tools = EmailTools(
+            gmailBackend = { gmail },
+            microsoftBackend = { microsoft },
+            imapBackend = { null },
+            composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
+        )
+        val result = tools.execute("list_emails", buildArgs {})
+        assertTrue(result.message.contains("gmail:9"))
+        assertEquals(-1, microsoft.lastMax)
+    }
+
+    @Test
+    fun `read_email routes ms ids to the microsoft backend`() = runTest {
+        val microsoft = FakeBackend("ms").apply {
+            readResult = EmailFull("ms:AAA", "e@f.com", "me@x.com", "", "S", "2024-02-01", "Graph body")
+        }
+        val gmail = FakeBackend("gmail")
+        val tools = EmailTools(
+            gmailBackend = { gmail },
+            microsoftBackend = { microsoft },
+            imapBackend = { null },
+            composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
+        )
+        val result = tools.execute("read_email", buildArgs { put("id", "ms:AAA") })
+        assertTrue(result.success)
+        assertTrue(result.message.contains("Graph body"))
+    }
+
+    @Test
+    fun `mark_email_read routes ms ids to the microsoft backend`() = runTest {
+        val microsoft = FakeBackend("ms")
+        val tools = EmailTools(
+            gmailBackend = { FakeBackend("gmail") },
+            microsoftBackend = { microsoft },
+            imapBackend = { null },
+            composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
+        )
+        val result = tools.execute("mark_email_read", buildArgs { put("id", "ms:AAA") })
+        assertTrue(result.success)
+        assertEquals(true, microsoft.markedRead["ms:AAA"])
+    }
+
+    @Test
     fun `read_email routes by id prefix`() = runTest {
         val gmail = FakeBackend("gmail").apply {
             readResult = EmailFull("gmail:1", "a@b.com", "me@x.com", "", "Subj", "2024-01-01", "Body text")
@@ -98,6 +167,7 @@ class EmailToolsTest {
         val imap = FakeBackend("imap")
         val tools = EmailTools(
             gmailBackend = { gmail },
+            microsoftBackend = { null },
             imapBackend = { imap },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -110,6 +180,7 @@ class EmailToolsTest {
     fun `read_email with disconnected backend for id prefix errors`() = runTest {
         val tools = EmailTools(
             gmailBackend = { null },
+            microsoftBackend = { null },
             imapBackend = { null },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -122,6 +193,7 @@ class EmailToolsTest {
         val gmail = FakeBackend("gmail")
         val tools = EmailTools(
             gmailBackend = { gmail },
+            microsoftBackend = { null },
             imapBackend = { null },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -141,6 +213,7 @@ class EmailToolsTest {
         val gmail = FakeBackend("gmail")
         val tools = EmailTools(
             gmailBackend = { gmail },
+            microsoftBackend = { null },
             imapBackend = { null },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -161,6 +234,7 @@ class EmailToolsTest {
         val imap = FakeBackend("imap")
         val tools = EmailTools(
             gmailBackend = { null },
+            microsoftBackend = { null },
             imapBackend = { imap },
             composeLauncher = { _, _, _ -> ToolResult.ok("composed") }
         )
@@ -180,6 +254,7 @@ class EmailToolsTest {
         var capturedTo: String? = null
         val tools = EmailTools(
             gmailBackend = { null },
+            microsoftBackend = { null },
             imapBackend = { null },
             composeLauncher = { to, _, _ ->
                 capturedTo = to

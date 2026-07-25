@@ -3,8 +3,10 @@ package com.gotcha.connectors.mail
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.gotcha.connectors.ToolRouter
 import com.gotcha.connectors.google.GoogleConnector
 import com.gotcha.connectors.imap.ImapConnector
+import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.tools.ToolResult
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -15,20 +17,27 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * Router owning the email tools. Backend precedence: Gmail API when the Google
- * connector is connected, else IMAP/SMTP, else an error steering the model to
- * Settings or `compose_email`. Message ids are uniform (`gmail:...` /
- * `imap:...`) and read/mark route by prefix so ids stay valid even after the
- * user connects a second backend.
+ * Router owning the email tools. Backend precedence for new operations: Gmail API,
+ * else Microsoft Graph, else IMAP/SMTP, else an error steering the model to Settings
+ * or `compose_email`. Message ids are uniform (`gmail:...` / `ms:...` / `imap:...`)
+ * and read/mark route by prefix, so ids stay valid even after the user connects or
+ * disconnects another backend.
  */
 class EmailTools(
     private val gmailBackend: () -> MailBackend?,
+    private val microsoftBackend: () -> MailBackend?,
     private val imapBackend: () -> MailBackend?,
     private val composeLauncher: (to: String?, subject: String?, body: String?) -> ToolResult
-) {
+) : ToolRouter {
 
-    constructor(context: Context, imap: ImapConnector, google: GoogleConnector) : this(
+    constructor(
+        context: Context,
+        imap: ImapConnector,
+        google: GoogleConnector,
+        microsoft: MicrosoftConnector
+    ) : this(
         gmailBackend = { google.takeIf { it.isConnected() } },
+        microsoftBackend = { microsoft.takeIf { it.isConnected() } },
         imapBackend = { imap.takeIf { it.isConnected() } },
         composeLauncher = { to, subject, body -> launchCompose(context, to, subject, body) }
     )
@@ -61,12 +70,12 @@ class EmailTools(
         }
     }
 
-    val toolNames: Set<String> =
+    override val toolNames: Set<String> =
         setOf("list_emails", "read_email", "send_email", "mark_email_read", "compose_email")
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun execute(name: String, args: JsonObject): ToolResult = try {
+    override suspend fun execute(name: String, args: JsonObject): ToolResult = try {
         when (name) {
             "list_emails" -> listEmails(args)
             "read_email" -> readEmail(args)
@@ -84,18 +93,21 @@ class EmailTools(
     }
 
     /** Preferred backend for new operations (listing, sending). */
-    private fun primaryBackend(): MailBackend? = gmailBackend() ?: imapBackend()
+    private fun primaryBackend(): MailBackend? =
+        gmailBackend() ?: microsoftBackend() ?: imapBackend()
 
     /** Backend that owns an existing message id, by prefix. */
     private fun backendForId(id: String): MailBackend? = when {
         id.startsWith("gmail:") -> gmailBackend()
+        id.startsWith("ms:") -> microsoftBackend()
         id.startsWith("imap:") -> imapBackend()
         else -> null
     }
 
     private fun notConnectedError(): ToolResult = ToolResult.error(
-        "No email account is connected. Ask the user to connect Gmail or IMAP in Settings → Connectors, " +
-            "or use compose_email to open their email app with a pre-filled draft instead."
+        "No email account is connected. Ask the user to connect Gmail, Microsoft or IMAP in " +
+            "Settings → Connectors, or use compose_email to open their email app with a " +
+            "pre-filled draft instead."
     )
 
     private suspend fun listEmails(args: JsonObject): ToolResult {
