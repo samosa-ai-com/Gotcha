@@ -137,77 +137,9 @@ class MediaCaptureTool(private val context: Context) {
         recordingUri = null
         recordingPfd = null
         return try {
-            if (!outputPath.isNullOrBlank()) {
-                val resolved = FileResolver(context).resolveForWrite(outputPath)
-                val file = when (resolved) {
-                    is FileResolver.ResolveResult.Ok -> resolved.file.also { it.parentFile?.mkdirs() }
-                    is FileResolver.ResolveResult.PermissionNeeded -> return resolved.result
-                    is FileResolver.ResolveResult.Error -> return ToolResult.error(resolved.message)
-                }
-                recordingFile = file
-                recordingDisplayPath = file.absolutePath
-            } else {
-                // Default location: the system-wide public Recordings folder, not
-                // the per-chat working directory — recordings should be findable
-                // like any other device recording, independent of which chat made them.
-                when (
-                    val target = com.gotcha.data.GotchaStorage.createRecordingTarget(
-                        context,
-                        "recording_${timestamp()}.m4a"
-                    )
-                ) {
-                    is com.gotcha.data.GotchaStorage.RecordingTarget.DirectFile -> {
-                        recordingFile = target.file
-                        recordingDisplayPath = target.file.absolutePath
-                    }
-                    is com.gotcha.data.GotchaStorage.RecordingTarget.MediaStoreEntry -> {
-                        recordingUri = target.uri
-                        recordingPfd = target.pfd
-                        recordingDisplayPath = target.displayPath
-                    }
-                }
-            }
+            resolveRecordingOutputTarget(outputPath)?.let { return it }
 
-            val audioSource = when (source?.trim()?.lowercase()) {
-                "voice" -> MediaRecorder.AudioSource.VOICE_RECOGNITION
-                "camcorder" -> MediaRecorder.AudioSource.CAMCORDER
-                else -> MediaRecorder.AudioSource.MIC
-            }
-
-            val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(context)
-            } else {
-                @Suppress("DEPRECATION")
-                MediaRecorder()
-            }
-            rec.setAudioSource(audioSource)
-            rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-
-            when (quality?.trim()?.lowercase()) {
-                "low" -> {
-                    rec.setAudioSamplingRate(16000)
-                    rec.setAudioEncodingBitRate(16000)
-                }
-                "medium" -> {
-                    rec.setAudioSamplingRate(44100)
-                    rec.setAudioEncodingBitRate(64000)
-                }
-                "high" -> {
-                    rec.setAudioSamplingRate(44100)
-                    rec.setAudioEncodingBitRate(192000)
-                }
-            }
-
-            if (maxDurationSeconds != null && maxDurationSeconds > 0) {
-                rec.setMaxDuration(maxDurationSeconds * 1000)
-            }
-            val pfd = recordingPfd
-            if (pfd != null) {
-                rec.setOutputFile(pfd.fileDescriptor)
-            } else {
-                rec.setOutputFile(recordingFile!!.absolutePath)
-            }
+            val rec = createConfiguredRecorder(source, quality, maxDurationSeconds)
             rec.prepare()
             rec.start()
             recorder = rec
@@ -226,6 +158,93 @@ class MediaCaptureTool(private val context: Context) {
             releaseRecorder()
             ToolResult.error("Could not start recording: ${e.message}")
         }
+    }
+
+    /**
+     * Resolves where the recording will be written, setting recordingFile/recordingUri/
+     * recordingPfd/recordingDisplayPath. Returns a ToolResult to return early from
+     * startAudioRecording on failure, or null on success.
+     */
+    private fun resolveRecordingOutputTarget(outputPath: String?): ToolResult? {
+        if (!outputPath.isNullOrBlank()) {
+            val resolved = FileResolver(context).resolveForWrite(outputPath)
+            val file = when (resolved) {
+                is FileResolver.ResolveResult.Ok -> resolved.file.also { it.parentFile?.mkdirs() }
+                is FileResolver.ResolveResult.PermissionNeeded -> return resolved.result
+                is FileResolver.ResolveResult.Error -> return ToolResult.error(resolved.message)
+            }
+            recordingFile = file
+            recordingDisplayPath = file.absolutePath
+        } else {
+            // Default location: the system-wide public Recordings folder, not
+            // the per-chat working directory — recordings should be findable
+            // like any other device recording, independent of which chat made them.
+            when (
+                val target = com.gotcha.data.GotchaStorage.createRecordingTarget(
+                    context,
+                    "recording_${timestamp()}.m4a"
+                )
+            ) {
+                is com.gotcha.data.GotchaStorage.RecordingTarget.DirectFile -> {
+                    recordingFile = target.file
+                    recordingDisplayPath = target.file.absolutePath
+                }
+                is com.gotcha.data.GotchaStorage.RecordingTarget.MediaStoreEntry -> {
+                    recordingUri = target.uri
+                    recordingPfd = target.pfd
+                    recordingDisplayPath = target.displayPath
+                }
+            }
+        }
+        return null
+    }
+
+    private fun createConfiguredRecorder(
+        source: String?,
+        quality: String?,
+        maxDurationSeconds: Int?
+    ): MediaRecorder {
+        val audioSource = when (source?.trim()?.lowercase()) {
+            "voice" -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+            "camcorder" -> MediaRecorder.AudioSource.CAMCORDER
+            else -> MediaRecorder.AudioSource.MIC
+        }
+
+        val rec = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(context)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaRecorder()
+        }
+        rec.setAudioSource(audioSource)
+        rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+
+        when (quality?.trim()?.lowercase()) {
+            "low" -> {
+                rec.setAudioSamplingRate(16000)
+                rec.setAudioEncodingBitRate(16000)
+            }
+            "medium" -> {
+                rec.setAudioSamplingRate(44100)
+                rec.setAudioEncodingBitRate(64000)
+            }
+            "high" -> {
+                rec.setAudioSamplingRate(44100)
+                rec.setAudioEncodingBitRate(192000)
+            }
+        }
+
+        if (maxDurationSeconds != null && maxDurationSeconds > 0) {
+            rec.setMaxDuration(maxDurationSeconds * 1000)
+        }
+        val pfd = recordingPfd
+        if (pfd != null) {
+            rec.setOutputFile(pfd.fileDescriptor)
+        } else {
+            rec.setOutputFile(recordingFile!!.absolutePath)
+        }
+        return rec
     }
 
     fun stopAudioRecording(): ToolResult {

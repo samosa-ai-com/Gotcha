@@ -152,6 +152,7 @@ object GotchaStorage {
     sealed class RecordingTarget {
         /** Pre-Q direct filesystem path, or a caller-supplied [FileResolver] path. */
         data class DirectFile(val file: File) : RecordingTarget()
+
         /** Q+ MediaStore entry; [MediaRecorder] writes through the held fd. */
         data class MediaStoreEntry(val uri: Uri, val pfd: ParcelFileDescriptor, val displayPath: String) :
             RecordingTarget()
