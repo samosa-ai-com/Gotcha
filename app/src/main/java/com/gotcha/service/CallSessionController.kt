@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 enum class CallState { IDLE, STARTING, READY, LISTENING, THINKING, SPEAKING, WAITING_USER, PAUSED, ENDING }
 
@@ -118,6 +119,18 @@ class CallSessionController(
         ) == PackageManager.PERMISSION_GRANTED
         if (!micGranted) {
             onError("Microphone permission not granted. Enable it in Gotcha → Settings → Permissions.")
+            return false
+        }
+
+        val s = settingsRepository.load()
+        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.sttApiBaseUrl, s.sttApiModel)
+        if (sttError != null) {
+            onError(sttError)
+            return false
+        }
+        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.ttsApiBaseUrl, s.ttsApiModel)
+        if (ttsError != null) {
+            onError(ttsError)
             return false
         }
 
@@ -463,6 +476,25 @@ class CallSessionController(
             voice = voice
         )
     }
+
+    /**
+     * Null when [provider]/[baseUrl]/[model] can actually be used for a call;
+     * otherwise a user-facing reason. A call is voice-first end to end, so an
+     * unconfigured or broken STT/TTS setup must block it before it starts
+     * rather than surface only once the user is already mid-call.
+     */
+    private fun audioConfigError(label: String, provider: AudioProvider, baseUrl: String, model: String): String? =
+        when (provider) {
+            AudioProvider.NONE -> "$label is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT)."
+            AudioProvider.API -> when {
+                baseUrl.isBlank() || baseUrl.trim().toHttpUrlOrNull() == null ->
+                    "$label API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT)."
+                model.isBlank() ->
+                    "$label API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                else -> null
+            }
+            AudioProvider.ANDROID -> null
+        }
 
     private fun buildClient(): LLMClient? {
         val s = settingsRepository.load()
