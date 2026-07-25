@@ -48,7 +48,10 @@ class AppNavigatorSession(
         val navTools = ToolRegistry.toolsForNavigator()
 
         var lastUserContent: JsonElement? = null
+        var llmError: Throwable? = null
+        var stepsRun = 0
         for (step in 1..maxSteps) {
+            stepsRun = step
             onStep("Analyzing screen", "running", "")
 
             // 1. Capture fresh perception with grid overlay
@@ -75,10 +78,16 @@ class AppNavigatorSession(
                 throw e
             } catch (e: Throwable) {
                 actionLog.add("Step $step: LLM error — ${e.message}")
+                llmError = e
                 break
             }
 
-            val msg = response.choices.firstOrNull()?.message ?: break
+            val msg = response.choices.firstOrNull()?.message
+            if (msg == null) {
+                actionLog.add("Step $step: LLM returned an empty response")
+                llmError = IllegalStateException("LLM returned an empty response")
+                break
+            }
             val toolCalls = msg.toolCalls.orEmpty()
 
             // 4. Check for completion
@@ -113,7 +122,15 @@ class AppNavigatorSession(
             }
         }
 
-        val finalAnswer = generateHandoverSummary(llmClient, lastUserContent)
+        // An LLM error means the provider is rejecting our requests; a summary call
+        // with the same payload would fail the same way, so report the error directly.
+        val finalAnswer = if (llmError != null) {
+            "Navigation stopped after $stepsRun step(s) because the LLM request failed: " +
+                "${llmError.message}. Do not retry the navigation tool for this task; " +
+                "report the error to the user instead."
+        } else {
+            generateHandoverSummary(llmClient, lastUserContent)
+        }
 
         return AppNavigatorOutput(
             finalAnswer = finalAnswer,

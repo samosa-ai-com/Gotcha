@@ -42,6 +42,13 @@ data class ToolResult(
         /** Marker for the one-time system VPN consent dialog (VpnService). */
         const val VPN_CONSENT = "special:vpn_consent"
 
+        /**
+         * Marker for the Health Connect read permissions. These are
+         * `android.permission.health.*` grants, but they are requested through
+         * Health Connect's own screen rather than the standard runtime dialog.
+         */
+        const val HEALTH_CONNECT = "special:health_connect"
+
         fun ok(message: String) = ToolResult(true, message)
         fun error(message: String) = ToolResult(false, message)
         fun permissionNeeded(permission: String, message: String) =

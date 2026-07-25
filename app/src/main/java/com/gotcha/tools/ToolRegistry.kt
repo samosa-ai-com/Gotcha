@@ -15,6 +15,9 @@ object ToolRegistry {
     private val definitions: Map<String, ToolDefinition> =
         ToolDefinitions.all.associateBy { it.function.name }
 
+    // Empty by design: AgentEngine.requestConfirmation() auto-approves, so an
+    // entry here would imply a gate that does not exist. send_email has its own
+    // confirmation via the CONFIRM_SEND_EMAIL flow in EmailTools.
     val sensitiveTools: Set<String> = emptySet()
 
     val destructiveTools: Set<String> = setOf(
@@ -26,19 +29,24 @@ object ToolRegistry {
 
     val monitorTools: Set<String> = setOf(
         "dial_number", "read_call_log", "find_contact", "read_recent_sms",
-        "list_calendar_events",
+        "list_calendar_events", "check_availability",
         "get_storage_info", "get_battery_info", "get_location", "get_volume",
         "get_audio_recording_status",
         "get_app_usage", "get_data_usage",
         "open_app", "list_installed_apps",
         "list_files", "read_file", "grep", "glob",
-        "todowrite", "list_alarms", "list_timers",
+        "todowrite", "list_alarms", "list_timers", "show_alarms",
         "question",
         "sleep",
         "websearch", "webfetch",
         "get_clipboard",
         "read_screen", "read_notifications",
-        "check_root", "search_skills"
+        "check_root", "search_skills",
+        "list_emails", "read_email",
+        "list_tasks",
+        "notion_search", "notion_read_page",
+        "get_health_summary", "get_health_records",
+        "get_now_playing"
     )
 
     /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */

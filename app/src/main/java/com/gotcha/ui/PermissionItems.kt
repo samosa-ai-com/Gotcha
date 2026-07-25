@@ -9,6 +9,8 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.HealthPermissionState
+import com.gotcha.tools.ToolResult
 
 data class PermissionGroup(
     val name: String,
@@ -253,6 +255,20 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 null,
                 "special:overlay_access",
                 { c -> Settings.canDrawOverlays(c) }
+            )
+        )
+    ),
+    PermissionGroup(
+        "Health",
+        listOf(
+            PermissionItem(
+                "Health Connect",
+                "Read steps, sleep, heart rate, weight and workouts",
+                null,
+                ToolResult.HEALTH_CONNECT,
+                // Health Connect only reports grants from a suspend call, so this
+                // reflects the last check (see HealthPermissionState).
+                { _ -> HealthPermissionState.isGranted() }
             )
         )
     )

@@ -44,6 +44,12 @@ import java.util.Locale
 @Suppress("TooManyFunctions")
 class AlarmTool(private val context: Context) {
 
+    companion object {
+        // Not a documented android.provider.AlarmClock constant; some clock apps
+        // (e.g. Google Clock) honor it best-effort to dismiss a ringing timer.
+        private const val ACTION_DISMISS_TIMER = "android.intent.action.DISMISS_TIMER"
+    }
+
     private val prefs: SharedPreferences = context.getSharedPreferences("gotcha_alarms", Context.MODE_PRIVATE)
     private var nextId: Long
         get() = prefs.getLong("next_id", 1)
@@ -102,13 +108,38 @@ class AlarmTool(private val context: Context) {
         )
     }
 
-    fun setTimer(seconds: Int, message: String? = null, hours: Int? = null, minutes: Int? = null): ToolResult {
+    fun setTimer(
+        seconds: Int,
+        message: String? = null,
+        hours: Int? = null,
+        minutes: Int? = null,
+        system: Boolean = false
+    ): ToolResult {
         val totalSeconds = seconds + (hours ?: 0) * 3600 + (minutes ?: 0) * 60
         if (totalSeconds < 1) return ToolResult.error("Timer length must be at least 1 second.")
-        exactAlarmError()?.let { return it }
-        val id = nextId++
         val label = message?.takeIf { it.isNotBlank() }
 
+        if (system) {
+            val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+                putExtra(AlarmClock.EXTRA_LENGTH, totalSeconds)
+                if (label != null) putExtra(AlarmClock.EXTRA_MESSAGE, label)
+                putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            }
+            if (!dispatchClockIntent(intent)) {
+                return ToolResult.error(
+                    "No clock app handled the system timer request. Omit system=true to use an in-app timer instead."
+                )
+            }
+            val id = nextId++
+            saveTimer(TimerRecord(id, totalSeconds, label, system = true))
+            return ToolResult.ok(
+                "Started ${label ?: "a timer"} for ${totalSeconds}s in the system clock app (id=$id). " +
+                    "Use dismiss_timer while it's ringing; delete_timer only removes it from this assistant's list."
+            )
+        }
+
+        exactAlarmError()?.let { return it }
+        val id = nextId++
         val record = TimerRecord(id, totalSeconds, label)
         try {
             scheduleTimer(record)
@@ -123,6 +154,51 @@ class AlarmTool(private val context: Context) {
             if (seconds > 0) append(" ${seconds}s")
         }
         return ToolResult.ok("Started ${label ?: "a timer"} for${extra.trimStart()} (id=$id).")
+    }
+
+    /** Opens the system clock app's alarms list (ACTION_SHOW_ALARMS). */
+    fun showAlarms(): ToolResult {
+        val intent = Intent(AlarmClock.ACTION_SHOW_ALARMS)
+        return if (dispatchClockIntent(intent)) {
+            ToolResult.ok("Opened the alarms list in the clock app.")
+        } else {
+            ToolResult.error("No clock app handled the show-alarms request.")
+        }
+    }
+
+    /** Snoozes the currently ringing alarm (ACTION_SNOOZE_ALARM). No effect if no alarm is ringing. */
+    fun snoozeAlarm(minutes: Int? = null): ToolResult {
+        val intent = Intent(AlarmClock.ACTION_SNOOZE_ALARM).apply {
+            if (minutes != null && minutes > 0) putExtra(AlarmClock.EXTRA_ALARM_SNOOZE_DURATION, minutes)
+        }
+        return if (dispatchClockIntent(intent)) {
+            ToolResult.ok(
+                "Sent a snooze request to the clock app" +
+                    (minutes?.let { " for $it minute(s)" } ?: "") +
+                    ". This only has an effect if an alarm is currently ringing."
+            )
+        } else {
+            ToolResult.error("No clock app handled the snooze request.")
+        }
+    }
+
+    /**
+     * Dismisses a currently ringing system-clock-app timer (best-effort; not
+     * all clock apps support this action). Distinct from [deleteTimer], which
+     * only removes an in-app timer's shadow record.
+     */
+    fun dismissTimer(): ToolResult {
+        val intent = Intent(ACTION_DISMISS_TIMER)
+        return if (dispatchClockIntent(intent)) {
+            ToolResult.ok(
+                "Sent a dismiss request to the clock app. This only has an effect if a timer is " +
+                    "currently ringing there; support varies by clock app."
+            )
+        } else {
+            ToolResult.error(
+                "No clock app handled the dismiss-timer request (this action isn't supported by all clock apps)."
+            )
+        }
     }
 
     fun listAlarms(): ToolResult {
@@ -273,9 +349,15 @@ class AlarmTool(private val context: Context) {
 
     fun doDeleteTimer(id: Long): ToolResult {
         val timers = loadTimersMutable()
-        if (timers.none { it.id == id }) return ToolResult.error("Timer $id not found.")
-        cancelPendingIntent(timerRequestCode(id))
+        val t = timers.firstOrNull { it.id == id } ?: return ToolResult.error("Timer $id not found.")
         saveTimers(timers.filter { it.id != id })
+        if (t.system) {
+            return ToolResult.ok(
+                "Removed timer $id from this assistant's list, but it lives in the system clock app — " +
+                    "use dismiss_timer while it's ringing, or ask the user to cancel it there."
+            )
+        }
+        cancelPendingIntent(timerRequestCode(id))
         return ToolResult.ok("Deleted timer $id.")
     }
 
@@ -439,7 +521,8 @@ class AlarmTool(private val context: Context) {
         val id: Long,
         val seconds: Int,
         val label: String?,
-        val triggerAt: Long = System.currentTimeMillis() + seconds * 1000L
+        val triggerAt: Long = System.currentTimeMillis() + seconds * 1000L,
+        val system: Boolean = false
     )
 
     private fun saveAlarm(r: AlarmRecord) {
@@ -507,6 +590,7 @@ class AlarmTool(private val context: Context) {
                         put("seconds", t.seconds)
                         if (t.label != null) put("label", t.label)
                         put("triggerAt", t.triggerAt)
+                        put("system", t.system)
                     }
                 )
             }
@@ -524,7 +608,8 @@ class AlarmTool(private val context: Context) {
                 id = id,
                 seconds = seconds,
                 label = o["label"]?.jsonPrimitive?.content,
-                triggerAt = o["triggerAt"]?.jsonPrimitive?.content?.toLongOrNull() ?: (System.currentTimeMillis() + seconds * 1000L)
+                triggerAt = o["triggerAt"]?.jsonPrimitive?.content?.toLongOrNull() ?: (System.currentTimeMillis() + seconds * 1000L),
+                system = o["system"]?.jsonPrimitive?.booleanOrNull ?: false
             )
         }
     } catch (_: Exception) { emptyList() }
