@@ -661,28 +661,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     /**
      * One-time migration: rename any pre-existing UUID-named chat working dirs
-     * to the readable "Slug_shortId" scheme. Guarded so it only ever runs once.
+     * to the readable "Slug_shortId" scheme. The "done" flag is only persisted
+     * once every session was handled, so a partial migration (a rename blocked by
+     * a missing storage grant, say) is retried on the next launch instead of
+     * leaving UUID-named dirs stranded forever.
      */
     private suspend fun migrateChatDirsIfNeeded() {
         val prefs = settingsRepository.prefs
         if (prefs.getBoolean(MIGRATED_CHAT_DIRS_KEY, false)) return
         val sessions = historyRepository.listSessions()
         val chatsRoot = com.gotcha.data.GotchaStorage.chatsRoot()
+        var allMigrated = true
         for (session in sessions) {
             try {
                 val rawDir = java.io.File(chatsRoot, session.id)
-                if (rawDir.exists() && rawDir.isDirectory) {
-                    val target = java.io.File(
-                        chatsRoot,
-                        com.gotcha.data.GotchaStorage.chatDirName(session.title, session.id)
-                    )
-                    rawDir.renameTo(target)
+                if (!rawDir.exists() || !rawDir.isDirectory) continue
+                val target = java.io.File(
+                    chatsRoot,
+                    com.gotcha.data.GotchaStorage.chatDirName(session.title, session.id)
+                )
+                // An already-migrated target is not a failure: keep the raw dir
+                // out of the way rather than clobbering the renamed one.
+                if (!rawDir.renameTo(target) && !target.isDirectory) {
+                    allMigrated = false
+                    android.util.Log.w("Gotcha", "migrateChatDirsIfNeeded: rename failed for ${session.id}")
                 }
             } catch (e: Exception) {
+                allMigrated = false
                 android.util.Log.w("Gotcha", "migrateChatDirsIfNeeded: failed for ${session.id}", e)
             }
         }
-        prefs.edit().putBoolean(MIGRATED_CHAT_DIRS_KEY, true).apply()
+        if (allMigrated) prefs.edit().putBoolean(MIGRATED_CHAT_DIRS_KEY, true).apply()
     }
 
     fun refreshSessions() {

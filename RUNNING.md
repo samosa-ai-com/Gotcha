@@ -79,7 +79,7 @@ All Gotcha-managed files on shared storage live under one root, `data/GotchaStor
 /storage/emulated/0/Gotcha/
   chats/<Slug_shortId>/        <- agent working dir (cwd for file tools)
       Pictures/                <- camera captures
-      Recordings/              <- audio captures
+      Recordings/              <- audio captures written via an explicit output_path
       Screenshots/             <- agent read_screen_raw captures
       .debug/                  <- perception overlay dumps
   calls/<sessionId>/           <- voice-call working dirs
@@ -87,6 +87,10 @@ All Gotcha-managed files on shared storage live under one root, `data/GotchaStor
   Screenshots/                 <- assistive-ball + Lens captures
   Downloads/
 ```
+
+Audio recordings started without an explicit `output_path` are the one exception: they go to the
+device's public `Recordings/` folder (via MediaStore on API 29+) so they are findable like any
+other device recording, independent of which chat produced them.
 
 Chat folders are named `slug(title)_<first 8 chars of the session UUID>` and renamed in place
 when the title becomes known. Deleting a chat moves its working directory to `old_chats/` instead
