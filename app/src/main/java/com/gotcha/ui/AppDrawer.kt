@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
@@ -42,6 +43,7 @@ fun AppDrawerContent(
     onSessionClick: (String) -> Unit,
     onDeleteSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenConnectors: () -> Unit,
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0
 ) {
@@ -105,6 +107,13 @@ fun AppDrawerContent(
                 }
             }
             HorizontalDivider()
+            NavigationDrawerItem(
+                label = { Text("Connectors") },
+                icon = { Icon(Icons.Default.Link, contentDescription = null) },
+                selected = false,
+                onClick = onOpenConnectors,
+                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+            )
             NavigationDrawerItem(
                 label = { Text("Settings") },
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },

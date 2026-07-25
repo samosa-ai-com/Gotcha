@@ -31,9 +31,9 @@ import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 
 /**
- * Settings → Connectors: one card per connector, built from the two reusable
- * shapes in ConnectorCards.kt. Talks to [ConnectorRegistry] directly since
- * connectors own their own credential storage — there is nothing for the
+ * The body of the Connectors screen: one card per connector, built from the two
+ * reusable shapes in ConnectorCards.kt. Talks to [ConnectorRegistry] directly
+ * since connectors own their own credential storage — there is nothing for the
  * Settings/SettingsRepository layer to persist.
  */
 @Composable
@@ -102,7 +102,7 @@ private fun ImapCard(imap: ImapConnector) {
                 "Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords.",
             "Other providers: check their IMAP app-password documentation."
         ),
-        aboveFields = {
+        belowFields = {
             TextButton(onClick = {
                 imapHost.value = "imap.gmail.com"
                 imapPort.value = "993"

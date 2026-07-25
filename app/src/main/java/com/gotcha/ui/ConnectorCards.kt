@@ -25,7 +25,7 @@ import com.gotcha.connectors.oauth.OAuthConnectFlow
 import kotlinx.coroutines.launch
 
 /**
- * The two reusable Settings → Connectors card shapes.
+ * The two reusable Connectors-screen card shapes.
  *
  * [TokenConnectorCard] — a set of text fields plus Connect/Disconnect, for
  * connectors authenticated by a pasted secret (IMAP app password, Notion
@@ -63,7 +63,7 @@ fun TokenConnectorCard(
     blurb: String? = null,
     steps: List<String> = emptyList(),
     canConnect: () -> Boolean = { fields.all { it.value.isNotBlank() } },
-    aboveFields: @Composable () -> Unit = {},
+    /** Rendered between the fields and the Connect button (e.g. the Gmail preset shortcut). */
     belowFields: @Composable () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
@@ -76,7 +76,6 @@ fun TokenConnectorCard(
         key(refreshTick) { CardHeader(title, statusLine(), blurb, steps) }
 
         if (!isConnected()) {
-            aboveFields()
             fields.forEach { field ->
                 OutlinedTextField(
                     value = field.value,

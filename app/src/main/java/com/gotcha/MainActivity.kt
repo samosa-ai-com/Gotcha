@@ -46,6 +46,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
+import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +55,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS }
+enum class Route { HOME, SETTINGS, CONNECTORS }
 
 class MainActivity : ComponentActivity() {
 
@@ -409,6 +410,10 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.SETTINGS
                     },
+                    onOpenConnectors = {
+                        scope.launch { drawerState.close() }
+                        currentRoute = Route.CONNECTORS
+                    },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount
                 )
@@ -491,6 +496,10 @@ class MainActivity : ComponentActivity() {
                         },
                         packageName = packageName
                     )
+                }
+                Route.CONNECTORS -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    ConnectorsScreen(onBack = { currentRoute = Route.HOME })
                 }
                 Route.HOME -> {
                     // Back from an active chat returns to a fresh home (new session,

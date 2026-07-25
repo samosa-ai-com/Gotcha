@@ -1890,7 +1890,7 @@ object ToolDefinitions {
         }
     )
 
-    // ---- Email connector tools (Settings → Connectors: Gmail BYO-OAuth or IMAP) ----
+    // ---- Email connector tools (menu ▸ Connectors: Gmail BYO-OAuth or IMAP) ----
 
     val listEmails = tool(
         "list_emails",
