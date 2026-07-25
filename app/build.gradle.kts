@@ -223,6 +223,13 @@ dependencies {
 
     // Health Connect: on-device fitness/health records (no cloud API, no credentials)
     implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+    // connect-client pulls guava at *runtime* scope only, but guava's module metadata
+    // constrains com.google.guava:listenablefuture to the empty
+    // "9999.0-empty-to-avoid-conflict-with-guava" marker on every configuration — including
+    // the compile classpath. Without full guava there too, CameraX's ListenableFuture usage
+    // (MediaCaptureTool) no longer compiles. Pinned to the version connect-client already
+    // resolves to, so nothing changes at runtime.
+    implementation("com.google.guava:guava:31.1-android")
 
     // Markdown rendering
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
