@@ -1142,14 +1142,14 @@ fun SettingsScreen(
             )
         }
 
-        OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.Center))
+        OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.BottomCenter))
         } // Box
     }
 }
 
 /**
- * Centred, non-interactive toast-style overlay used for transient feedback
- * (e.g. connection test progress and result).
+ * Non-interactive toast-style overlay used for transient feedback
+ * (e.g. connection test progress and result). Anchored by the caller.
  */
 @Composable
 private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modifier) {
@@ -1168,7 +1168,9 @@ private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modif
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             tonalElevation = 6.dp,
             shadowElevation = 6.dp,
-            modifier = Modifier.padding(32.dp).testTag("settings_overlay")
+            modifier = Modifier
+                .padding(horizontal = 24.dp, vertical = 32.dp)
+                .testTag("settings_overlay")
         ) {
             Text(
                 text = lastText,
