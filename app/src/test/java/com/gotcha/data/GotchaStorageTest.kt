@@ -161,9 +161,31 @@ class GotchaStorageTest {
         assertTrue(entries.any { it.name.startsWith("${dir.name}_") })
     }
 
+    // ---- screenshotsRoot writability (the ENOENT regression) ----
+
+    @Test
+    fun `screenshotsRoot is creatable when the Gotcha root is writable`() {
+        val dir = GotchaStorage.screenshotsRoot()
+        assertFalse(dir.exists())
+        assertTrue(dir.mkdirs() || dir.isDirectory)
+        assertTrue(dir.isDirectory)
+    }
+
+    @Test
+    fun `screenshotsRoot reports not-creatable when the root cannot be created`() {
+        // Simulate the no-All-Files-Access case: the root's parent is a *file*,
+        // so mkdirs() fails exactly as it does when the grant is missing. This is
+        // the condition saveScreenshot uses to pick the MediaStore fallback.
+        val blocker = tmp.newFile("blocked")
+        GotchaStorage.rootPath = File(blocker, "Gotcha").absolutePath
+        val dir = GotchaStorage.screenshotsRoot()
+        assertFalse(dir.mkdirs() || dir.isDirectory)
+    }
+
     @Test
     fun `archiveChatDir is a no-op when the chat dir does not exist`() {
         GotchaStorage.archiveChatDir("a3f9c1d2-1234-5678-9abc-def012345678")
-        assertFalse(GotchaStorage.archiveRoot().exists() && GotchaStorage.archiveRoot().listFiles()?.isNotEmpty() == true)
+        val archived = GotchaStorage.archiveRoot().listFiles().orEmpty()
+        assertTrue(archived.isEmpty())
     }
 }

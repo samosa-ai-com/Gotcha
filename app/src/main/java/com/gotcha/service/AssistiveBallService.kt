@@ -762,14 +762,12 @@ class AssistiveBallService : Service() {
                     java.util.Locale.US
                 ).format(java.util.Date())
                 val fileName = "Screenshot_$timestamp.png"
-                val dir = com.gotcha.data.GotchaStorage.screenshotsRoot()
-                dir.mkdirs()
-                val file = java.io.File(dir, fileName)
-                file.outputStream().use { out ->
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                }
-                com.gotcha.data.GotchaStorage.publishToGallery(applicationContext, file)
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved: $fileName") }
+                val location = com.gotcha.data.GotchaStorage.saveScreenshot(
+                    applicationContext,
+                    fileName,
+                    bitmap
+                )
+                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved to $location") }
                 bitmap.recycle()
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {

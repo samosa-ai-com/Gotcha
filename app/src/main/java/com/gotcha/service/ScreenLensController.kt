@@ -489,17 +489,11 @@ class ScreenLensController(
         scope.launch(Dispatchers.IO) {
             try {
                 val filename = "Gotcha_Lens_${System.currentTimeMillis()}.png"
-                val dir = com.gotcha.data.GotchaStorage.screenshotsRoot()
-                dir.mkdirs()
-                val file = java.io.File(dir, filename)
-                file.outputStream().use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                }
-                com.gotcha.data.GotchaStorage.publishToGallery(appContext, file)
+                val location = com.gotcha.data.GotchaStorage.saveScreenshot(appContext, filename, bitmap)
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(
                         appContext,
-                        "Saved image to Gotcha/Screenshots",
+                        "Saved image to $location",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 }

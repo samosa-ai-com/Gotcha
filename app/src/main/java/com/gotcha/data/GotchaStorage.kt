@@ -1,9 +1,14 @@
 package com.gotcha.data
 
+import android.content.ContentValues
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaScannerConnection
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import java.io.File
+import java.io.IOException
 
 /**
  * Single source of truth for every path Gotcha reads or writes under shared
@@ -106,5 +111,39 @@ object GotchaStorage {
     /** Scans [file] into the MediaStore so it shows up in the Gallery. */
     fun publishToGallery(context: Context, file: File) {
         MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null, null)
+    }
+
+    /**
+     * Saves [bitmap] as a PNG named [fileName] under [screenshotsRoot], returning
+     * the human-readable location it landed in.
+     *
+     * Creating anything under the Gotcha root needs "All files access"
+     * (MANAGE_EXTERNAL_STORAGE) on API 30+; without it `mkdirs()` fails and the
+     * open would throw ENOENT. Since screenshot capture is a standalone feature
+     * that shouldn't depend on that grant, fall back to a MediaStore insert into
+     * `Pictures/Gotcha`, which needs no permission at all.
+     */
+    fun saveScreenshot(context: Context, fileName: String, bitmap: Bitmap): String {
+        val dir = screenshotsRoot()
+        if (dir.mkdirs() || dir.isDirectory) {
+            val file = File(dir, fileName)
+            file.outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+            publishToGallery(context, file)
+            return "Gotcha/Screenshots"
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Gotcha")
+            }
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: throw IOException("Could not create $fileName in Pictures/Gotcha")
+        resolver.openOutputStream(uri)?.use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        } ?: throw IOException("Could not open Pictures/Gotcha for writing")
+        return "Pictures/Gotcha"
     }
 }
