@@ -16,6 +16,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -35,11 +37,15 @@ data class GoogleCredentials(
  * n8n-style Bring-Your-Own-OAuth Google connector: the user pastes credentials
  * of a Desktop-type OAuth client from their own Google Cloud project, so
  * restricted scopes need no CASA verification. One credential is shared by all
- * Google services; v1 requests only gmail.modify and backs the email tools.
+ * Google services: the scopes actually granted are stored alongside it, so
+ * [hasScope]/[hasCalendar] can steer per-service tools when the user connected
+ * for Gmail only.
  */
+@Suppress("TooManyFunctions") // one credential fronts two Google services (Gmail, Calendar)
 class GoogleConnector(
     private val store: CredentialStore,
     private val api: GmailApi = GmailApi(),
+    private val calendarApi: GoogleCalendarApi = GoogleCalendarApi(),
     private val oauth: OAuth2Helper = OAuth2Helper(),
     private val tokenUrl: String = TOKEN_URL,
     private val clock: () -> Long = System::currentTimeMillis
@@ -51,15 +57,23 @@ class GoogleConnector(
         const val AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
         const val TOKEN_URL = "https://oauth2.googleapis.com/token"
         const val SCOPE_GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify"
+        const val SCOPE_CALENDAR = "https://www.googleapis.com/auth/calendar"
         private const val EXPIRY_SKEW_MILLIS = 60_000L
     }
 
     override val id = "google"
     override val displayName = "Google (BYO OAuth)"
     override val description =
-        "Full Gmail access via your own Google Cloud OAuth client (no app passwords)."
-    override val toolNames =
-        setOf("list_emails", "read_email", "send_email", "mark_email_read")
+        "Gmail and Google Calendar via your own Google Cloud OAuth client (no app passwords)."
+    override val toolNames = setOf(
+        "list_emails",
+        "read_email",
+        "send_email",
+        "mark_email_read",
+        "list_calendar_events",
+        "create_calendar_event",
+        "check_availability"
+    )
     override val idPrefix = "gmail"
 
     @Volatile
@@ -119,20 +133,30 @@ class GoogleConnector(
         }.start()
     }
 
-    fun oauthConfig(clientId: String, clientSecret: String) = OAuth2Config(
+    fun oauthConfig(
+        clientId: String,
+        clientSecret: String,
+        scopes: List<String> = listOf(SCOPE_GMAIL_MODIFY)
+    ) = OAuth2Config(
         authUrl = AUTH_URL,
         tokenUrl = tokenUrl,
         clientId = clientId,
         clientSecret = clientSecret,
-        scopes = listOf(SCOPE_GMAIL_MODIFY),
+        scopes = scopes,
         extraAuthParams = mapOf("access_type" to "offline", "prompt" to "consent")
     )
 
     /**
      * Finish connecting after the OAuth code exchange: identify the account via
-     * users/me/profile and persist the credential blob.
+     * users/me/profile and persist the credential blob. [scopes] must be the
+     * scopes actually requested, so [hasScope] can steer per-service tools.
      */
-    suspend fun completeConnect(clientId: String, clientSecret: String, tokens: TokenSet) {
+    suspend fun completeConnect(
+        clientId: String,
+        clientSecret: String,
+        tokens: TokenSet,
+        scopes: List<String> = listOf(SCOPE_GMAIL_MODIFY)
+    ) {
         val refreshToken = checkNotNull(tokens.refreshToken) {
             "Google did not return a refresh token — remove the app's access at " +
                 "myaccount.google.com/permissions and try connecting again."
@@ -143,7 +167,7 @@ class GoogleConnector(
             clientSecret = clientSecret,
             refreshToken = refreshToken,
             accountEmail = email,
-            scopes = listOf(SCOPE_GMAIL_MODIFY)
+            scopes = scopes
         )
         persist(creds)
         accessToken = tokens.accessToken
@@ -161,7 +185,10 @@ class GoogleConnector(
             return cached
         }
         try {
-            val tokens = oauth.refresh(oauthConfig(creds.clientId, creds.clientSecret), creds.refreshToken)
+            val tokens = oauth.refresh(
+                oauthConfig(creds.clientId, creds.clientSecret, creds.scopes),
+                creds.refreshToken
+            )
             accessToken = tokens.accessToken
             accessTokenExpiresAt = tokens.expiresAtMillis
             tokens.refreshToken?.takeIf { it != creds.refreshToken }?.let { rotated ->
@@ -242,4 +269,27 @@ class GoogleConnector(
     override suspend fun markRead(id: String, read: Boolean) {
         withAuth { tok -> api.setUnread(tok, GmailMessageParser.stripPrefix(id), unread = !read) }
     }
+
+    // ---- Google Calendar (used by the shared calendar router) ----
+
+    /** True when the stored grant includes the Calendar scope. */
+    fun hasCalendar(): Boolean = hasScope(SCOPE_CALENDAR)
+
+    suspend fun listCalendarEvents(
+        calendarId: String,
+        timeMin: String,
+        timeMax: String,
+        query: String?,
+        max: Int
+    ): JsonArray = withAuth { tok ->
+        calendarApi.listEvents(tok, calendarId, timeMin, timeMax, query, max)
+    }
+
+    suspend fun insertCalendarEvent(calendarId: String, event: JsonObject): String =
+        withAuth { tok -> calendarApi.insertEvent(tok, calendarId, event) }
+
+    suspend fun freeBusy(calendarIds: List<String>, timeMin: String, timeMax: String): JsonObject =
+        withAuth { tok -> calendarApi.freeBusy(tok, calendarIds, timeMin, timeMax) }
+
+    suspend fun calendarList(): JsonArray = withAuth { tok -> calendarApi.calendarList(tok) }
 }
