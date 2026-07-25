@@ -145,6 +145,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private fun viewingEngineSession(): Boolean =
         _uiState.value.activeSessionId == agentEngine.sessionId
 
+    /**
+     * True when [ChatSession.title] is still the legacy truncated-first-message
+     * fallback rather than an LLM-generated title, so it's eligible to be
+     * (re)generated next time the session is saved.
+     */
+    private fun ChatSession.isFallbackTitle(): Boolean {
+        val fallback = messages.firstOrNull { it.role == "user" }?.textContent?.take(30)
+        return title.isBlank() || title == fallback
+    }
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -168,6 +178,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             // empty chat; past sessions remain one tap away in the drawer.
             agentEngine.sessionId = java.util.UUID.randomUUID().toString()
             agentEngine.tokenCount = 0
+            agentEngine.restoreTitle(null)
             agentEngine.setupWorkingDir(create = false)
             _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
             updateContextUsage()
@@ -389,8 +400,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             if (saved != null) {
                 agentEngine.history.addAll(saved.messages)
                 agentEngine.tokenCount = saved.tokenCount
+                agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
             } else {
                 agentEngine.tokenCount = 0
+                agentEngine.restoreTitle(null)
             }
             agentEngine.setupWorkingDir()
         }
@@ -631,6 +644,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.history.clear()
             agentEngine.sessionId = newId
             agentEngine.tokenCount = 0
+            agentEngine.restoreTitle(null)
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -708,6 +722,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.history.addAll(session.messages)
                 agentEngine.sessionId = session.id
                 agentEngine.tokenCount = session.tokenCount
+                agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent

@@ -191,12 +191,64 @@ class AgentEngine(
         Log.d(TAG, "setupWorkingDir: ${dir.absolutePath}")
     }
 
-    /** Derived from the first user message; stable for the rest of the session. */
+    /** LLM-generated short title, once available; set once per session. */
+    var generatedTitle: String? = null
+        private set
+    private var titleGenerationAttempted = false
+
+    /** Falls back to the truncated first user message until [generatedTitle] is set. */
     fun currentTitle(): String =
-        history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
+        generatedTitle ?: history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
+
+    /**
+     * Restores title state when switching the engine to another session. Pass `null`
+     * for a fresh/untitled session so the next [saveCurrentSession] regenerates one;
+     * pass an already-generated title to avoid re-requesting it from the LLM.
+     */
+    fun restoreTitle(title: String?) {
+        generatedTitle = title
+        titleGenerationAttempted = title != null
+    }
+
+    /**
+     * Best-effort, once-per-session request for a short descriptive title based on the
+     * first user message. Silently leaves [generatedTitle] unset on failure, so
+     * [currentTitle] keeps returning the truncated-message fallback.
+     */
+    private suspend fun generateTitleIfNeeded(llm: LLMClient) {
+        if (titleGenerationAttempted) return
+        val firstUserText = history.firstOrNull { it.role == "user" }?.textContent?.trim()
+        if (firstUserText.isNullOrBlank()) return
+        titleGenerationAttempted = true
+        try {
+            val messages = listOf(
+                ChatMessage(
+                    role = "system",
+                    content = JsonPrimitive(
+                        "You write short chat titles. Reply with a 3-6 word title summarizing " +
+                            "the user's message, no quotes and no trailing punctuation. Reply with " +
+                            "the title only."
+                    )
+                ),
+                ChatMessage(role = "user", content = JsonPrimitive(firstUserText))
+            )
+            val titleModel = settings.subAgentModel.ifBlank { settings.model }
+            val response = llm.chat(messages = messages, temperature = 0f, modelOverride = titleModel)
+            val title = response.choices.firstOrNull()?.message?.textContent
+                ?.trim()?.trim('"', '\'', '.', ' ')?.take(60)
+            if (!title.isNullOrBlank()) {
+                generatedTitle = title
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Best-effort; keep the truncated-message fallback.
+        }
+    }
 
     suspend fun saveCurrentSession() {
         val id = sessionId ?: return
+        clientProvider()?.let { generateTitleIfNeeded(it) }
         val title = currentTitle()
         historyRepository.saveSession(
             ChatSession(
@@ -209,6 +261,8 @@ class AgentEngine(
                 agentMode = agentModeProvider()?.name
             )
         )
+        // Rename the chat dir in place now that the real title is known.
+        setupWorkingDir()
     }
 
     private suspend fun checkAndCompactHistory(llm: LLMClient) {
