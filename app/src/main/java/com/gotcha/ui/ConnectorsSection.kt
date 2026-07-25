@@ -39,11 +39,13 @@ import com.gotcha.connectors.oauth.OAuthConnectFlow
 @Composable
 fun ConnectorsSection() {
     val context = LocalContext.current
-    remember { ConnectorRegistry.init(context) }
-    val imap = remember { ConnectorRegistry.byId("imap") as ImapConnector }
-    val google = remember { ConnectorRegistry.byId("google") as GoogleConnector }
-    val microsoft = remember { ConnectorRegistry.byId("microsoft") as MicrosoftConnector }
-    val notion = remember { ConnectorRegistry.byId("notion") as NotionConnector }
+    // init is idempotent; folded into the remember that hands back the registry so
+    // this stays a value-producing remember rather than a Unit side effect.
+    val registry = remember(context) { ConnectorRegistry.apply { init(context) } }
+    val imap = remember(registry) { registry.byId("imap") as ImapConnector }
+    val google = remember(registry) { registry.byId("google") as GoogleConnector }
+    val microsoft = remember(registry) { registry.byId("microsoft") as MicrosoftConnector }
+    val notion = remember(registry) { registry.byId("notion") as NotionConnector }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ImapCard(imap)
