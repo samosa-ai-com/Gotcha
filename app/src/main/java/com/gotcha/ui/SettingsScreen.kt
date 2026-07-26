@@ -192,6 +192,27 @@ fun SettingsScreen(
     var languageExpanded by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
 
+    /**
+     * True when the chosen TTS/STT providers have what they need. Samosa AI
+     * needs the session JWT (gated identically to the LLM Save button). External
+     * API mode needs the base URL. Android and None are always ready.
+     */
+    fun speechConfigValid(): Boolean {
+        val tts = ttsProvider
+        val stt = sttProvider
+        val ttsOk = when (tts) {
+            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+            AudioProvider.API -> ttsApiBaseUrl.isNotBlank()
+            else -> true
+        }
+        val sttOk = when (stt) {
+            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+            AudioProvider.API -> sttApiBaseUrl.isNotBlank()
+            else -> true
+        }
+        return ttsOk && sttOk
+    }
+
     fun currentSettings() = Settings(
         provider = provider,
         apiKey = apiKey.trim(),
@@ -264,7 +285,9 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(ttsProvider, sttProvider) {
-        if (ttsProvider == AudioProvider.API || sttProvider == AudioProvider.API) {
+        if (ttsProvider == AudioProvider.API || ttsProvider == AudioProvider.SAMOSA_AI ||
+            sttProvider == AudioProvider.API || sttProvider == AudioProvider.SAMOSA_AI
+        ) {
             refreshAudioModelsAction()
         }
     }
@@ -676,7 +699,7 @@ fun SettingsScreen(
                             onExpandedChange = { ttsProviderExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = ttsProvider.name,
+                                value = ttsProvider.label,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("TTS Provider") },
@@ -693,7 +716,7 @@ fun SettingsScreen(
                             ) {
                                 AudioProvider.entries.forEach { provider ->
                                     DropdownMenuItem(
-                                        text = { Text(provider.name) },
+                                        text = { Text(provider.label) },
                                         onClick = {
                                             ttsProvider = provider
                                             ttsProviderExpanded = false
@@ -702,146 +725,124 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                        if (ttsProvider == AudioProvider.API) {
-                            OutlinedTextField(
-                                value = ttsApiBaseUrl,
-                                onValueChange = { ttsApiBaseUrl = it },
-                                label = { Text("TTS API Base URL") },
-                                singleLine = true,
-                                placeholder = { Text("http://10.0.2.2:8969/v1") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = ttsApiKey,
-                                onValueChange = { ttsApiKey = it },
-                                label = { Text("TTS API Key (optional)") },
-                                singleLine = true,
-                                placeholder = { Text("Leave blank to use main API key") },
-                                visualTransformation = if (showTtsKey) {
-                                    VisualTransformation.None
-                                } else {
-                                    PasswordVisualTransformation()
-                                },
-                                trailingIcon = {
-                                    TextButton(onClick = { showTtsKey = !showTtsKey }) {
-                                        Text(if (showTtsKey) "Hide" else "Show")
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            ExposedDropdownMenuBox(
-                                expanded = ttsModelExpanded,
-                                onExpandedChange = {
-                                    ttsModelExpanded = it
-                                    if (it) refreshAudioModelsAction()
-                                }
-                            ) {
-                                OutlinedTextField(
-                                    value = ttsApiModel.ifEmpty { "(select model)" },
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("TTS Model") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = ttsModelExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = ttsModelExpanded,
-                                    onDismissRequest = { ttsModelExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
-                                        },
-                                        onClick = { refreshAudioModelsAction() }
-                                    )
-                                    if (availableTtsModels.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("No models found") },
-                                            onClick = { ttsModelExpanded = false }
-                                        )
-                                    } else {
-                                        availableTtsModels.forEach { audioModel ->
-                                            DropdownMenuItem(
-                                                text = { Text(audioModel.id) },
-                                                onClick = {
-                                                    ttsApiModel = audioModel.id
-                                                    ttsModelExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            val selectedTtsModelObj = availableTtsModels.firstOrNull { it.id == ttsApiModel }
-                            val modelVoices = selectedTtsModelObj?.voices ?: emptyList()
-                            if (modelVoices.isNotEmpty()) {
-                                ExposedDropdownMenuBox(
-                                    expanded = ttsVoiceExpanded,
-                                    onExpandedChange = { ttsVoiceExpanded = it }
-                                ) {
-                                    val selectedVoiceObj = modelVoices.firstOrNull { it.id == ttsVoice }
-                                    val defaultObj = modelVoices.firstOrNull { it.id == selectedTtsModelObj?.defaultVoice }
-                                    val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedTtsModelObj?.defaultVoice ?: "af_heart"
-                                    val voiceLabel = if (ttsVoice.isEmpty()) {
-                                        "Default ($defaultVoiceLabel)"
-                                    } else {
-                                        selectedVoiceObj?.displayLabel ?: ttsVoice
-                                    }
-                                    OutlinedTextField(
-                                        value = voiceLabel,
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        label = { Text("TTS Voice (optional)") },
-                                        trailingIcon = {
-                                            ExposedDropdownMenuDefaults.TrailingIcon(
-                                                expanded = ttsVoiceExpanded
-                                            )
-                                        },
-                                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                                    )
-                                    ExposedDropdownMenu(
-                                        expanded = ttsVoiceExpanded,
-                                        onDismissRequest = { ttsVoiceExpanded = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Default ($defaultVoiceLabel)") },
-                                            onClick = {
-                                                ttsVoice = ""
-                                                ttsVoiceExpanded = false
+                        when (ttsProvider) {
+                            AudioProvider.SAMOSA_AI -> {
+                                SamosaAuthSection(
+                                    email = samosaEmail,
+                                    signedIn = samosaToken.isNotBlank(),
+                                    busy = samosaBusy,
+                                    onSignIn = {
+                                        samosaBusy = true
+                                        status = "Signing in with Google…"
+                                        scope.launch {
+                                            val result = onSamosaSignIn()
+                                            result.onSuccess { (email, token) ->
+                                                samosaEmail = email
+                                                samosaToken = token
+                                                status = "Signed in as $email"
+                                            }.onFailure { e ->
+                                                status = e.message ?: "Sign-in failed."
                                             }
-                                        )
-                                        modelVoices.forEach { voiceInfo ->
-                                            DropdownMenuItem(
-                                                text = { Text(voiceInfo.displayLabel) },
-                                                onClick = {
-                                                    ttsVoice = voiceInfo.id
-                                                    ttsVoiceExpanded = false
-                                                }
-                                            )
+                                            samosaBusy = false
+                                        }
+                                    },
+                                    onSignOut = {
+                                        samosaBusy = true
+                                        status = "Signing out…"
+                                        scope.launch {
+                                            onSamosaSignOut()
+                                            samosaToken = ""
+                                            samosaEmail = ""
+                                            status = "Signed out of Samosa AI."
+                                            samosaBusy = false
                                         }
                                     }
-                                }
-                            } else {
+                                )
+                                TtsModelPicker(
+                                    selectedModel = ttsApiModel,
+                                    availableModels = availableTtsModels,
+                                    refreshing = refreshingModels,
+                                    expanded = ttsModelExpanded,
+                                    onExpandedChange = { ttsModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        ttsApiModel = it
+                                        ttsModelExpanded = false
+                                    }
+                                )
+                                TtsVoicePicker(
+                                    selectedModel = ttsApiModel,
+                                    selectedVoice = ttsVoice,
+                                    availableModels = availableTtsModels,
+                                    expanded = ttsVoiceExpanded,
+                                    onExpandedChange = { ttsVoiceExpanded = it },
+                                    onSelect = {
+                                        ttsVoice = it
+                                        ttsVoiceExpanded = false
+                                    },
+                                    onClearVoice = { ttsVoice = "" }
+                                )
+                            }
+                            AudioProvider.API -> {
                                 OutlinedTextField(
-                                    value = ttsVoice,
-                                    onValueChange = { ttsVoice = it },
-                                    label = { Text("TTS Voice (optional)") },
+                                    value = ttsApiBaseUrl,
+                                    onValueChange = { ttsApiBaseUrl = it },
+                                    label = { Text("TTS API Base URL") },
                                     singleLine = true,
-                                    placeholder = { Text("e.g. af_heart, alloy, echo") },
+                                    placeholder = { Text("http://10.0.2.2:8969/v1") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                                OutlinedTextField(
+                                    value = ttsApiKey,
+                                    onValueChange = { ttsApiKey = it },
+                                    label = { Text("TTS API Key (optional)") },
+                                    singleLine = true,
+                                    placeholder = { Text("Leave blank to use main API key") },
+                                    visualTransformation = if (showTtsKey) {
+                                        VisualTransformation.None
+                                    } else {
+                                        PasswordVisualTransformation()
+                                    },
+                                    trailingIcon = {
+                                        TextButton(onClick = { showTtsKey = !showTtsKey }) {
+                                            Text(if (showTtsKey) "Hide" else "Show")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                TtsModelPicker(
+                                    selectedModel = ttsApiModel,
+                                    availableModels = availableTtsModels,
+                                    refreshing = refreshingModels,
+                                    expanded = ttsModelExpanded,
+                                    onExpandedChange = { ttsModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        ttsApiModel = it
+                                        ttsModelExpanded = false
+                                    }
+                                )
+                                TtsVoicePicker(
+                                    selectedModel = ttsApiModel,
+                                    selectedVoice = ttsVoice,
+                                    availableModels = availableTtsModels,
+                                    expanded = ttsVoiceExpanded,
+                                    onExpandedChange = { ttsVoiceExpanded = it },
+                                    onSelect = {
+                                        ttsVoice = it
+                                        ttsVoiceExpanded = false
+                                    },
+                                    onClearVoice = { ttsVoice = "" }
+                                )
                             }
+                            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
                         }
                         ExposedDropdownMenuBox(
                             expanded = sttProviderExpanded,
                             onExpandedChange = { sttProviderExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = sttProvider.name,
+                                value = sttProvider.label,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("STT Provider") },
@@ -858,7 +859,7 @@ fun SettingsScreen(
                             ) {
                                 AudioProvider.entries.forEach { provider ->
                                     DropdownMenuItem(
-                                        text = { Text(provider.name) },
+                                        text = { Text(provider.label) },
                                         onClick = {
                                             sttProvider = provider
                                             sttProviderExpanded = false
@@ -867,121 +868,117 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                        if (sttProvider == AudioProvider.API) {
-                            OutlinedTextField(
-                                value = sttApiBaseUrl,
-                                onValueChange = { sttApiBaseUrl = it },
-                                label = { Text("STT API Base URL") },
-                                singleLine = true,
-                                placeholder = { Text("http://10.0.2.2:8969/v1") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = sttApiKey,
-                                onValueChange = { sttApiKey = it },
-                                label = { Text("STT API Key (optional)") },
-                                singleLine = true,
-                                placeholder = { Text("Leave blank to use main API key") },
-                                visualTransformation = if (showSttKey) {
-                                    VisualTransformation.None
-                                } else {
-                                    PasswordVisualTransformation()
-                                },
-                                trailingIcon = {
-                                    TextButton(onClick = { showSttKey = !showSttKey }) {
-                                        Text(if (showSttKey) "Hide" else "Show")
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            ExposedDropdownMenuBox(
-                                expanded = sttModelExpanded,
-                                onExpandedChange = {
-                                    sttModelExpanded = it
-                                    if (it) refreshAudioModelsAction()
-                                }
-                            ) {
-                                OutlinedTextField(
-                                    value = sttApiModel.ifEmpty { "(select model)" },
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("STT Model") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = sttModelExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sttModelExpanded,
-                                    onDismissRequest = { sttModelExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
-                                        },
-                                        onClick = { refreshAudioModelsAction() }
-                                    )
-                                    if (availableSttModels.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("No models found") },
-                                            onClick = { sttModelExpanded = false }
-                                        )
-                                    } else {
-                                        availableSttModels.forEach { audioModel ->
-                                            DropdownMenuItem(
-                                                text = { Text(audioModel.id) },
-                                                onClick = {
-                                                    sttApiModel = audioModel.id
-                                                    sttModelExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            val selectedSttModelObj = availableSttModels.firstOrNull { it.id == sttApiModel }
-                            val languagesList = selectedSttModelObj?.languages?.takeIf { it.isNotEmpty() }
-                                ?: COMMON_STT_LANGUAGES
-                            ExposedDropdownMenuBox(
-                                expanded = sttLanguageExpanded,
-                                onExpandedChange = { sttLanguageExpanded = it }
-                            ) {
-                                OutlinedTextField(
-                                    value = sttLanguage,
-                                    onValueChange = { sttLanguage = it },
-                                    label = { Text("STT Language (optional)") },
-                                    placeholder = { Text("Auto-detect / Default (or select below)") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = sttLanguageExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = sttLanguageExpanded,
-                                    onDismissRequest = { sttLanguageExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Auto-detect / Default (empty)") },
-                                        onClick = {
-                                            sttLanguage = ""
-                                            sttLanguageExpanded = false
-                                        }
-                                    )
-                                    languagesList.forEach { lang ->
-                                        DropdownMenuItem(
-                                            text = { Text(lang) },
-                                            onClick = {
-                                                sttLanguage = lang
-                                                sttLanguageExpanded = false
+                        when (sttProvider) {
+                            AudioProvider.SAMOSA_AI -> {
+                                SamosaAuthSection(
+                                    email = samosaEmail,
+                                    signedIn = samosaToken.isNotBlank(),
+                                    busy = samosaBusy,
+                                    onSignIn = {
+                                        samosaBusy = true
+                                        status = "Signing in with Google…"
+                                        scope.launch {
+                                            val result = onSamosaSignIn()
+                                            result.onSuccess { (email, token) ->
+                                                samosaEmail = email
+                                                samosaToken = token
+                                                status = "Signed in as $email"
+                                            }.onFailure { e ->
+                                                status = e.message ?: "Sign-in failed."
                                             }
-                                        )
+                                            samosaBusy = false
+                                        }
+                                    },
+                                    onSignOut = {
+                                        samosaBusy = true
+                                        status = "Signing out…"
+                                        scope.launch {
+                                            onSamosaSignOut()
+                                            samosaToken = ""
+                                            samosaEmail = ""
+                                            status = "Signed out of Samosa AI."
+                                            samosaBusy = false
+                                        }
                                     }
-                                }
+                                )
+                                SttModelPicker(
+                                    selectedModel = sttApiModel,
+                                    availableModels = availableSttModels,
+                                    refreshing = refreshingModels,
+                                    expanded = sttModelExpanded,
+                                    onExpandedChange = { sttModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        sttApiModel = it
+                                        sttModelExpanded = false
+                                    }
+                                )
+                                SttLanguagePicker(
+                                    selectedModel = sttApiModel,
+                                    selectedLanguage = sttLanguage,
+                                    availableModels = availableSttModels,
+                                    expanded = sttLanguageExpanded,
+                                    onExpandedChange = { sttLanguageExpanded = it },
+                                    onSelect = {
+                                        sttLanguage = it
+                                        sttLanguageExpanded = false
+                                    },
+                                    onClearLanguage = { sttLanguage = "" }
+                                )
                             }
+                            AudioProvider.API -> {
+                                OutlinedTextField(
+                                    value = sttApiBaseUrl,
+                                    onValueChange = { sttApiBaseUrl = it },
+                                    label = { Text("STT API Base URL") },
+                                    singleLine = true,
+                                    placeholder = { Text("http://10.0.2.2:8969/v1") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = sttApiKey,
+                                    onValueChange = { sttApiKey = it },
+                                    label = { Text("STT API Key (optional)") },
+                                    singleLine = true,
+                                    placeholder = { Text("Leave blank to use main API key") },
+                                    visualTransformation = if (showSttKey) {
+                                        VisualTransformation.None
+                                    } else {
+                                        PasswordVisualTransformation()
+                                    },
+                                    trailingIcon = {
+                                        TextButton(onClick = { showSttKey = !showSttKey }) {
+                                            Text(if (showSttKey) "Hide" else "Show")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                SttModelPicker(
+                                    selectedModel = sttApiModel,
+                                    availableModels = availableSttModels,
+                                    refreshing = refreshingModels,
+                                    expanded = sttModelExpanded,
+                                    onExpandedChange = { sttModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        sttApiModel = it
+                                        sttModelExpanded = false
+                                    }
+                                )
+                                SttLanguagePicker(
+                                    selectedModel = sttApiModel,
+                                    selectedLanguage = sttLanguage,
+                                    availableModels = availableSttModels,
+                                    expanded = sttLanguageExpanded,
+                                    onExpandedChange = { sttLanguageExpanded = it },
+                                    onSelect = {
+                                        sttLanguage = it
+                                        sttLanguageExpanded = false
+                                    },
+                                    onClearLanguage = { sttLanguage = "" }
+                                )
+                            }
+                            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -997,6 +994,7 @@ fun SettingsScreen(
                                 overlay = SettingsOverlay("Saved.")
                                 status = null
                             },
+                            enabled = speechConfigValid(),
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Save Speech Settings") }
                     }
@@ -1579,6 +1577,230 @@ private fun SettingsToggleRow(
             style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
         )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/** TTS model picker dropdown — shared by Samosa AI and External API sections. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TtsModelPicker(
+    selectedModel: String,
+    availableModels: List<AudioModel>,
+    refreshing: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            onExpandedChange(it)
+            if (it) onRefresh()
+        }
+    ) {
+        OutlinedTextField(
+            value = selectedModel.ifEmpty { "(select model)" },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("TTS Model") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(if (refreshing) "Refreshing…" else "🔄 Refresh audio models…")
+                },
+                onClick = onRefresh
+            )
+            if (availableModels.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No models found") },
+                    onClick = { onExpandedChange(false) }
+                )
+            } else {
+                availableModels.forEach { audioModel ->
+                    DropdownMenuItem(
+                        text = { Text(audioModel.id) },
+                        onClick = { onSelect(audioModel.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** TTS voice picker — uses the model's voice list when available, otherwise a free-text field. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TtsVoicePicker(
+    selectedModel: String,
+    selectedVoice: String,
+    availableModels: List<AudioModel>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+    onClearVoice: () -> Unit
+) {
+    val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
+    val modelVoices = selectedModelObj?.voices ?: emptyList()
+    if (modelVoices.isNotEmpty()) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = onExpandedChange
+        ) {
+            val selectedVoiceObj = modelVoices.firstOrNull { it.id == selectedVoice }
+            val defaultObj = modelVoices.firstOrNull { it.id == selectedModelObj?.defaultVoice }
+            val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedModelObj?.defaultVoice ?: "af_heart"
+            val voiceLabel = if (selectedVoice.isEmpty()) {
+                "Default ($defaultVoiceLabel)"
+            } else {
+                selectedVoiceObj?.displayLabel ?: selectedVoice
+            }
+            OutlinedTextField(
+                value = voiceLabel,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("TTS Voice (optional)") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { onExpandedChange(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Default ($defaultVoiceLabel)") },
+                    onClick = onClearVoice
+                )
+                modelVoices.forEach { voiceInfo ->
+                    DropdownMenuItem(
+                        text = { Text(voiceInfo.displayLabel) },
+                        onClick = { onSelect(voiceInfo.id) }
+                    )
+                }
+            }
+        }
+    } else {
+        OutlinedTextField(
+            value = selectedVoice,
+            onValueChange = { onSelect(it) },
+            label = { Text("TTS Voice (optional)") },
+            singleLine = true,
+            placeholder = { Text("e.g. af_heart, alloy, echo") },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/** STT model picker dropdown — shared by Samosa AI and External API sections. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SttModelPicker(
+    selectedModel: String,
+    availableModels: List<AudioModel>,
+    refreshing: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            onExpandedChange(it)
+            if (it) onRefresh()
+        }
+    ) {
+        OutlinedTextField(
+            value = selectedModel.ifEmpty { "(select model)" },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("STT Model") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(if (refreshing) "Refreshing…" else "🔄 Refresh audio models…")
+                },
+                onClick = onRefresh
+            )
+            if (availableModels.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No models found") },
+                    onClick = { onExpandedChange(false) }
+                )
+            } else {
+                availableModels.forEach { audioModel ->
+                    DropdownMenuItem(
+                        text = { Text(audioModel.id) },
+                        onClick = { onSelect(audioModel.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** STT language picker — uses the model's languages when available, otherwise [COMMON_STT_LANGUAGES]. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SttLanguagePicker(
+    selectedModel: String,
+    selectedLanguage: String,
+    availableModels: List<AudioModel>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+    onClearLanguage: () -> Unit
+) {
+    val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
+    val languagesList = selectedModelObj?.languages?.takeIf { it.isNotEmpty() }
+        ?: COMMON_STT_LANGUAGES
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = onExpandedChange
+    ) {
+        OutlinedTextField(
+            value = selectedLanguage,
+            onValueChange = onSelect,
+            label = { Text("STT Language (optional)") },
+            placeholder = { Text("Auto-detect / Default (or select below)") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Auto-detect / Default (empty)") },
+                onClick = onClearLanguage
+            )
+            languagesList.forEach { lang ->
+                DropdownMenuItem(
+                    text = { Text(lang) },
+                    onClick = { onSelect(lang) }
+                )
+            }
+        }
     }
 }
 

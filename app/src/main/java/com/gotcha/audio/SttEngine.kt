@@ -37,10 +37,15 @@ sealed class SttOutcome {
 class SttEngine(
     private val context: Context,
     apiBaseUrl: String = "",
-    apiKey: String = ""
+    apiKey: String = "",
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
     // API STT state
-    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
+    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) {
+        AudioApi(apiBaseUrl, apiKey, onUnauthorized = onUnauthorized)
+    } else {
+        null
+    }
     private var currentRecorder: MediaRecorder? = null
     private var currentAudioFile: File? = null
 
@@ -75,7 +80,11 @@ class SttEngine(
 
     /** Set API config at runtime. */
     fun configureApi(baseUrl: String, apiKey: String) {
-        audioApi = if (baseUrl.isNotBlank()) AudioApi(baseUrl, apiKey) else null
+        audioApi = if (baseUrl.isNotBlank()) {
+            AudioApi(baseUrl, apiKey, onUnauthorized = onUnauthorized)
+        } else {
+            null
+        }
     }
 
     // ---- API STT (MediaRecorder + transcription) ----
@@ -366,7 +375,7 @@ class SttEngine(
     fun startListening(provider: AudioProvider): Boolean {
         return when (provider) {
             AudioProvider.ANDROID -> startAndroidListening()
-            AudioProvider.API -> startRecording()
+            AudioProvider.SAMOSA_AI, AudioProvider.API -> startRecording()
             AudioProvider.NONE -> false
         }
     }
@@ -389,7 +398,7 @@ class SttEngine(
                     Result.success(text)
                 }
             }
-            AudioProvider.API -> {
+            AudioProvider.SAMOSA_AI, AudioProvider.API -> {
                 val file = stopRecording()
                 if (file == null) {
                     return Result.failure(Exception("Recording failed"))
@@ -421,7 +430,7 @@ class SttEngine(
                     currentRecognizer = null
                 }
             }
-            AudioProvider.API -> {
+            AudioProvider.SAMOSA_AI, AudioProvider.API -> {
                 try {
                     currentRecorder?.apply {
                         stop()

@@ -26,7 +26,10 @@ import java.util.concurrent.TimeUnit
 class AudioApi(
     private val baseUrl: String,
     private val apiKey: String,
-    private val timeoutSeconds: Long = 30L
+    private val timeoutSeconds: Long = 30L,
+    /** Invoked when the server returns HTTP 401 — fires the Samosa session
+     *  invalidation path so the user re-signs in. */
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
     private val client: OkHttpClient
     private val jsonParser = Json {
@@ -48,7 +51,11 @@ class AudioApi(
                 if (apiKey.isNotBlank()) {
                     request.addHeader("Authorization", "Bearer $apiKey")
                 }
-                chain.proceed(request.build())
+                val response = chain.proceed(request.build())
+                if (response.code == 401) {
+                    onUnauthorized?.invoke()
+                }
+                response
             }
             .addInterceptor(logging)
             .build()

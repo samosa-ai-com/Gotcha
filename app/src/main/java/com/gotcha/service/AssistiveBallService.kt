@@ -107,8 +107,8 @@ class AssistiveBallService : Service() {
         instance = this
         settingsRepository = SettingsRepository(this)
         val s = settingsRepository.load()
-        ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.effectiveTtsApiKey)
-        sttEngine = SttEngine(this, s.sttApiBaseUrl, s.effectiveSttApiKey)
+        ttsEngine = TtsEngine(this, s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
+        sttEngine = SttEngine(this, s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         callController = CallSessionController(
             appContext = applicationContext,
             scope = scope,
@@ -629,9 +629,15 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                 }
             }
-            com.gotcha.audio.AudioProvider.API -> {
-                if (s.sttApiBaseUrl.isBlank() || s.sttApiModel.isBlank()) {
-                    overlay.showError("Configure an STT API URL and model in settings.")
+            com.gotcha.audio.AudioProvider.SAMOSA_AI, com.gotcha.audio.AudioProvider.API -> {
+                if (s.effectiveSttBaseUrl.isBlank() || s.sttApiModel.isBlank()) {
+                    overlay.showError(
+                        if (s.sttProvider == com.gotcha.audio.AudioProvider.SAMOSA_AI) {
+                            "Configure Samosa AI for STT in settings (sign in + select a model)."
+                        } else {
+                            "Configure an STT API URL and model in settings."
+                        }
+                    )
                     screenCompanionPanel.setListening(false)
                     return
                 }

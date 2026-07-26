@@ -63,4 +63,21 @@ class AudioModelTest {
         )
         assertEquals("bm_lewis", model.defaultVoice)
     }
+
+    @Test
+    fun `AudioProvider has the expected dropdown labels`() {
+        assertEquals("Android Built-in", AudioProvider.ANDROID.label)
+        assertEquals("Samosa AI", AudioProvider.SAMOSA_AI.label)
+        assertEquals("External API", AudioProvider.API.label)
+        assertEquals("None", AudioProvider.NONE.label)
+    }
+
+    @Test
+    fun `AudioProvider dropdown order is Android then Samosa then API then None`() {
+        val labels = AudioProvider.entries.map { it.label }
+        assertEquals(
+            listOf("Android Built-in", "Samosa AI", "External API", "None"),
+            labels
+        )
+    }
 }

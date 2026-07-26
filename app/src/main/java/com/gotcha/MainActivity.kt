@@ -321,6 +321,21 @@ class MainActivity : ComponentActivity() {
         settingsRepository.save(current.copy(assistiveBallEnabled = enabled))
     }
 
+    /** Any Samosa 401 (LLM or audio) clears the session and refreshes the
+     *  ChatViewModel so the UI reflects the unauthenticated state. */
+    fun onSamosaUnauthorized() {
+        val current = settingsRepository.load()
+        val samosaUsed = current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI
+        val samosaToken = current.samosaSessionToken
+        if (!samosaUsed && samosaToken.isBlank()) {
+            // No Samosa session to invalidate — bail.
+            return
+        }
+        settingsRepository.clearSamosaSession()
+        Toast.makeText(this, "Samosa session expired — please sign in again.", Toast.LENGTH_LONG).show()
+        chatViewModel.refreshSettings()
+    }
+
     override fun onStop() {
         super.onStop()
         chatViewModel.setForeground(false)
@@ -435,11 +450,23 @@ class MainActivity : ComponentActivity() {
                         },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
-                                val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.effectiveTtsApiKey)
+                                val ttsBase = s.effectiveTtsBaseUrl
+                                if (ttsBase.isBlank()) return@withContext Pair(emptyList(), emptyList())
+                                val onUnauthorized: () -> Unit = { this@MainActivity.onSamosaUnauthorized() }
+                                val ttsApi = AudioApi(
+                                    baseUrl = ttsBase,
+                                    apiKey = s.effectiveTtsApiKey,
+                                    onUnauthorized = onUnauthorized
+                                )
                                 val ttsAll = ttsApi.listAudioModels()
                                 val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
-                                val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
-                                    val sttApi = AudioApi(s.sttApiBaseUrl, s.effectiveSttApiKey)
+                                val sttBase = s.effectiveSttBaseUrl
+                                val sttModels = if (sttBase.isNotBlank() && sttBase != ttsBase) {
+                                    val sttApi = AudioApi(
+                                        baseUrl = sttBase,
+                                        apiKey = s.effectiveSttApiKey,
+                                        onUnauthorized = onUnauthorized
+                                    )
                                     sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
                                 } else {
                                     ttsAll.filter { it.category == ModelCategory.STT }

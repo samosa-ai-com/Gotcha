@@ -101,4 +101,50 @@ class AudioApiTest {
         assertEquals(ModelCategory.STT, stt.category)
         assertEquals(listOf("en", "es", "fr"), stt.languages)
     }
+
+    @Test
+    fun `onUnauthorized is invoked when the models endpoint returns 401`() {
+        var calls = 0
+        val api = AudioApi(
+            baseUrl = server.url("/v1").toString(),
+            apiKey = "expired-token",
+            onUnauthorized = { calls++ }
+        )
+        server.enqueue(MockResponse().setResponseCode(401))
+        api.listAudioModels()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun `onUnauthorized is not invoked on a 200 response`() {
+        var calls = 0
+        val api = AudioApi(
+            baseUrl = server.url("/v1").toString(),
+            apiKey = "good-token",
+            onUnauthorized = { calls++ }
+        )
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":[]}"""))
+        api.listAudioModels()
+        assertEquals(0, calls)
+    }
+
+    @Test
+    fun `401 on transcribe also fires onUnauthorized`() {
+        var calls = 0
+        val api = AudioApi(
+            baseUrl = server.url("/v1").toString(),
+            apiKey = "expired-token",
+            onUnauthorized = { calls++ }
+        )
+        server.enqueue(MockResponse().setResponseCode(401))
+        val audioFile = java.io.File.createTempFile("stt", ".m4a")
+        try {
+            audioFile.writeBytes(ByteArray(8))
+            val result = api.transcribe(audioFile, model = "m", language = "en")
+            assert(result.isFailure)
+        } finally {
+            audioFile.delete()
+        }
+        assertEquals(1, calls)
+    }
 }

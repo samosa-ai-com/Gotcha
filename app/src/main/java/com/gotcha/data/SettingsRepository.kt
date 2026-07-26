@@ -78,13 +78,41 @@ data class Settings(
             LlmProvider.OPENAI_COMPATIBLE -> apiKey
         }
 
-    /** Bearer token for TTS endpoint (falls back to effectiveApiKey if blank). */
-    val effectiveTtsApiKey: String
-        get() = ttsApiKey.ifBlank { effectiveApiKey }
+    /** Base URL the TTS engine should actually use. Samosa AI maps to the
+     *  shared OpenAI-compatible proxy; user-supplied API mode uses the user's URL. */
+    val effectiveTtsBaseUrl: String
+        get() = when (ttsProvider) {
+            AudioProvider.SAMOSA_AI -> LlmProvider.SAMOSA_BASE_URL
+            AudioProvider.API -> ttsApiBaseUrl
+            else -> ""
+        }
 
-    /** Bearer token for STT endpoint (falls back to effectiveApiKey if blank). */
+    /** Base URL the STT engine should actually use. Samosa AI maps to the
+     *  shared OpenAI-compatible proxy; user-supplied API mode uses the user's URL. */
+    val effectiveSttBaseUrl: String
+        get() = when (sttProvider) {
+            AudioProvider.SAMOSA_AI -> LlmProvider.SAMOSA_BASE_URL
+            AudioProvider.API -> sttApiBaseUrl
+            else -> ""
+        }
+
+    /** Bearer token for TTS endpoint. Samosa AI uses the session JWT directly;
+     *  External API uses the user key with fallback to the LLM's API key. */
+    val effectiveTtsApiKey: String
+        get() = when (ttsProvider) {
+            AudioProvider.SAMOSA_AI -> samosaSessionToken
+            AudioProvider.API -> ttsApiKey.ifBlank { effectiveApiKey }
+            else -> ""
+        }
+
+    /** Bearer token for STT endpoint. Samosa AI uses the session JWT directly;
+     *  External API uses the user key with fallback to the LLM's API key. */
     val effectiveSttApiKey: String
-        get() = sttApiKey.ifBlank { effectiveApiKey }
+        get() = when (sttProvider) {
+            AudioProvider.SAMOSA_AI -> samosaSessionToken
+            AudioProvider.API -> sttApiKey.ifBlank { effectiveApiKey }
+            else -> ""
+        }
 
     /** True when Samosa AI is selected and a session token exists. */
     val isSamosaAuthenticated: Boolean
@@ -127,12 +155,16 @@ class SettingsRepository(context: Context) {
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
-        ttsProvider = AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID"),
+        ttsProvider = runCatching {
+            AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID")
+        }.getOrDefault(AudioProvider.ANDROID),
         ttsApiBaseUrl = prefs.getString(KEY_TTS_API_URL, "") ?: "",
         ttsApiKey = prefs.getString(KEY_TTS_API_KEY, "") ?: "",
         ttsApiModel = prefs.getString(KEY_TTS_API_MODEL, "") ?: "",
         ttsVoice = prefs.getString(KEY_TTS_VOICE, "") ?: "",
-        sttProvider = AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID"),
+        sttProvider = runCatching {
+            AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID")
+        }.getOrDefault(AudioProvider.ANDROID),
         sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
         sttApiKey = prefs.getString(KEY_STT_API_KEY, "") ?: "",
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",

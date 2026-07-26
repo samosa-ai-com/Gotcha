@@ -485,6 +485,13 @@ class CallSessionController(
     private fun audioConfigError(label: String, provider: AudioProvider, baseUrl: String, model: String): String? =
         when (provider) {
             AudioProvider.NONE -> "$label is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT)."
+            AudioProvider.SAMOSA_AI -> when {
+                baseUrl.isBlank() ->
+                    "$label Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT)."
+                model.isBlank() ->
+                    "$label model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                else -> null
+            }
             AudioProvider.API -> when {
                 baseUrl.isBlank() || baseUrl.trim().toHttpUrlOrNull() == null ->
                     "$label API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT)."

@@ -97,13 +97,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private var lastInputWasVoice = false
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
-        settings.ttsApiBaseUrl,
-        settings.effectiveTtsApiKey
+        settings.effectiveTtsBaseUrl,
+        settings.effectiveTtsApiKey,
+        onUnauthorized = { onSamosaUnauthorized() }
     )
     private val sttEngine: SttEngine = SttEngine(
         getApplication(),
-        settings.sttApiBaseUrl,
-        settings.effectiveSttApiKey
+        settings.effectiveSttBaseUrl,
+        settings.effectiveSttApiKey,
+        onUnauthorized = { onSamosaUnauthorized() }
     )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
@@ -297,8 +299,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } else {
             null
         }
-        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveTtsApiKey)
-        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveSttApiKey)
+        ttsEngine.configureApi(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        sttEngine.configureApi(settings.effectiveSttBaseUrl, settings.effectiveSttApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
         updateContextUsage()
     }
@@ -506,9 +508,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to start speech recognition.")
                 }
             }
-            AudioProvider.API -> {
-                if (settings.sttApiBaseUrl.isBlank()) {
-                    appendUi(MessageKind.ERROR, "No STT API URL configured in settings.")
+            AudioProvider.SAMOSA_AI, AudioProvider.API -> {
+                if (settings.effectiveSttBaseUrl.isBlank()) {
+                    appendUi(
+                        MessageKind.ERROR,
+                        if (settings.sttProvider == AudioProvider.SAMOSA_AI) {
+                            "Samosa STT is not configured. Sign in from Settings → Speech."
+                        } else {
+                            "No STT API URL configured in settings."
+                        }
+                    )
                     return
                 }
                 if (settings.sttApiModel.isBlank()) {
@@ -533,7 +542,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         viewModelScope.launch {
             val provider = settings.sttProvider
             var transcript = ""
-            if (provider == AudioProvider.API) {
+            if (provider == AudioProvider.API || provider == AudioProvider.SAMOSA_AI) {
                 _uiState.update { it.copy(isRecording = false) }
                 val audioFile = sttEngine.stopRecording()
                 if (audioFile == null) {
