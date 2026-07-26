@@ -15,6 +15,7 @@ import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
+import com.gotcha.tools.DeviceCapabilities
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.SubAgentSession
@@ -384,7 +385,7 @@ class AgentEngine(
             val response = try {
                 llm.chat(
                     messages,
-                    ToolRegistry.toolsForAgent(agent, hiddenConnectorTools()),
+                    ToolRegistry.toolsForAgent(agent, hiddenTools()),
                     sessionId = sessionId
                 )
             } catch (e: CancellationException) {
@@ -805,17 +806,20 @@ class AgentEngine(
             call.function.name,
             args,
             agent,
-            hiddenTools = hiddenConnectorTools()
+            hiddenTools = hiddenTools()
         )
     }
 
     /**
-     * Tools withheld this turn because every connector that could serve them is
-     * disconnected or switched off. Recomputed per call — the user can connect or
-     * toggle a connector mid-conversation.
+     * Tools withheld this turn: those whose connector is disconnected or switched
+     * off, plus those whose device capability is missing (accessibility off, not
+     * rooted, …). Recomputed per call — the user can connect an account or grant
+     * a permission mid-conversation, and the `<env>` block reports both so the
+     * model can see a capability appear rather than only inferring it.
      */
-    private fun hiddenConnectorTools(): Set<String> =
-        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors)
+    private fun hiddenTools(): Set<String> =
+        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
+            DeviceCapabilities.hiddenToolNames(appContext)
 
     /**
      * Environment block sent as the first system message.
@@ -847,7 +851,7 @@ class AgentEngine(
     private fun activeSkillsMessages(): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
         val disabledSkills = settingsProvider().disabledSkills
-        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenConnectorTools())
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
             .filter { !disabledSkills.contains(it.id) }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
         val message = SkillPromptBuilder.build(currentPackage, activeSkills, communityIds)
@@ -950,28 +954,11 @@ class AgentEngine(
             pm.getPackageInfo(app.packageName, 0).versionName ?: "unknown"
         } catch (_: Exception) { "unknown" }
 
-        val accEnabled = try {
-            val expected = "${app.packageName}/com.gotcha.service.GotchaAccessibilityService"
-            val enabled = android.provider.Settings.Secure.getString(
-                app.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: ""
-            enabled.contains(expected, ignoreCase = true)
-        } catch (_: Exception) { false }
-
-        val notifEnabled = try {
-            val expected = app.packageName
-            val enabled = android.provider.Settings.Secure.getString(
-                app.contentResolver, "enabled_notification_listeners"
-            ) ?: ""
-            enabled.contains(expected, ignoreCase = true)
-        } catch (_: Exception) { false }
-
-        val deviceAdmin = try {
-            val dpm = app.getSystemService(android.app.admin.DevicePolicyManager::class.java)
-            dpm?.isAdminActive(
-                android.content.ComponentName(app, com.gotcha.service.GotchaDeviceAdminReceiver::class.java)
-            ) ?: false
-        } catch (_: Exception) { false }
+        // Same probes that decide tool exposure, so the status the model reads can
+        // never disagree with the tools it was offered.
+        val accEnabled = DeviceCapabilities.accessibilityEnabled(app)
+        val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
+        val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -993,6 +980,13 @@ class AgentEngine(
             appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
+            // Tools depending on a capability that is "no" here are withheld from
+            // the tool list, so these lines are the model's only way to explain
+            // what the user should enable.
+            appendLine(
+                "  Display over other apps: " +
+                    if (DeviceCapabilities.overlayAllowed(app)) "yes" else "no"
+            )
             appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
             appendLine("  App version: $versionName")
             appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")

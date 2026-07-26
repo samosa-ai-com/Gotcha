@@ -89,7 +89,7 @@ class ToolExecutor(
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
         if (name in hiddenTools) {
-            return ToolResult.error(connectorUnavailableMessage(name))
+            return ToolResult.error(unavailableMessage(name))
         }
         if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
@@ -480,7 +480,11 @@ class ToolExecutor(
             )
 
             // ---- Tier 4 ----
-            "check_root" -> rootTool.checkRoot()
+            "check_root" -> rootTool.checkRoot().also {
+                // The real probe beats the binary-path guess that gates the other
+                // root tools, so let it correct the cache either way.
+                DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
+            }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),
@@ -503,8 +507,12 @@ class ToolExecutor(
         }
     }
 
-    /** Names the connectors that would make [name] work, so the model can steer the user. */
-    private fun connectorUnavailableMessage(name: String): String {
+    /** Names what would make [name] work, so the model can steer the user there. */
+    private fun unavailableMessage(name: String): String {
+        CapabilityCatalog.ownerOf(name)?.let { capability ->
+            return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
+                "available on this device right now. Tell the user what to enable; do not retry."
+        }
         val owners = com.gotcha.connectors.ConnectorCatalog.ownersOf(name)
             .joinToString(" or ") { it.displayName }
         val suffix = if (owners.isBlank()) {

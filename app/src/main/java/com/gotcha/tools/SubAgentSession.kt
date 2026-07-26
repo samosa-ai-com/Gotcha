@@ -52,9 +52,7 @@ class SubAgentSession(
         val history = initialHistory()
 
         val maxRounds = settings.maxToolRounds
-        // Sub-agents inherit the parent's connector gating: no point paying for
-        // schemas of tools nothing can serve, once per round, again.
-        val hiddenTools = ConnectorRegistry.hiddenToolNames(settings.disabledConnectors)
+        val hiddenTools = hiddenTools()
         val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
 
         for (round in 0 until maxRounds) {
@@ -274,6 +272,14 @@ class SubAgentSession(
             Log.w(TAG, "Sub-agent context compaction failed, keeping full history")
         }
     }
+
+    /**
+     * Sub-agents inherit the parent's gating: no point paying for schemas of
+     * tools nothing can serve, once per round, again.
+     */
+    private fun hiddenTools(): Set<String> =
+        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
+            DeviceCapabilities.hiddenToolNames(appContext)
 
     private fun activeSkillsMessages(
         disabledSkills: Set<String>,
