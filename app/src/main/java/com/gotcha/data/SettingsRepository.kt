@@ -54,7 +54,8 @@ data class Settings(
     val proactiveAutoCopyOtp: Boolean = true,
     val proactiveAppBlacklist: Set<String> = emptySet(),
     val preferredLanguage: String = "English",
-    val preferredCurrency: String = "USD"
+    val preferredCurrency: String = "USD",
+    val communitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
@@ -150,7 +151,9 @@ class SettingsRepository(context: Context) {
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
         proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet(),
         preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
-        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD"
+        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD",
+        communitySkillHosts = prefs.getStringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
+            ?: defaultCommunitySkillHosts
     )
 
     fun save(settings: Settings) {
@@ -191,6 +194,7 @@ class SettingsRepository(context: Context) {
             .putStringSet(KEY_PROACTIVE_BLACKLIST, settings.proactiveAppBlacklist)
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
+            .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
             .apply()
     }
 
@@ -247,5 +251,7 @@ class SettingsRepository(context: Context) {
         const val KEY_PROACTIVE_BLACKLIST = "proactive_blacklist"
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
+        const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
+        val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
     }
 }
