@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.gotcha.agent.skills.SkillPromptBuilder
 import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
@@ -51,14 +52,15 @@ class SubAgentSession(
         val history = initialHistory()
 
         val maxRounds = settings.maxToolRounds
-        val subAgentTools = ToolRegistry.toolsForSubAgent()
+        val hiddenTools = hiddenTools()
+        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
 
         for (round in 0 until maxRounds) {
             Log.d(TAG, "Sub-agent round ${round + 1}/$maxRounds")
 
             val messages = buildList {
                 addAll(history)
-                addAll(activeSkillsMessages(settings.disabledSkills))
+                addAll(activeSkillsMessages(settings.disabledSkills, hiddenTools))
             }
 
             val response = try {
@@ -125,7 +127,13 @@ class SubAgentSession(
                 }
 
                 val result = try {
-                    toolExecutor.execute(call.function.name, args, AgentMode.OPERATOR, isSubAgent = true)
+                    toolExecutor.execute(
+                        call.function.name,
+                        args,
+                        AgentMode.OPERATOR,
+                        isSubAgent = true,
+                        hiddenTools = hiddenTools
+                    )
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -265,9 +273,20 @@ class SubAgentSession(
         }
     }
 
-    private fun activeSkillsMessages(disabledSkills: Set<String>): List<ChatMessage> {
+    /**
+     * Sub-agents inherit the parent's gating: no point paying for schemas of
+     * tools nothing can serve, once per round, again.
+     */
+    private fun hiddenTools(): Set<String> =
+        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
+            DeviceCapabilities.hiddenToolNames(appContext)
+
+    private fun activeSkillsMessages(
+        disabledSkills: Set<String>,
+        hiddenTools: Set<String>
+    ): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
-        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage)
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools)
             .filter { !disabledSkills.contains(it.id) }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
         val message = SkillPromptBuilder.build(currentPackage, activeSkills, communityIds)

@@ -1,5 +1,6 @@
 package com.gotcha.tools
 
+import com.gotcha.connectors.ConnectorCatalog
 import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import kotlinx.serialization.json.add
@@ -27,9 +28,15 @@ object ToolRegistry {
         "delete_timer"
     )
 
-    val monitorTools: Set<String> = setOf(
+    /**
+     * Read-only tools that belong to no connector. The connector-owned half of
+     * the Monitor set is contributed by [ConnectorCatalog] so the two can never
+     * drift — adding a connector read tool in one place used to require
+     * remembering to add it here too.
+     */
+    private val baseMonitorTools: Set<String> = setOf(
         "dial_number", "read_call_log", "find_contact", "read_recent_sms",
-        "list_calendar_events", "check_availability",
+        "list_calendar_events",
         "get_storage_info", "get_battery_info", "get_location", "get_volume",
         "get_audio_recording_status",
         "get_app_usage", "get_data_usage",
@@ -42,12 +49,11 @@ object ToolRegistry {
         "get_clipboard",
         "read_screen", "read_notifications",
         "check_root", "search_skills",
-        "list_emails", "read_email",
-        "list_tasks",
-        "notion_search", "notion_read_page",
         "get_health_summary", "get_health_records",
         "get_now_playing"
     )
+
+    val monitorTools: Set<String> = baseMonitorTools + ConnectorCatalog.monitorTools
 
     /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */
     val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app")
@@ -317,20 +323,40 @@ object ToolRegistry {
 
     fun isDestructive(name: String): Boolean = name in destructiveTools
 
-    fun isAllowedForAgent(name: String, agent: AgentMode): Boolean = when (agent) {
-        AgentMode.MONITOR -> name in monitorTools
-        AgentMode.OPERATOR -> name in operatorTools
+    fun isAllowedForAgent(
+        name: String,
+        agent: AgentMode,
+        hiddenTools: Set<String> = emptySet()
+    ): Boolean {
+        if (name in hiddenTools) return false
+        return when (agent) {
+            AgentMode.MONITOR -> name in monitorTools
+            AgentMode.OPERATOR -> name in operatorTools
+        }
     }
 
-    fun isAllowedForSubAgent(name: String): Boolean = name in subAgentTools
+    fun isAllowedForSubAgent(name: String, hiddenTools: Set<String> = emptySet()): Boolean =
+        name !in hiddenTools && name in subAgentTools
 
-    fun toolsForAgent(agent: AgentMode): List<ToolDefinition> = when (agent) {
-        AgentMode.MONITOR -> definitions.filterKeys { it in monitorTools }.values.toList()
-        AgentMode.OPERATOR -> definitions.values.toList()
+    /**
+     * Tool schemas to send for [agent], minus [hiddenTools] — connector-owned
+     * tools nothing can currently serve. Withholding them is both a token saving
+     * and a correctness fix: the model can no longer spend a round calling a tool
+     * whose only possible reply is "not connected".
+     */
+    fun toolsForAgent(
+        agent: AgentMode,
+        hiddenTools: Set<String> = emptySet()
+    ): List<ToolDefinition> {
+        val allowed = when (agent) {
+            AgentMode.MONITOR -> monitorTools
+            AgentMode.OPERATOR -> operatorTools
+        }
+        return definitions.filterKeys { it in allowed && it !in hiddenTools }.values.toList()
     }
 
-    fun toolsForSubAgent(): List<ToolDefinition> =
-        definitions.filterKeys { it in subAgentTools }.values.toList()
+    fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> =
+        definitions.filterKeys { it in subAgentTools && it !in hiddenTools }.values.toList()
 
     fun toolsForNavigator(): List<ToolDefinition> =
         navigatorTools.mapNotNull { navigatorDefinitions[it] }

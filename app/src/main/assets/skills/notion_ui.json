@@ -1,0 +1,7 @@
+{
+    "id": "notion_ui",
+    "targetPackageNames": ["notion.id"],
+    "name": "Notion UI Skills",
+    "description": "How to handle Notion when the connector tools aren't available.",
+    "instructions": "If the notion_* tools are NOT in your tool list, no Notion integration is connected. In that case:\n1. Say so plainly and point the user at the drawer menu ▸ Connectors ▸ Notion — connecting takes an internal integration token from notion.so/my-integrations and gives you real search/read/write.\n2. Only drive the app's UI with open_app + navigate_app if the user asks you to anyway. It is slow and the editor is awkward to automate: prefer reading over writing, and never try to restructure a page by tapping.\n3. Notion's app search is the reliable entry point once inside — open the app, tap search, type the page title, rather than scrolling the sidebar."
+}

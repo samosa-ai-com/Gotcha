@@ -77,10 +77,19 @@ class ToolExecutor(
         name: String,
         args: JsonObject,
         agent: AgentMode = AgentMode.OPERATOR,
-        isSubAgent: Boolean = false
+        isSubAgent: Boolean = false,
+        /**
+         * Connector-owned tools withheld from the model this turn. Callers on the
+         * model path pass these so a hallucinated call is refused with an
+         * actionable message instead of reaching a router that cannot serve it.
+         */
+        hiddenTools: Set<String> = emptySet()
     ): ToolResult {
         if (!ToolRegistry.contains(name)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
+        }
+        if (name in hiddenTools) {
+            return ToolResult.error(unavailableMessage(name))
         }
         if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
@@ -94,7 +103,7 @@ class ToolExecutor(
             )
         }
         val result = try {
-            withContext(Dispatchers.IO) { dispatch(name, args) }
+            withContext(Dispatchers.IO) { dispatch(name, args, hiddenTools) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -150,7 +159,7 @@ class ToolExecutor(
     // Single when-dispatch over the entire fixed tool catalog; size and branch count are
     // inherent to the design (see AGENTS.md).
     @Suppress("CyclomaticComplexMethod", "LongMethod")
-    private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
+    private suspend fun dispatch(name: String, args: JsonObject, hidden: Set<String>): ToolResult {
         com.gotcha.connectors.ConnectorRegistry.toolHandler(name)?.let { return it.invoke(name, args) }
         return when (name) {
             "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
@@ -471,7 +480,11 @@ class ToolExecutor(
             )
 
             // ---- Tier 4 ----
-            "check_root" -> rootTool.checkRoot()
+            "check_root" -> rootTool.checkRoot().also {
+                // The real probe beats the binary-path guess that gates the other
+                // root tools, so let it correct the cache either way.
+                DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
+            }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),
@@ -480,7 +493,9 @@ class ToolExecutor(
             )
             "search_skills" -> {
                 val query = args.requireString("query") ?: return missing("query")
-                val results = SkillRegistry.searchSkills(query)
+                // Same gating as the auto-injected skills: never hand back advice
+                // for tools the model cannot currently call.
+                val results = SkillRegistry.searchSkills(query, hidden)
                 if (results.isEmpty()) {
                     ToolResult.ok("No skills found matching '$query'.")
                 } else {
@@ -490,6 +505,23 @@ class ToolExecutor(
             }
             else -> ToolResult.error("Tool '$name' has no executor.")
         }
+    }
+
+    /** Names what would make [name] work, so the model can steer the user there. */
+    private fun unavailableMessage(name: String): String {
+        CapabilityCatalog.ownerOf(name)?.let { capability ->
+            return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
+                "available on this device right now. Tell the user what to enable; do not retry."
+        }
+        val owners = com.gotcha.connectors.ConnectorCatalog.ownersOf(name)
+            .joinToString(" or ") { it.displayName }
+        val suffix = if (owners.isBlank()) {
+            "The connector it needs is not set up."
+        } else {
+            "It needs $owners, which is not connected or is switched off."
+        }
+        return "Tool '$name' is unavailable. $suffix " +
+            "Tell the user to set it up in the drawer menu ▸ Connectors; do not retry."
     }
 
     private fun JsonObject.requireString(key: String): String? =
