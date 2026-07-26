@@ -51,6 +51,14 @@ data class Settings(
     val sttApiModel: String = "",
     val sttLanguage: String = "",
     val autoReadReplies: Boolean = false,
+    /**
+     * Buzz when a reply arrives. On by default: a reply can land while the user
+     * is in another app, and the pattern is distinct from the error buzz so it
+     * says *how* the turn ended, not just that it did.
+     */
+    val notifyVibrationEnabled: Boolean = true,
+    /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
+    val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val disabledSkills: Set<String> = emptySet(),
@@ -215,6 +223,8 @@ class SettingsRepository(context: Context) {
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
         sttLanguage = prefs.getString(KEY_STT_LANGUAGE, "") ?: "",
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
+        notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
+        notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         themeMode = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
@@ -260,6 +270,8 @@ class SettingsRepository(context: Context) {
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
+            .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
+            .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_THEME_MODE, settings.themeMode.name)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
@@ -319,6 +331,8 @@ class SettingsRepository(context: Context) {
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_STT_LANGUAGE = "stt_language"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_NOTIFY_VIBRATION = "notify_vibration"
+        const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_DISABLED_SKILLS = "disabled_skills"

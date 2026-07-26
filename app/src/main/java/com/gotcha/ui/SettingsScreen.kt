@@ -60,6 +60,7 @@ import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
@@ -98,6 +99,12 @@ fun SettingsScreen(
     onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
     onThemeChange: (ThemeMode) -> Unit = {},
+    /**
+     * Persists the reply-alert switches on the spot. Like [onThemeChange], and
+     * unlike the section Save buttons, so a toggle here can't drag half-typed
+     * edits from another section into storage with it.
+     */
+    onNotifyAlertChange: (vibration: Boolean, chime: Boolean) -> Unit = { _, _ -> },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(
             emptyList(),
@@ -147,6 +154,8 @@ fun SettingsScreen(
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
+    var notifyVibration by remember { mutableStateOf(initial.notifyVibrationEnabled) }
+    var notifyChime by remember { mutableStateOf(initial.notifyChimeEnabled) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
     var proactiveEnabled by remember { mutableStateOf(initial.proactiveEnabled) }
@@ -232,6 +241,8 @@ fun SettingsScreen(
         sttApiModel = sttApiModel.trim(),
         sttLanguage = sttLanguage.trim(),
         autoReadReplies = autoReadReplies,
+        notifyVibrationEnabled = notifyVibration,
+        notifyChimeEnabled = notifyChime,
         assistiveBallEnabled = initial.assistiveBallEnabled,
         themeMode = themeMode,
         disabledSkills = disabledSkills,
@@ -352,6 +363,52 @@ fun SettingsScreen(
                             )
                         ) { Text(mode.label) }
                     }
+                }
+
+                HorizontalDivider(thickness = 1.dp)
+
+                // ---- Notifications (always visible, applies immediately) ----
+                Text(
+                    "Notifications",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Played as soon as a reply arrives. Turn both off for no alert.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                // Switching one on plays it once, so the user knows what to expect.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Vibration", style = MaterialTheme.typography.bodyLarge)
+                    Switch(
+                        checked = notifyVibration,
+                        onCheckedChange = {
+                            notifyVibration = it
+                            onNotifyAlertChange(it, notifyChime)
+                            if (it) CompletionFeedback.replyArrived(localContext, vibrate = true, chime = false)
+                        },
+                        modifier = Modifier.testTag("settings_notify_vibration")
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Chime", style = MaterialTheme.typography.bodyLarge)
+                    Switch(
+                        checked = notifyChime,
+                        onCheckedChange = {
+                            notifyChime = it
+                            onNotifyAlertChange(notifyVibration, it)
+                            if (it) CompletionFeedback.replyArrived(localContext, vibrate = false, chime = true)
+                        },
+                        modifier = Modifier.testTag("settings_notify_chime")
+                    )
                 }
 
                 HorizontalDivider(thickness = 1.dp)

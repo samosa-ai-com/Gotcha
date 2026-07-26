@@ -448,6 +448,15 @@ class MainActivity : ComponentActivity() {
                             themeMode = mode
                             settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
                         },
+                        onNotifyAlertChange = { vibration, chime ->
+                            settingsRepository.save(
+                                settingsRepository.load().copy(
+                                    notifyVibrationEnabled = vibration,
+                                    notifyChimeEnabled = chime
+                                )
+                            )
+                            chatViewModel.refreshSettings()
+                        },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl

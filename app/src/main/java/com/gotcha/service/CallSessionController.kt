@@ -2,8 +2,6 @@ package com.gotcha.service
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.VibrationEffect
-import android.os.Vibrator
 import androidx.core.content.ContextCompat
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
@@ -12,6 +10,7 @@ import com.gotcha.agent.PendingQuestion
 import com.gotcha.agent.ScreenSnapshot
 import com.gotcha.agent.friendlyAgentError
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
@@ -572,30 +571,17 @@ class CallSessionController(
         return phrases.last().first
     }
 
+    /** Buzz/chime the turn's end, subject to the user's notification settings. */
     private fun triggerEndVibration() {
-        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        if (vibrator?.hasVibrator() == true) {
-            vibrator.vibrate(
-                VibrationEffect.createWaveform(
-                    longArrayOf(0, 50, 100, 50),
-                    -1
-                )
-            )
-        }
+        val s = settingsRepository.load()
+        CompletionFeedback.replyArrived(
+            context = appContext,
+            vibrate = s.notifyVibrationEnabled,
+            chime = s.notifyChimeEnabled
+        )
     }
 
-    /** Distinct (longer, triple-buzz) pattern so an error doesn't feel like a normal turn end. */
-    private fun triggerErrorVibration() {
-        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        if (vibrator?.hasVibrator() == true) {
-            vibrator.vibrate(
-                VibrationEffect.createWaveform(
-                    longArrayOf(0, 100, 80, 100, 80, 100),
-                    -1
-                )
-            )
-        }
-    }
+    private fun triggerErrorVibration() = CompletionFeedback.error(appContext)
 
     companion object {
         private const val NARRATION_THROTTLE_MS = 3_000L
