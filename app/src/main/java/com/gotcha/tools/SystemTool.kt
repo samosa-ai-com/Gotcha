@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
-import android.os.Build
 import android.provider.Settings
 
 class SystemTool(private val context: Context) {
@@ -110,11 +109,8 @@ class SystemTool(private val context: Context) {
 
     private fun openWifiSettings(): ToolResult {
         return try {
-            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                Intent(Settings.Panel.ACTION_WIFI)
-            } else {
-                Intent(Settings.ACTION_WIFI_SETTINGS)
-            }.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            val intent = Intent(Settings.Panel.ACTION_WIFI)
+                .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             context.startActivity(intent)
             ToolResult.ok("Opened the Wi-Fi settings panel so the user can toggle Wi-Fi.")
         } catch (e: Exception) {

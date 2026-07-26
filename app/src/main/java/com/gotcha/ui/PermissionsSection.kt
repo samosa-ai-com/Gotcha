@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
-import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -162,11 +161,8 @@ private fun openSpecialAccess(context: android.content.Context, marker: String, 
         ToolResult.DND_ACCESS -> Intent(AndroidSettings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
         ToolResult.ACCESSIBILITY_ACCESS -> Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS)
         ToolResult.NOTIFICATION_LISTENER_ACCESS -> Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-        ToolResult.ALL_FILES_ACCESS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        ToolResult.ALL_FILES_ACCESS ->
             Intent(AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName"))
-        } else {
-            Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
-        }
         ToolResult.OVERLAY_ACCESS -> Intent(
             AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
             Uri.parse("package:$packageName")

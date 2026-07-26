@@ -1,9 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
-import android.os.Build
 import android.os.Environment
-import androidx.core.content.ContextCompat
 import java.io.File
 
 /**
@@ -29,14 +27,6 @@ class FileResolver(private val context: Context) {
         private const val ALL_FILES_ACCESS_GUIDE =
             "This operation needs \"All files access\" to read or write outside the app sandbox. " +
                 "Go to Settings → Permissions → All Files Access and enable it, then ask again."
-
-        private const val READ_STORAGE_GUIDE =
-            "This operation needs storage read permission. " +
-                "Go to Settings → Permissions → Storage Read and grant it, then ask again."
-
-        private const val WRITE_STORAGE_GUIDE =
-            "This operation needs storage write permission. " +
-                "Go to Settings → Permissions → Storage Write and grant it, then ask again."
 
         private var workingDirOverride: String? = null
 
@@ -82,25 +72,11 @@ class FileResolver(private val context: Context) {
         val canonical = canonicalPath(path, cwd)
         if (isInAppSandbox(canonical)) return ResolveResult.Ok(File(canonical))
         return when {
-            // API 30+: need MANAGE_EXTERNAL_STORAGE for broad shared-storage read
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager() -> {
+            // Need MANAGE_EXTERNAL_STORAGE for broad shared-storage read
+            !Environment.isExternalStorageManager() -> {
                 if (isBelowExternalStorage(canonical)) {
                     ResolveResult.PermissionNeeded(
                         ToolResult.permissionNeeded(ToolResult.ALL_FILES_ACCESS, ALL_FILES_ACCESS_GUIDE)
-                    )
-                } else {
-                    ResolveResult.Ok(File(canonical))
-                }
-            }
-            // API 23-29: need READ_EXTERNAL_STORAGE for shared-storage read
-            Build.VERSION.SDK_INT in 23..29 -> {
-                val has = hasPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                if (!has && isBelowExternalStorage(canonical)) {
-                    ResolveResult.PermissionNeeded(
-                        ToolResult.permissionNeeded(
-                            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                            READ_STORAGE_GUIDE
-                        )
                     )
                 } else {
                     ResolveResult.Ok(File(canonical))
@@ -114,25 +90,11 @@ class FileResolver(private val context: Context) {
         val canonical = canonicalPath(path, cwd)
         if (isInAppSandbox(canonical)) return ResolveResult.Ok(File(canonical))
         return when {
-            // API 30+: need MANAGE_EXTERNAL_STORAGE for shared-storage write
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager() -> {
+            // Need MANAGE_EXTERNAL_STORAGE for shared-storage write
+            !Environment.isExternalStorageManager() -> {
                 ResolveResult.PermissionNeeded(
                     ToolResult.permissionNeeded(ToolResult.ALL_FILES_ACCESS, ALL_FILES_ACCESS_GUIDE)
                 )
-            }
-            // API 23-29: need WRITE_EXTERNAL_STORAGE for shared-storage write
-            Build.VERSION.SDK_INT in 23..29 -> {
-                val has = hasPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                if (!has && isBelowExternalStorage(canonical)) {
-                    ResolveResult.PermissionNeeded(
-                        ToolResult.permissionNeeded(
-                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                            WRITE_STORAGE_GUIDE
-                        )
-                    )
-                } else {
-                    ResolveResult.Ok(File(canonical))
-                }
             }
             else -> ResolveResult.Ok(File(canonical))
         }
@@ -141,14 +103,8 @@ class FileResolver(private val context: Context) {
     fun checkReadPermission(file: File): ToolResult? {
         val canonical = file.canonicalPath
         if (isInAppSandbox(canonical)) return null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            if (isBelowExternalStorage(canonical)) {
-                return ToolResult.permissionNeeded(ToolResult.ALL_FILES_ACCESS, ALL_FILES_ACCESS_GUIDE)
-            }
-        }
-        if (Build.VERSION.SDK_INT in 23..29 && isBelowExternalStorage(canonical)) {
-            val perm = android.Manifest.permission.READ_EXTERNAL_STORAGE
-            if (!hasPermission(perm)) return ToolResult.permissionNeeded(perm, READ_STORAGE_GUIDE)
+        if (!Environment.isExternalStorageManager() && isBelowExternalStorage(canonical)) {
+            return ToolResult.permissionNeeded(ToolResult.ALL_FILES_ACCESS, ALL_FILES_ACCESS_GUIDE)
         }
         return null
     }
@@ -156,12 +112,8 @@ class FileResolver(private val context: Context) {
     fun checkWritePermission(file: File): ToolResult? {
         val canonical = file.canonicalPath
         if (isInAppSandbox(canonical)) return null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+        if (!Environment.isExternalStorageManager()) {
             return ToolResult.permissionNeeded(ToolResult.ALL_FILES_ACCESS, ALL_FILES_ACCESS_GUIDE)
-        }
-        if (Build.VERSION.SDK_INT in 23..29 && isBelowExternalStorage(canonical)) {
-            val perm = android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-            if (!hasPermission(perm)) return ToolResult.permissionNeeded(perm, WRITE_STORAGE_GUIDE)
         }
         return null
     }
@@ -202,10 +154,6 @@ class FileResolver(private val context: Context) {
         mime: String
     ): Boolean = mime == "application/zip" || mime == "application/x-rar-compressed" || mime == "application/gzip"
     fun isDocumentMime(mime: String): Boolean = mime == "application/pdf"
-
-    private fun hasPermission(permission: String): Boolean =
-        ContextCompat.checkSelfPermission(context, permission) ==
-            android.content.pm.PackageManager.PERMISSION_GRANTED
 
     private fun isInAppSandbox(canonical: String): Boolean {
         return appSandboxPaths.any { canonical.startsWith(it) }

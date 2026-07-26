@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -35,8 +34,7 @@ class ConfirmationOverlay(context: Context) {
     private var view: View? = null
 
     /** Whether we currently hold the "Display over other apps" permission. */
-    fun canShow(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(appContext)
+    fun canShow(): Boolean = Settings.canDrawOverlays(appContext)
 
     fun show(summary: String, onAllow: () -> Unit, onDeny: () -> Unit) {
         mainHandler.post {
@@ -113,12 +111,7 @@ class ConfirmationOverlay(context: Context) {
     }
 
     private fun layoutParams(): WindowManager.LayoutParams {
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         // FLAG_NOT_FOCUSABLE keeps us from stealing the keyboard, but the window still
         // receives touch events, so the Allow/Deny buttons remain tappable.
         return WindowManager.LayoutParams(

@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -40,10 +39,6 @@ class ScreenLensController(
 
     /** Begin a Lens capture: add the full-screen crop overlay and auto-annotate UI elements. */
     fun start() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            onError("Lens mode requires Android 11+")
-            return
-        }
         mainHandler.post {
             removeActionMenu()
             removeCropOverlay()
@@ -519,13 +514,7 @@ class ScreenLensController(
         return android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
     }
 
-    private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+    private fun overlayType(): Int = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
     private companion object {
         const val MIN_SELECTION_DP = 24

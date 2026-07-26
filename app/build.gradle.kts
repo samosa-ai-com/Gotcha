@@ -1,10 +1,12 @@
 import java.util.Properties
+import org.gradle.api.tasks.PathSensitivity
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("io.gitlab.arturbosch.detekt")
+    id("org.jetbrains.kotlinx.kover")
 }
 
 // Load signing credentials from local.properties (gitignored), if present.
@@ -19,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.gotcha"
-        minSdk = 26
+        minSdk = 30
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
@@ -88,23 +90,29 @@ android {
     }
 
     testOptions {
+        unitTests.isIncludeAndroidResources = true // required by Robolectric
+        // FeatureCoverageManifestTest rewrites docs/FEATURE_TEST_COVERAGE.md instead of
+        // asserting on it when this is true:
+        //   ./gradlew :app:testDebugUnitTest -PupdateCoverageDocs=true
+        unitTests.all { test ->
+            val updatingCoverageDocs = providers.gradleProperty("updateCoverageDocs").getOrElse("false")
+            test.systemProperty("gotcha.coverage.update", updatingCoverageDocs)
+            // The generated doc is an *input* to the drift assertion, so hand-editing it has to
+            // invalidate the task — otherwise Gradle reports UP-TO-DATE and the gate never runs.
+            // Skipped while regenerating, when the task writes that same file.
+            if (updatingCoverageDocs != "true") {
+                test.inputs
+                    .file(rootProject.file("docs/FEATURE_TEST_COVERAGE.md"))
+                    .withPropertyName("featureCoverageDoc")
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            }
+        }
         animationsDisabled = true
         managedDevices {
             localDevices {
-                create("api27") {
-                    device = "Pixel 2"
-                    apiLevel = 27
-                    systemImageSource = "aosp"
-                }
-                // Android 10 — no ATD image at this API level; falls back to full aosp.
-                create("api29") {
-                    device = "Pixel 2"
-                    apiLevel = 29
-                    systemImageSource = "aosp"
-                }
-                // Android 11 — the aosp-atd x86 image for this API level appears to hang
+                // Android 11 (minSdk) — the aosp-atd x86 image for this API level appears to hang
                 // on boot on Windows/WHPX (confirmed: qemu process alive but memory flat,
-                // never progresses); the plain aosp x86 image (same as api29) boots fine.
+                // never progresses); the plain aosp x86 image boots fine.
                 create("api30") {
                     device = "Pixel 2"
                     apiLevel = 30
@@ -146,16 +154,19 @@ android {
                 create("smoke") {
                     targetDevices.add(allDevices["api34"])
                 }
+                // API 35/36 bring background-start, foreground-service and notification
+                // restrictions that hit an overlay/assistant app hard — the highest-risk
+                // untested axis after OEM behaviour.
                 create("full") {
-                    targetDevices.add(allDevices["api27"])
                     targetDevices.add(allDevices["api30"])
                     targetDevices.add(allDevices["api33"])
                     targetDevices.add(allDevices["api34"])
+                    targetDevices.add(allDevices["api35"])
+                    targetDevices.add(allDevices["api36"])
                 }
-                // Android 10 through Android 16 — the range requested for manual
-                // multi-version verification. Excludes api27 (Android 8.1, minSdk-only).
-                create("android10to16") {
-                    targetDevices.add(allDevices["api29"])
+                // Android 11 (minSdk) through Android 16 — the range requested for manual
+                // multi-version verification.
+                create("android11to16") {
                     targetDevices.add(allDevices["api30"])
                     targetDevices.add(allDevices["api31"])
                     targetDevices.add(allDevices["api33"])
@@ -163,6 +174,33 @@ android {
                     targetDevices.add(allDevices["api35"])
                     targetDevices.add(allDevices["api36"])
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Coverage reporting only — deliberately no `koverVerify` thresholds.
+ *
+ * A global percentage would be misleading here: most of `com.gotcha.tools` needs a Context,
+ * and the Compose files in `com.gotcha.ui` generate synthetic bytecode that pollutes the
+ * denominator. The gate is the feature manifest (FeatureCoverageManifestTest); this is the
+ * diagnostic that tells you where to aim next. Watch `com.gotcha.tools`, `com.gotcha.agent`
+ * and `com.gotcha.data`.
+ *
+ * Reports: ./gradlew :app:koverHtmlReport -> app/build/reports/kover/html/index.html
+ */
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "com.gotcha.ui.theme.*",
+                    "*ComposableSingletons*",
+                    "*\$\$serializer",
+                    "*_Factory",
+                    "*Kt\$*\$*" // Compose/lambda synthetics
+                )
             }
         }
     }
@@ -261,6 +299,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    // Robolectric tier: runs Context-dependent tools on the JVM, and via @Config(sdk = [...])
+    // exercises SDK_INT branches across API levels far more cheaply than an emulator matrix row.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core-ktx:1.6.1")
+    testImplementation("io.mockk:mockk:1.13.13")
 
     // Instrumented tests
     androidTestImplementation(composeBom)

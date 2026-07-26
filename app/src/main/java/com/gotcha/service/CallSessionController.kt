@@ -2,7 +2,6 @@ package com.gotcha.service
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.core.content.ContextCompat
@@ -563,7 +562,6 @@ class CallSessionController(
     )
 
     private fun triggerEndVibration() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
         if (vibrator?.hasVibrator() == true) {
             vibrator.vibrate(
@@ -577,7 +575,6 @@ class CallSessionController(
 
     /** Distinct (longer, triple-buzz) pattern so an error doesn't feel like a normal turn end. */
     private fun triggerErrorVibration() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
         if (vibrator?.hasVibrator() == true) {
             vibrator.vibrate(

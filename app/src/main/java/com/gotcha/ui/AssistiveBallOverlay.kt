@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -117,8 +116,7 @@ class AssistiveBallOverlay(context: Context) {
         )
     }
 
-    fun canShow(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(appContext)
+    fun canShow(): Boolean = Settings.canDrawOverlays(appContext)
 
     /**
      * Ball/ring/menu (and optionally the error/info card) visibility toggle.
@@ -780,13 +778,7 @@ class AssistiveBallOverlay(context: Context) {
         } catch (_: Exception) { }
     }
 
-    private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+    private fun overlayType(): Int = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
     private fun ballLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(

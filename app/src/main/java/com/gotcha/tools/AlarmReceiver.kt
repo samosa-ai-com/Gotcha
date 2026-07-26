@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 
 class AlarmReceiver : BroadcastReceiver() {
@@ -52,23 +51,21 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     private fun createChannels(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Alarms & Timers", NotificationManager.IMPORTANCE_HIGH).apply {
-                    enableVibration(true)
-                }
-            )
-            nm.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID_SILENT,
-                    "Alarms & Timers (no vibration)",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    enableVibration(false)
-                }
-            )
-        }
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Alarms & Timers", NotificationManager.IMPORTANCE_HIGH).apply {
+                enableVibration(true)
+            }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID_SILENT,
+                "Alarms & Timers (no vibration)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                enableVibration(false)
+            }
+        )
     }
 
     companion object {

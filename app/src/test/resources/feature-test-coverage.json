@@ -1,0 +1,683 @@
+{
+  "tools": [
+    {
+      "tool": "dial_number",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to 'open the dialer with +49123456789'; confirm the dialer opens pre-filled and does NOT place the call."
+    },
+    {
+      "tool": "get_storage_info",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.StorageToolTest"
+      ],
+      "notes": "size formatting across every unit and the partition read"
+    },
+    {
+      "tool": "get_battery_info",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "reports a percentage without throwing"
+    },
+    {
+      "tool": "list_files",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "flat and recursive listings"
+    },
+    {
+      "tool": "read_file",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest",
+        "com.gotcha.tools.FileResolverTest"
+      ],
+      "notes": "offset/limit, missing paths, and the All-files-access gate"
+    },
+    {
+      "tool": "write_file",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest",
+        "com.gotcha.tools.FileResolverTest",
+        "com.gotcha.agent.AgentLoopTest"
+      ],
+      "notes": "create, append, overwrite, parent-dir creation; also driven end-to-end through the agent loop"
+    },
+    {
+      "tool": "open_app",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "launch intent flags and the unknown-package message"
+    },
+    {
+      "tool": "set_brightness",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "range validation, value scaling, WRITE_SETTINGS gate"
+    },
+    {
+      "tool": "toggle_wifi",
+      "tier": "MANUAL_ONLY",
+      "reason": "The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier.",
+      "manualSteps": "Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio.",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ]
+    },
+    {
+      "tool": "set_wallpaper",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and WallpaperManager; the platform wallpaper API has no usable emulator fake for the set-call callback.",
+      "manualSteps": "Ask the agent to set the wallpaper from a photo; confirm the home screen background changes."
+    },
+    {
+      "tool": "run_command",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.TerminalToolTest"
+      ],
+      "notes": "argument splitting, timeout, exit codes, output truncation"
+    },
+    {
+      "tool": "call_number",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Ask the agent to call a number you control; confirm the call is actually placed (and hang up)."
+    },
+    {
+      "tool": "read_call_log",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table.",
+      "manualSteps": "Make a call, then ask 'who did I last call?'; confirm the entry matches the Phone app's log."
+    },
+    {
+      "tool": "find_contact",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs a populated Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract query surface used by this tool.",
+      "manualSteps": "Ask 'what's <a saved contact>'s number?'; confirm it matches the Contacts app."
+    },
+    {
+      "tool": "add_contact",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs a writable Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract insert surface used by this tool.",
+      "manualSteps": "Ask the agent to add a contact; confirm it appears in the Contacts app with the right name and number."
+    },
+    {
+      "tool": "send_sms",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Ask the agent to text a number you control; confirm the message arrives and appears in the SMS app's sent list."
+    },
+    {
+      "tool": "read_recent_sms",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs a populated SMS ContentProvider; the emulator has no real SMS history and Robolectric's provider fakes are not wired for the Telephony.Sms table.",
+      "manualSteps": "Ask 'what was my last text?'; confirm it matches the SMS app."
+    },
+    {
+      "tool": "list_calendar_events",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.calendar.CalendarToolsTest",
+        "com.gotcha.connectors.calendar.CalendarWindowTest"
+      ],
+      "notes": "connector path (Google/Microsoft) only; the on-device CalendarProvider path is manual"
+    },
+    {
+      "tool": "create_calendar_event",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.calendar.CalendarToolsTest"
+      ],
+      "notes": "connector path only; the on-device CalendarProvider path is manual"
+    },
+    {
+      "tool": "edit_calendar_event",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.calendar.CalendarToolsTest"
+      ],
+      "notes": "connector path only; the on-device CalendarProvider path is manual"
+    },
+    {
+      "tool": "delete_calendar_event",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.calendar.CalendarToolsTest"
+      ],
+      "notes": "connector path only; destructive, so also gated by the confirmation flow"
+    },
+    {
+      "tool": "check_availability",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.calendar.CalendarWindowTest"
+      ],
+      "notes": "free/busy window arithmetic"
+    },
+    {
+      "tool": "set_alarm",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to set an alarm for 5 minutes' time; confirm it appears in the Clock app and fires."
+    },
+    {
+      "tool": "set_timer",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to set a 1-minute timer; confirm it appears in the Clock app and fires."
+    },
+    {
+      "tool": "list_alarms",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "With at least one alarm set, ask 'what alarms do I have?'; confirm the list matches the Clock app."
+    },
+    {
+      "tool": "list_timers",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "With a timer running, ask 'what timers are running?'; confirm the remaining time is right."
+    },
+    {
+      "tool": "edit_alarm",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to move an existing alarm 30 minutes later; confirm the Clock app shows the new time."
+    },
+    {
+      "tool": "delete_alarm",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to delete an alarm; confirm the confirmation prompt appears and the alarm is gone afterwards."
+    },
+    {
+      "tool": "delete_timer",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to cancel a running timer; confirm the confirmation prompt appears and the timer stops."
+    },
+    {
+      "tool": "toggle_torch",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Ask the agent to turn the torch on, then off; confirm the flash physically lights up."
+    },
+    {
+      "tool": "set_volume",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.DeviceToolTest"
+      ],
+      "notes": "percentage-to-stream scaling, aliases, range and stream validation"
+    },
+    {
+      "tool": "get_volume",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.DeviceToolTest"
+      ],
+      "notes": "single and all-stream reporting"
+    },
+    {
+      "tool": "set_ringer_mode",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.DeviceToolTest"
+      ],
+      "notes": "normal/vibrate/silent plus the Do-Not-Disturb access gate"
+    },
+    {
+      "tool": "vibrate",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Ask the agent to vibrate the phone; confirm you feel it."
+    },
+    {
+      "tool": "set_dnd",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs NotificationPolicyManager access and a real notification shade to verify the DND icon; Robolectric's shadow does not faithfully reproduce the policy enforcement side-effects.",
+      "manualSteps": "Ask the agent to turn Do Not Disturb on; confirm the DND icon appears (grant DND access first if prompted)."
+    },
+    {
+      "tool": "get_location",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Outdoors or with a mock location set, ask 'where am I?'; confirm the coordinates/address are plausible."
+    },
+    {
+      "tool": "list_installed_apps",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.AppsToolTest"
+      ],
+      "notes": "listing, system-app marking, counts, search filtering"
+    },
+    {
+      "tool": "uninstall_app",
+      "tier": "MANUAL_ONLY",
+      "reason": "AgentLoopTest covers the CONFIRM_UNINSTALL marker and both sides of the confirmation gate, but the actual package removal is a system dialog that cannot be automated.",
+      "manualSteps": "Install a throwaway app, ask the agent to uninstall it; confirm the confirmation prompt appears, then that the system uninstall dialog opens and the app is removed.",
+      "tests": [
+        "com.gotcha.agent.AgentLoopTest"
+      ]
+    },
+    {
+      "tool": "get_app_usage",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Grant Usage Access, then ask 'which app did I use most today?'; compare with Settings → Digital Wellbeing."
+    },
+    {
+      "tool": "get_data_usage",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Grant Usage Access, then ask 'how much data has Chrome used?'; compare with Settings → Network → Data usage."
+    },
+    {
+      "tool": "get_clipboard",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ClipboardToolTest"
+      ],
+      "notes": "read plus the API 34 accessibility-cache fallback, across API 30/33/34"
+    },
+    {
+      "tool": "set_clipboard",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ClipboardToolTest"
+      ],
+      "notes": "write-through to the platform clipboard and the accessibility cache"
+    },
+    {
+      "tool": "take_photo",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs a real camera; CameraX has no usable emulator fake for the capture callback.",
+      "manualSteps": "Ask the agent to take a photo; confirm the shutter fires and the file lands in Pictures/."
+    },
+    {
+      "tool": "start_audio_recording",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Ask the agent to start recording; confirm the mic indicator appears and a file is created under Recordings/."
+    },
+    {
+      "tool": "stop_audio_recording",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Stop an in-progress recording; confirm the file is finalised and playable in the Recorder/Files app."
+    },
+    {
+      "tool": "get_audio_recording_status",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "While recording, ask 'am I still recording?'; confirm the elapsed time is reported."
+    },
+    {
+      "tool": "pause_audio_recording",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Pause an in-progress recording; confirm the elapsed time stops advancing."
+    },
+    {
+      "tool": "resume_audio_recording",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.",
+      "manualSteps": "Resume a paused recording; confirm the elapsed time advances again and the final file contains both halves."
+    },
+    {
+      "tool": "question",
+      "tier": "MANUAL_ONLY",
+      "reason": "Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface.",
+      "manualSteps": "Ask something ambiguous so the agent asks a clarifying question; answer it and confirm the agent continues with your answer."
+    },
+    {
+      "tool": "sleep",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to wait 5 seconds mid-task; confirm the pause happens and the run continues."
+    },
+    {
+      "tool": "task",
+      "tier": "MANUAL_ONLY",
+      "reason": "Delegates to a nested agent loop that needs a live LLM connection.",
+      "manualSteps": "Give the agent a multi-step request; confirm a sub-agent is spawned and its result is folded back into the answer."
+    },
+    {
+      "tool": "ask_final_answer",
+      "tier": "MANUAL_ONLY",
+      "reason": "Only reachable from inside a sub-agent loop with a live LLM connection.",
+      "manualSteps": "Run a navigator/sub-agent task; confirm the final answer is returned to the parent agent rather than to the chat."
+    },
+    {
+      "tool": "todowrite",
+      "tier": "MANUAL_ONLY",
+      "reason": "Pure UI round-trip: writes the visible todo list in the chat surface.",
+      "manualSteps": "Give the agent a multi-step request; confirm a todo list is rendered and items tick off as it progresses."
+    },
+    {
+      "tool": "edit",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "unique match, replaceAll, no-match and blank-argument rejection"
+    },
+    {
+      "tool": "glob",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "`*` vs `**`, brace alternation, empty result sets"
+    },
+    {
+      "tool": "grep",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "regex and literal search, case-insensitivity, include filter, invalid patterns"
+    },
+    {
+      "tool": "websearch",
+      "tier": "MANUAL_ONLY",
+      "reason": "Performs real network I/O against a search provider; exercising it in CI would make the suite non-hermetic.",
+      "manualSteps": "Ask a question that needs current information; confirm the agent cites plausible, recent results."
+    },
+    {
+      "tool": "webfetch",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.WebFetchToolTest"
+      ],
+      "notes": "HTML-to-text extraction, truncation, error handling"
+    },
+    {
+      "tool": "read_screen",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "With the accessibility service on, open any app and ask 'what's on my screen?'; confirm the summary matches."
+    },
+    {
+      "tool": "read_screen_raw",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Ask for the raw UI hierarchy; confirm element bounds/indices line up with what's on screen."
+    },
+    {
+      "tool": "tap",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Ask the agent to tap a named on-screen button; confirm the right element is activated."
+    },
+    {
+      "tool": "long_press",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Ask the agent to long-press an icon; confirm the context menu opens."
+    },
+    {
+      "tool": "swipe",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Ask the agent to scroll down a list; confirm the list scrolls."
+    },
+    {
+      "tool": "tap_index",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Run read_screen_raw, then ask the agent to tap element N; confirm the numbered element is the one activated."
+    },
+    {
+      "tool": "long_press_index",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Run read_screen_raw, then long-press element N; confirm the right element gets the long press."
+    },
+    {
+      "tool": "press_key",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Ask the agent to press Back; confirm the app navigates back."
+    },
+    {
+      "tool": "input_text",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Focus a text field and ask the agent to type a phrase; confirm the text lands in the field."
+    },
+    {
+      "tool": "global_action",
+      "tier": "MANUAL_ONLY",
+      "reason": "Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).",
+      "manualSteps": "Ask the agent to open the notification shade, then Recents; confirm both happen."
+    },
+    {
+      "tool": "navigate_app",
+      "tier": "MANUAL_ONLY",
+      "reason": "Nested navigator agent loop over a live accessibility service and a live LLM connection.",
+      "manualSteps": "Ask the agent to complete a multi-screen task in another app; confirm it navigates there and reports the outcome."
+    },
+    {
+      "tool": "read_notifications",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host.",
+      "manualSteps": "Grant notification access, generate a notification, then ask 'what notifications do I have?'; confirm it is listed."
+    },
+    {
+      "tool": "dismiss_notifications",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host.",
+      "manualSteps": "With notifications present, ask the agent to clear them; confirm the shade empties."
+    },
+    {
+      "tool": "media_control",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.MediaSelectionTest"
+      ],
+      "notes": "action parsing and active-session selection"
+    },
+    {
+      "tool": "get_now_playing",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.MediaSelectionTest"
+      ],
+      "notes": "active-session selection across paused/playing/stopped sessions"
+    },
+    {
+      "tool": "show_overlay",
+      "tier": "MANUAL_ONLY",
+      "reason": "Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify.",
+      "manualSteps": "Ask the agent to show an overlay message; confirm the floating card appears above other apps."
+    },
+    {
+      "tool": "hide_overlay",
+      "tier": "MANUAL_ONLY",
+      "reason": "Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify.",
+      "manualSteps": "With an overlay showing, ask the agent to hide it; confirm the card disappears."
+    },
+    {
+      "tool": "lock_screen",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an active Device Admin registration, which cannot be granted non-interactively.",
+      "manualSteps": "Enable Gotcha as a device admin, ask the agent to lock the screen; confirm the device locks."
+    },
+    {
+      "tool": "disable_camera",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an active Device Admin registration, which cannot be granted non-interactively.",
+      "manualSteps": "As device admin, ask the agent to disable the camera; confirm the Camera app refuses to open, then re-enable."
+    },
+    {
+      "tool": "set_password_policy",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an active Device Admin registration, which cannot be granted non-interactively.",
+      "manualSteps": "As device admin, ask the agent to require a 6-character password; confirm Settings enforces the new minimum."
+    },
+    {
+      "tool": "check_root",
+      "tier": "MANUAL_ONLY",
+      "reason": "Probes for a real `su` binary; the result is meaningless on a non-rooted test device.",
+      "manualSteps": "On a rooted device ask 'am I rooted?'; confirm it says yes. On a stock device confirm it says no."
+    },
+    {
+      "tool": "run_root_command",
+      "tier": "MANUAL_ONLY",
+      "reason": "Requires a rooted device and an interactive superuser grant.",
+      "manualSteps": "On a rooted device, ask the agent to run `id`; confirm the superuser prompt appears and the output shows uid=0."
+    },
+    {
+      "tool": "write_secure_settings",
+      "tier": "MANUAL_ONLY",
+      "reason": "Requires WRITE_SECURE_SETTINGS, granted only via adb — and it mutates global device state.",
+      "manualSteps": "After `adb shell pm grant com.gotcha android.permission.WRITE_SECURE_SETTINGS`, ask the agent to change a secure setting; confirm with `adb shell settings get`."
+    },
+    {
+      "tool": "search_skills",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask about a task with a matching skill; confirm the skill's guidance shows up in the agent's plan."
+    },
+    {
+      "tool": "list_emails",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.mail.EmailToolsTest"
+      ],
+      "notes": "backend routing, unread filter, result limits"
+    },
+    {
+      "tool": "read_email",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.mail.EmailToolsTest",
+        "com.gotcha.connectors.mail.MailBodyExtractorTest"
+      ],
+      "notes": "id routing plus multipart/HTML body extraction"
+    },
+    {
+      "tool": "send_email",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.mail.EmailToolsTest",
+        "com.gotcha.tools.MimeMessageBuilderTest"
+      ],
+      "notes": "confirmation flow, recipient handling, MIME construction with attachments"
+    },
+    {
+      "tool": "mark_email_read",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.mail.EmailToolsTest"
+      ],
+      "notes": "read/unread toggle routed to the right backend"
+    },
+    {
+      "tool": "compose_email",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to open a draft email to someone; confirm the mail app opens pre-filled and nothing is sent."
+    },
+    {
+      "tool": "list_tasks",
+      "tier": "MANUAL_ONLY",
+      "reason": "Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today.",
+      "manualSteps": "With Microsoft connected, ask 'what tasks do I have?'; confirm the list matches To Do."
+    },
+    {
+      "tool": "create_task",
+      "tier": "MANUAL_ONLY",
+      "reason": "Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today.",
+      "manualSteps": "With Microsoft connected, ask the agent to add a task; confirm it appears in To Do."
+    },
+    {
+      "tool": "complete_task",
+      "tier": "MANUAL_ONLY",
+      "reason": "Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today.",
+      "manualSteps": "With Microsoft connected, ask the agent to complete a task; confirm To Do shows it as done."
+    },
+    {
+      "tool": "notion_search",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsTest"
+      ],
+      "notes": "query routing and result formatting"
+    },
+    {
+      "tool": "notion_read_page",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsTest",
+        "com.gotcha.connectors.notion.NotionBlockRendererTest"
+      ],
+      "notes": "page fetch plus block-to-markdown rendering"
+    },
+    {
+      "tool": "notion_create_page",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsTest"
+      ],
+      "notes": "parent/title handling and request shape"
+    },
+    {
+      "tool": "notion_append_to_page",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsTest"
+      ],
+      "notes": "block append request shape"
+    },
+    {
+      "tool": "get_health_summary",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.HealthFormatTest",
+        "com.gotcha.tools.HealthPermissionScopeTest"
+      ],
+      "notes": "summary formatting and the permission scope requested"
+    },
+    {
+      "tool": "get_health_records",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.HealthFormatTest",
+        "com.gotcha.tools.HealthPermissionScopeTest"
+      ],
+      "notes": "record-type formatting and per-type permission scoping"
+    },
+    {
+      "tool": "show_alarms",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "Ask the agent to show your alarms; confirm the Clock app opens on the alarms tab."
+    },
+    {
+      "tool": "snooze_alarm",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "With an alarm ringing, ask the agent to snooze it; confirm the alarm stops and re-arms."
+    },
+    {
+      "tool": "dismiss_timer",
+      "tier": "MANUAL_ONLY",
+      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
+      "manualSteps": "With a timer ringing, ask the agent to dismiss it; confirm it stops."
+    }
+  ]
+}

@@ -310,9 +310,6 @@ class MediaCaptureTool(private val context: Context) {
                 "Recording is already paused. You may resume it with resume_audio_recording or stop it with stop_audio_recording."
             )
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            return ToolResult.error("Pause/resume requires Android 7.0+ (API 24).")
-        }
         return try {
             rec.pause()
             recordingPaused = true
@@ -331,9 +328,6 @@ class MediaCaptureTool(private val context: Context) {
             return ToolResult.error(
                 "Recording is not paused. Use pause_audio_recording first, or stop the recording with stop_audio_recording."
             )
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            return ToolResult.error("Pause/resume requires Android 7.0+ (API 24).")
         }
         return try {
             rec.resume()
