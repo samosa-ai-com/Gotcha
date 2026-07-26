@@ -123,6 +123,9 @@ class FeatureCoverageManifestTest {
         val problems = manifest.tools.filter { it.tier == "MANUAL_ONLY" }.mapNotNull { entry ->
             when {
                 entry.reason.isNullOrBlank() -> "${entry.tool}: MANUAL_ONLY needs a non-blank 'reason'"
+                entry.reason.trim().length < 10 ->
+                    "${entry.tool}: MANUAL_ONLY 'reason' is too short " +
+                        "(${entry.reason.length} chars): \"${entry.reason}\""
                 entry.manualSteps.isNullOrBlank() -> "${entry.tool}: MANUAL_ONLY needs non-blank 'manualSteps'"
                 else -> null
             }

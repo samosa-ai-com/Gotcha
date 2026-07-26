@@ -46,7 +46,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tool | Tier | Tests / reason |
 |---|---|---|
-| `add_contact` | `MANUAL_ONLY` | R |
+| `add_contact` | `MANUAL_ONLY` | Needs a writable Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract insert surface used by this tool. |
 | `call_number` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `complete_task` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `create_calendar_event` | `UNIT` | `CalendarToolsTest` — connector path only; the on-device CalendarProvider path is manual |
@@ -75,12 +75,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `set_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `set_brightness` | `ROBOLECTRIC` | `SystemToolTest` — range validation, value scaling, WRITE_SETTINGS gate |
 | `set_clipboard` | `ROBOLECTRIC` | `ClipboardToolTest` — write-through to the platform clipboard and the accessibility cache |
-| `set_dnd` | `MANUAL_ONLY` | C |
+| `set_dnd` | `MANUAL_ONLY` | Needs NotificationPolicyManager access and a real notification shade to verify the DND icon; Robolectric's shadow does not faithfully reproduce the policy enforcement side-effects. |
 | `set_password_policy` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `set_ringer_mode` | `ROBOLECTRIC` | `DeviceToolTest` — normal/vibrate/silent plus the Do-Not-Disturb access gate |
 | `set_timer` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `set_volume` | `ROBOLECTRIC` | `DeviceToolTest` — percentage-to-stream scaling, aliases, range and stream validation |
-| `set_wallpaper` | `MANUAL_ONLY` | C |
+| `set_wallpaper` | `MANUAL_ONLY` | Needs an Android Context and WallpaperManager; the platform wallpaper API has no usable emulator fake for the set-call callback. |
 | `show_overlay` | `MANUAL_ONLY` | Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify. |
 | `snooze_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `start_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
@@ -100,7 +100,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `ask_final_answer` | `MANUAL_ONLY` | Only reachable from inside a sub-agent loop with a live LLM connection. |
 | `check_availability` | `UNIT` | `CalendarWindowTest` — free/busy window arithmetic |
 | `check_root` | `MANUAL_ONLY` | Probes for a real `su` binary; the result is meaningless on a non-rooted test device. |
-| `find_contact` | `MANUAL_ONLY` | R |
+| `find_contact` | `MANUAL_ONLY` | Needs a populated Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract query surface used by this tool. |
 | `get_app_usage` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `get_audio_recording_status` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `get_battery_info` | `ROBOLECTRIC` | `SystemToolTest` — reports a percentage without throwing |
@@ -124,11 +124,11 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page fetch plus block-to-markdown rendering |
 | `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting |
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
-| `read_call_log` | `MANUAL_ONLY` | R |
+| `read_call_log` | `MANUAL_ONLY` | Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table. |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |
 | `read_file` | `ROBOLECTRIC` | `FileToolsTest`, `FileResolverTest` — offset/limit, missing paths, and the All-files-access gate |
 | `read_notifications` | `MANUAL_ONLY` | Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host. |
-| `read_recent_sms` | `MANUAL_ONLY` | R |
+| `read_recent_sms` | `MANUAL_ONLY` | Needs a populated SMS ContentProvider; the emulator has no real SMS history and Robolectric's provider fakes are not wired for the Telephony.Sms table. |
 | `search_skills` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `sleep` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `todowrite` | `MANUAL_ONLY` | Pure UI round-trip: writes the visible todo list in the chat surface. |
@@ -156,7 +156,7 @@ The tiers above say *whether* a feature is tested. This says *where*.
 Run through this before a release. Each item is a tool with no automated coverage, so this list is the pre-release manual test script.
 
 - [ ] **`add_contact`** — Ask the agent to add a contact; confirm it appears in the Contacts app with the right name and number.
-  <br>_Why not automated:_ R
+  <br>_Why not automated:_ Needs a writable Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract insert surface used by this tool.
 - [ ] **`ask_final_answer`** — Run a navigator/sub-agent task; confirm the final answer is returned to the parent agent rather than to the chat.
   <br>_Why not automated:_ Only reachable from inside a sub-agent loop with a live LLM connection.
 - [ ] **`call_number`** — Ask the agent to call a number you control; confirm the call is actually placed (and hang up).
@@ -184,7 +184,7 @@ Run through this before a release. Each item is a tool with no automated coverag
 - [ ] **`edit_alarm`** — Ask the agent to move an existing alarm 30 minutes later; confirm the Clock app shows the new time.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`find_contact`** — Ask 'what's <a saved contact>'s number?'; confirm it matches the Contacts app.
-  <br>_Why not automated:_ R
+  <br>_Why not automated:_ Needs a populated Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract query surface used by this tool.
 - [ ] **`get_app_usage`** — Grant Usage Access, then ask 'which app did I use most today?'; compare with Settings → Digital Wellbeing.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`get_audio_recording_status`** — While recording, ask 'am I still recording?'; confirm the elapsed time is reported.
@@ -220,11 +220,11 @@ Run through this before a release. Each item is a tool with no automated coverag
 - [ ] **`question`** — Ask something ambiguous so the agent asks a clarifying question; answer it and confirm the agent continues with your answer.
   <br>_Why not automated:_ Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface.
 - [ ] **`read_call_log`** — Make a call, then ask 'who did I last call?'; confirm the entry matches the Phone app's log.
-  <br>_Why not automated:_ R
+  <br>_Why not automated:_ Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table.
 - [ ] **`read_notifications`** — Grant notification access, generate a notification, then ask 'what notifications do I have?'; confirm it is listed.
   <br>_Why not automated:_ Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host.
 - [ ] **`read_recent_sms`** — Ask 'what was my last text?'; confirm it matches the SMS app.
-  <br>_Why not automated:_ R
+  <br>_Why not automated:_ Needs a populated SMS ContentProvider; the emulator has no real SMS history and Robolectric's provider fakes are not wired for the Telephony.Sms table.
 - [ ] **`read_screen`** — With the accessibility service on, open any app and ask 'what's on my screen?'; confirm the summary matches.
   <br>_Why not automated:_ Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).
 - [ ] **`read_screen_raw`** — Ask for the raw UI hierarchy; confirm element bounds/indices line up with what's on screen.
@@ -240,13 +240,13 @@ Run through this before a release. Each item is a tool with no automated coverag
 - [ ] **`set_alarm`** — Ask the agent to set an alarm for 5 minutes' time; confirm it appears in the Clock app and fires.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`set_dnd`** — Ask the agent to turn Do Not Disturb on; confirm the DND icon appears (grant DND access first if prompted).
-  <br>_Why not automated:_ C
+  <br>_Why not automated:_ Needs NotificationPolicyManager access and a real notification shade to verify the DND icon; Robolectric's shadow does not faithfully reproduce the policy enforcement side-effects.
 - [ ] **`set_password_policy`** — As device admin, ask the agent to require a 6-character password; confirm Settings enforces the new minimum.
   <br>_Why not automated:_ Needs an active Device Admin registration, which cannot be granted non-interactively.
 - [ ] **`set_timer`** — Ask the agent to set a 1-minute timer; confirm it appears in the Clock app and fires.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`set_wallpaper`** — Ask the agent to set the wallpaper from a photo; confirm the home screen background changes.
-  <br>_Why not automated:_ C
+  <br>_Why not automated:_ Needs an Android Context and WallpaperManager; the platform wallpaper API has no usable emulator fake for the set-call callback.
 - [ ] **`show_alarms`** — Ask the agent to show your alarms; confirm the Clock app opens on the alarms tab.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`show_overlay`** — Ask the agent to show an overlay message; confirm the floating card appears above other apps.

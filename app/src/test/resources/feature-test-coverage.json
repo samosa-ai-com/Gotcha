@@ -77,7 +77,7 @@
     {
       "tool": "set_wallpaper",
       "tier": "MANUAL_ONLY",
-      "reason": "C",
+      "reason": "Needs an Android Context and WallpaperManager; the platform wallpaper API has no usable emulator fake for the set-call callback.",
       "manualSteps": "Ask the agent to set the wallpaper from a photo; confirm the home screen background changes."
     },
     {
@@ -97,19 +97,19 @@
     {
       "tool": "read_call_log",
       "tier": "MANUAL_ONLY",
-      "reason": "R",
+      "reason": "Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table.",
       "manualSteps": "Make a call, then ask 'who did I last call?'; confirm the entry matches the Phone app's log."
     },
     {
       "tool": "find_contact",
       "tier": "MANUAL_ONLY",
-      "reason": "R",
+      "reason": "Needs a populated Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract query surface used by this tool.",
       "manualSteps": "Ask 'what's <a saved contact>'s number?'; confirm it matches the Contacts app."
     },
     {
       "tool": "add_contact",
       "tier": "MANUAL_ONLY",
-      "reason": "R",
+      "reason": "Needs a writable Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract insert surface used by this tool.",
       "manualSteps": "Ask the agent to add a contact; confirm it appears in the Contacts app with the right name and number."
     },
     {
@@ -121,7 +121,7 @@
     {
       "tool": "read_recent_sms",
       "tier": "MANUAL_ONLY",
-      "reason": "R",
+      "reason": "Needs a populated SMS ContentProvider; the emulator has no real SMS history and Robolectric's provider fakes are not wired for the Telephony.Sms table.",
       "manualSteps": "Ask 'what was my last text?'; confirm it matches the SMS app."
     },
     {
@@ -246,7 +246,7 @@
     {
       "tool": "set_dnd",
       "tier": "MANUAL_ONLY",
-      "reason": "C",
+      "reason": "Needs NotificationPolicyManager access and a real notification shade to verify the DND icon; Robolectric's shadow does not faithfully reproduce the policy enforcement side-effects.",
       "manualSteps": "Ask the agent to turn Do Not Disturb on; confirm the DND icon appears (grant DND access first if prompted)."
     },
     {

@@ -102,7 +102,7 @@ android {
             // Skipped while regenerating, when the task writes that same file.
             if (updatingCoverageDocs != "true") {
                 test.inputs
-                    .files(rootProject.fileTree("docs") { include("FEATURE_TEST_COVERAGE.md") })
+                    .file(rootProject.file("docs/FEATURE_TEST_COVERAGE.md"))
                     .withPropertyName("featureCoverageDoc")
                     .withPathSensitivity(PathSensitivity.RELATIVE)
             }
