@@ -86,10 +86,12 @@ class TtsEngine(
         voice: String = "",
         language: Language = Language.ENGLISH
     ): Boolean = withContext(Dispatchers.IO) {
+        val sanitized = SpeechTextSanitizer.stripEmoji(text)
+        if (sanitized.isBlank()) return@withContext true
         try {
             when {
-                provider == AudioProvider.ANDROID -> speakAndroid(text, language)
-                provider.isApiBased() -> speakApi(text, apiModel, voice, language)
+                provider == AudioProvider.ANDROID -> speakAndroid(sanitized, language)
+                provider.isApiBased() -> speakApi(sanitized, apiModel, voice, language)
                 else -> false
             }
         } catch (_: Exception) { false }
