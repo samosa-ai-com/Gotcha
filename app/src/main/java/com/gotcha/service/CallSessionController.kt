@@ -17,6 +17,7 @@ import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -148,7 +149,8 @@ class CallSessionController(
         engine = newEngine
         _state.value = CallState.STARTING
         scope.launch {
-            if (!speakText("Call started. I'm ready when you are.")) {
+            val language = Language.fromLabel(s.preferredLanguage)
+            if (!speakText(SpokenPhrases.callStarted(language))) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
@@ -273,7 +275,7 @@ class CallSessionController(
             pendingReply = null
 
             // Narrate start-of-turn to give the user immediate feedback
-            narrate(pickTurnStartPhrase())
+            narrate(pickTurnStartPhrase(Language.fromLabel(s.preferredLanguage)))
             onActionRingColor(Category.FOREGROUND.ringColorArgb)
 
             try {
@@ -431,7 +433,8 @@ class CallSessionController(
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        if (!speakText("I need a confirmation — check the dialog on your screen.")) {
+        val language = Language.fromLabel(settingsRepository.load().preferredLanguage)
+        if (!speakText(SpokenPhrases.confirmationNeeded(language))) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<Boolean>()
@@ -551,33 +554,16 @@ class CallSessionController(
         return category != lastNarratedCategory || (now - lastNarrationTimeMs) > NARRATION_THROTTLE_MS
     }
 
-    private fun pickTurnStartPhrase(): String {
-        val total = turnStartPhrases.sumOf { it.second }
+    private fun pickTurnStartPhrase(lang: Language): String {
+        val phrases = SpokenPhrases.turnStart(lang)
+        val total = phrases.sumOf { it.second }
         var roll = kotlin.random.Random.nextFloat() * total
-        for ((phrase, weight) in turnStartPhrases) {
+        for ((phrase, weight) in phrases) {
             roll -= weight
             if (roll <= 0f) return phrase
         }
-        return turnStartPhrases.last().first
+        return phrases.last().first
     }
-
-    private val turnStartPhrases = listOf(
-        "Gotcha" to 5,
-        "Let me look into that" to 2,
-        "Hmm hmm" to 2,
-        "Got it" to 2,
-        "On it" to 1,
-        "Working on it" to 1,
-        "One moment" to 1,
-        "Let me check" to 1,
-        "I'm on it" to 1,
-        "Sure thing" to 1,
-        "Okay" to 1,
-        "Alright" to 1,
-        "Let me see" to 1,
-        "Give me a second" to 1,
-        "Hang on" to 1
-    )
 
     private fun triggerEndVibration() {
         val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
