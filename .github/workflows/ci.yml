@@ -42,6 +42,23 @@ jobs:
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
+      # Report-only: the feature-coverage manifest is the gate, not a percentage.
+      # See the comment on the kover block in app/build.gradle.kts.
+      - name: Coverage report
+        run: ./gradlew :app:koverXmlReport :app:koverHtmlReport --stacktrace
+
+      # Kover emits JaCoCo-format XML, so this action reads it directly. Thresholds are 0
+      # on purpose — it posts total + changed-files coverage and never fails the build.
+      - name: Post coverage on the PR
+        if: github.event_name == 'pull_request'
+        uses: madrapps/jacoco-report@v1.7
+        with:
+          paths: app/build/reports/kover/report.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 0
+          min-coverage-changed-files: 0
+          title: Coverage (report-only — the feature manifest is the gate)
+
       - name: Android Lint
         run: ./gradlew :app:lintDebug --stacktrace
 

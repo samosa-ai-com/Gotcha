@@ -6,6 +6,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("io.gitlab.arturbosch.detekt")
+    id("org.jetbrains.kotlinx.kover")
 }
 
 // Load signing credentials from local.properties (gitignored), if present.
@@ -168,6 +169,33 @@ android {
                     targetDevices.add(allDevices["api35"])
                     targetDevices.add(allDevices["api36"])
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Coverage reporting only — deliberately no `koverVerify` thresholds.
+ *
+ * A global percentage would be misleading here: most of `com.gotcha.tools` needs a Context,
+ * and the Compose files in `com.gotcha.ui` generate synthetic bytecode that pollutes the
+ * denominator. The gate is the feature manifest (FeatureCoverageManifestTest); this is the
+ * diagnostic that tells you where to aim next. Watch `com.gotcha.tools`, `com.gotcha.agent`
+ * and `com.gotcha.data`.
+ *
+ * Reports: ./gradlew :app:koverHtmlReport -> app/build/reports/kover/html/index.html
+ */
+kover {
+    reports {
+        filters {
+            excludes {
+                classes(
+                    "com.gotcha.ui.theme.*",
+                    "*ComposableSingletons*",
+                    "*\$\$serializer",
+                    "*_Factory",
+                    "*Kt\$*\$*" // Compose/lambda synthetics
+                )
             }
         }
     }
