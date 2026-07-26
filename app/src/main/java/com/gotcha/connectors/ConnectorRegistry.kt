@@ -66,6 +66,27 @@ object ConnectorRegistry {
 
     fun byId(id: String): Connector? = connectors.firstOrNull { it.id == id }
 
+    /** Ids of connectors that are connected and not switched off by the user. */
+    fun activeIds(disabledConnectors: Set<String>): Set<String> =
+        connectors.filter { it.isActive(disabledConnectors) }.mapTo(mutableSetOf()) { it.id }
+
+    /**
+     * Tool names to withhold from the model right now, because every connector
+     * that could serve them is disconnected or disabled. Falls back to hiding
+     * all connector-owned tools before [init] runs — nothing can serve them at
+     * that point either.
+     */
+    fun hiddenToolNames(disabledConnectors: Set<String>): Set<String> =
+        ConnectorCatalog.hiddenTools(activeIds(disabledConnectors))
+
+    /**
+     * Connectors the user has never set up, for the one-line discovery hint in
+     * the agent's environment block. Deliberately excludes connectors that are
+     * configured but switched off: that was the user's choice, and re-offering
+     * it every turn would be nagging.
+     */
+    fun unconfigured(): List<Connector> = connectors.filterNot { it.isConnected() }
+
     /** Email tool router (null before [init]). Used by the send-confirmation flow. */
     fun email(): EmailTools? = emailTools
 

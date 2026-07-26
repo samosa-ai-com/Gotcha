@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.gotcha.agent.skills.SkillPromptBuilder
 import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
@@ -51,7 +52,10 @@ class SubAgentSession(
         val history = initialHistory()
 
         val maxRounds = settings.maxToolRounds
-        val subAgentTools = ToolRegistry.toolsForSubAgent()
+        // Sub-agents inherit the parent's connector gating: no point paying for
+        // schemas of tools nothing can serve, once per round, again.
+        val hiddenTools = ConnectorRegistry.hiddenToolNames(settings.disabledConnectors)
+        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
 
         for (round in 0 until maxRounds) {
             Log.d(TAG, "Sub-agent round ${round + 1}/$maxRounds")
@@ -125,7 +129,13 @@ class SubAgentSession(
                 }
 
                 val result = try {
-                    toolExecutor.execute(call.function.name, args, AgentMode.OPERATOR, isSubAgent = true)
+                    toolExecutor.execute(
+                        call.function.name,
+                        args,
+                        AgentMode.OPERATOR,
+                        isSubAgent = true,
+                        hiddenTools = hiddenTools
+                    )
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {

@@ -45,6 +45,12 @@ data class Settings(
     val assistiveBallEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val disabledSkills: Set<String> = emptySet(),
+    /**
+     * Ids of connectors the user switched off. Credentials survive (re-enabling
+     * needs no re-auth), but the connector contributes no tools and its skills
+     * stop being injected.
+     */
+    val disabledConnectors: Set<String> = emptySet(),
     // Proactive Assistance Settings
     val proactiveEnabled: Boolean = true,
     val proactiveScanScreen: Boolean = true,
@@ -166,6 +172,9 @@ class SettingsRepository(context: Context) {
         )
     }
 
+    private fun stringSet(key: String, default: Set<String> = emptySet()): Set<String> =
+        prefs.getStringSet(key, default) ?: default
+
     fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = prefs.getString(KEY_API_KEY, "") ?: "",
@@ -200,18 +209,18 @@ class SettingsRepository(context: Context) {
         themeMode = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
         }.getOrDefault(ThemeMode.SYSTEM),
-        disabledSkills = prefs.getStringSet(KEY_DISABLED_SKILLS, emptySet()) ?: emptySet(),
+        disabledSkills = stringSet(KEY_DISABLED_SKILLS),
+        disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
         proactiveScanScreen = prefs.getBoolean(KEY_PROACTIVE_SCAN_SCREEN, true),
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
         proactiveScanNotifications = prefs.getBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, true),
         proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
-        proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet(),
+        proactiveAppBlacklist = stringSet(KEY_PROACTIVE_BLACKLIST),
         preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
         preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD",
-        communitySkillHosts = prefs.getStringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
-            ?: defaultCommunitySkillHosts
+        communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
     )
 
     fun save(settings: Settings) {
@@ -243,6 +252,7 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_THEME_MODE, settings.themeMode.name)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
+            .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
             .putBoolean(KEY_PROACTIVE_SCAN_SCREEN, settings.proactiveScanScreen)
             .putBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, settings.proactiveScanClipboard)
@@ -300,6 +310,7 @@ class SettingsRepository(context: Context) {
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
+        const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"
         const val KEY_PROACTIVE_SCAN_SCREEN = "proactive_scan_screen"
         const val KEY_PROACTIVE_SCAN_CLIPBOARD = "proactive_scan_clipboard"

@@ -29,6 +29,7 @@ import com.gotcha.connectors.imap.ImapCredentials
 import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
+import com.gotcha.data.SettingsRepository
 
 /**
  * The body of the Connectors screen: one card per connector, built from the two
@@ -47,19 +48,32 @@ fun ConnectorsSection() {
     val microsoft = remember(registry) { registry.byId("microsoft") as MicrosoftConnector }
     val notion = remember(registry) { registry.byId("notion") as NotionConnector }
 
+    // The one piece of connector state that is *not* a credential, so it lives in
+    // Settings rather than the connector's own encrypted blob.
+    val settingsRepo = remember(context) { SettingsRepository(context) }
+    var disabled by remember { mutableStateOf(settingsRepo.load().disabledConnectors) }
+    fun setEnabled(id: String, enabled: Boolean) {
+        disabled = if (enabled) disabled - id else disabled + id
+        settingsRepo.save(settingsRepo.load().copy(disabledConnectors = disabled))
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ImapCard(imap)
+        ImapCard(imap, "imap" !in disabled) { setEnabled("imap", it) }
         HorizontalDivider(thickness = 1.dp)
-        GoogleCard(google)
+        GoogleCard(google, "google" !in disabled) { setEnabled("google", it) }
         HorizontalDivider(thickness = 1.dp)
-        MicrosoftCard(microsoft)
+        MicrosoftCard(microsoft, "microsoft" !in disabled) { setEnabled("microsoft", it) }
         HorizontalDivider(thickness = 1.dp)
-        NotionCard(notion)
+        NotionCard(notion, "notion" !in disabled) { setEnabled("notion", it) }
     }
 }
 
 @Composable
-private fun NotionCard(notion: NotionConnector) {
+private fun NotionCard(
+    notion: NotionConnector,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
     val token = rememberTokenField("Internal integration token", "", secret = true)
 
     TokenConnectorCard(
@@ -77,12 +91,18 @@ private fun NotionCard(notion: NotionConnector) {
                 "add the integration. Pages that are not shared stay invisible to it."
         ),
         onConnect = { notion.connect(token.value) },
-        onDisconnect = notion::disconnect
+        onDisconnect = notion::disconnect,
+        enabled = enabled,
+        onEnabledChange = onEnabledChange
     )
 }
 
 @Composable
-private fun ImapCard(imap: ImapConnector) {
+private fun ImapCard(
+    imap: ImapConnector,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
     val saved = imap.credentials()
     val email = rememberTokenField("Email address", saved?.email ?: "", keyboard = KeyboardType.Email)
     val appPassword = rememberTokenField("App password", "", secret = true)
@@ -125,12 +145,18 @@ private fun ImapCard(imap: ImapConnector) {
             )
             "Saved. Credentials are verified on first use."
         },
-        onDisconnect = imap::disconnect
+        onDisconnect = imap::disconnect,
+        enabled = enabled,
+        onEnabledChange = onEnabledChange
     )
 }
 
 @Composable
-private fun GoogleCard(google: GoogleConnector) {
+private fun GoogleCard(
+    google: GoogleConnector,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
     val context = LocalContext.current
     // Which Google services to request consent for. Adding one later needs a reconnect,
     // because the refresh token only carries the scopes granted at consent time.
@@ -164,6 +190,8 @@ private fun GoogleCard(google: GoogleConnector) {
         initialClientSecret = google.credentials()?.clientSecret ?: "",
         flow = flow,
         onDisconnect = google::disconnect,
+        enabled = enabled,
+        onEnabledChange = onEnabledChange,
         blurb = "Full read/write Gmail and Google Calendar access using your own Google Cloud " +
             "OAuth client — no shared app, no verification wait.",
         steps = listOf(
@@ -194,7 +222,11 @@ private fun GoogleCard(google: GoogleConnector) {
 }
 
 @Composable
-private fun MicrosoftCard(microsoft: MicrosoftConnector) {
+private fun MicrosoftCard(
+    microsoft: MicrosoftConnector,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
     val context = LocalContext.current
     // "common" covers personal and work accounts; a tenant id/domain locks it to one org.
     var tenant by remember {
@@ -219,6 +251,8 @@ private fun MicrosoftCard(microsoft: MicrosoftConnector) {
         initialClientSecret = null,
         flow = flow,
         onDisconnect = microsoft::disconnect,
+        enabled = enabled,
+        onEnabledChange = onEnabledChange,
         blurb = "Outlook mail, calendar and To Do using your own Entra app registration. " +
             "One sign-in covers all three.",
         steps = listOf(

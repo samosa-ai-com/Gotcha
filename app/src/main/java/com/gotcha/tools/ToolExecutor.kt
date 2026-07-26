@@ -77,10 +77,19 @@ class ToolExecutor(
         name: String,
         args: JsonObject,
         agent: AgentMode = AgentMode.OPERATOR,
-        isSubAgent: Boolean = false
+        isSubAgent: Boolean = false,
+        /**
+         * Connector-owned tools withheld from the model this turn. Callers on the
+         * model path pass these so a hallucinated call is refused with an
+         * actionable message instead of reaching a router that cannot serve it.
+         */
+        hiddenTools: Set<String> = emptySet()
     ): ToolResult {
         if (!ToolRegistry.contains(name)) {
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
+        }
+        if (name in hiddenTools) {
+            return ToolResult.error(connectorUnavailableMessage(name))
         }
         if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
@@ -490,6 +499,19 @@ class ToolExecutor(
             }
             else -> ToolResult.error("Tool '$name' has no executor.")
         }
+    }
+
+    /** Names the connectors that would make [name] work, so the model can steer the user. */
+    private fun connectorUnavailableMessage(name: String): String {
+        val owners = com.gotcha.connectors.ConnectorCatalog.ownersOf(name)
+            .joinToString(" or ") { it.displayName }
+        val suffix = if (owners.isBlank()) {
+            "The connector it needs is not set up."
+        } else {
+            "It needs $owners, which is not connected or is switched off."
+        }
+        return "Tool '$name' is unavailable. $suffix " +
+            "Tell the user to set it up in the drawer menu ▸ Connectors; do not retry."
     }
 
     private fun JsonObject.requireString(key: String): String? =

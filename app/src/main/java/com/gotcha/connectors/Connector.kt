@@ -20,8 +20,23 @@ interface Connector {
     /** Names of the tools that depend on this connector (shown on its card). */
     val toolNames: Set<String>
 
+    /**
+     * The static half of this connector: which tools it owns outright, and which
+     * agents may use them. See [ConnectorSpec] for why it lives apart from the
+     * instance.
+     */
+    val spec: ConnectorSpec
+
     /** True when credentials are stored and the connector is usable. */
     fun isConnected(): Boolean
+
+    /**
+     * True when the connector is both connected and not switched off by the user.
+     * Tool exposure keys off this, not [isConnected]: a disabled connector keeps
+     * its credentials (so re-enabling needs no re-auth) but contributes no tools.
+     */
+    fun isActive(disabledConnectors: Set<String>): Boolean =
+        isConnected() && id !in disabledConnectors
 
     /** Short status line for the Settings card (e.g. "Connected as a@b.com"). */
     fun statusLine(): String

@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.gotcha.agent.skills.SkillPromptBuilder
 import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.GotchaStorage
@@ -381,7 +382,11 @@ class AgentEngine(
                 addAll(activeSkillsMessages())
             }
             val response = try {
-                llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
+                llm.chat(
+                    messages,
+                    ToolRegistry.toolsForAgent(agent, hiddenConnectorTools()),
+                    sessionId = sessionId
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -796,8 +801,21 @@ class AgentEngine(
         } catch (_: Exception) {
             return ToolResult.error("Malformed tool arguments: ${call.function.arguments.take(200)}")
         }
-        return toolExecutor.execute(call.function.name, args, agent)
+        return toolExecutor.execute(
+            call.function.name,
+            args,
+            agent,
+            hiddenTools = hiddenConnectorTools()
+        )
     }
+
+    /**
+     * Tools withheld this turn because every connector that could serve them is
+     * disconnected or switched off. Recomputed per call — the user can connect or
+     * toggle a connector mid-conversation.
+     */
+    private fun hiddenConnectorTools(): Set<String> =
+        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors)
 
     /**
      * Environment block sent as the first system message.
@@ -981,6 +999,18 @@ class AgentEngine(
             appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
             appendLine("  Preferred language: ${settings.preferredLanguage}")
             appendLine("  Preferred currency: ${settings.preferredCurrency}")
+            // Discovery hint for connectors the user has never set up. Costs ~20
+            // tokens and is the only way the model can suggest connecting Notion
+            // or To Do, whose tools are hidden and which — unlike email — have no
+            // no-connector fallback tool. Connectors that are configured but
+            // switched off are omitted: the user already decided.
+            val unconfigured = ConnectorRegistry.unconfigured()
+            if (unconfigured.isNotEmpty()) {
+                appendLine(
+                    "  Connectors available to set up (drawer menu ▸ Connectors): " +
+                        unconfigured.joinToString(", ") { it.displayName }
+                )
+            }
             append("</env>")
         }
     }
