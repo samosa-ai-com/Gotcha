@@ -154,10 +154,15 @@ android {
                 create("smoke") {
                     targetDevices.add(allDevices["api34"])
                 }
+                // API 35/36 bring background-start, foreground-service and notification
+                // restrictions that hit an overlay/assistant app hard — the highest-risk
+                // untested axis after OEM behaviour.
                 create("full") {
                     targetDevices.add(allDevices["api30"])
                     targetDevices.add(allDevices["api33"])
                     targetDevices.add(allDevices["api34"])
+                    targetDevices.add(allDevices["api35"])
+                    targetDevices.add(allDevices["api36"])
                 }
                 // Android 11 (minSdk) through Android 16 — the range requested for manual
                 // multi-version verification.

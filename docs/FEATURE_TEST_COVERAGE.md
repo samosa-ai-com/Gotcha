@@ -135,6 +135,22 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `webfetch` | `UNIT` | `WebFetchToolTest` — HTML-to-text extraction, truncation, error handling |
 | `websearch` | `MANUAL_ONLY` | Performs real network I/O against a search provider; exercising it in CI would make the suite non-hermetic. |
 
+## Device and Android-version coverage
+
+The tiers above say *whether* a feature is tested. This says *where*.
+
+| Axis | Coverage |
+|---|---|
+| Android versions (JVM) | `ROBOLECTRIC` tests run under `@Config(sdk = [...])`, typically API 30/33/34, so version-branching logic is covered in seconds without an emulator. |
+| Android versions (emulator) | Nightly `instrumented-full` matrix: API 30 (minSdk), 33, 34, 35, 36. Per-PR smoke runs API 34 only. |
+| OEM behaviour | **Not covered.** No emulator reproduces Samsung/Xiaomi battery managers killing overlay services and background agents — this app's largest real-world risk. Firebase Test Lab on physical devices is the only path; parked pending a GCP project (see `docs/TESTING_PLAN.md`). |
+
+### Instrumented suite
+
+`app/src/androidTest` covers app-level flows rather than individual tools: launch routing (`SmokeLaunchTest`), a chat round-trip against a mock LLM (`ChatRoundTripTest`), settings persistence (`SettingsFlowTest`) and the assistive ball overlay (`AssistiveBallTest`).
+
+`AccessibilityServiceTest` is `@Ignore`d. Binding `GotchaAccessibilityService` reliably fails while the app is under self-instrumentation, even with the process warm and after waiting 45s; the identical sequence binds in 0-5s via plain `adb shell` outside instrumentation. That is a platform rough edge in `AccessibilityManagerService`, not a bug in the service — which is why every accessibility-dependent tool above is `MANUAL_ONLY`. A clean run reports 5 passed / 1 skipped.
+
 ## Manual QA checklist
 
 Run through this before a release. Each item is a tool with no automated coverage, so this list is the pre-release manual test script.

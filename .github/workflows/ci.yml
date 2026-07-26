@@ -167,6 +167,9 @@ jobs:
             app/build/outputs/androidTest-results/
           retention-days: 14
 
+  # Sharding (-Pandroid.testInstrumentationRunnerArguments.numShards/shardIndex plus a
+  # `shard` matrix axis) is deliberately deferred until the instrumented suite exceeds
+  # ~20 tests; at 6 tests it would cost more in emulator boots than it saves.
   instrumented-full:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -176,7 +179,8 @@ jobs:
       matrix:
         # Mirrors the GMD "full" group in app/build.gradle.kts. API 30 (the
         # app's minSdk) uses the plain default image — no usable ATD image at
-        # that level, see the notes in build.gradle.kts; 33/34 use ATD.
+        # that level, see the notes in build.gradle.kts; 33/34/35 use ATD.
+        # API 36 has no ATD image published yet, so it uses google_apis.
         include:
           - api-level: 30
             target: default
@@ -187,6 +191,12 @@ jobs:
           - api-level: 34
             target: aosp_atd
             profile: pixel_6
+          - api-level: 35
+            target: aosp_atd
+            profile: pixel_8
+          - api-level: 36
+            target: google_apis
+            profile: pixel_8
     steps:
       - uses: actions/checkout@v4
 

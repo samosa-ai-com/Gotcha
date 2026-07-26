@@ -64,7 +64,10 @@ window ever appears. This is what CI uses.
 
 **Other predefined groups** (in `app/build.gradle.kts` → `testOptions.managedDevices`):
 - `smokeGroupDebugAndroidTest` — just `api34`, for a fast PR-level check.
-- `fullGroupDebugAndroidTest` — `api30` (Android 11, the app's `minSdk`), `api33`, `api34`.
+- `fullGroupDebugAndroidTest` — `api30` (Android 11, the app's `minSdk`), `api33`, `api34`,
+  `api35`, `api36`. This mirrors the nightly CI matrix. API 35/36 matter disproportionately
+  for this app: they tighten background-start, foreground-service and notification rules,
+  which is exactly what an overlay/assistant app leans on.
 
 **Reports** land at `app/build/reports/androidTests/managedDevice/debug/<device>/index.html`
 per device (a combined summary too, if you ran a group).

@@ -205,6 +205,49 @@ class FeatureCoverageManifestTest {
                 appendLine()
             }
 
+            appendLine("## Device and Android-version coverage")
+            appendLine()
+            appendLine(
+                "The tiers above say *whether* a feature is tested. This says *where*."
+            )
+            appendLine()
+            appendLine("| Axis | Coverage |")
+            appendLine("|---|---|")
+            appendLine(
+                "| Android versions (JVM) | `ROBOLECTRIC` tests run under `@Config(sdk = [...])`, " +
+                    "typically API 30/33/34, so version-branching logic is covered in seconds " +
+                    "without an emulator. |"
+            )
+            appendLine(
+                "| Android versions (emulator) | Nightly `instrumented-full` matrix: API 30 " +
+                    "(minSdk), 33, 34, 35, 36. Per-PR smoke runs API 34 only. |"
+            )
+            appendLine(
+                "| OEM behaviour | **Not covered.** No emulator reproduces Samsung/Xiaomi battery " +
+                    "managers killing overlay services and background agents — this app's largest " +
+                    "real-world risk. Firebase Test Lab on physical devices is the only path; " +
+                    "parked pending a GCP project (see `docs/TESTING_PLAN.md`). |"
+            )
+            appendLine()
+            appendLine("### Instrumented suite")
+            appendLine()
+            appendLine(
+                "`app/src/androidTest` covers app-level flows rather than individual tools: " +
+                    "launch routing (`SmokeLaunchTest`), a chat round-trip against a mock LLM " +
+                    "(`ChatRoundTripTest`), settings persistence (`SettingsFlowTest`) and the " +
+                    "assistive ball overlay (`AssistiveBallTest`)."
+            )
+            appendLine()
+            appendLine(
+                "`AccessibilityServiceTest` is `@Ignore`d. Binding `GotchaAccessibilityService` " +
+                    "reliably fails while the app is under self-instrumentation, even with the " +
+                    "process warm and after waiting 45s; the identical sequence binds in 0-5s via " +
+                    "plain `adb shell` outside instrumentation. That is a platform rough edge in " +
+                    "`AccessibilityManagerService`, not a bug in the service — which is why every " +
+                    "accessibility-dependent tool above is `MANUAL_ONLY`. A clean run reports " +
+                    "5 passed / 1 skipped."
+            )
+            appendLine()
             appendLine("## Manual QA checklist")
             appendLine()
             val manual = entries.filter { it.tier == "MANUAL_ONLY" }
