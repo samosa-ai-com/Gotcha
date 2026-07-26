@@ -510,6 +510,7 @@ class MainActivity : ComponentActivity() {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
                         },
+                        onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
                         packageName = packageName
                     )
                 }

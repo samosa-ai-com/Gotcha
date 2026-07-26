@@ -16,6 +16,7 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -489,6 +490,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun stopSpeaking() {
         ttsEngine.stop()
         _uiState.update { it.copy(isSpeaking = false) }
+    }
+
+    /**
+     * Speak [language]'s call-started phrase through the shared Android TTS
+     * engine (regardless of [AudioProvider] setting) so Settings can verify the
+     * installed voice data without spinning up a second TtsEngine instance.
+     *
+     * Returns true when the requested language was actually used, false when
+     * the engine had to fall back to English because Android is missing the
+     * voice data. Returns null when TTS isn't configured at all.
+     */
+    suspend fun testAndroidTts(language: Language): Boolean? {
+        if (settings.ttsProvider == AudioProvider.NONE) return null
+        ttsEngine.stop()
+        ttsEngine.speak(
+            text = SpokenPhrases.callStarted(language),
+            provider = AudioProvider.ANDROID,
+            language = language
+        )
+        return ttsEngine.lastLanguageUnavailable != language
     }
 
     /** Start listening for speech input using the configured STT provider. */
