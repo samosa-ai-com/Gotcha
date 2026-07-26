@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -40,10 +39,6 @@ class ScreenLensController(
 
     /** Begin a Lens capture: add the full-screen crop overlay and auto-annotate UI elements. */
     fun start() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            onError("Lens mode requires Android 11+")
-            return
-        }
         mainHandler.post {
             removeActionMenu()
             removeCropOverlay()
@@ -489,29 +484,13 @@ class ScreenLensController(
         scope.launch(Dispatchers.IO) {
             try {
                 val filename = "Gotcha_Lens_${System.currentTimeMillis()}.png"
-                val resolver = appContext.contentResolver
-                val contentValues = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(
-                            android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
-                            android.os.Environment.DIRECTORY_PICTURES + "/Gotcha"
-                        )
-                    }
-                }
-                val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                if (uri != null) {
-                    resolver.openOutputStream(uri)?.use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                    }
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(
-                            appContext,
-                            "Saved image to Pictures/Gotcha",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                val location = com.gotcha.data.GotchaStorage.saveScreenshot(appContext, filename, bitmap)
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        appContext,
+                        "Saved image to $location",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -535,13 +514,7 @@ class ScreenLensController(
         return android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
     }
 
-    private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+    private fun overlayType(): Int = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
     private companion object {
         const val MIN_SELECTION_DP = 24

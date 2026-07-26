@@ -46,6 +46,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
+import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +55,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS }
+enum class Route { HOME, SETTINGS, CONNECTORS }
 
 class MainActivity : ComponentActivity() {
 
@@ -87,6 +88,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    /**
+     * Health Connect uses its own permission contract rather than the standard
+     * runtime dialog, so it needs a launcher of its own.
+     */
+    private val healthConnectLauncher = registerForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        com.gotcha.tools.HealthPermissionState.set(granted.isNotEmpty())
+        val message = if (granted.isEmpty()) {
+            "No health permissions granted."
+        } else {
+            "Health Connect: ${granted.size} permission(s) granted."
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
     /** Requests all runtime permissions at once on first launch. */
     private val firstLaunchLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
@@ -98,9 +115,7 @@ class MainActivity : ComponentActivity() {
         lifecycleOwner = this
         // Some OEM skins (e.g. MIUI) force-dark light-themed apps even when the
         // theme opts out; disabling on the decorView covers those cases too.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.decorView.isForceDarkAllowed = false
-        }
+        window.decorView.isForceDarkAllowed = false
         settingsRepository = SettingsRepository(this)
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
@@ -139,12 +154,10 @@ class MainActivity : ComponentActivity() {
             if (ScreenPerception.mediaProjectionResultData == null &&
                 !prefs.getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
             ) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(
-                        Context.MEDIA_PROJECTION_SERVICE
-                    ) as android.media.projection.MediaProjectionManager
-                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                }
+                val mpManager = getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+                ) as android.media.projection.MediaProjectionManager
+                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
             }
         }
 
@@ -189,17 +202,10 @@ class MainActivity : ComponentActivity() {
                 Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             )
             ToolResult.ALL_FILES_ACCESS -> startActivity(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Intent(
-                        AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                } else {
-                    Intent(
-                        AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName")
-                    )
-                }
+                Intent(
+                    AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
             )
             ToolResult.OVERLAY_ACCESS -> startActivity(
                 Intent(
@@ -225,14 +231,40 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_SHORT
             ).show()
             "special:screenshot_consent" -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(
-                        Context.MEDIA_PROJECTION_SERVICE
-                    ) as android.media.projection.MediaProjectionManager
-                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                }
+                val mpManager = getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+                ) as android.media.projection.MediaProjectionManager
+                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
             }
+            ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
+        }
+    }
+
+    /**
+     * Opens Health Connect's permission screen, or steers to the Play listing when
+     * no provider is installed (Android 13 and below ship it as a separate app).
+     */
+    private fun requestHealthConnect() {
+        val status = androidx.health.connect.client.HealthConnectClient.getSdkStatus(this)
+        if (status == androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) {
+            healthConnectLauncher.launch(com.gotcha.tools.HealthTool.PERMISSIONS)
+            return
+        }
+        Toast.makeText(
+            this,
+            "Health Connect is not available — install or update it from the Play Store.",
+            Toast.LENGTH_LONG
+        ).show()
+        runCatching {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "market://details?id=com.google.android.apps.healthdata"
+                    )
+                )
+            )
         }
     }
 
@@ -365,6 +397,10 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.SETTINGS
                     },
+                    onOpenConnectors = {
+                        scope.launch { drawerState.close() }
+                        currentRoute = Route.CONNECTORS
+                    },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount
                 )
@@ -378,7 +414,6 @@ class MainActivity : ComponentActivity() {
                         onSave = { settings ->
                             settingsRepository.save(settings)
                             chatViewModel.refreshSettings()
-                            currentRoute = Route.HOME
                         },
                         onTestConnection = ::testConnection,
                         onClearLlmCache = {
@@ -389,11 +424,8 @@ class MainActivity : ComponentActivity() {
                             ).clearCache()
                         },
                         onClearDebugScreenshots = {
-                            val baseDir = java.io.File("/storage/emulated/0/Gotcha")
-                            if (baseDir.exists()) {
-                                baseDir.walkTopDown()
-                                    .filter { it.isFile && it.name.startsWith("screenshot_overlay_") }
-                                    .forEach { it.delete() }
+                            com.gotcha.data.GotchaStorage.chatsRoot().listFiles()?.forEach { chatDir ->
+                                java.io.File(chatDir, ".debug").deleteRecursively()
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
@@ -447,6 +479,10 @@ class MainActivity : ComponentActivity() {
                         },
                         packageName = packageName
                     )
+                }
+                Route.CONNECTORS -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    ConnectorsScreen(onBack = { currentRoute = Route.HOME })
                 }
                 Route.HOME -> {
                     // Back from an active chat returns to a fresh home (new session,
@@ -539,10 +575,6 @@ class MainActivity : ComponentActivity() {
             add(android.Manifest.permission.WRITE_CONTACTS)
             add(android.Manifest.permission.READ_CALENDAR)
             add(android.Manifest.permission.WRITE_CALENDAR)
-            if (Build.VERSION.SDK_INT <= 29) {
-                add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(android.Manifest.permission.READ_MEDIA_IMAGES)
             }

@@ -6,7 +6,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
-import android.os.Build
 import android.util.Base64
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
@@ -133,7 +132,6 @@ object ScreenPerception {
     fun buildUiHierarchyText(maxElements: Int = 100): String {
         return try {
             val service = GotchaAccessibilityService.instance ?: return "(accessibility service not available)"
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) return "(requires API 18+)"
             val root = service.rootInActiveWindow ?: return "(no active window)"
             val elements = mutableListOf<UiElement>()
             collectElements(root, elements, maxElements)
@@ -314,28 +312,26 @@ object ScreenPerception {
 
     private suspend fun captureRawBytes(): ByteArray? {
         // Path 1: AccessibilityService.takeScreenshot() — API 30+, no special perms.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val service = GotchaAccessibilityService.instance
-            Log.d("ScreenCapture", "Path1: API>=30, service=${service != null}")
-            if (service != null) {
-                for (attempt in 1..2) {
-                    Log.d("ScreenCapture", "Path1: takeScreenshotBitmap attempt $attempt")
-                    val bitmap = service.takeScreenshotBitmap()
-                    Log.d("ScreenCapture", "Path1: takeScreenshotBitmap returned ${bitmap != null}")
-                    if (bitmap != null) {
-                        val bytes = withContext(Dispatchers.Default) {
-                            val stream = ByteArrayOutputStream()
-                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                            bitmap.recycle()
-                            stream.toByteArray()
-                        }
-                        Log.d("ScreenCapture", "Path1: compressed to ${bytes.size} bytes")
-                        if (bytes.isNotEmpty()) return bytes
+        val service = GotchaAccessibilityService.instance
+        Log.d("ScreenCapture", "Path1: service=${service != null}")
+        if (service != null) {
+            for (attempt in 1..2) {
+                Log.d("ScreenCapture", "Path1: takeScreenshotBitmap attempt $attempt")
+                val bitmap = service.takeScreenshotBitmap()
+                Log.d("ScreenCapture", "Path1: takeScreenshotBitmap returned ${bitmap != null}")
+                if (bitmap != null) {
+                    val bytes = withContext(Dispatchers.Default) {
+                        val stream = ByteArrayOutputStream()
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                        bitmap.recycle()
+                        stream.toByteArray()
                     }
-                    if (attempt < 2) delay(1100)
+                    Log.d("ScreenCapture", "Path1: compressed to ${bytes.size} bytes")
+                    if (bytes.isNotEmpty()) return bytes
                 }
-                Log.w("ScreenCapture", "Path1: both attempts failed")
+                if (attempt < 2) delay(1100)
             }
+            Log.w("ScreenCapture", "Path1: both attempts failed")
         }
         // Path 2: MediaProjection — works on all devices if user granted consent.
         val projectionData = mediaProjectionResultData

@@ -16,6 +16,13 @@ jobs:
   build:
     runs-on: ubuntu-latest # TerminalToolTest shells out to POSIX `sh` — do not move to windows/macos
     timeout-minutes: 30
+    # The coverage comment needs pull-requests: write. Without it the jacoco-report
+    # action fails with "Resource not accessible by integration" — and because that
+    # action defaults to continue-on-error, the step still reports success, so the
+    # comment silently never appears.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -26,12 +33,43 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Robolectric downloads an android-all jar per @Config(sdk = ...) level on first
+      # run; without this every fresh runner pays that download again.
+      - name: Cache Robolectric android-all jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
+          restore-keys: robolectric-
+
       # No baselines: the whole repo must pass detekt and lint on every run.
       - name: Detekt
         run: ./gradlew :app:detekt --stacktrace
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      # Report-only: the feature-coverage manifest is the gate, not a percentage.
+      # See the comment on the kover block in app/build.gradle.kts.
+      - name: Coverage report
+        run: ./gradlew :app:koverXmlReport :app:koverHtmlReport --stacktrace
+
+      # Kover emits JaCoCo-format XML, so this action reads it directly. Thresholds are 0
+      # on purpose — it posts total + changed-files coverage and never fails the build.
+      - name: Post coverage on the PR
+        if: github.event_name == 'pull_request'
+        uses: madrapps/jacoco-report@v1.7
+        with:
+          paths: app/build/reports/kover/report.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: 0
+          min-coverage-changed-files: 0
+          title: Coverage (report-only — the feature manifest is the gate)
+          # Left at the action's default (true) on purpose: per the plan, coverage must
+          # never gate the build. Note the consequence — if the comment fails to post
+          # (e.g. the pull-requests: write grant above is ever removed), the step still
+          # reports success and the comment silently disappears. Check the step log,
+          # not its status, if the comment stops appearing.
 
       - name: Android Lint
         run: ./gradlew :app:lintDebug --stacktrace
@@ -141,6 +179,9 @@ jobs:
             app/build/outputs/androidTest-results/
           retention-days: 14
 
+  # Sharding (-Pandroid.testInstrumentationRunnerArguments.numShards/shardIndex plus a
+  # `shard` matrix axis) is deliberately deferred until the instrumented suite exceeds
+  # ~20 tests; at 6 tests it would cost more in emulator boots than it saves.
   instrumented-full:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -148,13 +189,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Mirrors the GMD "full" group in app/build.gradle.kts. API 27/30 use
-        # plain default images (no usable ATD image at those levels — see the
-        # notes in build.gradle.kts); 33/34 use ATD.
+        # Mirrors the GMD "full" group in app/build.gradle.kts. API 30 (the
+        # app's minSdk) uses the plain default image — no usable ATD image at
+        # that level, see the notes in build.gradle.kts; 33/34/35 use ATD.
+        # API 36 has no ATD image published yet, so it uses google_apis.
         include:
-          - api-level: 27
-            target: default
-            profile: pixel_2
           - api-level: 30
             target: default
             profile: pixel_2
@@ -164,6 +203,12 @@ jobs:
           - api-level: 34
             target: aosp_atd
             profile: pixel_6
+          - api-level: 35
+            target: aosp_atd
+            profile: pixel_8
+          - api-level: 36
+            target: google_apis
+            profile: pixel_8
     steps:
       - uses: actions/checkout@v4
 

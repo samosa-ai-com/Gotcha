@@ -9,6 +9,8 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.HealthPermissionState
+import com.gotcha.tools.ToolResult
 
 data class PermissionGroup(
     val name: String,
@@ -134,26 +136,15 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 "Write files to shared storage",
                 android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 null,
-                { c ->
-                    if (Build.VERSION.SDK_INT <= 29) {
-                        checkPerm(c, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    } else {
-                        true // API 30+ uses MANAGE_EXTERNAL_STORAGE
-                    }
-                }
+                // API 30+ uses MANAGE_EXTERNAL_STORAGE instead; nothing to request here.
+                { true }
             ),
             PermissionItem(
                 "All Files Access",
                 "Full access to all files on device",
                 null,
                 "special:all_files_access",
-                { c ->
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Environment.isExternalStorageManager()
-                    } else {
-                        checkPerm(c, android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    }
-                }
+                { Environment.isExternalStorageManager() }
             )
         )
     ),
@@ -195,15 +186,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 null,
                 "special:usage_access",
                 { c ->
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        val appOps = c.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
-                        appOps?.checkOpNoThrow(
-                            AppOpsManager.OPSTR_GET_USAGE_STATS,
-                            android.os.Process.myUid(), c.packageName
-                        ) == AppOpsManager.MODE_ALLOWED
-                    } else {
-                        true
-                    }
+                    val appOps = c.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
+                    appOps?.unsafeCheckOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        android.os.Process.myUid(), c.packageName
+                    ) == AppOpsManager.MODE_ALLOWED
                 }
             ),
             PermissionItem(
@@ -253,6 +240,20 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 null,
                 "special:overlay_access",
                 { c -> Settings.canDrawOverlays(c) }
+            )
+        )
+    ),
+    PermissionGroup(
+        "Health",
+        listOf(
+            PermissionItem(
+                "Health Connect",
+                "Read steps, sleep, heart rate, weight and workouts",
+                null,
+                ToolResult.HEALTH_CONNECT,
+                // Health Connect only reports grants from a suspend call, so this
+                // reflects the last check (see HealthPermissionState).
+                { _ -> HealthPermissionState.isGranted() }
             )
         )
     )

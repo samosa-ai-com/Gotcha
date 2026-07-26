@@ -65,15 +65,40 @@ class AssistiveBallService : Service() {
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
     private lateinit var screenLensController: ScreenLensController
     private val webFetchTool by lazy { com.gotcha.tools.WebFetchTool() }
-    private val llmClient by lazy {
-        val s = settingsRepository.load()
-        com.gotcha.llm.LLMClient(
-            apiKey = s.effectiveApiKey,
-            baseUrl = s.effectiveBaseUrl,
-            model = s.model,
-            context = this
-        )
-    }
+    private var cachedLlmClient: com.gotcha.llm.LLMClient? = null
+    private var cachedLlmKey: String? = null
+
+    /**
+     * The companion panel's LLM client. Rebuilt whenever the settings it depends
+     * on change, so edits in Settings take effect without restarting the service
+     * (a plain `by lazy` pinned the very first values for the service's lifetime).
+     *
+     * [Settings.apiTimeoutSeconds] must be passed through: omitting it left the
+     * client on LLMClient's `0L` default, which OkHttp reads as *no timeout*, so
+     * a stalled request hung the panel on "Thinking..." forever — it has no stop
+     * button, and the `catch` that would show an error never runs.
+     */
+    private val llmClient: com.gotcha.llm.LLMClient
+        get() {
+            val s = settingsRepository.load()
+            val key = listOf(
+                s.effectiveApiKey.hashCode(),
+                s.effectiveBaseUrl,
+                s.model,
+                s.apiTimeoutSeconds
+            ).joinToString("|")
+            cachedLlmClient?.let { if (cachedLlmKey == key) return it }
+            return com.gotcha.llm.LLMClient(
+                apiKey = s.effectiveApiKey,
+                baseUrl = s.effectiveBaseUrl,
+                model = s.model,
+                context = this,
+                apiTimeoutSeconds = s.apiTimeoutSeconds
+            ).also {
+                cachedLlmClient = it
+                cachedLlmKey = key
+            }
+        }
 
     val proactiveSessionManager = ProactiveSessionManager()
 
@@ -153,11 +178,9 @@ class AssistiveBallService : Service() {
             callController.state.collect { state ->
                 val active = state != CallState.IDLE && state != CallState.ENDING
                 if (active) {
-                    overlay.hideChromeForCapture()
                     chatWindow.show()
                 } else if (state == CallState.IDLE) {
                     chatWindow.hide()
-                    overlay.showChromeAfterCapture()
                 }
                 chatWindow.setState(state)
                 overlay.setCallActive(active)
@@ -727,10 +750,6 @@ class AssistiveBallService : Service() {
 
     private fun takeScreenshot() {
         scope.launch(Dispatchers.IO) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot requires Android 11+") }
-                return@launch
-            }
             try {
                 val service = GotchaAccessibilityService.instance
                 if (service == null) {
@@ -762,28 +781,12 @@ class AssistiveBallService : Service() {
                     java.util.Locale.US
                 ).format(java.util.Date())
                 val fileName = "Screenshot_$timestamp.png"
-                val contentValues = android.content.ContentValues().apply {
-                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
-                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(
-                            android.provider.MediaStore.Images.Media.RELATIVE_PATH,
-                            android.os.Environment.DIRECTORY_PICTURES + "/Gotcha"
-                        )
-                    }
-                }
-                val uri = contentResolver.insert(
-                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    contentValues
+                val location = com.gotcha.data.GotchaStorage.saveScreenshot(
+                    applicationContext,
+                    fileName,
+                    bitmap
                 )
-                if (uri != null) {
-                    contentResolver.openOutputStream(uri)?.use { out ->
-                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                    }
-                    withContext(Dispatchers.Main) { overlay.showError("Screenshot saved: $fileName") }
-                } else {
-                    withContext(Dispatchers.Main) { overlay.showError("Screenshot save failed") }
-                }
+                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved to $location") }
                 bitmap.recycle()
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
@@ -832,29 +835,25 @@ class AssistiveBallService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        } else {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        CHANNEL_ID,
-                        "Assistive ball",
-                        NotificationManager.IMPORTANCE_LOW
-                    ).apply { description = "Keeps the floating assistive ball running." }
-                )
-            }
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Assistive ball",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { description = "Keeps the floating assistive ball running." }
+            )
         }
     }
 

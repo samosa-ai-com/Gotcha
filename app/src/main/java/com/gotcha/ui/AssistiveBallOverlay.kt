@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -117,37 +116,39 @@ class AssistiveBallOverlay(context: Context) {
         )
     }
 
-    fun canShow(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(appContext)
+    fun canShow(): Boolean = Settings.canDrawOverlays(appContext)
+
+    /**
+     * Ball/ring/menu (and optionally the error/info card) visibility toggle.
+     * [includeCard] is false for call-active toggling: an error card raised
+     * mid-call must stay visible across the frequent state changes a call
+     * goes through, not flicker in and out with every turn.
+     */
+    private fun setChromeVisible(visible: Boolean, includeCard: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.INVISIBLE
+        ballView?.visibility = visibility
+        if (visible) ballView?.alpha = PEEK_ALPHA
+        ringView?.visibility = visibility
+        menuView?.visibility = visibility
+        dismissTargetView?.visibility = visibility
+        if (includeCard) cardView?.visibility = visibility
+    }
 
     fun hideChromeForCapture() {
-        mainHandler.post {
-            ballView?.visibility = View.INVISIBLE
-            ringView?.visibility = View.INVISIBLE
-            menuView?.visibility = View.INVISIBLE
-            cardView?.visibility = View.INVISIBLE
-            dismissTargetView?.visibility = View.INVISIBLE
-        }
+        mainHandler.post { setChromeVisible(visible = false, includeCard = true) }
     }
 
     fun showChromeAfterCapture() {
-        mainHandler.post {
-            ballView?.visibility = View.VISIBLE
-            ballView?.alpha = PEEK_ALPHA
-            ringView?.visibility = View.VISIBLE
-            menuView?.visibility = View.VISIBLE
-            cardView?.visibility = View.VISIBLE
-            dismissTargetView?.visibility = View.VISIBLE
-        }
+        mainHandler.post { setChromeVisible(visible = true, includeCard = true) }
     }
 
     fun setCallActive(active: Boolean) {
         mainHandler.post {
             if (active) {
-                hideChromeForCapture()
+                setChromeVisible(visible = false, includeCard = false)
                 removeMenu()
             } else {
-                showChromeAfterCapture()
+                setChromeVisible(visible = true, includeCard = false)
             }
         }
     }
@@ -777,13 +778,7 @@ class AssistiveBallOverlay(context: Context) {
         } catch (_: Exception) { }
     }
 
-    private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+    private fun overlayType(): Int = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
     private fun ballLayoutParams(): WindowManager.LayoutParams =
         WindowManager.LayoutParams(

@@ -1,0 +1,7 @@
+{
+    "id": "clock_operations",
+    "targetPackageNames": ["com.google.android.deskclock", "com.android.deskclock"],
+    "name": "Clock Skills",
+    "description": "Prefer the alarm/timer connector tools over driving the Clock app UI.",
+    "instructions": "Never automate the Clock app's UI to set alarms or timers — use the dedicated tools instead, which work even when no clock app is open:\n1. Alarms: set_alarm, list_alarms, edit_alarm, delete_alarm. show_alarms opens the clock app's alarm list if the user wants to see it visually.\n2. Timers: set_timer (in-app by default; pass system=true to use the system clock app's timer instead), list_timers, delete_timer.\n3. snooze_alarm and dismiss_timer only affect an alarm/timer that is ringing right now — they have no effect otherwise, so only call them when the user says something is currently going off.\n4. delete_timer only removes a system-clock-app timer from this assistant's tracking; it does not stop the ringing timer — use dismiss_timer for that.\nOnly fall back to UI automation (open_app + navigate_app) for clock-app features the tools don't cover, e.g. bedtime mode or stopwatch."
+}
