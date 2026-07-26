@@ -12,6 +12,7 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
@@ -97,13 +98,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private var lastInputWasVoice = false
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
-        settings.ttsApiBaseUrl,
-        settings.effectiveTtsApiKey
+        settings.effectiveTtsBaseUrl,
+        settings.effectiveTtsApiKey,
+        onUnauthorized = { viewModelScope.launch { onSamosaUnauthorized() } }
     )
     private val sttEngine: SttEngine = SttEngine(
         getApplication(),
-        settings.sttApiBaseUrl,
-        settings.effectiveSttApiKey
+        settings.effectiveSttBaseUrl,
+        settings.effectiveSttApiKey,
+        onUnauthorized = { viewModelScope.launch { onSamosaUnauthorized() } }
     )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
@@ -297,8 +300,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } else {
             null
         }
-        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveTtsApiKey)
-        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveSttApiKey)
+        ttsEngine.configureApi(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        sttEngine.configureApi(settings.effectiveSttBaseUrl, settings.effectiveSttApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
         updateContextUsage()
     }
@@ -308,7 +311,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * the app returns to the unauthenticated state and prompts sign-in again.
      */
     private fun onSamosaUnauthorized() {
-        if (settings.provider != com.gotcha.data.LlmProvider.SAMOSA_AI) return
+        val usingSamosa = settings.provider == LlmProvider.SAMOSA_AI
+        if (!usingSamosa) return
         settingsRepository.clearSamosaSession()
         settings = settingsRepository.load()
         client = null
@@ -486,8 +490,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun startListening() {
         stopSpeaking()
         if (_uiState.value.isListening || _uiState.value.isRecording) return
-        when (settings.sttProvider) {
-            AudioProvider.ANDROID -> {
+        when {
+            settings.sttProvider == AudioProvider.ANDROID -> {
                 val perm = android.Manifest.permission.RECORD_AUDIO
                 val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                     getApplication(), perm
@@ -506,9 +510,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to start speech recognition.")
                 }
             }
-            AudioProvider.API -> {
-                if (settings.sttApiBaseUrl.isBlank()) {
-                    appendUi(MessageKind.ERROR, "No STT API URL configured in settings.")
+            settings.sttProvider.isApiBased() -> {
+                if (settings.effectiveSttBaseUrl.isBlank()) {
+                    appendUi(
+                        MessageKind.ERROR,
+                        if (settings.sttProvider == AudioProvider.SAMOSA_AI) {
+                            "Samosa STT is not configured. Sign in from Settings → Speech."
+                        } else {
+                            "No STT API URL configured in settings."
+                        }
+                    )
                     return
                 }
                 if (settings.sttApiModel.isBlank()) {
@@ -522,7 +533,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to start recording.")
                 }
             }
-            AudioProvider.NONE -> {
+            else -> {
                 appendUi(MessageKind.ERROR, "No STT provider configured. Enable one in settings.")
             }
         }
@@ -533,19 +544,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         viewModelScope.launch {
             val provider = settings.sttProvider
             var transcript = ""
-            if (provider == AudioProvider.API) {
-                _uiState.update { it.copy(isRecording = false) }
-                val audioFile = sttEngine.stopRecording()
-                if (audioFile == null) {
-                    appendUi(MessageKind.ERROR, "Failed to record audio.")
-                    return@launch
+            when {
+                provider.isApiBased() -> {
+                    _uiState.update { it.copy(isRecording = false) }
+                    val audioFile = sttEngine.stopRecording()
+                    if (audioFile == null) {
+                        appendUi(MessageKind.ERROR, "Failed to record audio.")
+                        return@launch
+                    }
+                    transcript = sttEngine.transcribeApi(
+                        audioFile, settings.sttApiModel, settings.sttLanguage
+                    )
+                        .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                        .getOrDefault("")
                 }
-                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel, settings.sttLanguage)
-                    .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
-                    .getOrDefault("")
-            } else if (provider == AudioProvider.ANDROID) {
-                _uiState.update { it.copy(isListening = false) }
-                transcript = sttEngine.stopAndroidListening()
+                provider == AudioProvider.ANDROID -> {
+                    _uiState.update { it.copy(isListening = false) }
+                    transcript = sttEngine.stopAndroidListening()
+                }
             }
 
             if (transcript.isNotBlank()) {

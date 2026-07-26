@@ -2,6 +2,8 @@ package com.gotcha.tools
 
 import android.content.Context
 import android.util.Log
+import com.gotcha.agent.skills.SkillPromptBuilder
+import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
@@ -259,22 +261,13 @@ class SubAgentSession(
     }
 
     private fun activeSkillsMessages(disabledSkills: Set<String>): List<ChatMessage> {
-        val currentPackage = com.gotcha.tools.ScreenPerception.getCurrentPackageName() ?: return emptyList()
-        val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
+        val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage)
             .filter { !disabledSkills.contains(it.id) }
-
-        if (activeSkills.isEmpty()) return emptyList()
-
-        val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
-        return listOf(
-            ChatMessage(
-                role = "system",
-                content = JsonPrimitive(
-                    "<active-skills>\nThe user is currently using $currentPackage. " +
-                        "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
-                )
-            )
-        )
+        val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
+        val message = SkillPromptBuilder.build(currentPackage, activeSkills, communityIds)
+            ?: return emptyList()
+        return listOf(message)
     }
 
     private companion object {

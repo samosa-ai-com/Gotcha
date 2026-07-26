@@ -7,5 +7,6 @@ data class Skill(
     val id: String,
     val targetPackageNames: List<String> = emptyList(),
     val instructions: String,
-    val description: String = ""
+    val description: String = "",
+    val title: String = ""
 )

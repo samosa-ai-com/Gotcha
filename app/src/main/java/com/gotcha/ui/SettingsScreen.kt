@@ -10,16 +10,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,6 +56,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.agent.skills.Skill
+import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.data.LlmProvider
@@ -61,6 +71,17 @@ import kotlinx.coroutines.launch
  * [sticky] messages stay until replaced (used while an operation is still running).
  */
 private data class SettingsOverlay(val text: String, val sticky: Boolean = false)
+
+/** Always produce a human-readable error string for a community-skill import failure. */
+private fun formatImportError(t: Throwable): String {
+    val msg = t.message?.takeIf { it.isNotBlank() }
+    val causeMsg = t.cause?.message?.takeIf { it.isNotBlank() }
+    return when {
+        !msg.isNullOrBlank() -> "Import failed: $msg"
+        !causeMsg.isNullOrBlank() -> "Import failed: $causeMsg"
+        else -> "Import failed: ${t::class.java.simpleName}"
+    }
+}
 
 /** How long a non-sticky overlay message stays on screen. */
 private const val OVERLAY_DURATION_MS = 2500L
@@ -126,6 +147,18 @@ fun SettingsScreen(
     var proactiveAutoCopyOtp by remember { mutableStateOf(initial.proactiveAutoCopyOtp) }
     var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
     var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
+    var communitySkillHosts by remember { mutableStateOf(initial.communitySkillHosts) }
+    var communitySkillUrl by remember { mutableStateOf("") }
+    var communitySkillPasteJson by remember { mutableStateOf("") }
+    var communityImportBusy by remember { mutableStateOf(false) }
+    var communitySkillRefreshTick by remember { mutableStateOf(0) }
+    var communitySkillToDelete by remember { mutableStateOf<Skill?>(null) }
+    val localContext = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // Defense-in-depth: ChatViewModel also calls SkillRegistry.init, but
+        // Settings can be opened before the chat screen is ever shown.
+        SkillRegistry.bootstrap(localContext)
+    }
 
     // Discovered model lists
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -195,8 +228,28 @@ fun SettingsScreen(
         proactiveAutoCopyOtp = proactiveAutoCopyOtp,
         proactiveAppBlacklist = initial.proactiveAppBlacklist,
         preferredLanguage = preferredLanguage,
-        preferredCurrency = preferredCurrency
+        preferredCurrency = preferredCurrency,
+        communitySkillHosts = communitySkillHosts
     )
+
+    /**
+     * True when the chosen TTS/STT providers have what they need. Mirrors
+     * [Settings.isSpeechConfigured] without building a full `Settings`
+     * object so recomposition doesn't allocate on every read.
+     */
+    fun speechConfigValid(): Boolean {
+        val ttsOk = when (ttsProvider) {
+            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+            AudioProvider.API -> ttsApiBaseUrl.trim().isNotBlank()
+            else -> true
+        }
+        val sttOk = when (sttProvider) {
+            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+            AudioProvider.API -> sttApiBaseUrl.trim().isNotBlank()
+            else -> true
+        }
+        return ttsOk && sttOk
+    }
 
     val refreshChatModelsAction = {
         if (!refreshingChatModels) {
@@ -230,7 +283,9 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(ttsProvider, sttProvider) {
-        if (ttsProvider == AudioProvider.API || sttProvider == AudioProvider.API) {
+        if (ttsProvider == AudioProvider.API || ttsProvider == AudioProvider.SAMOSA_AI ||
+            sttProvider == AudioProvider.API || sttProvider == AudioProvider.SAMOSA_AI
+        ) {
             refreshAudioModelsAction()
         }
     }
@@ -637,12 +692,47 @@ fun SettingsScreen(
                 )
                 AnimatedVisibility(visible = speechExpanded) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val samosaAudioSelected = ttsProvider == AudioProvider.SAMOSA_AI ||
+                            sttProvider == AudioProvider.SAMOSA_AI
+                        if (samosaAudioSelected) {
+                            SamosaAuthSection(
+                                email = samosaEmail,
+                                signedIn = samosaToken.isNotBlank(),
+                                busy = samosaBusy,
+                                onSignIn = {
+                                    samosaBusy = true
+                                    status = "Signing in with Google…"
+                                    scope.launch {
+                                        val result = onSamosaSignIn()
+                                        result.onSuccess { (email, token) ->
+                                            samosaEmail = email
+                                            samosaToken = token
+                                            status = "Signed in as $email"
+                                        }.onFailure { e ->
+                                            status = e.message ?: "Sign-in failed."
+                                        }
+                                        samosaBusy = false
+                                    }
+                                },
+                                onSignOut = {
+                                    samosaBusy = true
+                                    status = "Signing out…"
+                                    scope.launch {
+                                        onSamosaSignOut()
+                                        samosaToken = ""
+                                        samosaEmail = ""
+                                        status = "Signed out of Samosa AI."
+                                        samosaBusy = false
+                                    }
+                                }
+                            )
+                        }
                         ExposedDropdownMenuBox(
                             expanded = ttsProviderExpanded,
                             onExpandedChange = { ttsProviderExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = ttsProvider.name,
+                                value = ttsProvider.label,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("TTS Provider") },
@@ -659,7 +749,7 @@ fun SettingsScreen(
                             ) {
                                 AudioProvider.entries.forEach { provider ->
                                     DropdownMenuItem(
-                                        text = { Text(provider.name) },
+                                        text = { Text(provider.label) },
                                         onClick = {
                                             ttsProvider = provider
                                             ttsProviderExpanded = false
@@ -668,146 +758,93 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                        if (ttsProvider == AudioProvider.API) {
-                            OutlinedTextField(
-                                value = ttsApiBaseUrl,
-                                onValueChange = { ttsApiBaseUrl = it },
-                                label = { Text("TTS API Base URL") },
-                                singleLine = true,
-                                placeholder = { Text("http://10.0.2.2:8969/v1") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = ttsApiKey,
-                                onValueChange = { ttsApiKey = it },
-                                label = { Text("TTS API Key (optional)") },
-                                singleLine = true,
-                                placeholder = { Text("Leave blank to use main API key") },
-                                visualTransformation = if (showTtsKey) {
-                                    VisualTransformation.None
-                                } else {
-                                    PasswordVisualTransformation()
-                                },
-                                trailingIcon = {
-                                    TextButton(onClick = { showTtsKey = !showTtsKey }) {
-                                        Text(if (showTtsKey) "Hide" else "Show")
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            ExposedDropdownMenuBox(
-                                expanded = ttsModelExpanded,
-                                onExpandedChange = {
-                                    ttsModelExpanded = it
-                                    if (it) refreshAudioModelsAction()
-                                }
-                            ) {
-                                OutlinedTextField(
-                                    value = ttsApiModel.ifEmpty { "(select model)" },
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("TTS Model") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = ttsModelExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                                )
-                                ExposedDropdownMenu(
+                        when (ttsProvider) {
+                            AudioProvider.SAMOSA_AI -> {
+                                TtsModelPicker(
+                                    selectedModel = ttsApiModel,
+                                    availableModels = availableTtsModels,
+                                    refreshing = refreshingModels,
                                     expanded = ttsModelExpanded,
-                                    onDismissRequest = { ttsModelExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
-                                        },
-                                        onClick = { refreshAudioModelsAction() }
-                                    )
-                                    if (availableTtsModels.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("No models found") },
-                                            onClick = { ttsModelExpanded = false }
-                                        )
-                                    } else {
-                                        availableTtsModels.forEach { audioModel ->
-                                            DropdownMenuItem(
-                                                text = { Text(audioModel.id) },
-                                                onClick = {
-                                                    ttsApiModel = audioModel.id
-                                                    ttsModelExpanded = false
-                                                }
-                                            )
-                                        }
+                                    onExpandedChange = { ttsModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        ttsApiModel = it
+                                        ttsModelExpanded = false
                                     }
-                                }
-                            }
-                            val selectedTtsModelObj = availableTtsModels.firstOrNull { it.id == ttsApiModel }
-                            val modelVoices = selectedTtsModelObj?.voices ?: emptyList()
-                            if (modelVoices.isNotEmpty()) {
-                                ExposedDropdownMenuBox(
+                                )
+                                TtsVoicePicker(
+                                    selectedModel = ttsApiModel,
+                                    selectedVoice = ttsVoice,
+                                    availableModels = availableTtsModels,
                                     expanded = ttsVoiceExpanded,
-                                    onExpandedChange = { ttsVoiceExpanded = it }
-                                ) {
-                                    val selectedVoiceObj = modelVoices.firstOrNull { it.id == ttsVoice }
-                                    val defaultObj = modelVoices.firstOrNull { it.id == selectedTtsModelObj?.defaultVoice }
-                                    val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedTtsModelObj?.defaultVoice ?: "af_heart"
-                                    val voiceLabel = if (ttsVoice.isEmpty()) {
-                                        "Default ($defaultVoiceLabel)"
-                                    } else {
-                                        selectedVoiceObj?.displayLabel ?: ttsVoice
-                                    }
-                                    OutlinedTextField(
-                                        value = voiceLabel,
-                                        onValueChange = {},
-                                        readOnly = true,
-                                        label = { Text("TTS Voice (optional)") },
-                                        trailingIcon = {
-                                            ExposedDropdownMenuDefaults.TrailingIcon(
-                                                expanded = ttsVoiceExpanded
-                                            )
-                                        },
-                                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                                    )
-                                    ExposedDropdownMenu(
-                                        expanded = ttsVoiceExpanded,
-                                        onDismissRequest = { ttsVoiceExpanded = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Default ($defaultVoiceLabel)") },
-                                            onClick = {
-                                                ttsVoice = ""
-                                                ttsVoiceExpanded = false
-                                            }
-                                        )
-                                        modelVoices.forEach { voiceInfo ->
-                                            DropdownMenuItem(
-                                                text = { Text(voiceInfo.displayLabel) },
-                                                onClick = {
-                                                    ttsVoice = voiceInfo.id
-                                                    ttsVoiceExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
+                                    onExpandedChange = { ttsVoiceExpanded = it },
+                                    onSelect = {
+                                        ttsVoice = it
+                                        ttsVoiceExpanded = false
+                                    },
+                                    onClearVoice = { ttsVoice = "" }
+                                )
+                            }
+                            AudioProvider.API -> {
                                 OutlinedTextField(
-                                    value = ttsVoice,
-                                    onValueChange = { ttsVoice = it },
-                                    label = { Text("TTS Voice (optional)") },
+                                    value = ttsApiBaseUrl,
+                                    onValueChange = { ttsApiBaseUrl = it },
+                                    label = { Text("TTS API Base URL") },
                                     singleLine = true,
-                                    placeholder = { Text("e.g. af_heart, alloy, echo") },
+                                    placeholder = { Text("http://10.0.2.2:8969/v1") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
+                                OutlinedTextField(
+                                    value = ttsApiKey,
+                                    onValueChange = { ttsApiKey = it },
+                                    label = { Text("TTS API Key (optional)") },
+                                    singleLine = true,
+                                    placeholder = { Text("Leave blank to use main API key") },
+                                    visualTransformation = if (showTtsKey) {
+                                        VisualTransformation.None
+                                    } else {
+                                        PasswordVisualTransformation()
+                                    },
+                                    trailingIcon = {
+                                        TextButton(onClick = { showTtsKey = !showTtsKey }) {
+                                            Text(if (showTtsKey) "Hide" else "Show")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                TtsModelPicker(
+                                    selectedModel = ttsApiModel,
+                                    availableModels = availableTtsModels,
+                                    refreshing = refreshingModels,
+                                    expanded = ttsModelExpanded,
+                                    onExpandedChange = { ttsModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        ttsApiModel = it
+                                        ttsModelExpanded = false
+                                    }
+                                )
+                                TtsVoicePicker(
+                                    selectedModel = ttsApiModel,
+                                    selectedVoice = ttsVoice,
+                                    availableModels = availableTtsModels,
+                                    expanded = ttsVoiceExpanded,
+                                    onExpandedChange = { ttsVoiceExpanded = it },
+                                    onSelect = {
+                                        ttsVoice = it
+                                        ttsVoiceExpanded = false
+                                    },
+                                    onClearVoice = { ttsVoice = "" }
+                                )
                             }
+                            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
                         }
                         ExposedDropdownMenuBox(
                             expanded = sttProviderExpanded,
                             onExpandedChange = { sttProviderExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = sttProvider.name,
+                                value = sttProvider.label,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("STT Provider") },
@@ -824,7 +861,7 @@ fun SettingsScreen(
                             ) {
                                 AudioProvider.entries.forEach { provider ->
                                     DropdownMenuItem(
-                                        text = { Text(provider.name) },
+                                        text = { Text(provider.label) },
                                         onClick = {
                                             sttProvider = provider
                                             sttProviderExpanded = false
@@ -833,121 +870,86 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                        if (sttProvider == AudioProvider.API) {
-                            OutlinedTextField(
-                                value = sttApiBaseUrl,
-                                onValueChange = { sttApiBaseUrl = it },
-                                label = { Text("STT API Base URL") },
-                                singleLine = true,
-                                placeholder = { Text("http://10.0.2.2:8969/v1") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = sttApiKey,
-                                onValueChange = { sttApiKey = it },
-                                label = { Text("STT API Key (optional)") },
-                                singleLine = true,
-                                placeholder = { Text("Leave blank to use main API key") },
-                                visualTransformation = if (showSttKey) {
-                                    VisualTransformation.None
-                                } else {
-                                    PasswordVisualTransformation()
-                                },
-                                trailingIcon = {
-                                    TextButton(onClick = { showSttKey = !showSttKey }) {
-                                        Text(if (showSttKey) "Hide" else "Show")
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            ExposedDropdownMenuBox(
-                                expanded = sttModelExpanded,
-                                onExpandedChange = {
-                                    sttModelExpanded = it
-                                    if (it) refreshAudioModelsAction()
-                                }
-                            ) {
-                                OutlinedTextField(
-                                    value = sttApiModel.ifEmpty { "(select model)" },
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("STT Model") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = sttModelExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                                )
-                                ExposedDropdownMenu(
+                        when (sttProvider) {
+                            AudioProvider.SAMOSA_AI -> {
+                                SttModelPicker(
+                                    selectedModel = sttApiModel,
+                                    availableModels = availableSttModels,
+                                    refreshing = refreshingModels,
                                     expanded = sttModelExpanded,
-                                    onDismissRequest = { sttModelExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(if (refreshingModels) "Refreshing…" else "🔄 Refresh audio models…")
-                                        },
-                                        onClick = { refreshAudioModelsAction() }
-                                    )
-                                    if (availableSttModels.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("No models found") },
-                                            onClick = { sttModelExpanded = false }
-                                        )
-                                    } else {
-                                        availableSttModels.forEach { audioModel ->
-                                            DropdownMenuItem(
-                                                text = { Text(audioModel.id) },
-                                                onClick = {
-                                                    sttApiModel = audioModel.id
-                                                    sttModelExpanded = false
-                                                }
-                                            )
-                                        }
+                                    onExpandedChange = { sttModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        sttApiModel = it
+                                        sttModelExpanded = false
                                     }
-                                }
-                            }
-                            val selectedSttModelObj = availableSttModels.firstOrNull { it.id == sttApiModel }
-                            val languagesList = selectedSttModelObj?.languages?.takeIf { it.isNotEmpty() }
-                                ?: COMMON_STT_LANGUAGES
-                            ExposedDropdownMenuBox(
-                                expanded = sttLanguageExpanded,
-                                onExpandedChange = { sttLanguageExpanded = it }
-                            ) {
-                                OutlinedTextField(
-                                    value = sttLanguage,
-                                    onValueChange = { sttLanguage = it },
-                                    label = { Text("STT Language (optional)") },
-                                    placeholder = { Text("Auto-detect / Default (or select below)") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(
-                                            expanded = sttLanguageExpanded
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth().menuAnchor()
                                 )
-                                ExposedDropdownMenu(
+                                SttLanguagePicker(
+                                    selectedModel = sttApiModel,
+                                    selectedLanguage = sttLanguage,
+                                    availableModels = availableSttModels,
                                     expanded = sttLanguageExpanded,
-                                    onDismissRequest = { sttLanguageExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Auto-detect / Default (empty)") },
-                                        onClick = {
-                                            sttLanguage = ""
-                                            sttLanguageExpanded = false
-                                        }
-                                    )
-                                    languagesList.forEach { lang ->
-                                        DropdownMenuItem(
-                                            text = { Text(lang) },
-                                            onClick = {
-                                                sttLanguage = lang
-                                                sttLanguageExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
+                                    onExpandedChange = { sttLanguageExpanded = it },
+                                    onSelect = {
+                                        sttLanguage = it
+                                        sttLanguageExpanded = false
+                                    },
+                                    onClearLanguage = { sttLanguage = "" }
+                                )
                             }
+                            AudioProvider.API -> {
+                                OutlinedTextField(
+                                    value = sttApiBaseUrl,
+                                    onValueChange = { sttApiBaseUrl = it },
+                                    label = { Text("STT API Base URL") },
+                                    singleLine = true,
+                                    placeholder = { Text("http://10.0.2.2:8969/v1") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = sttApiKey,
+                                    onValueChange = { sttApiKey = it },
+                                    label = { Text("STT API Key (optional)") },
+                                    singleLine = true,
+                                    placeholder = { Text("Leave blank to use main API key") },
+                                    visualTransformation = if (showSttKey) {
+                                        VisualTransformation.None
+                                    } else {
+                                        PasswordVisualTransformation()
+                                    },
+                                    trailingIcon = {
+                                        TextButton(onClick = { showSttKey = !showSttKey }) {
+                                            Text(if (showSttKey) "Hide" else "Show")
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                SttModelPicker(
+                                    selectedModel = sttApiModel,
+                                    availableModels = availableSttModels,
+                                    refreshing = refreshingModels,
+                                    expanded = sttModelExpanded,
+                                    onExpandedChange = { sttModelExpanded = it },
+                                    onRefresh = refreshAudioModelsAction,
+                                    onSelect = {
+                                        sttApiModel = it
+                                        sttModelExpanded = false
+                                    }
+                                )
+                                SttLanguagePicker(
+                                    selectedModel = sttApiModel,
+                                    selectedLanguage = sttLanguage,
+                                    availableModels = availableSttModels,
+                                    expanded = sttLanguageExpanded,
+                                    onExpandedChange = { sttLanguageExpanded = it },
+                                    onSelect = {
+                                        sttLanguage = it
+                                        sttLanguageExpanded = false
+                                    },
+                                    onClearLanguage = { sttLanguage = "" }
+                                )
+                            }
+                            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -963,6 +965,7 @@ fun SettingsScreen(
                                 overlay = SettingsOverlay("Saved.")
                                 status = null
                             },
+                            enabled = speechConfigValid(),
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Save Speech Settings") }
                     }
@@ -983,7 +986,7 @@ fun SettingsScreen(
                 )
                 AnimatedVisibility(visible = skillsExpanded) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val allSkills = com.gotcha.agent.skills.SkillRegistry.getAllSkills()
+                        val allSkills = SkillRegistry.getAllSkills()
                         if (allSkills.isEmpty()) {
                             Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
                         } else {
@@ -1016,6 +1019,270 @@ fun SettingsScreen(
                                     )
                                 }
                             }
+                        }
+
+                        HorizontalDivider(thickness = 1.dp)
+
+                        // ---- Community Skills ----
+                        Text(
+                            "Community Skills",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Import skills from samosa-ai.example or paste JSON. " +
+                                "Community skills appear in the agent's system prompt " +
+                                "as advisory guidance.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        OutlinedTextField(
+                            value = communitySkillUrl,
+                            onValueChange = { communitySkillUrl = it.trim() },
+                            label = { Text("Skill URL (https://samosa-ai.example/...)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Button(
+                            onClick = {
+                                if (communityImportBusy) return@Button
+                                val url = communitySkillUrl.trim()
+                                if (url.isEmpty()) {
+                                    overlay = SettingsOverlay("Enter a URL first.")
+                                    return@Button
+                                }
+                                communityImportBusy = true
+                                overlay = SettingsOverlay("Fetching skill…", sticky = true)
+                                scope.launch {
+                                    val result = runCatching {
+                                        val hosts = currentSettings().communitySkillHosts
+                                        SkillRegistry.importCommunityFromUrl(url, hosts)
+                                    }
+                                    communityImportBusy = false
+                                    result.onSuccess { skill ->
+                                        communitySkillUrl = ""
+                                        communitySkillRefreshTick++
+                                        overlay = SettingsOverlay("Imported '${skill.id}'.")
+                                    }.onFailure { e ->
+                                        overlay = SettingsOverlay(formatImportError(e))
+                                    }
+                                }
+                            },
+                            enabled = !communityImportBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Import from URL") }
+
+                        var pasteOpen by remember { mutableStateOf(false) }
+                        OutlinedButton(
+                            onClick = { pasteOpen = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Paste JSON…") }
+                        if (pasteOpen) {
+                            androidx.compose.ui.window.Dialog(onDismissRequest = {
+                                pasteOpen = false
+                                communitySkillPasteJson = ""
+                            }) {
+                                Surface(shape = MaterialTheme.shapes.medium) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            "Paste community skill JSON",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        OutlinedTextField(
+                                            value = communitySkillPasteJson,
+                                            onValueChange = { communitySkillPasteJson = it },
+                                            label = { Text("Skill JSON") },
+                                            modifier = Modifier.fillMaxWidth().height(220.dp),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.End,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            TextButton(onClick = {
+                                                pasteOpen = false
+                                                communitySkillPasteJson = ""
+                                            }) { Text("Cancel") }
+                                            TextButton(onClick = {
+                                                val src = communitySkillPasteJson.trim()
+                                                if (src.isEmpty()) {
+                                                    overlay = SettingsOverlay("Paste JSON first.")
+                                                    return@TextButton
+                                                }
+                                                communityImportBusy = true
+                                                pasteOpen = false
+                                                overlay = SettingsOverlay("Importing skill…", sticky = true)
+                                                scope.launch {
+                                                    val result = runCatching {
+                                                        SkillRegistry.importCommunity(src)
+                                                    }
+                                                    communityImportBusy = false
+                                                    communitySkillPasteJson = ""
+                                                    result.onSuccess { skill ->
+                                                        communitySkillRefreshTick++
+                                                        overlay = SettingsOverlay(
+                                                            "Imported '${skill.id}'."
+                                                        )
+                                                    }.onFailure { e ->
+                                                        overlay = SettingsOverlay(formatImportError(e))
+                                                    }
+                                                }
+                                            }) { Text("Import") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ---- Imported list ----
+                        val communitySkills = remember(communitySkillRefreshTick) {
+                            SkillRegistry.getCommunitySkills()
+                        }
+                        if (communitySkills.isEmpty()) {
+                            Text(
+                                "No community skills imported yet.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        } else {
+                            communitySkills.forEach { skill ->
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                            Text(
+                                                if (skill.title.isNotBlank()) skill.title else skill.id,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                "id: ${skill.id}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            if (skill.description.isNotBlank()) {
+                                                Text(
+                                                    skill.description,
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
+                                        }
+                                        Switch(
+                                            checked = !disabledSkills.contains(skill.id),
+                                            onCheckedChange = { enabled ->
+                                                disabledSkills = if (enabled) {
+                                                    disabledSkills - skill.id
+                                                } else {
+                                                    disabledSkills + skill.id
+                                                }
+                                                onSave(currentSettings())
+                                            }
+                                        )
+                                        IconButton(
+                                            onClick = { communitySkillToDelete = skill }
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Delete,
+                                                contentDescription = "Delete ${skill.id}",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ---- Delete confirmation dialog ----
+                        communitySkillToDelete?.let { pending ->
+                            AlertDialog(
+                                onDismissRequest = { communitySkillToDelete = null },
+                                title = { Text("Delete community skill?") },
+                                text = {
+                                    Text(
+                                        "Are you sure you want to permanently delete " +
+                                            "\"${pending.id}\"? The skill will be removed from " +
+                                            "this device and the agent will no longer have " +
+                                            "access to it. This action cannot be undone."
+                                    )
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            val id = pending.id
+                                            communitySkillToDelete = null
+                                            scope.launch {
+                                                runCatching { SkillRegistry.removeCommunity(id) }
+                                                disabledSkills = disabledSkills - id
+                                                onSave(currentSettings())
+                                                communitySkillRefreshTick++
+                                                overlay = SettingsOverlay("Deleted '$id'.")
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) { Text("Delete") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { communitySkillToDelete = null }) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(thickness = 1.dp)
+
+                        // ---- Host allowlist ----
+                        Text(
+                            "Allowed community skill hosts",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Only HTTPS hosts in this list can be fetched. " +
+                                "Default: samosa-ai.example.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        communitySkillHosts.forEach { host ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(host, modifier = Modifier.weight(1f))
+                                TextButton(onClick = {
+                                    communitySkillHosts = communitySkillHosts - host
+                                    onSave(currentSettings())
+                                }) { Text("Remove") }
+                            }
+                        }
+                        var newHost by remember { mutableStateOf("") }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = newHost,
+                                onValueChange = { newHost = it.trim() },
+                                label = { Text("Add host") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = {
+                                    val h = newHost.trim()
+                                    if (h.isEmpty()) return@Button
+                                    communitySkillHosts = communitySkillHosts + h
+                                    onSave(currentSettings())
+                                    newHost = ""
+                                }
+                            ) { Text("Add") }
                         }
                     }
                 }
@@ -1281,6 +1548,230 @@ private fun SettingsToggleRow(
             style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
         )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/** TTS model picker dropdown — shared by Samosa AI and External API sections. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TtsModelPicker(
+    selectedModel: String,
+    availableModels: List<AudioModel>,
+    refreshing: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            onExpandedChange(it)
+            if (it) onRefresh()
+        }
+    ) {
+        OutlinedTextField(
+            value = selectedModel.ifEmpty { "(select model)" },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("TTS Model") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(if (refreshing) "Refreshing…" else "🔄 Refresh audio models…")
+                },
+                onClick = onRefresh
+            )
+            if (availableModels.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No models found") },
+                    onClick = { onExpandedChange(false) }
+                )
+            } else {
+                availableModels.forEach { audioModel ->
+                    DropdownMenuItem(
+                        text = { Text(audioModel.id) },
+                        onClick = { onSelect(audioModel.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** TTS voice picker — uses the model's voice list when available, otherwise a free-text field. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TtsVoicePicker(
+    selectedModel: String,
+    selectedVoice: String,
+    availableModels: List<AudioModel>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+    onClearVoice: () -> Unit
+) {
+    val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
+    val modelVoices = selectedModelObj?.voices ?: emptyList()
+    if (modelVoices.isNotEmpty()) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = onExpandedChange
+        ) {
+            val selectedVoiceObj = modelVoices.firstOrNull { it.id == selectedVoice }
+            val defaultObj = modelVoices.firstOrNull { it.id == selectedModelObj?.defaultVoice }
+            val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedModelObj?.defaultVoice ?: "af_heart"
+            val voiceLabel = if (selectedVoice.isEmpty()) {
+                "Default ($defaultVoiceLabel)"
+            } else {
+                selectedVoiceObj?.displayLabel ?: selectedVoice
+            }
+            OutlinedTextField(
+                value = voiceLabel,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("TTS Voice (optional)") },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                modifier = Modifier.fillMaxWidth().menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { onExpandedChange(false) }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Default ($defaultVoiceLabel)") },
+                    onClick = onClearVoice
+                )
+                modelVoices.forEach { voiceInfo ->
+                    DropdownMenuItem(
+                        text = { Text(voiceInfo.displayLabel) },
+                        onClick = { onSelect(voiceInfo.id) }
+                    )
+                }
+            }
+        }
+    } else {
+        OutlinedTextField(
+            value = selectedVoice,
+            onValueChange = { onSelect(it) },
+            label = { Text("TTS Voice (optional)") },
+            singleLine = true,
+            placeholder = { Text("e.g. af_heart, alloy, echo") },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/** STT model picker dropdown — shared by Samosa AI and External API sections. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SttModelPicker(
+    selectedModel: String,
+    availableModels: List<AudioModel>,
+    refreshing: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onRefresh: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            onExpandedChange(it)
+            if (it) onRefresh()
+        }
+    ) {
+        OutlinedTextField(
+            value = selectedModel.ifEmpty { "(select model)" },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("STT Model") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Text(if (refreshing) "Refreshing…" else "🔄 Refresh audio models…")
+                },
+                onClick = onRefresh
+            )
+            if (availableModels.isEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("No models found") },
+                    onClick = { onExpandedChange(false) }
+                )
+            } else {
+                availableModels.forEach { audioModel ->
+                    DropdownMenuItem(
+                        text = { Text(audioModel.id) },
+                        onClick = { onSelect(audioModel.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** STT language picker — uses the model's languages when available, otherwise [COMMON_STT_LANGUAGES]. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SttLanguagePicker(
+    selectedModel: String,
+    selectedLanguage: String,
+    availableModels: List<AudioModel>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String) -> Unit,
+    onClearLanguage: () -> Unit
+) {
+    val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
+    val languagesList = selectedModelObj?.languages?.takeIf { it.isNotEmpty() }
+        ?: COMMON_STT_LANGUAGES
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = onExpandedChange
+    ) {
+        OutlinedTextField(
+            value = selectedLanguage,
+            onValueChange = onSelect,
+            label = { Text("STT Language (optional)") },
+            placeholder = { Text("Auto-detect / Default (or select below)") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Auto-detect / Default (empty)") },
+                onClick = onClearLanguage
+            )
+            languagesList.forEach { lang ->
+                DropdownMenuItem(
+                    text = { Text(lang) },
+                    onClick = { onSelect(lang) }
+                )
+            }
+        }
     }
 }
 
