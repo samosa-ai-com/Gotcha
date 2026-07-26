@@ -844,6 +844,11 @@ class AgentEngine(
      * history prefix stays in the KV cache when the user switches agents.
      */
     private fun agentInstructionMessages(agent: AgentMode): List<ChatMessage> {
+        val languageDirective = "\n\nRespond to the user in ${settings.preferredLanguage}. If the " +
+            "user writes to you in a different language, reply in that language instead.\n" +
+            "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
+            "app names, search queries passed to tools, and shell commands — regardless of " +
+            "the language you are replying in."
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
@@ -907,7 +912,7 @@ class AgentEngine(
                     "</system-reminder>"
         }
         return listOf(
-            ChatMessage(role = "system", content = JsonPrimitive(core + reminder))
+            ChatMessage(role = "system", content = JsonPrimitive(core + languageDirective + reminder))
         )
     }
 
@@ -974,6 +979,8 @@ class AgentEngine(
             appendLine("  App version: $versionName")
             appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
             appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
+            appendLine("  Preferred language: ${settings.preferredLanguage}")
+            appendLine("  Preferred currency: ${settings.preferredCurrency}")
             append("</env>")
         }
     }

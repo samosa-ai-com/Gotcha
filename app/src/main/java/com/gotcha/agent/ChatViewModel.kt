@@ -15,6 +15,8 @@ import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -76,6 +78,8 @@ data class ChatUiState(
     val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
+    /** True from the moment recording stops until the transcript (and cleanup) is ready. */
+    val isTranscribing: Boolean = false,
     val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
@@ -464,15 +468,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ttsEngine.stop()
             _uiState.update { it.copy(isSpeaking = true) }
             try {
+                val language = Language.fromLabel(settings.preferredLanguage)
                 val defaultVoice = _uiState.value.ttsModels
                     .firstOrNull { it.id == settings.ttsApiModel }
-                    ?.defaultVoice ?: "af_heart"
+                    ?.defaultVoiceFor(language) ?: "af_heart"
                 val voice = settings.ttsVoice.ifBlank { defaultVoice }
                 ttsEngine.speak(
                     text = text,
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
-                    voice = voice
+                    voice = voice,
+                    language = language
                 )
             } finally {
                 _uiState.update { it.copy(isSpeaking = false) }
@@ -486,10 +492,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update { it.copy(isSpeaking = false) }
     }
 
+    /**
+     * Speak [language]'s call-started phrase through the shared Android TTS
+     * engine (regardless of [AudioProvider] setting) so Settings can verify the
+     * installed voice data without spinning up a second TtsEngine instance.
+     *
+     * Returns true when the requested language was actually used, false when
+     * the engine had to fall back to English because Android is missing the
+     * voice data. Returns null when TTS isn't configured at all.
+     */
+    suspend fun testAndroidTts(language: Language): Boolean? {
+        if (settings.ttsProvider == AudioProvider.NONE) return null
+        ttsEngine.stop()
+        ttsEngine.speak(
+            text = SpokenPhrases.callStarted(language),
+            provider = AudioProvider.ANDROID,
+            language = language
+        )
+        return ttsEngine.lastLanguageUnavailable != language
+    }
+
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
         stopSpeaking()
-        if (_uiState.value.isListening || _uiState.value.isRecording) return
+        if (_uiState.value.isListening || _uiState.value.isRecording || _uiState.value.isTranscribing) return
         when {
             settings.sttProvider == AudioProvider.ANDROID -> {
                 val perm = android.Manifest.permission.RECORD_AUDIO
@@ -503,7 +529,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening()
+                val started = sttEngine.startAndroidListening(Language.fromLabel(settings.preferredLanguage))
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
@@ -543,32 +569,47 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
-            var transcript = ""
-            when {
-                provider.isApiBased() -> {
-                    _uiState.update { it.copy(isRecording = false) }
-                    val audioFile = sttEngine.stopRecording()
-                    if (audioFile == null) {
-                        appendUi(MessageKind.ERROR, "Failed to record audio.")
-                        return@launch
-                    }
-                    transcript = sttEngine.transcribeApi(
-                        audioFile, settings.sttApiModel, settings.sttLanguage
-                    )
-                        .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
-                        .getOrDefault("")
-                }
-                provider == AudioProvider.ANDROID -> {
-                    _uiState.update { it.copy(isListening = false) }
-                    transcript = sttEngine.stopAndroidListening()
-                }
+            _uiState.update {
+                it.copy(isRecording = false, isListening = false, isTranscribing = true)
             }
+            try {
+                var transcript = ""
+                when {
+                    provider.isApiBased() -> {
+                        val audioFile = sttEngine.stopRecording()
+                        if (audioFile == null) {
+                            appendUi(MessageKind.ERROR, "Failed to record audio.")
+                            return@launch
+                        }
+                        val sttLanguage = settings.sttLanguage.ifBlank {
+                            Language.fromLabel(settings.preferredLanguage).iso639
+                        }
+                        transcript = sttEngine.transcribeApi(
+                            audioFile, settings.sttApiModel, sttLanguage
+                        )
+                            .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                            .getOrDefault("")
+                    }
+                    provider == AudioProvider.ANDROID -> {
+                        transcript = sttEngine.stopAndroidListening()
+                    }
+                }
 
-            if (transcript.isNotBlank()) {
-                lastInputWasVoice = true
-                val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                val cleaned = client?.cleanText(transcript, navModel) ?: transcript
-                onResult(cleaned)
+                if (transcript.isNotBlank()) {
+                    lastInputWasVoice = true
+                    // API STT (Whisper-class) output is already punctuated and cased —
+                    // cleanText is redundant there and would cost an extra LLM round-trip.
+                    val cleaned = if (provider == AudioProvider.ANDROID) {
+                        val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                        client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                            ?: transcript
+                    } else {
+                        transcript
+                    }
+                    onResult(cleaned)
+                }
+            } finally {
+                _uiState.update { it.copy(isTranscribing = false) }
             }
         }
     }

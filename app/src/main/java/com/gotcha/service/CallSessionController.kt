@@ -16,6 +16,8 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -147,7 +149,8 @@ class CallSessionController(
         engine = newEngine
         _state.value = CallState.STARTING
         scope.launch {
-            if (!speakText("Call started. I'm ready when you are.")) {
+            val language = Language.fromLabel(s.preferredLanguage)
+            if (!speakText(SpokenPhrases.callStarted(language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
@@ -218,8 +221,10 @@ class CallSessionController(
     fun startMic() {
         val current = _state.value
         if (current != CallState.READY && current != CallState.WAITING_USER) return
-        val s = settingsRepository.load()
-        val started = sttEngine.startListening(s.sttProvider)
+        val started = sttEngine.startListening(
+            settingsRepository.load().sttProvider,
+            currentLanguage()
+        )
         if (started) {
             _state.value = CallState.LISTENING
         }
@@ -232,7 +237,9 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
-            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, s.sttLanguage)
+            val language = Language.fromLabel(s.preferredLanguage)
+            val sttLanguage = s.sttLanguage.ifBlank { language.iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {
@@ -246,9 +253,15 @@ class CallSessionController(
                 return@launch
             }
 
-            val llmClient = buildClient()
-            val navModel = s.navigatorModel.ifEmpty { s.model }
-            val cleanedText = llmClient?.cleanText(text, navModel) ?: text
+            // API STT (Whisper-class) output is already punctuated and cased —
+            // cleanText is redundant there and would cost an extra LLM round-trip.
+            val cleanedText = if (s.sttProvider == AudioProvider.ANDROID) {
+                val llmClient = buildClient()
+                val navModel = s.navigatorModel.ifEmpty { s.model }
+                llmClient?.cleanText(text, navModel, language) ?: text
+            } else {
+                text
+            }
 
             addTranscript(MessageKind.USER, cleanedText)
 
@@ -265,7 +278,7 @@ class CallSessionController(
             pendingReply = null
 
             // Narrate start-of-turn to give the user immediate feedback
-            narrate(pickTurnStartPhrase())
+            narrate(pickTurnStartPhrase(language), language)
             onActionRingColor(Category.FOREGROUND.ringColorArgb)
 
             try {
@@ -280,7 +293,7 @@ class CallSessionController(
 
             val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
-            if (speakText(reply)) {
+            if (speakText(reply, language)) {
                 triggerEndVibration()
             } else {
                 reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
@@ -405,7 +418,7 @@ class CallSessionController(
             }
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
-        if (!speakText(prompt)) {
+        if (!speakText(prompt, currentLanguage())) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<String>()
@@ -423,7 +436,8 @@ class CallSessionController(
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        if (!speakText("I need a confirmation — check the dialog on your screen.")) {
+        val language = currentLanguage()
+        if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<Boolean>()
@@ -444,6 +458,10 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
+    /** Resolve the persisted [preferredLanguage] to a [Language]. */
+    private fun currentLanguage(): Language =
+        Language.fromLabel(settingsRepository.load().preferredLanguage)
+
     /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
     private fun reportError(message: String) {
         addTranscript(MessageKind.ERROR, message)
@@ -455,15 +473,17 @@ class CallSessionController(
      * Speak with the configured TTS provider; suspends until speech finishes.
      * Returns false (without reporting — callers decide whether a given
      * utterance is important enough to surface) if playback failed, e.g. a
-     * misconfigured API TTS provider.
+     * misconfigured API TTS provider. [language] is taken from the caller so
+     * multiple speeches within one turn (e.g. start + reply) re-use the same
+     * parsed value rather than re-loading settings and re-parsing.
      */
-    private suspend fun speakText(text: String): Boolean {
+    private suspend fun speakText(text: String, language: Language): Boolean {
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return true
         val voice = if (s.ttsProvider == AudioProvider.API) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
             }
         } else {
             ""
@@ -472,7 +492,8 @@ class CallSessionController(
             text = text,
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
-            voice = voice
+            voice = voice,
+            language = language
         )
     }
 
@@ -517,7 +538,7 @@ class CallSessionController(
         }
     }
 
-    private fun narrate(text: String) {
+    private fun narrate(text: String, language: Language = currentLanguage()) {
         if (text.isBlank() || _state.value != CallState.THINKING) return
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return
@@ -526,12 +547,12 @@ class CallSessionController(
             val voice = if (s.ttsProvider == AudioProvider.API) {
                 s.ttsVoice.ifBlank {
                     if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
                 }
             } else {
                 ""
             }
-            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice)
+            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
         }
     }
 
@@ -540,33 +561,16 @@ class CallSessionController(
         return category != lastNarratedCategory || (now - lastNarrationTimeMs) > NARRATION_THROTTLE_MS
     }
 
-    private fun pickTurnStartPhrase(): String {
-        val total = turnStartPhrases.sumOf { it.second }
+    private fun pickTurnStartPhrase(lang: Language): String {
+        val phrases = SpokenPhrases.turnStart(lang)
+        val total = phrases.sumOf { it.second }
         var roll = kotlin.random.Random.nextFloat() * total
-        for ((phrase, weight) in turnStartPhrases) {
+        for ((phrase, weight) in phrases) {
             roll -= weight
             if (roll <= 0f) return phrase
         }
-        return turnStartPhrases.last().first
+        return phrases.last().first
     }
-
-    private val turnStartPhrases = listOf(
-        "Gotcha" to 5,
-        "Let me look into that" to 2,
-        "Hmm hmm" to 2,
-        "Got it" to 2,
-        "On it" to 1,
-        "Working on it" to 1,
-        "One moment" to 1,
-        "Let me check" to 1,
-        "I'm on it" to 1,
-        "Sure thing" to 1,
-        "Okay" to 1,
-        "Alright" to 1,
-        "Let me see" to 1,
-        "Give me a second" to 1,
-        "Hang on" to 1
-    )
 
     private fun triggerEndVibration() {
         val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator

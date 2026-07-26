@@ -63,6 +63,7 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
+import com.gotcha.i18n.Language
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -107,6 +108,13 @@ fun SettingsScreen(
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = { Result.failure(Exception("Not available")) },
     /** Logs out of Samosa (clears JWT + Google state). */
     onSamosaSignOut: suspend () -> Unit = {},
+    /**
+     * Speaks the call-started phrase through the host's TTS engine and reports
+     * whether the requested language was actually used. Returning null means
+     * TTS isn't configured and the button should be a no-op. The default
+     * (synchronous, always-true) lets callers ignore voice testing.
+     */
+    onTestVoice: suspend (Language) -> Boolean? = { null },
     packageName: String = ""
 ) {
     var provider by remember { mutableStateOf(initial.provider) }
@@ -147,6 +155,10 @@ fun SettingsScreen(
     var proactiveAutoCopyOtp by remember { mutableStateOf(initial.proactiveAutoCopyOtp) }
     var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
     var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
+    var testingVoice by remember { mutableStateOf(false) }
+
+    /** Last [Language] whose voice data was reported missing, or null when not shown. */
+    var voiceDataMissing by remember { mutableStateOf<Language?>(null) }
     var communitySkillHosts by remember { mutableStateOf(initial.communitySkillHosts) }
     var communitySkillUrl by remember { mutableStateOf("") }
     var communitySkillPasteJson by remember { mutableStateOf("") }
@@ -1330,10 +1342,7 @@ fun SettingsScreen(
                                 onCheckedChange = { proactiveAutoCopyOtp = it }
                             )
 
-                            val languages = listOf(
-                                "English", "Spanish", "French", "German", "Hindi",
-                                "Japanese", "Chinese", "Italian", "Portuguese"
-                            )
+                            val languages = Language.labels
                             ExposedDropdownMenuBox(
                                 expanded = languageExpanded,
                                 onExpandedChange = { languageExpanded = it }
@@ -1364,6 +1373,53 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    testingVoice = true
+                                    scope.launch {
+                                        val lang = Language.fromLabel(preferredLanguage)
+                                        // Track which language triggered the missing-data state so
+                                        // rapid language-switch clicks don't surface a stale dialog.
+                                        val ok = onTestVoice(lang)
+                                        voiceDataMissing = if (ok == false) lang else null
+                                        testingVoice = false
+                                    }
+                                },
+                                enabled = !testingVoice,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (testingVoice) "Playing…" else "Test voice")
+                            }
+                            voiceDataMissing?.let { missingLang ->
+                                AlertDialog(
+                                    onDismissRequest = { voiceDataMissing = null },
+                                    title = { Text("Voice data not installed") },
+                                    text = {
+                                        Text(
+                                            "Your device doesn't have Android's built-in voice for " +
+                                                "${missingLang.label}. It was spoken in English instead. " +
+                                                "Install the voice data to fix pronunciation."
+                                        )
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                voiceDataMissing = null
+                                                try {
+                                                    localContext.startActivity(
+                                                        android.content.Intent(
+                                                            android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
+                                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    )
+                                                } catch (_: Exception) { }
+                                            }
+                                        ) { Text("Install") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
+                                    }
+                                )
                             }
 
                             val currencies = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")

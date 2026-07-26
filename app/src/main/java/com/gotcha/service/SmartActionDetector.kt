@@ -764,7 +764,23 @@ object SmartActionDetector {
                     clean.lowercase().split("\\s+".toRegex())
                         .count { it.trimEnd('.', ',', '!', '?') in setOf("der", "die", "das", "ein", "eine", "mit") } >= 2
             }
-            else -> false
+            lang.contains("italian") -> {
+                Regex("[àèéìòù]").containsMatchIn(clean.lowercase()) ||
+                    clean.lowercase().split("\\s+".toRegex())
+                        .count { it.trimEnd('.', ',', '!', '?') in setOf("il", "lo", "la", "gli", "delle", "con", "per") } >= 2
+            }
+            lang.contains("portuguese") -> {
+                Regex("[ãõáéíóúâêôç]").containsMatchIn(clean.lowercase()) ||
+                    clean.lowercase().split("\\s+".toRegex())
+                        .count { it.trimEnd('.', ',', '!', '?') in setOf("o", "a", "os", "as", "com", "para", "não") } >= 2
+            }
+            // Unhandled languages: assume already-in-language. The old default was
+            // `false`, which meant the assistive ball *always* offered a "Translate"
+            // prompt for languages we don't yet recognize — false-positive Offers are
+            // a worse experience than missed translations, so a permissive default
+            // (issue #42 P0-7) keeps the ambient surface quiet unless a recognizer
+            // is explicitly added.
+            else -> true
         }
     }
 }

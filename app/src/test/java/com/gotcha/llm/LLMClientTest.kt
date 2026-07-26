@@ -1,5 +1,6 @@
 package com.gotcha.llm
 
+import com.gotcha.i18n.Language
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -144,5 +145,22 @@ class LLMClientTest {
         client.chat(messages = messages, tools = listOf(dummyTool))
 
         assertTrue(server.requestCount == 2)
+    }
+
+    @Test
+    fun `cleanText request body contains the language name and no-translate clause`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"choices":[{"message":{"role":"assistant","content":"नमस्ते, आप कैसे हैं?"}}]}"""
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        client.cleanText("namaste aap kaise hain", language = Language.HINDI)
+
+        val request = server.takeRequest()
+        val body = request.body.readUtf8()
+        assertTrue(body.contains(Language.HINDI.label))
+        assertTrue(body.contains("Never translate"))
+        assertTrue(body.contains("<dictation>"))
     }
 }

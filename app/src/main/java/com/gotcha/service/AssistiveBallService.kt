@@ -16,6 +16,7 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import kotlinx.coroutines.CoroutineScope
@@ -623,7 +624,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening()) {
+                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError("Failed to start speech recognition.")
@@ -676,7 +677,8 @@ class AssistiveBallService : Service() {
             return
         }
         scope.launch {
-            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel)
+            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
@@ -697,7 +699,8 @@ class AssistiveBallService : Service() {
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
-                voice = s.ttsVoice
+                voice = s.ttsVoice,
+                language = Language.fromLabel(s.preferredLanguage)
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
