@@ -418,9 +418,15 @@ fun ChatScreen(
                     modifier = Modifier.weight(1f).testTag("chat_input"),
                     shape = RoundedCornerShape(24.dp),
                     placeholder = {
-                        Text(if (otherChatRunning) "Finish the running chat first…" else "Let's Go")
+                        Text(
+                            when {
+                                state.isTranscribing -> "Transcribing…"
+                                otherChatRunning -> "Finish the running chat first…"
+                                else -> "Let's Go"
+                            }
+                        )
                     },
-                    enabled = !state.isBusy && state.isConfigured && !otherChatRunning,
+                    enabled = !state.isBusy && !state.isTranscribing && state.isConfigured && !otherChatRunning,
                     maxLines = 6,
                     singleLine = false
                 )
@@ -467,6 +473,14 @@ fun ChatScreen(
                                     modifier = Modifier.size(20.dp),
                                     tint = Color.White
                                 )
+                            }
+                        }
+                        state.isTranscribing -> {
+                            // Recording has stopped but STT hasn't returned text yet —
+                            // without this the button would blink back to the mic icon
+                            // and look like the recording was dropped.
+                            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
                             }
                         }
                         input.isBlank() && pendingImageBase64 == null -> {

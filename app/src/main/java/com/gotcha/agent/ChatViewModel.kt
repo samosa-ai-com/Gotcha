@@ -77,6 +77,8 @@ data class ChatUiState(
     val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
+    /** True from the moment recording stops until the transcript (and cleanup) is ready. */
+    val isTranscribing: Boolean = false,
     val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
@@ -492,7 +494,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
         stopSpeaking()
-        if (_uiState.value.isListening || _uiState.value.isRecording) return
+        if (_uiState.value.isListening || _uiState.value.isRecording || _uiState.value.isTranscribing) return
         when {
             settings.sttProvider == AudioProvider.ANDROID -> {
                 val perm = android.Manifest.permission.RECORD_AUDIO
@@ -546,42 +548,47 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
-            var transcript = ""
-            when {
-                provider.isApiBased() -> {
-                    _uiState.update { it.copy(isRecording = false) }
-                    val audioFile = sttEngine.stopRecording()
-                    if (audioFile == null) {
-                        appendUi(MessageKind.ERROR, "Failed to record audio.")
-                        return@launch
-                    }
-                    val sttLanguage = settings.sttLanguage.ifBlank {
-                        Language.fromLabel(settings.preferredLanguage).iso639
-                    }
-                    transcript = sttEngine.transcribeApi(
-                        audioFile, settings.sttApiModel, sttLanguage
-                    )
-                        .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
-                        .getOrDefault("")
-                }
-                provider == AudioProvider.ANDROID -> {
-                    _uiState.update { it.copy(isListening = false) }
-                    transcript = sttEngine.stopAndroidListening()
-                }
+            _uiState.update {
+                it.copy(isRecording = false, isListening = false, isTranscribing = true)
             }
-
-            if (transcript.isNotBlank()) {
-                lastInputWasVoice = true
-                // API STT (Whisper-class) output is already punctuated and cased —
-                // cleanText is redundant there and would cost an extra LLM round-trip.
-                val cleaned = if (provider == AudioProvider.ANDROID) {
-                    val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                    client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
-                        ?: transcript
-                } else {
-                    transcript
+            try {
+                var transcript = ""
+                when {
+                    provider.isApiBased() -> {
+                        val audioFile = sttEngine.stopRecording()
+                        if (audioFile == null) {
+                            appendUi(MessageKind.ERROR, "Failed to record audio.")
+                            return@launch
+                        }
+                        val sttLanguage = settings.sttLanguage.ifBlank {
+                            Language.fromLabel(settings.preferredLanguage).iso639
+                        }
+                        transcript = sttEngine.transcribeApi(
+                            audioFile, settings.sttApiModel, sttLanguage
+                        )
+                            .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                            .getOrDefault("")
+                    }
+                    provider == AudioProvider.ANDROID -> {
+                        transcript = sttEngine.stopAndroidListening()
+                    }
                 }
-                onResult(cleaned)
+
+                if (transcript.isNotBlank()) {
+                    lastInputWasVoice = true
+                    // API STT (Whisper-class) output is already punctuated and cased —
+                    // cleanText is redundant there and would cost an extra LLM round-trip.
+                    val cleaned = if (provider == AudioProvider.ANDROID) {
+                        val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                        client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                            ?: transcript
+                    } else {
+                        transcript
+                    }
+                    onResult(cleaned)
+                }
+            } finally {
+                _uiState.update { it.copy(isTranscribing = false) }
             }
         }
     }
