@@ -774,8 +774,12 @@ object SmartActionDetector {
                     clean.lowercase().split("\\s+".toRegex())
                         .count { it.trimEnd('.', ',', '!', '?') in setOf("o", "a", "os", "as", "com", "para", "não") } >= 2
             }
-            // Unhandled languages: assume already-in-language rather than always
-            // offering a false "Translate" prompt (issue #42 P0-7).
+            // Unhandled languages: assume already-in-language. The old default was
+            // `false`, which meant the assistive ball *always* offered a "Translate"
+            // prompt for languages we don't yet recognize — false-positive Offers are
+            // a worse experience than missed translations, so a permissive default
+            // (issue #42 P0-7) keeps the ambient surface quiet unless a recognizer
+            // is explicitly added.
             else -> true
         }
     }
