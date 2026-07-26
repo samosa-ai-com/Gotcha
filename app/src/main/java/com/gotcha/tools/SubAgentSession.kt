@@ -62,7 +62,7 @@ class SubAgentSession(
 
             val messages = buildList {
                 addAll(history)
-                addAll(activeSkillsMessages(settings.disabledSkills))
+                addAll(activeSkillsMessages(settings.disabledSkills, hiddenTools))
             }
 
             val response = try {
@@ -275,9 +275,12 @@ class SubAgentSession(
         }
     }
 
-    private fun activeSkillsMessages(disabledSkills: Set<String>): List<ChatMessage> {
+    private fun activeSkillsMessages(
+        disabledSkills: Set<String>,
+        hiddenTools: Set<String>
+    ): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
-        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage)
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools)
             .filter { !disabledSkills.contains(it.id) }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
         val message = SkillPromptBuilder.build(currentPackage, activeSkills, communityIds)

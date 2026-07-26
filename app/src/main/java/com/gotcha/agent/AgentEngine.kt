@@ -847,7 +847,7 @@ class AgentEngine(
     private fun activeSkillsMessages(): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
         val disabledSkills = settingsProvider().disabledSkills
-        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage)
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenConnectorTools())
             .filter { !disabledSkills.contains(it.id) }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
         val message = SkillPromptBuilder.build(currentPackage, activeSkills, communityIds)

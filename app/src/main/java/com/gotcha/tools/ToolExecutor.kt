@@ -103,7 +103,7 @@ class ToolExecutor(
             )
         }
         val result = try {
-            withContext(Dispatchers.IO) { dispatch(name, args) }
+            withContext(Dispatchers.IO) { dispatch(name, args, hiddenTools) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -159,7 +159,7 @@ class ToolExecutor(
     // Single when-dispatch over the entire fixed tool catalog; size and branch count are
     // inherent to the design (see AGENTS.md).
     @Suppress("CyclomaticComplexMethod", "LongMethod")
-    private suspend fun dispatch(name: String, args: JsonObject): ToolResult {
+    private suspend fun dispatch(name: String, args: JsonObject, hidden: Set<String>): ToolResult {
         com.gotcha.connectors.ConnectorRegistry.toolHandler(name)?.let { return it.invoke(name, args) }
         return when (name) {
             "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
@@ -489,7 +489,9 @@ class ToolExecutor(
             )
             "search_skills" -> {
                 val query = args.requireString("query") ?: return missing("query")
-                val results = SkillRegistry.searchSkills(query)
+                // Same gating as the auto-injected skills: never hand back advice
+                // for tools the model cannot currently call.
+                val results = SkillRegistry.searchSkills(query, hidden)
                 if (results.isEmpty()) {
                     ToolResult.ok("No skills found matching '$query'.")
                 } else {
