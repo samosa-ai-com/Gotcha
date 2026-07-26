@@ -80,4 +80,16 @@ class AudioModelTest {
             labels
         )
     }
+
+    @Test
+    fun `isApiBased is true for Samosa AI and External API`() {
+        assertEquals(true, AudioProvider.SAMOSA_AI.isApiBased())
+        assertEquals(true, AudioProvider.API.isApiBased())
+    }
+
+    @Test
+    fun `isApiBased is false for Android and None`() {
+        assertEquals(false, AudioProvider.ANDROID.isApiBased())
+        assertEquals(false, AudioProvider.NONE.isApiBased())
+    }
 }

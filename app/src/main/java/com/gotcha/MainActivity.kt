@@ -452,7 +452,13 @@ class MainActivity : ComponentActivity() {
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl
                                 if (ttsBase.isBlank()) return@withContext Pair(emptyList(), emptyList())
-                                val onUnauthorized: () -> Unit = { this@MainActivity.onSamosaUnauthorized() }
+                                // AudioApi's onUnauthorized fires on an OkHttp thread; Toast
+                                // and refreshSettings() must run on the main thread.
+                                val onUnauthorized: () -> Unit = {
+                                    this@MainActivity.runOnUiThread {
+                                        this@MainActivity.onSamosaUnauthorized()
+                                    }
+                                }
                                 val ttsApi = AudioApi(
                                     baseUrl = ttsBase,
                                     apiKey = s.effectiveTtsApiKey,

@@ -373,10 +373,10 @@ class SttEngine(
 
     /** Start listening with the current provider. Returns false on failure. */
     fun startListening(provider: AudioProvider): Boolean {
-        return when (provider) {
-            AudioProvider.ANDROID -> startAndroidListening()
-            AudioProvider.SAMOSA_AI, AudioProvider.API -> startRecording()
-            AudioProvider.NONE -> false
+        return when {
+            provider == AudioProvider.ANDROID -> startAndroidListening()
+            provider.isApiBased() -> startRecording()
+            else -> false
         }
     }
 
@@ -389,8 +389,8 @@ class SttEngine(
         model: String,
         language: String = ""
     ): Result<String> {
-        return when (provider) {
-            AudioProvider.ANDROID -> {
+        return when {
+            provider == AudioProvider.ANDROID -> {
                 val text = stopAndroidListening()
                 if (text.isBlank()) {
                     Result.failure(Exception("No speech detected"))
@@ -398,14 +398,14 @@ class SttEngine(
                     Result.success(text)
                 }
             }
-            AudioProvider.SAMOSA_AI, AudioProvider.API -> {
+            provider.isApiBased() -> {
                 val file = stopRecording()
                 if (file == null) {
                     return Result.failure(Exception("Recording failed"))
                 }
                 transcribeApi(file, model, language)
             }
-            AudioProvider.NONE -> Result.failure(Exception("STT not configured"))
+            else -> Result.failure(Exception("STT not configured"))
         }
     }
 
@@ -414,8 +414,8 @@ class SttEngine(
      * Safe to call from any thread.
      */
     fun cancelListening(provider: AudioProvider) {
-        when (provider) {
-            AudioProvider.ANDROID -> {
+        when {
+            provider == AudioProvider.ANDROID -> {
                 isContinuousListening = false
                 currentPartialResult = ""
                 onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
@@ -430,7 +430,7 @@ class SttEngine(
                     currentRecognizer = null
                 }
             }
-            AudioProvider.SAMOSA_AI, AudioProvider.API -> {
+            provider.isApiBased() -> {
                 try {
                     currentRecorder?.apply {
                         stop()
@@ -440,7 +440,7 @@ class SttEngine(
                 currentRecorder = null
                 currentAudioFile = null
             }
-            AudioProvider.NONE -> {}
+            else -> {}
         }
     }
 

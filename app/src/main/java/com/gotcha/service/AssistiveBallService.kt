@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import com.gotcha.MainActivity
+import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
@@ -615,8 +616,8 @@ class AssistiveBallService : Service() {
     /** Start voice typing in the panel using the configured STT provider. */
     private fun startPanelVoiceInput() {
         val s = settingsRepository.load()
-        when (s.sttProvider) {
-            com.gotcha.audio.AudioProvider.ANDROID -> {
+        when {
+            s.sttProvider == AudioProvider.ANDROID -> {
                 if (!hasMicPermission()) {
                     overlay.showError("Microphone permission not granted.")
                     screenCompanionPanel.setListening(false)
@@ -629,10 +630,10 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                 }
             }
-            com.gotcha.audio.AudioProvider.SAMOSA_AI, com.gotcha.audio.AudioProvider.API -> {
+            s.sttProvider.isApiBased() -> {
                 if (s.effectiveSttBaseUrl.isBlank() || s.sttApiModel.isBlank()) {
                     overlay.showError(
-                        if (s.sttProvider == com.gotcha.audio.AudioProvider.SAMOSA_AI) {
+                        if (s.sttProvider == AudioProvider.SAMOSA_AI) {
                             "Configure Samosa AI for STT in settings (sign in + select a model)."
                         } else {
                             "Configure an STT API URL and model in settings."
@@ -653,7 +654,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                 }
             }
-            com.gotcha.audio.AudioProvider.NONE -> {
+            else -> {
                 overlay.showError("No STT provider configured. Enable one in settings.")
                 screenCompanionPanel.setListening(false)
             }
@@ -670,7 +671,7 @@ class AssistiveBallService : Service() {
         panelVoiceActive = false
         val s = settingsRepository.load()
         val provider = s.sttProvider
-        if (provider == com.gotcha.audio.AudioProvider.NONE) {
+        if (provider == AudioProvider.NONE) {
             screenCompanionPanel.setListening(false)
             return
         }
@@ -686,7 +687,7 @@ class AssistiveBallService : Service() {
     /** Read the panel's current response aloud using the configured TTS provider. */
     private fun readPanelResponseAloud(text: String) {
         val s = settingsRepository.load()
-        if (s.ttsProvider == com.gotcha.audio.AudioProvider.NONE) {
+        if (s.ttsProvider == AudioProvider.NONE) {
             overlay.showError("No TTS provider configured. Enable one in settings.")
             screenCompanionPanel.setSpeaking(false)
             return

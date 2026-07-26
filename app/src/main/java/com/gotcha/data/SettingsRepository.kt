@@ -79,19 +79,25 @@ data class Settings(
         }
 
     /** Base URL the TTS engine should actually use. Samosa AI maps to the
-     *  shared OpenAI-compatible proxy; user-supplied API mode uses the user's URL. */
+     *  shared OpenAI-compatible proxy, but only when a session token is present
+     *  — otherwise the URL is empty so the engine refuses to make calls until
+     *  the user re-signs-in. user-supplied API mode uses the user's URL. */
     val effectiveTtsBaseUrl: String
         get() = when (ttsProvider) {
-            AudioProvider.SAMOSA_AI -> LlmProvider.SAMOSA_BASE_URL
+            AudioProvider.SAMOSA_AI ->
+                if (samosaSessionToken.isNotBlank()) LlmProvider.SAMOSA_BASE_URL else ""
             AudioProvider.API -> ttsApiBaseUrl
             else -> ""
         }
 
     /** Base URL the STT engine should actually use. Samosa AI maps to the
-     *  shared OpenAI-compatible proxy; user-supplied API mode uses the user's URL. */
+     *  shared OpenAI-compatible proxy, but only when a session token is present
+     *  — otherwise the URL is empty so the engine refuses to make calls until
+     *  the user re-signs-in. user-supplied API mode uses the user's URL. */
     val effectiveSttBaseUrl: String
         get() = when (sttProvider) {
-            AudioProvider.SAMOSA_AI -> LlmProvider.SAMOSA_BASE_URL
+            AudioProvider.SAMOSA_AI ->
+                if (samosaSessionToken.isNotBlank()) LlmProvider.SAMOSA_BASE_URL else ""
             AudioProvider.API -> sttApiBaseUrl
             else -> ""
         }
@@ -117,6 +123,26 @@ data class Settings(
     /** True when Samosa AI is selected and a session token exists. */
     val isSamosaAuthenticated: Boolean
         get() = provider == LlmProvider.SAMOSA_AI && samosaSessionToken.isNotBlank()
+
+    /**
+     * True when both the chosen TTS and STT providers have what they need to
+     * actually make a call. Samosa AI needs the session JWT; user-supplied
+     * External API needs the base URL; Android and None are always ready.
+     */
+    val isSpeechConfigured: Boolean
+        get() {
+            val ttsOk = when (ttsProvider) {
+                AudioProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
+                AudioProvider.API -> ttsApiBaseUrl.isNotBlank()
+                else -> true
+            }
+            val sttOk = when (sttProvider) {
+                AudioProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
+                AudioProvider.API -> sttApiBaseUrl.isNotBlank()
+                else -> true
+            }
+            return ttsOk && sttOk
+        }
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/"

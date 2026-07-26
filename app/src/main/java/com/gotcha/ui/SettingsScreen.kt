@@ -192,27 +192,6 @@ fun SettingsScreen(
     var languageExpanded by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
 
-    /**
-     * True when the chosen TTS/STT providers have what they need. Samosa AI
-     * needs the session JWT (gated identically to the LLM Save button). External
-     * API mode needs the base URL. Android and None are always ready.
-     */
-    fun speechConfigValid(): Boolean {
-        val tts = ttsProvider
-        val stt = sttProvider
-        val ttsOk = when (tts) {
-            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
-            AudioProvider.API -> ttsApiBaseUrl.isNotBlank()
-            else -> true
-        }
-        val sttOk = when (stt) {
-            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
-            AudioProvider.API -> sttApiBaseUrl.isNotBlank()
-            else -> true
-        }
-        return ttsOk && sttOk
-    }
-
     fun currentSettings() = Settings(
         provider = provider,
         apiKey = apiKey.trim(),
@@ -252,6 +231,13 @@ fun SettingsScreen(
         preferredCurrency = preferredCurrency,
         communitySkillHosts = communitySkillHosts
     )
+
+    /**
+     * True when the chosen TTS/STT providers have what they need. Delegates
+     * to [Settings.isSpeechConfigured] so the logic is unit-testable in
+     * isolation from Compose state.
+     */
+    fun speechConfigValid(): Boolean = currentSettings().isSpeechConfigured
 
     val refreshChatModelsAction = {
         if (!refreshingChatModels) {
@@ -694,6 +680,41 @@ fun SettingsScreen(
                 )
                 AnimatedVisibility(visible = speechExpanded) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val samosaAudioSelected = ttsProvider == AudioProvider.SAMOSA_AI ||
+                            sttProvider == AudioProvider.SAMOSA_AI
+                        if (samosaAudioSelected) {
+                            SamosaAuthSection(
+                                email = samosaEmail,
+                                signedIn = samosaToken.isNotBlank(),
+                                busy = samosaBusy,
+                                onSignIn = {
+                                    samosaBusy = true
+                                    status = "Signing in with Google…"
+                                    scope.launch {
+                                        val result = onSamosaSignIn()
+                                        result.onSuccess { (email, token) ->
+                                            samosaEmail = email
+                                            samosaToken = token
+                                            status = "Signed in as $email"
+                                        }.onFailure { e ->
+                                            status = e.message ?: "Sign-in failed."
+                                        }
+                                        samosaBusy = false
+                                    }
+                                },
+                                onSignOut = {
+                                    samosaBusy = true
+                                    status = "Signing out…"
+                                    scope.launch {
+                                        onSamosaSignOut()
+                                        samosaToken = ""
+                                        samosaEmail = ""
+                                        status = "Signed out of Samosa AI."
+                                        samosaBusy = false
+                                    }
+                                }
+                            )
+                        }
                         ExposedDropdownMenuBox(
                             expanded = ttsProviderExpanded,
                             onExpandedChange = { ttsProviderExpanded = it }
@@ -727,37 +748,6 @@ fun SettingsScreen(
                         }
                         when (ttsProvider) {
                             AudioProvider.SAMOSA_AI -> {
-                                SamosaAuthSection(
-                                    email = samosaEmail,
-                                    signedIn = samosaToken.isNotBlank(),
-                                    busy = samosaBusy,
-                                    onSignIn = {
-                                        samosaBusy = true
-                                        status = "Signing in with Google…"
-                                        scope.launch {
-                                            val result = onSamosaSignIn()
-                                            result.onSuccess { (email, token) ->
-                                                samosaEmail = email
-                                                samosaToken = token
-                                                status = "Signed in as $email"
-                                            }.onFailure { e ->
-                                                status = e.message ?: "Sign-in failed."
-                                            }
-                                            samosaBusy = false
-                                        }
-                                    },
-                                    onSignOut = {
-                                        samosaBusy = true
-                                        status = "Signing out…"
-                                        scope.launch {
-                                            onSamosaSignOut()
-                                            samosaToken = ""
-                                            samosaEmail = ""
-                                            status = "Signed out of Samosa AI."
-                                            samosaBusy = false
-                                        }
-                                    }
-                                )
                                 TtsModelPicker(
                                     selectedModel = ttsApiModel,
                                     availableModels = availableTtsModels,
@@ -870,37 +860,6 @@ fun SettingsScreen(
                         }
                         when (sttProvider) {
                             AudioProvider.SAMOSA_AI -> {
-                                SamosaAuthSection(
-                                    email = samosaEmail,
-                                    signedIn = samosaToken.isNotBlank(),
-                                    busy = samosaBusy,
-                                    onSignIn = {
-                                        samosaBusy = true
-                                        status = "Signing in with Google…"
-                                        scope.launch {
-                                            val result = onSamosaSignIn()
-                                            result.onSuccess { (email, token) ->
-                                                samosaEmail = email
-                                                samosaToken = token
-                                                status = "Signed in as $email"
-                                            }.onFailure { e ->
-                                                status = e.message ?: "Sign-in failed."
-                                            }
-                                            samosaBusy = false
-                                        }
-                                    },
-                                    onSignOut = {
-                                        samosaBusy = true
-                                        status = "Signing out…"
-                                        scope.launch {
-                                            onSamosaSignOut()
-                                            samosaToken = ""
-                                            samosaEmail = ""
-                                            status = "Signed out of Samosa AI."
-                                            samosaBusy = false
-                                        }
-                                    }
-                                )
                                 SttModelPicker(
                                     selectedModel = sttApiModel,
                                     availableModels = availableSttModels,

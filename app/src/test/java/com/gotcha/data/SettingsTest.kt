@@ -87,21 +87,42 @@ class SettingsTest {
     }
 
     @Test
-    fun `effectiveTtsBaseUrl is the Samosa base URL when provider is SAMOSA_AI`() {
+    fun `effectiveTtsBaseUrl is the Samosa base URL when provider is SAMOSA_AI and session exists`() {
         val settings = Settings(
             ttsProvider = AudioProvider.SAMOSA_AI,
+            samosaSessionToken = "samosa-jwt",
             ttsApiBaseUrl = "https://user-namespace.example/v1"
         )
         assertEquals(LlmProvider.SAMOSA_BASE_URL, settings.effectiveTtsBaseUrl)
     }
 
     @Test
-    fun `effectiveSttBaseUrl is the Samosa base URL when provider is SAMOSA_AI`() {
+    fun `effectiveSttBaseUrl is the Samosa base URL when provider is SAMOSA_AI and session exists`() {
         val settings = Settings(
             sttProvider = AudioProvider.SAMOSA_AI,
+            samosaSessionToken = "samosa-jwt",
             sttApiBaseUrl = "https://user-namespace.example/v1"
         )
         assertEquals(LlmProvider.SAMOSA_BASE_URL, settings.effectiveSttBaseUrl)
+    }
+
+    @Test
+    fun `effectiveTtsBaseUrl is empty when Samosa provider has no session token`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.SAMOSA_AI,
+            samosaSessionToken = ""
+        )
+        // Empty so the engine refuses to make calls until the user re-signs in.
+        assertEquals("", settings.effectiveTtsBaseUrl)
+    }
+
+    @Test
+    fun `effectiveSttBaseUrl is empty when Samosa provider has no session token`() {
+        val settings = Settings(
+            sttProvider = AudioProvider.SAMOSA_AI,
+            samosaSessionToken = ""
+        )
+        assertEquals("", settings.effectiveSttBaseUrl)
     }
 
     @Test
@@ -147,5 +168,86 @@ class SettingsTest {
         // …TTS uses the Samosa session token.
         assertEquals("samosa-jwt", settings.effectiveTtsApiKey)
         assertEquals(LlmProvider.SAMOSA_BASE_URL, settings.effectiveTtsBaseUrl)
+    }
+
+    @Test
+    fun `isSpeechConfigured is true when both providers are Android`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.ANDROID,
+            sttProvider = AudioProvider.ANDROID
+        )
+        assertEquals(true, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is true when TTS is Samosa and STT is Android with session`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.SAMOSA_AI,
+            sttProvider = AudioProvider.ANDROID,
+            samosaSessionToken = "jwt"
+        )
+        assertEquals(true, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is false when Samosa is selected but no session token`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.SAMOSA_AI,
+            sttProvider = AudioProvider.ANDROID,
+            samosaSessionToken = ""
+        )
+        assertEquals(false, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is false when Samosa is selected for STT but not for TTS with no session`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.ANDROID,
+            sttProvider = AudioProvider.SAMOSA_AI,
+            samosaSessionToken = ""
+        )
+        assertEquals(false, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is true when API providers have base URLs configured`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.API,
+            ttsApiBaseUrl = "https://user.example/v1",
+            sttProvider = AudioProvider.API,
+            sttApiBaseUrl = "https://user.example/v1"
+        )
+        assertEquals(true, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is false when API TTS provider has no base URL`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.API,
+            ttsApiBaseUrl = "",
+            sttProvider = AudioProvider.API,
+            sttApiBaseUrl = "https://user.example/v1"
+        )
+        assertEquals(false, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is false when API STT provider has no base URL`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.API,
+            ttsApiBaseUrl = "https://user.example/v1",
+            sttProvider = AudioProvider.API,
+            sttApiBaseUrl = ""
+        )
+        assertEquals(false, settings.isSpeechConfigured)
+    }
+
+    @Test
+    fun `isSpeechConfigured is true when both providers are None`() {
+        val settings = Settings(
+            ttsProvider = AudioProvider.NONE,
+            sttProvider = AudioProvider.NONE
+        )
+        assertEquals(true, settings.isSpeechConfigured)
     }
 }

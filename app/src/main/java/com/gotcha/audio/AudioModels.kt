@@ -16,7 +16,11 @@ enum class AudioProvider(val label: String) {
     ANDROID("Android Built-in"),
     SAMOSA_AI("Samosa AI"),
     API("External API"),
-    NONE("None")
+    NONE("None");
+
+    /** True for providers that hit a remote `/v1/audio/` endpoint
+     *  (Samosa AI or a user-supplied OpenAI-compatible server). */
+    fun isApiBased(): Boolean = this == SAMOSA_AI || this == API
 }
 
 /**

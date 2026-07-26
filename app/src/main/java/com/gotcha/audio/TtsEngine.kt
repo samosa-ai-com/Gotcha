@@ -81,10 +81,10 @@ class TtsEngine(
         voice: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            when (provider) {
-                AudioProvider.ANDROID -> speakAndroid(text)
-                AudioProvider.SAMOSA_AI, AudioProvider.API -> speakApi(text, apiModel, voice)
-                AudioProvider.NONE -> false
+            when {
+                provider == AudioProvider.ANDROID -> speakAndroid(text)
+                provider.isApiBased() -> speakApi(text, apiModel, voice)
+                else -> false
             }
         } catch (_: Exception) { false }
     }
