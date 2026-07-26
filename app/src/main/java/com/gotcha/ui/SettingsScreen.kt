@@ -132,6 +132,7 @@ fun SettingsScreen(
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxRepeatedToolCalls by remember { mutableStateOf(initial.maxRepeatedToolCalls.toString()) }
     var maxNavigationToolCalls by remember { mutableStateOf(initial.maxNavigationToolCalls.toString()) }
+    var maxConsecutiveDelegations by remember { mutableStateOf(initial.maxConsecutiveDelegations.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
     // TTS / STT
@@ -217,6 +218,7 @@ fun SettingsScreen(
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 300,
         maxRepeatedToolCalls = maxRepeatedToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 20,
         maxNavigationToolCalls = maxNavigationToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 30,
+        maxConsecutiveDelegations = maxConsecutiveDelegations.toIntOrNull()?.takeIf { it > 0 } ?: 3,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 70000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
         ttsProvider = ttsProvider,
@@ -620,6 +622,14 @@ fun SettingsScreen(
                             value = maxNavigationToolCalls,
                             onValueChange = { maxNavigationToolCalls = it },
                             label = { Text("Max navigation tool calls") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = maxConsecutiveDelegations,
+                            onValueChange = { maxConsecutiveDelegations = it },
+                            label = { Text("Max consecutive delegations") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth()

@@ -45,6 +45,7 @@ object ToolRegistry {
         "todowrite", "list_alarms", "list_timers", "show_alarms",
         "question",
         "sleep",
+        "finish_task",
         "websearch", "webfetch",
         "get_clipboard",
         "read_screen", "read_notifications",
@@ -55,8 +56,12 @@ object ToolRegistry {
 
     val monitorTools: Set<String> = baseMonitorTools + ConnectorCatalog.monitorTools
 
-    /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */
-    val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app")
+    /**
+     * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
+     * further) and minus finish_task, which ends the *top-level* run — a sub-agent
+     * reports back with ask_final_answer instead.
+     */
+    val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app", "finish_task")
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
@@ -65,7 +70,20 @@ object ToolRegistry {
         "sleep", "ask_final_answer"
     )
 
-    private val operatorTools: Set<String> = definitions.keys
+    /**
+     * Everything except ask_final_answer, which is a sub-agent-to-parent control
+     * signal: [SubAgentSession] and [AppNavigatorSession] treat it as "stop here",
+     * while the top-level loop has no such handling and would silently keep going.
+     * The top-level equivalent is finish_task.
+     */
+    private val operatorTools: Set<String> = definitions.keys - setOf("ask_final_answer")
+
+    /**
+     * Tools that hand the whole job to a sub-agent and return only a text report.
+     * The engine counts consecutive rounds made up solely of these to catch
+     * re-delegation loops.
+     */
+    val delegationTools: Set<String> = setOf("task", "navigate_app")
 
     /** Trimmed tool definitions for the App Navigator (shorter descriptions = fewer tokens). */
     private val navigatorDefinitions: Map<String, ToolDefinition> = mapOf(

@@ -361,6 +361,14 @@
       "manualSteps": "Run a navigator/sub-agent task; confirm the final answer is returned to the parent agent rather than to the chat."
     },
     {
+      "tool": "finish_task",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FinishTaskToolTest"
+      ],
+      "notes": "covers the FINISH_TASK: marker and which agents may emit it; that AgentEngine ends the run and speaks the summary needs a live LLM and is manual"
+    },
+    {
       "tool": "todowrite",
       "tier": "MANUAL_ONLY",
       "reason": "Pure UI round-trip: writes the visible todo list in the chat surface.",

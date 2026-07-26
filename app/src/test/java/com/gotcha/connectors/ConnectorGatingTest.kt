@@ -102,11 +102,14 @@ class ConnectorGatingTest {
             .map { it.function.name }
             .toSet()
         assertTrue(hidden.none { it in exposed })
-        // Everything else survives.
+        // Everything else survives, bar ask_final_answer — a sub-agent-to-parent
+        // control signal the top-level loop does not handle, so it is withheld
+        // from Operator for reasons that have nothing to do with connectors.
         assertEquals(
-            ToolRegistry.allDefinitions().size - hidden.size,
+            ToolRegistry.allDefinitions().size - hidden.size - 1,
             exposed.size
         )
+        assertFalse("ask_final_answer" in exposed)
         assertTrue("compose_email" in exposed)
     }
 

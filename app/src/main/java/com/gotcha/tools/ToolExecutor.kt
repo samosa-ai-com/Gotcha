@@ -355,6 +355,12 @@ class ToolExecutor(
             "ask_final_answer" -> {
                 ToolResult.ok(args.requireString("answer") ?: "(no answer)")
             }
+            // Marker, not a side effect: AgentEngine recognises the prefix, speaks
+            // the summary and ends the run. Reaching here from anywhere else is
+            // harmless — it just reads back as text.
+            "finish_task" -> {
+                ToolResult.ok("FINISH_TASK:" + (args.requireString("summary") ?: return missing("summary")))
+            }
             "task" -> {
                 val handler = onTask
                 if (handler == null) {

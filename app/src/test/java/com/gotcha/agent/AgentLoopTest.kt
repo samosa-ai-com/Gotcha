@@ -184,6 +184,104 @@ class AgentLoopTest {
         assertTrue("expected an error bubble, got: ${events.uiMessages}", events.uiMessages.isNotEmpty())
     }
 
+    // ---- ending the turn (issue #20) ----
+
+    /**
+     * Until `finish_task` existed, the only exit from the loop was a reply that
+     * happened to carry no tool calls — so an agent that kept calling tools never
+     * fired `onAssistantReply`, and on a voice call the user heard nothing at all.
+     */
+    @Test
+    fun `finish_task ends the loop and delivers the summary to the host`() = runTest {
+        enqueueToolCall("finish_task", """{"summary":"Searched Amazon for bicycles."}""")
+        // Would be consumed if the loop wrongly took another turn.
+        enqueueTextReply("should never be requested")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("finish_task should end the turn, not start another", 1, server.requestCount)
+        assertEquals("Searched Amazon for bicycles.", events.assistantReplies.lastOrNull())
+        assertTrue(
+            "the summary is missing from history: ${engine.history}",
+            engine.history.any { it.textContent.contains("Searched Amazon for bicycles.") }
+        )
+    }
+
+    /**
+     * The issue #20 loop: the model delegates, gets a prose report back, cannot see
+     * the screen the sub-agent left behind, and delegates a reworded copy of the
+     * same task forever. The byte-identical guard cannot catch it — every round
+     * differs — so the delegation guard stops it and reports what the sub-agent
+     * actually found, rather than leaving the user with silence.
+     */
+    @Test
+    fun `endless re-delegation is stopped and the sub-agent result is delivered`() = runTest {
+        // Three top-level rounds that do nothing but delegate; each spawns a
+        // sub-agent that answers immediately. maxConsecutiveDelegations is 3.
+        repeat(3) { round ->
+            enqueueToolCall("task", """{"description":"Shop","prompt":"round $round"}""", id = "call_$round")
+            enqueueToolCall("ask_final_answer", """{"answer":"Found 3 bicycles."}""", id = "sub_$round")
+        }
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertTrue(
+            "the guard should have explained the stop: ${events.uiMessages}",
+            events.uiMessages.any { it.contains("delegated", ignoreCase = true) }
+        )
+        assertEquals(
+            "the sub-agent's result should still reach the user",
+            "Found 3 bicycles.",
+            events.assistantReplies.lastOrNull()
+        )
+    }
+
+    /** One round before giving up, the model is told to stop delegating. */
+    @Test
+    fun `the model is nudged to finish before the delegation guard gives up`() = runTest {
+        repeat(3) { round ->
+            enqueueToolCall("task", """{"description":"Shop","prompt":"round $round"}""", id = "call_$round")
+            enqueueToolCall("ask_final_answer", """{"answer":"Found 3 bicycles."}""", id = "sub_$round")
+        }
+
+        engine.run(AgentMode.OPERATOR)
+
+        val bodies = (1..server.requestCount).map { server.takeRequest().body.readUtf8() }
+        assertTrue(
+            "no request carried the re-delegation reminder",
+            bodies.any { it.contains("delegated to a sub-agent on every round") }
+        )
+    }
+
+    /** A round that delegates *and* does something else is real progress, not a loop. */
+    @Test
+    fun `mixing a delegation with other work does not trip the guard`() = runTest {
+        repeat(2) { round ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {"choices":[{"message":{"role":"assistant","tool_calls":[
+                      {"id":"call_$round","type":"function","function":{"name":"task",
+                       "arguments":"{\"description\":\"Shop\",\"prompt\":\"round $round\"}"}},
+                      {"id":"batt_$round","type":"function","function":{"name":"get_battery_info",
+                       "arguments":"{}"}}
+                    ]}}]}
+                    """.trimIndent()
+                )
+            )
+            enqueueToolCall("ask_final_answer", """{"answer":"Found 3 bicycles."}""", id = "sub_$round")
+        }
+        enqueueTextReply("All done.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertFalse(
+            "the guard fired on rounds that were not delegation-only: ${events.uiMessages}",
+            events.uiMessages.any { it.contains("delegated to a sub-agent") }
+        )
+        assertEquals("All done.", events.assistantReplies.lastOrNull())
+    }
+
     // ---- the confirmation gate ----
 
     /**

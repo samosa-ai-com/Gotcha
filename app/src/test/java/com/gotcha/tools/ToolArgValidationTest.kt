@@ -126,10 +126,13 @@ class ToolArgValidationTest {
          * model:
          *
          * - the connector-backed tools report "X is not connected" before looking at args;
-         * - `set_timer` reports the domain rule ("must be at least 1 second").
+         * - `set_timer` reports the domain rule ("must be at least 1 second");
+         * - `finish_task` ends the *top-level* turn, so the sub-agent harness this test uses
+         *   refuses it outright — which is the more important thing to say.
          */
         val NOT_PARAMETER_NAMED = setOf(
             "create_task",
+            "finish_task",
             "notion_read_page",
             "notion_create_page",
             "notion_append_to_page",

@@ -1278,6 +1278,28 @@ object ToolDefinitions {
         }
     )
 
+    val finishTask = tool(
+        "finish_task",
+        "End the turn and report the outcome to the user. This is the only way to be sure the " +
+            "user actually hears the result: it stops the tool loop, shows your summary, and " +
+            "reads it aloud when the reply is spoken. Call it as soon as the work is done — " +
+            "especially after task or navigate_app comes back successful, instead of delegating " +
+            "again to double-check. Use it for failures too, saying what went wrong.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("summary") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "What to tell the user: what was done or what went wrong. One or two " +
+                            "sentences, phrased to be read aloud."
+                    )
+                }
+            }
+            putJsonArray("required") { add("summary") }
+        }
+    )
+
     val glob = tool(
         "glob",
         "Find files by glob pattern (* non-/, ** recursive, ? one char), returning paths " +
@@ -2148,6 +2170,8 @@ object ToolDefinitions {
         // Sub-agent delegation (Operator only)
         task,
         ask_final_answer,
+        // Terminal signal for the top-level agent (see AgentEngine's FINISH_TASK: marker)
+        finishTask,
         // Task tracking
         todowrite,
         // Surgical file editing (Operator only)
