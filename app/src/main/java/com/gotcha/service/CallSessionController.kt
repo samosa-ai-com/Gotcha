@@ -220,7 +220,7 @@ class CallSessionController(
         val current = _state.value
         if (current != CallState.READY && current != CallState.WAITING_USER) return
         val s = settingsRepository.load()
-        val started = sttEngine.startListening(s.sttProvider)
+        val started = sttEngine.startListening(s.sttProvider, Language.fromLabel(s.preferredLanguage))
         if (started) {
             _state.value = CallState.LISTENING
         }
@@ -233,7 +233,8 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
-            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, s.sttLanguage)
+            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {

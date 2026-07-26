@@ -506,7 +506,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening()
+                val started = sttEngine.startAndroidListening(Language.fromLabel(settings.preferredLanguage))
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
@@ -555,8 +555,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         appendUi(MessageKind.ERROR, "Failed to record audio.")
                         return@launch
                     }
+                    val sttLanguage = settings.sttLanguage.ifBlank {
+                        Language.fromLabel(settings.preferredLanguage).iso639
+                    }
                     transcript = sttEngine.transcribeApi(
-                        audioFile, settings.sttApiModel, settings.sttLanguage
+                        audioFile, settings.sttApiModel, sttLanguage
                     )
                         .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
                         .getOrDefault("")

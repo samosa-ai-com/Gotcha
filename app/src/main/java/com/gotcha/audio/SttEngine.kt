@@ -11,6 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import com.gotcha.i18n.Language
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,6 +66,9 @@ class SttEngine(
 
     /** Latest partial result from the current recognizer segment (not yet finalized). */
     private var currentPartialResult = ""
+
+    /** Language for the current/next Android recognizer session. */
+    private var currentLanguage = Language.ENGLISH
 
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
@@ -144,8 +148,9 @@ class SttEngine(
     // ---- Android STT (SpeechRecognizer) ----
 
     /** Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening(). */
-    fun startAndroidListening(): Boolean {
+    fun startAndroidListening(language: Language = Language.ENGLISH): Boolean {
         if (isContinuousListening) return false
+        currentLanguage = language
         listenGate = CompletableDeferred<String>()
         isContinuousListening = true
         continuousTranscript.clear()
@@ -244,7 +249,7 @@ class SttEngine(
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage.bcp47)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
 
             // Prevent auto-stopping on pauses to mimic API-based continuous recording
@@ -315,7 +320,7 @@ class SttEngine(
      * its own (no stop call needed) and this returns the transcript or the
      * SpeechRecognizer error code. Used by the voice-call loop.
      */
-    suspend fun listenOnceAndroid(): SttOutcome {
+    suspend fun listenOnceAndroid(language: Language = Language.ENGLISH): SttOutcome {
         if (currentRecognizer != null || onceGate != null) {
             return SttOutcome.Error(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
         }
@@ -353,7 +358,7 @@ class SttEngine(
                 })
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.bcp47)
                 }
                 recognizer.startListening(intent)
             } catch (_: Exception) {
@@ -372,9 +377,9 @@ class SttEngine(
     // ---- Provider-agnostic PTT ----
 
     /** Start listening with the current provider. Returns false on failure. */
-    fun startListening(provider: AudioProvider): Boolean {
+    fun startListening(provider: AudioProvider, language: Language = Language.ENGLISH): Boolean {
         return when {
-            provider == AudioProvider.ANDROID -> startAndroidListening()
+            provider == AudioProvider.ANDROID -> startAndroidListening(language)
             provider.isApiBased() -> startRecording()
             else -> false
         }

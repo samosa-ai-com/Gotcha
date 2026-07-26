@@ -624,7 +624,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening()) {
+                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError("Failed to start speech recognition.")
@@ -677,7 +677,8 @@ class AssistiveBallService : Service() {
             return
         }
         scope.launch {
-            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel)
+            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
