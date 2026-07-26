@@ -54,7 +54,8 @@ data class Settings(
     val proactiveAutoCopyOtp: Boolean = true,
     val proactiveAppBlacklist: Set<String> = emptySet(),
     val preferredLanguage: String = "English",
-    val preferredCurrency: String = "USD"
+    val preferredCurrency: String = "USD",
+    val communitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
@@ -77,17 +78,71 @@ data class Settings(
             LlmProvider.OPENAI_COMPATIBLE -> apiKey
         }
 
-    /** Bearer token for TTS endpoint (falls back to effectiveApiKey if blank). */
-    val effectiveTtsApiKey: String
-        get() = ttsApiKey.ifBlank { effectiveApiKey }
+    /** Base URL the TTS engine should actually use. Samosa AI maps to the
+     *  shared OpenAI-compatible proxy, but only when a session token is present
+     *  — otherwise the URL is empty so the engine refuses to make calls until
+     *  the user re-signs-in. user-supplied API mode uses the user's URL. */
+    val effectiveTtsBaseUrl: String
+        get() = when (ttsProvider) {
+            AudioProvider.SAMOSA_AI ->
+                if (samosaSessionToken.isNotBlank()) LlmProvider.SAMOSA_BASE_URL else ""
+            AudioProvider.API -> ttsApiBaseUrl
+            else -> ""
+        }
 
-    /** Bearer token for STT endpoint (falls back to effectiveApiKey if blank). */
+    /** Base URL the STT engine should actually use. Samosa AI maps to the
+     *  shared OpenAI-compatible proxy, but only when a session token is present
+     *  — otherwise the URL is empty so the engine refuses to make calls until
+     *  the user re-signs-in. user-supplied API mode uses the user's URL. */
+    val effectiveSttBaseUrl: String
+        get() = when (sttProvider) {
+            AudioProvider.SAMOSA_AI ->
+                if (samosaSessionToken.isNotBlank()) LlmProvider.SAMOSA_BASE_URL else ""
+            AudioProvider.API -> sttApiBaseUrl
+            else -> ""
+        }
+
+    /** Bearer token for TTS endpoint. Samosa AI uses the session JWT directly;
+     *  External API uses the user key with fallback to the LLM's API key. */
+    val effectiveTtsApiKey: String
+        get() = when (ttsProvider) {
+            AudioProvider.SAMOSA_AI -> samosaSessionToken
+            AudioProvider.API -> ttsApiKey.ifBlank { effectiveApiKey }
+            else -> ""
+        }
+
+    /** Bearer token for STT endpoint. Samosa AI uses the session JWT directly;
+     *  External API uses the user key with fallback to the LLM's API key. */
     val effectiveSttApiKey: String
-        get() = sttApiKey.ifBlank { effectiveApiKey }
+        get() = when (sttProvider) {
+            AudioProvider.SAMOSA_AI -> samosaSessionToken
+            AudioProvider.API -> sttApiKey.ifBlank { effectiveApiKey }
+            else -> ""
+        }
 
     /** True when Samosa AI is selected and a session token exists. */
     val isSamosaAuthenticated: Boolean
         get() = provider == LlmProvider.SAMOSA_AI && samosaSessionToken.isNotBlank()
+
+    /**
+     * True when both the chosen TTS and STT providers have what they need to
+     * actually make a call. Samosa AI needs the session JWT; user-supplied
+     * External API needs the base URL; Android and None are always ready.
+     */
+    val isSpeechConfigured: Boolean
+        get() {
+            val ttsOk = when (ttsProvider) {
+                AudioProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
+                AudioProvider.API -> ttsApiBaseUrl.isNotBlank()
+                else -> true
+            }
+            val sttOk = when (sttProvider) {
+                AudioProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
+                AudioProvider.API -> sttApiBaseUrl.isNotBlank()
+                else -> true
+            }
+            return ttsOk && sttOk
+        }
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/"
@@ -126,12 +181,16 @@ class SettingsRepository(context: Context) {
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
-        ttsProvider = AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID"),
+        ttsProvider = runCatching {
+            AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID")
+        }.getOrDefault(AudioProvider.ANDROID),
         ttsApiBaseUrl = prefs.getString(KEY_TTS_API_URL, "") ?: "",
         ttsApiKey = prefs.getString(KEY_TTS_API_KEY, "") ?: "",
         ttsApiModel = prefs.getString(KEY_TTS_API_MODEL, "") ?: "",
         ttsVoice = prefs.getString(KEY_TTS_VOICE, "") ?: "",
-        sttProvider = AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID"),
+        sttProvider = runCatching {
+            AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID")
+        }.getOrDefault(AudioProvider.ANDROID),
         sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
         sttApiKey = prefs.getString(KEY_STT_API_KEY, "") ?: "",
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
@@ -150,7 +209,9 @@ class SettingsRepository(context: Context) {
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
         proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet(),
         preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
-        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD"
+        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD",
+        communitySkillHosts = prefs.getStringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
+            ?: defaultCommunitySkillHosts
     )
 
     fun save(settings: Settings) {
@@ -191,6 +252,7 @@ class SettingsRepository(context: Context) {
             .putStringSet(KEY_PROACTIVE_BLACKLIST, settings.proactiveAppBlacklist)
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
+            .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
             .apply()
     }
 
@@ -247,5 +309,7 @@ class SettingsRepository(context: Context) {
         const val KEY_PROACTIVE_BLACKLIST = "proactive_blacklist"
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
+        const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
+        val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
     }
 }

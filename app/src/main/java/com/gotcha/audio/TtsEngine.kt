@@ -20,9 +20,14 @@ import java.util.Locale
 class TtsEngine(
     private val context: Context,
     apiBaseUrl: String = "",
-    apiKey: String = ""
+    apiKey: String = "",
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
-    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
+    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) {
+        AudioApi(apiBaseUrl, apiKey, onUnauthorized = onUnauthorized)
+    } else {
+        null
+    }
     private var androidTts: TextToSpeech? = null
     private var androidReady = false
     private var ttsInitGate = CompletableDeferred<Boolean>()
@@ -58,7 +63,11 @@ class TtsEngine(
 
     /** Set a different API base URL / key at runtime (e.g. after settings change). */
     fun configureApi(baseUrl: String, apiKey: String) {
-        audioApi = if (baseUrl.isNotBlank()) AudioApi(baseUrl, apiKey) else null
+        audioApi = if (baseUrl.isNotBlank()) {
+            AudioApi(baseUrl, apiKey, onUnauthorized = onUnauthorized)
+        } else {
+            null
+        }
     }
 
     /**
@@ -72,10 +81,10 @@ class TtsEngine(
         voice: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            when (provider) {
-                AudioProvider.ANDROID -> speakAndroid(text)
-                AudioProvider.API -> speakApi(text, apiModel, voice)
-                AudioProvider.NONE -> false
+            when {
+                provider == AudioProvider.ANDROID -> speakAndroid(text)
+                provider.isApiBased() -> speakApi(text, apiModel, voice)
+                else -> false
             }
         } catch (_: Exception) { false }
     }

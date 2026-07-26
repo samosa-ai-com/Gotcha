@@ -2,6 +2,7 @@ package com.gotcha.tools
 
 import android.content.Context
 import android.util.Log
+import com.gotcha.agent.skills.SkillRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -479,7 +480,7 @@ class ToolExecutor(
             )
             "search_skills" -> {
                 val query = args.requireString("query") ?: return missing("query")
-                val results = com.gotcha.agent.skills.SkillRegistry.searchSkills(query)
+                val results = SkillRegistry.searchSkills(query)
                 if (results.isEmpty()) {
                     ToolResult.ok("No skills found matching '$query'.")
                 } else {

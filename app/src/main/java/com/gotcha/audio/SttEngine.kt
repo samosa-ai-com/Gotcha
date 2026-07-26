@@ -37,10 +37,15 @@ sealed class SttOutcome {
 class SttEngine(
     private val context: Context,
     apiBaseUrl: String = "",
-    apiKey: String = ""
+    apiKey: String = "",
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
     // API STT state
-    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
+    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) {
+        AudioApi(apiBaseUrl, apiKey, onUnauthorized = onUnauthorized)
+    } else {
+        null
+    }
     private var currentRecorder: MediaRecorder? = null
     private var currentAudioFile: File? = null
 
@@ -75,7 +80,11 @@ class SttEngine(
 
     /** Set API config at runtime. */
     fun configureApi(baseUrl: String, apiKey: String) {
-        audioApi = if (baseUrl.isNotBlank()) AudioApi(baseUrl, apiKey) else null
+        audioApi = if (baseUrl.isNotBlank()) {
+            AudioApi(baseUrl, apiKey, onUnauthorized = onUnauthorized)
+        } else {
+            null
+        }
     }
 
     // ---- API STT (MediaRecorder + transcription) ----
@@ -364,10 +373,10 @@ class SttEngine(
 
     /** Start listening with the current provider. Returns false on failure. */
     fun startListening(provider: AudioProvider): Boolean {
-        return when (provider) {
-            AudioProvider.ANDROID -> startAndroidListening()
-            AudioProvider.API -> startRecording()
-            AudioProvider.NONE -> false
+        return when {
+            provider == AudioProvider.ANDROID -> startAndroidListening()
+            provider.isApiBased() -> startRecording()
+            else -> false
         }
     }
 
@@ -380,8 +389,8 @@ class SttEngine(
         model: String,
         language: String = ""
     ): Result<String> {
-        return when (provider) {
-            AudioProvider.ANDROID -> {
+        return when {
+            provider == AudioProvider.ANDROID -> {
                 val text = stopAndroidListening()
                 if (text.isBlank()) {
                     Result.failure(Exception("No speech detected"))
@@ -389,14 +398,14 @@ class SttEngine(
                     Result.success(text)
                 }
             }
-            AudioProvider.API -> {
+            provider.isApiBased() -> {
                 val file = stopRecording()
                 if (file == null) {
                     return Result.failure(Exception("Recording failed"))
                 }
                 transcribeApi(file, model, language)
             }
-            AudioProvider.NONE -> Result.failure(Exception("STT not configured"))
+            else -> Result.failure(Exception("STT not configured"))
         }
     }
 
@@ -405,8 +414,8 @@ class SttEngine(
      * Safe to call from any thread.
      */
     fun cancelListening(provider: AudioProvider) {
-        when (provider) {
-            AudioProvider.ANDROID -> {
+        when {
+            provider == AudioProvider.ANDROID -> {
                 isContinuousListening = false
                 currentPartialResult = ""
                 onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
@@ -421,7 +430,7 @@ class SttEngine(
                     currentRecognizer = null
                 }
             }
-            AudioProvider.API -> {
+            provider.isApiBased() -> {
                 try {
                     currentRecorder?.apply {
                         stop()
@@ -431,7 +440,7 @@ class SttEngine(
                 currentRecorder = null
                 currentAudioFile = null
             }
-            AudioProvider.NONE -> {}
+            else -> {}
         }
     }
 
