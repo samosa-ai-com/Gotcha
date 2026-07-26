@@ -15,6 +15,7 @@ import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -464,15 +465,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ttsEngine.stop()
             _uiState.update { it.copy(isSpeaking = true) }
             try {
+                val language = Language.fromLabel(settings.preferredLanguage)
                 val defaultVoice = _uiState.value.ttsModels
                     .firstOrNull { it.id == settings.ttsApiModel }
-                    ?.defaultVoice ?: "af_heart"
+                    ?.defaultVoiceFor(language) ?: "af_heart"
                 val voice = settings.ttsVoice.ifBlank { defaultVoice }
                 ttsEngine.speak(
                     text = text,
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
-                    voice = voice
+                    voice = voice,
+                    language = language
                 )
             } finally {
                 _uiState.update { it.copy(isSpeaking = false) }

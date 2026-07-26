@@ -16,6 +16,7 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import kotlinx.coroutines.CoroutineScope
@@ -697,7 +698,8 @@ class AssistiveBallService : Service() {
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
-                voice = s.ttsVoice
+                voice = s.ttsVoice,
+                language = Language.fromLabel(s.preferredLanguage)
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)

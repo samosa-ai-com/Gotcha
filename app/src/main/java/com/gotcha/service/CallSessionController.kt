@@ -16,6 +16,7 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -460,10 +461,11 @@ class CallSessionController(
     private suspend fun speakText(text: String): Boolean {
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return true
+        val language = Language.fromLabel(s.preferredLanguage)
         val voice = if (s.ttsProvider == AudioProvider.API) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
             }
         } else {
             ""
@@ -472,7 +474,8 @@ class CallSessionController(
             text = text,
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
-            voice = voice
+            voice = voice,
+            language = language
         )
     }
 
@@ -523,15 +526,16 @@ class CallSessionController(
         if (s.ttsProvider == AudioProvider.NONE) return
         narrationJob?.cancel()
         narrationJob = scope.launch {
+            val language = Language.fromLabel(s.preferredLanguage)
             val voice = if (s.ttsProvider == AudioProvider.API) {
                 s.ttsVoice.ifBlank {
                     if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
                 }
             } else {
                 ""
             }
-            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice)
+            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
         }
     }
 
