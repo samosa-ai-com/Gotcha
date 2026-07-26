@@ -60,6 +60,7 @@ import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
@@ -1663,7 +1664,18 @@ private fun TtsModelPicker(
     }
 }
 
-/** TTS voice picker — uses the model's voice list when available, otherwise a free-text field. */
+/** TTS voice picker — always renders a hybrid text+dropdown like [SttLanguagePicker].
+ *  Two-tier voice list:
+ *  1. The selected model's own [AudioModel.voices] (Kokoro names like `af_heart`,
+ *     `am_adam`, … that the server guarantees).
+ *  2. If the selected model has no voices (or no model matches [selectedModel]),
+ *     fall back to the union of every TTS model's voices in [availableModels] —
+ *     covers stale saved ids and provider switches.
+ *
+ *  No fabricated fallback. If [availableModels] carries no voices at all, the
+ *  dropdown still opens but only contains a single disabled hint item telling the
+ *  user to type. The [OutlinedTextField] is editable, so the user can always type
+ *  any voice ID, regardless of what (or nothing) the server returned. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TtsVoicePicker(
@@ -1676,55 +1688,69 @@ private fun TtsVoicePicker(
     onClearVoice: () -> Unit
 ) {
     val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
-    val modelVoices = selectedModelObj?.voices ?: emptyList()
-    if (modelVoices.isNotEmpty()) {
-        ExposedDropdownMenuBox(
+    val voicesList: List<VoiceInfo> = run {
+        val fromSelected = selectedModelObj?.voices.orEmpty()
+        if (fromSelected.isNotEmpty()) {
+            fromSelected
+        } else {
+            availableModels.flatMap { it.voices }
+        }
+    }
+    val hasAnyVoices = voicesList.isNotEmpty()
+    val defaultVoiceLabel = selectedModelObj?.defaultVoice
+        ?: voicesList.firstOrNull()?.id
+        ?: "the provider's default"
+    android.util.Log.d(
+        "TtsVoicePicker",
+        "render: selectedModel='$selectedModel', " +
+            "availableModels.size=${availableModels.size}, " +
+            "matched=${selectedModelObj?.id ?: "<none>"}, " +
+            "matchedVoices.size=${selectedModelObj?.voices?.size ?: 0}, " +
+            "voicesList.size=${voicesList.size}, selectedVoice='$selectedVoice'"
+    )
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = onExpandedChange
+    ) {
+        OutlinedTextField(
+            value = selectedVoice,
+            onValueChange = onSelect,
+            label = { Text("TTS Voice (optional)") },
+            placeholder = {
+                if (hasAnyVoices) {
+                    Text("Default ($defaultVoiceLabel) or pick below")
+                } else {
+                    Text("Type a voice ID — picker has no suggestions")
+                }
+            },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
             expanded = expanded,
-            onExpandedChange = onExpandedChange
+            onDismissRequest = { onExpandedChange(false) }
         ) {
-            val selectedVoiceObj = modelVoices.firstOrNull { it.id == selectedVoice }
-            val defaultObj = modelVoices.firstOrNull { it.id == selectedModelObj?.defaultVoice }
-            val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedModelObj?.defaultVoice ?: "af_heart"
-            val voiceLabel = if (selectedVoice.isEmpty()) {
-                "Default ($defaultVoiceLabel)"
-            } else {
-                selectedVoiceObj?.displayLabel ?: selectedVoice
-            }
-            OutlinedTextField(
-                value = voiceLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("TTS Voice (optional)") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
+            DropdownMenuItem(
+                text = { Text("Default (clear)") },
+                onClick = onClearVoice
             )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { onExpandedChange(false) }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Default ($defaultVoiceLabel)") },
-                    onClick = onClearVoice
-                )
-                modelVoices.forEach { voiceInfo ->
+            if (hasAnyVoices) {
+                voicesList.forEach { voiceInfo ->
                     DropdownMenuItem(
                         text = { Text(voiceInfo.displayLabel) },
                         onClick = { onSelect(voiceInfo.id) }
                     )
                 }
+            } else {
+                DropdownMenuItem(
+                    text = { Text("No voices suggested — type a voice ID above") },
+                    onClick = { },
+                    enabled = false
+                )
             }
         }
-    } else {
-        OutlinedTextField(
-            value = selectedVoice,
-            onValueChange = { onSelect(it) },
-            label = { Text("TTS Voice (optional)") },
-            singleLine = true,
-            placeholder = { Text("e.g. af_heart, alloy, echo") },
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
