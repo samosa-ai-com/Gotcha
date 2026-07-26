@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.PathSensitivity
 
 plugins {
     id("com.android.application")
@@ -88,6 +89,22 @@ android {
     }
 
     testOptions {
+        // FeatureCoverageManifestTest rewrites docs/FEATURE_TEST_COVERAGE.md instead of
+        // asserting on it when this is true:
+        //   ./gradlew :app:testDebugUnitTest -PupdateCoverageDocs=true
+        unitTests.all { test ->
+            val updatingCoverageDocs = providers.gradleProperty("updateCoverageDocs").getOrElse("false")
+            test.systemProperty("gotcha.coverage.update", updatingCoverageDocs)
+            // The generated doc is an *input* to the drift assertion, so hand-editing it has to
+            // invalidate the task — otherwise Gradle reports UP-TO-DATE and the gate never runs.
+            // Skipped while regenerating, when the task writes that same file.
+            if (updatingCoverageDocs != "true") {
+                test.inputs
+                    .files(rootProject.fileTree("docs") { include("FEATURE_TEST_COVERAGE.md") })
+                    .withPropertyName("featureCoverageDoc")
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            }
+        }
         animationsDisabled = true
         managedDevices {
             localDevices {
