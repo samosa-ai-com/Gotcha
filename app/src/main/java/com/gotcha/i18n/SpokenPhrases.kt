@@ -11,7 +11,8 @@ package com.gotcha.i18n
 object SpokenPhrases {
 
     /** Weighted turn-start fillers. Falls back to English for unlisted languages. */
-    fun turnStart(lang: Language): List<Pair<String, Int>> = turnStartPhrases[lang] ?: turnStartPhrases.getValue(Language.ENGLISH)
+    fun turnStart(lang: Language): List<Pair<String, Int>> =
+        turnStartPhrases[lang] ?: turnStartPhrases.getValue(Language.ENGLISH)
 
     fun callStarted(lang: Language): String = callStartedPhrases[lang] ?: callStartedPhrases.getValue(Language.ENGLISH)
 
