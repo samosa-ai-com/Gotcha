@@ -15,12 +15,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +56,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
@@ -145,6 +152,7 @@ fun SettingsScreen(
     var communitySkillPasteJson by remember { mutableStateOf("") }
     var communityImportBusy by remember { mutableStateOf(false) }
     var communitySkillRefreshTick by remember { mutableStateOf(0) }
+    var communitySkillToDelete by remember { mutableStateOf<Skill?>(null) }
     val localContext = LocalContext.current
     androidx.compose.runtime.LaunchedEffect(Unit) {
         // Defense-in-depth: ChatViewModel also calls SkillRegistry.init, but
@@ -1205,23 +1213,57 @@ fun SettingsScreen(
                                                 onSave(currentSettings())
                                             }
                                         )
-                                    }
-                                    Row(
-                                        horizontalArrangement = Arrangement.End,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        TextButton(onClick = {
-                                            scope.launch {
-                                                runCatching { SkillRegistry.removeCommunity(skill.id) }
-                                                disabledSkills = disabledSkills - skill.id
-                                                onSave(currentSettings())
-                                                communitySkillRefreshTick++
-                                                overlay = SettingsOverlay("Removed '${skill.id}'.")
-                                            }
-                                        }) { Text("Remove") }
+                                        IconButton(
+                                            onClick = { communitySkillToDelete = skill }
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Delete,
+                                                contentDescription = "Delete ${skill.id}",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
                                     }
                                 }
                             }
+                        }
+
+                        // ---- Delete confirmation dialog ----
+                        communitySkillToDelete?.let { pending ->
+                            AlertDialog(
+                                onDismissRequest = { communitySkillToDelete = null },
+                                title = { Text("Delete community skill?") },
+                                text = {
+                                    Text(
+                                        "Are you sure you want to permanently delete " +
+                                            "\"${pending.id}\"? The skill will be removed from " +
+                                            "this device and the agent will no longer have " +
+                                            "access to it. This action cannot be undone."
+                                    )
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            val id = pending.id
+                                            communitySkillToDelete = null
+                                            scope.launch {
+                                                runCatching { SkillRegistry.removeCommunity(id) }
+                                                disabledSkills = disabledSkills - id
+                                                onSave(currentSettings())
+                                                communitySkillRefreshTick++
+                                                overlay = SettingsOverlay("Deleted '$id'.")
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error
+                                        )
+                                    ) { Text("Delete") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { communitySkillToDelete = null }) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            )
                         }
 
                         HorizontalDivider(thickness = 1.dp)
