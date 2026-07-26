@@ -150,7 +150,7 @@ class CallSessionController(
         _state.value = CallState.STARTING
         scope.launch {
             val language = Language.fromLabel(s.preferredLanguage)
-            if (!speakText(SpokenPhrases.callStarted(language))) {
+            if (!speakText(SpokenPhrases.callStarted(language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
@@ -221,8 +221,10 @@ class CallSessionController(
     fun startMic() {
         val current = _state.value
         if (current != CallState.READY && current != CallState.WAITING_USER) return
-        val s = settingsRepository.load()
-        val started = sttEngine.startListening(s.sttProvider, Language.fromLabel(s.preferredLanguage))
+        val started = sttEngine.startListening(
+            settingsRepository.load().sttProvider,
+            currentLanguage()
+        )
         if (started) {
             _state.value = CallState.LISTENING
         }
@@ -235,7 +237,8 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
-            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val language = Language.fromLabel(s.preferredLanguage)
+            val sttLanguage = s.sttLanguage.ifBlank { language.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
             val text = result.getOrDefault("")
 
@@ -255,7 +258,7 @@ class CallSessionController(
             val cleanedText = if (s.sttProvider == AudioProvider.ANDROID) {
                 val llmClient = buildClient()
                 val navModel = s.navigatorModel.ifEmpty { s.model }
-                llmClient?.cleanText(text, navModel, Language.fromLabel(s.preferredLanguage)) ?: text
+                llmClient?.cleanText(text, navModel, language) ?: text
             } else {
                 text
             }
@@ -275,7 +278,7 @@ class CallSessionController(
             pendingReply = null
 
             // Narrate start-of-turn to give the user immediate feedback
-            narrate(pickTurnStartPhrase(Language.fromLabel(s.preferredLanguage)))
+            narrate(pickTurnStartPhrase(language), language)
             onActionRingColor(Category.FOREGROUND.ringColorArgb)
 
             try {
@@ -290,7 +293,7 @@ class CallSessionController(
 
             val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
-            if (speakText(reply)) {
+            if (speakText(reply, language)) {
                 triggerEndVibration()
             } else {
                 reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
@@ -415,7 +418,7 @@ class CallSessionController(
             }
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
-        if (!speakText(prompt)) {
+        if (!speakText(prompt, currentLanguage())) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<String>()
@@ -433,8 +436,8 @@ class CallSessionController(
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        val language = Language.fromLabel(settingsRepository.load().preferredLanguage)
-        if (!speakText(SpokenPhrases.confirmationNeeded(language))) {
+        val language = currentLanguage()
+        if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<Boolean>()
@@ -455,6 +458,10 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
+    /** Resolve the persisted [preferredLanguage] to a [Language]. */
+    private fun currentLanguage(): Language =
+        Language.fromLabel(settingsRepository.load().preferredLanguage)
+
     /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
     private fun reportError(message: String) {
         addTranscript(MessageKind.ERROR, message)
@@ -466,12 +473,13 @@ class CallSessionController(
      * Speak with the configured TTS provider; suspends until speech finishes.
      * Returns false (without reporting — callers decide whether a given
      * utterance is important enough to surface) if playback failed, e.g. a
-     * misconfigured API TTS provider.
+     * misconfigured API TTS provider. [language] is taken from the caller so
+     * multiple speeches within one turn (e.g. start + reply) re-use the same
+     * parsed value rather than re-loading settings and re-parsing.
      */
-    private suspend fun speakText(text: String): Boolean {
+    private suspend fun speakText(text: String, language: Language): Boolean {
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return true
-        val language = Language.fromLabel(s.preferredLanguage)
         val voice = if (s.ttsProvider == AudioProvider.API) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
@@ -530,13 +538,12 @@ class CallSessionController(
         }
     }
 
-    private fun narrate(text: String) {
+    private fun narrate(text: String, language: Language = currentLanguage()) {
         if (text.isBlank() || _state.value != CallState.THINKING) return
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return
         narrationJob?.cancel()
         narrationJob = scope.launch {
-            val language = Language.fromLabel(s.preferredLanguage)
             val voice = if (s.ttsProvider == AudioProvider.API) {
                 s.ttsVoice.ifBlank {
                     if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()

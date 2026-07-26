@@ -108,6 +108,13 @@ fun SettingsScreen(
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = { Result.failure(Exception("Not available")) },
     /** Logs out of Samosa (clears JWT + Google state). */
     onSamosaSignOut: suspend () -> Unit = {},
+    /**
+     * Speaks the call-started phrase through the host's TTS engine and reports
+     * whether the requested language was actually used. Returning null means
+     * TTS isn't configured and the button should be a no-op. The default
+     * (synchronous, always-true) lets callers ignore voice testing.
+     */
+    onTestVoice: suspend (Language) -> Boolean? = { null },
     packageName: String = ""
 ) {
     var provider by remember { mutableStateOf(initial.provider) }
@@ -149,7 +156,9 @@ fun SettingsScreen(
     var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
     var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
     var testingVoice by remember { mutableStateOf(false) }
-    var voiceDataMissing by remember { mutableStateOf(false) }
+
+    /** Last [Language] whose voice data was reported missing, or null when not shown. */
+    var voiceDataMissing by remember { mutableStateOf<Language?>(null) }
     var communitySkillHosts by remember { mutableStateOf(initial.communitySkillHosts) }
     var communitySkillUrl by remember { mutableStateOf("") }
     var communitySkillPasteJson by remember { mutableStateOf("") }
@@ -161,10 +170,6 @@ fun SettingsScreen(
         // Defense-in-depth: ChatViewModel also calls SkillRegistry.init, but
         // Settings can be opened before the chat screen is ever shown.
         SkillRegistry.bootstrap(localContext)
-    }
-    val voiceTestTtsEngine = remember { com.gotcha.audio.TtsEngine(localContext) }
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { voiceTestTtsEngine.shutdown() }
     }
 
     // Discovered model lists
@@ -1373,13 +1378,11 @@ fun SettingsScreen(
                                 onClick = {
                                     testingVoice = true
                                     scope.launch {
-                                        val lang = com.gotcha.i18n.Language.fromLabel(preferredLanguage)
-                                        voiceTestTtsEngine.speak(
-                                            text = com.gotcha.i18n.SpokenPhrases.callStarted(lang),
-                                            provider = AudioProvider.ANDROID,
-                                            language = lang
-                                        )
-                                        voiceDataMissing = voiceTestTtsEngine.lastLanguageUnavailable == lang
+                                        val lang = Language.fromLabel(preferredLanguage)
+                                        // Track which language triggered the missing-data state so
+                                        // rapid language-switch clicks don't surface a stale dialog.
+                                        val ok = onTestVoice(lang)
+                                        voiceDataMissing = if (ok == false) lang else null
                                         testingVoice = false
                                     }
                                 },
@@ -1388,21 +1391,21 @@ fun SettingsScreen(
                             ) {
                                 Text(if (testingVoice) "Playing…" else "Test voice")
                             }
-                            if (voiceDataMissing) {
+                            voiceDataMissing?.let { missingLang ->
                                 AlertDialog(
-                                    onDismissRequest = { voiceDataMissing = false },
+                                    onDismissRequest = { voiceDataMissing = null },
                                     title = { Text("Voice data not installed") },
                                     text = {
                                         Text(
                                             "Your device doesn't have Android's built-in voice for " +
-                                                "$preferredLanguage. It was spoken in English instead. " +
+                                                "${missingLang.label}. It was spoken in English instead. " +
                                                 "Install the voice data to fix pronunciation."
                                         )
                                     },
                                     confirmButton = {
                                         Button(
                                             onClick = {
-                                                voiceDataMissing = false
+                                                voiceDataMissing = null
                                                 try {
                                                     localContext.startActivity(
                                                         android.content.Intent(
@@ -1414,7 +1417,7 @@ fun SettingsScreen(
                                         ) { Text("Install") }
                                     },
                                     dismissButton = {
-                                        TextButton(onClick = { voiceDataMissing = false }) { Text("Cancel") }
+                                        TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
                                     }
                                 )
                             }
