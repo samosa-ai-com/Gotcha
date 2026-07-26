@@ -1909,7 +1909,8 @@ object ToolDefinitions {
     val composeEmail = tool(
         "compose_email",
         "Open the user's email app with a pre-filled draft they review and send themselves. " +
-            "Needs no connector, so it is the fallback when send_email is unavailable.",
+            "Only a fallback: whenever send_email is in your tool list, use that instead — " +
+            "it sends directly, and it confirms with the user anyway.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("to") {

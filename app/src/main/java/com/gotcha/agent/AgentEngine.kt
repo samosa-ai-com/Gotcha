@@ -999,11 +999,21 @@ class AgentEngine(
             appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
             appendLine("  Preferred language: ${settings.preferredLanguage}")
             appendLine("  Preferred currency: ${settings.preferredCurrency}")
-            // Discovery hint for connectors the user has never set up. Costs ~20
-            // tokens and is the only way the model can suggest connecting Notion
-            // or To Do, whose tools are hidden and which — unlike email — have no
-            // no-connector fallback tool. Connectors that are configured but
-            // switched off are omitted: the user already decided.
+            // Connector state, rebuilt every call. The active list is what lets the
+            // model notice a connector that appeared mid-conversation: its own
+            // earlier turns may say "no account is connected", and a tool quietly
+            // materialising in the schema list is too weak a signal to overturn
+            // that. The unconfigured list is the only way it can suggest connecting
+            // Notion or To Do, whose tools are hidden and which — unlike email —
+            // have no no-connector fallback tool. Connectors that are configured
+            // but switched off appear in neither: the user already decided.
+            val active = ConnectorRegistry.active(settings.disabledConnectors)
+            if (active.isNotEmpty()) {
+                appendLine(
+                    "  Connected accounts, usable right now via their tools: " +
+                        active.joinToString(", ") { it.displayName }
+                )
+            }
             val unconfigured = ConnectorRegistry.unconfigured()
             if (unconfigured.isNotEmpty()) {
                 appendLine(

@@ -161,6 +161,22 @@ class ConnectorGatingTest {
     }
 
     @Test
+    fun `connecting a connector flips it from unconfigured to active`() {
+        // The env block reports these two lists, and that flip is what tells the
+        // model a capability appeared mid-conversation — its own earlier turns may
+        // still claim no account is connected.
+        val off = FakeConnector(ConnectorCatalog.GOOGLE, connected = false)
+        val on = FakeConnector(ConnectorCatalog.GOOGLE, connected = true)
+
+        assertFalse(off.isActive(emptySet()))
+        assertTrue(on.isActive(emptySet()))
+        // A connected-but-disabled connector belongs to neither list: it is not
+        // usable, and re-offering setup would nag about a decision already made.
+        assertFalse(on.isActive(setOf("google")))
+        assertTrue(on.isConnected())
+    }
+
+    @Test
     fun `catalog ids match the connector ids the registry uses`() {
         assertEquals(
             setOf("imap", "google", "microsoft", "notion"),

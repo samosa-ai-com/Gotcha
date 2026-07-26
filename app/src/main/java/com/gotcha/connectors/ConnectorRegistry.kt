@@ -66,9 +66,13 @@ object ConnectorRegistry {
 
     fun byId(id: String): Connector? = connectors.firstOrNull { it.id == id }
 
+    /** Connectors that are connected and not switched off by the user. */
+    fun active(disabledConnectors: Set<String>): List<Connector> =
+        connectors.filter { it.isActive(disabledConnectors) }
+
     /** Ids of connectors that are connected and not switched off by the user. */
     fun activeIds(disabledConnectors: Set<String>): Set<String> =
-        connectors.filter { it.isActive(disabledConnectors) }.mapTo(mutableSetOf()) { it.id }
+        active(disabledConnectors).mapTo(mutableSetOf()) { it.id }
 
     /**
      * Tool names to withhold from the model right now, because every connector
