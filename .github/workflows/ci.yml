@@ -16,6 +16,13 @@ jobs:
   build:
     runs-on: ubuntu-latest # TerminalToolTest shells out to POSIX `sh` — do not move to windows/macos
     timeout-minutes: 30
+    # The coverage comment needs pull-requests: write. Without it the jacoco-report
+    # action fails with "Resource not accessible by integration" — and because that
+    # action defaults to continue-on-error, the step still reports success, so the
+    # comment silently never appears.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -58,6 +65,9 @@ jobs:
           min-coverage-overall: 0
           min-coverage-changed-files: 0
           title: Coverage (report-only — the feature manifest is the gate)
+          # Surface posting failures instead of masking them behind a green step.
+          # Coverage thresholds are still 0, so this cannot fail the build on coverage.
+          continue-on-error: false
 
       - name: Android Lint
         run: ./gradlew :app:lintDebug --stacktrace
