@@ -1,0 +1,7 @@
+{
+    "id": "whatsapp_operations",
+    "targetPackageNames": ["com.whatsapp"],
+    "name": "WhatsApp Skills",
+    "description": "Optimal physical instructions for interacting with WhatsApp UI elements.",
+    "instructions": "When interacting with WhatsApp, use the physical UI layout optimally:\n1. To send a new message, do NOT search for the contact manually by scrolling. Use the 'Search' button (magnifying glass) at the top right, type the contact's name, and tap the result.\n2. To make a call, navigate to the 'Calls' tab first, then tap the 'New Call' button at the bottom right, search for the contact, and tap the audio or video call icon.\n3. The message input field usually has the accessibility text 'Message'. Use `input_text` with index to target it directly when in a chat.\n4. Always look for the currently opened chat or the chat list to find the contact. If you can find the contact directly over there, then open from there. Otherwise, use the search contact tool.\n5 Before sending any call message or starting any audio or video call, always ask the user whether they want to continue or not. Only if the user says yes, proceed without asking."
+}

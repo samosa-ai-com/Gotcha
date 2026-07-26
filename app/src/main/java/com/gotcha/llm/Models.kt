@@ -10,7 +10,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -29,7 +28,9 @@ data class ChatMessage(
     @SerialName("tool_calls")
     val toolCalls: List<ToolCall>? = null,
     @SerialName("tool_call_id")
-    val toolCallId: String? = null
+    val toolCallId: String? = null,
+    @SerialName("reasoning_content")
+    val reasoningContent: String? = null
 ) {
     /** The plain-text portion of this message, or empty string if there is none. */
     val textContent: String get() = when (content) {
@@ -49,14 +50,18 @@ fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "
     return ChatMessage(
         role = "user",
         content = buildJsonArray {
-            add(buildJsonObject {
-                put("type", "text")
-                put("text", text.ifBlank { "What is in this image?" })
-            })
-            add(buildJsonObject {
-                put("type", "image_url")
-                putJsonObject("image_url") { put("url", dataUri) }
-            })
+            add(
+                buildJsonObject {
+                    put("type", "text")
+                    put("text", text.ifBlank { "What is in this image?" })
+                }
+            )
+            add(
+                buildJsonObject {
+                    put("type", "image_url")
+                    putJsonObject("image_url") { put("url", dataUri) }
+                }
+            )
         }
     )
 }
@@ -96,7 +101,9 @@ data class ChatRequest(
     val model: String,
     val messages: List<ChatMessage>,
     val tools: List<ToolDefinition>? = null,
-    val temperature: Float? = null
+    val temperature: Float? = null,
+    @SerialName("prompt_cache_key")
+    val promptCacheKey: String? = null
 )
 
 @Serializable
@@ -117,4 +124,19 @@ data class Choice(
     val message: ChatMessage,
     @SerialName("finish_reason")
     val finishReason: String? = null
+)
+
+/** Response from GET /v1/models (OpenAI-compatible). */
+@Serializable
+data class ModelListResponse(
+    val data: List<ModelInfo>
+)
+
+@Serializable
+data class ModelInfo(
+    val id: String,
+    @SerialName("object")
+    val objectType: String = "model",
+    @SerialName("owned_by")
+    val ownedBy: String = ""
 )

@@ -27,14 +27,37 @@ data class ModelInfo(
 /** Categorization of a model from the API. */
 enum class ModelCategory { TTS, STT, UNKNOWN }
 
-/** A discovered audio model with its category and default voice (TTS only). */
+/** Detailed voice metadata for TTS models. */
+data class VoiceInfo(
+    val id: String,
+    val name: String = "",
+    val language: String = "",
+    val gender: String = ""
+) {
+    val displayLabel: String
+        get() {
+            val details = listOfNotNull(
+                language.takeIf { it.isNotBlank() },
+                gender.takeIf { it.isNotBlank() }
+            )
+            return if (details.isEmpty()) {
+                id
+            } else {
+                "$id (${details.joinToString(", ")})"
+            }
+        }
+}
+
+/** A discovered audio model with its category, supported languages, and default voice (TTS only). */
 data class AudioModel(
     val id: String,
     val category: ModelCategory,
-    /** Available voice IDs for TTS models; first one is the default. */
-    val voices: List<String> = emptyList()
+    /** Supported languages for the model (e.g. ["en", "es"] or ["multilingual"]). */
+    val languages: List<String> = emptyList(),
+    /** Available voice objects for TTS models; first one is the default. */
+    val voices: List<VoiceInfo> = emptyList()
 ) {
-    val defaultVoice: String get() = voices.firstOrNull() ?: "af_heart"
+    val defaultVoice: String get() = voices.firstOrNull()?.id ?: "af_heart"
 
     companion object {
         /**
@@ -46,7 +69,8 @@ data class AudioModel(
                 val t = task.lowercase().trim()
                 when {
                     t == "text-to-speech" || t == "tts" -> return ModelCategory.TTS
-                    t == "automatic-speech-recognition" || t == "stt" || t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
+                    t == "automatic-speech-recognition" || t == "stt" ||
+                        t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
                 }
             }
             val lower = id.lowercase()

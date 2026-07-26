@@ -2,8 +2,10 @@ package com.gotcha.tools
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.provider.Settings
 import android.view.KeyEvent
 import com.gotcha.service.GotchaNotificationListenerService
@@ -18,11 +20,25 @@ import java.util.Locale
  */
 class NotificationTool(private val context: Context) {
 
-    fun readNotifications(limit: Int): ToolResult {
+    private companion object {
+        const val MILLIS_PER_SECOND = 1000L
+    }
+
+    fun readNotifications(limit: Int, app: String? = null): ToolResult {
         val service = requireService() ?: return notEnabled()
-        val notifications = service.currentNotifications()
+        var notifications = service.currentNotifications().toList()
         if (notifications.isEmpty()) return ToolResult.ok("There are no active notifications.")
         val pm = context.packageManager
+
+        if (!app.isNullOrBlank()) {
+            val needle = app.trim()
+            notifications = notifications.filter { sbn ->
+                sbn.packageName.contains(needle, ignoreCase = true) ||
+                    appLabel(pm, sbn.packageName).contains(needle, ignoreCase = true)
+            }
+            if (notifications.isEmpty()) return ToolResult.ok("No active notifications from '$app'.")
+        }
+
         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         val out = notifications
             .sortedByDescending { it.postTime }
@@ -31,15 +47,29 @@ class NotificationTool(private val context: Context) {
                 val extras = sbn.notification.extras
                 val title = extras.getCharSequence("android.title")?.toString()?.trim().orEmpty()
                 val text = extras.getCharSequence("android.text")?.toString()?.trim().orEmpty()
-                val app = try {
-                    pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString()
-                } catch (_: Exception) {
-                    sbn.packageName
-                }
+                val bigText = extras.getCharSequence("android.bigText")?.toString()?.trim().orEmpty()
+                val textLines = extras.getCharSequenceArray("android.textLines")
+                    ?.mapNotNull { it?.toString()?.trim() }
+                    ?.filter { it.isNotEmpty() }
+                    .orEmpty()
+                val appName = appLabel(pm, sbn.packageName)
                 val body = listOf(title, text).filter { it.isNotEmpty() }.joinToString(" — ")
-                "- [${fmt.format(Date(sbn.postTime))}] $app: ${body.ifEmpty { "(no text)" }} {key=${sbn.key}}"
+                val extraDetail = listOfNotNull(
+                    bigText.takeIf { it.isNotEmpty() && it != text },
+                    textLines.takeIf { it.isNotEmpty() }?.joinToString(" / ")
+                ).joinToString(" | ")
+                val line = "- [${fmt.format(
+                    Date(sbn.postTime)
+                )}] $appName: ${body.ifEmpty { "(no text)" }} {key=${sbn.key}}"
+                if (extraDetail.isNotEmpty()) "$line\n    $extraDetail" else line
             }
         return ToolResult.ok("Active notifications (${notifications.size}):\n$out")
+    }
+
+    private fun appLabel(pm: android.content.pm.PackageManager, packageName: String): String = try {
+        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    } catch (_: Exception) {
+        packageName
     }
 
     /** Dismiss a specific notification by key, or all of them when [key] is blank/null. */
@@ -54,32 +84,139 @@ class NotificationTool(private val context: Context) {
         }
     }
 
-    /** Control the active media session: play, pause, next, previous, stop. */
-    fun mediaControl(action: String): ToolResult {
+    /**
+     * Control a media session: play, pause, toggle, next, previous, stop, seek,
+     * fast_forward, rewind.
+     *
+     * Uses [MediaController.TransportControls] rather than media key events,
+     * because keys only offer a play/pause *toggle* and cannot seek at all. The
+     * one exception is `toggle` itself, which stays on the key-event path since
+     * that is exactly what the key means — and it is what the previous
+     * implementation used for every action, so existing behaviour is preserved.
+     */
+    fun mediaControl(action: String, app: String? = null, positionSeconds: Int? = null): ToolResult {
         if (!hasNotificationAccess()) return notEnabled()
-        val keyCode = when (action.lowercase().trim()) {
-            "play", "pause", "toggle", "playpause" -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-            "next", "skip" -> KeyEvent.KEYCODE_MEDIA_NEXT
-            "previous", "prev", "back" -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
-            "stop" -> KeyEvent.KEYCODE_MEDIA_STOP
-            else -> return ToolResult.error(
-                "Unknown media action '$action'. Use play, pause, next, previous, or stop."
+        val parsed = MediaSelection.parseAction(action)
+            ?: return ToolResult.error(
+                "Unknown media action '$action'. Use play, pause, toggle, next, previous, stop, " +
+                    "seek, fast_forward, or rewind."
             )
+        if (parsed == MediaAction.SEEK && positionSeconds == null) {
+            return ToolResult.error("seek needs 'position_seconds'.")
         }
         return try {
-            val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
-            val component = ComponentName(context, GotchaNotificationListenerService::class.java)
-            val controllers: List<MediaController> = msm.getActiveSessions(component)
-            val controller = controllers.firstOrNull()
-                ?: return ToolResult.error("No app is currently playing media.")
-            controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
-            controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
-            ToolResult.ok("Sent media '$action' to ${controller.packageName}.")
-        } catch (e: SecurityException) {
+            val controllers = activeControllers()
+            val chosen = MediaSelection.pick(controllers.map { it.toSessionInfo() }, app)
+                ?: return noSessionError(controllers, app)
+            val controller = controllers.first { it.packageName == chosen.packageName }
+
+            applyAction(controller, parsed, positionSeconds)
+            val target = appLabel(context.packageManager, controller.packageName)
+            ToolResult.ok("Sent media '$action' to $target.")
+        } catch (_: SecurityException) {
             notEnabled()
         } catch (e: Exception) {
             ToolResult.error("Could not control media: ${e.message}")
         }
+    }
+
+    /** Reports what every active media session is playing. */
+    fun getNowPlaying(): ToolResult {
+        if (!hasNotificationAccess()) return notEnabled()
+        return try {
+            val controllers = activeControllers()
+            if (controllers.isEmpty()) {
+                return ToolResult.ok("Nothing is playing — no app holds an active media session.")
+            }
+            val rows = controllers.joinToString("\n") { controller ->
+                val metadata = controller.metadata
+                val title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
+                val artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                    ?: metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST).orEmpty()
+                val album = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()
+                val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: -1L
+                val playback = controller.playbackState
+                val state = MediaSelection.describeState(
+                    playback?.state ?: PlaybackState.STATE_NONE
+                )
+                val position = playback?.position ?: -1L
+
+                val what = listOf(title, artist, album)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" — ")
+                    .ifBlank { "(no metadata)" }
+                val progress = if (duration > 0) {
+                    " [${MediaSelection.formatPosition(position)} / " +
+                        "${MediaSelection.formatPosition(duration)}]"
+                } else {
+                    ""
+                }
+                "- ${appLabel(context.packageManager, controller.packageName)} " +
+                    "(${controller.packageName}): $state | $what$progress"
+            }
+            ToolResult.ok("Active media session(s):\n$rows")
+        } catch (_: SecurityException) {
+            notEnabled()
+        } catch (e: Exception) {
+            ToolResult.error("Could not read media sessions: ${e.message}")
+        }
+    }
+
+    private fun activeControllers(): List<MediaController> {
+        val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+        val component = ComponentName(context, GotchaNotificationListenerService::class.java)
+        return msm.getActiveSessions(component)
+    }
+
+    private fun MediaController.toSessionInfo() = SessionInfo(
+        packageName = packageName,
+        appLabel = appLabel(context.packageManager, packageName),
+        state = playbackState?.state ?: PlaybackState.STATE_NONE
+    )
+
+    private fun noSessionError(controllers: List<MediaController>, app: String?): ToolResult =
+        if (app.isNullOrBlank()) {
+            ToolResult.error(
+                "No app is currently playing media. You may open a music or video app with " +
+                    "open_app first, then try media_control again."
+            )
+        } else {
+            val running = controllers.joinToString(", ") {
+                appLabel(context.packageManager, it.packageName)
+            }.ifBlank { "none" }
+            ToolResult.error(
+                "No media session matched '$app'. Apps with a media session right now: $running."
+            )
+        }
+
+    /**
+     * Applies [action] through the session's transport controls, which — unlike
+     * media key events — keep play and pause distinct and make seek possible.
+     * TOGGLE is the exception: TransportControls has no toggle, so it goes out
+     * as a PLAY_PAUSE key event.
+     */
+    private fun applyAction(
+        controller: MediaController,
+        action: MediaAction,
+        positionSeconds: Int?
+    ) {
+        val transport = controller.transportControls
+        when (action) {
+            MediaAction.PLAY -> transport.play()
+            MediaAction.PAUSE -> transport.pause()
+            MediaAction.TOGGLE -> dispatchKey(controller, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            MediaAction.NEXT -> transport.skipToNext()
+            MediaAction.PREVIOUS -> transport.skipToPrevious()
+            MediaAction.STOP -> transport.stop()
+            MediaAction.SEEK -> transport.seekTo((positionSeconds ?: 0).toLong() * MILLIS_PER_SECOND)
+            MediaAction.FAST_FORWARD -> transport.fastForward()
+            MediaAction.REWIND -> transport.rewind()
+        }
+    }
+
+    private fun dispatchKey(controller: MediaController, keyCode: Int) {
+        controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        controller.dispatchMediaButtonEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
     }
 
     private fun requireService(): GotchaNotificationListenerService? =

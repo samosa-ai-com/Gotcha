@@ -1,0 +1,7 @@
+{
+    "id": "settings_operations",
+    "targetPackageNames": ["com.android.settings"],
+    "name": "Android Settings Skills",
+    "description": "Optimal instructions for navigating Android system settings.",
+    "instructions": "When interacting with Android Settings, do NOT scroll manually to find a setting. This takes too long and fails frequently.\n1. Find the search bar or search icon at the top/bottom of the main Settings page.\n2. Tap it and type the exact setting you are looking for (e.g. 'Wi-Fi', 'Bluetooth', 'Display').\n3. Wait for the search results to load and tap the corresponding result.\n4. If a setting requires a toggle, look for a switch element and tap it to enable/disable. \n5. If you can't find settings by searching, cancel the search and start searching manually by swiping.."
+}

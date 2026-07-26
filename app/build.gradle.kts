@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("io.gitlab.arturbosch.detekt")
+}
+
+// Load signing credentials from local.properties (gitignored), if present.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -21,9 +30,23 @@ android {
         }
     }
 
+    signingConfigs {
+        // Only wired up when release signing keys are provided in local.properties.
+        if (keystoreProps.containsKey("RELEASE_STORE_FILE")) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("RELEASE_STORE_FILE"))
+                storePassword = keystoreProps.getProperty("RELEASE_STORE_PASSWORD")
+                keyAlias = keystoreProps.getProperty("RELEASE_KEY_ALIAS")
+                keyPassword = keystoreProps.getProperty("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Use the release signing config only if it was configured above.
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -51,8 +74,105 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // android-mail and android-activation both bundle these under META-INF.
+            excludes += "/META-INF/NOTICE.md"
+            excludes += "/META-INF/LICENSE.md"
         }
     }
+
+    lint {
+        abortOnError = true
+        warningsAsErrors = false
+        htmlReport = true
+        sarifReport = true
+    }
+
+    testOptions {
+        animationsDisabled = true
+        managedDevices {
+            localDevices {
+                create("api27") {
+                    device = "Pixel 2"
+                    apiLevel = 27
+                    systemImageSource = "aosp"
+                }
+                // Android 10 — no ATD image at this API level; falls back to full aosp.
+                create("api29") {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+                // Android 11 — the aosp-atd x86 image for this API level appears to hang
+                // on boot on Windows/WHPX (confirmed: qemu process alive but memory flat,
+                // never progresses); the plain aosp x86 image (same as api29) boots fine.
+                create("api30") {
+                    device = "Pixel 2"
+                    apiLevel = 30
+                    systemImageSource = "aosp"
+                }
+                // Android 12
+                create("api31") {
+                    device = "Pixel 4"
+                    apiLevel = 31
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 13
+                create("api33") {
+                    device = "Pixel 6"
+                    apiLevel = 33
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 14
+                create("api34") {
+                    device = "Pixel 6"
+                    apiLevel = 34
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 15
+                create("api35") {
+                    device = "Pixel 8"
+                    apiLevel = 35
+                    systemImageSource = "aosp-atd"
+                }
+                // Android 16 — no ATD image published for this API level yet;
+                // Gradle's own error suggested "google" as the available source.
+                create("api36") {
+                    device = "Pixel 8"
+                    apiLevel = 36
+                    systemImageSource = "google"
+                }
+            }
+            groups {
+                create("smoke") {
+                    targetDevices.add(allDevices["api34"])
+                }
+                create("full") {
+                    targetDevices.add(allDevices["api27"])
+                    targetDevices.add(allDevices["api30"])
+                    targetDevices.add(allDevices["api33"])
+                    targetDevices.add(allDevices["api34"])
+                }
+                // Android 10 through Android 16 — the range requested for manual
+                // multi-version verification. Excludes api27 (Android 8.1, minSdk-only).
+                create("android10to16") {
+                    targetDevices.add(allDevices["api29"])
+                    targetDevices.add(allDevices["api30"])
+                    targetDevices.add(allDevices["api31"])
+                    targetDevices.add(allDevices["api33"])
+                    targetDevices.add(allDevices["api34"])
+                    targetDevices.add(allDevices["api35"])
+                    targetDevices.add(allDevices["api36"])
+                }
+            }
+        }
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    // One-off formatting fixes: ./gradlew :app:detekt -PdetektAutoCorrect
+    autoCorrect = project.hasProperty("detektAutoCorrect")
 }
 
 dependencies {
@@ -86,12 +206,52 @@ dependencies {
     // Secure storage
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Samosa AI: Google Sign-In via Credential Manager + Google Identity Services
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
     // HTML parsing for webfetch tool
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // Connectors: Custom Tabs for the BYO-OAuth consent flow
+    implementation("androidx.browser:browser:1.8.0")
+
+    // Connectors: IMAP/SMTP email (JavaMail for Android)
+    implementation("com.sun.mail:android-mail:1.6.7")
+    implementation("com.sun.mail:android-activation:1.6.7")
+
+    // Health Connect: on-device fitness/health records (no cloud API, no credentials)
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
+    // connect-client pulls guava at *runtime* scope only, but guava's module metadata
+    // constrains com.google.guava:listenablefuture to the empty
+    // "9999.0-empty-to-avoid-conflict-with-guava" marker on every configuration — including
+    // the compile classpath. Without full guava there too, CameraX's ListenableFuture usage
+    // (MediaCaptureTool) no longer compiles. Pinned to the version connect-client already
+    // resolves to, so nothing changes at runtime.
+    implementation("com.google.guava:guava:31.1-android")
 
     // Markdown rendering
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
+    implementation("io.noties.markwon:core:4.6.2") {
+        exclude(group = "com.atlassian.commonmark", module = "commonmark")
+    }
+
+    // ML Kit on-device text recognition (for Lens mode OCR) and barcode scanning
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // CameraX for automated photo capture
+    val cameraxVersion = "1.4.0"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+
+    // Static analysis
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
@@ -101,4 +261,15 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+
+    // Instrumented tests
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }

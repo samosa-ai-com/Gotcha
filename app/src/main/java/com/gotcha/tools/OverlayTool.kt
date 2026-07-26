@@ -30,7 +30,11 @@ class OverlayTool(private val context: Context) {
     /** Show [text] as a floating banner for [durationMs] (0 = until hide_overlay is called). */
     fun showOverlay(text: String, durationMs: Int): ToolResult {
         if (!canDrawOverlays()) return notEnabled()
-        if (text.isBlank()) return ToolResult.error("Provide some text to display in the overlay.")
+        if (text.isBlank()) {
+            return ToolResult.error(
+                "Provide some text to display in the overlay. Use show_overlay with a text parameter."
+            )
+        }
         val duration = durationMs.coerceIn(0, 300_000)
         mainHandler.post {
             removeView()
@@ -48,8 +52,11 @@ class OverlayTool(private val context: Context) {
             }
         }
         return ToolResult.ok(
-            if (duration > 0) "Showing an overlay for ${duration / 1000}s: \"$text\"."
-            else "Showing a persistent overlay: \"$text\". Call hide_overlay to remove it."
+            if (duration > 0) {
+                "Showing an overlay for ${duration / 1000}s: \"$text\"."
+            } else {
+                "Showing a persistent overlay: \"$text\". Call hide_overlay to remove it."
+            }
         )
     }
 

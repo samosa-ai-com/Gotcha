@@ -1,13 +1,13 @@
 package com.gotcha.llm
 
 import android.content.Context
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.security.MessageDigest
 
 class LLMClient(
@@ -16,12 +16,14 @@ class LLMClient(
     private val model: String = "gpt-4o",
     context: Context? = null,
     private val apiTimeoutSeconds: Long = 0L,
-    private val cache: LLMCache = LLMCache(context)
+    private val cache: LLMCache = LLMCache(context),
+    /**
+     * Invoked when the server responds 401 (e.g. an expired/blacklisted Samosa
+     * JWT). Lets the caller clear the stored token and prompt re-authentication.
+     * No-op for the OpenAI-compatible flow unless a caller opts in.
+     */
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
-    companion object {
-        private const val DEFAULT_MODEL = "gpt-4o"
-    }
-
     private val apiService: ApiService
 
     @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
@@ -42,10 +44,13 @@ class LLMClient(
             .readTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .writeTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
+                val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")
-                    .build()
-                chain.proceed(request)
+                val response = chain.proceed(builder.build())
+                if (response.code == 401) {
+                    onUnauthorized?.invoke()
+                }
+                response
             }
             .addInterceptor(logging)
             .build()
@@ -64,26 +69,31 @@ class LLMClient(
     suspend fun chat(
         messages: List<ChatMessage>,
         tools: List<ToolDefinition> = emptyList(),
-        temperature: Float? = null
+        temperature: Float? = null,
+        sessionId: String? = null,
+        modelOverride: String? = null
     ): ChatResponse {
-        val cacheKey = buildCacheKey(model, messages, tools)
+        val targetModel = modelOverride ?: model
+        val cacheKey = buildCacheKey(targetModel, messages, tools)
 
         if (temperature == null || temperature == 0f) {
             cache.get(cacheKey)?.let { return it }
         }
 
         val request = ChatRequest(
-            model = model,
+            model = targetModel,
             messages = messages,
             tools = tools.ifEmpty { null },
-            temperature = temperature
+            temperature = temperature,
+            promptCacheKey = sessionId
         )
 
-        val response = apiService.chat(request)
+        var response = apiService.chat(request, sessionId)
+        response = normalizeResponse(response)
 
-        val shouldCache = (temperature == null || temperature == 0f)
-                && response.choices.isNotEmpty()
-                && response.choices.none { it.message.toolCalls?.isNotEmpty() == true }
+        val shouldCache = (temperature == null || temperature == 0f) &&
+            response.choices.isNotEmpty() &&
+            response.choices.none { it.message.toolCalls?.isNotEmpty() == true }
 
         if (shouldCache) {
             cache.put(cacheKey, response)
@@ -92,8 +102,30 @@ class LLMClient(
         return response
     }
 
+    suspend fun cleanText(text: String, modelOverride: String? = null): String {
+        val prompt = "You are a text cleaner. Fix grammar, punctuation, and capitalization " +
+            "in the following text. Do not change the meaning, word choice, or structure " +
+            "beyond what's needed for correctness. Return only the corrected text."
+        val messages = listOf(
+            ChatMessage(role = "system", content = kotlinx.serialization.json.JsonPrimitive(prompt)),
+            ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive(text))
+        )
+        return try {
+            val response = chat(messages = messages, temperature = 0f, modelOverride = modelOverride)
+            response.choices.firstOrNull()?.message?.textContent ?: text
+        } catch (_: Exception) {
+            // Fall back to original text if the LLM fails (e.g., 401 Unauthorized)
+            text
+        }
+    }
+
     fun clearCache() {
         cache.clear()
+    }
+
+    suspend fun listModels(): Result<List<String>> = runCatching {
+        val response = apiService.listModels()
+        response.data.map { it.id }.sorted()
     }
 
     private fun buildCacheKey(
@@ -111,5 +143,52 @@ class LLMClient(
         val digest = MessageDigest.getInstance("SHA-256")
         return digest.digest(serialized.toByteArray())
             .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun normalizeResponse(response: ChatResponse): ChatResponse {
+        val newChoices = response.choices.map { choice ->
+            var msg = choice.message
+            var text = msg.textContent
+            var reasoning = msg.reasoningContent ?: ""
+
+            // 1. Extract <think> tags from text
+            val thinkRegex = "(?s)<think>(.*?)</think>".toRegex()
+            val thinkMatches = thinkRegex.findAll(text)
+            for (match in thinkMatches) {
+                if (reasoning.isNotBlank()) reasoning += "\n"
+                reasoning += match.groupValues[1].trim()
+            }
+            if (thinkMatches.any()) {
+                text = thinkRegex.replace(text, "").trim()
+            }
+
+            val toolCalls = msg.toolCalls?.toMutableList() ?: mutableListOf()
+
+            // 2. Extract XML tool calls if native toolCalls is empty
+            if (toolCalls.isEmpty()) {
+                val combinedText = "$reasoning\n$text"
+                val toolCallRegex = "(?s)<tool_call>\\s*<function=([a-zA-Z0-9_]+)>\\s*(.*?)\\s*</function>\\s*</tool_call>".toRegex()
+                val matches = toolCallRegex.findAll(combinedText)
+                for (match in matches) {
+                    val name = match.groupValues[1]
+                    val argsRaw = match.groupValues[2].trim()
+                    val args = if (argsRaw.isBlank()) "{}" else argsRaw
+                    toolCalls.add(
+                        ToolCall(
+                            id = "call_" + java.util.UUID.randomUUID().toString().substring(0, 8),
+                            function = FunctionCall(name, args)
+                        )
+                    )
+                }
+            }
+
+            msg = msg.copy(
+                content = kotlinx.serialization.json.JsonPrimitive(text),
+                reasoningContent = reasoning.trim().ifEmpty { null },
+                toolCalls = toolCalls.ifEmpty { null }
+            )
+            choice.copy(message = msg)
+        }
+        return response.copy(choices = newChoices)
     }
 }

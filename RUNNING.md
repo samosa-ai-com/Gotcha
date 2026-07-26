@@ -1,5 +1,7 @@
 # Running Gotcha
 
+![CI](https://github.com/<org>/Gotcha/actions/workflows/ci.yml/badge.svg?branch=master)
+
 A step-by-step guide to build, run, and configure the Gotcha Android app.
 
 ## 1. Prerequisites
@@ -54,7 +56,45 @@ From the project root:
 ./gradlew assembleDebug        # builds app/build/outputs/apk/debug/app-debug.apk
 ./gradlew installDebug         # builds + installs onto the connected device
 ./gradlew testDebugUnitTest    # runs the JVM unit tests
+./gradlew detekt lintDebug     # static analysis (detekt + Android Lint)
 ```
+
+### Continuous integration
+
+Every pull request and push to `master` or `development` runs the
+GitHub Actions workflow (`.github/workflows/ci.yml`): detekt → JVM unit tests →
+Android Lint → `assembleDebug`. Test and analysis reports are attached to each
+run as artifacts. The workflow can also be triggered manually from the Actions
+tab (**workflow_dispatch**) on any branch.
+Detekt and lint have **no baselines** — the whole repository must pass both
+checks on every run, so any new finding fails CI immediately.
+The unit tests shell out to a POSIX `sh` (TerminalTool), so they need Linux,
+macOS, or Git Bash — on plain Windows they fail; use CI instead.
+
+## On-disk layout
+
+All Gotcha-managed files on shared storage live under one root, `data/GotchaStorage.kt`:
+
+```
+/storage/emulated/0/Gotcha/
+  chats/<Slug_shortId>/        <- agent working dir (cwd for file tools)
+      Pictures/                <- camera captures
+      Recordings/              <- audio captures written via an explicit output_path
+      Screenshots/             <- agent read_screen_raw captures
+      .debug/                  <- perception overlay dumps
+  calls/<sessionId>/           <- voice-call working dirs
+  old_chats/<Slug_shortId>/    <- archived on chat delete
+  Screenshots/                 <- assistive-ball + Lens captures
+  Downloads/
+```
+
+Audio recordings started without an explicit `output_path` are the one exception: they go to the
+device's public `Recordings/` folder (via MediaStore on API 29+) so they are findable like any
+other device recording, independent of which chat produced them.
+
+Chat folders are named `slug(title)_<first 8 chars of the session UUID>` and renamed in place
+when the title becomes known. Deleting a chat moves its working directory to `old_chats/` instead
+of deleting it. See `STORAGE_PLAN.md` for the full rationale.
 
 ## 5. Configure the LLM (required before chatting)
 
@@ -88,8 +128,9 @@ The app calls `POST {baseUrl}chat/completions`, so the Base URL must be the part
 > need to enable cleartext traffic (see Troubleshooting).
 
 ### Verify the connection
-1. Tap **Test connection**. It sends a cheap "ping" request and shows
-   `✓ Connected: …` on success or the error on failure.
+1. Tap **Test connection**. It sends a cheap "ping" request and shows a centred
+   overlay — `Testing connection…` while it runs, then `✓ Connected: …` on
+   success or the error on failure, which fades out after ~2.5 s.
 2. Tap **Save**. Then **← Back** to reach the chat screen. Chat input stays
    disabled until a key is saved.
 

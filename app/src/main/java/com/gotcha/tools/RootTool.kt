@@ -25,8 +25,8 @@ class RootTool(
 
     /** Irreversible, device-destroying operations we refuse even with root. */
     private val denyPatterns = listOf(
-        Regex("""\bmkfs\b"""),                       // reformat a filesystem
-        Regex("""\bdd\b[^\n]*\bof=/dev/"""),         // raw write to a block device
+        Regex("""\bmkfs\b"""), // reformat a filesystem
+        Regex("""\bdd\b[^\n]*\bof=/dev/"""), // raw write to a block device
         Regex("""\brm\s+-[a-z]*r[a-z]*f?\s+/(\s|$)"""), // rm -rf /  (wipe the root tree)
         Regex("""\bfastboot\b"""),
         Regex("""\brecovery\b[^\n]*--wipe""")
@@ -51,10 +51,11 @@ class RootTool(
     /** Run an arbitrary command as root and return stdout/stderr/exit code. */
     fun runRootCommand(command: String): ToolResult {
         val trimmed = command.trim()
-        if (trimmed.isEmpty()) return ToolResult.error("Empty command.")
+        if (trimmed.isEmpty()) return ToolResult.error("Empty command. Provide the shell command to run as root.")
         denyPatterns.firstOrNull { it.containsMatchIn(trimmed) }?.let {
             return ToolResult.error(
-                "Command blocked by safety policy (irreversible/device-destroying): $trimmed"
+                "Command blocked by safety policy (irreversible/device-destroying): $trimmed. You may use available tools (list_files," +
+                    "read_file, grep) instead for safer operations."
             )
         }
         val result = exec(trimmed) ?: return notRooted()
@@ -91,7 +92,9 @@ class RootTool(
         s.any { it in "\n\r;&|`$()<>\"'\\ " }
 
     private fun notRooted() = ToolResult.error(
-        "This action needs root, but no `su` binary is available — the device isn't rooted, so I can't do it."
+        "This action needs root, but no `su` binary is available — the device isn't rooted, so I can't do it. You may try non-root " +
+            "alternatives such " +
+            "as list_files, read_file, or grep for filesystem operations."
     )
 
     private data class ExecResult(val exit: Int, val output: String)

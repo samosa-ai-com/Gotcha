@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose renders its own dark theme; force dark (Android 10 / MIUI
+         auto-inversion of light-themed apps) half-inverts Compose UIs,
+         leaving white text on light surfaces. Opt out explicitly. -->
+    <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

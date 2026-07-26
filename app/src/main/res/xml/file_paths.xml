@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Captured photos live under getExternalFilesDir("Pictures"). -->
-    <external-files-path name="captures" path="." />
+    <!-- All Gotcha-managed files live under /storage/emulated/0/Gotcha. -->
+    <external-path name="gotcha" path="Gotcha/" />
+    <!-- Lens-mode cropped images shared for "Copy Image" (content:// clip). -->
+    <cache-path name="lens" path="lens/" />
 </paths>

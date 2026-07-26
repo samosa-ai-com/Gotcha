@@ -1,0 +1,7 @@
+appId: com.gotcha
+---
+# Requires scripts/maestro_run.sh to have seeded settings first (configured route).
+- launchApp
+- assertVisible: "Gotcha"
+- assertVisible:
+    text: "Let's Go"

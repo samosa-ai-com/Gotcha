@@ -3,6 +3,10 @@
 *.ap_
 *.aab
 
+# Signing keys — never commit these
+*.jks
+*.keystore
+
 # Files for the ART/Dalvik VM
 *.dex
 
@@ -92,3 +96,7 @@ Desktop.ini
 # Temporary files
 *.swp
 *.tmp
+temp.json
+
+taste.md
+brag*

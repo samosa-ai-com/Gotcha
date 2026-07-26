@@ -3,13 +3,13 @@ package com.gotcha.audio
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
 /**
@@ -26,6 +26,12 @@ class TtsEngine(
     private var androidTts: TextToSpeech? = null
     private var androidReady = false
     private var ttsInitGate = CompletableDeferred<Boolean>()
+
+    @Volatile
+    private var currentTrack: AudioTrack? = null
+
+    @Volatile
+    private var playbackGate: CompletableDeferred<Unit>? = null
 
     /** The models available from the API (empty if provider is Android). */
     var apiTtsModels: List<AudioModel> = emptyList()
@@ -86,6 +92,10 @@ class TtsEngine(
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) { gate.complete(true) }
             override fun onError(utteranceId: String?) { gate.complete(false) }
+
+            // stop() interrupts the utterance; without this the gate never completes
+            // and a suspended speak() would hang (e.g. pausing a voice call).
+            override fun onStop(utteranceId: String?, interrupted: Boolean) { gate.complete(false) }
         })
         tts.setLanguage(Locale.US)
         val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_utterance")
@@ -95,50 +105,100 @@ class TtsEngine(
     private suspend fun speakApi(text: String, model: String, voice: String): Boolean {
         val api = audioApi ?: return false
         if (model.isBlank()) return false
-        val result = api.synthesize(text, model, voice)
+        val effectiveVoice = voice.ifBlank {
+            apiTtsModels.firstOrNull { it.id == model }?.defaultVoice ?: "af_heart"
+        }
+        val result = api.synthesize(text, model, effectiveVoice)
         if (result.isFailure) return false
         val audioBytes = result.getOrThrow()
         return playPcmAudio(audioBytes)
     }
 
-    /** Play raw PCM/WAV audio bytes through AudioTrack. */
-    private fun playPcmAudio(bytes: ByteArray): Boolean {
+    /**
+     * Play raw PCM/WAV audio bytes through AudioTrack, suspending until
+     * playback completes (or [stop] interrupts it) so callers can sequence
+     * speech with other audio work (e.g. re-arming the mic in a voice call).
+     */
+    private suspend fun playPcmAudio(bytes: ByteArray): Boolean {
         return try {
             // If it's a WAV file, skip the 44-byte header
             val pcmData = if (bytes.size > 44 &&
                 bytes[0] == 0x52.toByte() && bytes[1] == 0x49.toByte() &&
-                bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte()) {
+                bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte()
+            ) {
                 bytes.copyOfRange(44, bytes.size)
-            } else bytes
+            } else {
+                bytes
+            }
 
             val track = AudioTrack.Builder()
-                .setAudioAttributes(AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build())
-                .setAudioFormat(AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(24000)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build())
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(SAMPLE_RATE_HZ)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
                 .setBufferSizeInBytes(pcmData.size)
                 .setTransferMode(AudioTrack.MODE_STATIC)
                 .build()
+
+            val done = CompletableDeferred<Unit>()
+            currentTrack = track
+            playbackGate = done
+            // Marker position is in frames: 16-bit mono = 2 bytes per frame.
+            track.setNotificationMarkerPosition(pcmData.size / 2)
+            track.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
+                override fun onMarkerReached(t: AudioTrack?) { done.complete(Unit) }
+                override fun onPeriodicNotification(t: AudioTrack?) {}
+            })
             track.write(pcmData, 0, pcmData.size)
             track.play()
+            // Fallback in case the marker callback never fires on some devices.
+            val durationMs = pcmData.size / 2 * 1000L / SAMPLE_RATE_HZ
+            withTimeoutOrNull(durationMs + PLAYBACK_TIMEOUT_SLACK_MS) { done.await() }
+            releaseTrack()
             true
-        } catch (_: Exception) { false }
+        } catch (_: Exception) {
+            releaseTrack()
+            false
+        }
     }
 
-    /** Stop any ongoing speech. */
+    private fun releaseTrack() {
+        try {
+            currentTrack?.release()
+        } catch (_: Exception) { }
+        currentTrack = null
+        playbackGate = null
+    }
+
+    /** Stop any ongoing speech (both providers). Unblocks a suspended [speak]. */
     fun stop() {
         androidTts?.stop()
+        try {
+            currentTrack?.pause()
+            currentTrack?.flush()
+        } catch (_: Exception) { }
+        playbackGate?.complete(Unit)
     }
 
     /** Release resources. */
     fun shutdown() {
-        androidTts?.stop()
+        stop()
+        releaseTrack()
         androidTts?.shutdown()
         androidTts = null
+    }
+
+    private companion object {
+        const val SAMPLE_RATE_HZ = 24000
+        const val PLAYBACK_TIMEOUT_SLACK_MS = 500L
     }
 }

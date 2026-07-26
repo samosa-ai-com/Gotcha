@@ -1,0 +1,11 @@
+appId: com.gotcha
+---
+# Requires scripts/maestro_run.sh: mock_llm_server.py reachable via `adb reverse tcp:8080 tcp:8080`.
+- launchApp
+- tapOn:
+    text: "Let's Go"
+- inputText: "hello"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "MOCK_REPLY_OK"
+    timeout: 15000
