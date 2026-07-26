@@ -177,7 +177,12 @@ class SubAgentSession(
                     "operational instructions.\n" +
                     "When you have fully completed the task and have the final answer, " +
                     "call the ask_final_answer tool with your complete result. " +
-                    "Do NOT call ask_final_answer until all work is actually done."
+                    "Do NOT call ask_final_answer until all work is actually done.\n\n" +
+                    "Respond to the user in ${settings.preferredLanguage}. If the user writes " +
+                    "to you in a different language, reply in that language instead.\n" +
+                    "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
+                    "app names, search queries passed to tools, and shell commands — regardless of " +
+                    "the language you are replying in."
             )
         )
         val userMsg = ChatMessage(
