@@ -1,5 +1,6 @@
 package com.gotcha.tools
 
+import com.gotcha.testsupport.RepoPaths
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -103,7 +104,7 @@ class FeatureCoverageManifestTest {
 
     @Test
     fun instrumentedEntriesNameExistingSourceFiles() {
-        val androidTestRoot = File(repoRoot(), "app/src/androidTest/java")
+        val androidTestRoot = RepoPaths.file("app/src/androidTest/java")
         val problems = manifest.tools.filter { it.tier == "INSTRUMENTED" }.mapNotNull { entry ->
             when {
                 entry.tests.isEmpty() -> "${entry.tool}: tier INSTRUMENTED but no test classes listed"
@@ -134,7 +135,7 @@ class FeatureCoverageManifestTest {
     @Test
     fun generatedDocMatchesCommittedCopy() {
         val expected = renderMarkdown(manifest)
-        val doc = File(repoRoot(), DOC_PATH)
+        val doc = RepoPaths.file(DOC_PATH)
 
         if (System.getProperty(UPDATE_PROPERTY) == "true") {
             doc.parentFile.mkdirs()
@@ -259,18 +260,5 @@ class FeatureCoverageManifestTest {
             Category.BACKGROUND to "Background tools (change device or account state)",
             Category.INFO to "Info tools (read-only)"
         )
-
-        /**
-         * Unit tests run with the working directory at the `app/` module dir, so walk up
-         * until the dir holding `settings.gradle.kts` is found rather than hardcoding `../`.
-         */
-        fun repoRoot(): File {
-            var dir: File? = File(System.getProperty("user.dir")).absoluteFile
-            while (dir != null) {
-                if (File(dir, "settings.gradle.kts").isFile) return dir
-                dir = dir.parentFile
-            }
-            error("could not locate the repo root (no settings.gradle.kts above ${System.getProperty("user.dir")})")
-        }
     }
 }
