@@ -26,6 +26,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # Robolectric downloads an android-all jar per @Config(sdk = ...) level on first
+      # run; without this every fresh runner pays that download again.
+      - name: Cache Robolectric android-all jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
+          restore-keys: robolectric-
+
       # No baselines: the whole repo must pass detekt and lint on every run.
       - name: Detekt
         run: ./gradlew :app:detekt --stacktrace

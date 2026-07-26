@@ -89,6 +89,7 @@ android {
     }
 
     testOptions {
+        unitTests.isIncludeAndroidResources = true // required by Robolectric
         // FeatureCoverageManifestTest rewrites docs/FEATURE_TEST_COVERAGE.md instead of
         // asserting on it when this is true:
         //   ./gradlew :app:testDebugUnitTest -PupdateCoverageDocs=true
@@ -265,6 +266,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    // Robolectric tier: runs Context-dependent tools on the JVM, and via @Config(sdk = [...])
+    // exercises SDK_INT branches across API levels far more cheaply than an emulator matrix row.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core-ktx:1.6.1")
+    testImplementation("io.mockk:mockk:1.13.13")
 
     // Instrumented tests
     androidTestImplementation(composeBom)

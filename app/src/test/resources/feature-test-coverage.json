@@ -8,51 +8,71 @@
     },
     {
       "tool": "get_storage_info",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask 'how much storage do I have left?'; confirm the reported free/total roughly matches Settings → Storage."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.StorageToolTest"
+      ],
+      "notes": "size formatting across every unit and the partition read"
     },
     {
       "tool": "get_battery_info",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask 'what is my battery level?'; confirm the percentage and charging state match the status bar."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "reports a percentage without throwing"
     },
     {
       "tool": "list_files",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask the agent to list files in the working directory; confirm the listing matches a file manager."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "flat and recursive listings"
     },
     {
       "tool": "read_file",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Write a short text file, then ask the agent to read it back; confirm the contents match, including with an offset/limit."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest",
+        "com.gotcha.tools.FileResolverTest"
+      ],
+      "notes": "offset/limit, missing paths, and the All-files-access gate"
     },
     {
       "tool": "write_file",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask the agent to write a file to the working directory; confirm it appears on disk with the requested contents."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest",
+        "com.gotcha.tools.FileResolverTest",
+        "com.gotcha.agent.AgentLoopTest"
+      ],
+      "notes": "create, append, overwrite, parent-dir creation; also driven end-to-end through the agent loop"
     },
     {
       "tool": "open_app",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask 'open Settings'; confirm the Settings app comes to the foreground."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "launch intent flags and the unknown-package message"
     },
     {
       "tool": "set_brightness",
-      "tier": "MANUAL_ONLY",
-      "reason": "C",
-      "manualSteps": "Ask the agent to set brightness to 20%, then 80%; confirm the screen visibly changes and Settings agrees."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "range validation, value scaling, WRITE_SETTINGS gate"
     },
     {
       "tool": "toggle_wifi",
       "tier": "MANUAL_ONLY",
-      "reason": "C",
-      "manualSteps": "Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling)."
+      "reason": "The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier.",
+      "manualSteps": "Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio.",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ]
     },
     {
       "tool": "set_wallpaper",
@@ -195,21 +215,27 @@
     },
     {
       "tool": "set_volume",
-      "tier": "MANUAL_ONLY",
-      "reason": "C",
-      "manualSteps": "Ask the agent to set media volume to 50%; confirm the volume HUD and Settings agree."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.DeviceToolTest"
+      ],
+      "notes": "percentage-to-stream scaling, aliases, range and stream validation"
     },
     {
       "tool": "get_volume",
-      "tier": "MANUAL_ONLY",
-      "reason": "C",
-      "manualSteps": "Ask 'how loud is my media volume?'; confirm the answer matches the volume slider."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.DeviceToolTest"
+      ],
+      "notes": "single and all-stream reporting"
     },
     {
       "tool": "set_ringer_mode",
-      "tier": "MANUAL_ONLY",
-      "reason": "C",
-      "manualSteps": "Ask the agent to switch to vibrate, then back to normal; confirm the status-bar icon changes."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.DeviceToolTest"
+      ],
+      "notes": "normal/vibrate/silent plus the Do-Not-Disturb access gate"
     },
     {
       "tool": "vibrate",
@@ -231,15 +257,20 @@
     },
     {
       "tool": "list_installed_apps",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask 'what apps do I have installed?'; spot-check a few entries against the launcher."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.AppsToolTest"
+      ],
+      "notes": "listing, system-app marking, counts, search filtering"
     },
     {
       "tool": "uninstall_app",
       "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Install a throwaway app, ask the agent to uninstall it; confirm the confirmation prompt appears and the app is removed."
+      "reason": "AgentLoopTest covers the CONFIRM_UNINSTALL marker and both sides of the confirmation gate, but the actual package removal is a system dialog that cannot be automated.",
+      "manualSteps": "Install a throwaway app, ask the agent to uninstall it; confirm the confirmation prompt appears, then that the system uninstall dialog opens and the app is removed.",
+      "tests": [
+        "com.gotcha.agent.AgentLoopTest"
+      ]
     },
     {
       "tool": "get_app_usage",
@@ -255,15 +286,19 @@
     },
     {
       "tool": "get_clipboard",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Copy some text in another app, then ask 'what's on my clipboard?'; confirm it matches (Android 10+ needs the accessibility fallback)."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ClipboardToolTest"
+      ],
+      "notes": "read plus the API 34 accessibility-cache fallback, across API 30/33/34"
     },
     {
       "tool": "set_clipboard",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask the agent to copy a phrase, then paste it manually somewhere; confirm the phrase pastes."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ClipboardToolTest"
+      ],
+      "notes": "write-through to the platform clipboard and the accessibility cache"
     },
     {
       "tool": "take_photo",
@@ -333,21 +368,27 @@
     },
     {
       "tool": "edit",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask the agent to change one line in a text file; confirm only that line changed and a non-unique oldString is rejected."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "unique match, replaceAll, no-match and blank-argument rejection"
     },
     {
       "tool": "glob",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask the agent to find all *.txt files under a directory; confirm the result matches `find`."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "`*` vs `**`, brace alternation, empty result sets"
     },
     {
       "tool": "grep",
-      "tier": "MANUAL_ONLY",
-      "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",
-      "manualSteps": "Ask the agent to search a directory for a phrase; confirm the matching files/lines are right."
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FileToolsTest"
+      ],
+      "notes": "regex and literal search, case-insensitivity, include filter, invalid patterns"
     },
     {
       "tool": "websearch",

@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 19 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 0 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 16 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
-| `MANUAL_ONLY` | 80 | No automated test — verified by hand, see the checklist below. |
+| `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
 | **Total** | **99** | |
 
-**19 of 99** tools are covered by an automated test; the remaining 80 are manual-QA-only with a recorded reason.
+**35 of 99** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -32,7 +32,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `long_press` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `long_press_index` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `navigate_app` | `MANUAL_ONLY` | Nested navigator agent loop over a live accessibility service and a live LLM connection. |
-| `open_app` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `open_app` | `ROBOLECTRIC` | `SystemToolTest` — launch intent flags and the unknown-package message |
 | `press_key` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `read_screen` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `read_screen_raw` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
@@ -57,7 +57,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `disable_camera` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `dismiss_notifications` | `MANUAL_ONLY` | Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host. |
 | `dismiss_timer` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `edit` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `edit` | `ROBOLECTRIC` | `FileToolsTest` — unique match, replaceAll, no-match and blank-argument rejection |
 | `edit_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `edit_calendar_event` | `UNIT` | `CalendarToolsTest` — connector path only; the on-device CalendarProvider path is manual |
 | `hide_overlay` | `MANUAL_ONLY` | Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify. |
@@ -73,13 +73,13 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `send_email` | `UNIT` | `EmailToolsTest`, `MimeMessageBuilderTest` — confirmation flow, recipient handling, MIME construction with attachments |
 | `send_sms` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `set_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `set_brightness` | `MANUAL_ONLY` | C |
-| `set_clipboard` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `set_brightness` | `ROBOLECTRIC` | `SystemToolTest` — range validation, value scaling, WRITE_SETTINGS gate |
+| `set_clipboard` | `ROBOLECTRIC` | `ClipboardToolTest` — write-through to the platform clipboard and the accessibility cache |
 | `set_dnd` | `MANUAL_ONLY` | C |
 | `set_password_policy` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
-| `set_ringer_mode` | `MANUAL_ONLY` | C |
+| `set_ringer_mode` | `ROBOLECTRIC` | `DeviceToolTest` — normal/vibrate/silent plus the Do-Not-Disturb access gate |
 | `set_timer` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `set_volume` | `MANUAL_ONLY` | C |
+| `set_volume` | `ROBOLECTRIC` | `DeviceToolTest` — percentage-to-stream scaling, aliases, range and stream validation |
 | `set_wallpaper` | `MANUAL_ONLY` | C |
 | `show_overlay` | `MANUAL_ONLY` | Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify. |
 | `snooze_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
@@ -87,10 +87,10 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `stop_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `take_photo` | `MANUAL_ONLY` | Needs a real camera; CameraX has no usable emulator fake for the capture callback. |
 | `toggle_torch` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
-| `toggle_wifi` | `MANUAL_ONLY` | C |
-| `uninstall_app` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `toggle_wifi` | `MANUAL_ONLY` | `SystemToolTest` — The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier. |
+| `uninstall_app` | `MANUAL_ONLY` | `AgentLoopTest` — AgentLoopTest covers the CONFIRM_UNINSTALL marker and both sides of the confirmation gate, but the actual package removal is a system dialog that cannot be automated. |
 | `vibrate` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
-| `write_file` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `write_file` | `ROBOLECTRIC` | `FileToolsTest`, `FileResolverTest`, `AgentLoopTest` — create, append, overwrite, parent-dir creation; also driven end-to-end through the agent loop |
 | `write_secure_settings` | `MANUAL_ONLY` | Requires WRITE_SECURE_SETTINGS, granted only via adb — and it mutates global device state. |
 
 ## Info tools (read-only)
@@ -103,22 +103,22 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `find_contact` | `MANUAL_ONLY` | R |
 | `get_app_usage` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `get_audio_recording_status` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
-| `get_battery_info` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `get_clipboard` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `get_battery_info` | `ROBOLECTRIC` | `SystemToolTest` — reports a percentage without throwing |
+| `get_clipboard` | `ROBOLECTRIC` | `ClipboardToolTest` — read plus the API 34 accessibility-cache fallback, across API 30/33/34 |
 | `get_data_usage` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `get_health_records` | `UNIT` | `HealthFormatTest`, `HealthPermissionScopeTest` — record-type formatting and per-type permission scoping |
 | `get_health_summary` | `UNIT` | `HealthFormatTest`, `HealthPermissionScopeTest` — summary formatting and the permission scope requested |
 | `get_location` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `get_now_playing` | `UNIT` | `MediaSelectionTest` — active-session selection across paused/playing/stopped sessions |
-| `get_storage_info` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `get_volume` | `MANUAL_ONLY` | C |
-| `glob` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `grep` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `get_storage_info` | `ROBOLECTRIC` | `StorageToolTest` — size formatting across every unit and the partition read |
+| `get_volume` | `ROBOLECTRIC` | `DeviceToolTest` — single and all-stream reporting |
+| `glob` | `ROBOLECTRIC` | `FileToolsTest` — `*` vs `**`, brace alternation, empty result sets |
+| `grep` | `ROBOLECTRIC` | `FileToolsTest` — regex and literal search, case-insensitivity, include filter, invalid patterns |
 | `list_alarms` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `list_calendar_events` | `UNIT` | `CalendarToolsTest`, `CalendarWindowTest` — connector path (Google/Microsoft) only; the on-device CalendarProvider path is manual |
 | `list_emails` | `UNIT` | `EmailToolsTest` — backend routing, unread filter, result limits |
-| `list_files` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `list_installed_apps` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `list_files` | `ROBOLECTRIC` | `FileToolsTest` — flat and recursive listings |
+| `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page fetch plus block-to-markdown rendering |
@@ -126,7 +126,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
 | `read_call_log` | `MANUAL_ONLY` | R |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |
-| `read_file` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `read_file` | `ROBOLECTRIC` | `FileToolsTest`, `FileResolverTest` — offset/limit, missing paths, and the All-files-access gate |
 | `read_notifications` | `MANUAL_ONLY` | Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host. |
 | `read_recent_sms` | `MANUAL_ONLY` | R |
 | `search_skills` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
@@ -165,8 +165,6 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host.
 - [ ] **`dismiss_timer`** — With a timer ringing, ask the agent to dismiss it; confirm it stops.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`edit`** — Ask the agent to change one line in a text file; confirm only that line changed and a non-unique oldString is rejected.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`edit_alarm`** — Ask the agent to move an existing alarm 30 minutes later; confirm the Clock app shows the new time.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`find_contact`** — Ask 'what's <a saved contact>'s number?'; confirm it matches the Contacts app.
@@ -175,33 +173,17 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`get_audio_recording_status`** — While recording, ask 'am I still recording?'; confirm the elapsed time is reported.
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
-- [ ] **`get_battery_info`** — Ask 'what is my battery level?'; confirm the percentage and charging state match the status bar.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`get_clipboard`** — Copy some text in another app, then ask 'what's on my clipboard?'; confirm it matches (Android 10+ needs the accessibility fallback).
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`get_data_usage`** — Grant Usage Access, then ask 'how much data has Chrome used?'; compare with Settings → Network → Data usage.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`get_location`** — Outdoors or with a mock location set, ask 'where am I?'; confirm the coordinates/address are plausible.
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
-- [ ] **`get_storage_info`** — Ask 'how much storage do I have left?'; confirm the reported free/total roughly matches Settings → Storage.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`get_volume`** — Ask 'how loud is my media volume?'; confirm the answer matches the volume slider.
-  <br>_Why not automated:_ C
-- [ ] **`glob`** — Ask the agent to find all *.txt files under a directory; confirm the result matches `find`.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`global_action`** — Ask the agent to open the notification shade, then Recents; confirm both happen.
   <br>_Why not automated:_ Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).
-- [ ] **`grep`** — Ask the agent to search a directory for a phrase; confirm the matching files/lines are right.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`hide_overlay`** — With an overlay showing, ask the agent to hide it; confirm the card disappears.
   <br>_Why not automated:_ Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify.
 - [ ] **`input_text`** — Focus a text field and ask the agent to type a phrase; confirm the text lands in the field.
   <br>_Why not automated:_ Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).
 - [ ] **`list_alarms`** — With at least one alarm set, ask 'what alarms do I have?'; confirm the list matches the Clock app.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`list_files`** — Ask the agent to list files in the working directory; confirm the listing matches a file manager.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`list_installed_apps`** — Ask 'what apps do I have installed?'; spot-check a few entries against the launcher.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`list_tasks`** — With Microsoft connected, ask 'what tasks do I have?'; confirm the list matches To Do.
   <br>_Why not automated:_ Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today.
@@ -215,8 +197,6 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup).
 - [ ] **`navigate_app`** — Ask the agent to complete a multi-screen task in another app; confirm it navigates there and reports the outcome.
   <br>_Why not automated:_ Nested navigator agent loop over a live accessibility service and a live LLM connection.
-- [ ] **`open_app`** — Ask 'open Settings'; confirm the Settings app comes to the foreground.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`pause_audio_recording`** — Pause an in-progress recording; confirm the elapsed time stops advancing.
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
 - [ ] **`press_key`** — Ask the agent to press Back; confirm the app navigates back.
@@ -225,8 +205,6 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface.
 - [ ] **`read_call_log`** — Make a call, then ask 'who did I last call?'; confirm the entry matches the Phone app's log.
   <br>_Why not automated:_ R
-- [ ] **`read_file`** — Write a short text file, then ask the agent to read it back; confirm the contents match, including with an offset/limit.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`read_notifications`** — Grant notification access, generate a notification, then ask 'what notifications do I have?'; confirm it is listed.
   <br>_Why not automated:_ Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host.
 - [ ] **`read_recent_sms`** — Ask 'what was my last text?'; confirm it matches the SMS app.
@@ -245,20 +223,12 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
 - [ ] **`set_alarm`** — Ask the agent to set an alarm for 5 minutes' time; confirm it appears in the Clock app and fires.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`set_brightness`** — Ask the agent to set brightness to 20%, then 80%; confirm the screen visibly changes and Settings agrees.
-  <br>_Why not automated:_ C
-- [ ] **`set_clipboard`** — Ask the agent to copy a phrase, then paste it manually somewhere; confirm the phrase pastes.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`set_dnd`** — Ask the agent to turn Do Not Disturb on; confirm the DND icon appears (grant DND access first if prompted).
   <br>_Why not automated:_ C
 - [ ] **`set_password_policy`** — As device admin, ask the agent to require a 6-character password; confirm Settings enforces the new minimum.
   <br>_Why not automated:_ Needs an active Device Admin registration, which cannot be granted non-interactively.
-- [ ] **`set_ringer_mode`** — Ask the agent to switch to vibrate, then back to normal; confirm the status-bar icon changes.
-  <br>_Why not automated:_ C
 - [ ] **`set_timer`** — Ask the agent to set a 1-minute timer; confirm it appears in the Clock app and fires.
   <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
-- [ ] **`set_volume`** — Ask the agent to set media volume to 50%; confirm the volume HUD and Settings agree.
-  <br>_Why not automated:_ C
 - [ ] **`set_wallpaper`** — Ask the agent to set the wallpaper from a photo; confirm the home screen background changes.
   <br>_Why not automated:_ C
 - [ ] **`show_alarms`** — Ask the agent to show your alarms; confirm the Clock app opens on the alarms tab.
@@ -287,15 +257,13 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Pure UI round-trip: writes the visible todo list in the chat surface.
 - [ ] **`toggle_torch`** — Ask the agent to turn the torch on, then off; confirm the flash physically lights up.
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
-- [ ] **`toggle_wifi`** — Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling).
-  <br>_Why not automated:_ C
-- [ ] **`uninstall_app`** — Install a throwaway app, ask the agent to uninstall it; confirm the confirmation prompt appears and the app is removed.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
+- [ ] **`toggle_wifi`** — Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio.
+  <br>_Why not automated:_ The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier.
+- [ ] **`uninstall_app`** — Install a throwaway app, ask the agent to uninstall it; confirm the confirmation prompt appears, then that the system uninstall dialog opens and the app is removed.
+  <br>_Why not automated:_ AgentLoopTest covers the CONFIRM_UNINSTALL marker and both sides of the confirmation gate, but the actual package removal is a system dialog that cannot be automated.
 - [ ] **`vibrate`** — Ask the agent to vibrate the phone; confirm you feel it.
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
 - [ ] **`websearch`** — Ask a question that needs current information; confirm the agent cites plausible, recent results.
   <br>_Why not automated:_ Performs real network I/O against a search provider; exercising it in CI would make the suite non-hermetic.
-- [ ] **`write_file`** — Ask the agent to write a file to the working directory; confirm it appears on disk with the requested contents.
-  <br>_Why not automated:_ Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.
 - [ ] **`write_secure_settings`** — After `adb shell pm grant com.gotcha android.permission.WRITE_SECURE_SETTINGS`, ask the agent to change a secure setting; confirm with `adb shell settings get`.
   <br>_Why not automated:_ Requires WRITE_SECURE_SETTINGS, granted only via adb — and it mutates global device state.
