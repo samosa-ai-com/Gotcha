@@ -27,8 +27,6 @@ class SkillImporter(
     private val maxRedirects: Int = 4
 ) {
 
-    private val json = Json { ignoreUnknownKeys = true }
-
     fun fetchPreview(url: String): SkillPreview {
         var currentUrl = validateUrl(url)
         var hops = 0
@@ -83,12 +81,7 @@ class SkillImporter(
         if (body.length > MAX_BODY_BYTES) {
             throw SkillImportException("Response body exceeds $MAX_BODY_BYTES bytes")
         }
-        val skill = try {
-            json.decodeFromString<Skill>(body)
-        } catch (e: Exception) {
-            throw SkillImportException("Invalid JSON: ${describe(e)}")
-        }
-        SkillImportValidator.validate(skill)
+        val skill = parseAndValidate(body)
         return SkillPreview(
             skill = skill,
             sourceUrl = currentUrl.toString(),

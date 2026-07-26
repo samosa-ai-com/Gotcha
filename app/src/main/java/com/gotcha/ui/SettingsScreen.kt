@@ -233,11 +233,23 @@ fun SettingsScreen(
     )
 
     /**
-     * True when the chosen TTS/STT providers have what they need. Delegates
-     * to [Settings.isSpeechConfigured] so the logic is unit-testable in
-     * isolation from Compose state.
+     * True when the chosen TTS/STT providers have what they need. Mirrors
+     * [Settings.isSpeechConfigured] without building a full `Settings`
+     * object so recomposition doesn't allocate on every read.
      */
-    fun speechConfigValid(): Boolean = currentSettings().isSpeechConfigured
+    fun speechConfigValid(): Boolean {
+        val ttsOk = when (ttsProvider) {
+            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+            AudioProvider.API -> ttsApiBaseUrl.trim().isNotBlank()
+            else -> true
+        }
+        val sttOk = when (sttProvider) {
+            AudioProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+            AudioProvider.API -> sttApiBaseUrl.trim().isNotBlank()
+            else -> true
+        }
+        return ttsOk && sttOk
+    }
 
     val refreshChatModelsAction = {
         if (!refreshingChatModels) {

@@ -145,19 +145,15 @@ object SkillRegistry {
     /**
      * Persist a community skill from a raw JSON string. The JSON is parsed
      * and validated on [Dispatchers.IO] so the call is safe from the UI thread.
+     * Returns the validated [Skill] — the same instance the registry's merged
+     * view will resolve to.
      */
     suspend fun importCommunity(rawJson: String): Skill {
         return withContext(Dispatchers.IO) {
-            val ctx = requireContext()
             val skill = SkillImporter.parseAndValidate(rawJson)
-            CommunitySkillStore(ctx).save(rawJson)
+            CommunitySkillStore(requireContext()).save(rawJson)
             reload()
-            // Re-read the persisted file so the caller sees the registry's
-            // view (titles may have been defaulted in the round-trip).
-            CommunitySkillStore(ctx).readAll()
-                .firstOrNull { it.second.id == skill.id }
-                ?.second
-                ?: skill
+            skill
         }
     }
 
