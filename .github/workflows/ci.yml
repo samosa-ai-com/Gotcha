@@ -65,9 +65,11 @@ jobs:
           min-coverage-overall: 0
           min-coverage-changed-files: 0
           title: Coverage (report-only — the feature manifest is the gate)
-          # Surface posting failures instead of masking them behind a green step.
-          # Coverage thresholds are still 0, so this cannot fail the build on coverage.
-          continue-on-error: false
+          # Left at the action's default (true) on purpose: per the plan, coverage must
+          # never gate the build. Note the consequence — if the comment fails to post
+          # (e.g. the pull-requests: write grant above is ever removed), the step still
+          # reports success and the comment silently disappears. Check the step log,
+          # not its status, if the comment stops appearing.
 
       - name: Android Lint
         run: ./gradlew :app:lintDebug --stacktrace
