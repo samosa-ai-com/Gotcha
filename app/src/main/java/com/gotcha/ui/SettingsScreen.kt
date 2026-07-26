@@ -63,6 +63,7 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
+import com.gotcha.i18n.Language
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -1330,10 +1331,7 @@ fun SettingsScreen(
                                 onCheckedChange = { proactiveAutoCopyOtp = it }
                             )
 
-                            val languages = listOf(
-                                "English", "Spanish", "French", "German", "Hindi",
-                                "Japanese", "Chinese", "Italian", "Portuguese"
-                            )
+                            val languages = Language.labels
                             ExposedDropdownMenuBox(
                                 expanded = languageExpanded,
                                 onExpandedChange = { languageExpanded = it }
