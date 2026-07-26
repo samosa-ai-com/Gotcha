@@ -148,6 +148,8 @@ fun SettingsScreen(
     var proactiveAutoCopyOtp by remember { mutableStateOf(initial.proactiveAutoCopyOtp) }
     var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
     var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
+    var testingVoice by remember { mutableStateOf(false) }
+    var voiceDataMissing by remember { mutableStateOf(false) }
     var communitySkillHosts by remember { mutableStateOf(initial.communitySkillHosts) }
     var communitySkillUrl by remember { mutableStateOf("") }
     var communitySkillPasteJson by remember { mutableStateOf("") }
@@ -159,6 +161,10 @@ fun SettingsScreen(
         // Defense-in-depth: ChatViewModel also calls SkillRegistry.init, but
         // Settings can be opened before the chat screen is ever shown.
         SkillRegistry.bootstrap(localContext)
+    }
+    val voiceTestTtsEngine = remember { com.gotcha.audio.TtsEngine(localContext) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { voiceTestTtsEngine.shutdown() }
     }
 
     // Discovered model lists
@@ -1362,6 +1368,55 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    testingVoice = true
+                                    scope.launch {
+                                        val lang = com.gotcha.i18n.Language.fromLabel(preferredLanguage)
+                                        voiceTestTtsEngine.speak(
+                                            text = com.gotcha.i18n.SpokenPhrases.callStarted(lang),
+                                            provider = AudioProvider.ANDROID,
+                                            language = lang
+                                        )
+                                        voiceDataMissing = voiceTestTtsEngine.lastLanguageUnavailable == lang
+                                        testingVoice = false
+                                    }
+                                },
+                                enabled = !testingVoice,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (testingVoice) "Playing…" else "Test voice")
+                            }
+                            if (voiceDataMissing) {
+                                AlertDialog(
+                                    onDismissRequest = { voiceDataMissing = false },
+                                    title = { Text("Voice data not installed") },
+                                    text = {
+                                        Text(
+                                            "Your device doesn't have Android's built-in voice for " +
+                                                "$preferredLanguage. It was spoken in English instead. " +
+                                                "Install the voice data to fix pronunciation."
+                                        )
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                voiceDataMissing = false
+                                                try {
+                                                    localContext.startActivity(
+                                                        android.content.Intent(
+                                                            android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
+                                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    )
+                                                } catch (_: Exception) { }
+                                            }
+                                        ) { Text("Install") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { voiceDataMissing = false }) { Text("Cancel") }
+                                    }
+                                )
                             }
 
                             val currencies = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
