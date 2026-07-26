@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaScannerConnection
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
@@ -136,9 +135,7 @@ object GotchaStorage {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Gotcha")
-            }
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Gotcha")
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
@@ -150,10 +147,10 @@ object GotchaStorage {
     }
 
     sealed class RecordingTarget {
-        /** Pre-Q direct filesystem path, or a caller-supplied [FileResolver] path. */
+        /** A caller-supplied [FileResolver] path written to directly. */
         data class DirectFile(val file: File) : RecordingTarget()
 
-        /** Q+ MediaStore entry; [MediaRecorder] writes through the held fd. */
+        /** MediaStore entry; [MediaRecorder] writes through the held fd. */
         data class MediaStoreEntry(val uri: Uri, val pfd: ParcelFileDescriptor, val displayPath: String) :
             RecordingTarget()
     }
@@ -163,28 +160,23 @@ object GotchaStorage {
      * (visible to the system Recorder/Files apps), not the per-chat working
      * directory.
      *
-     * API 29+ has no direct filesystem access to public folders without "All
+     * There is no direct filesystem access to public folders without "All
      * files access", so recordings go through a MediaStore insert + file
      * descriptor instead; [MediaRecorder.setOutputFile] accepts that fd directly.
      */
     fun createRecordingTarget(context: Context, fileName: String): RecordingTarget {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                put(MediaStore.MediaColumns.MIME_TYPE, "audio/mp4")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "Recordings")
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-            }
-            val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
-                ?: throw IOException("Could not create $fileName in Recordings")
-            val pfd = resolver.openFileDescriptor(uri, "w")
-                ?: throw IOException("Could not open Recordings for writing")
-            return RecordingTarget.MediaStoreEntry(uri, pfd, "Recordings/$fileName")
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "audio/mp4")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "Recordings")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
-        val dir = Environment.getExternalStoragePublicDirectory("Recordings")
-        dir.mkdirs()
-        return RecordingTarget.DirectFile(File(dir, fileName))
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+            ?: throw IOException("Could not create $fileName in Recordings")
+        val pfd = resolver.openFileDescriptor(uri, "w")
+            ?: throw IOException("Could not open Recordings for writing")
+        return RecordingTarget.MediaStoreEntry(uri, pfd, "Recordings/$fileName")
     }
 
     /** Clears the pending flag so other apps can see/play the finished recording. */

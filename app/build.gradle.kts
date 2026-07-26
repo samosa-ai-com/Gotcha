@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         applicationId = "com.gotcha"
-        minSdk = 26
+        minSdk = 30
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
@@ -91,20 +91,9 @@ android {
         animationsDisabled = true
         managedDevices {
             localDevices {
-                create("api27") {
-                    device = "Pixel 2"
-                    apiLevel = 27
-                    systemImageSource = "aosp"
-                }
-                // Android 10 — no ATD image at this API level; falls back to full aosp.
-                create("api29") {
-                    device = "Pixel 2"
-                    apiLevel = 29
-                    systemImageSource = "aosp"
-                }
-                // Android 11 — the aosp-atd x86 image for this API level appears to hang
+                // Android 11 (minSdk) — the aosp-atd x86 image for this API level appears to hang
                 // on boot on Windows/WHPX (confirmed: qemu process alive but memory flat,
-                // never progresses); the plain aosp x86 image (same as api29) boots fine.
+                // never progresses); the plain aosp x86 image boots fine.
                 create("api30") {
                     device = "Pixel 2"
                     apiLevel = 30
@@ -147,15 +136,13 @@ android {
                     targetDevices.add(allDevices["api34"])
                 }
                 create("full") {
-                    targetDevices.add(allDevices["api27"])
                     targetDevices.add(allDevices["api30"])
                     targetDevices.add(allDevices["api33"])
                     targetDevices.add(allDevices["api34"])
                 }
-                // Android 10 through Android 16 — the range requested for manual
-                // multi-version verification. Excludes api27 (Android 8.1, minSdk-only).
-                create("android10to16") {
-                    targetDevices.add(allDevices["api29"])
+                // Android 11 (minSdk) through Android 16 — the range requested for manual
+                // multi-version verification.
+                create("android11to16") {
                     targetDevices.add(allDevices["api30"])
                     targetDevices.add(allDevices["api31"])
                     targetDevices.add(allDevices["api33"])

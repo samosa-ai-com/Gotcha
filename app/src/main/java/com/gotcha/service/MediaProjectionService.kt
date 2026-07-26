@@ -13,7 +13,6 @@ import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.os.Build
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
@@ -52,11 +51,7 @@ class MediaProjectionService : Service() {
 
             val serviceIntent = Intent(context, MediaProjectionService::class.java)
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent)
-                } else {
-                    context.startService(serviceIntent)
-                }
+                context.startForegroundService(serviceIntent)
                 Log.d("ScreenCapture", "MediaProjectionService started")
             } catch (e: Exception) {
                 Log.e("ScreenCapture", "Failed to start MediaProjectionService: ${e.message}")
@@ -88,15 +83,11 @@ class MediaProjectionService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                buildNotification(),
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, buildNotification())
-        }
+        startForeground(
+            NOTIFICATION_ID,
+            buildNotification(),
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -239,15 +230,13 @@ class MediaProjectionService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Screenshot Capture",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "One-shot screen capture" }
-            val nm = getSystemService(NotificationManager::class.java)
-            nm.createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Screenshot Capture",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply { description = "One-shot screen capture" }
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(channel)
     }
 
     private fun buildNotification(): Notification {

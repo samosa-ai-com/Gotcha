@@ -11,7 +11,7 @@ A step-by-step guide to build, run, and configure the Gotcha Android app.
 | Android Studio | Hedgehog (2023.1) or newer — this project uses AGP 8.2.2 / Gradle 8.4 |
 | JDK | 17 (bundled with recent Android Studio; the project targets Java 17) |
 | Android SDK | Platform 34 (Android 14) installed via SDK Manager |
-| A device | A physical phone **or** an emulator running **API 26 (Android 8.0) or higher** |
+| A device | A physical phone **or** an emulator running **API 30 (Android 11) or higher** |
 
 The project already has a `local.properties` pointing at an SDK:
 ```
@@ -33,7 +33,7 @@ If sync succeeds, `app` appears as a run configuration in the toolbar.
 
 **Option A — Emulator (easiest):**
 1. **Tools → Device Manager → Create Device**.
-2. Pick e.g. *Pixel 7*, then a system image with **API 26+** (API 34 recommended).
+2. Pick e.g. *Pixel 7*, then a system image with **API 30+** (API 34 recommended).
    Prefer a **Google APIs / Play** image so the dialer, wallpaper, and other apps exist.
 3. Start the emulator (▶ in Device Manager).
 

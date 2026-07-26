@@ -158,7 +158,6 @@ class GotchaAccessibilityService : AccessibilityService() {
      */
     @RequiresApi(Build.VERSION_CODES.R)
     suspend fun takeScreenshotBitmap(): Bitmap? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         return suspendCancellableCoroutine { cont ->
             try {
                 takeScreenshot(
@@ -466,7 +465,6 @@ class GotchaAccessibilityService : AccessibilityService() {
         gesture(x1, y1, x2, y2, durationMs)
 
     private fun gesture(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
         val path = Path().apply {
             moveTo(x1, y1)
             lineTo(x2, y2)
@@ -484,8 +482,7 @@ class GotchaAccessibilityService : AccessibilityService() {
             "recents", "recent_apps" -> GLOBAL_ACTION_RECENTS
             "notifications" -> GLOBAL_ACTION_NOTIFICATIONS
             "quick_settings" -> GLOBAL_ACTION_QUICK_SETTINGS
-            "lock_screen" ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) GLOBAL_ACTION_LOCK_SCREEN else -1
+            "lock_screen" -> GLOBAL_ACTION_LOCK_SCREEN
             else -> -1
         }
         return if (code >= 0) performGlobalAction(code) else false

@@ -7,7 +7,6 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -384,12 +383,7 @@ class CallChatWindow(context: Context) {
         val cx = (rootParams?.x ?: 0) + paddingPx + btnPx + marginPx + btnPx / 2
         val cy = (rootParams?.y ?: 0) + btnPx / 2
 
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         val params = WindowManager.LayoutParams(
             ringSize,
             ringSize,
@@ -476,12 +470,7 @@ class CallChatWindow(context: Context) {
             actionRingDrawable = drawable
 
             val view = View(appContext).apply { background = drawable }
-            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            }
+            val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             val params = WindowManager.LayoutParams(
                 ringSize,
                 ringSize,
@@ -755,12 +744,7 @@ class CallChatWindow(context: Context) {
     // ---- Layout ----
 
     private fun layoutParams(): WindowManager.LayoutParams {
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         val metrics = appContext.resources.displayMetrics
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,

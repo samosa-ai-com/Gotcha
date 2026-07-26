@@ -115,9 +115,7 @@ class MainActivity : ComponentActivity() {
         lifecycleOwner = this
         // Some OEM skins (e.g. MIUI) force-dark light-themed apps even when the
         // theme opts out; disabling on the decorView covers those cases too.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.decorView.isForceDarkAllowed = false
-        }
+        window.decorView.isForceDarkAllowed = false
         settingsRepository = SettingsRepository(this)
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
@@ -156,12 +154,10 @@ class MainActivity : ComponentActivity() {
             if (ScreenPerception.mediaProjectionResultData == null &&
                 !prefs.getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
             ) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(
-                        Context.MEDIA_PROJECTION_SERVICE
-                    ) as android.media.projection.MediaProjectionManager
-                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                }
+                val mpManager = getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+                ) as android.media.projection.MediaProjectionManager
+                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
             }
         }
 
@@ -206,17 +202,10 @@ class MainActivity : ComponentActivity() {
                 Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             )
             ToolResult.ALL_FILES_ACCESS -> startActivity(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Intent(
-                        AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                } else {
-                    Intent(
-                        AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName")
-                    )
-                }
+                Intent(
+                    AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
             )
             ToolResult.OVERLAY_ACCESS -> startActivity(
                 Intent(
@@ -242,12 +231,10 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_SHORT
             ).show()
             "special:screenshot_consent" -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(
-                        Context.MEDIA_PROJECTION_SERVICE
-                    ) as android.media.projection.MediaProjectionManager
-                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                }
+                val mpManager = getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+                ) as android.media.projection.MediaProjectionManager
+                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
@@ -588,10 +575,6 @@ class MainActivity : ComponentActivity() {
             add(android.Manifest.permission.WRITE_CONTACTS)
             add(android.Manifest.permission.READ_CALENDAR)
             add(android.Manifest.permission.WRITE_CALENDAR)
-            if (Build.VERSION.SDK_INT <= 29) {
-                add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(android.Manifest.permission.READ_MEDIA_IMAGES)
             }

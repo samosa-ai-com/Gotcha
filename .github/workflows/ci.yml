@@ -148,13 +148,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Mirrors the GMD "full" group in app/build.gradle.kts. API 27/30 use
-        # plain default images (no usable ATD image at those levels — see the
-        # notes in build.gradle.kts); 33/34 use ATD.
+        # Mirrors the GMD "full" group in app/build.gradle.kts. API 30 (the
+        # app's minSdk) uses the plain default image — no usable ATD image at
+        # that level, see the notes in build.gradle.kts; 33/34 use ATD.
         include:
-          - api-level: 27
-            target: default
-            profile: pixel_2
           - api-level: 30
             target: default
             profile: pixel_2

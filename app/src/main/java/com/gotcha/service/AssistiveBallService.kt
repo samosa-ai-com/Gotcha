@@ -750,10 +750,6 @@ class AssistiveBallService : Service() {
 
     private fun takeScreenshot() {
         scope.launch(Dispatchers.IO) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot requires Android 11+") }
-                return@launch
-            }
             try {
                 val service = GotchaAccessibilityService.instance
                 if (service == null) {
@@ -839,29 +835,25 @@ class AssistiveBallService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        } else {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        CHANNEL_ID,
-                        "Assistive ball",
-                        NotificationManager.IMPORTANCE_LOW
-                    ).apply { description = "Keeps the floating assistive ball running." }
-                )
-            }
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Assistive ball",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { description = "Keeps the floating assistive ball running." }
+            )
         }
     }
 
