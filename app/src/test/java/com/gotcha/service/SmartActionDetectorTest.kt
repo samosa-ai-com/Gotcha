@@ -144,6 +144,16 @@ class SmartActionDetectorTest {
     }
 
     @Test
+    fun `isTextInLanguage no longer always reports Italian and Portuguese as not in language`() {
+        // Issue #42 P0-7: these previously always fell through to else -> false,
+        // so the assistive ball permanently offered a false "Translate" prompt.
+        assertTrue(SmartActionDetector.isTextInLanguage("Però sto bene, grazie mille", "Italian"))
+        assertTrue(SmartActionDetector.isTextInLanguage("Il gatto è nero", "Italian"))
+        assertTrue(SmartActionDetector.isTextInLanguage("Como você está hoje?", "Portuguese"))
+        assertTrue(SmartActionDetector.isTextInLanguage("Não sei o que fazer com isso", "Portuguese"))
+    }
+
+    @Test
     fun `detectAll finds email addresses and generates compose mail actions`() {
         val entities = SmartActionDetector.detectAll("Contact john.doe@company.org for details")
         val email = entities.firstOrNull { it.type == EntityType.EMAIL }
