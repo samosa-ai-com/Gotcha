@@ -248,9 +248,15 @@ class CallSessionController(
                 return@launch
             }
 
-            val llmClient = buildClient()
-            val navModel = s.navigatorModel.ifEmpty { s.model }
-            val cleanedText = llmClient?.cleanText(text, navModel) ?: text
+            // API STT (Whisper-class) output is already punctuated and cased —
+            // cleanText is redundant there and would cost an extra LLM round-trip.
+            val cleanedText = if (s.sttProvider == AudioProvider.ANDROID) {
+                val llmClient = buildClient()
+                val navModel = s.navigatorModel.ifEmpty { s.model }
+                llmClient?.cleanText(text, navModel, Language.fromLabel(s.preferredLanguage)) ?: text
+            } else {
+                text
+            }
 
             addTranscript(MessageKind.USER, cleanedText)
 

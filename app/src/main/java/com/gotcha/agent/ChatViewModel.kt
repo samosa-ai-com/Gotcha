@@ -572,8 +572,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
             if (transcript.isNotBlank()) {
                 lastInputWasVoice = true
-                val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                val cleaned = client?.cleanText(transcript, navModel) ?: transcript
+                // API STT (Whisper-class) output is already punctuated and cased —
+                // cleanText is redundant there and would cost an extra LLM round-trip.
+                val cleaned = if (provider == AudioProvider.ANDROID) {
+                    val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                    client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                        ?: transcript
+                } else {
+                    transcript
+                }
                 onResult(cleaned)
             }
         }
