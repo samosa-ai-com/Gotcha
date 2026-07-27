@@ -522,7 +522,10 @@ class ToolExecutor(
         val owners = com.gotcha.connectors.ConnectorCatalog.ownersOf(name)
             .joinToString(" or ") { it.displayName }
         val suffix = if (owners.isBlank()) {
-            "The connector it needs is not set up."
+            // Defensive fallback: today every hidden tool is owned by either a connector
+            // or a capability, so this branch is unreachable. Keep a generic message in
+            // case a future catalog change leaves a hidden tool with no owner.
+            "It is currently unavailable."
         } else {
             "It needs $owners, which is not connected or is switched off."
         }

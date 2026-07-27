@@ -496,6 +496,11 @@ class AgentEngine(
                             content = JsonPrimitive("Reported to the user. The turn ends here."),
                             toolCallId = call.id
                         )
+                        // finish_task is a terminal signal: any sibling tool calls
+                        // past it would still execute their side effects, then sit
+                        // unread in history while the engine returns on finishSummary.
+                        // Break out so the user sees only what finish_task reported.
+                        break
                     } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
                         handleUninstallConfirm(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_ALARM:")) {

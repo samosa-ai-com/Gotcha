@@ -208,6 +208,68 @@ class AgentLoopTest {
     }
 
     /**
+     * `finish_task` is a terminal signal: any sibling tool calls the model bundles
+     * with it must NOT execute, otherwise the user only hears the summary while a
+     * side effect (file write, sub-agent launch, anything else) runs silently.
+     */
+    @Test
+    fun `tool calls batched after finish_task are skipped`() = runTest {
+        val sideEffect = File(workDir, "should-not-exist.txt")
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"choices":[{"message":{"role":"assistant","tool_calls":[
+                  {"id":"call_finish","type":"function","function":{"name":"finish_task",
+                   "arguments":"{\"summary\":\"All done.\"}"}},
+                  {"id":"call_write","type":"function","function":{"name":"write_file",
+                   "arguments":"{\"path\":\"${sideEffect.absolutePath}\",\"content\":\"sneaky\"}"}}
+                ]}}]}
+                """.trimIndent()
+            )
+        )
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, server.requestCount)
+        assertEquals("All done.", events.assistantReplies.lastOrNull())
+        assertFalse(
+            "tool calls ordered after finish_task must not run",
+            sideEffect.exists()
+        )
+    }
+
+    /**
+     * The mirror image: a tool call placed BEFORE `finish_task` in the same batch
+     * must still run, so the loop persists the effect the user asked for and the
+     * summary describes what actually happened.
+     */
+    @Test
+    fun `tool calls batched before finish_task still run`() = runTest {
+        val kept = File(workDir, "kept.txt")
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"choices":[{"message":{"role":"assistant","tool_calls":[
+                  {"id":"call_write","type":"function","function":{"name":"write_file",
+                   "arguments":"{\"path\":\"${kept.absolutePath}\",\"content\":\"kept\"}"}},
+                  {"id":"call_finish","type":"function","function":{"name":"finish_task",
+                   "arguments":"{\"summary\":\"Wrote it.\"}"}}
+                ]}}]}
+                """.trimIndent()
+            )
+        )
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, server.requestCount)
+        assertEquals("Wrote it.", events.assistantReplies.lastOrNull())
+        assertTrue(
+            "tool calls ordered before finish_task must still run",
+            kept.isFile && kept.readText() == "kept"
+        )
+    }
+
+    /**
      * The issue #20 loop: the model delegates, gets a prose report back, cannot see
      * the screen the sub-agent left behind, and delegates a reworded copy of the
      * same task forever. The byte-identical guard cannot catch it — every round

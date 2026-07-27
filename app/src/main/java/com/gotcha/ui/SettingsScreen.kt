@@ -1546,6 +1546,9 @@ fun SettingsScreen(
                 )
             }
 
+            // Centered rather than bottom-aligned: under the keyboard area BottomCenter
+            // reads as a stray toast instead of feedback attached to the field that
+            // triggered the test (PR #60 review).
             OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.Center))
         } // Box
     }
@@ -1767,14 +1770,6 @@ private fun TtsVoicePicker(
     val defaultVoiceLabel = selectedModelObj?.defaultVoice
         ?: voicesList.firstOrNull()?.id
         ?: "the provider's default"
-    android.util.Log.d(
-        "TtsVoicePicker",
-        "render: selectedModel='$selectedModel', " +
-            "availableModels.size=${availableModels.size}, " +
-            "matched=${selectedModelObj?.id ?: "<none>"}, " +
-            "matchedVoices.size=${selectedModelObj?.voices?.size ?: 0}, " +
-            "voicesList.size=${voicesList.size}, selectedVoice='$selectedVoice'"
-    )
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = onExpandedChange
