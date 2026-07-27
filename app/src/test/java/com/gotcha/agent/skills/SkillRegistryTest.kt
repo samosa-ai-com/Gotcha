@@ -4,6 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -115,8 +116,10 @@ class SkillRegistryTest {
         SkillRegistry.importCommunity(json)
         val resolved = SkillRegistry.getSkillById("settings_operations")
         assertNotNull(resolved)
-        // Bundled wins — its instructions never get replaced.
-        assertTrue(resolved!!.instructions.contains("do NOT scroll"))
+        // Bundled wins — its instructions never get replaced. Asserted against the
+        // community text rather than a phrase from the bundled skill, so rewording
+        // the shipped skill cannot fail a test about shadowing.
+        assertNotEquals("shadowed", resolved!!.instructions)
     }
 
     @Test

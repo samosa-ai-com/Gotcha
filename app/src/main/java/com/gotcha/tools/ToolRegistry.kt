@@ -66,7 +66,7 @@ object ToolRegistry {
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
         "tap", "tap_index", "long_press", "long_press_index", "swipe", "input_text", "press_key",
-        "global_action", "open_app", "list_installed_apps", "search_skills",
+        "global_action", "open_app", "open_setting", "list_installed_apps", "search_skills",
         "sleep", "ask_final_answer"
     )
 
@@ -278,6 +278,25 @@ object ToolRegistry {
                         }
                     }
                     putJsonArray("required") { add("package_name") }
+                }
+            )
+        ),
+        "open_setting" to ToolDefinition(
+            function = FunctionDefinition(
+                "open_setting",
+                "Jump straight to an Android settings screen instead of searching in Settings. " +
+                    "One of: wifi, internet, mobile_data, nfc, bluetooth, location, airplane_mode, " +
+                    "battery_saver, display, sound, date_time, language, " +
+                    "input_method, storage, accessibility, default_apps, cast.",
+                buildJsonObject {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("setting") {
+                            put("type", "string")
+                            put("description", "Which settings screen to open")
+                        }
+                    }
+                    putJsonArray("required") { add("setting") }
                 }
             )
         ),

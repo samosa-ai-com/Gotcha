@@ -4,6 +4,70 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — tiered settings control (`open_setting`)
+
+Settings were previously reached one of two ways: silently through an Android API,
+or by asking the App Navigator to open the Settings app and search for the control.
+The second path is the least reliable thing the agent does, and it was being used
+even for settings with a documented direct intent. Two mechanisms Android does
+provide — `Settings.Panel.*` sheets and `ACTION_*_SETTINGS` deep links — went
+unused. Settings are now routed through four tiers, with the tier decided by what
+the platform actually permits rather than by preference.
+
+- **tools/SettingsRouter.kt** (new): the tier-2/3 routing table. 21 entries mapping
+  a setting name to a panel or deep-link intent, an SDK floor with a fallback
+  action, and a hint describing where the control sits on the screen that opens.
+  The routing decision (`decide` / `resolveAction`) is a `Context`-free companion
+  function so it is unit-testable on the JVM; only firing the intent needs a device.
+  An unknown key returns an error naming `navigate_app`, so a miss degrades to the
+  previous behaviour instead of dead-ending.
+- **tools/ToolDefinitions.kt**: added the `open_setting` schema (`setting`,
+  optional `confirmed`) and registered it in `all`. Corrected `toggle_wifi`'s
+  description, which claimed direct toggling worked "on Android 13+" — the reverse
+  is true: `WifiManager.setWifiEnabled` has been a no-op since API 29, so the
+  panel fallback is what runs on every current device.
+- **tools/ToolExecutor.kt**, **ToolCategories.kt**, **ToolRegistry.kt**: dispatch,
+  `FOREGROUND` narration category, and Operator + App Navigator availability
+  (including a trimmed navigator schema, without which `toolsForNavigator()` would
+  silently drop it).
+- **tools/SystemTool.kt**: the Wi-Fi fallback now goes through `SettingsRouter`
+  rather than a private duplicate of the same intent.
+- **Security-relevant screens require confirmation.** `developer_options`,
+  `lock_screen`, `vpn` and `device_admin` refuse until `confirmed=true`, directing
+  the agent to the existing `question` tool. This guards against accidental and
+  prompt-injected changes; it is not a security boundary, since `run_root_command`,
+  `write_secure_settings` and `navigate_app` reach the same screens.
+
+### Changed — silent settings changes now report what they overwrote
+
+A background change the user cannot observe was also one they were never told
+about. `set_volume` already reported its previous value; the rest now match.
+
+- **tools/SystemTool.kt**: `set_brightness` reports `Brightness 30% → 60%`, and
+  reports `auto` when adaptive brightness was on rather than quoting the
+  system-chosen value as if it were the user's setting.
+- **tools/DeviceTool.kt**: `set_dnd` and `set_ringer_mode` report their previous
+  state. `toggle_torch` deliberately does not — `CameraManager` has no synchronous
+  torch getter, and a flashlight is visible to the user anyway.
+- No undo tool: the model reverts by calling the setter again with the value it was
+  told, which avoids a stored revert overwriting something the user changed by hand
+  in the meantime.
+
+### Fixed — duplicate Settings skills
+
+`assets/skills/settings.json` and `assets/skills/settings/settings_search.json`
+both targeted `com.android.settings`. The asset walk is recursive and
+`SkillPromptBuilder` concatenates every match, so both were injected on every
+Settings turn with overlapping, partly contradictory advice ("ALWAYS look for a
+search bar" vs "start searching manually by swiping").
+
+- Deleted `settings/settings_search.json`; `settings.json` is now the single
+  Settings skill and teaches the tier order, with searching demoted to step 4.
+- Gated on `requiresTools: ["open_setting"]`.
+- **SkillRegistryTest**: the shadowing test asserted on a phrase from the shipped
+  skill's text; it now asserts against the community text, so rewording the skill
+  cannot fail a test about id collisions.
+
 ### Added — Samosa AI provider (Google authentication)
 
 Adds "Samosa AI" as an additional LLM provider alongside the existing

@@ -177,8 +177,9 @@ object ToolDefinitions {
 
     val toggleWifi = tool(
         "toggle_wifi",
-        "Turn Wi-Fi on or off directly (on Android 13+) or open the Wi-Fi settings panel for the " +
-            "user to toggle it (older Android). Reports whether Wi-Fi is currently enabled.",
+        "Turn Wi-Fi on or off. Android 10 and newer forbid apps from toggling the radio, so on " +
+            "any current device this opens the Wi-Fi panel for the user to flip instead — say so " +
+            "rather than claiming the radio changed. Direct toggling only works below Android 10.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("enabled") {
@@ -187,6 +188,38 @@ object ToolDefinitions {
                 }
             }
             putJsonArray("required") { add("enabled") }
+        }
+    )
+
+    val openSetting = tool(
+        "open_setting",
+        "Open an Android settings screen directly, for settings this app is not allowed to " +
+            "change on its own. Much more reliable than opening the Settings app and searching. " +
+            "Use it before navigate_app for anything it covers, then tap the control it " +
+            "describes. Valid values for 'setting': " +
+            "wifi, internet, mobile_data, nfc, bluetooth, location, airplane_mode, " +
+            "battery_saver, display, sound, date_time, language, input_method, " +
+            "storage, accessibility, default_apps, cast, developer_options, lock_screen, vpn, " +
+            "device_admin. For anything not listed, use navigate_app instead. " +
+            "Prefer the direct tools where they exist — set_volume, set_brightness, set_dnd, " +
+            "set_ringer_mode and toggle_torch change those without leaving the app.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("setting") {
+                    put("type", "string")
+                    put("description", "Which settings screen to open, e.g. 'location' or 'bluetooth'.")
+                }
+                putJsonObject("confirmed") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Set true only after the user has explicitly agreed. Required for the " +
+                            "security-relevant screens (developer_options, lock_screen, vpn, " +
+                            "device_admin), which otherwise refuse to open."
+                    )
+                }
+            }
+            putJsonArray("required") { add("setting") }
         }
     )
 
@@ -1821,7 +1854,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_search')."
+                        "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_operations')."
                     )
                 }
             }
@@ -2152,7 +2185,7 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
-        openApp, setBrightness, toggleWifi,
+        openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,

@@ -1,6 +1,0 @@
-{
-  "id": "settings_search",
-  "targetPackageNames": ["com.android.settings"],
-  "description": "Helps navigate Android Settings efficiently using search.",
-  "instructions": "In the Settings app, ALWAYS look for a search bar or search icon (magnifying glass) at the top/bottom of the screen. Tap it and use 'input_text' to search for the specific setting instead of scrolling manually in the home setting page. When you tap on it, you will see a keyboard appearing on the screen. Do not start typing on the keyboard. Use the tool 'input_text' and then use 'tap' tool to select the appropriate settings. Use the tool 'swipe' in order to see the hidden settings that are behind the keyboard."
-}

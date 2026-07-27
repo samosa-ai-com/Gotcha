@@ -13,13 +13,13 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tier | Tools | What it means |
 |---|---:|---|
-| `UNIT` | 19 | Plain JVM unit test — no Android framework needed. |
+| `UNIT` | 20 | Plain JVM unit test — no Android framework needed. |
 | `ROBOLECTRIC` | 17 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **100** | |
+| **Total** | **101** | |
 
-**36 of 100** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**37 of 101** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -33,6 +33,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `long_press_index` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `navigate_app` | `MANUAL_ONLY` | Nested navigator agent loop over a live accessibility service and a live LLM connection. |
 | `open_app` | `ROBOLECTRIC` | `SystemToolTest` — launch intent flags and the unknown-package message |
+| `open_setting` | `UNIT` | `SettingsRouterTest` — routing table integrity, SDK fallback selection, unknown-key fallback to navigate_app, and the confirm-first gate |
 | `press_key` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `read_screen` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `read_screen_raw` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
@@ -274,7 +275,7 @@ Run through this before a release. Each item is a tool with no automated coverag
   <br>_Why not automated:_ Pure UI round-trip: writes the visible todo list in the chat surface.
 - [ ] **`toggle_torch`** — Ask the agent to turn the torch on, then off; confirm the flash physically lights up.
   <br>_Why not automated:_ Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio.
-- [ ] **`toggle_wifi`** — Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio.
+- [ ] **`toggle_wifi`** — Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio. The panel is opened via SettingsRouter, so open_setting('wifi') must behave identically.
   <br>_Why not automated:_ The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier.
 - [ ] **`uninstall_app`** — Install a throwaway app, ask the agent to uninstall it; confirm the confirmation prompt appears, then that the system uninstall dialog opens and the app is removed.
   <br>_Why not automated:_ AgentLoopTest covers the CONFIRM_UNINSTALL marker and both sides of the confirmation gate, but the actual package removal is a system dialog that cannot be automated.

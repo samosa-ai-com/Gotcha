@@ -33,6 +33,7 @@ class ToolExecutor(
     private val appContext = context.applicationContext
     private val phoneTool = PhoneTool(appContext)
     private val systemTool = SystemTool(appContext)
+    private val settingsRouter = SettingsRouter(appContext)
     private val storageTool = StorageTool()
     private val fileTool = FileTool(appContext)
     private val terminalTool = TerminalTool()
@@ -197,6 +198,10 @@ class ToolExecutor(
             )
             "toggle_wifi" -> systemTool.toggleWifi(
                 args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
+            )
+            "open_setting" -> settingsRouter.open(
+                key = args.requireString("setting") ?: return missing("setting"),
+                confirmed = args["confirmed"]?.jsonPrimitive?.booleanOrNull ?: false
             )
             "set_wallpaper" -> wallpaperTool.setWallpaper(args.requireString("url"))
             "run_command" -> terminalTool.runCommand(
