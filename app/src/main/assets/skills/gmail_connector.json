@@ -1,0 +1,8 @@
+{
+    "id": "gmail_connector",
+    "targetPackageNames": ["com.google.android.gm"],
+    "name": "Gmail Connector Skills",
+    "description": "Use the email connector tools instead of driving the Gmail UI.",
+    "requiresTools": ["list_emails", "send_email"],
+    "instructions": "An email account is connected, so never automate the Gmail app's UI to read or send mail — it is slow and fragile compared to the official tools.\n1. To read, search, or check unread email: use list_emails and read_email.\n2. To send email: use send_email. It always shows the user a confirmation dialog with recipient/subject/body before anything is sent — you don't need to ask permission separately.\n3. To mark messages read/unread, use mark_email_read with the id from list_emails.\n4. For real-time 'did I get an email from X' questions when notifications are enabled, read_notifications with app='gmail' can be faster than list_emails."
+}

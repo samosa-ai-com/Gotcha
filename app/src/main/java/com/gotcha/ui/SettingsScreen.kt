@@ -60,6 +60,8 @@ import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
+import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
@@ -97,6 +99,12 @@ fun SettingsScreen(
     onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
     onThemeChange: (ThemeMode) -> Unit = {},
+    /**
+     * Persists the reply-alert switches on the spot. Like [onThemeChange], and
+     * unlike the section Save buttons, so a toggle here can't drag half-typed
+     * edits from another section into storage with it.
+     */
+    onNotifyAlertChange: (vibration: Boolean, chime: Boolean) -> Unit = { _, _ -> },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(
             emptyList(),
@@ -131,6 +139,7 @@ fun SettingsScreen(
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
     var maxRepeatedToolCalls by remember { mutableStateOf(initial.maxRepeatedToolCalls.toString()) }
     var maxNavigationToolCalls by remember { mutableStateOf(initial.maxNavigationToolCalls.toString()) }
+    var maxConsecutiveDelegations by remember { mutableStateOf(initial.maxConsecutiveDelegations.toString()) }
     var maxContextTokens by remember { mutableStateOf(initial.maxContextTokens.toString()) }
     var apiTimeoutSeconds by remember { mutableStateOf(initial.apiTimeoutSeconds.toString()) }
     // TTS / STT
@@ -145,6 +154,8 @@ fun SettingsScreen(
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
+    var notifyVibration by remember { mutableStateOf(initial.notifyVibrationEnabled) }
+    var notifyChime by remember { mutableStateOf(initial.notifyChimeEnabled) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
     var proactiveEnabled by remember { mutableStateOf(initial.proactiveEnabled) }
@@ -216,6 +227,7 @@ fun SettingsScreen(
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 300,
         maxRepeatedToolCalls = maxRepeatedToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 20,
         maxNavigationToolCalls = maxNavigationToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 30,
+        maxConsecutiveDelegations = maxConsecutiveDelegations.toIntOrNull()?.takeIf { it > 0 } ?: 3,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 70000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
         ttsProvider = ttsProvider,
@@ -229,6 +241,8 @@ fun SettingsScreen(
         sttApiModel = sttApiModel.trim(),
         sttLanguage = sttLanguage.trim(),
         autoReadReplies = autoReadReplies,
+        notifyVibrationEnabled = notifyVibration,
+        notifyChimeEnabled = notifyChime,
         assistiveBallEnabled = initial.assistiveBallEnabled,
         themeMode = themeMode,
         disabledSkills = disabledSkills,
@@ -349,6 +363,52 @@ fun SettingsScreen(
                             )
                         ) { Text(mode.label) }
                     }
+                }
+
+                HorizontalDivider(thickness = 1.dp)
+
+                // ---- Notifications (always visible, applies immediately) ----
+                Text(
+                    "Notifications",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Played as soon as a reply arrives. Turn both off for no alert.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                // Switching one on plays it once, so the user knows what to expect.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Vibration", style = MaterialTheme.typography.bodyLarge)
+                    Switch(
+                        checked = notifyVibration,
+                        onCheckedChange = {
+                            notifyVibration = it
+                            onNotifyAlertChange(it, notifyChime)
+                            if (it) CompletionFeedback.replyArrived(localContext, vibrate = true, chime = false)
+                        },
+                        modifier = Modifier.testTag("settings_notify_vibration")
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Chime", style = MaterialTheme.typography.bodyLarge)
+                    Switch(
+                        checked = notifyChime,
+                        onCheckedChange = {
+                            notifyChime = it
+                            onNotifyAlertChange(notifyVibration, it)
+                            if (it) CompletionFeedback.replyArrived(localContext, vibrate = false, chime = true)
+                        },
+                        modifier = Modifier.testTag("settings_notify_chime")
+                    )
                 }
 
                 HorizontalDivider(thickness = 1.dp)
@@ -619,6 +679,14 @@ fun SettingsScreen(
                             value = maxNavigationToolCalls,
                             onValueChange = { maxNavigationToolCalls = it },
                             label = { Text("Max navigation tool calls") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = maxConsecutiveDelegations,
+                            onValueChange = { maxConsecutiveDelegations = it },
+                            label = { Text("Max consecutive delegations") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth()
@@ -1478,7 +1546,10 @@ fun SettingsScreen(
                 )
             }
 
-            OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.BottomCenter))
+            // Centered rather than bottom-aligned: under the keyboard area BottomCenter
+            // reads as a stray toast instead of feedback attached to the field that
+            // triggered the test (PR #60 review).
+            OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.Center))
         } // Box
     }
 }
@@ -1663,7 +1734,18 @@ private fun TtsModelPicker(
     }
 }
 
-/** TTS voice picker — uses the model's voice list when available, otherwise a free-text field. */
+/** TTS voice picker — always renders a hybrid text+dropdown like [SttLanguagePicker].
+ *  Two-tier voice list:
+ *  1. The selected model's own [AudioModel.voices] (Kokoro names like `af_heart`,
+ *     `am_adam`, … that the server guarantees).
+ *  2. If the selected model has no voices (or no model matches [selectedModel]),
+ *     fall back to the union of every TTS model's voices in [availableModels] —
+ *     covers stale saved ids and provider switches.
+ *
+ *  No fabricated fallback. If [availableModels] carries no voices at all, the
+ *  dropdown still opens but only contains a single disabled hint item telling the
+ *  user to type. The [OutlinedTextField] is editable, so the user can always type
+ *  any voice ID, regardless of what (or nothing) the server returned. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TtsVoicePicker(
@@ -1676,55 +1758,61 @@ private fun TtsVoicePicker(
     onClearVoice: () -> Unit
 ) {
     val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
-    val modelVoices = selectedModelObj?.voices ?: emptyList()
-    if (modelVoices.isNotEmpty()) {
-        ExposedDropdownMenuBox(
+    val voicesList: List<VoiceInfo> = run {
+        val fromSelected = selectedModelObj?.voices.orEmpty()
+        if (fromSelected.isNotEmpty()) {
+            fromSelected
+        } else {
+            availableModels.flatMap { it.voices }
+        }
+    }
+    val hasAnyVoices = voicesList.isNotEmpty()
+    val defaultVoiceLabel = selectedModelObj?.defaultVoice
+        ?: voicesList.firstOrNull()?.id
+        ?: "the provider's default"
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = onExpandedChange
+    ) {
+        OutlinedTextField(
+            value = selectedVoice,
+            onValueChange = onSelect,
+            label = { Text("TTS Voice (optional)") },
+            placeholder = {
+                if (hasAnyVoices) {
+                    Text("Default ($defaultVoiceLabel) or pick below")
+                } else {
+                    Text("Type a voice ID — picker has no suggestions")
+                }
+            },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
             expanded = expanded,
-            onExpandedChange = onExpandedChange
+            onDismissRequest = { onExpandedChange(false) }
         ) {
-            val selectedVoiceObj = modelVoices.firstOrNull { it.id == selectedVoice }
-            val defaultObj = modelVoices.firstOrNull { it.id == selectedModelObj?.defaultVoice }
-            val defaultVoiceLabel = defaultObj?.displayLabel ?: selectedModelObj?.defaultVoice ?: "af_heart"
-            val voiceLabel = if (selectedVoice.isEmpty()) {
-                "Default ($defaultVoiceLabel)"
-            } else {
-                selectedVoiceObj?.displayLabel ?: selectedVoice
-            }
-            OutlinedTextField(
-                value = voiceLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("TTS Voice (optional)") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
+            DropdownMenuItem(
+                text = { Text("Default (clear)") },
+                onClick = onClearVoice
             )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { onExpandedChange(false) }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Default ($defaultVoiceLabel)") },
-                    onClick = onClearVoice
-                )
-                modelVoices.forEach { voiceInfo ->
+            if (hasAnyVoices) {
+                voicesList.forEach { voiceInfo ->
                     DropdownMenuItem(
                         text = { Text(voiceInfo.displayLabel) },
                         onClick = { onSelect(voiceInfo.id) }
                     )
                 }
+            } else {
+                DropdownMenuItem(
+                    text = { Text("No voices suggested — type a voice ID above") },
+                    onClick = { },
+                    enabled = false
+                )
             }
         }
-    } else {
-        OutlinedTextField(
-            value = selectedVoice,
-            onValueChange = { onSelect(it) },
-            label = { Text("TTS Voice (optional)") },
-            singleLine = true,
-            placeholder = { Text("e.g. af_heart, alloy, echo") },
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 

@@ -1,0 +1,7 @@
+{
+    "id": "outlook_ui",
+    "targetPackageNames": ["com.microsoft.office.outlook", "com.microsoft.todos"],
+    "name": "Outlook and Microsoft To Do UI Skills",
+    "description": "How to handle Outlook and To Do when the Microsoft connector isn't available.",
+    "instructions": "If list_emails or list_tasks are NOT in your tool list, no Microsoft account is connected. In that case:\n1. For mail, use compose_email to open a pre-filled draft in the user's own mail app. Mention that connecting Microsoft in the drawer menu ▸ Connectors adds inbox reading, sending and To Do.\n2. For to-dos, do NOT silently substitute todowrite — it is your own scratch plan for this conversation and vanishes afterwards, so the user's reminder would be lost. Say the list isn't connected, then offer either connecting it or driving the To Do app's UI.\n3. When driving either app's UI, use open_app + navigate_app. Outlook's own settings screens (signatures, swipe actions, account setup) always need the UI even when the connector is available."
+}

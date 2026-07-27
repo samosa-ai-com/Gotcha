@@ -1,5 +1,6 @@
 package com.gotcha.tools
 
+import com.gotcha.connectors.ConnectorCatalog
 import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import kotlinx.serialization.json.add
@@ -27,9 +28,15 @@ object ToolRegistry {
         "delete_timer"
     )
 
-    val monitorTools: Set<String> = setOf(
+    /**
+     * Read-only tools that belong to no connector. The connector-owned half of
+     * the Monitor set is contributed by [ConnectorCatalog] so the two can never
+     * drift — adding a connector read tool in one place used to require
+     * remembering to add it here too.
+     */
+    private val baseMonitorTools: Set<String> = setOf(
         "dial_number", "read_call_log", "find_contact", "read_recent_sms",
-        "list_calendar_events", "check_availability",
+        "list_calendar_events",
         "get_storage_info", "get_battery_info", "get_location", "get_volume",
         "get_audio_recording_status",
         "get_app_usage", "get_data_usage",
@@ -38,19 +45,23 @@ object ToolRegistry {
         "todowrite", "list_alarms", "list_timers", "show_alarms",
         "question",
         "sleep",
+        "finish_task",
         "websearch", "webfetch",
         "get_clipboard",
         "read_screen", "read_notifications",
         "check_root", "search_skills",
-        "list_emails", "read_email",
-        "list_tasks",
-        "notion_search", "notion_read_page",
         "get_health_summary", "get_health_records",
         "get_now_playing"
     )
 
-    /** Full Operator tool set minus task + navigate_app (sub-agents cannot delegate further). */
-    val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app")
+    val monitorTools: Set<String> = baseMonitorTools + ConnectorCatalog.monitorTools
+
+    /**
+     * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
+     * further) and minus finish_task, which ends the *top-level* run — a sub-agent
+     * reports back with ask_final_answer instead.
+     */
+    val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app", "finish_task")
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
@@ -59,7 +70,20 @@ object ToolRegistry {
         "sleep", "ask_final_answer"
     )
 
-    private val operatorTools: Set<String> = definitions.keys
+    /**
+     * Everything except ask_final_answer, which is a sub-agent-to-parent control
+     * signal: [SubAgentSession] and [AppNavigatorSession] treat it as "stop here",
+     * while the top-level loop has no such handling and would silently keep going.
+     * The top-level equivalent is finish_task.
+     */
+    private val operatorTools: Set<String> = definitions.keys - setOf("ask_final_answer")
+
+    /**
+     * Tools that hand the whole job to a sub-agent and return only a text report.
+     * The engine counts consecutive rounds made up solely of these to catch
+     * re-delegation loops.
+     */
+    val delegationTools: Set<String> = setOf("task", "navigate_app")
 
     /** Trimmed tool definitions for the App Navigator (shorter descriptions = fewer tokens). */
     private val navigatorDefinitions: Map<String, ToolDefinition> = mapOf(
@@ -317,20 +341,40 @@ object ToolRegistry {
 
     fun isDestructive(name: String): Boolean = name in destructiveTools
 
-    fun isAllowedForAgent(name: String, agent: AgentMode): Boolean = when (agent) {
-        AgentMode.MONITOR -> name in monitorTools
-        AgentMode.OPERATOR -> name in operatorTools
+    fun isAllowedForAgent(
+        name: String,
+        agent: AgentMode,
+        hiddenTools: Set<String> = emptySet()
+    ): Boolean {
+        if (name in hiddenTools) return false
+        return when (agent) {
+            AgentMode.MONITOR -> name in monitorTools
+            AgentMode.OPERATOR -> name in operatorTools
+        }
     }
 
-    fun isAllowedForSubAgent(name: String): Boolean = name in subAgentTools
+    fun isAllowedForSubAgent(name: String, hiddenTools: Set<String> = emptySet()): Boolean =
+        name !in hiddenTools && name in subAgentTools
 
-    fun toolsForAgent(agent: AgentMode): List<ToolDefinition> = when (agent) {
-        AgentMode.MONITOR -> definitions.filterKeys { it in monitorTools }.values.toList()
-        AgentMode.OPERATOR -> definitions.values.toList()
+    /**
+     * Tool schemas to send for [agent], minus [hiddenTools] — connector-owned
+     * tools nothing can currently serve. Withholding them is both a token saving
+     * and a correctness fix: the model can no longer spend a round calling a tool
+     * whose only possible reply is "not connected".
+     */
+    fun toolsForAgent(
+        agent: AgentMode,
+        hiddenTools: Set<String> = emptySet()
+    ): List<ToolDefinition> {
+        val allowed = when (agent) {
+            AgentMode.MONITOR -> monitorTools
+            AgentMode.OPERATOR -> operatorTools
+        }
+        return definitions.filterKeys { it in allowed && it !in hiddenTools }.values.toList()
     }
 
-    fun toolsForSubAgent(): List<ToolDefinition> =
-        definitions.filterKeys { it in subAgentTools }.values.toList()
+    fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> =
+        definitions.filterKeys { it in subAgentTools && it !in hiddenTools }.values.toList()
 
     fun toolsForNavigator(): List<ToolDefinition> =
         navigatorTools.mapNotNull { navigatorDefinitions[it] }

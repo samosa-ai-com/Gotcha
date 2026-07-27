@@ -1,0 +1,7 @@
+{
+    "id": "gmail_ui",
+    "targetPackageNames": ["com.google.android.gm"],
+    "name": "Gmail UI Skills",
+    "description": "How to handle Gmail when the email tools can't do the job.",
+    "instructions": "Reading and sending mail belongs to the email tools whenever they are in your tool list. Use the Gmail app's UI only for what they cannot do:\n1. If list_emails and send_email are NOT in your tool list, no email account is connected. Use compose_email to open a pre-filled draft in the user's own mail app, and tell them they can connect an account in the drawer menu ▸ Connectors for full read access. Do not try to read the inbox by tapping through the app to work around this.\n2. For Gmail's own settings screens (signatures, swipe actions, notification settings, adding an account), drive the UI with open_app + navigate_app — no tool covers those.\n3. When you do drive the UI, expect the conversation list to be dense: prefer navigate_app over raw taps so the sub-agent can read the screen between steps."
+}

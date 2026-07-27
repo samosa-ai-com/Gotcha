@@ -87,6 +87,7 @@ class MicrosoftConnector(
         "complete_task"
     )
     override val idPrefix = "ms"
+    override val spec = com.gotcha.connectors.ConnectorCatalog.MICROSOFT
 
     @Volatile
     private var credentials: MicrosoftCredentials? = store.loadRaw(id)?.let { blob ->

@@ -448,6 +448,15 @@ class MainActivity : ComponentActivity() {
                             themeMode = mode
                             settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
                         },
+                        onNotifyAlertChange = { vibration, chime ->
+                            settingsRepository.save(
+                                settingsRepository.load().copy(
+                                    notifyVibrationEnabled = vibration,
+                                    notifyChimeEnabled = chime
+                                )
+                            )
+                            chatViewModel.refreshSettings()
+                        },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl
@@ -515,8 +524,15 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Route.CONNECTORS -> {
-                    BackHandler { currentRoute = Route.HOME }
-                    ConnectorsScreen(onBack = { currentRoute = Route.HOME })
+                    // refreshSettings() on the way out, like every other route: the
+                    // enable/disable toggles write disabledConnectors, and the agent
+                    // reads it from ChatViewModel's cached Settings.
+                    val leaveConnectors = {
+                        chatViewModel.refreshSettings()
+                        currentRoute = Route.HOME
+                    }
+                    BackHandler { leaveConnectors() }
+                    ConnectorsScreen(onBack = leaveConnectors)
                 }
                 Route.HOME -> {
                     // Back from an active chat returns to a fresh home (new session,

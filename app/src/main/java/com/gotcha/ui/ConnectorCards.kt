@@ -2,12 +2,14 @@ package com.gotcha.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -51,6 +54,33 @@ private fun CardHeader(title: String, status: String, blurb: String?, steps: Lis
     }
 }
 
+/**
+ * The enable/disable switch, shown only once a connector is connected. Distinct
+ * from Disconnect: switching off keeps the credentials (re-enabling needs no
+ * re-auth) but withholds the connector's tools and skills from the assistant.
+ */
+@Composable
+private fun EnabledRow(enabled: Boolean, onEnabledChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Enabled", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (enabled) {
+                    "The assistant can use this connector's tools."
+                } else {
+                    "Switched off — tools hidden, sign-in kept."
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        Switch(checked = enabled, onCheckedChange = onEnabledChange)
+    }
+}
+
 @Composable
 fun TokenConnectorCard(
     title: String,
@@ -60,6 +90,10 @@ fun TokenConnectorCard(
     /** Performs the connect (may hit the network) and returns the status message to show. */
     onConnect: suspend () -> String,
     onDisconnect: () -> Unit,
+    /** Current enable state; only meaningful once connected. */
+    enabled: Boolean = true,
+    /** Null hides the enable switch entirely. */
+    onEnabledChange: ((Boolean) -> Unit)? = null,
     blurb: String? = null,
     steps: List<String> = emptyList(),
     canConnect: () -> Boolean = { fields.all { it.value.isNotBlank() } },
@@ -105,6 +139,7 @@ fun TokenConnectorCard(
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (busy) "Connecting…" else "Connect") }
         } else {
+            if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange)
             OutlinedButton(
                 onClick = {
                     onDisconnect()
@@ -130,6 +165,10 @@ fun OAuthConnectorCard(
     initialClientSecret: String?,
     flow: OAuthConnectFlow,
     onDisconnect: () -> Unit,
+    /** Current enable state; only meaningful once connected. */
+    enabled: Boolean = true,
+    /** Null hides the enable switch entirely. */
+    onEnabledChange: ((Boolean) -> Unit)? = null,
     blurb: String? = null,
     steps: List<String> = emptyList(),
     extraFields: @Composable () -> Unit = {}
@@ -222,6 +261,7 @@ fun OAuthConnectorCard(
                 ) { Text("Finish sign-in with pasted URL") }
             }
         } else {
+            if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange)
             OutlinedButton(
                 onClick = {
                     onDisconnect()

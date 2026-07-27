@@ -28,6 +28,15 @@ data class Settings(
     val maxToolRounds: Int = 300,
     val maxRepeatedToolCalls: Int = 20,
     val maxNavigationToolCalls: Int = 30,
+    /**
+     * How many consecutive rounds may consist only of delegation tools
+     * (`task`, `navigate_app`) before the run is stopped. A sub-agent hands
+     * back a text report and nothing else, so a round that only delegates
+     * shows the model no new evidence — repeating it is the re-delegation
+     * loop from issue #20, which the byte-identical guard cannot see because
+     * each call carries a freshly rephrased task string.
+     */
+    val maxConsecutiveDelegations: Int = 3,
     val maxContextTokens: Int = 70000,
     val apiTimeoutSeconds: Long = 0L,
     // TTS / STT settings
@@ -42,9 +51,23 @@ data class Settings(
     val sttApiModel: String = "",
     val sttLanguage: String = "",
     val autoReadReplies: Boolean = false,
+    /**
+     * Buzz when a reply arrives. On by default: a reply can land while the user
+     * is in another app, and the pattern is distinct from the error buzz so it
+     * says *how* the turn ended, not just that it did.
+     */
+    val notifyVibrationEnabled: Boolean = true,
+    /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
+    val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val disabledSkills: Set<String> = emptySet(),
+    /**
+     * Ids of connectors the user switched off. Credentials survive (re-enabling
+     * needs no re-auth), but the connector contributes no tools and its skills
+     * stop being injected.
+     */
+    val disabledConnectors: Set<String> = emptySet(),
     // Proactive Assistance Settings
     val proactiveEnabled: Boolean = true,
     val proactiveScanScreen: Boolean = true,
@@ -166,6 +189,9 @@ class SettingsRepository(context: Context) {
         )
     }
 
+    private fun stringSet(key: String, default: Set<String> = emptySet()): Set<String> =
+        prefs.getStringSet(key, default) ?: default
+
     fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = prefs.getString(KEY_API_KEY, "") ?: "",
@@ -179,6 +205,7 @@ class SettingsRepository(context: Context) {
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 300),
         maxRepeatedToolCalls = prefs.getInt(KEY_MAX_REPEATED_TOOL_CALLS, 20),
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
+        maxConsecutiveDelegations = prefs.getInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, 3),
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = runCatching {
@@ -196,22 +223,24 @@ class SettingsRepository(context: Context) {
         sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
         sttLanguage = prefs.getString(KEY_STT_LANGUAGE, "") ?: "",
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
+        notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
+        notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         themeMode = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
         }.getOrDefault(ThemeMode.SYSTEM),
-        disabledSkills = prefs.getStringSet(KEY_DISABLED_SKILLS, emptySet()) ?: emptySet(),
+        disabledSkills = stringSet(KEY_DISABLED_SKILLS),
+        disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
         proactiveScanScreen = prefs.getBoolean(KEY_PROACTIVE_SCAN_SCREEN, true),
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
         proactiveScanNotifications = prefs.getBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, true),
         proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
-        proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet(),
+        proactiveAppBlacklist = stringSet(KEY_PROACTIVE_BLACKLIST),
         preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
         preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD",
-        communitySkillHosts = prefs.getStringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
-            ?: defaultCommunitySkillHosts
+        communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
     )
 
     fun save(settings: Settings) {
@@ -227,6 +256,7 @@ class SettingsRepository(context: Context) {
             .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
             .putInt(KEY_MAX_REPEATED_TOOL_CALLS, settings.maxRepeatedToolCalls)
             .putInt(KEY_MAX_NAVIGATION_TOOL_CALLS, settings.maxNavigationToolCalls)
+            .putInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, settings.maxConsecutiveDelegations)
             .putInt(KEY_MAX_CONTEXT_TOKENS, settings.maxContextTokens)
             .putLong(KEY_API_TIMEOUT, settings.apiTimeoutSeconds)
             .putString(KEY_TTS_PROVIDER, settings.ttsProvider.name)
@@ -240,9 +270,12 @@ class SettingsRepository(context: Context) {
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
+            .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
+            .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_THEME_MODE, settings.themeMode.name)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
+            .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
             .putBoolean(KEY_PROACTIVE_SCAN_SCREEN, settings.proactiveScanScreen)
             .putBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, settings.proactiveScanClipboard)
@@ -284,6 +317,7 @@ class SettingsRepository(context: Context) {
         const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"
         const val KEY_MAX_REPEATED_TOOL_CALLS = "max_repeated_tool_calls"
         const val KEY_MAX_NAVIGATION_TOOL_CALLS = "max_navigation_tool_calls"
+        const val KEY_MAX_CONSECUTIVE_DELEGATIONS = "max_consecutive_delegations"
         const val KEY_MAX_CONTEXT_TOKENS = "max_context_tokens"
         const val KEY_API_TIMEOUT = "api_timeout"
         const val KEY_TTS_PROVIDER = "tts_provider"
@@ -297,9 +331,12 @@ class SettingsRepository(context: Context) {
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_STT_LANGUAGE = "stt_language"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_NOTIFY_VIBRATION = "notify_vibration"
+        const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
+        const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"
         const val KEY_PROACTIVE_SCAN_SCREEN = "proactive_scan_screen"
         const val KEY_PROACTIVE_SCAN_CLIPBOARD = "proactive_scan_clipboard"

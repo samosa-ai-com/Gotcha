@@ -108,20 +108,33 @@ object SkillRegistry {
 
     fun getSkillById(id: String): Skill? = merged.find { it.id == id }
 
-    fun getSkillsForPackage(packageName: String): List<Skill> {
+    /**
+     * Skills targeting [packageName], minus any whose tools are all withheld
+     * this turn (see [Skill.requiresTools]). [hiddenTools] defaults to empty, so
+     * callers that do not gate get every matching skill as before.
+     */
+    fun getSkillsForPackage(
+        packageName: String,
+        hiddenTools: Set<String> = emptySet()
+    ): List<Skill> {
         return merged.filter { skill ->
-            skill.targetPackageNames.contains(packageName) ||
-                skill.targetPackageNames.contains("*")
+            (
+                skill.targetPackageNames.contains(packageName) ||
+                    skill.targetPackageNames.contains("*")
+                ) && skill.isAvailable(hiddenTools)
         }
     }
 
-    fun searchSkills(query: String): List<Skill> {
+    /** Same gating as [getSkillsForPackage] — a hidden skill is unreachable by both channels. */
+    fun searchSkills(query: String, hiddenTools: Set<String> = emptySet()): List<Skill> {
         val q = query.lowercase()
         return merged.filter { skill ->
-            skill.id.lowercase().contains(q) ||
-                skill.description.lowercase().contains(q) ||
-                skill.title.lowercase().contains(q) ||
-                skill.targetPackageNames.any { it.lowercase().contains(q) }
+            (
+                skill.id.lowercase().contains(q) ||
+                    skill.description.lowercase().contains(q) ||
+                    skill.title.lowercase().contains(q) ||
+                    skill.targetPackageNames.any { it.lowercase().contains(q) }
+                ) && skill.isAvailable(hiddenTools)
         }
     }
 

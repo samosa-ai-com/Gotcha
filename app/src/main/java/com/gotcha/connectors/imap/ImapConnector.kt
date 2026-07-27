@@ -75,6 +75,7 @@ class ImapConnector(
     override val toolNames =
         setOf("list_emails", "read_email", "send_email", "mark_email_read")
     override val idPrefix = "imap"
+    override val spec = com.gotcha.connectors.ConnectorCatalog.IMAP
 
     private val json = Json { ignoreUnknownKeys = true }
     private var cachedStore: Store? = null

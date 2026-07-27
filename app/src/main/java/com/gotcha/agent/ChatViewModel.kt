@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
@@ -148,6 +149,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** Agent mode of the session currently bound to [agentEngine]. */
     private var engineAgent: AgentMode = AgentMode.MONITOR
 
+    /**
+     * True when the run in flight has surfaced an error bubble (LLM failure,
+     * user interruption, …). Decides whether an arriving reply gets the normal
+     * alert or the error buzz, since the engine reports both outcomes through
+     * the same `onAssistantReply` path.
+     */
+    @Volatile
+    private var runHadError = false
+
     /** True when the session the user is viewing is the one bound to the engine. */
     private fun viewingEngineSession(): Boolean =
         _uiState.value.activeSessionId == agentEngine.sessionId
@@ -219,6 +229,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     override fun onAssistantReply(text: String) {
+        signalReplyArrived()
         val shouldRead = lastInputWasVoice ||
             (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
         if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
@@ -371,6 +382,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     runningSessionTitle = runningTitle
                 )
             }
+            runHadError = false
             try {
                 agentEngine.run(engineAgent)
             } catch (_: CancellationException) {
@@ -391,6 +403,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     agentJob = null
                 }
             }
+        }
+    }
+
+    /**
+     * Buzz/chime as a reply lands. The chat screen has no spoken "I'm done"
+     * unless auto-read is on, so without this a reply that arrives while the
+     * user is elsewhere goes unnoticed.
+     */
+    private fun signalReplyArrived() {
+        if (runHadError) {
+            CompletionFeedback.error(getApplication())
+        } else {
+            CompletionFeedback.replyArrived(
+                context = getApplication(),
+                vibrate = settings.notifyVibrationEnabled,
+                chime = settings.notifyChimeEnabled
+            )
         }
     }
 
@@ -871,6 +900,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     ) {
         val viewing = viewingEngineSession()
         val id = if (viewing) nextId++ else engineNextId++
+        if (kind == MessageKind.ERROR) runHadError = true
         val message = UiMessage(id, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent)
         engineTranscript = engineTranscript + message
         if (viewing) {

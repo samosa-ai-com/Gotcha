@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 19 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 16 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 17 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **99** | |
+| **Total** | **100** | |
 
-**35 of 99** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**36 of 100** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -101,6 +101,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `check_availability` | `UNIT` | `CalendarWindowTest` — free/busy window arithmetic |
 | `check_root` | `MANUAL_ONLY` | Probes for a real `su` binary; the result is meaningless on a non-rooted test device. |
 | `find_contact` | `MANUAL_ONLY` | Needs a populated Contacts ContentProvider; Robolectric's provider fakes do not support the full ContactsContract query surface used by this tool. |
+| `finish_task` | `ROBOLECTRIC` | `FinishTaskToolTest` — covers the FINISH_TASK: marker and which agents may emit it; that AgentEngine ends the run and speaks the summary needs a live LLM and is manual |
 | `get_app_usage` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `get_audio_recording_status` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `get_battery_info` | `ROBOLECTRIC` | `SystemToolTest` — reports a percentage without throwing |
