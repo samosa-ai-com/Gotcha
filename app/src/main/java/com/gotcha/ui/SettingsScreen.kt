@@ -1546,7 +1546,7 @@ fun SettingsScreen(
                 )
             }
 
-            OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.BottomCenter))
+            OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.Center))
         } // Box
     }
 }
