@@ -54,18 +54,18 @@ val BrandMagentaInk = Color(0xFFB02A83)
 
 // ---- Aura: greyscale fog, rose as the only chroma on screen ----
 val AuraGround = Color(0xFF0A0A0B)
-val AuraPanel = Color(0x12FFFFFF)
-val AuraPanelHigh = Color(0x1FFFFFFF)
+val AuraPanel = Color(0x1FFFFFFF)
+val AuraPanelHigh = Color(0x30FFFFFF)
 val AuraInk = Color(0xFFF6F6F7)
 val AuraInkDim = Color(0xFFA2A2A8)
-val AuraOutline = Color(0xFF3A3A3E)
+val AuraOutline = Color(0xFF57575E)
 val AuraRoseContainer = Color(0xFF4A0F2C)
 val AuraOnRoseContainer = Color(0xFFFFD9E4)
 
 // ---- Vellum: the icon's own white field, turned into an interface ----
 val VellumGround = Color(0xFFF1EFF2)
-val VellumPanel = Color(0x8CFFFFFF)
-val VellumPanelHigh = Color(0xB3FFFFFF)
+val VellumPanel = Color(0x9EFFFFFF)
+val VellumPanelHigh = Color(0xC7FFFFFF)
 val VellumInk = Color(0xFF17111A)
 val VellumInkDim = Color(0xFF6A5F70)
 val VellumOutline = Color(0xFF867A88)
@@ -74,8 +74,8 @@ val VellumOnMagentaContainer = Color(0xFF3A0028)
 
 // ---- Orchid: one saturated violet ground, coral for every action ----
 val OrchidGround = BrandViolet
-val OrchidPanel = Color(0x29FFFFFF)
-val OrchidPanelHigh = Color(0x3DFFFFFF)
+val OrchidPanel = Color(0x40FFFFFF)
+val OrchidPanelHigh = Color(0x59FFFFFF)
 val OrchidInk = Color(0xFFFFFFFF)
 val OrchidInkDim = Color(0xFFEBD4EF)
 val OrchidOutline = Color(0xFFB878BE)
@@ -84,8 +84,8 @@ val OrchidCoralContainer = Color(0xFF6E1443)
 
 // ---- Nocturne: the icon's facets at wallpaper scale, behind dark glass ----
 val NocturneGround = Color(0xFF0A050E)
-val NocturnePanel = Color(0x851A1020)
-val NocturnePanelHigh = Color(0x261A1020)
+val NocturnePanel = Color(0x8F1A1020)
+val NocturnePanelHigh = Color(0x40FFFFFF)
 val NocturneInk = Color(0xFFF7EAF1)
 val NocturneInkDim = Color(0xFFB69EC0)
 val NocturneOutline = Color(0xFF4A3355)

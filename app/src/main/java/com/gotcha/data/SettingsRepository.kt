@@ -6,13 +6,6 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.gotcha.audio.AudioProvider
 
-/** In-app theme override; SYSTEM follows the device dark-mode setting. */
-enum class ThemeMode(val label: String) {
-    SYSTEM("System"),
-    LIGHT("Light"),
-    DARK("Dark")
-}
-
 data class Settings(
     // Which LLM backend is active. Defaults to the original OpenAI-compatible flow.
     val provider: LlmProvider = LlmProvider.OPENAI_COMPATIBLE,
@@ -60,7 +53,6 @@ data class Settings(
     /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
     val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     // ---- Appearance (Settings ▸ Appearance) ----
     /**
      * Which skin is painted. Stored as the id string rather than an enum so a
@@ -68,11 +60,6 @@ data class Settings(
      * value it no longer knows.
      */
     val skinId: String = "deepspace",
-    /**
-     * Swap a paired skin (Aura ⇄ Vellum) for its twin when the device flips
-     * between light and dark, rather than keeping one of them in both.
-     */
-    val matchSystemBrightness: Boolean = true,
     /**
      * Solid panels, no wallpaper. Android has no system-level "reduce
      * transparency", so this is the only way for someone to ask for one.
@@ -242,6 +229,21 @@ class SettingsRepository(context: Context) {
     private fun string(key: String, default: String = ""): String =
         prefs.getString(key, default) ?: default
 
+    /**
+     * The chosen skin, migrating anyone who was on the old Deep Space + "Light"
+     * combination. That pairing used to be two settings; it is one skin now, and
+     * silently moving them to the dark one would repaint an app they had
+     * deliberately set light.
+     */
+    private fun resolvedSkinId(): String {
+        val stored = prefs.getString(KEY_SKIN_ID, null)
+        if (stored != null) return stored
+        val legacy = prefs.getString(KEY_LEGACY_THEME_MODE, null)
+        val id = if (legacy == "LIGHT") SKIN_DEEP_SPACE_LIGHT else SKIN_DEEP_SPACE_DARK
+        prefs.edit().putString(KEY_SKIN_ID, id).apply()
+        return id
+    }
+
     fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = string(KEY_API_KEY),
@@ -275,11 +277,7 @@ class SettingsRepository(context: Context) {
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
-        themeMode = runCatching {
-            ThemeMode.valueOf(string(KEY_THEME_MODE, "SYSTEM"))
-        }.getOrDefault(ThemeMode.SYSTEM),
-        skinId = string(KEY_SKIN_ID, "deepspace"),
-        matchSystemBrightness = prefs.getBoolean(KEY_MATCH_SYSTEM_BRIGHTNESS, true),
+        skinId = resolvedSkinId(),
         reduceTransparency = prefs.getBoolean(KEY_REDUCE_TRANSPARENCY, false),
         frostPercent = prefs.getInt(KEY_FROST_PERCENT, 100),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
@@ -331,9 +329,7 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
-            .putString(KEY_THEME_MODE, settings.themeMode.name)
             .putString(KEY_SKIN_ID, settings.skinId)
-            .putBoolean(KEY_MATCH_SYSTEM_BRIGHTNESS, settings.matchSystemBrightness)
             .putBoolean(KEY_REDUCE_TRANSPARENCY, settings.reduceTransparency)
             .putInt(KEY_FROST_PERCENT, settings.frostPercent)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
@@ -401,9 +397,12 @@ class SettingsRepository(context: Context) {
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"
         const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
-        const val KEY_THEME_MODE = "theme_mode"
         const val KEY_SKIN_ID = "skin_id"
-        const val KEY_MATCH_SYSTEM_BRIGHTNESS = "match_system_brightness"
+
+        /** Only read by [resolvedSkinId]'s migration; never written any more. */
+        const val KEY_LEGACY_THEME_MODE = "theme_mode"
+        const val SKIN_DEEP_SPACE_DARK = "deepspace"
+        const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
         const val KEY_REDUCE_TRANSPARENCY = "reduce_transparency"
         const val KEY_FROST_PERCENT = "frost_percent"
         const val KEY_DISABLED_SKILLS = "disabled_skills"

@@ -133,8 +133,8 @@ private val Facets = listOf(
     listOf(0.78f to 0.72f, 1f to 0.34f, 1f to 1f)
 )
 
-/** Held back so the shards read as colour under glass, not as a games console. */
-private val FacetAlpha = listOf(0.62f, 0.44f, 0.72f, 0.34f, 0.56f, 0.40f, 0.66f)
+/** Varied so adjacent shards separate; the glass over them does the softening. */
+private val FacetAlpha = listOf(0.92f, 0.62f, 1f, 0.52f, 0.84f, 0.58f, 0.96f)
 
 private fun DrawScope.drawFacets(stops: List<Color>) {
     if (stops.isEmpty()) return

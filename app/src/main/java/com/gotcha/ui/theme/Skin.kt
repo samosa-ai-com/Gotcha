@@ -13,25 +13,14 @@ import androidx.compose.ui.unit.dp
  * painted behind the chrome, how translucent that chrome is, and how round it
  * is. Material 3's [ColorScheme] has nowhere to put the last three, so they
  * live here and travel beside it through [LocalSkin].
+ *
+ * One skin is one look. There is no light/dark axis on top: a theme that has to
+ * work in two brightnesses is two designs sharing a name, and the compromise
+ * shows in both. Deep Space ships as two entries for exactly that reason.
  */
 
-/** How a skin answers the device's light/dark setting. */
-enum class Brightness {
-    /** Carries both palettes and switches between them. Deep Space only. */
-    ADAPTIVE,
-
-    /** A daylight skin. Pairs with a dark one via [Skin.pairedWith]. */
-    LIGHT,
-
-    /** A night skin. Pairs with a light one via [Skin.pairedWith]. */
-    DARK,
-
-    /**
-     * Reads the same at noon and midnight. A saturated ground has no honest
-     * darker twin — dimming it for night mode only makes it muddy.
-     */
-    FIXED
-}
+/** Which way round a skin is, for the system bars and the picker's caption. */
+enum class Brightness { LIGHT, DARK }
 
 /** What gets painted behind the translucent chrome. */
 enum class Backdrop {
@@ -53,14 +42,11 @@ enum class Backdrop {
  *   bars sit on, which is why it is a field rather than read back off the scheme.
  * @param wallpaper stops the backdrop painter reads. Empty for [Backdrop.NONE].
  * @param frost blur radius applied to the backdrop when the device can do it
- *   live. `0.dp` means the skin never frosts.
+ *   live. Deliberately moderate: blur far enough and the wallpaper stops having
+ *   any structure to see through the glass, which is the whole effect.
  * @param grain film-grain opacity over the ground, 0f–1f.
- * @param darkSystemBarIcons true when the bars sit on a light ground and their
- *   icons must be dark. Derived from the skin and never from the system's
- *   dark-mode flag: Orchid is a dark violet ground that needs light icons even
- *   when the phone is in light mode, and getting this from `isSystemInDarkTheme`
- *   is how the clock disappears.
- * @param pairedWith the skin to swap to when "Match system light & dark" is on.
+ * @param scrim a veil of [ground] over the wallpaper, 0f–1f, so body text is
+ *   never fighting whatever the wallpaper is doing underneath it.
  */
 data class Skin(
     val id: String,
@@ -69,40 +55,29 @@ data class Skin(
     val brightness: Brightness,
     val backdrop: Backdrop,
     val ground: Color,
-    private val schemeLight: ColorScheme,
-    private val schemeDark: ColorScheme,
+    val scheme: ColorScheme,
     val wallpaper: List<Color> = emptyList(),
     val frost: Dp = 0.dp,
     val grain: Float = 0f,
-    /**
-     * A veil of [ground] laid over the wallpaper, 0f–1f. Glass buys depth at the
-     * cost of contrast: body text ends up sitting on whatever the wallpaper is
-     * doing underneath it. The veil pulls the wallpaper's range in so the text
-     * always wins, and the louder the wallpaper the more of it there is.
-     */
     val scrim: Float = 0f,
-    val corner: Dp = 20.dp,
-    val darkSystemBarIcons: Boolean = false,
-    val pairedWith: String? = null
+    val corner: Dp = 20.dp
 ) {
-    /** [dark] only changes anything for [Brightness.ADAPTIVE] skins. */
-    fun scheme(dark: Boolean): ColorScheme = if (dark) schemeDark else schemeLight
-
-    /** True when this skin has something to say about light and dark at all. */
-    val followsSystem: Boolean
-        get() = brightness == Brightness.ADAPTIVE || pairedWith != null
-
     /** True when the chrome is meant to be see-through. */
     val isGlass: Boolean
         get() = backdrop != Backdrop.NONE
 
     /**
-     * What the window should be painted before Compose draws anything. A glass
-     * skin has a ground of its own; an opaque one is whatever its scheme says
-     * the background is, which depends on [dark].
+     * True when the system bars sit on a light ground and their icons must be
+     * dark. Derived from the skin and never from the device's dark-mode flag:
+     * Orchid is a dark violet ground that needs light icons whatever the phone
+     * thinks the time of day is.
      */
-    fun launchGround(dark: Boolean): Color =
-        if (isGlass) ground else scheme(dark).background
+    val darkSystemBarIcons: Boolean
+        get() = brightness == Brightness.LIGHT
+
+    /** What the window is painted before Compose draws anything. */
+    val launchGround: Color
+        get() = if (isGlass) ground else scheme.background
 
     /**
      * The same skin with its frost dialled to [percent] of what it was designed
@@ -112,7 +87,7 @@ data class Skin(
      */
     fun withFrost(percent: Int): Skin {
         if (percent >= 100 || !isGlass) return this
-        val factor = (percent.coerceIn(0, 100)) / 100f
+        val factor = percent.coerceIn(0, 100) / 100f
         return copy(frost = frost * factor, scrim = scrim * factor)
     }
 
@@ -128,8 +103,7 @@ data class Skin(
             backdrop = Backdrop.NONE,
             grain = 0f,
             scrim = 0f,
-            schemeLight = schemeLight.flattenOnto(ground),
-            schemeDark = schemeDark.flattenOnto(ground)
+            scheme = scheme.flattenOnto(ground)
         )
     }
 }
@@ -160,7 +134,7 @@ private fun Color.over(background: Color): Color {
 private val DeepSpaceGround = DeepSpace
 
 /** The skin in force. Read it for anything [ColorScheme] cannot express. */
-val LocalSkin = staticCompositionLocalOf { Skins.DeepSpace }
+val LocalSkin = staticCompositionLocalOf { Skins.DeepSpaceDark }
 
 // ---------------------------------------------------------------------------
 // The catalogue
@@ -276,22 +250,6 @@ private val NocturneScheme = darkColorScheme(
 object Skins {
 
     /**
-     * What shipped, untouched: opaque slate, cyan primary, Material 3
-     * elevation. It stays the default so an update never surprises anyone, and
-     * it is the fallback whenever glass is unavailable.
-     */
-    val DeepSpace = Skin(
-        id = "deepspace",
-        label = "Deep Space",
-        tagline = "The original. Opaque, cyan, no wallpaper.",
-        brightness = Brightness.ADAPTIVE,
-        backdrop = Backdrop.NONE,
-        ground = DeepSpaceGround,
-        schemeLight = LightColorScheme,
-        schemeDark = DarkColorScheme
-    )
-
-    /**
      * Greyscale fog with the icon's rose as the only chroma on screen — send,
      * active mode, recording. Everything else is grey, which is exactly what
      * makes the pink land.
@@ -299,47 +257,42 @@ object Skins {
     val Aura = Skin(
         id = "aura",
         label = "Aura",
-        tagline = "Frosted dark. Grey fog, one rose accent.",
+        tagline = "Frosted dark. Grey fog behind glass, one rose accent.",
         brightness = Brightness.DARK,
         backdrop = Backdrop.FOG,
         ground = AuraGround,
-        schemeLight = AuraScheme,
-        schemeDark = AuraScheme,
+        scheme = AuraScheme,
         wallpaper = listOf(
-            Color(0x24FFFFFF),
-            Color(0x14FFFFFF),
-            Color(0x1AFFFFFF),
-            Color(0x0FFFFFFF)
+            Color(0x59FFFFFF),
+            Color(0x33FFFFFF),
+            Color(0x4DFFFFFF),
+            Color(0x26FFFFFF)
         ),
-        frost = 26.dp,
-        grain = 0.05f,
-        scrim = 0.10f,
-        corner = 22.dp,
-        pairedWith = "vellum"
+        frost = 20.dp,
+        grain = 0.06f,
+        scrim = 0.05f,
+        corner = 22.dp
     )
 
     /** The icon's white field as an interface. The one skin that survives sun. */
     val Vellum = Skin(
         id = "vellum",
         label = "Vellum",
-        tagline = "Frosted light. Paper ground, magenta ink.",
+        tagline = "Frosted light. Paper ground, rose haze, magenta ink.",
         brightness = Brightness.LIGHT,
         backdrop = Backdrop.FOG,
         ground = VellumGround,
-        schemeLight = VellumScheme,
-        schemeDark = VellumScheme,
+        scheme = VellumScheme,
         wallpaper = listOf(
-            Color(0xF2FFFFFF),
-            Color(0x52DB63B8),
+            Color(0xFFFFFFFF),
+            Color(0x80DB63B8),
             Color(0xCCFFFFFF),
-            Color(0x3D8F3AB2)
+            Color(0x668F3AB2)
         ),
-        frost = 22.dp,
-        grain = 0.035f,
-        scrim = 0.12f,
-        corner = 22.dp,
-        darkSystemBarIcons = true,
-        pairedWith = "aura"
+        frost = 18.dp,
+        grain = 0.04f,
+        scrim = 0.05f,
+        corner = 22.dp
     )
 
     /**
@@ -350,14 +303,13 @@ object Skins {
     val Orchid = Skin(
         id = "orchid",
         label = "Orchid",
-        tagline = "Tinted. Violet ground, coral actions, real grain.",
-        brightness = Brightness.FIXED,
+        tagline = "Tinted. Violet ground, coral actions, heavy grain.",
+        brightness = Brightness.DARK,
         backdrop = Backdrop.FLAT,
         ground = OrchidGround,
-        schemeLight = OrchidScheme,
-        schemeDark = OrchidScheme,
+        scheme = OrchidScheme,
         frost = 8.dp,
-        grain = 0.24f,
+        grain = 0.34f,
         corner = 22.dp
     )
 
@@ -365,58 +317,48 @@ object Skins {
     val Nocturne = Skin(
         id = "nocturne",
         label = "Nocturne",
-        tagline = "Faceted dark. The icon's shards behind black glass.",
+        tagline = "Faceted dark. The icon's shards read through black glass.",
         brightness = Brightness.DARK,
         backdrop = Backdrop.FACETS,
         ground = NocturneGround,
-        schemeLight = NocturneScheme,
-        schemeDark = NocturneScheme,
+        scheme = NocturneScheme,
         wallpaper = listOf(BrandViolet, BrandMagenta, BrandRose, BrandCoral, BrandSalmon),
-        frost = 34.dp,
-        grain = 0.05f,
-        // The facets are the loudest thing any skin puts behind text.
-        scrim = 0.30f,
+        frost = 18.dp,
+        grain = 0.06f,
+        scrim = 0.10f,
         corner = 20.dp
     )
 
     /**
-     * Material You. Present as a real choice rather than as the silent default
-     * it used to be: [GotchaTheme] defaulted to `dynamicColor = true`, so the
-     * user's wallpaper has been overriding every palette here since API 31 —
-     * which is every device, given minSdk 30. Picking any other skin now turns
-     * it off, and picking this one turns it back on.
+     * What shipped, untouched: opaque slate, cyan primary, Material 3
+     * elevation. Two entries rather than one that follows the system, so the
+     * picker shows what you will get instead of what you might get.
      *
-     * The schemes below are only reached on Android 11, where there is no
-     * dynamic colour to read.
+     * Dark is the default, and the fallback whenever glass is unavailable.
      */
-    val System = Skin(
-        id = "system",
-        label = "System",
-        tagline = "Material You. Colours follow your wallpaper.",
-        brightness = Brightness.ADAPTIVE,
+    val DeepSpaceDark = Skin(
+        id = "deepspace",
+        label = "Deep Space Dark",
+        tagline = "The original. Opaque slate, cyan, no wallpaper.",
+        brightness = Brightness.DARK,
         backdrop = Backdrop.NONE,
         ground = DeepSpaceGround,
-        schemeLight = LightColorScheme,
-        schemeDark = DarkColorScheme
+        scheme = DarkColorScheme
     )
 
-    val all = listOf(DeepSpace, Aura, Vellum, Orchid, Nocturne, System)
+    val DeepSpaceLight = Skin(
+        id = "deepspace_light",
+        label = "Deep Space Light",
+        tagline = "The original, in daylight. Opaque, green, no wallpaper.",
+        brightness = Brightness.LIGHT,
+        backdrop = Backdrop.NONE,
+        ground = LightSurface,
+        scheme = LightColorScheme
+    )
+
+    val all = listOf(Aura, Vellum, Orchid, Nocturne, DeepSpaceDark, DeepSpaceLight)
 
     const val DEFAULT_ID = "deepspace"
 
-    fun byId(id: String): Skin = all.firstOrNull { it.id == id } ?: DeepSpace
-
-    /**
-     * The skin actually painted, once "Match system light & dark" has had its
-     * say. A paired skin hands over to its twin rather than inventing a washed
-     * out light version of itself.
-     */
-    fun resolve(id: String, matchSystem: Boolean, dark: Boolean): Skin {
-        val chosen = byId(id)
-        if (!matchSystem) return chosen
-        val twin = chosen.pairedWith?.let(::byId) ?: return chosen
-        val wrongWayRound = (chosen.brightness == Brightness.DARK && !dark) ||
-            (chosen.brightness == Brightness.LIGHT && dark)
-        return if (wrongWayRound) twin else chosen
-    }
+    fun byId(id: String): Skin = all.firstOrNull { it.id == id } ?: DeepSpaceDark
 }

@@ -3,7 +3,6 @@ package com.gotcha
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.VpnService
@@ -15,7 +14,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +38,6 @@ import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
-import com.gotcha.data.ThemeMode
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.service.AssistiveBallService
@@ -78,11 +75,9 @@ class MainActivity : ComponentActivity() {
     /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
     private var appearance by mutableStateOf(Appearance())
 
-    /** The four settings that decide what the app looks like, and nothing else. */
+    /** The three settings that decide what the app looks like, and nothing else. */
     private data class Appearance(
-        val themeMode: ThemeMode = ThemeMode.SYSTEM,
         val skinId: String = Skins.DEFAULT_ID,
-        val matchSystemBrightness: Boolean = true,
         val reduceTransparency: Boolean = false,
         val frostPercent: Int = 100
     )
@@ -94,26 +89,12 @@ class MainActivity : ComponentActivity() {
      * chose rather than a slate blue they have never seen.
      */
     private fun applyLaunchBackground() {
-        val dark = when (appearance.themeMode) {
-            ThemeMode.LIGHT -> false
-            ThemeMode.DARK -> true
-            ThemeMode.SYSTEM -> {
-                val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                night == Configuration.UI_MODE_NIGHT_YES
-            }
-        }
-        val skin = Skins.resolve(
-            appearance.skinId,
-            appearance.matchSystemBrightness,
-            dark
-        )
-        window.setBackgroundDrawable(ColorDrawable(skin.launchGround(dark).toArgb()))
+        val skin = Skins.byId(appearance.skinId)
+        window.setBackgroundDrawable(ColorDrawable(skin.launchGround.toArgb()))
     }
 
     private fun Settings.appearance() = Appearance(
-        themeMode = themeMode,
         skinId = skinId,
-        matchSystemBrightness = matchSystemBrightness,
         reduceTransparency = reduceTransparency,
         frostPercent = frostPercent
     )
@@ -211,15 +192,8 @@ class MainActivity : ComponentActivity() {
         applyLaunchBackground()
 
         setContent {
-            val darkTheme = when (appearance.themeMode) {
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            }
             GotchaTheme(
-                darkTheme = darkTheme,
                 skinId = appearance.skinId,
-                matchSystemBrightness = appearance.matchSystemBrightness,
                 reduceTransparency = appearance.reduceTransparency,
                 frostPercent = appearance.frostPercent
             ) {

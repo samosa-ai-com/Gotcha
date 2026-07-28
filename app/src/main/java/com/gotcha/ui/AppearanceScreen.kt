@@ -17,9 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +33,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
-import com.gotcha.data.ThemeMode
 import com.gotcha.ui.theme.Brightness
 import com.gotcha.ui.theme.GlassTier
 import com.gotcha.ui.theme.GotchaMono
@@ -50,10 +46,11 @@ import kotlin.math.roundToInt
  * The Appearance page: light or dark, which skin, and how much glass.
  *
  * Every control here applies the moment it is touched — a theme you have to
- * save is a theme you cannot judge. That is also why this page exists at all:
- * Appearance used to be one segmented control on the settings home, where a
- * page of its own would have been emptier than the row that opened it. A skin
- * picker changes that arithmetic.
+ * save is a theme you cannot judge.
+ *
+ * There is no light/dark switch. A skin *is* a brightness: Vellum is the light
+ * one, Aura is the dark one, and Deep Space ships as two entries rather than one
+ * that changes under you. The picker shows what you will get, not what you might.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,9 +62,7 @@ fun AppearanceScreen(
     onApply: (Settings) -> Unit
 ) {
     val initial = remember { load() }
-    var themeMode by remember { mutableStateOf(initial.themeMode) }
     var skinId by remember { mutableStateOf(initial.skinId) }
-    var matchSystem by remember { mutableStateOf(initial.matchSystemBrightness) }
     var reduceTransparency by remember { mutableStateOf(initial.reduceTransparency) }
     var frostPercent by remember { mutableIntStateOf(initial.frostPercent) }
 
@@ -83,25 +78,6 @@ fun AppearanceScreen(
     }
 
     SettingsScaffold(title = SettingsPage.APPEARANCE.title, onBack = onBack, overlay = overlay) {
-        Text("Light and dark", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            ThemeMode.entries.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = themeMode == mode,
-                    onClick = {
-                        themeMode = mode
-                        apply { it.copy(themeMode = mode) }
-                    },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = ThemeMode.entries.size
-                    )
-                ) { Text(mode.label) }
-            }
-        }
-
-        HorizontalDivider(thickness = 1.dp)
-
         Text("Theme", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
             "Every theme works on every device. Where live blur isn't available, " +
@@ -123,27 +99,6 @@ fun AppearanceScreen(
         )
 
         HorizontalDivider(thickness = 1.dp)
-
-        val pairedId = selected.pairedWith
-        if (pairedId != null) {
-            val twin = Skins.byId(pairedId)
-            SettingsToggleRow(
-                label = "Match system light & dark",
-                checked = matchSystem,
-                onCheckedChange = {
-                    matchSystem = it
-                    apply { s -> s.copy(matchSystemBrightness = it) }
-                },
-                isLarge = true,
-                switchTestTag = "appearance_match_system"
-            )
-            Text(
-                "${selected.label} and ${twin.label} are the same theme in two " +
-                    "brightnesses. With this on, the phone picks whichever one fits.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
 
         if (selected.isGlass && !reduceTransparency) {
             Text(
@@ -256,10 +211,8 @@ private fun RowScope.SkinTile(skin: Skin, selected: Boolean, onSelect: () -> Uni
 }
 
 private fun brightnessLabel(skin: Skin): String = when (skin.brightness) {
-    Brightness.ADAPTIVE -> if (skin.id == Skins.System.id) "wallpaper" else "auto"
     Brightness.LIGHT -> "light"
     Brightness.DARK -> "dark"
-    Brightness.FIXED -> "fixed"
 }
 
 /**
@@ -270,7 +223,7 @@ private fun brightnessLabel(skin: Skin): String = when (skin.brightness) {
  */
 @Composable
 private fun SkinPreview(skin: Skin) {
-    val scheme = skin.scheme(dark = skin.brightness != Brightness.LIGHT)
+    val scheme = skin.scheme
     Box(
         modifier = Modifier
             .fillMaxWidth()
