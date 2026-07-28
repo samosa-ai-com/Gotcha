@@ -57,10 +57,13 @@ fun GotchaTheme(
 
     CompositionLocalProvider(
         LocalSkin provides skin,
-        LocalGlassTier provides tier
+        LocalGlassTier provides tier,
+        LocalAnimationsEnabled provides rememberAnimationsEnabled()
     ) {
         MaterialTheme(
-            colorScheme = skin.scheme,
+            // Animated so changing skin is one movement rather than one frame in
+            // which every colour on screen is suddenly different.
+            colorScheme = skin.scheme.animated(),
             typography = Typography,
             content = content
         )

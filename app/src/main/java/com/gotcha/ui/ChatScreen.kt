@@ -112,6 +112,14 @@ fun ChatScreen(
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
 
+    // Everything already in the transcript when this chat opened is history, and
+    // history should not animate itself in. Re-keyed per session so switching
+    // chats does not replay someone else's conversation.
+    val arrivalBaseline = remember(state.activeSessionId) {
+        state.messages.lastOrNull()?.id ?: -1L
+    }
+    val animatedIds = remember(state.activeSessionId) { mutableSetOf<Long>() }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -268,12 +276,19 @@ fun ChatScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth().testTag("message_list")
                 ) {
                     items(state.messages, key = { it.id }) { message ->
-                        MessageBubble(
-                            message = message,
-                            onSpeak = onSpeak,
-                            isSpeaking = state.isSpeaking,
-                            onStopSpeaking = onStopSpeaking
-                        )
+                        // Only what arrives after the chat is open animates, and
+                        // each id only ever animates once — `add` is false the
+                        // second time an item is composed, which is what stops a
+                        // scroll back up from replaying the whole thread.
+                        val firstShow = remember(message.id) { animatedIds.add(message.id) }
+                        MessageArrival(animate = firstShow && message.id > arrivalBaseline) {
+                            MessageBubble(
+                                message = message,
+                                onSpeak = onSpeak,
+                                isSpeaking = state.isSpeaking,
+                                onStopSpeaking = onStopSpeaking
+                            )
+                        }
                     }
                 }
             }

@@ -1,9 +1,12 @@
 package com.gotcha.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +20,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.gotcha.ui.theme.LocalAnimationsEnabled
 import com.gotcha.ui.theme.WarningAmber
 import kotlin.math.roundToInt
 
@@ -72,6 +79,47 @@ fun ContextMeter(fraction: Float, modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * A message arriving.
+ *
+ * It rises a little and fades in on a spring, which is enough to say "this is
+ * new" without making the reader wait. Only genuinely new messages animate:
+ * anything already on screen when the chat opened appears instantly, and an
+ * item that scrolls out of view and back does not replay — a list that
+ * re-animates on scroll is a list that feels broken.
+ *
+ * There is no explicit stagger. A turn that emits a reply and four tool lines
+ * emits them milliseconds apart already, so the offset arrives on its own and
+ * stays honest about when things actually happened.
+ */
+@Composable
+fun MessageArrival(animate: Boolean, content: @Composable () -> Unit) {
+    val enabled = animate && LocalAnimationsEnabled.current
+    val progress = remember { Animatable(if (enabled) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (enabled) {
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+        }
+    }
+    Box(
+        Modifier.graphicsLayer {
+            alpha = progress.value
+            translationY = (1f - progress.value) * ARRIVAL_RISE.toPx()
+        }
+    ) {
+        content()
+    }
+}
+
+/** How far a new message travels on its way in. */
+private val ARRIVAL_RISE = 14.dp
 
 /**
  * The agent is working. A dot that breathes says so with one moving part, where

@@ -1,6 +1,7 @@
 package com.gotcha.ui.theme
 
 import android.graphics.Bitmap
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -46,10 +47,19 @@ fun SkinBackdrop(modifier: Modifier = Modifier) {
     // skin still has a wallpaper at this tier was already decided in GotchaTheme.
     if (!skin.isGlass) return
 
-    Box(modifier.background(skin.ground)) {
-        Wallpaper(skin, live = tier == GlassTier.LIVE)
-        if (skin.grain > 0f) Grain(skin.grain)
-        Scrim(skin)
+    // Crossfaded rather than colour-tweened: fog cannot become facets by
+    // interpolation, so the two wallpapers are drawn at once and dissolved.
+    Crossfade(
+        targetState = skin,
+        animationSpec = motionSpec(SKIN_TRANSITION_MS),
+        label = "backdrop",
+        modifier = modifier
+    ) { shown ->
+        Box(Modifier.fillMaxSize().background(shown.ground)) {
+            Wallpaper(shown, live = tier == GlassTier.LIVE)
+            if (shown.grain > 0f) Grain(shown.grain)
+            Scrim(shown)
+        }
     }
 }
 
