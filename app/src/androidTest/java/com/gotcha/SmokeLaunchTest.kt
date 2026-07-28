@@ -47,6 +47,6 @@ class SmokeLaunchTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("settings_ai_config_header").assertExists()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
     }
 }

@@ -3,6 +3,7 @@ package com.gotcha.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,55 @@ import kotlinx.coroutines.delay
  * is its own composable in its own file; anything more than one of them needs
  * lives here.
  */
+
+/**
+ * A settings sub-page, reached from the settings home list and left with Back —
+ * the same shape as the system Settings app. `null` in [SettingsScreen]'s page
+ * state means the home list itself.
+ *
+ * [title] doubles as the row label on the home list and the sub-page's top-bar
+ * title, so the two can't drift apart.
+ */
+enum class SettingsPage(val title: String, val summary: String) {
+    AI_CONFIG("AI Configuration", "Provider, models, agent limits"),
+    SPEECH("Speech (TTS / STT)", "Voices, transcription, read replies aloud"),
+    PERMISSIONS("Permissions", "What the assistant is allowed to do"),
+    SKILLS("Skills / Plugins", "Built-in and community skills"),
+    PROACTIVE("Proactive Assistance", "Offers, OTP detection, language")
+}
+
+/**
+ * A row on the settings home list that opens a sub-page. Uses the same text
+ * chevron as the rest of this screen rather than an icon font.
+ */
+@Composable
+fun SettingsNavRow(
+    page: SettingsPage,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = page.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = page.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(text = "›", style = MaterialTheme.typography.titleLarge)
+    }
+}
 
 /**
  * A transient message shown as a centred overlay on top of the settings content.

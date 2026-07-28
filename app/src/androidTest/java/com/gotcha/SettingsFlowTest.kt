@@ -39,7 +39,8 @@ class SettingsFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("settings_ai_config_header").performClick()
+        // AI Configuration is its own page now, reached from the settings home list.
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag("settings_base_url").performTextReplacement(testBaseUrl)
