@@ -83,6 +83,11 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Proactive Assistance",
         "Offers, OTP detection, what may be scanned",
         "settings_proactive_row"
+    ),
+    NOTIFICATIONS(
+        "Notifications",
+        "How you're alerted when a reply arrives",
+        "settings_notifications_row"
     )
 }
 
@@ -279,13 +284,20 @@ fun SamosaAuthSection(
     }
 }
 
-/** A label with a trailing switch — the settings screens' standard boolean row. */
+/**
+ * A label with a trailing switch — the settings screens' standard boolean row.
+ *
+ * [switchTestTag] tags the `Switch` rather than the row, so a test that clicks
+ * it actually toggles something; a tag on the row would find a node that isn't
+ * toggleable and no-op silently.
+ */
 @Composable
 fun SettingsToggleRow(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     isLarge: Boolean = false,
+    switchTestTag: String? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -297,7 +309,11 @@ fun SettingsToggleRow(
             label,
             style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
         )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier
+        )
     }
 }
 

@@ -1,8 +1,6 @@
 package com.gotcha.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -10,7 +8,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,14 +15,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
-import com.gotcha.audio.CompletionFeedback
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
 import com.gotcha.i18n.Language
@@ -33,9 +27,9 @@ import com.gotcha.i18n.Language
 /**
  * Settings, shaped like the system Settings app: a home list of categories, each
  * opening its own page ([SettingsPage]), Back returning to the list. Appearance
- * and Notifications stay on the home list — two controls each, applied the
- * moment they are touched, so a page of their own would be emptier than the row
- * that opened it.
+ * is the one thing left on the home list itself — a single three-way control,
+ * applied the moment it is touched, so a page of its own would be emptier than
+ * the row that opened it.
  *
  * Every page saves through [onSave]'s mutator, writing only the fields it owns.
  */
@@ -130,9 +124,13 @@ fun SettingsScreen(
             onSave = onSave,
             onBack = backToHome
         )
-        null -> SettingsHome(
+        SettingsPage.NOTIFICATIONS -> NotificationsScreen(
             load = load,
             onSave = onSave,
+            onBack = backToHome
+        )
+        null -> SettingsHome(
+            load = load,
             onBack = onBack,
             onOpenPage = { page = it },
             onThemeChange = onThemeChange
@@ -140,23 +138,19 @@ fun SettingsScreen(
     }
 }
 
-/** The settings home list: the immediate toggles, then a row per sub-page. */
+/** The settings home list: the Appearance control, then a row per sub-page. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsHome(
     load: () -> Settings,
-    onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
     onThemeChange: (ThemeMode) -> Unit
 ) {
     val initial = remember { load() }
-    var notifyVibration by remember { mutableStateOf(initial.notifyVibrationEnabled) }
-    var notifyChime by remember { mutableStateOf(initial.notifyChimeEnabled) }
     var themeMode by remember { mutableStateOf(initial.themeMode) }
 
     val overlay = rememberSettingsOverlayState()
-    val localContext = LocalContext.current
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
         // ---- Appearance (applies immediately) ----
@@ -179,52 +173,6 @@ private fun SettingsHome(
                     )
                 ) { Text(mode.label) }
             }
-        }
-
-        HorizontalDivider(thickness = 1.dp)
-
-        // ---- Notifications (applies immediately) ----
-        Text(
-            "Notifications",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            "Played as soon as a reply arrives. Turn both off for no alert.",
-            style = MaterialTheme.typography.bodySmall
-        )
-        // Switching one on plays it once, so the user knows what to expect.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Vibration", style = MaterialTheme.typography.bodyLarge)
-            Switch(
-                checked = notifyVibration,
-                onCheckedChange = {
-                    notifyVibration = it
-                    onSave { s -> s.copy(notifyVibrationEnabled = it) }
-                    if (it) CompletionFeedback.replyArrived(localContext, vibrate = true, chime = false)
-                },
-                modifier = Modifier.testTag("settings_notify_vibration")
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Chime", style = MaterialTheme.typography.bodyLarge)
-            Switch(
-                checked = notifyChime,
-                onCheckedChange = {
-                    notifyChime = it
-                    onSave { s -> s.copy(notifyChimeEnabled = it) }
-                    if (it) CompletionFeedback.replyArrived(localContext, vibrate = false, chime = true)
-                },
-                modifier = Modifier.testTag("settings_notify_chime")
-            )
         }
 
         HorizontalDivider(thickness = 1.dp)

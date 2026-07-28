@@ -34,6 +34,21 @@ for that feature.
   Personal Info fields tipped the accumulated count past detekt's complexity
   ceiling.
 
+### Changed — Notifications is a page like everything else
+
+Notifications sat at the top of the settings home list, above every category
+row, which put the least-used setting in the place the eye lands first.
+
+- **ui/NotificationsScreen.kt** (new): the vibration and chime switches move to
+  a page of their own, last in `SettingsPage` and so last on the home list.
+  Appearance stays inline — one three-way control, applied on touch.
+- The page keeps its apply-on-touch behaviour and has no Save button, which is
+  the point: switching one on plays it once. A preview you had to save first
+  would be feedback about a setting you had already committed to.
+- **SettingsToggleRow** gained `switchTestTag`, so the notification tags stay on
+  the `Switch` rather than moving to the row around it — a tag on the row finds
+  a node that isn't toggleable, and a test clicking it would no-op in silence.
+
 ### Changed — Settings is now a list of pages, not one long scroll
 
 Settings was a single scrolling screen with five accordions, one of which
@@ -42,8 +57,9 @@ the system Settings app: a home list of categories, each opening its own page,
 Back returning to the list.
 
 - **ui/SettingsScreen.kt**: reduced from 1930 lines to a nav host over the new
-  `SettingsPage` enum plus the home list. Appearance and Notifications stay on the
-  home list — two controls each, applied on touch. The open page is
+  `SettingsPage` enum plus the home list. Appearance and Notifications stayed on
+  the home list at this point — two controls each, applied on touch; Notifications
+  moved to a page of its own afterwards (see above). The open page is
   `rememberSaveable`, so a rotation doesn't return the user to the list.
 - **ui/SettingsCommon.kt** (new): `SettingsPage` (title, summary and test tag per
   category, so a new category is one enum entry), `SettingsScaffold`,
