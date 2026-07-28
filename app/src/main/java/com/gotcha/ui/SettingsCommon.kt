@@ -54,6 +54,11 @@ import kotlinx.coroutines.delay
  * title, so the two can't drift apart.
  */
 enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
+    PERSONAL_INFO(
+        "Personal Info",
+        "Who you are, language, currency, reply style",
+        "settings_personal_info_row"
+    ),
     AI_CONFIG(
         "AI Configuration",
         "Provider, models, agent limits",
@@ -76,7 +81,7 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
     ),
     PROACTIVE(
         "Proactive Assistance",
-        "Offers, OTP detection, language",
+        "Offers, OTP detection, what may be scanned",
         "settings_proactive_row"
     )
 }

@@ -956,6 +956,18 @@ class AgentEngine(
             "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
             "app names, search queries passed to tools, and shell commands — regardless of " +
             "the language you are replying in."
+        // The user's own words about how they want to be answered (Settings ▸
+        // Personal Info). It rides with the language directive at the tail of
+        // the message array rather than in the <user_profile> block: it is an
+        // instruction about the reply being written now, not a fact to remember.
+        val styleDirective = settings.userResponseStyle.trim()
+            .takeIf { it.isNotEmpty() }
+            ?.let {
+                "\n\nThe user has described how they want replies written:\n$it\n" +
+                    "Follow that unless it would conflict with a safety constraint, with the " +
+                    "mode restrictions below, or with a format a tool requires."
+            }
+            .orEmpty()
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
@@ -1029,7 +1041,10 @@ class AgentEngine(
                     "</system-reminder>"
         }
         return listOf(
-            ChatMessage(role = "system", content = JsonPrimitive(core + languageDirective + reminder))
+            ChatMessage(
+                role = "system",
+                content = JsonPrimitive(core + languageDirective + styleDirective + reminder)
+            )
         )
     }
 
@@ -1086,8 +1101,6 @@ class AgentEngine(
             appendLine("  App version: $versionName")
             appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
             appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
-            appendLine("  Preferred language: ${settings.preferredLanguage}")
-            appendLine("  Preferred currency: ${settings.preferredCurrency}")
             // Connector state, rebuilt every call. The active list is what lets the
             // model notice a connector that appeared mid-conversation: its own
             // earlier turns may say "no account is connected", and a tool quietly
@@ -1111,6 +1124,47 @@ class AgentEngine(
                 )
             }
             append("</env>")
+            append("\n\n")
+            append(buildUserProfileString())
+        }
+    }
+
+    /**
+     * What the user told us about themselves in Settings ▸ Personal Info.
+     *
+     * A block of its own rather than more `<env>` lines: `<env>` describes the
+     * device and the run, this describes the person asking, and the model needs
+     * to keep the two apart — a preference here is something to honour, not a
+     * capability to reason about. Blank fields are omitted entirely so an
+     * untouched profile costs a couple of lines rather than a list of "unknown"s
+     * the model may then try to fill in by asking.
+     *
+     * Language and currency always appear: they have real defaults, and the
+     * model is worse off guessing them than reading a default it can be
+     * corrected on.
+     */
+    private fun buildUserProfileString(): String {
+        val s = settings
+        val facts = buildList {
+            // One fact per line, so a multi-line Background can't be mistaken for
+            // the start of a new one.
+            fun fact(label: String, value: String) {
+                value.replace(Regex("\\s+"), " ").trim()
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { add("$label: $it") }
+            }
+            fact("Name", s.userName)
+            fact("Location", s.userLocation)
+            fact("Occupation", s.userOccupation)
+            fact("Background", s.userBackground)
+            fact("Preferred language", s.preferredLanguage)
+            fact("Preferred currency", s.preferredCurrency)
+        }
+        return buildString {
+            appendLine("Here is what the user has told you about themselves:")
+            appendLine("<user_profile>")
+            facts.forEach { appendLine("  $it") }
+            append("</user_profile>")
         }
     }
 

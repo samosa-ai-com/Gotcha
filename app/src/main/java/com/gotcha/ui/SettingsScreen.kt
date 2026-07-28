@@ -91,6 +91,12 @@ fun SettingsScreen(
     if (page != null) BackHandler(onBack = backToHome)
 
     when (page) {
+        SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
+            load = load,
+            onSave = onSave,
+            onBack = backToHome,
+            onTestVoice = onTestVoice
+        )
         SettingsPage.AI_CONFIG -> AiConfigScreen(
             load = load,
             onSave = onSave,
@@ -122,8 +128,7 @@ fun SettingsScreen(
         SettingsPage.PROACTIVE -> ProactiveScreen(
             load = load,
             onSave = onSave,
-            onBack = backToHome,
-            onTestVoice = onTestVoice
+            onBack = backToHome
         )
         null -> SettingsHome(
             load = load,

@@ -4,6 +4,36 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — Personal Info, fed into the system prompt
+
+The assistant knew what device it was running on and nothing about the person
+using it. Preferred language and currency were the only two facts it had, and
+they were filed under Proactive Assistance, where they only looked like settings
+for that feature.
+
+- **ui/PersonalInfoScreen.kt** (new, first row on the settings home list): name,
+  location, occupation, a free-text background, and a free-text reply style,
+  plus the preferred language (with its Test voice button) and currency moved
+  over from Proactive Assistance. Every field is optional and stays on the
+  device.
+- **AgentEngine**: the facts render as a `<user_profile>` block after `<env>` —
+  a block of its own because `<env>` describes the device and this describes the
+  person, and the model needs to keep the two apart. Blank fields are omitted
+  entirely; an untouched profile is two lines, not a list of "unknown"s the
+  model then tries to fill in by asking. Newlines inside a field are collapsed
+  so a multi-line background can't be read as the start of another fact.
+- The reply-style text is injected next to the language directive at the tail of
+  the message array instead, since it is an instruction about the reply being
+  written now rather than a fact to remember. It is explicitly subordinate to
+  safety constraints, the mode restrictions and tool-required formats.
+- **ui/ProactiveScreen.kt** is now only the proactive toggles, and no longer
+  needs `onTestVoice`.
+- **SettingsRepository**: `load()` reads strings through a new `string()` helper
+  (the sibling of the existing `stringSet()`). `getString` returns a nullable
+  even with a non-null default, so every field carried its own elvis; the new
+  Personal Info fields tipped the accumulated count past detekt's complexity
+  ceiling.
+
 ### Changed — Settings is now a list of pages, not one long scroll
 
 Settings was a single scrolling screen with five accordions, one of which

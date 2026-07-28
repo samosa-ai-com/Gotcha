@@ -63,6 +63,34 @@ class SettingsFlowTest {
     }
 
     @Test
+    fun personalInfo_persistsAcrossRelaunch() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration; Back reaches the category list.
+        composeRule.onNodeWithText("← Back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_user_name").performTextReplacement("Ada")
+        composeRule.onNodeWithTag("settings_user_response_style")
+            .performScrollTo()
+            .performTextReplacement("No bullet lists.")
+        composeRule.onNodeWithTag("settings_save_personal_info").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        scenario?.close()
+
+        val persisted = SettingsRepository(context).load()
+        assertEquals("Ada", persisted.userName)
+        assertEquals("No bullet lists.", persisted.userResponseStyle)
+    }
+
+    @Test
     fun settingsSubPage_opensFromTheListAndBackReturnsToIt() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
