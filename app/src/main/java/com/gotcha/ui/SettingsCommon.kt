@@ -55,12 +55,13 @@ import kotlinx.coroutines.delay
  * [title] doubles as the row label on the home list and the sub-page's top-bar
  * title, so the two can't drift apart.
  */
+/**
+ * Declaration order is the order of the home list; nothing reads the ordinal, so
+ * this is the only place the menu is arranged. What the assistant *is* comes
+ * first — who it thinks you are, which model it runs, what it may touch — and
+ * the two pages about how the app presents itself sit at the end.
+ */
 enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
-    APPEARANCE(
-        "Appearance",
-        "How the app looks",
-        "settings_appearance_row"
-    ),
     PERSONAL_INFO(
         "Personal Info",
         "Who you are, language, currency, reply style",
@@ -90,6 +91,11 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Proactive Assistance",
         "Offers, OTP detection, what may be scanned",
         "settings_proactive_row"
+    ),
+    APPEARANCE(
+        "Appearance",
+        "How the app looks",
+        "settings_appearance_row"
     ),
     NOTIFICATIONS(
         "Notifications",
