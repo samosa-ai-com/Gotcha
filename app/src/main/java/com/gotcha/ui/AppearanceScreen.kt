@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
@@ -119,7 +123,12 @@ private const val TILES_PER_ROW = 2
 
 @Composable
 private fun SkinGrid(selectedId: String, onSelect: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Announced as one group of mutually exclusive choices rather than as six
+    // unrelated buttons.
+    Column(
+        modifier = Modifier.selectableGroup(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Skins.all.chunked(TILES_PER_ROW).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { skin ->
@@ -152,7 +161,18 @@ private fun RowScope.SkinTile(skin: Skin, selected: Boolean, onSelect: () -> Uni
                 color = border,
                 shape = RoundedCornerShape(16.dp)
             )
-            .selectable(selected = selected, onClick = onSelect)
+            .selectable(
+                selected = selected,
+                // Without a role this reads as a plain button with no sense of
+                // being one of a set, and nothing announces which one is on.
+                role = Role.RadioButton,
+                onClick = onSelect
+            )
+            // The preview, the name and the brightness are one choice, not three
+            // things to swipe through.
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${skin.label}, ${brightnessLabel(skin)} theme"
+            }
             .testTag("appearance_skin_${skin.id}")
     ) {
         SkinPreview(skin)

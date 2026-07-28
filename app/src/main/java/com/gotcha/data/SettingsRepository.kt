@@ -191,6 +191,28 @@ data class Settings(
     }
 }
 
+/**
+ * Which skin an install lands on when it has never chosen one.
+ *
+ * Appearance used to be two settings — a Deep Space theme plus a light/dark
+ * mode — and is now a single skin per look. Someone who had deliberately set
+ * their app light must not be handed the dark one on upgrade, which is the
+ * whole reason this exists. It runs once: [SettingsRepository] writes the
+ * result, and every later load reads that instead.
+ *
+ * @param legacyThemeMode the old `theme_mode` value, or null if never set.
+ */
+internal fun migrateSkinId(legacyThemeMode: String?): String =
+    if (legacyThemeMode == LEGACY_THEME_MODE_LIGHT) {
+        SKIN_DEEP_SPACE_LIGHT
+    } else {
+        SKIN_DEEP_SPACE_DARK
+    }
+
+internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
+internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
+private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
+
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
 class SettingsRepository(context: Context) {
 
@@ -218,19 +240,13 @@ class SettingsRepository(context: Context) {
     private fun string(key: String, default: String = ""): String =
         prefs.getString(key, default) ?: default
 
-    /**
-     * The chosen skin, migrating anyone who was on the old Deep Space + "Light"
-     * combination. That pairing used to be two settings; it is one skin now, and
-     * silently moving them to the dark one would repaint an app they had
-     * deliberately set light.
-     */
+    /** Reads the stored skin, running the one-shot migration if it has not run. */
     private fun resolvedSkinId(): String {
         val stored = prefs.getString(KEY_SKIN_ID, null)
         if (stored != null) return stored
-        val legacy = prefs.getString(KEY_LEGACY_THEME_MODE, null)
-        val id = if (legacy == "LIGHT") SKIN_DEEP_SPACE_LIGHT else SKIN_DEEP_SPACE_DARK
-        prefs.edit().putString(KEY_SKIN_ID, id).apply()
-        return id
+        val migrated = migrateSkinId(prefs.getString(KEY_LEGACY_THEME_MODE, null))
+        prefs.edit().putString(KEY_SKIN_ID, migrated).apply()
+        return migrated
     }
 
     fun load(): Settings = Settings(
@@ -384,10 +400,8 @@ class SettingsRepository(context: Context) {
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_SKIN_ID = "skin_id"
 
-        /** Only read by [resolvedSkinId]'s migration; never written any more. */
+        /** Only read by [migrateSkinId]; never written any more. */
         const val KEY_LEGACY_THEME_MODE = "theme_mode"
-        const val SKIN_DEEP_SPACE_DARK = "deepspace"
-        const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
         const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"
