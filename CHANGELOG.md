@@ -4,6 +4,37 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Changed — Settings is now a list of pages, not one long scroll
+
+Settings was a single scrolling screen with five accordions, one of which
+(Permissions) nested a second accordion level inside the first. It now works like
+the system Settings app: a home list of categories, each opening its own page,
+Back returning to the list.
+
+- **ui/SettingsScreen.kt**: reduced from 1930 lines to a nav host over the new
+  `SettingsPage` enum plus the home list. Appearance and Notifications stay on the
+  home list — two controls each, applied on touch. The open page is
+  `rememberSaveable`, so a rotation doesn't return the user to the list.
+- **ui/SettingsCommon.kt** (new): `SettingsPage` (title, summary and test tag per
+  category, so a new category is one enum entry), `SettingsScaffold`,
+  `SettingsOverlayState` (owns the transient message *and* its auto-dismiss timer),
+  `SettingsNavRow`, `SamosaAuthSection`, `SettingsToggleRow`.
+- **ui/AiConfigScreen.kt**, **SpeechScreen.kt**, **PermissionsScreen.kt**,
+  **SkillsScreen.kt**, **ProactiveScreen.kt** (new): one file per page, each
+  holding only the state it owns. The audio pickers moved to `SpeechScreen.kt`,
+  their only caller.
+- **Fixed:** every section's Save button previously rebuilt a complete `Settings`
+  from all ~45 form fields, so saving in AI Configuration also persisted whatever
+  had been typed into Speech or Proactive, half-finished or not. Each page now
+  supplies a mutator that copies only its own fields onto freshly loaded settings.
+  `onNotifyAlertChange`, which existed solely to route the reply-alert switches
+  around that hazard, is gone. The form also no longer writes
+  `samosaSessionToken` / `samosaEmail` — `SamosaAuthManager` owns those, and
+  echoing a stale copy back could resurrect a session cleared by a 401.
+- **MainActivity.kt**: an unconfigured install still opens Settings, but now lands
+  directly on the AI Configuration page rather than on a category list that gives
+  no hint where the API key lives.
+
 ### Added — tiered settings control (`open_setting`)
 
 Settings were previously reached one of two ways: silently through an Android API,
