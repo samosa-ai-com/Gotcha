@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.ChatSession
@@ -59,6 +60,22 @@ fun AppDrawerContent(
     val skin = LocalSkin.current
     val drawerColor = if (skin.isGlass) skin.ground else DrawerDefaults.containerColor
 
+    // Every row was painting a pale container, selected or not, so the list read
+    // as a stack of white lozenges with no gaps — their pill corners interlocking
+    // where they met. Only the open chat gets a background now, and it is a tint
+    // of the skin's own accent rather than a wash of white.
+    val itemColors = NavigationDrawerItemDefaults.colors(
+        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+        unselectedContainerColor = Color.Transparent,
+        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+        selectedIconColor = MaterialTheme.colorScheme.primary,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    val itemModifier = Modifier
+        .padding(NavigationDrawerItemDefaults.ItemPadding)
+        .padding(vertical = 2.dp)
+
     ModalDrawerSheet(
         drawerContainerColor = drawerColor,
         modifier = Modifier.width(300.dp)
@@ -74,7 +91,8 @@ fun AppDrawerContent(
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 selected = false,
                 onClick = onNewChat,
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                colors = itemColors,
+                modifier = itemModifier
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Text(
@@ -103,7 +121,9 @@ fun AppDrawerContent(
                                         usage,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontFamily = GotchaMono,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -119,7 +139,8 @@ fun AppDrawerContent(
                                 )
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        colors = itemColors,
+                        modifier = itemModifier
                     )
                 }
             }
@@ -129,14 +150,16 @@ fun AppDrawerContent(
                 icon = { Icon(Icons.Default.Link, contentDescription = null) },
                 selected = false,
                 onClick = onOpenConnectors,
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                colors = itemColors,
+                modifier = itemModifier
             )
             NavigationDrawerItem(
                 label = { Text("Settings") },
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                 selected = false,
                 onClick = onOpenSettings,
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                colors = itemColors,
+                modifier = itemModifier
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -178,7 +201,7 @@ private fun formatContextUsage(tokens: Int, maxContextTokens: Int): String? {
     return if (maxContextTokens > 0) {
         val percent = (tokens.toFloat() / maxContextTokens * 100f)
             .coerceIn(0f, 100f).toInt()
-        "${grouped(tokens)} / ${grouped(maxContextTokens)} tokens ($percent%)"
+        "${grouped(tokens)} / ${grouped(maxContextTokens)} · $percent%"
     } else {
         "${grouped(tokens)} tokens"
     }
