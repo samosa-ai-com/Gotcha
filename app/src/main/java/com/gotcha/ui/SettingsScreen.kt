@@ -1,20 +1,14 @@
 package com.gotcha.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
@@ -30,7 +24,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -38,7 +31,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
@@ -66,28 +57,7 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
 import com.gotcha.i18n.Language
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-/**
- * A transient message shown as a centred overlay on top of the settings content.
- * [sticky] messages stay until replaced (used while an operation is still running).
- */
-private data class SettingsOverlay(val text: String, val sticky: Boolean = false)
-
-/** Always produce a human-readable error string for a community-skill import failure. */
-private fun formatImportError(t: Throwable): String {
-    val msg = t.message?.takeIf { it.isNotBlank() }
-    val causeMsg = t.cause?.message?.takeIf { it.isNotBlank() }
-    return when {
-        !msg.isNullOrBlank() -> "Import failed: $msg"
-        !causeMsg.isNullOrBlank() -> "Import failed: $causeMsg"
-        else -> "Import failed: ${t::class.java.simpleName}"
-    }
-}
-
-/** How long a non-sticky overlay message stays on screen. */
-private const val OVERLAY_DURATION_MS = 2500L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,7 +167,7 @@ fun SettingsScreen(
     var showTtsKey by remember { mutableStateOf(false) }
     var showSttKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
-    var overlay by remember { mutableStateOf<SettingsOverlay?>(null) }
+    val overlay = rememberSettingsOverlayState()
     var testing by remember { mutableStateOf(false) }
     var refreshingModels by remember { mutableStateOf(false) }
     var refreshingChatModels by remember { mutableStateOf(false) }
@@ -344,1319 +314,1208 @@ fun SettingsScreen(
         }
     }
 
-    // Auto-dismiss transient overlay messages. Each assignment creates a new
-    // SettingsOverlay instance, so repeating the same text restarts the timer.
-    LaunchedEffect(overlay) {
-        overlay?.let {
-            if (!it.sticky) {
-                delay(OVERLAY_DURATION_MS)
-                overlay = null
+    SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
+        // ---- Appearance (always visible, applies immediately) ----
+        Text(
+            "Appearance",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ThemeMode.values().forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = themeMode == mode,
+                    onClick = {
+                        themeMode = mode
+                        onThemeChange(mode)
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = ThemeMode.values().size
+                    )
+                ) { Text(mode.label) }
             }
         }
-    }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("← Back") } }
+        HorizontalDivider(thickness = 1.dp)
+
+        // ---- Notifications (always visible, applies immediately) ----
+        Text(
+            "Notifications",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "Played as soon as a reply arrives. Turn both off for no alert.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        // Switching one on plays it once, so the user knows what to expect.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Vibration", style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = notifyVibration,
+                onCheckedChange = {
+                    notifyVibration = it
+                    onSave { s -> s.copy(notifyVibrationEnabled = it) }
+                    if (it) CompletionFeedback.replyArrived(localContext, vibrate = true, chime = false)
+                },
+                modifier = Modifier.testTag("settings_notify_vibration")
             )
         }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // ---- Appearance (always visible, applies immediately) ----
-                Text(
-                    "Appearance",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    ThemeMode.values().forEachIndexed { index, mode ->
-                        SegmentedButton(
-                            selected = themeMode == mode,
-                            onClick = {
-                                themeMode = mode
-                                onThemeChange(mode)
-                            },
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = ThemeMode.values().size
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Chime", style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = notifyChime,
+                onCheckedChange = {
+                    notifyChime = it
+                    onSave { s -> s.copy(notifyChimeEnabled = it) }
+                    if (it) CompletionFeedback.replyArrived(localContext, vibrate = false, chime = true)
+                },
+                modifier = Modifier.testTag("settings_notify_chime")
+            )
+        }
+
+        HorizontalDivider(thickness = 1.dp)
+
+        // ---- AI Configuration (collapsible, collapsed by default) ----
+        SectionHeader(
+            title = "AI Configuration",
+            expanded = aiConfigExpanded,
+            onToggle = { aiConfigExpanded = !aiConfigExpanded },
+            modifier = Modifier.testTag("settings_ai_config_header")
+        )
+        AnimatedVisibility(visible = aiConfigExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // ---- LLM provider selector ----
+                ExposedDropdownMenuBox(
+                    expanded = providerExpanded,
+                    onExpandedChange = { providerExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = provider.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("LLM Provider") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
+                        },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = providerExpanded,
+                        onDismissRequest = { providerExpanded = false }
+                    ) {
+                        LlmProvider.entries.forEach { p ->
+                            DropdownMenuItem(
+                                text = { Text(p.label) },
+                                onClick = {
+                                    provider = p
+                                    providerExpanded = false
+                                }
                             )
-                        ) { Text(mode.label) }
+                        }
                     }
                 }
 
-                HorizontalDivider(thickness = 1.dp)
-
-                // ---- Notifications (always visible, applies immediately) ----
-                Text(
-                    "Notifications",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Played as soon as a reply arrives. Turn both off for no alert.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                // Switching one on plays it once, so the user knows what to expect.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Vibration", style = MaterialTheme.typography.bodyLarge)
-                    Switch(
-                        checked = notifyVibration,
-                        onCheckedChange = {
-                            notifyVibration = it
-                            onSave { s -> s.copy(notifyVibrationEnabled = it) }
-                            if (it) CompletionFeedback.replyArrived(localContext, vibrate = true, chime = false)
-                        },
-                        modifier = Modifier.testTag("settings_notify_vibration")
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Chime", style = MaterialTheme.typography.bodyLarge)
-                    Switch(
-                        checked = notifyChime,
-                        onCheckedChange = {
-                            notifyChime = it
-                            onSave { s -> s.copy(notifyChimeEnabled = it) }
-                            if (it) CompletionFeedback.replyArrived(localContext, vibrate = false, chime = true)
-                        },
-                        modifier = Modifier.testTag("settings_notify_chime")
-                    )
-                }
-
-                HorizontalDivider(thickness = 1.dp)
-
-                // ---- AI Configuration (collapsible, collapsed by default) ----
-                SectionHeader(
-                    title = "AI Configuration",
-                    expanded = aiConfigExpanded,
-                    onToggle = { aiConfigExpanded = !aiConfigExpanded },
-                    modifier = Modifier.testTag("settings_ai_config_header")
-                )
-                AnimatedVisibility(visible = aiConfigExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // ---- LLM provider selector ----
-                        ExposedDropdownMenuBox(
-                            expanded = providerExpanded,
-                            onExpandedChange = { providerExpanded = it }
-                        ) {
-                            OutlinedTextField(
-                                value = provider.label,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("LLM Provider") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
-                                },
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = providerExpanded,
-                                onDismissRequest = { providerExpanded = false }
-                            ) {
-                                LlmProvider.entries.forEach { p ->
-                                    DropdownMenuItem(
-                                        text = { Text(p.label) },
-                                        onClick = {
-                                            provider = p
-                                            providerExpanded = false
-                                        }
-                                    )
+                if (provider == LlmProvider.SAMOSA_AI) {
+                    // ---- Samosa AI: Google sign-in (no Base URL / API key) ----
+                    SamosaAuthSection(
+                        email = samosaEmail,
+                        signedIn = samosaToken.isNotBlank(),
+                        busy = samosaBusy,
+                        onSignIn = {
+                            samosaBusy = true
+                            status = "Signing in with Google…"
+                            scope.launch {
+                                val result = onSamosaSignIn()
+                                result.onSuccess { (email, token) ->
+                                    samosaEmail = email
+                                    samosaToken = token
+                                    status = "Signed in as $email"
+                                }.onFailure { e ->
+                                    status = e.message ?: "Sign-in failed."
                                 }
+                                samosaBusy = false
+                            }
+                        },
+                        onSignOut = {
+                            samosaBusy = true
+                            status = "Signing out…"
+                            scope.launch {
+                                onSamosaSignOut()
+                                samosaToken = ""
+                                samosaEmail = ""
+                                availableChatModels = emptyList()
+                                status = "Signed out of Samosa AI."
+                                samosaBusy = false
                             }
                         }
-
-                        if (provider == LlmProvider.SAMOSA_AI) {
-                            // ---- Samosa AI: Google sign-in (no Base URL / API key) ----
-                            SamosaAuthSection(
-                                email = samosaEmail,
-                                signedIn = samosaToken.isNotBlank(),
-                                busy = samosaBusy,
-                                onSignIn = {
-                                    samosaBusy = true
-                                    status = "Signing in with Google…"
-                                    scope.launch {
-                                        val result = onSamosaSignIn()
-                                        result.onSuccess { (email, token) ->
-                                            samosaEmail = email
-                                            samosaToken = token
-                                            status = "Signed in as $email"
-                                        }.onFailure { e ->
-                                            status = e.message ?: "Sign-in failed."
-                                        }
-                                        samosaBusy = false
-                                    }
-                                },
-                                onSignOut = {
-                                    samosaBusy = true
-                                    status = "Signing out…"
-                                    scope.launch {
-                                        onSamosaSignOut()
-                                        samosaToken = ""
-                                        samosaEmail = ""
-                                        availableChatModels = emptyList()
-                                        status = "Signed out of Samosa AI."
-                                        samosaBusy = false
-                                    }
-                                }
+                    )
+                } else {
+                    // ---- OpenAI-compatible: Base URL + API key (unchanged) ----
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("API key") },
+                        singleLine = true,
+                        visualTransformation = if (showKey) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        trailingIcon = {
+                            TextButton(onClick = { showKey = !showKey }) {
+                                Text(if (showKey) "Hide" else "Show")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("settings_api_key")
+                    )
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("Base URL (OpenAI-compatible)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("settings_base_url")
+                    )
+                }
+                ExposedDropdownMenuBox(
+                    expanded = modelExpanded,
+                    onExpandedChange = {
+                        modelExpanded = it
+                        if (it) refreshChatModelsAction()
+                    }
+                ) {
+                    OutlinedTextField(
+                        value = model,
+                        onValueChange = { model = it },
+                        readOnly = false,
+                        label = { Text("Main model") },
+                        placeholder = { Text("(select model)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor().testTag("settings_model")
+                    )
+                    ExposedDropdownMenu(
+                        expanded = modelExpanded,
+                        onDismissRequest = { modelExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                            onClick = { refreshChatModelsAction() }
+                        )
+                        if (availableChatModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No models found") },
+                                onClick = { modelExpanded = false }
                             )
                         } else {
-                            // ---- OpenAI-compatible: Base URL + API key (unchanged) ----
-                            OutlinedTextField(
-                                value = apiKey,
-                                onValueChange = { apiKey = it },
-                                label = { Text("API key") },
-                                singleLine = true,
-                                visualTransformation = if (showKey) {
-                                    VisualTransformation.None
-                                } else {
-                                    PasswordVisualTransformation()
-                                },
-                                trailingIcon = {
-                                    TextButton(onClick = { showKey = !showKey }) {
-                                        Text(if (showKey) "Hide" else "Show")
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().testTag("settings_api_key")
-                            )
-                            OutlinedTextField(
-                                value = baseUrl,
-                                onValueChange = { baseUrl = it },
-                                label = { Text("Base URL (OpenAI-compatible)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("settings_base_url")
-                            )
-                        }
-                        ExposedDropdownMenuBox(
-                            expanded = modelExpanded,
-                            onExpandedChange = {
-                                modelExpanded = it
-                                if (it) refreshChatModelsAction()
-                            }
-                        ) {
-                            OutlinedTextField(
-                                value = model,
-                                onValueChange = { model = it },
-                                readOnly = false,
-                                label = { Text("Main model") },
-                                placeholder = { Text("(select model)") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                                modifier = Modifier.fillMaxWidth().menuAnchor().testTag("settings_model")
-                            )
-                            ExposedDropdownMenu(
-                                expanded = modelExpanded,
-                                onDismissRequest = { modelExpanded = false }
-                            ) {
+                            availableChatModels.forEach { m ->
                                 DropdownMenuItem(
-                                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                                    onClick = { refreshChatModelsAction() }
-                                )
-                                if (availableChatModels.isEmpty()) {
-                                    DropdownMenuItem(
-                                        text = { Text("No models found") },
-                                        onClick = { modelExpanded = false }
-                                    )
-                                } else {
-                                    availableChatModels.forEach { m ->
-                                        DropdownMenuItem(
-                                            text = { Text(m) },
-                                            onClick = {
-                                                model = m
-                                                modelExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                                // Always allow manual text input
-                                DropdownMenuItem(
-                                    text = { Text("✏️ Custom model…") },
+                                    text = { Text(m) },
                                     onClick = {
+                                        model = m
                                         modelExpanded = false
                                     }
                                 )
                             }
                         }
-                        ExposedDropdownMenuBox(
-                            expanded = subAgentModelExpanded,
-                            onExpandedChange = {
-                                subAgentModelExpanded = it
-                                if (it) refreshChatModelsAction()
+                        // Always allow manual text input
+                        DropdownMenuItem(
+                            text = { Text("✏️ Custom model…") },
+                            onClick = {
+                                modelExpanded = false
                             }
-                        ) {
-                            val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
-                            OutlinedTextField(
-                                value = subLabel,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Sub-agent model") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(
-                                        expanded = subAgentModelExpanded
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                    }
+                }
+                ExposedDropdownMenuBox(
+                    expanded = subAgentModelExpanded,
+                    onExpandedChange = {
+                        subAgentModelExpanded = it
+                        if (it) refreshChatModelsAction()
+                    }
+                ) {
+                    val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
+                    OutlinedTextField(
+                        value = subLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Sub-agent model") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = subAgentModelExpanded
                             )
-                            ExposedDropdownMenu(
-                                expanded = subAgentModelExpanded,
-                                onDismissRequest = { subAgentModelExpanded = false }
-                            ) {
+                        },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = subAgentModelExpanded,
+                        onDismissRequest = { subAgentModelExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                            onClick = { refreshChatModelsAction() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Same as main agent") },
+                            onClick = {
+                                subAgentModel = ""
+                                subAgentModelExpanded = false
+                            }
+                        )
+                        if (availableChatModels.isNotEmpty()) {
+                            availableChatModels.forEach { m ->
                                 DropdownMenuItem(
-                                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                                    onClick = { refreshChatModelsAction() }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Same as main agent") },
+                                    text = { Text(m) },
                                     onClick = {
-                                        subAgentModel = ""
+                                        subAgentModel = m
                                         subAgentModelExpanded = false
                                     }
                                 )
-                                if (availableChatModels.isNotEmpty()) {
-                                    availableChatModels.forEach { m ->
-                                        DropdownMenuItem(
-                                            text = { Text(m) },
-                                            onClick = {
-                                                subAgentModel = m
-                                                subAgentModelExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
                             }
                         }
-                        ExposedDropdownMenuBox(
-                            expanded = navigatorModelExpanded,
-                            onExpandedChange = {
-                                navigatorModelExpanded = it
-                                if (it) refreshChatModelsAction()
-                            }
-                        ) {
-                            val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
-                            OutlinedTextField(
-                                value = navLabel,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Navigator model") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(
-                                        expanded = navigatorModelExpanded
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                    }
+                }
+                ExposedDropdownMenuBox(
+                    expanded = navigatorModelExpanded,
+                    onExpandedChange = {
+                        navigatorModelExpanded = it
+                        if (it) refreshChatModelsAction()
+                    }
+                ) {
+                    val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
+                    OutlinedTextField(
+                        value = navLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Navigator model") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = navigatorModelExpanded
                             )
-                            ExposedDropdownMenu(
-                                expanded = navigatorModelExpanded,
-                                onDismissRequest = { navigatorModelExpanded = false }
-                            ) {
+                        },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = navigatorModelExpanded,
+                        onDismissRequest = { navigatorModelExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                            onClick = { refreshChatModelsAction() }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Same as main model") },
+                            onClick = {
+                                navigatorModel = ""
+                                navigatorModelExpanded = false
+                            }
+                        )
+                        if (availableChatModels.isNotEmpty()) {
+                            availableChatModels.forEach { m ->
                                 DropdownMenuItem(
-                                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                                    onClick = { refreshChatModelsAction() }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Same as main model") },
+                                    text = { Text(m) },
                                     onClick = {
-                                        navigatorModel = ""
+                                        navigatorModel = m
                                         navigatorModelExpanded = false
                                     }
                                 )
-                                if (availableChatModels.isNotEmpty()) {
-                                    availableChatModels.forEach { m ->
-                                        DropdownMenuItem(
-                                            text = { Text(m) },
-                                            onClick = {
-                                                navigatorModel = m
-                                                navigatorModelExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
                             }
                         }
-                        OutlinedTextField(
-                            value = maxToolRounds,
-                            onValueChange = { maxToolRounds = it },
-                            label = { Text("Max tool rounds") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = maxRepeatedToolCalls,
-                            onValueChange = { maxRepeatedToolCalls = it },
-                            label = { Text("Max repeated tool calls") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = maxNavigationToolCalls,
-                            onValueChange = { maxNavigationToolCalls = it },
-                            label = { Text("Max navigation tool calls") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = maxConsecutiveDelegations,
-                            onValueChange = { maxConsecutiveDelegations = it },
-                            label = { Text("Max consecutive delegations") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = maxContextTokens,
-                            onValueChange = { maxContextTokens = it },
-                            label = { Text("Max context tokens") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = apiTimeoutSeconds,
-                            onValueChange = { apiTimeoutSeconds = it },
-                            label = { Text("API Timeout (seconds, 0 for infinite)") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Button(
-                            onClick = {
-                                onSave { applyAiConfig(it) }
-                                overlay = SettingsOverlay("Saved.")
-                                status = null
-                            },
-                            enabled = when (provider) {
-                                LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
-                                LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
-                            },
-                            modifier = Modifier.fillMaxWidth().testTag("settings_save")
-                        ) { Text("Save") }
-                        OutlinedButton(
-                            onClick = {
-                                testing = true
-                                // Sticky while the request is in flight, then the result
-                                // replaces it and fades out on its own.
-                                overlay = SettingsOverlay("Testing connection…", sticky = true)
-                                status = null
-                                scope.launch {
-                                    val result = onTestConnection(draftAiConfig())
-                                    overlay = SettingsOverlay(
-                                        result.fold(
-                                            onSuccess = { "✓ Connected: $it" },
-                                            onFailure = { "✗ Connection failed: ${it.message}" }
-                                        )
-                                    )
-                                    testing = false
-                                }
-                            },
-                            enabled = !testing && when (provider) {
-                                LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
-                                LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Test connection") }
-                        OutlinedButton(
-                            onClick = {
-                                onClearLlmCache()
-                                overlay = SettingsOverlay("LLM response cache cleared.")
-                                status = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Clear LLM cache") }
-                        OutlinedButton(
-                            onClick = {
-                                onClearDebugScreenshots()
-                                overlay = SettingsOverlay("Debug screenshots cleared.")
-                                status = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Clear debug screenshots") }
                     }
                 }
-
-                HorizontalDivider(thickness = 1.dp)
-
-                // ---- Speech (collapsible, collapsed by default) ----
-                SectionHeader(
-                    title = "Speech (TTS / STT)",
-                    expanded = speechExpanded,
-                    onToggle = { speechExpanded = !speechExpanded }
+                OutlinedTextField(
+                    value = maxToolRounds,
+                    onValueChange = { maxToolRounds = it },
+                    label = { Text("Max tool rounds") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                AnimatedVisibility(visible = speechExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val samosaAudioSelected = ttsProvider == AudioProvider.SAMOSA_AI ||
-                            sttProvider == AudioProvider.SAMOSA_AI
-                        if (samosaAudioSelected) {
-                            SamosaAuthSection(
-                                email = samosaEmail,
-                                signedIn = samosaToken.isNotBlank(),
-                                busy = samosaBusy,
-                                onSignIn = {
-                                    samosaBusy = true
-                                    status = "Signing in with Google…"
-                                    scope.launch {
-                                        val result = onSamosaSignIn()
-                                        result.onSuccess { (email, token) ->
-                                            samosaEmail = email
-                                            samosaToken = token
-                                            status = "Signed in as $email"
-                                        }.onFailure { e ->
-                                            status = e.message ?: "Sign-in failed."
-                                        }
-                                        samosaBusy = false
-                                    }
-                                },
-                                onSignOut = {
-                                    samosaBusy = true
-                                    status = "Signing out…"
-                                    scope.launch {
-                                        onSamosaSignOut()
-                                        samosaToken = ""
-                                        samosaEmail = ""
-                                        status = "Signed out of Samosa AI."
-                                        samosaBusy = false
-                                    }
+                OutlinedTextField(
+                    value = maxRepeatedToolCalls,
+                    onValueChange = { maxRepeatedToolCalls = it },
+                    label = { Text("Max repeated tool calls") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = maxNavigationToolCalls,
+                    onValueChange = { maxNavigationToolCalls = it },
+                    label = { Text("Max navigation tool calls") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = maxConsecutiveDelegations,
+                    onValueChange = { maxConsecutiveDelegations = it },
+                    label = { Text("Max consecutive delegations") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = maxContextTokens,
+                    onValueChange = { maxContextTokens = it },
+                    label = { Text("Max context tokens") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = apiTimeoutSeconds,
+                    onValueChange = { apiTimeoutSeconds = it },
+                    label = { Text("API Timeout (seconds, 0 for infinite)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        onSave { applyAiConfig(it) }
+                        overlay.show("Saved.")
+                        status = null
+                    },
+                    enabled = when (provider) {
+                        LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
+                        LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("settings_save")
+                ) { Text("Save") }
+                OutlinedButton(
+                    onClick = {
+                        testing = true
+                        // Sticky while the request is in flight, then the result
+                        // replaces it and fades out on its own.
+                        overlay.show("Testing connection…", sticky = true)
+                        status = null
+                        scope.launch {
+                            val result = onTestConnection(draftAiConfig())
+                            overlay.show(
+                                result.fold(
+                                    onSuccess = { "✓ Connected: $it" },
+                                    onFailure = { "✗ Connection failed: ${it.message}" }
+                                )
+                            )
+                            testing = false
+                        }
+                    },
+                    enabled = !testing && when (provider) {
+                        LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank()
+                        LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Test connection") }
+                OutlinedButton(
+                    onClick = {
+                        onClearLlmCache()
+                        overlay.show("LLM response cache cleared.")
+                        status = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Clear LLM cache") }
+                OutlinedButton(
+                    onClick = {
+                        onClearDebugScreenshots()
+                        overlay.show("Debug screenshots cleared.")
+                        status = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Clear debug screenshots") }
+            }
+        }
+
+        HorizontalDivider(thickness = 1.dp)
+
+        // ---- Speech (collapsible, collapsed by default) ----
+        SectionHeader(
+            title = "Speech (TTS / STT)",
+            expanded = speechExpanded,
+            onToggle = { speechExpanded = !speechExpanded }
+        )
+        AnimatedVisibility(visible = speechExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val samosaAudioSelected = ttsProvider == AudioProvider.SAMOSA_AI ||
+                    sttProvider == AudioProvider.SAMOSA_AI
+                if (samosaAudioSelected) {
+                    SamosaAuthSection(
+                        email = samosaEmail,
+                        signedIn = samosaToken.isNotBlank(),
+                        busy = samosaBusy,
+                        onSignIn = {
+                            samosaBusy = true
+                            status = "Signing in with Google…"
+                            scope.launch {
+                                val result = onSamosaSignIn()
+                                result.onSuccess { (email, token) ->
+                                    samosaEmail = email
+                                    samosaToken = token
+                                    status = "Signed in as $email"
+                                }.onFailure { e ->
+                                    status = e.message ?: "Sign-in failed."
+                                }
+                                samosaBusy = false
+                            }
+                        },
+                        onSignOut = {
+                            samosaBusy = true
+                            status = "Signing out…"
+                            scope.launch {
+                                onSamosaSignOut()
+                                samosaToken = ""
+                                samosaEmail = ""
+                                status = "Signed out of Samosa AI."
+                                samosaBusy = false
+                            }
+                        }
+                    )
+                }
+                ExposedDropdownMenuBox(
+                    expanded = ttsProviderExpanded,
+                    onExpandedChange = { ttsProviderExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = ttsProvider.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("TTS Provider") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = ttsProviderExpanded
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = ttsProviderExpanded,
+                        onDismissRequest = { ttsProviderExpanded = false }
+                    ) {
+                        AudioProvider.entries.forEach { provider ->
+                            DropdownMenuItem(
+                                text = { Text(provider.label) },
+                                onClick = {
+                                    ttsProvider = provider
+                                    ttsProviderExpanded = false
                                 }
                             )
                         }
-                        ExposedDropdownMenuBox(
-                            expanded = ttsProviderExpanded,
-                            onExpandedChange = { ttsProviderExpanded = it }
-                        ) {
-                            OutlinedTextField(
-                                value = ttsProvider.label,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("TTS Provider") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(
-                                        expanded = ttsProviderExpanded
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = ttsProviderExpanded,
-                                onDismissRequest = { ttsProviderExpanded = false }
-                            ) {
-                                AudioProvider.entries.forEach { provider ->
-                                    DropdownMenuItem(
-                                        text = { Text(provider.label) },
-                                        onClick = {
-                                            ttsProvider = provider
-                                            ttsProviderExpanded = false
-                                        }
-                                    )
+                    }
+                }
+                when (ttsProvider) {
+                    AudioProvider.SAMOSA_AI -> {
+                        TtsModelPicker(
+                            selectedModel = ttsApiModel,
+                            availableModels = availableTtsModels,
+                            refreshing = refreshingModels,
+                            expanded = ttsModelExpanded,
+                            onExpandedChange = { ttsModelExpanded = it },
+                            onRefresh = refreshAudioModelsAction,
+                            onSelect = {
+                                ttsApiModel = it
+                                ttsModelExpanded = false
+                            }
+                        )
+                        TtsVoicePicker(
+                            selectedModel = ttsApiModel,
+                            selectedVoice = ttsVoice,
+                            availableModels = availableTtsModels,
+                            expanded = ttsVoiceExpanded,
+                            onExpandedChange = { ttsVoiceExpanded = it },
+                            onSelect = {
+                                ttsVoice = it
+                                ttsVoiceExpanded = false
+                            },
+                            onClearVoice = { ttsVoice = "" }
+                        )
+                    }
+                    AudioProvider.API -> {
+                        OutlinedTextField(
+                            value = ttsApiBaseUrl,
+                            onValueChange = { ttsApiBaseUrl = it },
+                            label = { Text("TTS API Base URL") },
+                            singleLine = true,
+                            placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = ttsApiKey,
+                            onValueChange = { ttsApiKey = it },
+                            label = { Text("TTS API Key (optional)") },
+                            singleLine = true,
+                            placeholder = { Text("Leave blank to use main API key") },
+                            visualTransformation = if (showTtsKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showTtsKey = !showTtsKey }) {
+                                    Text(if (showTtsKey) "Hide" else "Show")
                                 }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TtsModelPicker(
+                            selectedModel = ttsApiModel,
+                            availableModels = availableTtsModels,
+                            refreshing = refreshingModels,
+                            expanded = ttsModelExpanded,
+                            onExpandedChange = { ttsModelExpanded = it },
+                            onRefresh = refreshAudioModelsAction,
+                            onSelect = {
+                                ttsApiModel = it
+                                ttsModelExpanded = false
                             }
-                        }
-                        when (ttsProvider) {
-                            AudioProvider.SAMOSA_AI -> {
-                                TtsModelPicker(
-                                    selectedModel = ttsApiModel,
-                                    availableModels = availableTtsModels,
-                                    refreshing = refreshingModels,
-                                    expanded = ttsModelExpanded,
-                                    onExpandedChange = { ttsModelExpanded = it },
-                                    onRefresh = refreshAudioModelsAction,
-                                    onSelect = {
-                                        ttsApiModel = it
-                                        ttsModelExpanded = false
-                                    }
-                                )
-                                TtsVoicePicker(
-                                    selectedModel = ttsApiModel,
-                                    selectedVoice = ttsVoice,
-                                    availableModels = availableTtsModels,
-                                    expanded = ttsVoiceExpanded,
-                                    onExpandedChange = { ttsVoiceExpanded = it },
-                                    onSelect = {
-                                        ttsVoice = it
-                                        ttsVoiceExpanded = false
-                                    },
-                                    onClearVoice = { ttsVoice = "" }
-                                )
-                            }
-                            AudioProvider.API -> {
-                                OutlinedTextField(
-                                    value = ttsApiBaseUrl,
-                                    onValueChange = { ttsApiBaseUrl = it },
-                                    label = { Text("TTS API Base URL") },
-                                    singleLine = true,
-                                    placeholder = { Text("http://10.0.2.2:8969/v1") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                OutlinedTextField(
-                                    value = ttsApiKey,
-                                    onValueChange = { ttsApiKey = it },
-                                    label = { Text("TTS API Key (optional)") },
-                                    singleLine = true,
-                                    placeholder = { Text("Leave blank to use main API key") },
-                                    visualTransformation = if (showTtsKey) {
-                                        VisualTransformation.None
-                                    } else {
-                                        PasswordVisualTransformation()
-                                    },
-                                    trailingIcon = {
-                                        TextButton(onClick = { showTtsKey = !showTtsKey }) {
-                                            Text(if (showTtsKey) "Hide" else "Show")
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                TtsModelPicker(
-                                    selectedModel = ttsApiModel,
-                                    availableModels = availableTtsModels,
-                                    refreshing = refreshingModels,
-                                    expanded = ttsModelExpanded,
-                                    onExpandedChange = { ttsModelExpanded = it },
-                                    onRefresh = refreshAudioModelsAction,
-                                    onSelect = {
-                                        ttsApiModel = it
-                                        ttsModelExpanded = false
-                                    }
-                                )
-                                TtsVoicePicker(
-                                    selectedModel = ttsApiModel,
-                                    selectedVoice = ttsVoice,
-                                    availableModels = availableTtsModels,
-                                    expanded = ttsVoiceExpanded,
-                                    onExpandedChange = { ttsVoiceExpanded = it },
-                                    onSelect = {
-                                        ttsVoice = it
-                                        ttsVoiceExpanded = false
-                                    },
-                                    onClearVoice = { ttsVoice = "" }
-                                )
-                            }
-                            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
-                        }
-                        ExposedDropdownMenuBox(
-                            expanded = sttProviderExpanded,
-                            onExpandedChange = { sttProviderExpanded = it }
-                        ) {
-                            OutlinedTextField(
-                                value = sttProvider.label,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("STT Provider") },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(
-                                        expanded = sttProviderExpanded
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        TtsVoicePicker(
+                            selectedModel = ttsApiModel,
+                            selectedVoice = ttsVoice,
+                            availableModels = availableTtsModels,
+                            expanded = ttsVoiceExpanded,
+                            onExpandedChange = { ttsVoiceExpanded = it },
+                            onSelect = {
+                                ttsVoice = it
+                                ttsVoiceExpanded = false
+                            },
+                            onClearVoice = { ttsVoice = "" }
+                        )
+                    }
+                    AudioProvider.ANDROID, AudioProvider.NONE -> Unit
+                }
+                ExposedDropdownMenuBox(
+                    expanded = sttProviderExpanded,
+                    onExpandedChange = { sttProviderExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = sttProvider.label,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("STT Provider") },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(
+                                expanded = sttProviderExpanded
                             )
-                            ExposedDropdownMenu(
-                                expanded = sttProviderExpanded,
-                                onDismissRequest = { sttProviderExpanded = false }
-                            ) {
-                                AudioProvider.entries.forEach { provider ->
-                                    DropdownMenuItem(
-                                        text = { Text(provider.label) },
-                                        onClick = {
-                                            sttProvider = provider
-                                            sttProviderExpanded = false
-                                        }
-                                    )
+                        },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = sttProviderExpanded,
+                        onDismissRequest = { sttProviderExpanded = false }
+                    ) {
+                        AudioProvider.entries.forEach { provider ->
+                            DropdownMenuItem(
+                                text = { Text(provider.label) },
+                                onClick = {
+                                    sttProvider = provider
+                                    sttProviderExpanded = false
                                 }
-                            }
+                            )
                         }
-                        when (sttProvider) {
-                            AudioProvider.SAMOSA_AI -> {
-                                SttModelPicker(
-                                    selectedModel = sttApiModel,
-                                    availableModels = availableSttModels,
-                                    refreshing = refreshingModels,
-                                    expanded = sttModelExpanded,
-                                    onExpandedChange = { sttModelExpanded = it },
-                                    onRefresh = refreshAudioModelsAction,
-                                    onSelect = {
-                                        sttApiModel = it
-                                        sttModelExpanded = false
-                                    }
-                                )
-                                SttLanguagePicker(
-                                    selectedModel = sttApiModel,
-                                    selectedLanguage = sttLanguage,
-                                    availableModels = availableSttModels,
-                                    expanded = sttLanguageExpanded,
-                                    onExpandedChange = { sttLanguageExpanded = it },
-                                    onSelect = {
-                                        sttLanguage = it
-                                        sttLanguageExpanded = false
-                                    },
-                                    onClearLanguage = { sttLanguage = "" }
-                                )
+                    }
+                }
+                when (sttProvider) {
+                    AudioProvider.SAMOSA_AI -> {
+                        SttModelPicker(
+                            selectedModel = sttApiModel,
+                            availableModels = availableSttModels,
+                            refreshing = refreshingModels,
+                            expanded = sttModelExpanded,
+                            onExpandedChange = { sttModelExpanded = it },
+                            onRefresh = refreshAudioModelsAction,
+                            onSelect = {
+                                sttApiModel = it
+                                sttModelExpanded = false
                             }
-                            AudioProvider.API -> {
-                                OutlinedTextField(
-                                    value = sttApiBaseUrl,
-                                    onValueChange = { sttApiBaseUrl = it },
-                                    label = { Text("STT API Base URL") },
-                                    singleLine = true,
-                                    placeholder = { Text("http://10.0.2.2:8969/v1") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                OutlinedTextField(
-                                    value = sttApiKey,
-                                    onValueChange = { sttApiKey = it },
-                                    label = { Text("STT API Key (optional)") },
-                                    singleLine = true,
-                                    placeholder = { Text("Leave blank to use main API key") },
-                                    visualTransformation = if (showSttKey) {
-                                        VisualTransformation.None
-                                    } else {
-                                        PasswordVisualTransformation()
-                                    },
-                                    trailingIcon = {
-                                        TextButton(onClick = { showSttKey = !showSttKey }) {
-                                            Text(if (showSttKey) "Hide" else "Show")
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                SttModelPicker(
-                                    selectedModel = sttApiModel,
-                                    availableModels = availableSttModels,
-                                    refreshing = refreshingModels,
-                                    expanded = sttModelExpanded,
-                                    onExpandedChange = { sttModelExpanded = it },
-                                    onRefresh = refreshAudioModelsAction,
-                                    onSelect = {
-                                        sttApiModel = it
-                                        sttModelExpanded = false
-                                    }
-                                )
-                                SttLanguagePicker(
-                                    selectedModel = sttApiModel,
-                                    selectedLanguage = sttLanguage,
-                                    availableModels = availableSttModels,
-                                    expanded = sttLanguageExpanded,
-                                    onExpandedChange = { sttLanguageExpanded = it },
-                                    onSelect = {
-                                        sttLanguage = it
-                                        sttLanguageExpanded = false
-                                    },
-                                    onClearLanguage = { sttLanguage = "" }
-                                )
+                        )
+                        SttLanguagePicker(
+                            selectedModel = sttApiModel,
+                            selectedLanguage = sttLanguage,
+                            availableModels = availableSttModels,
+                            expanded = sttLanguageExpanded,
+                            onExpandedChange = { sttLanguageExpanded = it },
+                            onSelect = {
+                                sttLanguage = it
+                                sttLanguageExpanded = false
+                            },
+                            onClearLanguage = { sttLanguage = "" }
+                        )
+                    }
+                    AudioProvider.API -> {
+                        OutlinedTextField(
+                            value = sttApiBaseUrl,
+                            onValueChange = { sttApiBaseUrl = it },
+                            label = { Text("STT API Base URL") },
+                            singleLine = true,
+                            placeholder = { Text("http://10.0.2.2:8969/v1") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = sttApiKey,
+                            onValueChange = { sttApiKey = it },
+                            label = { Text("STT API Key (optional)") },
+                            singleLine = true,
+                            placeholder = { Text("Leave blank to use main API key") },
+                            visualTransformation = if (showSttKey) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                TextButton(onClick = { showSttKey = !showSttKey }) {
+                                    Text(if (showSttKey) "Hide" else "Show")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        SttModelPicker(
+                            selectedModel = sttApiModel,
+                            availableModels = availableSttModels,
+                            refreshing = refreshingModels,
+                            expanded = sttModelExpanded,
+                            onExpandedChange = { sttModelExpanded = it },
+                            onRefresh = refreshAudioModelsAction,
+                            onSelect = {
+                                sttApiModel = it
+                                sttModelExpanded = false
                             }
-                            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
-                        }
+                        )
+                        SttLanguagePicker(
+                            selectedModel = sttApiModel,
+                            selectedLanguage = sttLanguage,
+                            availableModels = availableSttModels,
+                            expanded = sttLanguageExpanded,
+                            onExpandedChange = { sttLanguageExpanded = it },
+                            onSelect = {
+                                sttLanguage = it
+                                sttLanguageExpanded = false
+                            },
+                            onClearLanguage = { sttLanguage = "" }
+                        )
+                    }
+                    AudioProvider.ANDROID, AudioProvider.NONE -> Unit
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
+                    Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
+                }
+                Button(
+                    onClick = {
+                        onSave { applySpeech(it) }
+                        overlay.show("Saved.")
+                        status = null
+                    },
+                    enabled = speechConfigValid(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Save Speech Settings") }
+            }
+        }
+
+        HorizontalDivider(thickness = 1.dp)
+
+        // ---- Permissions ----
+        PermissionsSection(packageName = packageName)
+
+        HorizontalDivider(thickness = 1.dp)
+
+        // ---- Skills (collapsible, collapsed by default) ----
+        SectionHeader(
+            title = "Skills / Plugins",
+            expanded = skillsExpanded,
+            onToggle = { skillsExpanded = !skillsExpanded }
+        )
+        AnimatedVisibility(visible = skillsExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val allSkills = SkillRegistry.getAllSkills()
+                if (allSkills.isEmpty()) {
+                    Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    allSkills.forEach { skill ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
-                            Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text(
+                                    skill.id,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (skill.description.isNotBlank()) {
+                                    Text(skill.description, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Switch(
+                                checked = !disabledSkills.contains(skill.id),
+                                onCheckedChange = { enabled ->
+                                    disabledSkills = if (enabled) {
+                                        disabledSkills - skill.id
+                                    } else {
+                                        disabledSkills + skill.id
+                                    }
+                                    onSave { applySkills(it) }
+                                }
+                            )
                         }
-                        Button(
-                            onClick = {
-                                onSave { applySpeech(it) }
-                                overlay = SettingsOverlay("Saved.")
-                                status = null
-                            },
-                            enabled = speechConfigValid(),
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Save Speech Settings") }
                     }
                 }
 
                 HorizontalDivider(thickness = 1.dp)
 
-                // ---- Permissions ----
-                PermissionsSection(packageName = packageName)
-
-                HorizontalDivider(thickness = 1.dp)
-
-                // ---- Skills (collapsible, collapsed by default) ----
-                SectionHeader(
-                    title = "Skills / Plugins",
-                    expanded = skillsExpanded,
-                    onToggle = { skillsExpanded = !skillsExpanded }
+                // ---- Community Skills ----
+                Text(
+                    "Community Skills",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
                 )
-                AnimatedVisibility(visible = skillsExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val allSkills = SkillRegistry.getAllSkills()
-                        if (allSkills.isEmpty()) {
-                            Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
-                        } else {
-                            allSkills.forEach { skill ->
+                Text(
+                    "Import skills from samosa-ai.example or paste JSON. " +
+                        "Community skills appear in the agent's system prompt " +
+                        "as advisory guidance.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                OutlinedTextField(
+                    value = communitySkillUrl,
+                    onValueChange = { communitySkillUrl = it.trim() },
+                    label = { Text("Skill URL (https://samosa-ai.example/...)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        if (communityImportBusy) return@Button
+                        val url = communitySkillUrl.trim()
+                        if (url.isEmpty()) {
+                            overlay.show("Enter a URL first.")
+                            return@Button
+                        }
+                        communityImportBusy = true
+                        overlay.show("Fetching skill…", sticky = true)
+                        scope.launch {
+                            val result = runCatching {
+                                val hosts = communitySkillHosts
+                                SkillRegistry.importCommunityFromUrl(url, hosts)
+                            }
+                            communityImportBusy = false
+                            result.onSuccess { skill ->
+                                communitySkillUrl = ""
+                                communitySkillRefreshTick++
+                                overlay.show("Imported '${skill.id}'.")
+                            }.onFailure { e ->
+                                overlay.show(formatImportError(e))
+                            }
+                        }
+                    },
+                    enabled = !communityImportBusy,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Import from URL") }
+
+                var pasteOpen by remember { mutableStateOf(false) }
+                OutlinedButton(
+                    onClick = { pasteOpen = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Paste JSON…") }
+                if (pasteOpen) {
+                    androidx.compose.ui.window.Dialog(onDismissRequest = {
+                        pasteOpen = false
+                        communitySkillPasteJson = ""
+                    }) {
+                        Surface(shape = MaterialTheme.shapes.medium) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    "Paste community skill JSON",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                OutlinedTextField(
+                                    value = communitySkillPasteJson,
+                                    onValueChange = { communitySkillPasteJson = it },
+                                    label = { Text("Skill JSON") },
+                                    modifier = Modifier.fillMaxWidth().height(220.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                                )
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    horizontalArrangement = Arrangement.End,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                        Text(
-                                            skill.id,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        if (skill.description.isNotBlank()) {
-                                            Text(skill.description, style = MaterialTheme.typography.bodySmall)
+                                    TextButton(onClick = {
+                                        pasteOpen = false
+                                        communitySkillPasteJson = ""
+                                    }) { Text("Cancel") }
+                                    TextButton(onClick = {
+                                        val src = communitySkillPasteJson.trim()
+                                        if (src.isEmpty()) {
+                                            overlay.show("Paste JSON first.")
+                                            return@TextButton
                                         }
-                                    }
-                                    Switch(
-                                        checked = !disabledSkills.contains(skill.id),
-                                        onCheckedChange = { enabled ->
-                                            disabledSkills = if (enabled) {
-                                                disabledSkills - skill.id
-                                            } else {
-                                                disabledSkills + skill.id
+                                        communityImportBusy = true
+                                        pasteOpen = false
+                                        overlay.show("Importing skill…", sticky = true)
+                                        scope.launch {
+                                            val result = runCatching {
+                                                SkillRegistry.importCommunity(src)
                                             }
-                                            onSave { applySkills(it) }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        HorizontalDivider(thickness = 1.dp)
-
-                        // ---- Community Skills ----
-                        Text(
-                            "Community Skills",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Import skills from samosa-ai.example or paste JSON. " +
-                                "Community skills appear in the agent's system prompt " +
-                                "as advisory guidance.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                        OutlinedTextField(
-                            value = communitySkillUrl,
-                            onValueChange = { communitySkillUrl = it.trim() },
-                            label = { Text("Skill URL (https://samosa-ai.example/...)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Button(
-                            onClick = {
-                                if (communityImportBusy) return@Button
-                                val url = communitySkillUrl.trim()
-                                if (url.isEmpty()) {
-                                    overlay = SettingsOverlay("Enter a URL first.")
-                                    return@Button
-                                }
-                                communityImportBusy = true
-                                overlay = SettingsOverlay("Fetching skill…", sticky = true)
-                                scope.launch {
-                                    val result = runCatching {
-                                        val hosts = communitySkillHosts
-                                        SkillRegistry.importCommunityFromUrl(url, hosts)
-                                    }
-                                    communityImportBusy = false
-                                    result.onSuccess { skill ->
-                                        communitySkillUrl = ""
-                                        communitySkillRefreshTick++
-                                        overlay = SettingsOverlay("Imported '${skill.id}'.")
-                                    }.onFailure { e ->
-                                        overlay = SettingsOverlay(formatImportError(e))
-                                    }
-                                }
-                            },
-                            enabled = !communityImportBusy,
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Import from URL") }
-
-                        var pasteOpen by remember { mutableStateOf(false) }
-                        OutlinedButton(
-                            onClick = { pasteOpen = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Paste JSON…") }
-                        if (pasteOpen) {
-                            androidx.compose.ui.window.Dialog(onDismissRequest = {
-                                pasteOpen = false
-                                communitySkillPasteJson = ""
-                            }) {
-                                Surface(shape = MaterialTheme.shapes.medium) {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(
-                                            "Paste community skill JSON",
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                        OutlinedTextField(
-                                            value = communitySkillPasteJson,
-                                            onValueChange = { communitySkillPasteJson = it },
-                                            label = { Text("Skill JSON") },
-                                            modifier = Modifier.fillMaxWidth().height(220.dp),
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-                                        )
-                                        Row(
-                                            horizontalArrangement = Arrangement.End,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            TextButton(onClick = {
-                                                pasteOpen = false
-                                                communitySkillPasteJson = ""
-                                            }) { Text("Cancel") }
-                                            TextButton(onClick = {
-                                                val src = communitySkillPasteJson.trim()
-                                                if (src.isEmpty()) {
-                                                    overlay = SettingsOverlay("Paste JSON first.")
-                                                    return@TextButton
-                                                }
-                                                communityImportBusy = true
-                                                pasteOpen = false
-                                                overlay = SettingsOverlay("Importing skill…", sticky = true)
-                                                scope.launch {
-                                                    val result = runCatching {
-                                                        SkillRegistry.importCommunity(src)
-                                                    }
-                                                    communityImportBusy = false
-                                                    communitySkillPasteJson = ""
-                                                    result.onSuccess { skill ->
-                                                        communitySkillRefreshTick++
-                                                        overlay = SettingsOverlay(
-                                                            "Imported '${skill.id}'."
-                                                        )
-                                                    }.onFailure { e ->
-                                                        overlay = SettingsOverlay(formatImportError(e))
-                                                    }
-                                                }
-                                            }) { Text("Import") }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // ---- Imported list ----
-                        val communitySkills = remember(communitySkillRefreshTick) {
-                            SkillRegistry.getCommunitySkills()
-                        }
-                        if (communitySkills.isEmpty()) {
-                            Text(
-                                "No community skills imported yet.",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        } else {
-                            communitySkills.forEach { skill ->
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                            Text(
-                                                if (skill.title.isNotBlank()) skill.title else skill.id,
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "id: ${skill.id}",
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                            if (skill.description.isNotBlank()) {
-                                                Text(
-                                                    skill.description,
-                                                    style = MaterialTheme.typography.bodySmall
-                                                )
-                                            }
-                                        }
-                                        Switch(
-                                            checked = !disabledSkills.contains(skill.id),
-                                            onCheckedChange = { enabled ->
-                                                disabledSkills = if (enabled) {
-                                                    disabledSkills - skill.id
-                                                } else {
-                                                    disabledSkills + skill.id
-                                                }
-                                                onSave { applySkills(it) }
-                                            }
-                                        )
-                                        IconButton(
-                                            onClick = { communitySkillToDelete = skill }
-                                        ) {
-                                            Icon(
-                                                Icons.Outlined.Delete,
-                                                contentDescription = "Delete ${skill.id}",
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // ---- Delete confirmation dialog ----
-                        communitySkillToDelete?.let { pending ->
-                            AlertDialog(
-                                onDismissRequest = { communitySkillToDelete = null },
-                                title = { Text("Delete community skill?") },
-                                text = {
-                                    Text(
-                                        "Are you sure you want to permanently delete " +
-                                            "\"${pending.id}\"? The skill will be removed from " +
-                                            "this device and the agent will no longer have " +
-                                            "access to it. This action cannot be undone."
-                                    )
-                                },
-                                confirmButton = {
-                                    Button(
-                                        onClick = {
-                                            val id = pending.id
-                                            communitySkillToDelete = null
-                                            scope.launch {
-                                                runCatching { SkillRegistry.removeCommunity(id) }
-                                                disabledSkills = disabledSkills - id
-                                                onSave { applySkills(it) }
+                                            communityImportBusy = false
+                                            communitySkillPasteJson = ""
+                                            result.onSuccess { skill ->
                                                 communitySkillRefreshTick++
-                                                overlay = SettingsOverlay("Deleted '$id'.")
+                                                overlay.show(
+                                                    "Imported '${skill.id}'."
+                                                )
+                                            }.onFailure { e ->
+                                                overlay.show(formatImportError(e))
                                             }
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.error
-                                        )
-                                    ) { Text("Delete") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { communitySkillToDelete = null }) {
-                                        Text("Cancel")
-                                    }
+                                        }
+                                    }) { Text("Import") }
                                 }
-                            )
+                            }
                         }
+                    }
+                }
 
-                        HorizontalDivider(thickness = 1.dp)
-
-                        // ---- Host allowlist ----
-                        Text(
-                            "Allowed community skill hosts",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Only HTTPS hosts in this list can be fetched. " +
-                                "Default: samosa-ai.example.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        communitySkillHosts.forEach { host ->
+                // ---- Imported list ----
+                val communitySkills = remember(communitySkillRefreshTick) {
+                    SkillRegistry.getCommunitySkills()
+                }
+                if (communitySkills.isEmpty()) {
+                    Text(
+                        "No community skills imported yet.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    communitySkills.forEach { skill ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(host, modifier = Modifier.weight(1f))
-                                TextButton(onClick = {
-                                    communitySkillHosts = communitySkillHosts - host
-                                    onSave { applySkills(it) }
-                                }) { Text("Remove") }
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        if (skill.title.isNotBlank()) skill.title else skill.id,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "id: ${skill.id}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    if (skill.description.isNotBlank()) {
+                                        Text(
+                                            skill.description,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = !disabledSkills.contains(skill.id),
+                                    onCheckedChange = { enabled ->
+                                        disabledSkills = if (enabled) {
+                                            disabledSkills - skill.id
+                                        } else {
+                                            disabledSkills + skill.id
+                                        }
+                                        onSave { applySkills(it) }
+                                    }
+                                )
+                                IconButton(
+                                    onClick = { communitySkillToDelete = skill }
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Delete,
+                                        contentDescription = "Delete ${skill.id}",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
-                        var newHost by remember { mutableStateOf("") }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = newHost,
-                                onValueChange = { newHost = it.trim() },
-                                label = { Text("Add host") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
+                    }
+                }
+
+                // ---- Delete confirmation dialog ----
+                communitySkillToDelete?.let { pending ->
+                    AlertDialog(
+                        onDismissRequest = { communitySkillToDelete = null },
+                        title = { Text("Delete community skill?") },
+                        text = {
+                            Text(
+                                "Are you sure you want to permanently delete " +
+                                    "\"${pending.id}\"? The skill will be removed from " +
+                                    "this device and the agent will no longer have " +
+                                    "access to it. This action cannot be undone."
                             )
+                        },
+                        confirmButton = {
                             Button(
                                 onClick = {
-                                    val h = newHost.trim()
-                                    if (h.isEmpty()) return@Button
-                                    communitySkillHosts = communitySkillHosts + h
-                                    onSave { applySkills(it) }
-                                    newHost = ""
-                                }
-                            ) { Text("Add") }
+                                    val id = pending.id
+                                    communitySkillToDelete = null
+                                    scope.launch {
+                                        runCatching { SkillRegistry.removeCommunity(id) }
+                                        disabledSkills = disabledSkills - id
+                                        onSave { applySkills(it) }
+                                        communitySkillRefreshTick++
+                                        overlay.show("Deleted '$id'.")
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                )
+                            ) { Text("Delete") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { communitySkillToDelete = null }) {
+                                Text("Cancel")
+                            }
                         }
-                    }
+                    )
                 }
 
                 HorizontalDivider(thickness = 1.dp)
 
-                // ---- Proactive Assistance ----
-                SectionHeader(
-                    title = "Proactive Assistance",
-                    expanded = proactiveExpanded,
-                    onToggle = { proactiveExpanded = !proactiveExpanded }
-                )
-                AnimatedVisibility(visible = proactiveExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SettingsToggleRow(
-                            label = "Master Proactive Offers",
-                            checked = proactiveEnabled,
-                            onCheckedChange = { proactiveEnabled = it },
-                            isLarge = true
-                        )
-                        if (proactiveEnabled) {
-                            SettingsToggleRow(
-                                label = "Scan Screen Content",
-                                checked = proactiveScanScreen,
-                                onCheckedChange = { proactiveScanScreen = it }
-                            )
-                            SettingsToggleRow(
-                                label = "Scan Clipboard",
-                                checked = proactiveScanClipboard,
-                                onCheckedChange = { proactiveScanClipboard = it }
-                            )
-                            SettingsToggleRow(
-                                label = "Scan Notifications",
-                                checked = proactiveScanNotifications,
-                                onCheckedChange = { proactiveScanNotifications = it }
-                            )
-                            SettingsToggleRow(
-                                label = "Detect OTP / Codes",
-                                checked = proactiveOtpEnabled,
-                                onCheckedChange = { proactiveOtpEnabled = it }
-                            )
-                            SettingsToggleRow(
-                                label = "Auto-Copy OTP to Clipboard",
-                                checked = proactiveAutoCopyOtp,
-                                onCheckedChange = { proactiveAutoCopyOtp = it }
-                            )
-
-                            val languages = Language.labels
-                            ExposedDropdownMenuBox(
-                                expanded = languageExpanded,
-                                onExpandedChange = { languageExpanded = it }
-                            ) {
-                                OutlinedTextField(
-                                    value = preferredLanguage,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Preferred Language") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = languageExpanded,
-                                    onDismissRequest = { languageExpanded = false }
-                                ) {
-                                    languages.forEach { lang ->
-                                        DropdownMenuItem(
-                                            text = { Text(lang) },
-                                            onClick = {
-                                                preferredLanguage = lang
-                                                languageExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    testingVoice = true
-                                    scope.launch {
-                                        val lang = Language.fromLabel(preferredLanguage)
-                                        // Track which language triggered the missing-data state so
-                                        // rapid language-switch clicks don't surface a stale dialog.
-                                        val ok = onTestVoice(lang)
-                                        voiceDataMissing = if (ok == false) lang else null
-                                        testingVoice = false
-                                    }
-                                },
-                                enabled = !testingVoice,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(if (testingVoice) "Playing…" else "Test voice")
-                            }
-                            voiceDataMissing?.let { missingLang ->
-                                AlertDialog(
-                                    onDismissRequest = { voiceDataMissing = null },
-                                    title = { Text("Voice data not installed") },
-                                    text = {
-                                        Text(
-                                            "Your device doesn't have Android's built-in voice for " +
-                                                "${missingLang.label}. It was spoken in English instead. " +
-                                                "Install the voice data to fix pronunciation."
-                                        )
-                                    },
-                                    confirmButton = {
-                                        Button(
-                                            onClick = {
-                                                voiceDataMissing = null
-                                                try {
-                                                    localContext.startActivity(
-                                                        android.content.Intent(
-                                                            android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
-                                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    )
-                                                } catch (_: Exception) { }
-                                            }
-                                        ) { Text("Install") }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
-                                    }
-                                )
-                            }
-
-                            val currencies = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
-                            ExposedDropdownMenuBox(
-                                expanded = currencyExpanded,
-                                onExpandedChange = { currencyExpanded = it }
-                            ) {
-                                OutlinedTextField(
-                                    value = preferredCurrency,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("Preferred Currency") },
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded)
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = currencyExpanded,
-                                    onDismissRequest = { currencyExpanded = false }
-                                ) {
-                                    currencies.forEach { curr ->
-                                        DropdownMenuItem(
-                                            text = { Text(curr) },
-                                            onClick = {
-                                                preferredCurrency = curr
-                                                currencyExpanded = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        Button(
-                            onClick = {
-                                onSave { applyProactive(it) }
-                                overlay = SettingsOverlay("Saved Proactive Settings.")
-                                status = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Save Proactive Settings") }
-                    }
-                }
-
-                // Status text
-                status?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium)
-                }
-
+                // ---- Host allowlist ----
                 Text(
-                    "The API key is stored encrypted on this device and never leaves it " +
-                        "except in requests to the base URL above.",
+                    "Allowed community skill hosts",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Only HTTPS hosts in this list can be fetched. " +
+                        "Default: samosa-ai.example.",
                     style = MaterialTheme.typography.bodySmall
                 )
+                communitySkillHosts.forEach { host ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(host, modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            communitySkillHosts = communitySkillHosts - host
+                            onSave { applySkills(it) }
+                        }) { Text("Remove") }
+                    }
+                }
+                var newHost by remember { mutableStateOf("") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newHost,
+                        onValueChange = { newHost = it.trim() },
+                        label = { Text("Add host") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            val h = newHost.trim()
+                            if (h.isEmpty()) return@Button
+                            communitySkillHosts = communitySkillHosts + h
+                            onSave { applySkills(it) }
+                            newHost = ""
+                        }
+                    ) { Text("Add") }
+                }
             }
-
-            // Centered rather than bottom-aligned: under the keyboard area BottomCenter
-            // reads as a stray toast instead of feedback attached to the field that
-            // triggered the test (PR #60 review).
-            OverlayMessage(message = overlay, modifier = Modifier.align(Alignment.Center))
-        } // Box
-    }
-}
-
-/**
- * Non-interactive toast-style overlay used for transient feedback
- * (e.g. connection test progress and result). Anchored by the caller.
- */
-@Composable
-private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modifier) {
-    // Keep the last text around so it stays readable through the fade-out.
-    var lastText by remember { mutableStateOf("") }
-    message?.let { lastText = it.text }
-    AnimatedVisibility(
-        visible = message != null,
-        enter = fadeIn(),
-        exit = fadeOut(),
-        modifier = modifier
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.inverseSurface,
-            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-            tonalElevation = 6.dp,
-            shadowElevation = 6.dp,
-            modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 32.dp)
-                .testTag("settings_overlay")
-        ) {
-            Text(
-                text = lastText,
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-            )
         }
-    }
-}
 
-@Composable
-private fun SamosaAuthSection(
-    email: String,
-    signedIn: Boolean,
-    busy: Boolean,
-    onSignIn: () -> Unit,
-    onSignOut: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium
+        HorizontalDivider(thickness = 1.dp)
+
+        // ---- Proactive Assistance ----
+        SectionHeader(
+            title = "Proactive Assistance",
+            expanded = proactiveExpanded,
+            onToggle = { proactiveExpanded = !proactiveExpanded }
         )
-        if (signedIn && email.isNotBlank()) {
-            Text(
-                text = email,
-                style = MaterialTheme.typography.bodyMedium
-            )
+        AnimatedVisibility(visible = proactiveExpanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SettingsToggleRow(
+                    label = "Master Proactive Offers",
+                    checked = proactiveEnabled,
+                    onCheckedChange = { proactiveEnabled = it },
+                    isLarge = true
+                )
+                if (proactiveEnabled) {
+                    SettingsToggleRow(
+                        label = "Scan Screen Content",
+                        checked = proactiveScanScreen,
+                        onCheckedChange = { proactiveScanScreen = it }
+                    )
+                    SettingsToggleRow(
+                        label = "Scan Clipboard",
+                        checked = proactiveScanClipboard,
+                        onCheckedChange = { proactiveScanClipboard = it }
+                    )
+                    SettingsToggleRow(
+                        label = "Scan Notifications",
+                        checked = proactiveScanNotifications,
+                        onCheckedChange = { proactiveScanNotifications = it }
+                    )
+                    SettingsToggleRow(
+                        label = "Detect OTP / Codes",
+                        checked = proactiveOtpEnabled,
+                        onCheckedChange = { proactiveOtpEnabled = it }
+                    )
+                    SettingsToggleRow(
+                        label = "Auto-Copy OTP to Clipboard",
+                        checked = proactiveAutoCopyOtp,
+                        onCheckedChange = { proactiveAutoCopyOtp = it }
+                    )
+
+                    val languages = Language.labels
+                    ExposedDropdownMenuBox(
+                        expanded = languageExpanded,
+                        onExpandedChange = { languageExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = preferredLanguage,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Preferred Language") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = languageExpanded,
+                            onDismissRequest = { languageExpanded = false }
+                        ) {
+                            languages.forEach { lang ->
+                                DropdownMenuItem(
+                                    text = { Text(lang) },
+                                    onClick = {
+                                        preferredLanguage = lang
+                                        languageExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            testingVoice = true
+                            scope.launch {
+                                val lang = Language.fromLabel(preferredLanguage)
+                                // Track which language triggered the missing-data state so
+                                // rapid language-switch clicks don't surface a stale dialog.
+                                val ok = onTestVoice(lang)
+                                voiceDataMissing = if (ok == false) lang else null
+                                testingVoice = false
+                            }
+                        },
+                        enabled = !testingVoice,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (testingVoice) "Playing…" else "Test voice")
+                    }
+                    voiceDataMissing?.let { missingLang ->
+                        AlertDialog(
+                            onDismissRequest = { voiceDataMissing = null },
+                            title = { Text("Voice data not installed") },
+                            text = {
+                                Text(
+                                    "Your device doesn't have Android's built-in voice for " +
+                                        "${missingLang.label}. It was spoken in English instead. " +
+                                        "Install the voice data to fix pronunciation."
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        voiceDataMissing = null
+                                        try {
+                                            localContext.startActivity(
+                                                android.content.Intent(
+                                                    android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
+                                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            )
+                                        } catch (_: Exception) { }
+                                    }
+                                ) { Text("Install") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
+                            }
+                        )
+                    }
+
+                    val currencies = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
+                    ExposedDropdownMenuBox(
+                        expanded = currencyExpanded,
+                        onExpandedChange = { currencyExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = preferredCurrency,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Preferred Currency") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = currencyExpanded,
+                            onDismissRequest = { currencyExpanded = false }
+                        ) {
+                            currencies.forEach { curr ->
+                                DropdownMenuItem(
+                                    text = { Text(curr) },
+                                    onClick = {
+                                        preferredCurrency = curr
+                                        currencyExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                Button(
+                    onClick = {
+                        onSave { applyProactive(it) }
+                        overlay.show("Saved Proactive Settings.")
+                        status = null
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Save Proactive Settings") }
+            }
         }
-        if (!signedIn) {
-            Text(
-                text = "Sign in with Google to use Samosa AI. Your OpenAI-compatible " +
-                    "settings are kept separately and are unaffected.",
-                style = MaterialTheme.typography.bodySmall
-            )
+
+        // Status text
+        status?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium)
         }
-        if (signedIn) {
-            OutlinedButton(
-                onClick = onSignOut,
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "Please wait…" else "Log out") }
-        } else {
-            Button(
-                onClick = onSignIn,
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
-        }
+
+        Text(
+            "The API key is stored encrypted on this device and never leaves it " +
+                "except in requests to the base URL above.",
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
@@ -1683,26 +1542,6 @@ private fun SectionHeader(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium
         )
-    }
-}
-
-@Composable
-private fun SettingsToggleRow(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    isLarge: Boolean = false
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
-        )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
