@@ -42,25 +42,16 @@ internal val LightColorScheme = lightColorScheme(
  * @param skinId which entry of [Skins] the user picked. A skin is the whole
  *   theme: there is no light/dark switch on top of it, because a skin that has
  *   to work in both is two designs sharing a name. Deep Space ships as two.
- * @param frostPercent scales the skin's frost and scrim, 0-100.
- * @param reduceTransparency our own accessibility switch - Android has no
- *   system-level equivalent, so this is the only way to ask for solid panels.
  */
 @Composable
 fun GotchaTheme(
     skinId: String = Skins.DEFAULT_ID,
-    frostPercent: Int = 100,
-    reduceTransparency: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val tier = rememberGlassTier(reduceTransparency)
-    val picked = Skins.byId(skinId).withFrost(frostPercent)
+    val tier = rememberGlassTier()
+    val picked = Skins.byId(skinId)
     // The tier decides what the skin is made of, not whether the user gets it.
-    val skin = when (tier) {
-        GlassTier.SOLID -> picked.opaque()
-        GlassTier.OPAQUE -> picked.opaquePanels()
-        GlassTier.LIVE, GlassTier.STATIC -> picked
-    }
+    val skin = if (tier == GlassTier.SOLID) picked.opaque() else picked
 
     SystemBars(skin)
 

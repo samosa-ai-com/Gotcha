@@ -60,17 +60,6 @@ data class Settings(
      * value it no longer knows.
      */
     val skinId: String = "deepspace",
-    /**
-     * Solid panels, no wallpaper. Android has no system-level "reduce
-     * transparency", so this is the only way for someone to ask for one.
-     */
-    val reduceTransparency: Boolean = false,
-    /**
-     * How much of the skin's own frost to apply, as a percentage. 100 is what
-     * the skin was designed with; 0 leaves the wallpaper sharp behind the glass.
-     * Only bites where the device can blur live — see GlassTier.
-     */
-    val frostPercent: Int = 100,
     val disabledSkills: Set<String> = emptySet(),
     /**
      * Ids of connectors the user switched off. Credentials survive (re-enabling
@@ -278,8 +267,6 @@ class SettingsRepository(context: Context) {
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         skinId = resolvedSkinId(),
-        reduceTransparency = prefs.getBoolean(KEY_REDUCE_TRANSPARENCY, false),
-        frostPercent = prefs.getInt(KEY_FROST_PERCENT, 100),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
         disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
@@ -330,8 +317,6 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_SKIN_ID, settings.skinId)
-            .putBoolean(KEY_REDUCE_TRANSPARENCY, settings.reduceTransparency)
-            .putInt(KEY_FROST_PERCENT, settings.frostPercent)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
             .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
@@ -403,8 +388,6 @@ class SettingsRepository(context: Context) {
         const val KEY_LEGACY_THEME_MODE = "theme_mode"
         const val SKIN_DEEP_SPACE_DARK = "deepspace"
         const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
-        const val KEY_REDUCE_TRANSPARENCY = "reduce_transparency"
-        const val KEY_FROST_PERCENT = "frost_percent"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
         const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"

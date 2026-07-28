@@ -80,34 +80,6 @@ data class Skin(
         get() = if (isGlass) ground else scheme.background
 
     /**
-     * The same skin with its frost dialled to [percent] of what it was designed
-     * with. The scrim scales with it: they are two halves of one effect, and
-     * leaving the veil at full strength over a sharp wallpaper reads as haze
-     * rather than as a choice.
-     */
-    fun withFrost(percent: Int): Skin {
-        if (percent >= 100 || !isGlass) return this
-        val factor = percent.coerceIn(0, 100) / 100f
-        return copy(frost = frost * factor, scrim = scrim * factor)
-    }
-
-    /**
-     * Solid panels over the skin's own wallpaper. The ground keeps its tint,
-     * grain and vignette — those were never transparency — while everything you
-     * read from stops being see-through.
-     */
-    fun opaquePanels(): Skin {
-        if (!isGlass) return this
-        // `background` stays transparent on purpose. Scaffold paints its
-        // container from that role, so giving it a colour here would lay an
-        // opaque sheet straight over the wallpaper this function exists to keep.
-        return copy(
-            frost = 0.dp,
-            scheme = scheme.flattenOnto(ground, keepBackgroundTransparent = true)
-        )
-    }
-
-    /**
      * The same skin with the glass taken out: panels composited down onto their
      * own ground, no wallpaper, no grain. The palette and the layout are
      * untouched — it simply stops being see-through. This is what a device on
@@ -129,15 +101,11 @@ data class Skin(
  * roles are already opaque in every skin — see Color.kt — so only the in-page
  * chrome needs flattening here.
  *
- * [keepBackgroundTransparent] is the difference between "no glass" and "no
- * wallpaper": Scaffold paints its container from the `background` role, so
- * colouring it hides anything drawn behind the app.
+ * `background` takes the ground: Scaffold paints its container from that role,
+ * and at this tier there is no wallpaper left behind the app for it to hide.
  */
-private fun ColorScheme.flattenOnto(
-    ground: Color,
-    keepBackgroundTransparent: Boolean = false
-): ColorScheme = copy(
-    background = if (keepBackgroundTransparent) background else ground,
+private fun ColorScheme.flattenOnto(ground: Color): ColorScheme = copy(
+    background = ground,
     surface = surface.over(ground),
     surfaceVariant = surfaceVariant.over(ground),
     secondaryContainer = secondaryContainer.over(ground)
@@ -326,7 +294,7 @@ object Skins {
     val Orchid = Skin(
         id = "orchid",
         label = "Orchid",
-        tagline = "Tinted. Violet ground, coral actions, heavy grain.",
+        tagline = "Tinted. Violet ground, coral actions, fine grain.",
         brightness = Brightness.DARK,
         backdrop = Backdrop.FLAT,
         ground = OrchidGround,

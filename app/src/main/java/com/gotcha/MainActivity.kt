@@ -75,12 +75,8 @@ class MainActivity : ComponentActivity() {
     /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
     private var appearance by mutableStateOf(Appearance())
 
-    /** The three settings that decide what the app looks like, and nothing else. */
-    private data class Appearance(
-        val skinId: String = Skins.DEFAULT_ID,
-        val reduceTransparency: Boolean = false,
-        val frostPercent: Int = 100
-    )
+    /** The one setting that decides what the app looks like. */
+    private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
 
     /**
      * Repaints the window behind Compose in the current skin's ground. themes.xml
@@ -93,11 +89,7 @@ class MainActivity : ComponentActivity() {
         window.setBackgroundDrawable(ColorDrawable(skin.launchGround.toArgb()))
     }
 
-    private fun Settings.appearance() = Appearance(
-        skinId = skinId,
-        reduceTransparency = reduceTransparency,
-        frostPercent = frostPercent
-    )
+    private fun Settings.appearance() = Appearance(skinId = skinId)
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
@@ -192,11 +184,7 @@ class MainActivity : ComponentActivity() {
         applyLaunchBackground()
 
         setContent {
-            GotchaTheme(
-                skinId = appearance.skinId,
-                reduceTransparency = appearance.reduceTransparency,
-                frostPercent = appearance.frostPercent
-            ) {
+            GotchaTheme(skinId = appearance.skinId) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

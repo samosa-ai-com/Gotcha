@@ -58,7 +58,7 @@ import kotlinx.coroutines.delay
 enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
     APPEARANCE(
         "Appearance",
-        "Theme, light and dark, transparency",
+        "How the app looks",
         "settings_appearance_row"
     ),
     PERSONAL_INFO(

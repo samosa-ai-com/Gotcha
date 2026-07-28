@@ -42,20 +42,10 @@ class TestHooksReceiver : BroadcastReceiver() {
         val repository = SettingsRepository(context)
         val current = repository.load()
         val updated = current.copy(
-            skinId = intent.getStringExtra(EXTRA_SKIN) ?: current.skinId,
-            reduceTransparency = intent.getBooleanExtra(
-                EXTRA_REDUCE_TRANSPARENCY,
-                current.reduceTransparency
-            ),
-            frostPercent = intent.getIntExtra(EXTRA_FROST, current.frostPercent)
+            skinId = intent.getStringExtra(EXTRA_SKIN) ?: current.skinId
         )
         repository.save(updated)
-        Log.i(
-            TAG,
-            "appearance: skin=${updated.skinId} " +
-                "reduceTransparency=${updated.reduceTransparency} " +
-                "frost=${updated.frostPercent}"
-        )
+        Log.i(TAG, "appearance: skin=${updated.skinId}")
     }
 
     private fun seedSettings(context: Context, intent: Intent) {
@@ -85,8 +75,6 @@ class TestHooksReceiver : BroadcastReceiver() {
         const val ACTION_SEED_SETTINGS = "com.gotcha.debug.SEED_SETTINGS"
         const val ACTION_SET_APPEARANCE = "com.gotcha.debug.SET_APPEARANCE"
         const val EXTRA_SKIN = "skin"
-        const val EXTRA_REDUCE_TRANSPARENCY = "reduce_transparency"
-        const val EXTRA_FROST = "frost"
         const val EXTRA_BASE_URL = "base_url"
         const val EXTRA_API_KEY = "api_key"
         const val EXTRA_MODEL = "model"

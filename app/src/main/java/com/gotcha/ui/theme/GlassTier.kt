@@ -37,14 +37,6 @@ enum class GlassTier {
      */
     STATIC,
 
-    /**
-     * Opaque panels, wallpaper kept. What "reduce transparency" should mean: the
-     * request is about seeing *through* chrome, not about the theme's colour and
-     * texture, and taking the wallpaper too makes the setting feel like it broke
-     * the app rather than adjusted it.
-     */
-    OPAQUE,
-
     /** Nothing at all: opaque panels and no wallpaper. The cheapest we render. */
     SOLID
 }
@@ -57,11 +49,9 @@ val LocalGlassTier = staticCompositionLocalOf { GlassTier.STATIC }
  * is running — battery saver, and the system-wide blur toggle in developer
  * options — so both are observed rather than sampled once at startup.
  *
- * [reduceTransparency] is our own setting. Android has no system-level one (that
- * is an iOS feature), so if we do not offer it, nobody has it.
  */
 @Composable
-fun rememberGlassTier(reduceTransparency: Boolean): GlassTier {
+fun rememberGlassTier(): GlassTier {
     val context = LocalContext.current
     val powerManager = remember(context) {
         context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -94,10 +84,7 @@ fun rememberGlassTier(reduceTransparency: Boolean): GlassTier {
     }
 
     return when {
-        // Battery saver is a cost signal, so it drops everything. Reduce
-        // transparency is a legibility signal, so it only drops the see-through.
         powerSaving -> GlassTier.SOLID
-        reduceTransparency -> GlassTier.OPAQUE
         blurAvailable && !lowRam -> GlassTier.LIVE
         else -> GlassTier.STATIC
     }

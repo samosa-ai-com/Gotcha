@@ -17,11 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,15 +33,13 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
 import com.gotcha.ui.theme.Brightness
 import com.gotcha.ui.theme.GlassTier
-import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalGlassTier
 import com.gotcha.ui.theme.Skin
 import com.gotcha.ui.theme.SkinMiniature
 import com.gotcha.ui.theme.Skins
-import kotlin.math.roundToInt
 
 /**
- * The Appearance page: light or dark, which skin, and how much glass.
+ * The Appearance page: which skin, and nothing else.
  *
  * Every control here applies the moment it is touched — a theme you have to
  * save is a theme you cannot judge.
@@ -63,8 +59,6 @@ fun AppearanceScreen(
 ) {
     val initial = remember { load() }
     var skinId by remember { mutableStateOf(initial.skinId) }
-    var reduceTransparency by remember { mutableStateOf(initial.reduceTransparency) }
-    var frostPercent by remember { mutableIntStateOf(initial.frostPercent) }
 
     val overlay = rememberSettingsOverlayState()
     val tier = LocalGlassTier.current
@@ -100,40 +94,8 @@ fun AppearanceScreen(
 
         HorizontalDivider(thickness = 1.dp)
 
-        if (selected.isGlass && !reduceTransparency) {
-            Text(
-                "Frost",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Slider(
-                value = frostPercent.toFloat(),
-                onValueChange = { frostPercent = it.roundToInt() },
-                // Persist on release rather than per pixel: the preview follows the
-                // thumb, but a hundred writes per drag is a hundred writes.
-                onValueChangeFinished = { apply { s -> s.copy(frostPercent = frostPercent) } },
-                valueRange = 0f..100f,
-                modifier = Modifier.testTag("appearance_frost")
-            )
-            Text(
-                "$frostPercent% of ${selected.label}'s frost",
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = GotchaMono,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        SettingsToggleRow(
-            label = "Reduce transparency",
-            checked = reduceTransparency,
-            onCheckedChange = {
-                reduceTransparency = it
-                apply { s -> s.copy(reduceTransparency = it) }
-            },
-            isLarge = true,
-            switchTestTag = "appearance_reduce_transparency"
-        )
         Text(
-            text = tierExplanation(tier, reduceTransparency),
+            text = tierExplanation(tier),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -141,11 +103,10 @@ fun AppearanceScreen(
 }
 
 /** Says what this device is actually doing, rather than what the theme wishes it did. */
-private fun tierExplanation(tier: GlassTier, reduceTransparency: Boolean): String = when {
-    tier == GlassTier.SOLID -> "Battery saver is on, so the theme is drawn flat until it's off."
-    reduceTransparency -> "Panels are solid. The theme keeps its colour and texture."
-    tier == GlassTier.LIVE -> "Panels blur what's behind them."
-    else -> "Live blur isn't available on this device, so panels use a fixed frost."
+private fun tierExplanation(tier: GlassTier): String = when (tier) {
+    GlassTier.SOLID -> "Battery saver is on, so the theme is drawn flat until it's off."
+    GlassTier.LIVE -> "Panels blur what's behind them."
+    GlassTier.STATIC -> "Live blur isn't available on this device, so panels use a fixed frost."
 }
 
 private const val TILES_PER_ROW = 2

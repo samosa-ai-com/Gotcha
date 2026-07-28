@@ -77,11 +77,7 @@ fun SkinMiniature(skin: Skin, modifier: Modifier = Modifier) {
     // Shown as it will actually render on this device and at these settings. A
     // preview that keeps its wallpaper while the app has dropped it is a picker
     // promising something the app then does not do.
-    val shown = when (LocalGlassTier.current) {
-        GlassTier.SOLID -> skin.opaque()
-        GlassTier.OPAQUE -> skin.opaquePanels()
-        GlassTier.LIVE, GlassTier.STATIC -> skin
-    }
+    val shown = if (LocalGlassTier.current == GlassTier.SOLID) skin.opaque() else skin
     Box(modifier.background(shown.ground)) {
         Wallpaper(shown, live = false)
         if (shown.grain > 0f) Grain(shown.grain)
