@@ -50,6 +50,8 @@ import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
+import com.gotcha.ui.theme.SkinBackdrop
+import com.gotcha.ui.theme.Skins
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,8 +72,23 @@ class MainActivity : ComponentActivity() {
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
 
-    /** In-app theme override, applied immediately when changed in Settings. */
-    private var themeMode by mutableStateOf(ThemeMode.SYSTEM)
+    /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
+    private var appearance by mutableStateOf(Appearance())
+
+    /** The four settings that decide what the app looks like, and nothing else. */
+    private data class Appearance(
+        val themeMode: ThemeMode = ThemeMode.SYSTEM,
+        val skinId: String = Skins.DEFAULT_ID,
+        val matchSystemBrightness: Boolean = true,
+        val reduceTransparency: Boolean = false
+    )
+
+    private fun Settings.appearance() = Appearance(
+        themeMode = themeMode,
+        skinId = skinId,
+        matchSystemBrightness = matchSystemBrightness,
+        reduceTransparency = reduceTransparency
+    )
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
@@ -162,19 +179,27 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        themeMode = settingsRepository.load().themeMode
+        appearance = settingsRepository.load().appearance()
 
         setContent {
-            val darkTheme = when (themeMode) {
+            val darkTheme = when (appearance.themeMode) {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
-            GotchaTheme(darkTheme = darkTheme) {
+            GotchaTheme(
+                darkTheme = darkTheme,
+                skinId = appearance.skinId,
+                matchSystemBrightness = appearance.matchSystemBrightness,
+                reduceTransparency = appearance.reduceTransparency
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    // The wallpaper sits under everything; an opaque skin draws
+                    // nothing here and the Surface above remains the whole story.
+                    SkinBackdrop(Modifier.fillMaxSize())
                     GotchaApp()
                 }
             }
@@ -448,10 +473,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
-                        onThemeChange = { mode ->
-                            themeMode = mode
-                            settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
-                        },
+                        onAppearanceChange = { updated -> appearance = updated.appearance() },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl

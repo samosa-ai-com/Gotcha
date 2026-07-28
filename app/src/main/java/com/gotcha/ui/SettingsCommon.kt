@@ -54,6 +54,11 @@ import kotlinx.coroutines.delay
  * title, so the two can't drift apart.
  */
 enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
+    APPEARANCE(
+        "Appearance",
+        "Theme, light and dark, transparency",
+        "settings_appearance_row"
+    ),
     PERSONAL_INFO(
         "Personal Info",
         "Who you are, language, currency, reply style",

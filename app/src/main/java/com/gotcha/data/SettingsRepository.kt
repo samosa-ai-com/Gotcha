@@ -61,6 +61,23 @@ data class Settings(
     val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // ---- Appearance (Settings ▸ Appearance) ----
+    /**
+     * Which skin is painted. Stored as the id string rather than an enum so a
+     * build that drops a skin degrades to the default instead of throwing on a
+     * value it no longer knows.
+     */
+    val skinId: String = "deepspace",
+    /**
+     * Swap a paired skin (Aura ⇄ Vellum) for its twin when the device flips
+     * between light and dark, rather than keeping one of them in both.
+     */
+    val matchSystemBrightness: Boolean = true,
+    /**
+     * Solid panels, no wallpaper. Android has no system-level "reduce
+     * transparency", so this is the only way for someone to ask for one.
+     */
+    val reduceTransparency: Boolean = false,
     val disabledSkills: Set<String> = emptySet(),
     /**
      * Ids of connectors the user switched off. Credentials survive (re-enabling
@@ -255,6 +272,9 @@ class SettingsRepository(context: Context) {
         themeMode = runCatching {
             ThemeMode.valueOf(string(KEY_THEME_MODE, "SYSTEM"))
         }.getOrDefault(ThemeMode.SYSTEM),
+        skinId = string(KEY_SKIN_ID, "deepspace"),
+        matchSystemBrightness = prefs.getBoolean(KEY_MATCH_SYSTEM_BRIGHTNESS, true),
+        reduceTransparency = prefs.getBoolean(KEY_REDUCE_TRANSPARENCY, false),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
         disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
@@ -305,6 +325,9 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putString(KEY_THEME_MODE, settings.themeMode.name)
+            .putString(KEY_SKIN_ID, settings.skinId)
+            .putBoolean(KEY_MATCH_SYSTEM_BRIGHTNESS, settings.matchSystemBrightness)
+            .putBoolean(KEY_REDUCE_TRANSPARENCY, settings.reduceTransparency)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
             .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
@@ -371,6 +394,9 @@ class SettingsRepository(context: Context) {
         const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_SKIN_ID = "skin_id"
+        const val KEY_MATCH_SYSTEM_BRIGHTNESS = "match_system_brightness"
+        const val KEY_REDUCE_TRANSPARENCY = "reduce_transparency"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
         const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"

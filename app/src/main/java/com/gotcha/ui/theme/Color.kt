@@ -31,3 +31,74 @@ val DarkSecondaryContainer = Color(0xFF7A003C)
 val DarkOnSecondaryContainer = Color(0xFFFFD9E2)
 
 val DarkOnSurfaceVariant = Color(0xFFCBD5E1)
+
+// ---------------------------------------------------------------------------
+// Brand ramp
+// ---------------------------------------------------------------------------
+// Sampled from the launcher icon (res/mipmap-*/ic_launcher_round.png): a
+// five-stop ramp over a white field. Every skin below Deep Space is built out
+// of these five and nothing else, which is what keeps the app looking like its
+// own icon no matter which theme is on.
+//
+// Deep Space is the exception and stays cyan — it is what shipped, and it is
+// left alone so an update never repaints someone's app without asking.
+
+val BrandViolet = Color(0xFF7E1F88)
+val BrandMagenta = Color(0xFFC82F92)
+val BrandRose = Color(0xFFF04B8B)
+val BrandCoral = Color(0xFFFC6A85)
+val BrandSalmon = Color(0xFFFA8F8A)
+
+/** Magenta darkened until it clears 4.5:1 on Vellum's near-white ground. */
+val BrandMagentaInk = Color(0xFFB02A83)
+
+// ---- Aura: greyscale fog, rose as the only chroma on screen ----
+val AuraGround = Color(0xFF0A0A0B)
+val AuraPanel = Color(0x12FFFFFF)
+val AuraPanelHigh = Color(0x1FFFFFFF)
+val AuraInk = Color(0xFFF6F6F7)
+val AuraInkDim = Color(0xFFA2A2A8)
+val AuraOutline = Color(0xFF3A3A3E)
+val AuraRoseContainer = Color(0xFF4A0F2C)
+val AuraOnRoseContainer = Color(0xFFFFD9E4)
+
+// ---- Vellum: the icon's own white field, turned into an interface ----
+val VellumGround = Color(0xFFF1EFF2)
+val VellumPanel = Color(0x8CFFFFFF)
+val VellumPanelHigh = Color(0xB3FFFFFF)
+val VellumInk = Color(0xFF17111A)
+val VellumInkDim = Color(0xFF6A5F70)
+val VellumOutline = Color(0xFF867A88)
+val VellumMagentaContainer = Color(0xFFFFD8EC)
+val VellumOnMagentaContainer = Color(0xFF3A0028)
+
+// ---- Orchid: one saturated violet ground, coral for every action ----
+val OrchidGround = BrandViolet
+val OrchidPanel = Color(0x29FFFFFF)
+val OrchidPanelHigh = Color(0x3DFFFFFF)
+val OrchidInk = Color(0xFFFFFFFF)
+val OrchidInkDim = Color(0xFFEBD4EF)
+val OrchidOutline = Color(0xFFB878BE)
+val OrchidOnCoral = Color(0xFF45061F)
+val OrchidCoralContainer = Color(0xFF6E1443)
+
+// ---- Nocturne: the icon's facets at wallpaper scale, behind dark glass ----
+val NocturneGround = Color(0xFF0A050E)
+val NocturnePanel = Color(0x851A1020)
+val NocturnePanelHigh = Color(0x261A1020)
+val NocturneInk = Color(0xFFF7EAF1)
+val NocturneInkDim = Color(0xFFB69EC0)
+val NocturneOutline = Color(0xFF4A3355)
+val NocturneOnSalmon = Color(0xFF3D0A16)
+val NocturneSalmonContainer = Color(0xFF5C1A2A)
+val NocturneMagentaContainer = Color(0xFF3A1140)
+val NocturneOnMagentaContainer = Color(0xFFF7D9F2)
+
+/**
+ * Error red for the pink skins. The stock M3 error would sit a few degrees from
+ * Aura's rose and Nocturne's salmon, and an error that looks like the send
+ * button is not an error — this one is pushed toward orange to stay legible as
+ * "something went wrong" next to an accent that is already warm.
+ */
+val BrandError = Color(0xFFFF6B4A)
+val BrandOnError = Color(0xFF3E0A00)
