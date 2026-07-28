@@ -142,9 +142,9 @@ fun AppearanceScreen(
 
 /** Says what this device is actually doing, rather than what the theme wishes it did. */
 private fun tierExplanation(tier: GlassTier, reduceTransparency: Boolean): String = when {
-    reduceTransparency -> "Panels are solid and no wallpaper is drawn. Colours are unchanged."
+    tier == GlassTier.SOLID -> "Battery saver is on, so the theme is drawn flat until it's off."
+    reduceTransparency -> "Panels are solid. The theme keeps its colour and texture."
     tier == GlassTier.LIVE -> "Panels blur what's behind them."
-    tier == GlassTier.SOLID -> "Battery saver is on, so panels are solid until it's off."
     else -> "Live blur isn't available on this device, so panels use a fixed frost."
 }
 

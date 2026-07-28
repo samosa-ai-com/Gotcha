@@ -56,7 +56,11 @@ fun GotchaTheme(
     val tier = rememberGlassTier(reduceTransparency)
     val picked = Skins.byId(skinId).withFrost(frostPercent)
     // The tier decides what the skin is made of, not whether the user gets it.
-    val skin = if (tier == GlassTier.SOLID) picked.opaque() else picked
+    val skin = when (tier) {
+        GlassTier.SOLID -> picked.opaque()
+        GlassTier.OPAQUE -> picked.opaquePanels()
+        GlassTier.LIVE, GlassTier.STATIC -> picked
+    }
 
     SystemBars(skin)
 

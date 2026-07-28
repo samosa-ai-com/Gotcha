@@ -4,13 +4,13 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -20,7 +20,10 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.random.Random
 
 /**
@@ -39,8 +42,9 @@ fun SkinBackdrop(modifier: Modifier = Modifier) {
     val skin = LocalSkin.current
     val tier = LocalGlassTier.current
     // An opaque skin paints its own background through the colour scheme; drawing
-    // a second ground under it would only cost a full-screen fill.
-    if (!skin.isGlass || tier == GlassTier.SOLID) return
+    // a second ground under it would only cost a full-screen fill. Whether the
+    // skin still has a wallpaper at this tier was already decided in GotchaTheme.
+    if (!skin.isGlass) return
 
     Box(modifier.background(skin.ground)) {
         Wallpaper(skin, live = tier == GlassTier.LIVE)
@@ -50,16 +54,16 @@ fun SkinBackdrop(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun BoxScope.Wallpaper(skin: Skin, live: Boolean) {
+private fun Wallpaper(skin: Skin, live: Boolean) {
     val canvas = Modifier
-        .matchParentSize()
+        .fillMaxSize()
         .let { if (live && skin.frost > 0.dp) it.blur(skin.frost) else it }
 
     when (skin.backdrop) {
         Backdrop.FOG -> Canvas(canvas) { drawFog(skin.wallpaper) }
         Backdrop.FACETS -> Canvas(canvas) { drawFacets(skin.wallpaper) }
-        // FLAT is the ground and the grain, nothing else — that is the point of it.
-        Backdrop.FLAT, Backdrop.NONE -> Unit
+        Backdrop.FLAT -> Canvas(canvas) { drawTint() }
+        Backdrop.NONE -> Unit
     }
 }
 
@@ -70,10 +74,18 @@ private fun BoxScope.Wallpaper(skin: Skin, live: Boolean) {
  */
 @Composable
 fun SkinMiniature(skin: Skin, modifier: Modifier = Modifier) {
-    Box(modifier.background(skin.ground)) {
-        Wallpaper(skin, live = false)
-        if (skin.grain > 0f) Grain(skin.grain)
-        Scrim(skin)
+    // Shown as it will actually render on this device and at these settings. A
+    // preview that keeps its wallpaper while the app has dropped it is a picker
+    // promising something the app then does not do.
+    val shown = when (LocalGlassTier.current) {
+        GlassTier.SOLID -> skin.opaque()
+        GlassTier.OPAQUE -> skin.opaquePanels()
+        GlassTier.LIVE, GlassTier.STATIC -> skin
+    }
+    Box(modifier.background(shown.ground)) {
+        Wallpaper(shown, live = false)
+        if (shown.grain > 0f) Grain(shown.grain)
+        Scrim(shown)
     }
 }
 
@@ -83,12 +95,37 @@ fun SkinMiniature(skin: Skin, modifier: Modifier = Modifier) {
  * rather than against whatever the gradient happened to be doing there.
  */
 @Composable
-private fun BoxScope.Scrim(skin: Skin) {
+private fun Scrim(skin: Skin) {
     if (skin.scrim <= 0f) return
     Box(
         Modifier
-            .matchParentSize()
+            .fillMaxSize()
             .background(skin.ground.copy(alpha = skin.scrim))
+    )
+}
+
+/**
+ * A tinted ground with somewhere for the light to come from.
+ *
+ * One flat fill is not a tint, it is a wash — which is exactly what it looked
+ * like. The hue is untouched; a wide highlight off the top-left and a vignette
+ * into the corners give it a direction and an edge, and the grain on top gives
+ * it a surface.
+ */
+private fun DrawScope.drawTint() {
+    drawRect(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
+            center = Offset(size.width * 0.16f, size.height * 0.08f),
+            radius = maxOf(size.width, size.height)
+        )
+    )
+    drawRect(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.38f)),
+            center = size.center,
+            radius = hypot(size.width, size.height) * 0.60f
+        )
     )
 }
 
@@ -159,20 +196,43 @@ private fun DrawScope.drawFacets(stops: List<Color>) {
  * a no-op — only the deviation shows, which is what keeps a flat ground from
  * looking like an empty `<div>`.
  */
+/**
+ * Film grain.
+ *
+ * Two things were wrong with the first version. It was drawn at one device
+ * pixel per cell, which on a 3x screen averages out to nothing before it
+ * reaches the eye; and it was opaque mid-grey relying on an Overlay blend,
+ * which — where the blend is not honoured — lays a grey wash over the ground
+ * and desaturates it. Orchid's violet measured (126,31,136) and rendered
+ * (126,63,133): the same hue with the life drained out of it.
+ *
+ * So: the deviation lives in the alpha channel, which composites correctly
+ * everywhere, and each cell is scaled up to [GRAIN_CELL_PX] so there is
+ * something to see. White is capped lower than black because lifting a
+ * saturated colour toward white costs more saturation than dropping it
+ * toward black, which scales all three channels evenly and holds the hue.
+ */
 @Composable
-private fun BoxScope.Grain(opacity: Float) {
+private fun Grain(opacity: Float) {
     val noise = remember { noiseTile() }
     val brush = remember(noise) {
         ShaderBrush(ImageShader(noise, TileMode.Repeated, TileMode.Repeated))
     }
-    Canvas(Modifier.matchParentSize()) {
-        drawRect(brush = brush, alpha = opacity, blendMode = BlendMode.Overlay)
+    Canvas(Modifier.fillMaxSize()) {
+        scale(GRAIN_CELL_PX, GRAIN_CELL_PX, pivot = Offset.Zero) {
+            drawRect(brush = brush, alpha = opacity)
+        }
     }
 }
 
 private const val NOISE_TILE_PX = 128
-private const val NOISE_MID = 128
-private const val NOISE_SPREAD = 42
+
+/** Device pixels per grain cell. Below about 3 the texture stops being visible. */
+private const val GRAIN_CELL_PX = 4f
+
+/** Ceilings on how far one cell may push the ground, out of 255. */
+private const val NOISE_WHITE_MAX = 110
+private const val NOISE_BLACK_MAX = 200
 
 /** Fixed seed: the grain is part of the design, so it should not re-roll per launch. */
 private const val NOISE_SEED = 0x6074CA
@@ -180,8 +240,12 @@ private const val NOISE_SEED = 0x6074CA
 private fun noiseTile(): ImageBitmap {
     val random = Random(NOISE_SEED)
     val pixels = IntArray(NOISE_TILE_PX * NOISE_TILE_PX) {
-        val v = (NOISE_MID + random.nextInt(-NOISE_SPREAD, NOISE_SPREAD)).coerceIn(0, 255)
-        (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+        val deviation = random.nextInt(-100, 101)
+        val lifts = deviation >= 0
+        val ceiling = if (lifts) NOISE_WHITE_MAX else NOISE_BLACK_MAX
+        val alpha = abs(deviation) * ceiling / 100
+        val tone = if (lifts) 0xFF else 0x00
+        (alpha shl 24) or (tone shl 16) or (tone shl 8) or tone
     }
     return Bitmap.createBitmap(pixels, NOISE_TILE_PX, NOISE_TILE_PX, Bitmap.Config.ARGB_8888)
         .asImageBitmap()
