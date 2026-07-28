@@ -47,6 +47,8 @@ class SmokeLaunchTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("settings_ai_config_header").assertExists()
+        // Straight to the AI Configuration page, not the settings category list:
+        // the API key and model are the only things a first run has to supply.
+        composeRule.onNodeWithTag("settings_base_url").assertExists()
     }
 }

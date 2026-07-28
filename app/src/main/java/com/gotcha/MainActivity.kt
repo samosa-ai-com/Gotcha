@@ -47,6 +47,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
 import kotlinx.coroutines.Dispatchers
@@ -346,8 +347,11 @@ class MainActivity : ComponentActivity() {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
 
+        // An unconfigured install opens Settings; send it straight to the page
+        // holding the API key and model rather than to the category list.
+        val unconfigured = remember { !settingsRepository.load().isConfigured }
         var currentRoute by remember {
-            mutableStateOf(if (settingsRepository.load().isConfigured) Route.HOME else Route.SETTINGS)
+            mutableStateOf(if (unconfigured) Route.SETTINGS else Route.HOME)
         }
         var assistiveBallOn by remember { mutableStateOf(settingsRepository.load().assistiveBallEnabled) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -425,9 +429,9 @@ class MainActivity : ComponentActivity() {
                 Route.SETTINGS -> {
                     BackHandler { currentRoute = Route.HOME }
                     SettingsScreen(
-                        initial = settingsRepository.load(),
-                        onSave = { settings ->
-                            settingsRepository.save(settings)
+                        load = { settingsRepository.load() },
+                        onSave = { mutate ->
+                            settingsRepository.save(mutate(settingsRepository.load()))
                             chatViewModel.refreshSettings()
                         },
                         onTestConnection = ::testConnection,
@@ -447,15 +451,6 @@ class MainActivity : ComponentActivity() {
                         onThemeChange = { mode ->
                             themeMode = mode
                             settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
-                        },
-                        onNotifyAlertChange = { vibration, chime ->
-                            settingsRepository.save(
-                                settingsRepository.load().copy(
-                                    notifyVibrationEnabled = vibration,
-                                    notifyChimeEnabled = chime
-                                )
-                            )
-                            chatViewModel.refreshSettings()
                         },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
@@ -520,7 +515,8 @@ class MainActivity : ComponentActivity() {
                             chatViewModel.refreshSettings()
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
-                        packageName = packageName
+                        packageName = packageName,
+                        initialPage = if (unconfigured) SettingsPage.AI_CONFIG else null
                     )
                 }
                 Route.CONNECTORS -> {

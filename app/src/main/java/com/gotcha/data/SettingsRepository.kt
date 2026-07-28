@@ -76,6 +76,25 @@ data class Settings(
     val proactiveOtpEnabled: Boolean = true,
     val proactiveAutoCopyOtp: Boolean = true,
     val proactiveAppBlacklist: Set<String> = emptySet(),
+    // ---- Personal info (Settings ▸ Personal Info) ----
+    // Everything the user chooses to tell the agent about themselves. All of it
+    // is optional, and all of it reaches the model's system prompt — see
+    // AgentEngine's <user_profile> block and the style directive.
+    /** What the user wants to be called. */
+    val userName: String = "",
+    /** Where the user is, in their own words ("Munich, Germany"). Grounds dates, units and prices. */
+    val userLocation: String = "",
+    /** What the user does — role, field, seniority. */
+    val userOccupation: String = "",
+    /** Free-text background: anything the agent should know about them by default. */
+    val userBackground: String = "",
+    /**
+     * Free-text output preferences ("no bullet lists", "always show the command
+     * you ran"). Kept apart from [userBackground] because it is an instruction
+     * about *how* to answer, not a fact, and is injected next to the language
+     * directive rather than into the profile block.
+     */
+    val userResponseStyle: String = "",
     val preferredLanguage: String = "English",
     val preferredCurrency: String = "USD",
     val communitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
@@ -192,16 +211,23 @@ class SettingsRepository(context: Context) {
     private fun stringSet(key: String, default: Set<String> = emptySet()): Set<String> =
         prefs.getStringSet(key, default) ?: default
 
+    /**
+     * `getString` is nullable even with a non-null default, so every field would
+     * otherwise carry its own elvis — enough of them to tip [load] over detekt's
+     * complexity ceiling on its own.
+     */
+    private fun string(key: String, default: String = ""): String =
+        prefs.getString(key, default) ?: default
+
     fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
-        apiKey = prefs.getString(KEY_API_KEY, "") ?: "",
-        baseUrl = prefs.getString(KEY_BASE_URL, Settings.DEFAULT_BASE_URL)
-            ?: Settings.DEFAULT_BASE_URL,
-        model = prefs.getString(KEY_MODEL, Settings.DEFAULT_MODEL) ?: Settings.DEFAULT_MODEL,
-        samosaSessionToken = prefs.getString(KEY_SAMOSA_TOKEN, "") ?: "",
-        samosaEmail = prefs.getString(KEY_SAMOSA_EMAIL, "") ?: "",
-        subAgentModel = prefs.getString(KEY_SUB_AGENT_MODEL, "") ?: "",
-        navigatorModel = prefs.getString(KEY_NAVIGATOR_MODEL, "") ?: "",
+        apiKey = string(KEY_API_KEY),
+        baseUrl = string(KEY_BASE_URL, Settings.DEFAULT_BASE_URL),
+        model = string(KEY_MODEL, Settings.DEFAULT_MODEL),
+        samosaSessionToken = string(KEY_SAMOSA_TOKEN),
+        samosaEmail = string(KEY_SAMOSA_EMAIL),
+        subAgentModel = string(KEY_SUB_AGENT_MODEL),
+        navigatorModel = string(KEY_NAVIGATOR_MODEL),
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 300),
         maxRepeatedToolCalls = prefs.getInt(KEY_MAX_REPEATED_TOOL_CALLS, 20),
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
@@ -209,25 +235,25 @@ class SettingsRepository(context: Context) {
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = runCatching {
-            AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID")
+            AudioProvider.valueOf(string(KEY_TTS_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
-        ttsApiBaseUrl = prefs.getString(KEY_TTS_API_URL, "") ?: "",
-        ttsApiKey = prefs.getString(KEY_TTS_API_KEY, "") ?: "",
-        ttsApiModel = prefs.getString(KEY_TTS_API_MODEL, "") ?: "",
-        ttsVoice = prefs.getString(KEY_TTS_VOICE, "") ?: "",
+        ttsApiBaseUrl = string(KEY_TTS_API_URL),
+        ttsApiKey = string(KEY_TTS_API_KEY),
+        ttsApiModel = string(KEY_TTS_API_MODEL),
+        ttsVoice = string(KEY_TTS_VOICE),
         sttProvider = runCatching {
-            AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID")
+            AudioProvider.valueOf(string(KEY_STT_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
-        sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
-        sttApiKey = prefs.getString(KEY_STT_API_KEY, "") ?: "",
-        sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
-        sttLanguage = prefs.getString(KEY_STT_LANGUAGE, "") ?: "",
+        sttApiBaseUrl = string(KEY_STT_API_URL),
+        sttApiKey = string(KEY_STT_API_KEY),
+        sttApiModel = string(KEY_STT_API_MODEL),
+        sttLanguage = string(KEY_STT_LANGUAGE),
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         themeMode = runCatching {
-            ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
+            ThemeMode.valueOf(string(KEY_THEME_MODE, "SYSTEM"))
         }.getOrDefault(ThemeMode.SYSTEM),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
         disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
@@ -238,8 +264,13 @@ class SettingsRepository(context: Context) {
         proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
         proactiveAppBlacklist = stringSet(KEY_PROACTIVE_BLACKLIST),
-        preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
-        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD",
+        userName = string(KEY_USER_NAME),
+        userLocation = string(KEY_USER_LOCATION),
+        userOccupation = string(KEY_USER_OCCUPATION),
+        userBackground = string(KEY_USER_BACKGROUND),
+        userResponseStyle = string(KEY_USER_RESPONSE_STYLE),
+        preferredLanguage = string(KEY_PREFERRED_LANGUAGE, "English"),
+        preferredCurrency = string(KEY_PREFERRED_CURRENCY, "USD"),
         communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
     )
 
@@ -283,6 +314,11 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_PROACTIVE_OTP_ENABLED, settings.proactiveOtpEnabled)
             .putBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, settings.proactiveAutoCopyOtp)
             .putStringSet(KEY_PROACTIVE_BLACKLIST, settings.proactiveAppBlacklist)
+            .putString(KEY_USER_NAME, settings.userName)
+            .putString(KEY_USER_LOCATION, settings.userLocation)
+            .putString(KEY_USER_OCCUPATION, settings.userOccupation)
+            .putString(KEY_USER_BACKGROUND, settings.userBackground)
+            .putString(KEY_USER_RESPONSE_STYLE, settings.userResponseStyle)
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
@@ -344,6 +380,11 @@ class SettingsRepository(context: Context) {
         const val KEY_PROACTIVE_OTP_ENABLED = "proactive_otp_enabled"
         const val KEY_PROACTIVE_AUTO_COPY_OTP = "proactive_auto_copy_otp"
         const val KEY_PROACTIVE_BLACKLIST = "proactive_blacklist"
+        const val KEY_USER_NAME = "user_name"
+        const val KEY_USER_LOCATION = "user_location"
+        const val KEY_USER_OCCUPATION = "user_occupation"
+        const val KEY_USER_BACKGROUND = "user_background"
+        const val KEY_USER_RESPONSE_STYLE = "user_response_style"
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
