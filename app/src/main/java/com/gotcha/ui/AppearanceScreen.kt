@@ -94,19 +94,25 @@ fun AppearanceScreen(
 
         HorizontalDivider(thickness = 1.dp)
 
-        Text(
-            text = tierExplanation(tier),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        tierExplanation(tier)?.let { note ->
+            Text(
+                text = note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
-/** Says what this device is actually doing, rather than what the theme wishes it did. */
-private fun tierExplanation(tier: GlassTier): String = when (tier) {
+/**
+ * Says what this device is doing, but only when that differs from what the theme
+ * was designed to do. Live blur is the normal case on anything from API 31, and
+ * announcing the default is noise on a page whose job is choosing a theme.
+ */
+private fun tierExplanation(tier: GlassTier): String? = when (tier) {
     GlassTier.SOLID -> "Battery saver is on, so the theme is drawn flat until it's off."
-    GlassTier.LIVE -> "Panels blur what's behind them."
     GlassTier.STATIC -> "Live blur isn't available on this device, so panels use a fixed frost."
+    GlassTier.LIVE -> null
 }
 
 private const val TILES_PER_ROW = 2

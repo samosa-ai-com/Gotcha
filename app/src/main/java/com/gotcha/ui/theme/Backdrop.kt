@@ -166,8 +166,16 @@ private val Facets = listOf(
     listOf(0.78f to 0.72f, 1f to 0.34f, 1f to 1f)
 )
 
-/** Varied so adjacent shards separate; the glass over them does the softening. */
-private val FacetAlpha = listOf(0.92f, 0.62f, 1f, 0.52f, 0.84f, 0.58f, 0.96f)
+/**
+ * Per-facet opacity, ordered against the colour each facet draws.
+ *
+ * The ramp's warm end is far lighter than its violet end, so painting coral and
+ * salmon at the same strength as violet put shards on screen that were brighter
+ * than the text over them — measured 1.53:1, which is not readable by any
+ * standard. The light stops are held well back so every shard stays a dark
+ * ground for type; the geometry reads from hue, not from brightness.
+ */
+private val FacetAlpha = listOf(0.95f, 0.75f, 0.50f, 0.35f, 0.30f, 0.65f, 0.55f)
 
 private fun DrawScope.drawFacets(stops: List<Color>) {
     if (stops.isEmpty()) return

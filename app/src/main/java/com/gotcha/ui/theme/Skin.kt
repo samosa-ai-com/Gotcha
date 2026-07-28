@@ -319,7 +319,8 @@ object Skins {
         wallpaper = listOf(BrandViolet, BrandMagenta, BrandRose, BrandCoral, BrandSalmon),
         frost = 18.dp,
         grain = 0.06f,
-        scrim = 0.10f,
+        // Enough veil to keep every shard behind the text rather than beside it.
+        scrim = 0.18f,
         corner = 20.dp
     )
 

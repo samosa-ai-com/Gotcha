@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.PowerManager
-import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -17,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import java.util.function.Consumer
 
 /**
  * How much of the glass this device can actually make.
@@ -45,10 +43,16 @@ enum class GlassTier {
 val LocalGlassTier = staticCompositionLocalOf { GlassTier.STATIC }
 
 /**
- * Resolves the tier and keeps it current. Two of the inputs flip while the app
- * is running — battery saver, and the system-wide blur toggle in developer
- * options — so both are observed rather than sampled once at startup.
+ * Resolves the tier and keeps it current. Battery saver flips while the app is
+ * running, so it is observed rather than sampled once at startup.
  *
+ * The blur test is deliberately just the API level. This used to ask
+ * `WindowManager.isCrossWindowBlurEnabled()`, which is a different capability:
+ * it reports whether a *window* may blur what is behind it — the
+ * `setBackgroundBlurRadius` path — and OEMs routinely ship with it off. Our
+ * backdrop uses `Modifier.blur`, a RenderEffect inside our own window, which
+ * works on any hardware-accelerated device from API 31 regardless. The wrong
+ * question told modern phones they could not do something they do fine.
  */
 @Composable
 fun rememberGlassTier(): GlassTier {
@@ -73,11 +77,7 @@ fun rememberGlassTier(): GlassTier {
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    var blurAvailable by remember { mutableStateOf(systemBlurEnabled(context)) }
-    DisposableEffect(context) {
-        val listener = crossWindowBlurListener(context) { blurAvailable = it }
-        onDispose { listener?.invoke() }
-    }
+    val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     val lowRam = remember(context) {
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).isLowRamDevice
@@ -85,30 +85,7 @@ fun rememberGlassTier(): GlassTier {
 
     return when {
         powerSaving -> GlassTier.SOLID
-        blurAvailable && !lowRam -> GlassTier.LIVE
+        canBlur && !lowRam -> GlassTier.LIVE
         else -> GlassTier.STATIC
     }
-}
-
-/** Whether the platform will render blur at all right now. API 31+ only. */
-private fun systemBlurEnabled(context: Context): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
-    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    return wm.isCrossWindowBlurEnabled
-}
-
-/**
- * Subscribes to the platform blur toggle, returning the un-subscribe call — or
- * null on Android 11, where the toggle does not exist and the answer can never
- * change.
- */
-private fun crossWindowBlurListener(
-    context: Context,
-    onChange: (Boolean) -> Unit
-): (() -> Unit)? {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
-    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    val listener = Consumer<Boolean> { enabled -> onChange(enabled) }
-    wm.addCrossWindowBlurEnabledListener(listener)
-    return { wm.removeCrossWindowBlurEnabledListener(listener) }
 }
