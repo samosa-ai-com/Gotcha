@@ -332,7 +332,10 @@ object Skins {
         ground = OrchidGround,
         scheme = OrchidScheme,
         frost = 8.dp,
-        grain = 0.30f,
+        // Measured at roughly twice the other skins' grain rather than six times
+        // it. Same cell size everywhere — amplitude is what reads as coarseness,
+        // and the vignette carries the depth that the grain used to carry alone.
+        grain = 0.12f,
         corner = 22.dp
     )
 
