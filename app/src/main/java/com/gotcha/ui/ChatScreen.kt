@@ -74,6 +74,7 @@ import com.gotcha.R
 import com.gotcha.agent.ChatUiState
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
+import com.gotcha.ui.theme.LocalSkin
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image as ComposeImage
 
@@ -100,6 +101,7 @@ fun ChatScreen(
     onExportChat: () -> Unit = {},
     onReturnToRunning: () -> Unit = {}
 ) {
+    val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
     // A run is active in a DIFFERENT chat than the one being viewed: sending here
     // is blocked (one agent at a time), and a banner offers a jump back.
@@ -249,7 +251,10 @@ fun ChatScreen(
                         greeting,
                         style = MaterialTheme.typography.headlineMedium,
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        // The largest text on the home screen, so it takes the
+                        // primary ink. Secondary ink over a wallpaper was the
+                        // weakest thing on the screen.
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     AgentModeSelector(
@@ -295,19 +300,22 @@ fun ChatScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF1A1A2E), RoundedCornerShape(8.dp))
+                        .background(
+                            MaterialTheme.colorScheme.secondaryContainer,
+                            RoundedCornerShape(skin.cornerSmall)
+                        )
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(
                             modifier = Modifier.width(16.dp),
-                            color = Color(0xFFE0D4FF)
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             "⚡ ${state.subAgentRunning}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFE0D4FF)
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                     state.subAgentCurrentAction?.let { action ->
@@ -315,7 +323,7 @@ fun ChatScreen(
                         Text(
                             action,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFE0D4FF).copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -338,7 +346,7 @@ fun ChatScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(skin.cornerSmall))
                         .background(MaterialTheme.colorScheme.secondaryContainer)
                         .clickable { onReturnToRunning() }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -377,7 +385,7 @@ fun ChatScreen(
                             contentDescription = "Attached image",
                             modifier = Modifier
                                 .height(120.dp)
-                                .clip(RoundedCornerShape(8.dp)),
+                                .clip(RoundedCornerShape(skin.cornerSmall)),
                             contentScale = ContentScale.Fit
                         )
                     }

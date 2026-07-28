@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
 import com.gotcha.ui.theme.GotchaMono
+import com.gotcha.ui.theme.LocalSkin
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.Material3RichText
 
@@ -70,6 +71,11 @@ fun MessageBubble(
     val isUser = message.kind == MessageKind.USER
     val isAssistant = message.kind == MessageKind.ASSISTANT
     val isTool = message.kind == MessageKind.TOOL
+    // A failed tool call arrives as ERROR (see AgentEngine), which used to make
+    // it a fat red bubble in the middle of a column of ledger lines — the one
+    // row you most want to find, rendered as the one row that breaks the scan.
+    // App-level errors are prose and keep their bubble; tool failures do not.
+    val isToolFailure = message.kind == MessageKind.ERROR && looksLikeToolOutput(message.text)
     val isSubAgent = message.kind == MessageKind.SUBAGENT
     val colors = MaterialTheme.colorScheme
     // Only the user gets a bubble. An assistant reply can run to several
@@ -80,14 +86,18 @@ fun MessageBubble(
         MessageKind.USER -> colors.primaryContainer to colors.onPrimaryContainer
         MessageKind.ASSISTANT -> Color.Transparent to colors.onSurface
         MessageKind.TOOL -> Color.Transparent to colors.onSurfaceVariant
-        MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
-        MessageKind.SUBAGENT -> {
-            val bg = Color(0xFF1A1A2E)
-            val fg = Color(0xFFE0D4FF)
-            bg to fg
-        }
+        MessageKind.ERROR ->
+            if (isToolFailure) {
+                Color.Transparent to colors.error
+            } else {
+                colors.errorContainer to colors.onErrorContainer
+            }
+        // Was a hardcoded navy/lilac pair, which looked deliberate only while
+        // every theme happened to be navy.
+        MessageKind.SUBAGENT -> colors.secondaryContainer to colors.onSecondaryContainer
     }
-    val unbubbled = isAssistant || isTool
+    val unbubbled = isAssistant || isTool || isToolFailure
+    val skin = LocalSkin.current
     val expanded = remember { mutableStateOf(!isTool && !isSubAgent) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -101,11 +111,13 @@ fun MessageBubble(
             color = container,
             contentColor = contentColor,
             shadowElevation = if (unbubbled) 0.dp else 2.dp,
+            // The skin owns the shape as well as the colour: Orchid is generous,
+            // Nocturne is tight, Deep Space is exactly what it always was.
             shape = RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 20.dp,
-                bottomStart = if (isUser) 20.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 20.dp
+                topStart = skin.corner,
+                topEnd = skin.corner,
+                bottomStart = if (isUser) skin.corner else 4.dp,
+                bottomEnd = if (isUser) 4.dp else skin.corner
             )
         ) {
             Column(
@@ -155,7 +167,7 @@ fun MessageBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(skin.cornerSmall))
                             .background(contentColor.copy(alpha = 0.05f))
                     ) {
                         Row(
@@ -196,11 +208,11 @@ fun MessageBubble(
                     val firstLine = displayText.substringBefore("\n").trimEnd()
                     val hasMore = displayText.contains("\n")
 
-                    if (isTool) {
+                    if (isTool || isToolFailure) {
                         ToolLedger(
                             text = if (expanded.value) displayText else firstLine,
                             hint = if (!expanded.value && hasMore) "tap to expand" else null,
-                            railColor = colors.primary,
+                            railColor = if (isToolFailure) colors.error else colors.primary,
                             contentColor = contentColor,
                             collapsed = !expanded.value
                         )
@@ -280,6 +292,17 @@ fun MessageBubble(
  * these, and twenty bubbles bury the two sentences of prose that answered the
  * question.
  */
+/**
+ * Tool output is formatted `name: message` by the engine, so an ERROR that opens
+ * with a bare identifier and a colon came from a tool. App errors are sentences
+ * — "No API key configured.", "Transcription failed: …" — and never match, since
+ * they start with a capital or contain a space before the colon.
+ */
+private val ToolOutputPrefix = Regex("^[a-z][a-z0-9_.]{1,40}:")
+
+private fun looksLikeToolOutput(text: String): Boolean =
+    ToolOutputPrefix.containsMatchIn(text)
+
 @Composable
 private fun ToolLedger(
     text: String,

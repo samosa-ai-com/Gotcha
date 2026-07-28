@@ -62,6 +62,14 @@ data class Skin(
     val scrim: Float = 0f,
     val corner: Dp = 20.dp
 ) {
+    /**
+     * Radius for the small stuff — inline images, the reasoning block, status
+     * panels. Derived rather than declared so a skin cannot describe a shape
+     * language that contradicts itself.
+     */
+    val cornerSmall: Dp
+        get() = corner / 2
+
     /** True when the chrome is meant to be see-through. */
     val isGlass: Boolean
         get() = backdrop != Backdrop.NONE
@@ -304,7 +312,9 @@ object Skins {
         // it. Same cell size everywhere — amplitude is what reads as coarseness,
         // and the vignette carries the depth that the grain used to carry alone.
         grain = 0.12f,
-        corner = 22.dp
+        // The Arc read is a generous radius; it is half of why that look reads
+        // as soft even though the colour is shouting.
+        corner = 26.dp
     )
 
     /** The launcher icon's low-poly geometry, blown up to wallpaper scale. */
@@ -321,7 +331,9 @@ object Skins {
         grain = 0.06f,
         // Enough veil to keep every shard behind the text rather than beside it.
         scrim = 0.18f,
-        corner = 20.dp
+        // Tighter than the rest: the wallpaper is hard edges, and round chrome
+        // over it reads as two unrelated designs.
+        corner = 16.dp
     )
 
     /**
