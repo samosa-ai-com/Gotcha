@@ -92,9 +92,9 @@ fun AppearanceScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        HorizontalDivider(thickness = 1.dp)
-
+        // The rule belongs to the note; without one there is nothing to divide.
         tierExplanation(tier)?.let { note ->
+            HorizontalDivider(thickness = 1.dp)
             Text(
                 text = note,
                 style = MaterialTheme.typography.bodySmall,
