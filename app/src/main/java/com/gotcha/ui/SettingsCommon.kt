@@ -183,7 +183,12 @@ fun SettingsScaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("← Back") } }
+                navigationIcon = {
+                    TextButton(
+                        onClick = onBack,
+                        modifier = Modifier.testTag("settings_back")
+                    ) { Text("← Back") }
+                }
             )
         }
     ) { padding ->

@@ -7,7 +7,10 @@ import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.provider.Settings
 
-class SystemTool(private val context: Context) {
+class SystemTool(
+    private val context: Context,
+    private val settingsRouter: SettingsRouter = SettingsRouter(context)
+) {
 
     fun setBrightness(percent: Int): ToolResult {
         if (percent !in 0..100) {
@@ -140,7 +143,7 @@ class SystemTool(private val context: Context) {
      * [SettingsRouter] so there is one place that knows how Wi-Fi is reached.
      */
     private fun openWifiSettings(): ToolResult =
-        SettingsRouter(context).open("wifi", confirmed = false)
+        settingsRouter.open("wifi", confirmed = false)
 
     fun openApp(packageName: String): ToolResult {
         return try {

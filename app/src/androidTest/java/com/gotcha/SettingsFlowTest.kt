@@ -71,7 +71,7 @@ class SettingsFlowTest {
         composeRule.waitForIdle()
 
         // First run opens on AI Configuration; Back reaches the category list.
-        composeRule.onNodeWithText("← Back").performClick()
+        composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
         composeRule.waitForIdle()
@@ -101,7 +101,7 @@ class SettingsFlowTest {
         // First run opens on AI Configuration; Back from a sub-page lands on the
         // category list rather than leaving Settings.
         composeRule.onNodeWithTag("settings_base_url").assertExists()
-        composeRule.onNodeWithText("← Back").performClick()
+        composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
 

@@ -34,6 +34,9 @@ import kotlinx.serialization.json.jsonPrimitive
 /** Outcome of the sensitive-action confirmation step. */
 private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 
+/** Whitespace collapsed when emitting multi-line user-profile fields, so a Background paragraph can't be read as the start of a new fact. */
+private val WHITESPACE = Regex("\\s+")
+
 /** Maps API/network failures to a short, user-readable message. */
 internal fun friendlyAgentError(e: Exception): String = when {
     e is retrofit2.HttpException && e.code() == 401 ->
@@ -1149,7 +1152,7 @@ class AgentEngine(
             // One fact per line, so a multi-line Background can't be mistaken for
             // the start of a new one.
             fun fact(label: String, value: String) {
-                value.replace(Regex("\\s+"), " ").trim()
+                value.replace(WHITESPACE, " ").trim()
                     .takeIf { it.isNotEmpty() }
                     ?.let { add("$label: $it") }
             }
