@@ -74,10 +74,17 @@ fun SettingsScreen(
      * (synchronous, always-true) lets callers ignore voice testing.
      */
     onTestVoice: suspend (Language) -> Boolean? = { null },
-    packageName: String = ""
+    packageName: String = "",
+    /**
+     * Page to open on, instead of the home list. For the unconfigured first run,
+     * where the one thing the user must do is enter an API key and a model, and
+     * the home list would only ask them to guess which category that lives under.
+     * Back still returns to the list, so the rest of Settings stays reachable.
+     */
+    initialPage: SettingsPage? = null
 ) {
     // null = the home list. Saveable so a rotation doesn't bounce the user back out.
-    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    var page by rememberSaveable { mutableStateOf(initialPage) }
     val backToHome = { page = null }
 
     // Back leaves the sub-page for the list; only the list itself exits Settings.

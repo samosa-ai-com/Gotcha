@@ -2,6 +2,7 @@ package com.gotcha
 
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
@@ -39,10 +40,8 @@ class SettingsFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        // AI Configuration is its own page now, reached from the settings home list.
-        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
-        composeRule.waitForIdle()
-
+        // An unconfigured install opens on the AI Configuration page itself, so
+        // there is no category row to click through first.
         composeRule.onNodeWithTag("settings_base_url").performTextReplacement(testBaseUrl)
         composeRule.onNodeWithTag("settings_model").performTextReplacement(testModel)
         // The Save button sits below the fold in the scrollable Settings column;
@@ -61,5 +60,27 @@ class SettingsFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("chat_input").assertExists()
+    }
+
+    @Test
+    fun settingsSubPage_opensFromTheListAndBackReturnsToIt() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration; Back from a sub-page lands on the
+        // category list rather than leaving Settings.
+        composeRule.onNodeWithTag("settings_base_url").assertExists()
+        composeRule.onNodeWithText("← Back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
+
+        // Opening another category replaces the list with that page.
+        composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
+        composeRule.onNodeWithText("TTS Provider").assertExists()
     }
 }
