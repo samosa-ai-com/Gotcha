@@ -10,9 +10,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
+import com.gotcha.ui.theme.GotchaMono
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.Material3RichText
 
@@ -68,10 +72,14 @@ fun MessageBubble(
     val isTool = message.kind == MessageKind.TOOL
     val isSubAgent = message.kind == MessageKind.SUBAGENT
     val colors = MaterialTheme.colorScheme
+    // Only the user gets a bubble. An assistant reply can run to several
+    // paragraphs, and wrapping that in a container turns reading into scanning a
+    // receipt; set on the ground it reads like prose, which is what it is.
+    // A tool call is neither — see the ledger rail below.
     val (container, contentColor) = when (message.kind) {
         MessageKind.USER -> colors.primaryContainer to colors.onPrimaryContainer
-        MessageKind.ASSISTANT -> colors.surfaceVariant to colors.onSurfaceVariant
-        MessageKind.TOOL -> colors.secondaryContainer to colors.onSecondaryContainer
+        MessageKind.ASSISTANT -> Color.Transparent to colors.onSurface
+        MessageKind.TOOL -> Color.Transparent to colors.onSurfaceVariant
         MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
         MessageKind.SUBAGENT -> {
             val bg = Color(0xFF1A1A2E)
@@ -79,6 +87,7 @@ fun MessageBubble(
             bg to fg
         }
     }
+    val unbubbled = isAssistant || isTool
     val expanded = remember { mutableStateOf(!isTool && !isSubAgent) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -91,7 +100,7 @@ fun MessageBubble(
         Surface(
             color = container,
             contentColor = contentColor,
-            shadowElevation = 2.dp,
+            shadowElevation = if (unbubbled) 0.dp else 2.dp,
             shape = RoundedCornerShape(
                 topStart = 20.dp,
                 topEnd = 20.dp,
@@ -101,7 +110,10 @@ fun MessageBubble(
         ) {
             Column(
                 modifier = Modifier
-                    .widthIn(max = 320.dp)
+                    .then(
+                        // Prose wants the full column; a bubble wants to stay a bubble.
+                        if (isAssistant) Modifier.fillMaxWidth() else Modifier.widthIn(max = 320.dp)
+                    )
                     .then(
                         if (isTool || isSubAgent) {
                             Modifier.combinedClickable(
@@ -115,7 +127,10 @@ fun MessageBubble(
                             )
                         }
                     )
-                    .padding(16.dp)
+                    .padding(
+                        horizontal = if (unbubbled) 6.dp else 16.dp,
+                        vertical = if (unbubbled) 6.dp else 16.dp
+                    )
             ) {
                 message.imageBase64?.let { base64 ->
                     val bitmap = try {
@@ -177,37 +192,23 @@ fun MessageBubble(
                     }
                 }
                 if (message.text.isNotEmpty()) {
-                    val displayText = when (message.kind) {
-                        MessageKind.TOOL -> "🔧 ${message.text}"
-                        else -> message.text
-                    }
+                    val displayText = message.text
                     val firstLine = displayText.substringBefore("\n").trimEnd()
                     val hasMore = displayText.contains("\n")
 
-                    if (isTool && !expanded.value) {
-                        Text(
-                            text = firstLine,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                    if (isTool) {
+                        ToolLedger(
+                            text = if (expanded.value) displayText else firstLine,
+                            hint = if (!expanded.value && hasMore) "tap to expand" else null,
+                            railColor = colors.primary,
+                            contentColor = contentColor,
+                            collapsed = !expanded.value
                         )
-                        if (hasMore) {
-                            Text(
-                                text = "… tap to expand",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = contentColor.copy(alpha = 0.6f)
-                            )
-                        }
                     } else if (isSubAgent) {
                         SubAgentContent(
                             message = message,
                             contentColor = contentColor,
                             expanded = expanded
-                        )
-                    } else if (isTool || isSubAgent) {
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodySmall
                         )
                     } else {
                         Material3RichText {
@@ -269,6 +270,50 @@ fun MessageBubble(
                     showMenu = false
                 }
             )
+        }
+    }
+}
+
+/**
+ * A tool call, rendered as a ledger line rather than a chat bubble: an accent
+ * rail, the call in monospace, one line until tapped. A turn can make twenty of
+ * these, and twenty bubbles bury the two sentences of prose that answered the
+ * question.
+ */
+@Composable
+private fun ToolLedger(
+    text: String,
+    hint: String?,
+    railColor: Color,
+    contentColor: Color,
+    collapsed: Boolean
+) {
+    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+        Box(
+            modifier = Modifier
+                .width(2.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(1.dp))
+                .background(railColor.copy(alpha = 0.7f))
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = GotchaMono,
+                color = contentColor,
+                maxLines = if (collapsed) 1 else Int.MAX_VALUE,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (hint != null) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = GotchaMono,
+                    color = contentColor.copy(alpha = 0.55f)
+                )
+            }
         }
     }
 }

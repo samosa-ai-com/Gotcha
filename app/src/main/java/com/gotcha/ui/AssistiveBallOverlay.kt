@@ -21,6 +21,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
 import com.gotcha.R
@@ -29,6 +30,7 @@ import com.gotcha.data.ThemeMode
 import com.gotcha.service.EntityType
 import com.gotcha.service.ProactiveSessionItem
 import com.gotcha.service.SmartActionDetector
+import com.gotcha.ui.theme.Skins
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -98,22 +100,40 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
-    private fun palette(): OverlayPalette = if (isDarkTheme()) {
-        OverlayPalette(
-            surface = 0xFF1E293B.toInt(),
-            onSurface = 0xFFE2E8F0.toInt(),
-            outline = 0xFF334155.toInt(),
-            buttonBg = 0xFF334155.toInt(),
-            buttonText = 0xFFE2E8F0.toInt()
+    /**
+     * The ball is a window over other apps, so it takes its colours from the
+     * chosen skin rather than from a pair of hardcoded Deep Space palettes.
+     *
+     * Always the [Skin.opaque] variant: there is no wallpaper of ours behind
+     * this window, only whatever app the user is looking at, and translucent
+     * chrome over someone else's screen is unreadable.
+     */
+    private fun palette(): OverlayPalette {
+        val dark = isDarkTheme()
+        val settings = runCatching { settingsRepository.load() }.getOrNull()
+        val scheme = Skins.resolve(
+            settings?.skinId ?: Skins.DEFAULT_ID,
+            settings?.matchSystemBrightness ?: true,
+            dark
+        ).opaque().scheme(dark)
+        return OverlayPalette(
+            surface = scheme.surface.toArgb(),
+            onSurface = scheme.onSurface.toArgb(),
+            outline = scheme.outline.toArgb(),
+            buttonBg = scheme.secondaryContainer.toArgb(),
+            buttonText = scheme.onSecondaryContainer.toArgb()
         )
-    } else {
-        OverlayPalette(
-            surface = 0xFFFBFDF9.toInt(),
-            onSurface = 0xFF191C1A.toInt(),
-            outline = 0xFFDBE5E0.toInt(),
-            buttonBg = 0xFFE8F6F2.toInt(),
-            buttonText = 0xFF002117.toInt()
-        )
+    }
+
+    /** The skin's own accent, for the ring and any other tinted overlay part. */
+    private fun accentColor(): Int {
+        val dark = isDarkTheme()
+        val settings = runCatching { settingsRepository.load() }.getOrNull()
+        return Skins.resolve(
+            settings?.skinId ?: Skins.DEFAULT_ID,
+            settings?.matchSystemBrightness ?: true,
+            dark
+        ).opaque().scheme(dark).primary.toArgb()
     }
 
     fun canShow(): Boolean = Settings.canDrawOverlays(appContext)
@@ -501,7 +521,7 @@ class AssistiveBallOverlay(context: Context) {
         val ballPx = dp(BALL_SIZE_DP)
         val drawable = RingDrawable().apply {
             fillColor = Color.TRANSPARENT
-            strokeColor = Color.WHITE
+            strokeColor = accentColor()
             strokeWidth = 2.5f * density
         }
         val view = View(appContext).apply { background = drawable }

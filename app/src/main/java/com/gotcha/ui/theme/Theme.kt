@@ -48,6 +48,7 @@ internal val LightColorScheme = lightColorScheme(
  * @param skinId which entry of [Skins] the user picked.
  * @param matchSystemBrightness swap a paired skin for its twin when the device
  *   flips between light and dark, instead of keeping one skin in both.
+ * @param frostPercent scales the skin's frost and scrim, 0–100.
  * @param reduceTransparency our own accessibility switch — Android has no
  *   system-level equivalent, so this is the only way to ask for solid panels.
  */
@@ -57,10 +58,12 @@ fun GotchaTheme(
     skinId: String = Skins.DEFAULT_ID,
     matchSystemBrightness: Boolean = true,
     reduceTransparency: Boolean = false,
+    frostPercent: Int = 100,
     content: @Composable () -> Unit
 ) {
     val tier = rememberGlassTier(reduceTransparency)
     val picked = Skins.resolve(skinId, matchSystemBrightness, darkTheme)
+        .withFrost(frostPercent)
     // The tier decides what the skin is made of, not whether the user gets it.
     val skin = if (tier == GlassTier.SOLID) picked.opaque() else picked
 

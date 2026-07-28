@@ -138,3 +138,10 @@ val NocturneContainerHighest = Color(0xFF2A1F35)
  */
 val BrandError = Color(0xFFFF6B4A)
 val BrandOnError = Color(0xFF3E0A00)
+
+/**
+ * "Getting full", for the context meter. Semantic colour is deliberately its own
+ * axis: it has to mean the same thing in every skin, so it cannot be the accent
+ * — which is a different hue in each of them.
+ */
+val WarningAmber = Color(0xFFFFB020)

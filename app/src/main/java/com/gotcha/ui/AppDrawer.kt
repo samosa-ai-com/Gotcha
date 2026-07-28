@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.ChatSession
+import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 
 @Composable
@@ -95,9 +96,13 @@ fun AppDrawerContent(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 if (usage != null) {
+                                    // Tabular figures: this counter ticks while a
+                                    // reply streams, and proportional digits make
+                                    // the whole line twitch as it does.
                                     Text(
                                         usage,
                                         style = MaterialTheme.typography.labelSmall,
+                                        fontFamily = GotchaMono,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }

@@ -20,9 +20,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,10 +39,12 @@ import com.gotcha.data.Settings
 import com.gotcha.data.ThemeMode
 import com.gotcha.ui.theme.Brightness
 import com.gotcha.ui.theme.GlassTier
+import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalGlassTier
 import com.gotcha.ui.theme.Skin
 import com.gotcha.ui.theme.SkinMiniature
 import com.gotcha.ui.theme.Skins
+import kotlin.math.roundToInt
 
 /**
  * The Appearance page: light or dark, which skin, and how much glass.
@@ -65,6 +69,7 @@ fun AppearanceScreen(
     var skinId by remember { mutableStateOf(initial.skinId) }
     var matchSystem by remember { mutableStateOf(initial.matchSystemBrightness) }
     var reduceTransparency by remember { mutableStateOf(initial.reduceTransparency) }
+    var frostPercent by remember { mutableIntStateOf(initial.frostPercent) }
 
     val overlay = rememberSettingsOverlayState()
     val tier = LocalGlassTier.current
@@ -136,6 +141,28 @@ fun AppearanceScreen(
                 "${selected.label} and ${twin.label} are the same theme in two " +
                     "brightnesses. With this on, the phone picks whichever one fits.",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (selected.isGlass && !reduceTransparency) {
+            Text(
+                "Frost",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Slider(
+                value = frostPercent.toFloat(),
+                onValueChange = { frostPercent = it.roundToInt() },
+                // Persist on release rather than per pixel: the preview follows the
+                // thumb, but a hundred writes per drag is a hundred writes.
+                onValueChangeFinished = { apply { s -> s.copy(frostPercent = frostPercent) } },
+                valueRange = 0f..100f,
+                modifier = Modifier.testTag("appearance_frost")
+            )
+            Text(
+                "$frostPercent% of ${selected.label}'s frost",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = GotchaMono,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

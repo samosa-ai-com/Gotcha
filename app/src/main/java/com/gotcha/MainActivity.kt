@@ -83,7 +83,8 @@ class MainActivity : ComponentActivity() {
         val themeMode: ThemeMode = ThemeMode.SYSTEM,
         val skinId: String = Skins.DEFAULT_ID,
         val matchSystemBrightness: Boolean = true,
-        val reduceTransparency: Boolean = false
+        val reduceTransparency: Boolean = false,
+        val frostPercent: Int = 100
     )
 
     /**
@@ -113,7 +114,8 @@ class MainActivity : ComponentActivity() {
         themeMode = themeMode,
         skinId = skinId,
         matchSystemBrightness = matchSystemBrightness,
-        reduceTransparency = reduceTransparency
+        reduceTransparency = reduceTransparency,
+        frostPercent = frostPercent
     )
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
@@ -218,7 +220,8 @@ class MainActivity : ComponentActivity() {
                 darkTheme = darkTheme,
                 skinId = appearance.skinId,
                 matchSystemBrightness = appearance.matchSystemBrightness,
-                reduceTransparency = appearance.reduceTransparency
+                reduceTransparency = appearance.reduceTransparency,
+                frostPercent = appearance.frostPercent
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

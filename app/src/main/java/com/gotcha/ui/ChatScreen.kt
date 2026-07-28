@@ -3,6 +3,7 @@ package com.gotcha.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,9 +42,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.agent.ChatUiState
 import com.gotcha.tools.AgentMode
+import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image as ComposeImage
 
@@ -167,21 +169,45 @@ fun ChatScreen(
                             )
                         }
                     } else {
+                        // Operator can change the device, Monitor cannot. An icon
+                        // that only changes shape is not enough signal for that, so
+                        // the riskier of the two says its own name.
                         val isOperator = state.activeAgent == AgentMode.OPERATOR
-                        IconButton(onClick = onSwitchAgent, enabled = !state.isBusy) {
-                            Icon(
-                                if (isOperator) Icons.Filled.TouchApp else Icons.Outlined.Visibility,
-                                contentDescription = if (isOperator) {
-                                    "Operator mode — tap to switch to Monitor"
-                                } else {
-                                    "Monitor mode — tap to switch to Operator"
-                                },
-                                tint = if (isOperator) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
+                        if (isOperator) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                shape = RoundedCornerShape(999.dp),
+                                modifier = Modifier
+                                    .padding(end = 4.dp)
+                                    .clickable(enabled = !state.isBusy, onClick = onSwitchAgent)
+                                    .testTag("agent_mode_badge")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Filled.TouchApp,
+                                        contentDescription = "Operator mode — tap to switch to Monitor",
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        "Operator",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
-                            )
+                            }
+                        } else {
+                            IconButton(onClick = onSwitchAgent, enabled = !state.isBusy) {
+                                Icon(
+                                    Icons.Outlined.Visibility,
+                                    contentDescription = "Monitor mode — tap to switch to Operator",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         if (state.isSpeaking) {
                             IconButton(onClick = onStopSpeaking) {
@@ -202,11 +228,7 @@ fun ChatScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!isHome) {
-                LinearProgressIndicator(
-                    progress = { state.contextUsagePercent },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = if (state.contextUsagePercent > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                )
+                ContextMeter(fraction = state.contextUsagePercent)
             }
             if (isHome) {
                 val greeting = rememberSaveable(state.activeSessionId) { HOME_GREETINGS.random() }
@@ -253,12 +275,19 @@ fun ChatScreen(
 
             if (state.activity != null) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.width(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(state.activity, style = MaterialTheme.typography.bodySmall)
+                    ActivityPulse(color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        state.activity,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = GotchaMono,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
@@ -411,109 +440,130 @@ fun ChatScreen(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // One pill rather than a docked row: it floats clear of the bottom
+            // edge, and the send button is the only saturated fill on the screen.
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(28.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
-                IconButton(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    enabled = !state.isBusy && state.isConfigured && !otherChatRunning
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("+", style = MaterialTheme.typography.titleLarge)
-                }
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    modifier = Modifier.weight(1f).testTag("chat_input"),
-                    shape = RoundedCornerShape(24.dp),
-                    placeholder = {
-                        Text(
-                            when {
-                                state.isTranscribing -> "Transcribing…"
-                                otherChatRunning -> "Finish the running chat first…"
-                                else -> "Let's Go"
-                            }
+                    IconButton(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        enabled = !state.isBusy && state.isConfigured && !otherChatRunning
+                    ) {
+                        Text("+", style = MaterialTheme.typography.titleLarge)
+                    }
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        modifier = Modifier.weight(1f).testTag("chat_input"),
+                        shape = RoundedCornerShape(24.dp),
+                        placeholder = {
+                            Text(
+                                when {
+                                    state.isTranscribing -> "Transcribing…"
+                                    otherChatRunning -> "Finish the running chat first…"
+                                    else -> "Let's Go"
+                                }
+                            )
+                        },
+                        enabled = !state.isBusy && !state.isTranscribing && state.isConfigured && !otherChatRunning,
+                        maxLines = 6,
+                        singleLine = false,
+                        // The pill is the container now; a second outline inside it
+                        // reads as a box in a box.
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent
                         )
-                    },
-                    enabled = !state.isBusy && !state.isTranscribing && state.isConfigured && !otherChatRunning,
-                    maxLines = 6,
-                    singleLine = false
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                // All action buttons use the same 40dp box so the layout never resizes
-                Box(modifier = Modifier.size(40.dp)) {
-                    when {
-                        state.isBusy -> {
-                            Button(
-                                onClick = onStop,
-                                modifier = Modifier.size(40.dp),
-                                contentPadding = ButtonDefaults.TextButtonContentPadding,
-                                shape = CircleShape
-                            ) {
-                                Icon(
-                                    Icons.Default.Stop,
-                                    contentDescription = "Stop",
-                                    modifier = Modifier.size(20.dp)
-                                )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // All action buttons use the same 40dp box so the layout never resizes
+                    Box(modifier = Modifier.size(40.dp)) {
+                        when {
+                            state.isBusy -> {
+                                Button(
+                                    onClick = onStop,
+                                    modifier = Modifier.size(40.dp),
+                                    contentPadding = ButtonDefaults.TextButtonContentPadding,
+                                    shape = CircleShape
+                                ) {
+                                    Icon(
+                                        Icons.Default.Stop,
+                                        contentDescription = "Stop",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
-                        }
-                        state.isRecording || state.isListening -> {
-                            // Recording in progress — show red stop button for both providers
-                            Button(
-                                onClick = {
-                                    onStopRecording { text ->
-                                        if (input.isNotEmpty()) {
-                                            input += " " + text
-                                        } else {
-                                            input = text
+                            state.isRecording || state.isListening -> {
+                                // Recording in progress — show red stop button for both providers
+                                Button(
+                                    onClick = {
+                                        onStopRecording { text ->
+                                            if (input.isNotEmpty()) {
+                                                input += " " + text
+                                            } else {
+                                                input = text
+                                            }
                                         }
-                                    }
-                                },
-                                modifier = Modifier.size(40.dp),
-                                contentPadding = ButtonDefaults.TextButtonContentPadding,
-                                shape = CircleShape,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Default.Stop,
-                                    contentDescription = "Stop recording",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = Color.White
-                                )
+                                    },
+                                    modifier = Modifier.size(40.dp),
+                                    contentPadding = ButtonDefaults.TextButtonContentPadding,
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Stop,
+                                        contentDescription = "Stop recording",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = Color.White
+                                    )
+                                }
                             }
-                        }
-                        state.isTranscribing -> {
-                            // Recording has stopped but STT hasn't returned text yet —
-                            // without this the button would blink back to the mic icon
-                            // and look like the recording was dropped.
-                            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            state.isTranscribing -> {
+                                // Recording has stopped but STT hasn't returned text yet —
+                                // without this the button would blink back to the mic icon
+                                // and look like the recording was dropped.
+                                Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                }
                             }
-                        }
-                        input.isBlank() && pendingImageBase64 == null -> {
-                            IconButton(
-                                onClick = onStartListening,
-                                modifier = Modifier.size(40.dp),
-                                enabled = state.isConfigured && !otherChatRunning
-                            ) {
-                                Icon(Icons.Default.Mic, contentDescription = "Voice input")
+                            input.isBlank() && pendingImageBase64 == null -> {
+                                IconButton(
+                                    onClick = onStartListening,
+                                    modifier = Modifier.size(40.dp),
+                                    enabled = state.isConfigured && !otherChatRunning
+                                ) {
+                                    Icon(Icons.Default.Mic, contentDescription = "Voice input")
+                                }
                             }
-                        }
-                        else -> {
-                            IconButton(
-                                onClick = {
-                                    onSend(input, pendingImageBase64)
-                                    input = ""
-                                    pendingImageUri = null
-                                    pendingImageBase64 = null
-                                },
-                                modifier = Modifier.size(40.dp).testTag("send_button"),
-                                enabled = state.isConfigured && !otherChatRunning &&
-                                    (input.isNotBlank() || pendingImageBase64 != null)
-                            ) {
-                                Icon(Icons.Default.Send, contentDescription = "Send")
+                            else -> {
+                                IconButton(
+                                    onClick = {
+                                        onSend(input, pendingImageBase64)
+                                        input = ""
+                                        pendingImageUri = null
+                                        pendingImageBase64 = null
+                                    },
+                                    modifier = Modifier.size(40.dp).testTag("send_button"),
+                                    enabled = state.isConfigured && !otherChatRunning &&
+                                        (input.isNotBlank() || pendingImageBase64 != null)
+                                ) {
+                                    Icon(Icons.Default.Send, contentDescription = "Send")
+                                }
                             }
                         }
                     }

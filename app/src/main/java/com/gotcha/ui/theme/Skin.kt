@@ -105,6 +105,18 @@ data class Skin(
         if (isGlass) ground else scheme(dark).background
 
     /**
+     * The same skin with its frost dialled to [percent] of what it was designed
+     * with. The scrim scales with it: they are two halves of one effect, and
+     * leaving the veil at full strength over a sharp wallpaper reads as haze
+     * rather than as a choice.
+     */
+    fun withFrost(percent: Int): Skin {
+        if (percent >= 100 || !isGlass) return this
+        val factor = (percent.coerceIn(0, 100)) / 100f
+        return copy(frost = frost * factor, scrim = scrim * factor)
+    }
+
+    /**
      * The same skin with the glass taken out: panels composited down onto their
      * own ground, no wallpaper, no grain. The palette and the layout are
      * untouched — it simply stops being see-through. This is what a device on
