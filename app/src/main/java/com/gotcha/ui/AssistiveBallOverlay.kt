@@ -264,7 +264,9 @@ class AssistiveBallOverlay(context: Context) {
         val size = dp(BALL_SIZE_DP)
         return android.widget.ImageView(appContext).apply {
             contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
-            setImageResource(R.mipmap.ic_launcher_round)
+            // The in-app mark. The launcher icon is adaptive now, so it would
+            // draw at two-thirds size inside its own safe zone.
+            setImageResource(R.drawable.gotcha_logo)
             scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
             alpha = PEEK_ALPHA
             setOnTouchListener(ballTouchListener())

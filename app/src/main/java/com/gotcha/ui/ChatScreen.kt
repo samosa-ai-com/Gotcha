@@ -216,7 +216,9 @@ fun ChatScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     ComposeImage(
-                        painter = painterResource(R.mipmap.ic_launcher_round),
+                        // The in-app mark, not the launcher icon: @mipmap/ic_launcher_round
+                        // is an adaptive-icon XML, which painterResource cannot load.
+                        painter = painterResource(R.drawable.gotcha_logo),
                         contentDescription = "Gotcha logo",
                         modifier = Modifier.size(96.dp).clip(CircleShape)
                     )
