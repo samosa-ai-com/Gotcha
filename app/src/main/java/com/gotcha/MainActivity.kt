@@ -425,9 +425,9 @@ class MainActivity : ComponentActivity() {
                 Route.SETTINGS -> {
                     BackHandler { currentRoute = Route.HOME }
                     SettingsScreen(
-                        initial = settingsRepository.load(),
-                        onSave = { settings ->
-                            settingsRepository.save(settings)
+                        load = { settingsRepository.load() },
+                        onSave = { mutate ->
+                            settingsRepository.save(mutate(settingsRepository.load()))
                             chatViewModel.refreshSettings()
                         },
                         onTestConnection = ::testConnection,
@@ -447,15 +447,6 @@ class MainActivity : ComponentActivity() {
                         onThemeChange = { mode ->
                             themeMode = mode
                             settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
-                        },
-                        onNotifyAlertChange = { vibration, chime ->
-                            settingsRepository.save(
-                                settingsRepository.load().copy(
-                                    notifyVibrationEnabled = vibration,
-                                    notifyChimeEnabled = chime
-                                )
-                            )
-                            chatViewModel.refreshSettings()
                         },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {

@@ -92,19 +92,22 @@ private const val OVERLAY_DURATION_MS = 2500L
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    initial: Settings,
-    onSave: (Settings) -> Unit,
+    /** Reads the persisted settings. Called once to seed the form, and again
+     *  whenever a section saves, so a section always writes onto current storage
+     *  rather than onto whatever was on screen when this composable started. */
+    load: () -> Settings,
+    /**
+     * Persists one section's fields. The section supplies a mutator that copies
+     * *only* the fields it owns onto the freshly-loaded [Settings], so saving in
+     * one section can no longer drag another section's half-typed edits into
+     * storage with it.
+     */
+    onSave: ((Settings) -> Settings) -> Unit,
     onTestConnection: suspend (Settings) -> Result<String>,
     onClearLlmCache: () -> Unit,
     onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
     onThemeChange: (ThemeMode) -> Unit = {},
-    /**
-     * Persists the reply-alert switches on the spot. Like [onThemeChange], and
-     * unlike the section Save buttons, so a toggle here can't drag half-typed
-     * edits from another section into storage with it.
-     */
-    onNotifyAlertChange: (vibration: Boolean, chime: Boolean) -> Unit = { _, _ -> },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(
             emptyList(),
@@ -125,6 +128,9 @@ fun SettingsScreen(
     onTestVoice: suspend (Language) -> Boolean? = { null },
     packageName: String = ""
 ) {
+    // Seeds the form once. Saves go through onSave's mutator against a fresh
+    // load(), so this snapshot is never written back wholesale.
+    val initial = remember { load() }
     var provider by remember { mutableStateOf(initial.provider) }
     var apiKey by remember { mutableStateOf(initial.apiKey) }
     var baseUrl by remember { mutableStateOf(initial.baseUrl) }
@@ -215,13 +221,19 @@ fun SettingsScreen(
     var languageExpanded by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
 
-    fun currentSettings() = Settings(
+    /**
+     * The AI Configuration section's fields, copied onto [base].
+     *
+     * Deliberately does not write `samosaSessionToken` / `samosaEmail`: those are
+     * owned by `SamosaAuthManager`, which persists them itself on sign-in and
+     * clears them on a 401. Writing the form's copy back would resurrect a
+     * session that expired while this screen was open.
+     */
+    fun applyAiConfig(base: Settings) = base.copy(
         provider = provider,
         apiKey = apiKey.trim(),
         baseUrl = baseUrl.trim(),
         model = model.trim(),
-        samosaSessionToken = samosaToken,
-        samosaEmail = samosaEmail,
         subAgentModel = subAgentModel.trim(),
         navigatorModel = navigatorModel.trim(),
         maxToolRounds = maxToolRounds.toIntOrNull()?.takeIf { it > 0 } ?: 300,
@@ -229,7 +241,11 @@ fun SettingsScreen(
         maxNavigationToolCalls = maxNavigationToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxConsecutiveDelegations = maxConsecutiveDelegations.toIntOrNull()?.takeIf { it > 0 } ?: 3,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 70000,
-        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L,
+        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
+    )
+
+    /** The Speech section's fields, copied onto [base]. */
+    fun applySpeech(base: Settings) = base.copy(
         ttsProvider = ttsProvider,
         ttsApiBaseUrl = ttsApiBaseUrl.trim(),
         ttsApiKey = ttsApiKey.trim(),
@@ -240,23 +256,35 @@ fun SettingsScreen(
         sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
         sttLanguage = sttLanguage.trim(),
-        autoReadReplies = autoReadReplies,
-        notifyVibrationEnabled = notifyVibration,
-        notifyChimeEnabled = notifyChime,
-        assistiveBallEnabled = initial.assistiveBallEnabled,
-        themeMode = themeMode,
+        autoReadReplies = autoReadReplies
+    )
+
+    /** The Skills section's fields, copied onto [base]. */
+    fun applySkills(base: Settings) = base.copy(
         disabledSkills = disabledSkills,
+        communitySkillHosts = communitySkillHosts
+    )
+
+    /** The Proactive Assistance section's fields, copied onto [base]. */
+    fun applyProactive(base: Settings) = base.copy(
         proactiveEnabled = proactiveEnabled,
         proactiveScanScreen = proactiveScanScreen,
         proactiveScanClipboard = proactiveScanClipboard,
         proactiveScanNotifications = proactiveScanNotifications,
         proactiveOtpEnabled = proactiveOtpEnabled,
         proactiveAutoCopyOtp = proactiveAutoCopyOtp,
-        proactiveAppBlacklist = initial.proactiveAppBlacklist,
         preferredLanguage = preferredLanguage,
-        preferredCurrency = preferredCurrency,
-        communitySkillHosts = communitySkillHosts
+        preferredCurrency = preferredCurrency
     )
+
+    /**
+     * The AI settings as they stand on screen, for calls that must see unsaved
+     * edits (connection tests, model discovery) rather than what is in storage.
+     */
+    fun draftAiConfig(): Settings = applyAiConfig(load())
+
+    /** As [draftAiConfig], for audio-model discovery against unsaved TTS/STT edits. */
+    fun draftSpeech(): Settings = applySpeech(load())
 
     /**
      * True when the chosen TTS/STT providers have what they need. Mirrors
@@ -282,7 +310,7 @@ fun SettingsScreen(
             refreshingChatModels = true
             status = "Refreshing models…"
             scope.launch {
-                val result = onRefreshChatModels(currentSettings())
+                val result = onRefreshChatModels(draftAiConfig())
                 result.onSuccess { models ->
                     availableChatModels = models
                     status = "Found ${models.size} models"
@@ -299,7 +327,7 @@ fun SettingsScreen(
             refreshingModels = true
             status = "Refreshing audio models…"
             scope.launch {
-                val (tts, stt) = onRefreshAudioModels(currentSettings())
+                val (tts, stt) = onRefreshAudioModels(draftSpeech())
                 availableTtsModels = tts
                 availableSttModels = stt
                 status = "Found ${tts.size} TTS, ${stt.size} STT models"
@@ -388,7 +416,7 @@ fun SettingsScreen(
                         checked = notifyVibration,
                         onCheckedChange = {
                             notifyVibration = it
-                            onNotifyAlertChange(it, notifyChime)
+                            onSave { s -> s.copy(notifyVibrationEnabled = it) }
                             if (it) CompletionFeedback.replyArrived(localContext, vibrate = true, chime = false)
                         },
                         modifier = Modifier.testTag("settings_notify_vibration")
@@ -404,7 +432,7 @@ fun SettingsScreen(
                         checked = notifyChime,
                         onCheckedChange = {
                             notifyChime = it
-                            onNotifyAlertChange(notifyVibration, it)
+                            onSave { s -> s.copy(notifyChimeEnabled = it) }
                             if (it) CompletionFeedback.replyArrived(localContext, vibrate = false, chime = true)
                         },
                         modifier = Modifier.testTag("settings_notify_chime")
@@ -709,7 +737,7 @@ fun SettingsScreen(
                         )
                         Button(
                             onClick = {
-                                onSave(currentSettings())
+                                onSave { applyAiConfig(it) }
                                 overlay = SettingsOverlay("Saved.")
                                 status = null
                             },
@@ -727,7 +755,7 @@ fun SettingsScreen(
                                 overlay = SettingsOverlay("Testing connection…", sticky = true)
                                 status = null
                                 scope.launch {
-                                    val result = onTestConnection(currentSettings())
+                                    val result = onTestConnection(draftAiConfig())
                                     overlay = SettingsOverlay(
                                         result.fold(
                                             onSuccess = { "✓ Connected: $it" },
@@ -1041,7 +1069,7 @@ fun SettingsScreen(
                         }
                         Button(
                             onClick = {
-                                onSave(currentSettings())
+                                onSave { applySpeech(it) }
                                 overlay = SettingsOverlay("Saved.")
                                 status = null
                             },
@@ -1094,7 +1122,7 @@ fun SettingsScreen(
                                             } else {
                                                 disabledSkills + skill.id
                                             }
-                                            onSave(currentSettings())
+                                            onSave { applySkills(it) }
                                         }
                                     )
                                 }
@@ -1135,7 +1163,7 @@ fun SettingsScreen(
                                 overlay = SettingsOverlay("Fetching skill…", sticky = true)
                                 scope.launch {
                                     val result = runCatching {
-                                        val hosts = currentSettings().communitySkillHosts
+                                        val hosts = communitySkillHosts
                                         SkillRegistry.importCommunityFromUrl(url, hosts)
                                     }
                                     communityImportBusy = false
@@ -1259,7 +1287,7 @@ fun SettingsScreen(
                                                 } else {
                                                     disabledSkills + skill.id
                                                 }
-                                                onSave(currentSettings())
+                                                onSave { applySkills(it) }
                                             }
                                         )
                                         IconButton(
@@ -1297,7 +1325,7 @@ fun SettingsScreen(
                                             scope.launch {
                                                 runCatching { SkillRegistry.removeCommunity(id) }
                                                 disabledSkills = disabledSkills - id
-                                                onSave(currentSettings())
+                                                onSave { applySkills(it) }
                                                 communitySkillRefreshTick++
                                                 overlay = SettingsOverlay("Deleted '$id'.")
                                             }
@@ -1337,7 +1365,7 @@ fun SettingsScreen(
                                 Text(host, modifier = Modifier.weight(1f))
                                 TextButton(onClick = {
                                     communitySkillHosts = communitySkillHosts - host
-                                    onSave(currentSettings())
+                                    onSave { applySkills(it) }
                                 }) { Text("Remove") }
                             }
                         }
@@ -1359,7 +1387,7 @@ fun SettingsScreen(
                                     val h = newHost.trim()
                                     if (h.isEmpty()) return@Button
                                     communitySkillHosts = communitySkillHosts + h
-                                    onSave(currentSettings())
+                                    onSave { applySkills(it) }
                                     newHost = ""
                                 }
                             ) { Text("Add") }
@@ -1525,7 +1553,7 @@ fun SettingsScreen(
                         }
                         Button(
                             onClick = {
-                                onSave(currentSettings())
+                                onSave { applyProactive(it) }
                                 overlay = SettingsOverlay("Saved Proactive Settings.")
                                 status = null
                             },
