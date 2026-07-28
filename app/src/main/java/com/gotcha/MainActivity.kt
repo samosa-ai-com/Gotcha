@@ -3,6 +3,8 @@ package com.gotcha
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -29,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
@@ -82,6 +85,29 @@ class MainActivity : ComponentActivity() {
         val matchSystemBrightness: Boolean = true,
         val reduceTransparency: Boolean = false
     )
+
+    /**
+     * Repaints the window behind Compose in the current skin's ground. themes.xml
+     * can only name one colour and has to guess Deep Space; once the setting has
+     * been read, an activity recreate should flash the skin the user actually
+     * chose rather than a slate blue they have never seen.
+     */
+    private fun applyLaunchBackground() {
+        val dark = when (appearance.themeMode) {
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+            ThemeMode.SYSTEM -> {
+                val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                night == Configuration.UI_MODE_NIGHT_YES
+            }
+        }
+        val skin = Skins.resolve(
+            appearance.skinId,
+            appearance.matchSystemBrightness,
+            dark
+        )
+        window.setBackgroundDrawable(ColorDrawable(skin.launchGround(dark).toArgb()))
+    }
 
     private fun Settings.appearance() = Appearance(
         themeMode = themeMode,
@@ -180,6 +206,7 @@ class MainActivity : ComponentActivity() {
         }
 
         appearance = settingsRepository.load().appearance()
+        applyLaunchBackground()
 
         setContent {
             val darkTheme = when (appearance.themeMode) {
@@ -473,7 +500,10 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
-                        onAppearanceChange = { updated -> appearance = updated.appearance() },
+                        onAppearanceChange = { updated ->
+                            appearance = updated.appearance()
+                            applyLaunchBackground()
+                        },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl

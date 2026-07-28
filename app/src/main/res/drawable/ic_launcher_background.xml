@@ -4,7 +4,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- The white field the mark sits on in the artwork. Was Android's template
+         green, which was never visible because no adaptive icon referenced it. -->
     <path
-        android:fillColor="#3DDC84"
+        android:fillColor="#FFFFFF"
         android:pathData="M0,0h108v108H0z" />
 </vector>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Painted for the fraction of a second between the launcher tapping the
+        icon and Compose drawing its first frame. The platform default is white,
+        which flashes hard on the dark skins.
+
+        This is the light-mode Deep Space surface, because Deep Space is the
+        default skin and follows the system. MainActivity replaces it with the
+        actual skin's ground as soon as it can read the setting — see
+        applyLaunchBackground().
+    -->
+    <color name="launch_background">#FBFDF9</color>
+</resources>

@@ -45,6 +45,7 @@ fun SkinBackdrop(modifier: Modifier = Modifier) {
     Box(modifier.background(skin.ground)) {
         Wallpaper(skin, live = tier == GlassTier.LIVE)
         if (skin.grain > 0f) Grain(skin.grain)
+        Scrim(skin)
     }
 }
 
@@ -72,7 +73,23 @@ fun SkinMiniature(skin: Skin, modifier: Modifier = Modifier) {
     Box(modifier.background(skin.ground)) {
         Wallpaper(skin, live = false)
         if (skin.grain > 0f) Grain(skin.grain)
+        Scrim(skin)
     }
+}
+
+/**
+ * The contrast veil. Sits above the wallpaper and below every piece of UI, so
+ * text is always reading against a wallpaper whose range has been pulled in
+ * rather than against whatever the gradient happened to be doing there.
+ */
+@Composable
+private fun BoxScope.Scrim(skin: Skin) {
+    if (skin.scrim <= 0f) return
+    Box(
+        Modifier
+            .matchParentSize()
+            .background(skin.ground.copy(alpha = skin.scrim))
+    )
 }
 
 /** Where the fog sits, in fractions of the screen, and how far each one reaches. */

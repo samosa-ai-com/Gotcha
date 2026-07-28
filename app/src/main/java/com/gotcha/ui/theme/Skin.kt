@@ -74,6 +74,13 @@ data class Skin(
     val wallpaper: List<Color> = emptyList(),
     val frost: Dp = 0.dp,
     val grain: Float = 0f,
+    /**
+     * A veil of [ground] laid over the wallpaper, 0f–1f. Glass buys depth at the
+     * cost of contrast: body text ends up sitting on whatever the wallpaper is
+     * doing underneath it. The veil pulls the wallpaper's range in so the text
+     * always wins, and the louder the wallpaper the more of it there is.
+     */
+    val scrim: Float = 0f,
     val corner: Dp = 20.dp,
     val darkSystemBarIcons: Boolean = false,
     val pairedWith: String? = null
@@ -90,6 +97,14 @@ data class Skin(
         get() = backdrop != Backdrop.NONE
 
     /**
+     * What the window should be painted before Compose draws anything. A glass
+     * skin has a ground of its own; an opaque one is whatever its scheme says
+     * the background is, which depends on [dark].
+     */
+    fun launchGround(dark: Boolean): Color =
+        if (isGlass) ground else scheme(dark).background
+
+    /**
      * The same skin with the glass taken out: panels composited down onto their
      * own ground, no wallpaper, no grain. The palette and the layout are
      * untouched — it simply stops being see-through. This is what a device on
@@ -100,6 +115,7 @@ data class Skin(
         return copy(
             backdrop = Backdrop.NONE,
             grain = 0f,
+            scrim = 0f,
             schemeLight = schemeLight.flattenOnto(ground),
             schemeDark = schemeDark.flattenOnto(ground)
         )
@@ -285,6 +301,7 @@ object Skins {
         ),
         frost = 26.dp,
         grain = 0.05f,
+        scrim = 0.10f,
         corner = 22.dp,
         pairedWith = "vellum"
     )
@@ -307,6 +324,7 @@ object Skins {
         ),
         frost = 22.dp,
         grain = 0.035f,
+        scrim = 0.12f,
         corner = 22.dp,
         darkSystemBarIcons = true,
         pairedWith = "aura"
@@ -344,6 +362,8 @@ object Skins {
         wallpaper = listOf(BrandViolet, BrandMagenta, BrandRose, BrandCoral, BrandSalmon),
         frost = 34.dp,
         grain = 0.05f,
+        // The facets are the loudest thing any skin puts behind text.
+        scrim = 0.30f,
         corner = 20.dp
     )
 
