@@ -53,12 +53,32 @@ import kotlinx.coroutines.delay
  * [title] doubles as the row label on the home list and the sub-page's top-bar
  * title, so the two can't drift apart.
  */
-enum class SettingsPage(val title: String, val summary: String) {
-    AI_CONFIG("AI Configuration", "Provider, models, agent limits"),
-    SPEECH("Speech (TTS / STT)", "Voices, transcription, read replies aloud"),
-    PERMISSIONS("Permissions", "What the assistant is allowed to do"),
-    SKILLS("Skills / Plugins", "Built-in and community skills"),
-    PROACTIVE("Proactive Assistance", "Offers, OTP detection, language")
+enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
+    AI_CONFIG(
+        "AI Configuration",
+        "Provider, models, agent limits",
+        "settings_ai_config_row"
+    ),
+    SPEECH(
+        "Speech (TTS / STT)",
+        "Voices, transcription, read replies aloud",
+        "settings_speech_row"
+    ),
+    PERMISSIONS(
+        "Permissions",
+        "What the assistant is allowed to do",
+        "settings_permissions_row"
+    ),
+    SKILLS(
+        "Skills / Plugins",
+        "Built-in and community skills",
+        "settings_skills_row"
+    ),
+    PROACTIVE(
+        "Proactive Assistance",
+        "Offers, OTP detection, language",
+        "settings_proactive_row"
+    )
 }
 
 /**

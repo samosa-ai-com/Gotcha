@@ -57,7 +57,7 @@ fun PermissionsSection(packageName: String) {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { /* permission state is re-read on next ON_RESUME via resumeSignal */ }
 
-    Text("Permissions", style = MaterialTheme.typography.titleMedium)
+    // No "Permissions" heading: PermissionsScreen's top bar already says it.
     Text(
         "Configure permissions that the assistant needs. Runtime permissions show a system dialog " +
             "when toggled on. Special-access permissions open a Settings screen for one-time setup.",
