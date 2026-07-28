@@ -49,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -130,6 +131,12 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                // Transparent so the wallpaper carries the bar on a glass skin.
+                // On Deep Space the background underneath is the same colour the
+                // bar would have painted, so this changes nothing there.
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                ),
                 title = {
                     Text(
                         if (isHome) "Gotcha" else (sessionTitle ?: "Gotcha"),

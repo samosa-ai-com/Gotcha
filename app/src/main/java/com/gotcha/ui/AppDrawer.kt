@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.ChatSession
+import com.gotcha.ui.theme.LocalSkin
 
 @Composable
 fun AppDrawerContent(
@@ -49,7 +51,17 @@ fun AppDrawerContent(
 ) {
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
 
-    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+    // The drawer covers the app rather than floating in it, so it gets a ground
+    // of its own. Stated explicitly rather than left to DrawerDefaults, because
+    // which surface role the default reads has changed between Material 3
+    // versions and a see-through sidebar is unreadable.
+    val skin = LocalSkin.current
+    val drawerColor = if (skin.isGlass) skin.ground else DrawerDefaults.containerColor
+
+    ModalDrawerSheet(
+        drawerContainerColor = drawerColor,
+        modifier = Modifier.width(300.dp)
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 "Gotcha",

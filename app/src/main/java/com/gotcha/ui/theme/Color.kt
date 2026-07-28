@@ -94,6 +94,42 @@ val NocturneSalmonContainer = Color(0xFF5C1A2A)
 val NocturneMagentaContainer = Color(0xFF3A1140)
 val NocturneOnMagentaContainer = Color(0xFFF7D9F2)
 
+// ---------------------------------------------------------------------------
+// Container roles
+// ---------------------------------------------------------------------------
+// Anything that floats *above* the app rather than sitting in it — the
+// navigation drawer, dialogs, the long-press menu — is opaque, in every skin.
+// Glass is for chrome you look past; a sheet you are reading from needs a
+// ground of its own, or the screen behind it reads straight through the text.
+//
+// Material 3 routes all of those through the surfaceContainer* roles, so
+// setting them opaque here fixes the drawer, dialogs and menus in one move,
+// while `surface` and `surfaceVariant` stay translucent for the in-page chrome.
+
+val AuraContainerLowest = Color(0xFF050506)
+val AuraContainerLow = Color(0xFF0A0A0B)
+val AuraContainer = Color(0xFF141416)
+val AuraContainerHigh = Color(0xFF1B1B1E)
+val AuraContainerHighest = Color(0xFF232326)
+
+val VellumContainerLowest = Color(0xFFFFFFFF)
+val VellumContainerLow = Color(0xFFF7F5F8)
+val VellumContainer = Color(0xFFF1EFF2)
+val VellumContainerHigh = Color(0xFFEBE7ED)
+val VellumContainerHighest = Color(0xFFE4DEE7)
+
+val OrchidContainerLowest = Color(0xFF6A1873)
+val OrchidContainerLow = Color(0xFF741B7D)
+val OrchidContainer = Color(0xFF7E1F88)
+val OrchidContainerHigh = Color(0xFF8A2794)
+val OrchidContainerHighest = Color(0xFF96309F)
+
+val NocturneContainerLowest = Color(0xFF07040A)
+val NocturneContainerLow = Color(0xFF0D0812)
+val NocturneContainer = Color(0xFF171021)
+val NocturneContainerHigh = Color(0xFF201729)
+val NocturneContainerHighest = Color(0xFF2A1F35)
+
 /**
  * Error red for the pink skins. The stock M3 error would sit a few degrees from
  * Aura's rose and Nocturne's salmon, and an error that looks like the send

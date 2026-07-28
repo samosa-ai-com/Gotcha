@@ -106,14 +106,15 @@ data class Skin(
     }
 }
 
-/** Alpha-composites every translucent surface role onto [ground]. */
+/**
+ * Alpha-composites the translucent roles onto [ground]. The surfaceContainer*
+ * roles are already opaque in every skin — see Color.kt — so only the in-page
+ * chrome needs flattening here.
+ */
 private fun ColorScheme.flattenOnto(ground: Color): ColorScheme = copy(
     background = ground,
     surface = surface.over(ground),
     surfaceVariant = surfaceVariant.over(ground),
-    surfaceContainer = surfaceContainer.over(ground),
-    surfaceContainerHigh = surfaceContainerHigh.over(ground),
-    surfaceContainerHighest = surfaceContainerHighest.over(ground),
     secondaryContainer = secondaryContainer.over(ground)
 )
 
@@ -153,11 +154,11 @@ private val AuraScheme = darkColorScheme(
     onSurface = AuraInk,
     surfaceVariant = AuraPanelHigh,
     onSurfaceVariant = AuraInkDim,
-    surfaceContainer = AuraPanel,
-    surfaceContainerHigh = AuraPanelHigh,
-    surfaceContainerHighest = AuraPanelHigh,
-    surfaceContainerLow = AuraGround,
-    surfaceContainerLowest = AuraGround,
+    surfaceContainer = AuraContainer,
+    surfaceContainerHigh = AuraContainerHigh,
+    surfaceContainerHighest = AuraContainerHighest,
+    surfaceContainerLow = AuraContainerLow,
+    surfaceContainerLowest = AuraContainerLowest,
     outline = AuraOutline,
     outlineVariant = AuraOutline,
     error = BrandError,
@@ -180,11 +181,11 @@ private val VellumScheme = lightColorScheme(
     onSurface = VellumInk,
     surfaceVariant = VellumPanelHigh,
     onSurfaceVariant = VellumInkDim,
-    surfaceContainer = VellumPanel,
-    surfaceContainerHigh = VellumPanelHigh,
-    surfaceContainerHighest = VellumPanelHigh,
-    surfaceContainerLow = VellumGround,
-    surfaceContainerLowest = VellumGround,
+    surfaceContainer = VellumContainer,
+    surfaceContainerHigh = VellumContainerHigh,
+    surfaceContainerHighest = VellumContainerHighest,
+    surfaceContainerLow = VellumContainerLow,
+    surfaceContainerLowest = VellumContainerLowest,
     outline = VellumOutline,
     outlineVariant = VellumOutline
 )
@@ -205,11 +206,11 @@ private val OrchidScheme = darkColorScheme(
     onSurface = OrchidInk,
     surfaceVariant = OrchidPanelHigh,
     onSurfaceVariant = OrchidInkDim,
-    surfaceContainer = OrchidPanel,
-    surfaceContainerHigh = OrchidPanelHigh,
-    surfaceContainerHighest = OrchidPanelHigh,
-    surfaceContainerLow = OrchidGround,
-    surfaceContainerLowest = OrchidGround,
+    surfaceContainer = OrchidContainer,
+    surfaceContainerHigh = OrchidContainerHigh,
+    surfaceContainerHighest = OrchidContainerHighest,
+    surfaceContainerLow = OrchidContainerLow,
+    surfaceContainerLowest = OrchidContainerLowest,
     outline = OrchidOutline,
     outlineVariant = OrchidOutline,
     error = BrandError,
@@ -232,11 +233,11 @@ private val NocturneScheme = darkColorScheme(
     onSurface = NocturneInk,
     surfaceVariant = NocturnePanelHigh,
     onSurfaceVariant = NocturneInkDim,
-    surfaceContainer = NocturnePanel,
-    surfaceContainerHigh = NocturnePanel,
-    surfaceContainerHighest = NocturnePanelHigh,
-    surfaceContainerLow = NocturneGround,
-    surfaceContainerLowest = NocturneGround,
+    surfaceContainer = NocturneContainer,
+    surfaceContainerHigh = NocturneContainerHigh,
+    surfaceContainerHighest = NocturneContainerHighest,
+    surfaceContainerLow = NocturneContainerLow,
+    surfaceContainerLowest = NocturneContainerLowest,
     outline = NocturneOutline,
     outlineVariant = NocturneOutline,
     error = BrandError,
