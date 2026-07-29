@@ -1,5 +1,6 @@
 package com.gotcha.ui.theme
 
+import android.content.Context
 import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -26,17 +27,29 @@ const val SKIN_TRANSITION_MS = 320
  */
 val LocalAnimationsEnabled = staticCompositionLocalOf { true }
 
-@Composable
-fun rememberAnimationsEnabled(): Boolean {
-    val context = LocalContext.current
-    return remember(context) {
-        val scale = Settings.Global.getFloat(
+/**
+ * The same question, asked from View code.
+ *
+ * The overlays are not Compose and cannot use [rememberAnimationsEnabled], but
+ * "remove animations" is a system-wide preference and an animation that keeps
+ * running in a floating window over every other app is the worst possible place
+ * to have missed it. One read, one meaning, two callers.
+ */
+fun animationsEnabled(context: Context): Boolean {
+    val scale = runCatching {
+        Settings.Global.getFloat(
             context.contentResolver,
             Settings.Global.ANIMATOR_DURATION_SCALE,
             1f
         )
-        scale > 0f
-    }
+    }.getOrDefault(1f)
+    return scale > 0f
+}
+
+@Composable
+fun rememberAnimationsEnabled(): Boolean {
+    val context = LocalContext.current
+    return remember(context) { animationsEnabled(context) }
 }
 
 /** [tween] when animation is wanted, [snap] when it is not. */

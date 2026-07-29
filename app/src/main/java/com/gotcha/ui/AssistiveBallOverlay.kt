@@ -27,12 +27,31 @@ import com.gotcha.service.ProactiveSessionItem
 import com.gotcha.service.SmartActionDetector
 import com.gotcha.ui.theme.OverlaySkin
 import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.animationsEnabled
 import com.gotcha.ui.theme.overlaySkin
 import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Accessibility label for the ball root view — used by UiAutomator to find the overlay. */
 const val ASSISTIVE_BALL_CONTENT_DESCRIPTION = "Gotcha assistive ball"
+
+/**
+ * What the agent is doing, as far as the ball is concerned.
+ *
+ * Deliberately coarser than the call window's [com.gotcha.service.CallState]:
+ * a 56dp disc at the edge of somebody else's screen can carry three states
+ * legibly and no more.
+ */
+enum class BallActivity {
+    /** Nothing running. No ring. */
+    IDLE,
+
+    /** Waiting on a model. */
+    THINKING,
+
+    /** Running a tool — reaching into the device. */
+    ACTING
+}
 
 @Suppress("TooManyFunctions", "LargeClass", "MaxLineLength", "ComplexCondition")
 class AssistiveBallOverlay(context: Context) {
@@ -71,6 +90,11 @@ class AssistiveBallOverlay(context: Context) {
     private var cardView: View? = null
     private var dismissTargetView: View? = null
 
+    private var statusRingView: View? = null
+    private var statusRingDrawable: RingDrawable? = null
+    private var statusRingAnimator: ValueAnimator? = null
+    private var activity: BallActivity = BallActivity.IDLE
+
     private var dockSide: Int = DOCK_SIDE_END
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
     private val settingsRepository by lazy { SettingsRepository(appContext) }
@@ -100,6 +124,7 @@ class AssistiveBallOverlay(context: Context) {
         ballView?.visibility = visibility
         if (visible) ballView?.alpha = PEEK_ALPHA
         ringView?.visibility = visibility
+        statusRingView?.visibility = visibility
         menuView?.visibility = visibility
         dismissTargetView?.visibility = visibility
         if (includeCard) cardView?.visibility = visibility
@@ -131,6 +156,7 @@ class AssistiveBallOverlay(context: Context) {
             try {
                 windowManager.addView(ball, ballParams)
                 ballView = ball
+                refreshStatusRing()
             } catch (_: Exception) {
                 ballView = null
             }
@@ -140,6 +166,7 @@ class AssistiveBallOverlay(context: Context) {
     fun dismiss() {
         mainHandler.post {
             removeLongPressRing()
+            removeStatusRing()
             removeMenu()
             removeCard()
             removeDismissTarget()
@@ -515,6 +542,120 @@ class AssistiveBallOverlay(context: Context) {
         cardView = null
     }
 
+    /**
+     * Tell the ball what the agent is doing.
+     *
+     * The in-app indicator breathes; the ball is the same object in another
+     * place and should breathe with it. Same 900ms reverse, same 0.32→1.0 —
+     * see `ActivityPulse` in ChatComponents.kt. Two indicators pulsing at
+     * different rates would read as two different things happening.
+     */
+    fun setActivity(state: BallActivity) {
+        mainHandler.post {
+            if (state == activity) return@post
+            activity = state
+            refreshStatusRing()
+        }
+    }
+
+    private fun refreshStatusRing() {
+        removeStatusRing()
+        if (activity == BallActivity.IDLE || ballView == null) return
+
+        val density = appContext.resources.displayMetrics.density
+        val ballPx = dp(BALL_SIZE_DP)
+        val viewSize = (BALL_SIZE_DP * STATUS_RING_WINDOW_SCALE * density).toInt()
+        val accent = accentColor()
+        val acting = activity == BallActivity.ACTING
+
+        val drawable = RingDrawable().apply {
+            fillColor = Color.TRANSPARENT
+            strokeColor = accent
+            strokeWidth = STATUS_RING_STROKE_DP * density
+            ringRadius = ballPx * STATUS_RING_RADIUS
+            // Acting reaches into the device, so it carries a halo as well as a
+            // ring. Thinking is only waiting, and gets the ring alone.
+            if (acting) {
+                auraColor = accent
+                auraRadius = ballPx * STATUS_AURA_RADIUS
+            }
+        }
+
+        val view = View(appContext).apply { background = drawable }
+        val params = statusRingLayoutParams(viewSize)
+        try {
+            windowManager.addView(view, params)
+            statusRingView = view
+            statusRingDrawable = drawable
+        } catch (_: Exception) {
+            statusRingView = null
+            statusRingDrawable = null
+            return
+        }
+
+        if (!animationsEnabled(appContext)) {
+            // "Remove animations" is a system-wide preference, and a floating
+            // window over every other app is the last place to ignore it. The
+            // state still shows — it just holds still.
+            drawable.strokeColor = accent
+            if (acting) drawable.auraIntensity = PULSE_MAX * AURA_SHARE
+            return
+        }
+
+        statusRingAnimator = ValueAnimator.ofFloat(PULSE_MIN, PULSE_MAX).apply {
+            duration = PULSE_MS
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                drawable.strokeColor = ColorUtils.setAlphaComponent(accent, (p * 255).toInt())
+                if (acting) drawable.auraIntensity = p * AURA_SHARE
+            }
+            start()
+        }
+    }
+
+    private fun statusRingLayoutParams(viewSize: Int): WindowManager.LayoutParams =
+        WindowManager.LayoutParams(
+            viewSize,
+            viewSize,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            val ballPx = dp(BALL_SIZE_DP)
+            x = ballParams.x + ballPx / 2 - viewSize / 2
+            y = ballParams.y + ballPx / 2 - viewSize / 2
+        }
+
+    /**
+     * Keep the ring on the ball. Called from every place the ball moves —
+     * drag, dock, expand, clamp — because the ring is its own window and does
+     * not come along on its own.
+     */
+    private fun followBallWithStatusRing() {
+        val view = statusRingView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        val ballPx = dp(BALL_SIZE_DP)
+        params.x = ballParams.x + ballPx / 2 - params.width / 2
+        params.y = ballParams.y + ballPx / 2 - params.height / 2
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (_: Exception) { }
+    }
+
+    private fun removeStatusRing() {
+        statusRingAnimator?.cancel()
+        statusRingAnimator = null
+        statusRingView?.let { safeRemove(it) }
+        statusRingView = null
+        statusRingDrawable = null
+    }
+
     private fun showLongPressRing() {
         removeLongPressRing()
         val density = appContext.resources.displayMetrics.density
@@ -623,6 +764,7 @@ class AssistiveBallOverlay(context: Context) {
                             windowManager.updateViewLayout(ballView, ballParams)
                             ballView?.requestFocus()
                         } catch (_: Exception) { }
+                        followBallWithStatusRing()
                         updateDismissTargetHighlight(isOverDismissTarget())
                     }
                     true
@@ -675,6 +817,7 @@ class AssistiveBallOverlay(context: Context) {
         try {
             windowManager.updateViewLayout(ballView, ballParams)
         } catch (_: Exception) { }
+        followBallWithStatusRing()
     }
 
     private fun screenWidth(): Int = appContext.resources.displayMetrics.widthPixels
@@ -701,6 +844,7 @@ class AssistiveBallOverlay(context: Context) {
         try {
             windowManager.updateViewLayout(view, ballParams)
         } catch (_: Exception) { }
+        followBallWithStatusRing()
         ValueAnimator.ofFloat(view.alpha, 1.0f).apply {
             duration = 180L
             interpolator = AccelerateDecelerateInterpolator()
@@ -725,6 +869,7 @@ class AssistiveBallOverlay(context: Context) {
                 try {
                     windowManager.updateViewLayout(view, ballParams)
                 } catch (_: Exception) { }
+                followBallWithStatusRing()
                 view.alpha = startAlpha + (PEEK_ALPHA - startAlpha) * p
             }
             start()
@@ -876,6 +1021,22 @@ class AssistiveBallOverlay(context: Context) {
         /** Sized against bodyMedium, so the row reads as icon-then-label. */
         const val MENU_ICON_DP = 18
         const val MENU_ICON_GAP_DP = 12
+
+        // The status ring. The pulse is ActivityPulse's, to the millisecond.
+        const val PULSE_MS = 900L
+        const val PULSE_MIN = 0.32f
+        const val PULSE_MAX = 1f
+
+        /** The aura is the quieter half of the pair; the ring carries the read. */
+        const val AURA_SHARE = 0.45f
+
+        /** Just outside the disc, which is inset from the 56dp window. */
+        const val STATUS_RING_RADIUS = 0.54f
+        const val STATUS_RING_STROKE_DP = 2f
+        const val STATUS_AURA_RADIUS = 1.15f
+
+        /** Room for the aura to fade out as a circle inside a square window. */
+        const val STATUS_RING_WINDOW_SCALE = 2.6f
 
         const val LONG_PRESS_START_MS = 2000L
         const val LONG_PRESS_END_MS = 2000L
