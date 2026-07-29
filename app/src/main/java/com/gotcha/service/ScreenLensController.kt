@@ -12,6 +12,10 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import com.gotcha.ui.ScreenCropOverlayView
+import com.gotcha.ui.applyOverlayCard
+import com.gotcha.ui.theme.OverlaySkin
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,6 +33,17 @@ class ScreenLensController(
     private val onCaptureChrome: (hide: Boolean) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
+
+    /**
+     * The active skin, re-read on every build rather than cached, so a theme
+     * change in Settings reaches Lens without the window being torn down.
+     */
+    private fun currentColors(): OverlaySkin = overlaySkin(
+        appContext,
+        runCatching { com.gotcha.data.SettingsRepository(appContext).load().skinId }
+            .getOrDefault(Skins.DEFAULT_ID)
+    )
+
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -50,6 +65,7 @@ class ScreenLensController(
 
             val overlay = ScreenCropOverlayView(
                 appContext,
+                colors = currentColors(),
                 onSelection = { rect -> onRegionSelected(rect) },
                 onCancel = { cancel() },
                 onReselectStart = {
@@ -189,28 +205,24 @@ class ScreenLensController(
         val overlay = cropOverlay ?: return
         val density = appContext.resources.displayMetrics.density
         val cleanText = regionText?.replace(Regex("\\s+"), " ")?.trim()
+        val colors = currentColors()
 
         val chipsLayout = android.widget.LinearLayout(appContext).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding((6 * density).toInt(), (4 * density).toInt(), (6 * density).toInt(), (4 * density).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 14f * density
-                setColor(android.graphics.Color.parseColor("#EE101018"))
-                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#44568CD8"))
-            }
+            applyOverlayCard(colors, horizontalDp = 6, verticalDp = 4)
         }
 
         if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
-                chipButton("📝 Select") {
+                chipButton("📝 Select", colors) {
                     showSelectableTextCard(cleanText)
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("📋 Copy") {
+            chipButton("📋 Copy", colors) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -228,21 +240,17 @@ class ScreenLensController(
 
         if (!isAlreadyInPreferredLang) {
             chipsLayout.addView(
-                chipButton("🌐 Translate") {
-                    val crop = pendingCrop
-                    if (crop != null && !crop.isRecycled) {
-                        val base64 = bitmapToBase64(crop)
-                        val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
-                            "and display both original and translated text."
-                        onImagePrompt(base64, prompt)
-                    }
+                chipButton("🌐 Translate", colors) {
+                    val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
+                        "and display both original and translated text."
+                    encodePendingCrop { base64 -> onImagePrompt(base64, prompt) }
                     cancel()
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("💾 Save") {
+            chipButton("💾 Save", colors) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -255,13 +263,9 @@ class ScreenLensController(
         )
 
         chipsLayout.addView(
-            chipButton("❓ Ask") {
-                val crop = pendingCrop
-                if (crop != null && !crop.isRecycled) {
-                    val base64 = bitmapToBase64(crop)
-                    onAskAboutCrop(base64)
-                    cancel()
-                }
+            chipButton("❓ Ask", colors) {
+                encodePendingCrop { base64 -> onAskAboutCrop(base64) }
+                cancel()
             }
         )
 
@@ -303,12 +307,13 @@ class ScreenLensController(
         }
     }
 
-    private fun chipButton(label: String, onClick: () -> Unit): TextView {
+    private fun chipButton(label: String, colors: OverlaySkin, onClick: () -> Unit): TextView {
         val density = appContext.resources.displayMetrics.density
         return TextView(appContext).apply {
             text = label
-            textSize = 12f
-            setTextColor(android.graphics.Color.WHITE)
+            textSize = colors.labelSp
+            typeface = colors.sans
+            setTextColor(colors.buttonText)
             setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (6 * density).toInt())
             setOnClickListener { onClick() }
         }
@@ -317,30 +322,27 @@ class ScreenLensController(
     private fun showSelectableTextCard(text: String) {
         removeActionMenu()
         val density = appContext.resources.displayMetrics.density
+        val colors = currentColors()
 
         val cardLayout = android.widget.LinearLayout(appContext).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 18f * density
-                setColor(android.graphics.Color.parseColor("#F51E293B"))
-                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#334155"))
-            }
+            applyOverlayCard(colors, horizontalDp = 16, verticalDp = 14)
         }
 
         val titleView = TextView(appContext).apply {
             this.text = "📝 Extracted Text"
-            textSize = 14f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.WHITE)
+            textSize = colors.titleSp
+            setTypeface(colors.sans, android.graphics.Typeface.BOLD)
+            setTextColor(colors.onSurface)
             setPadding(0, 0, 0, (8 * density).toInt())
         }
         cardLayout.addView(titleView)
 
         val textView = TextView(appContext).apply {
             this.text = text
-            textSize = 13f
-            setTextColor(android.graphics.Color.parseColor("#E2E8F0"))
+            textSize = colors.bodySp
+            typeface = colors.sans
+            setTextColor(colors.onSurfaceVariant)
             setTextIsSelectable(true)
         }
 
@@ -359,7 +361,7 @@ class ScreenLensController(
         }
 
         btnRow.addView(
-            chipButton("📋 Copy All") {
+            chipButton("📋 Copy All", colors) {
                 val clipService = Context.CLIPBOARD_SERVICE
                 val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
                 clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", text))
@@ -373,7 +375,7 @@ class ScreenLensController(
         )
 
         btnRow.addView(
-            chipButton("✕ Close") {
+            chipButton("✕ Close", colors) {
                 cancel()
             }
         )
@@ -402,25 +404,22 @@ class ScreenLensController(
         if (actions.isEmpty()) return
 
         val density = appContext.resources.displayMetrics.density
+        val colors = currentColors()
         val menuLayout = android.widget.LinearLayout(appContext).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding((8 * density).toInt(), (8 * density).toInt(), (8 * density).toInt(), (8 * density).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 16f * density
-                setColor(android.graphics.Color.parseColor("#F51E293B"))
-                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#334155"))
-            }
+            applyOverlayCard(colors, horizontalDp = 8, verticalDp = 8)
         }
 
         for (action in actions) {
             val btn = TextView(appContext).apply {
                 text = action.label
-                textSize = 13f
-                setTextColor(android.graphics.Color.parseColor("#E2E8F0"))
+                textSize = colors.bodySp
+                typeface = colors.sans
+                setTextColor(colors.buttonText)
                 setPadding((14 * density).toInt(), (8 * density).toInt(), (14 * density).toInt(), (8 * density).toInt())
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 10f * density
-                    setColor(android.graphics.Color.parseColor("#334155"))
+                    cornerRadius = colors.buttonRadiusDp * density
+                    setColor(colors.buttonBg)
                 }
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -506,6 +505,36 @@ class ScreenLensController(
         try {
             windowManager.removeView(view)
         } catch (_: Exception) {}
+    }
+
+    /**
+     * JPEG-encode the pending crop off the main thread and hand the result to
+     * [onEncoded] back on it.
+     *
+     * The caller is expected to `cancel()` immediately after calling this, which
+     * recycles [pendingCrop] — so this takes its own copy first rather than
+     * racing that. Encoding used to happen inline in the click listener, which
+     * meant compressing a screen-sized bitmap on the UI thread while the overlay
+     * was still up.
+     */
+    private fun encodePendingCrop(onEncoded: (String) -> Unit) {
+        val crop = pendingCrop
+        if (crop == null || crop.isRecycled) return
+        val copy = runCatching { crop.copy(crop.config, false) }.getOrNull() ?: return
+        scope.launch(Dispatchers.IO) {
+            val base64 = try {
+                bitmapToBase64(copy)
+            } catch (_: Exception) {
+                null
+            } finally {
+                if (!copy.isRecycled) copy.recycle()
+            }
+            if (base64 != null) {
+                withContext(Dispatchers.Main) { onEncoded(base64) }
+            } else {
+                withContext(Dispatchers.Main) { onError("Couldn't prepare the image") }
+            }
+        }
     }
 
     private fun bitmapToBase64(bitmap: Bitmap): String {
