@@ -102,6 +102,13 @@ class AssistiveBallOverlay(context: Context) {
     private var cardMessage: String? = null
     private var cardShowClose: Boolean = true
 
+    /**
+     * Whether the menu on screen is showing any suggestion rows. Only a menu
+     * that is actually offering something needs redrawing when the offer is
+     * withdrawn — see [clearSmartAction].
+     */
+    private var menuShowsSuggestions = false
+
     private var dockSide: Int = DOCK_SIDE_END
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
     private val settingsRepository by lazy { SettingsRepository(appContext) }
@@ -317,12 +324,30 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
+    /**
+     * Drop the staged suggestions.
+     *
+     * This used to close the menu outright, which meant a background screen
+     * scan that happened to find nothing took the menu away while the user was
+     * reading it — and the scans run whether or not the accessibility service
+     * is on, because a scan with no accessibility simply finds nothing and
+     * reports an empty list. A suggestion going stale is not a reason to
+     * dismiss a menu somebody opened; it is only a reason to redraw it without
+     * that suggestion, and only when it was showing one.
+     *
+     * The menu closes when the user closes it: a tap outside, a choice, a drag,
+     * or a call starting.
+     */
     private fun clearSmartAction() {
         mainHandler.post {
             pendingSmartAction = null
             pendingSmartActionAlt = null
             lastOfferedLabel = null
-            removeMenu()
+            if (menuView != null && menuShowsSuggestions) {
+                removeMenu()
+                // Not a fresh open — see [showMenu].
+                showMenu(requestClipboard = false)
+            }
         }
     }
 
@@ -466,6 +491,10 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun buildProactiveMenuContent(menuCard: LinearLayout, colors: OverlaySkin) {
+        menuShowsSuggestions = pendingSmartAction != null ||
+            pendingSmartActionAlt != null ||
+            proactiveSessionItems.isNotEmpty()
+
         // Always show clipboard/smart action at the top
         pendingSmartAction?.let { (label, prompt) ->
             menuCard.addView(
@@ -615,6 +644,7 @@ class AssistiveBallOverlay(context: Context) {
     private fun removeMenu() {
         menuView?.let { safeRemove(it) }
         menuView = null
+        menuShowsSuggestions = false
     }
 
     private fun hideCard() {
