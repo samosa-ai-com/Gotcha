@@ -136,6 +136,9 @@ class ScreenCropOverlayView(
     private val scratchRect = RectF()
     private val scratchChipRect = RectF()
 
+    /** Held separately from [scratchRect], which [drawSelectionBox] is using. */
+    private val scratchDim = RectF()
+
     /** The bounds [pathPaint]'s gradient was last built for. */
     private var gradientMinX = Float.NaN
     private var gradientMinY = Float.NaN
@@ -253,7 +256,7 @@ class ScreenCropOverlayView(
         // the view should be getting out of the way. `setCaptureMode(false)`
         // restarts the loop.
         if (captureMode) return
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), dimPaint)
+        drawDim(canvas)
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), edgeGlowPaint)
 
         stepAndDrawParticles(canvas)
@@ -297,6 +300,47 @@ class ScreenCropOverlayView(
             }
         }
         postInvalidateOnAnimation()
+    }
+
+    /**
+     * The dim, with the current selection cut out of it.
+     *
+     * It used to be one rect over the whole screen, selection included, which
+     * meant that after drawing a region nothing on screen was actually
+     * highlighted — the thing you had just picked was exactly as dark as the
+     * thing you hadn't. Four rects around the hole is also less fill than one
+     * rect over everything, so the highlight is cheaper than the flat dim was.
+     */
+    private fun drawDim(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val hole = currentSelection()
+        if (hole == null) {
+            canvas.drawRect(0f, 0f, w, h, dimPaint)
+            return
+        }
+        val left = hole.left.coerceIn(0f, w)
+        val top = hole.top.coerceIn(0f, h)
+        val right = hole.right.coerceIn(0f, w)
+        val bottom = hole.bottom.coerceIn(0f, h)
+        canvas.drawRect(0f, 0f, w, top, dimPaint)
+        canvas.drawRect(0f, bottom, w, h, dimPaint)
+        canvas.drawRect(0f, top, left, bottom, dimPaint)
+        canvas.drawRect(right, top, w, bottom, dimPaint)
+    }
+
+    /**
+     * The region the user has picked, or null while there is nothing to
+     * highlight. Writes into [scratchDim] rather than allocating, because this
+     * runs every frame.
+     */
+    private fun currentSelection(): RectF? {
+        frozenRect?.let { return it }
+        if (drawing && moved) {
+            scratchDim.set(minX, minY, maxX, maxY)
+            return scratchDim
+        }
+        return null
     }
 
     private fun drawAnnotatedEntities(canvas: Canvas) {

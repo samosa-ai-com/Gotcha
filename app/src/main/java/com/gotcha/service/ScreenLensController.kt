@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import com.gotcha.R
 import com.gotcha.ui.ScreenCropOverlayView
 import com.gotcha.ui.applyOverlayCard
 import com.gotcha.ui.theme.OverlaySkin
@@ -50,6 +51,9 @@ class ScreenLensController(
     private var cropOverlay: View? = null
     private var actionMenu: View? = null
     private var textChips: View? = null
+
+    /** Where the chip bar ended up, so the action menu can sit under it. */
+    private var chipBarBounds: Rect? = null
     private var pendingCrop: Bitmap? = null
 
     /** Begin a Lens capture: add the full-screen crop overlay and auto-annotate UI elements. */
@@ -203,7 +207,6 @@ class ScreenLensController(
     private fun showTextChips(finalRect: Rect, regionText: String?) {
         removeTextChips()
         val overlay = cropOverlay ?: return
-        val density = appContext.resources.displayMetrics.density
         val cleanText = regionText?.replace(Regex("\\s+"), " ")?.trim()
         val colors = currentColors()
 
@@ -215,14 +218,14 @@ class ScreenLensController(
 
         if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
-                chipButton("📝 Select", colors) {
+                chipButton("Select", colors, R.drawable.ic_lens_select) {
                     showSelectableTextCard(cleanText)
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("📋 Copy", colors) {
+            chipButton("Copy", colors, R.drawable.ic_lens_copy) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -240,7 +243,7 @@ class ScreenLensController(
 
         if (!isAlreadyInPreferredLang) {
             chipsLayout.addView(
-                chipButton("🌐 Translate", colors) {
+                chipButton("Translate", colors, R.drawable.ic_lens_translate) {
                     val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
                         "and display both original and translated text."
                     encodePendingCrop { base64 -> onImagePrompt(base64, prompt) }
@@ -250,7 +253,7 @@ class ScreenLensController(
         }
 
         chipsLayout.addView(
-            chipButton("💾 Save", colors) {
+            chipButton("Save", colors, R.drawable.ic_lens_save) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -263,29 +266,18 @@ class ScreenLensController(
         )
 
         chipsLayout.addView(
-            chipButton("❓ Ask", colors) {
+            chipButton("Ask", colors, R.drawable.ic_lens_ask) {
                 encodePendingCrop { base64 -> onAskAboutCrop(base64) }
                 cancel()
             }
         )
 
-        val chipBarHeight = (42 * density).toInt()
-        val chipBarWidth = (300 * density).toInt()
-        val screenHeight = overlay.height
-        val screenWidth = overlay.width
-
-        val targetY = if (finalRect.bottom + chipBarHeight + (12 * density).toInt() <= screenHeight) {
-            finalRect.bottom + (12 * density).toInt()
-        } else if (finalRect.top - chipBarHeight - (12 * density).toInt() >= 0) {
-            finalRect.top - chipBarHeight - (12 * density).toInt()
-        } else {
-            (16 * density).toInt()
-        }
-
-        val targetX = (finalRect.centerX() - chipBarWidth / 2).coerceIn(
-            (12 * density).toInt(),
-            (screenWidth - chipBarWidth - (12 * density).toInt()).coerceAtLeast(0)
-        )
+        // Measured, not guessed. This used to assume 300dp × 42dp, which was
+        // already approximate and became more so once the bar grew icons and an
+        // OverlayCardDrawable gutter — a shadow lives outside the card, so the
+        // view is wider than the card you can see.
+        val (chipBarWidth, chipBarHeight) = measure(chipsLayout)
+        val placed = placeNear(finalRect, chipBarWidth, chipBarHeight, overlay.width, overlay.height)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -295,25 +287,75 @@ class ScreenLensController(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = targetX
-            y = targetY
+            x = placed.left
+            y = placed.top
         }
 
         try {
             windowManager.addView(chipsLayout, params)
             textChips = chipsLayout
+            chipBarBounds = placed
         } catch (_: Exception) {
             textChips = null
+            chipBarBounds = null
         }
     }
 
-    private fun chipButton(label: String, colors: OverlaySkin, onClick: () -> Unit): TextView {
+    /** [view]'s size when it is allowed to be exactly as big as it wants. */
+    private fun measure(view: View): Pair<Int, Int> {
+        val spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        view.measure(spec, spec)
+        return view.measuredWidth to view.measuredHeight
+    }
+
+    /**
+     * Put a [w]×[h] panel just below [anchor], or just above it when there is no
+     * room, or pinned to the top when there is room for neither. Horizontally
+     * centred on the anchor and kept on screen.
+     */
+    private fun placeNear(anchor: Rect, w: Int, h: Int, screenW: Int, screenH: Int): Rect {
         val density = appContext.resources.displayMetrics.density
+        val gap = (GAP_DP * density).toInt()
+        val margin = (EDGE_MARGIN_DP * density).toInt()
+
+        val y = when {
+            anchor.bottom + gap + h <= screenH -> anchor.bottom + gap
+            anchor.top - gap - h >= 0 -> anchor.top - gap - h
+            else -> margin
+        }
+        val x = (anchor.centerX() - w / 2).coerceIn(
+            margin,
+            (screenW - w - margin).coerceAtLeast(margin)
+        )
+        return Rect(x, y, x + w, y + h)
+    }
+
+    /**
+     * One chip on the Lens bar. The icon sits *above* the label rather than
+     * beside it, unlike the ball's menu rows: five of these have to fit across a
+     * phone, and side-by-side icons would push the bar wider than the screen.
+     */
+    private fun chipButton(
+        label: String,
+        colors: OverlaySkin,
+        iconRes: Int? = null,
+        onClick: () -> Unit
+    ): TextView {
+        val density = appContext.resources.displayMetrics.density
+        val iconPx = (CHIP_ICON_DP * density).toInt()
         return TextView(appContext).apply {
             text = label
             textSize = colors.labelSp
             typeface = colors.sans
             setTextColor(colors.buttonText)
+            gravity = Gravity.CENTER
+            if (iconRes != null) {
+                val icon = androidx.core.content.ContextCompat.getDrawable(appContext, iconRes)
+                icon?.setBounds(0, 0, iconPx, iconPx)
+                icon?.setTint(colors.buttonText)
+                setCompoundDrawablesRelative(null, icon, null, null)
+                compoundDrawablePadding = (CHIP_ICON_GAP_DP * density).toInt()
+            }
             setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (6 * density).toInt())
             setOnClickListener { onClick() }
         }
@@ -330,7 +372,7 @@ class ScreenLensController(
         }
 
         val titleView = TextView(appContext).apply {
-            this.text = "📝 Extracted Text"
+            this.text = "Extracted Text"
             textSize = colors.titleSp
             setTypeface(colors.sans, android.graphics.Typeface.BOLD)
             setTextColor(colors.onSurface)
@@ -361,7 +403,7 @@ class ScreenLensController(
         }
 
         btnRow.addView(
-            chipButton("📋 Copy All", colors) {
+            chipButton("Copy All", colors, R.drawable.ic_lens_copy) {
                 val clipService = Context.CLIPBOARD_SERVICE
                 val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
                 clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", text))
@@ -375,7 +417,7 @@ class ScreenLensController(
         )
 
         btnRow.addView(
-            chipButton("✕ Close", colors) {
+            chipButton("Close", colors) {
                 cancel()
             }
         )
@@ -434,14 +476,28 @@ class ScreenLensController(
             menuLayout.addView(btn)
         }
 
+        // Anchored under the chip bar rather than at Gravity.CENTER, which put
+        // the suggestions squarely on top of the region the user had just drawn
+        // a box around.
+        val menuWidth = (MENU_WIDTH_DP * density).toInt()
+        val overlay = cropOverlay
+        val anchor = chipBarBounds
         val params = WindowManager.LayoutParams(
-            (240 * density).toInt(),
+            menuWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER
+            if (anchor != null && overlay != null) {
+                val (_, menuHeight) = measure(menuLayout)
+                val placed = placeNear(anchor, menuWidth, menuHeight, overlay.width, overlay.height)
+                gravity = Gravity.TOP or Gravity.START
+                x = placed.left
+                y = placed.top
+            } else {
+                gravity = Gravity.CENTER
+            }
         }
 
         try {
@@ -465,6 +521,7 @@ class ScreenLensController(
     private fun removeTextChips() {
         textChips?.let { safeRemove(it) }
         textChips = null
+        chipBarBounds = null
     }
 
     private fun recyclePendingCrop() {
@@ -547,5 +604,10 @@ class ScreenLensController(
 
     private companion object {
         const val MIN_SELECTION_DP = 24
+        const val CHIP_ICON_DP = 18
+        const val CHIP_ICON_GAP_DP = 3
+        const val MENU_WIDTH_DP = 240
+        const val GAP_DP = 12
+        const val EDGE_MARGIN_DP = 12
     }
 }
