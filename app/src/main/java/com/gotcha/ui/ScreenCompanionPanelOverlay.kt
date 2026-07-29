@@ -18,7 +18,10 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.graphics.ColorUtils
+import com.gotcha.data.SettingsRepository
+import com.gotcha.ui.theme.OverlaySkin
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import io.noties.markwon.Markwon
 
 class ScreenCompanionPanelOverlay(private val context: Context) {
@@ -49,6 +52,17 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
     private fun dp(value: Int): Int = (value * appContext.resources.displayMetrics.density).toInt()
 
+    /**
+     * The active skin, in View form. This panel used to paint itself `#CC1E1E1E`
+     * with a `Color.CYAN` stroke — Deep Space, hardcoded, from before there was
+     * more than one theme.
+     */
+    private fun skin(): OverlaySkin = overlaySkin(
+        appContext,
+        runCatching { SettingsRepository(appContext).load().skinId }
+            .getOrDefault(Skins.DEFAULT_ID)
+    )
+
     fun setVisibleForCapture(visible: Boolean) {
         mainHandler.post {
             panelView?.visibility = if (visible) View.VISIBLE else View.GONE
@@ -65,13 +79,14 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             panelView = null
         }
 
+        val colors = skin()
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
             background = GradientDrawable().apply {
-                cornerRadius = dp(24).toFloat()
-                setColor(Color.parseColor("#CC1E1E1E"))
-                setStroke(dp(1), ColorUtils.setAlphaComponent(Color.CYAN, 80))
+                cornerRadius = dp(colors.cardRadiusDp.toInt()).toFloat()
+                setColor(colors.surface)
+                setStroke(dp(1), colors.outline)
             }
         }
 
@@ -82,14 +97,14 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         }
         val titleText = TextView(appContext).apply {
             text = "Screen Companion"
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(colors.onSurface)
+            textSize = colors.titleSp
+            typeface = Typeface.create(colors.sans, Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         val speakerBtn = TextView(appContext).apply {
             text = "🔊"
-            textSize = 18f
+            textSize = colors.titleSp
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener {
                 if (isSpeaking) {
@@ -107,8 +122,8 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         speakerButton = speakerBtn
         val closeButton = TextView(appContext).apply {
             text = "✕"
-            setTextColor(Color.LTGRAY)
-            textSize = 18f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.titleSp
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener { dismiss() }
         }
@@ -130,16 +145,16 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
         val promptView = TextView(appContext).apply {
             text = initialPrompt
-            setTextColor(Color.LTGRAY)
-            textSize = 14f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.labelSp
             setPadding(0, 0, 0, dp(8))
         }
         chatContainer.addView(promptView)
 
         responseTextView = TextView(appContext).apply {
             text = resultText ?: "Thinking..."
-            setTextColor(Color.WHITE)
-            textSize = 15f
+            setTextColor(colors.onSurface)
+            textSize = colors.bodySp
             setPadding(0, dp(8), 0, dp(16))
             // Ensure links are clickable
             movementMethod = android.text.method.LinkMovementMethod.getInstance()
@@ -185,8 +200,8 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = GradientDrawable().apply {
-                cornerRadius = dp(20).toFloat()
-                setColor(Color.parseColor("#33FFFFFF"))
+                cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
+                setColor(colors.buttonBg)
             }
             setPadding(dp(12), dp(4), dp(4), dp(4))
         }
@@ -194,17 +209,17 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         val editText = EditText(appContext).apply {
             hint = "Ask a follow-up..."
             setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
+            setTextColor(colors.onSurface)
             background = null
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            textSize = 14f
+            textSize = colors.labelSp
             maxLines = 3
         }
         inputEditText = editText
 
         val micBtn = TextView(appContext).apply {
             text = "🎤"
-            textSize = 18f
+            textSize = colors.titleSp
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener {
                 if (isListening) {
@@ -285,15 +300,17 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     }
 
     private fun createChip(label: String): TextView {
+        val colors = skin()
         return TextView(appContext).apply {
             text = label
-            setTextColor(Color.WHITE)
-            textSize = 13f
+            setTextColor(colors.buttonText)
+            textSize = colors.bodySp
+            typeface = colors.sans
             setPadding(dp(12), dp(6), dp(12), dp(6))
             background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(Color.parseColor("#444444"))
-                setStroke(dp(1), Color.GRAY)
+                cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
+                setColor(colors.buttonBg)
+                setStroke(dp(1), colors.outline)
             }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,

@@ -4,7 +4,6 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
@@ -20,15 +19,15 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.compose.ui.graphics.toArgb
-import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.ColorUtils
 import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.service.EntityType
 import com.gotcha.service.ProactiveSessionItem
 import com.gotcha.service.SmartActionDetector
+import com.gotcha.ui.theme.OverlaySkin
 import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -75,43 +74,18 @@ class AssistiveBallOverlay(context: Context) {
     private var dockSide: Int = DOCK_SIDE_END
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
     private val settingsRepository by lazy { SettingsRepository(appContext) }
-    private val figtree: Typeface? by lazy {
-        runCatching { ResourcesCompat.getFont(appContext, R.font.figtree) }.getOrNull()
-    }
-
-    private class OverlayPalette(
-        val surface: Int,
-        val onSurface: Int,
-        val outline: Int,
-        val buttonBg: Int,
-        val buttonText: Int
-    )
 
     /**
-     * The ball is a window over other apps, so it takes its colours from the
-     * chosen skin rather than from a pair of hardcoded Deep Space palettes.
-     *
-     * Always the [Skin.opaque] variant: there is no wallpaper of ours behind
-     * this window, only whatever app the user is looking at, and translucent
-     * chrome over someone else's screen is unreadable.
+     * The active skin, translated for View code. Re-read on each build rather
+     * than cached, so changing theme in Settings reaches the ball the next time
+     * it draws anything without needing to tear the window down.
      */
-    private fun skinScheme() = Skins.byId(
+    private fun palette(): OverlaySkin = overlaySkin(
+        appContext,
         runCatching { settingsRepository.load().skinId }.getOrDefault(Skins.DEFAULT_ID)
-    ).opaque().scheme
+    )
 
-    private fun palette(): OverlayPalette {
-        val scheme = skinScheme()
-        return OverlayPalette(
-            surface = scheme.surface.toArgb(),
-            onSurface = scheme.onSurface.toArgb(),
-            outline = scheme.outline.toArgb(),
-            buttonBg = scheme.secondaryContainer.toArgb(),
-            buttonText = scheme.onSecondaryContainer.toArgb()
-        )
-    }
-
-    /** The skin's own accent, for the ring and any other tinted overlay part. */
-    private fun accentColor(): Int = skinScheme().primary.toArgb()
+    private fun accentColor(): Int = palette().accent
 
     fun canShow(): Boolean = Settings.canDrawOverlays(appContext)
 
@@ -216,7 +190,7 @@ class AssistiveBallOverlay(context: Context) {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(20), dp(16), dp(20), dp(16))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(20).toFloat()
+                    cornerRadius = dp(colors.cardRadiusDp.toInt()).toFloat()
                     setColor(colors.surface)
                     setStroke(dp(1), colors.outline)
                 }
@@ -225,9 +199,9 @@ class AssistiveBallOverlay(context: Context) {
                 addView(
                     TextView(appContext).apply {
                         text = message
-                        typeface = figtree ?: Typeface.DEFAULT
+                        typeface = colors.sans
                         setTextColor(colors.onSurface)
-                        textSize = 14f
+                        textSize = colors.bodySp
                     }
                 )
                 layoutParams = LinearLayout.LayoutParams(
@@ -293,7 +267,7 @@ class AssistiveBallOverlay(context: Context) {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), dp(10), dp(10), dp(10))
             background = GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
+                cornerRadius = dp(colors.cardRadiusDp.toInt()).toFloat()
                 setColor(colors.surface)
                 setStroke(dp(1), colors.outline)
             }
@@ -364,7 +338,7 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
-    private fun buildProactiveMenuContent(menuCard: LinearLayout, colors: OverlayPalette) {
+    private fun buildProactiveMenuContent(menuCard: LinearLayout, colors: OverlaySkin) {
         // Always show clipboard/smart action at the top
         pendingSmartAction?.let { (label, prompt) ->
             menuCard.addView(
@@ -399,8 +373,8 @@ class AssistiveBallOverlay(context: Context) {
                 val entity = item.entity
                 val headerText = TextView(appContext).apply {
                     text = "${getCategoryIcon(entity.type)}  ${SmartActionDetector.snippet(entity.normalizedValue, 24)}"
-                    typeface = figtree ?: Typeface.DEFAULT
-                    textSize = 12f
+                    typeface = colors.sans
+                    textSize = colors.labelSp
                     setTextColor(colors.onSurface)
                     setPadding(dp(6), dp(6), dp(6), dp(4))
                 }
@@ -413,13 +387,13 @@ class AssistiveBallOverlay(context: Context) {
                 for (action in entity.actions) {
                     val chipBtn = TextView(appContext).apply {
                         text = action.label
-                        typeface = figtree ?: Typeface.DEFAULT
-                        textSize = 12f
+                        typeface = colors.sans
+                        textSize = colors.labelSp
                         setTextColor(colors.buttonText)
                         gravity = Gravity.CENTER
                         setPadding(dp(10), dp(6), dp(10), dp(6))
                         background = GradientDrawable().apply {
-                            cornerRadius = dp(10).toFloat()
+                            cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
                             setColor(colors.buttonBg)
                         }
                         layoutParams = LinearLayout.LayoutParams(
@@ -457,16 +431,16 @@ class AssistiveBallOverlay(context: Context) {
         EntityType.GENERIC_TEXT -> "📋"
     }
 
-    private fun tapButton(label: String, colors: OverlayPalette, onClick: () -> Unit): TextView {
+    private fun tapButton(label: String, colors: OverlaySkin, onClick: () -> Unit): TextView {
         return TextView(appContext).apply {
             text = label
-            typeface = figtree ?: Typeface.DEFAULT
-            textSize = 13f
+            typeface = colors.sans
+            textSize = colors.bodySp
             setTextColor(colors.buttonText)
             gravity = Gravity.CENTER
             setPadding(dp(14), dp(8), dp(14), dp(8))
             background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat()
+                cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
                 setColor(colors.buttonBg)
             }
             layoutParams = LinearLayout.LayoutParams(

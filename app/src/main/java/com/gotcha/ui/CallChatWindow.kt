@@ -20,7 +20,10 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import com.gotcha.data.SettingsRepository
 import com.gotcha.service.CallState
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import kotlin.math.abs
 
 /**
@@ -67,7 +70,7 @@ class CallChatWindow(context: Context) {
     private var breatheAnimator: ValueAnimator? = null
     private var swapAnimator: ValueAnimator? = null
     private var currentActionEmoji: String = ""
-    private var currentActionTint: Int = TINT_MIC
+    private var currentActionTint: Int = Color.TRANSPARENT
     private var currentBreatheTag: String = ""
     private var entranceAnimating: Boolean = false
 
@@ -145,7 +148,7 @@ class CallChatWindow(context: Context) {
 
     /** (emoji, glass tint) for the action button in a given call state. */
     private fun actionAppearance(s: CallState): Pair<String, Int>? = when (s) {
-        CallState.READY, CallState.WAITING_USER -> "\uD83C\uDFA4" to TINT_MIC
+        CallState.READY, CallState.WAITING_USER -> "\uD83C\uDFA4" to readyTint()
         CallState.LISTENING -> "\u23F9" to TINT_STOP
         CallState.THINKING, CallState.SPEAKING -> "\uD83D\uDED1" to TINT_INTERRUPT
         else -> null
@@ -331,7 +334,7 @@ class CallChatWindow(context: Context) {
 
     private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
         val density = appContext.resources.displayMetrics.density
-        val glass = GlassButtonDrawable(if (isEnd) TINT_END else TINT_MIC).apply {
+        val glass = GlassButtonDrawable(if (isEnd) TINT_END else readyTint()).apply {
             fillAlpha = if (isEnd) 120 else 105
         }
         if (isEnd) glassEnd = glass else glassAction = glass
@@ -763,12 +766,21 @@ class CallChatWindow(context: Context) {
     private fun dp(value: Float): Int =
         (value * appContext.resources.displayMetrics.density).toInt()
 
+    /** The resting mic tint, taken from whichever skin is on. */
+    private fun readyTint(): Int = overlaySkin(
+        appContext,
+        runCatching { SettingsRepository(appContext).load().skinId }
+            .getOrDefault(Skins.DEFAULT_ID)
+    ).accent
+
     private companion object {
         const val BTN_SIZE_DP = 44
         const val END_LONG_PRESS_MS = 2000L
 
-        // Glass tints per action state and the end button.
-        val TINT_MIC = Color.parseColor("#2FB6C4") // calm teal — ready / mic
+        // Glass tints per action state. Three of these are semantic and stay
+        // fixed: amber, coral and red have to keep meaning the same thing in
+        // every theme, the way the context meter's warning colour does. Only
+        // the resting state follows the skin — see [readyTint].
         val TINT_STOP = Color.parseColor("#E8A13A") // amber — listening / stop
         val TINT_INTERRUPT = Color.parseColor("#E5544B") // coral — interrupt
         val TINT_END = Color.parseColor("#E23B3B") // red — end call

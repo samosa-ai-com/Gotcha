@@ -1,7 +1,6 @@
 package com.gotcha.ui
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -13,6 +12,9 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.gotcha.data.SettingsRepository
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 
 /**
  * A confirmation prompt drawn as a floating window on top of whatever app is in the
@@ -65,27 +67,34 @@ class ConfirmationOverlay(context: Context) {
     }
 
     private fun buildCard(summary: String, onAllow: () -> Unit, onDeny: () -> Unit): View {
+        val colors = overlaySkin(
+            appContext,
+            runCatching { SettingsRepository(appContext).load().skinId }
+                .getOrDefault(Skins.DEFAULT_ID)
+        )
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(20), dp(20), dp(20))
             background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(Color.parseColor("#1E1E1E"))
-                setStroke(dp(1), Color.parseColor("#3A3A3A"))
+                cornerRadius = dp(colors.cardRadiusDp.toInt()).toFloat()
+                setColor(colors.surface)
+                setStroke(dp(1), colors.outline)
             }
         }
 
         val title = TextView(appContext).apply {
             text = "Gotcha — confirm action"
-            setTextColor(Color.WHITE)
-            textSize = 16f
+            setTextColor(colors.onSurface)
+            textSize = colors.titleSp
+            typeface = colors.sans
             setPadding(0, 0, 0, dp(8))
         }
 
         val body = TextView(appContext).apply {
             text = summary
-            setTextColor(Color.parseColor("#CCCCCC"))
-            textSize = 13f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.bodySp
+            typeface = colors.sans
         }
 
         val buttonRow = LinearLayout(appContext).apply {
