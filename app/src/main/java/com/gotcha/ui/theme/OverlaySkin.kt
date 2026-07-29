@@ -1,10 +1,26 @@
 package com.gotcha.ui.theme
 
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Typeface
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import com.gotcha.R
+
+/** How far the top edge is lifted off a dark surface. */
+private const val EDGE_LIGHTEN = 0.14f
+
+/**
+ * How far it is sunk into a light one. Lower than it looks like it should be:
+ * on a near-white panel a little ink goes a very long way, and 22% — the
+ * mirror of the dark figure — reads as a second border rather than an edge.
+ */
+private const val EDGE_DARKEN = 0.12f
+
+private const val SHADOW_ALPHA_DARK = 0x66
+private const val SHADOW_ALPHA_LIGHT = 0x4D
+private const val SHADOW_RADIUS_DP = 12f
 
 /**
  * The active skin, in the form View code can use.
@@ -22,6 +38,12 @@ import com.gotcha.R
  */
 data class OverlaySkin(
     val surface: Int,
+    /**
+     * What the skin paints under everything else. The ball is drawn on this
+     * rather than on [surface]: it is not a panel, it is the app itself made
+     * small, so it wears the app's floor.
+     */
+    val ground: Int,
     val onSurface: Int,
     val onSurfaceVariant: Int,
     val outline: Int,
@@ -34,6 +56,19 @@ data class OverlaySkin(
     val cardRadiusDp: Float,
     /** Radius for buttons and rows, in dp, from [Skin.cornerSmall]. */
     val buttonRadiusDp: Float,
+    /**
+     * The lit top edge of a raised surface, already composited onto [surface].
+     *
+     * Lighter than the surface on a dark skin, darker on a light one. That
+     * asymmetry is the point: a white hairline on Vellum's near-white panel is
+     * invisible, so what sells the raise there is a fine dark rule against the
+     * app underneath, the same way a printed card sits on paper.
+     */
+    val edgeHighlight: Int,
+    /** Colour of the drop shadow, alpha included. */
+    val shadowColor: Int,
+    /** How far the shadow spreads beyond the card, in dp. */
+    val shadowRadiusDp: Float,
     val sans: Typeface,
     val mono: Typeface,
     val titleSp: Float,
@@ -69,8 +104,11 @@ private fun figtree(context: Context): Typeface {
 fun overlaySkin(context: Context, skinId: String): OverlaySkin {
     val skin = Skins.byId(skinId).opaque()
     val scheme = skin.scheme
+    val surface = scheme.surface.toArgb()
+    val dark = skin.brightness == Brightness.DARK
     return OverlaySkin(
-        surface = scheme.surface.toArgb(),
+        surface = surface,
+        ground = scheme.background.toArgb(),
         onSurface = scheme.onSurface.toArgb(),
         onSurfaceVariant = scheme.onSurfaceVariant.toArgb(),
         outline = scheme.outline.toArgb(),
@@ -81,6 +119,18 @@ fun overlaySkin(context: Context, skinId: String): OverlaySkin {
         error = scheme.error.toArgb(),
         cardRadiusDp = skin.corner.value,
         buttonRadiusDp = skin.cornerSmall.value,
+        edgeHighlight = ColorUtils.blendARGB(
+            surface,
+            if (dark) Color.WHITE else Color.BLACK,
+            if (dark) EDGE_LIGHTEN else EDGE_DARKEN
+        ),
+        // Deeper under a light skin, where there is less contrast between the
+        // card and a bright host app to do the separating on its own.
+        shadowColor = ColorUtils.setAlphaComponent(
+            Color.BLACK,
+            if (dark) SHADOW_ALPHA_DARK else SHADOW_ALPHA_LIGHT
+        ),
+        shadowRadiusDp = SHADOW_RADIUS_DP,
         sans = figtree(context),
         mono = Typeface.MONOSPACE,
         titleSp = Typography.titleMedium.fontSize.value,

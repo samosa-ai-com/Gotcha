@@ -188,12 +188,7 @@ class AssistiveBallOverlay(context: Context) {
             val colors = palette()
             val container = LinearLayout(appContext).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(20), dp(16), dp(20), dp(16))
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(colors.cardRadiusDp.toInt()).toFloat()
-                    setColor(colors.surface)
-                    setStroke(dp(1), colors.outline)
-                }
+                applyOverlayCard(colors, horizontalDp = 20, verticalDp = 16)
             }
             val scroll = ScrollView(appContext).apply {
                 addView(
@@ -214,7 +209,7 @@ class AssistiveBallOverlay(context: Context) {
                 container.addView(tapButton("Close", colors) { hideCard() })
             }
             try {
-                windowManager.addView(container, cardLayoutParams())
+                windowManager.addView(container, cardLayoutParams(container))
                 cardView = container
             } catch (_: Exception) {
                 cardView = null
@@ -231,14 +226,39 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
+    /**
+     * The ball is a designed object, not a pasted icon.
+     *
+     * It used to be the bare mark on its own white disc — the adaptive-icon
+     * asset, wearing the launcher's colours over whatever app happened to be
+     * underneath. Now it is the skin's ground with the same edge highlight and
+     * shadow the cards get, so it reads as one of our controls in the same
+     * theme as everything else, and it keeps its shape over a photograph.
+     *
+     * The shadow is tighter than a card's: the window is a fixed 56dp and every
+     * dock, peek and dismiss measurement in this class is written against that,
+     * so the gutter is taken out of the disc rather than added to the window.
+     */
     private fun buildBall(): View {
         val size = dp(BALL_SIZE_DP)
+        val colors = palette()
+        val density = appContext.resources.displayMetrics.density
+        val disc = overlayCardBackground(
+            density = density,
+            colors = colors,
+            radiusDp = BALL_SIZE_DP / 2f,
+            fill = colors.ground,
+            shadowRadiusDp = BALL_SHADOW_DP
+        )
         return android.widget.ImageView(appContext).apply {
             contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
             // The in-app mark. The launcher icon is adaptive now, so it would
             // draw at two-thirds size inside its own safe zone.
             setImageResource(R.drawable.gotcha_logo)
-            scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            scaleType = android.widget.ImageView.ScaleType.CENTER_INSIDE
+            background = disc
+            val inset = disc.shadowPadPx + dp(BALL_MARK_INSET_DP)
+            setPadding(inset, inset, inset, inset)
             alpha = PEEK_ALPHA
             setOnTouchListener(ballTouchListener())
             layoutParams = LinearLayout.LayoutParams(size, size)
@@ -265,14 +285,10 @@ class AssistiveBallOverlay(context: Context) {
 
         val menuCard = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(colors.cardRadiusDp.toInt()).toFloat()
-                setColor(colors.surface)
-                setStroke(dp(1), colors.outline)
-            }
+            applyOverlayCard(colors, horizontalDp = 10, verticalDp = 10)
             setOnClickListener { }
         }
+        val menuShadowPad = (menuCard.background as? OverlayCardDrawable)?.shadowPadPx ?: 0
 
         buildProactiveMenuContent(menuCard, colors)
 
@@ -302,7 +318,10 @@ class AssistiveBallOverlay(context: Context) {
         val metrics = appContext.resources.displayMetrics
         val screenHeight = metrics.heightPixels
         val screenWidth = metrics.widthPixels
-        val menuWidth = dp(MENU_WIDTH_DP)
+        // The view is the card plus its shadow gutter; the numbers below are all
+        // about where the *card* lands, so the gutter is added to the width and
+        // taken back off the margins.
+        val menuWidth = dp(MENU_WIDTH_DP) + menuShadowPad * 2
         val maxCardHeight = (screenHeight - dp(48)).coerceAtLeast(dp(200))
 
         menuCard.measure(
@@ -324,8 +343,8 @@ class AssistiveBallOverlay(context: Context) {
         val leftMargin = (ballParams.x).coerceIn(dp(8), (screenWidth - menuWidth - dp(8)).coerceAtLeast(dp(8)))
 
         val cardParams = FrameLayout.LayoutParams(menuWidth, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
-            this.leftMargin = leftMargin
-            this.topMargin = topMargin
+            this.leftMargin = leftMargin - menuShadowPad
+            this.topMargin = topMargin - menuShadowPad
         }
         rootLayout.addView(menuCard, cardParams)
 
@@ -470,9 +489,10 @@ class AssistiveBallOverlay(context: Context) {
         val density = appContext.resources.displayMetrics.density
         val viewSize = (BALL_SIZE_DP * 3.2f * density).toInt()
         val ballPx = dp(BALL_SIZE_DP)
+        val accent = accentColor()
         val drawable = RingDrawable().apply {
             fillColor = Color.TRANSPARENT
-            strokeColor = accentColor()
+            strokeColor = accent
             strokeWidth = 2.5f * density
         }
         val view = View(appContext).apply { background = drawable }
@@ -502,7 +522,9 @@ class AssistiveBallOverlay(context: Context) {
                 addUpdateListener { anim ->
                     val p = anim.animatedValue as Float
                     drawable.ringRadius = minRadius + (maxRadius - minRadius) * p
-                    drawable.strokeColor = ColorUtils.setAlphaComponent(Color.WHITE, ((1f - p * 0.6f) * 255).toInt())
+                    // Accent, not white: the ring was set from the skin at
+                    // construction and then painted over on the first frame.
+                    drawable.strokeColor = ColorUtils.setAlphaComponent(accent, ((1f - p * 0.6f) * 255).toInt())
                 }
                 start()
             }
@@ -692,15 +714,19 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun showDismissTarget() {
         if (dismissTargetView != null) return
+        val colors = palette()
         val target = TextView(appContext).apply {
             text = "✕"
             textSize = 22f
-            setTextColor(Color.WHITE)
+            typeface = colors.sans
+            setTextColor(colors.onSurface)
             gravity = Gravity.CENTER
+            // Was #CC222222 with a white rim, which is a fifth theme nobody
+            // chose. The rim is the same lit edge the cards wear.
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#CC222222"))
-                setStroke(dp(2), Color.parseColor("#66FFFFFF"))
+                setColor(colors.surface)
+                setStroke(dp(2), colors.edgeHighlight)
             }
         }
         val params = WindowManager.LayoutParams(
@@ -778,9 +804,10 @@ class AssistiveBallOverlay(context: Context) {
             gravity = Gravity.TOP or Gravity.START
         }
 
-    private fun cardLayoutParams(): WindowManager.LayoutParams =
+    /** Wide enough for [card] plus the room its shadow needs on either side. */
+    private fun cardLayoutParams(card: View): WindowManager.LayoutParams =
         WindowManager.LayoutParams(
-            dp(320),
+            dp(320) + ((card.background as? OverlayCardDrawable)?.shadowPadPx ?: 0) * 2,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -806,6 +833,13 @@ class AssistiveBallOverlay(context: Context) {
 
     private companion object {
         const val BALL_SIZE_DP = 56
+
+        /** Taken out of the disc, not added to the window — see [buildBall]. */
+        const val BALL_SHADOW_DP = 4f
+
+        /** How far the mark sits inside the disc. */
+        const val BALL_MARK_INSET_DP = 9
+
         const val MENU_WIDTH_DP = 290
         const val LONG_PRESS_START_MS = 2000L
         const val LONG_PRESS_END_MS = 2000L
