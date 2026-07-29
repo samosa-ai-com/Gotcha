@@ -206,7 +206,10 @@ class AssistiveBallOverlay(context: Context) {
             }
             container.addView(scroll)
             if (showClose) {
-                container.addView(tapButton("Close", colors) { hideCard() })
+                // Not a menu row: nothing to line up with, so it stays centred.
+                container.addView(
+                    tapButton("Close", colors, iconRes = null, asMenuRow = false) { hideCard() }
+                )
             }
             try {
                 windowManager.addView(container, cardLayoutParams(container))
@@ -296,19 +299,19 @@ class AssistiveBallOverlay(context: Context) {
             orientation = LinearLayout.VERTICAL
         }
         appNavRow.addView(
-            tapButton("📱 Open App", colors) {
+            tapButton("Open App", colors, R.drawable.ic_overlay_open_app) {
                 removeMenu()
                 onOpenApp()
             }
         )
         appNavRow.addView(
-            tapButton("📸 Screenshot", colors) {
+            tapButton("Screenshot", colors, R.drawable.ic_overlay_screenshot) {
                 removeMenu()
                 onTakeScreenshot()
             }
         )
         appNavRow.addView(
-            tapButton("🔍 Lens", colors) {
+            tapButton("Lens", colors, R.drawable.ic_overlay_lens) {
                 removeMenu()
                 onStartLens()
             }
@@ -450,14 +453,42 @@ class AssistiveBallOverlay(context: Context) {
         EntityType.GENERIC_TEXT -> "📋"
     }
 
-    private fun tapButton(label: String, colors: OverlaySkin, onClick: () -> Unit): TextView {
+    /**
+     * A row in the ball's menu.
+     *
+     * [iconRes] is a vector, never an emoji: emoji are drawn by whichever font
+     * the OEM shipped, at whatever weight and in whatever colour that vendor
+     * chose, so they are the one element in the menu guaranteed not to match
+     * the app. Rows without one keep the text on the same column as rows with
+     * one, so the menu reads as a list rather than as two lists.
+     */
+    private fun tapButton(
+        label: String,
+        colors: OverlaySkin,
+        iconRes: Int? = null,
+        asMenuRow: Boolean = true,
+        onClick: () -> Unit
+    ): TextView {
+        val iconPx = dp(MENU_ICON_DP)
+        val iconGutter = iconPx + dp(MENU_ICON_GAP_DP)
         return TextView(appContext).apply {
             text = label
             typeface = colors.sans
             textSize = colors.bodySp
             setTextColor(colors.buttonText)
-            gravity = Gravity.CENTER
-            setPadding(dp(14), dp(8), dp(14), dp(8))
+            gravity = if (asMenuRow) Gravity.CENTER_VERTICAL or Gravity.START else Gravity.CENTER
+            if (!asMenuRow) {
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+            } else if (iconRes != null) {
+                val icon = androidx.core.content.ContextCompat.getDrawable(appContext, iconRes)
+                icon?.setBounds(0, 0, iconPx, iconPx)
+                icon?.setTint(colors.buttonText)
+                setCompoundDrawablesRelative(icon, null, null, null)
+                compoundDrawablePadding = dp(MENU_ICON_GAP_DP)
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+            } else {
+                setPadding(dp(14) + iconGutter, dp(8), dp(14), dp(8))
+            }
             background = GradientDrawable().apply {
                 cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
                 setColor(colors.buttonBg)
@@ -841,6 +872,11 @@ class AssistiveBallOverlay(context: Context) {
         const val BALL_MARK_INSET_DP = 9
 
         const val MENU_WIDTH_DP = 290
+
+        /** Sized against bodyMedium, so the row reads as icon-then-label. */
+        const val MENU_ICON_DP = 18
+        const val MENU_ICON_GAP_DP = 12
+
         const val LONG_PRESS_START_MS = 2000L
         const val LONG_PRESS_END_MS = 2000L
         const val DISMISS_TARGET_SIZE_DP = 64
