@@ -209,6 +209,27 @@ internal fun migrateSkinId(legacyThemeMode: String?): String =
         SKIN_DEEP_SPACE_DARK
     }
 
+/** The preference file [SettingsRepository] encrypts into. */
+internal const val SETTINGS_PREFS_FILE = "gotcha_settings"
+
+/**
+ * The raw preference file underneath [SettingsRepository], for change
+ * notification and nothing else. Everything in it is encrypted; read values
+ * through the repository.
+ *
+ * This exists because [EncryptedSharedPreferences] holds its listener list on
+ * the *wrapper*, and `create` hands back a new wrapper every call — so a
+ * listener registered through one `SettingsRepository` is never told about a
+ * write made through another one, which is every write the app actually makes.
+ * The file beneath is the process-wide singleton the framework caches, and it
+ * notifies whoever wrote to it.
+ *
+ * Keys arrive encrypted, so a listener cannot match on one. Read the setting
+ * back and compare instead.
+ */
+fun settingsChangeNotifier(context: Context): SharedPreferences =
+    context.applicationContext.getSharedPreferences(SETTINGS_PREFS_FILE, Context.MODE_PRIVATE)
+
 internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
 internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
 private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
@@ -222,7 +243,7 @@ class SettingsRepository(context: Context) {
             .build()
         EncryptedSharedPreferences.create(
             context.applicationContext,
-            "gotcha_settings",
+            SETTINGS_PREFS_FILE,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
