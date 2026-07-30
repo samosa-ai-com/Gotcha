@@ -187,9 +187,47 @@ class GotchaAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * The node tree of the app we are looking *at*, which is not always
+     * [rootInActiveWindow].
+     *
+     * Lens adds a full-screen overlay and only then asks what is on screen. That
+     * window is focusable, so it becomes the active one, and
+     * `rootInActiveWindow` starts returning our own canvas — a bare custom View
+     * with no text anywhere in it. Everything downstream then behaves as though
+     * the screen were empty: no Select chip, no contextual actions, no action
+     * menu. It reproduced identically on two emulators and a Nothing Phone 3a,
+     * and looked for a long time like a bug in the text extraction itself.
+     *
+     * Callers own the returned node and must recycle it, as before.
+     */
+    private fun hostRoot(): AccessibilityNodeInfo? {
+        val candidates = runCatching { windows }.getOrNull().orEmpty()
+        var best: AccessibilityNodeInfo? = null
+        var bestLayer = Int.MIN_VALUE
+        for (window in candidates) {
+            // The window *type* is the discriminator, not the package. Our
+            // overlays are added as TYPE_APPLICATION_OVERLAY and surface here as
+            // TYPE_SYSTEM, alongside the status bar; the app underneath is the
+            // only TYPE_APPLICATION. Filtering by package instead looks right
+            // until Lens is used on Gotcha itself, at which point it throws away
+            // the host too.
+            if (window.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
+            val root = window.root ?: continue
+            if (window.layer <= bestLayer) {
+                root.recycle()
+                continue
+            }
+            best?.recycle()
+            best = root
+            bestLayer = window.layer
+        }
+        return best ?: rootInActiveWindow
+    }
+
     /** Recursively collect visible, non-blank text/content-descriptions from the active window. */
     fun dumpScreenText(limit: Int = 200): List<String> {
-        val root = rootInActiveWindow ?: return emptyList()
+        val root = hostRoot() ?: return emptyList()
         val out = ArrayList<String>()
         collectText(root, out, limit)
         root.recycle()
@@ -214,7 +252,7 @@ class GotchaAccessibilityService : AccessibilityService() {
      * inside the user's selection without OCR. Returns joined text or null.
      */
     fun dumpTextInRegion(regionInScreen: android.graphics.Rect, limit: Int = 60): String? {
-        val root = rootInActiveWindow ?: return null
+        val root = hostRoot() ?: return null
         val out = ArrayList<String>()
         collectTextInRegion(root, regionInScreen, out, limit)
         root.recycle()
@@ -254,7 +292,7 @@ class GotchaAccessibilityService : AccessibilityService() {
         region: android.graphics.Rect,
         coverage: Float = 0.6f
     ): android.graphics.Rect {
-        val root = rootInActiveWindow ?: return region
+        val root = hostRoot() ?: return region
         val result = android.graphics.Rect(region)
         val regionArea = region.width().toLong() * region.height().toLong()
         accumulateSnap(root, region, regionArea, coverage, result)
@@ -308,7 +346,7 @@ class GotchaAccessibilityService : AccessibilityService() {
      * runs SmartActionDetector.detectAll, and constructs union bounding boxes for every entity.
      */
     fun extractScreenEntitiesWithBounds(): List<AnnotatedEntity> {
-        val root = rootInActiveWindow ?: return emptyList()
+        val root = hostRoot() ?: return emptyList()
         val nodes = mutableListOf<Pair<String, android.graphics.Rect>>()
 
         fun findValidBounds(node: AccessibilityNodeInfo): android.graphics.Rect? {
