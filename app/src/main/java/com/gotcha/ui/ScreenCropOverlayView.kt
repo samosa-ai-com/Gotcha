@@ -84,17 +84,27 @@ class ScreenCropOverlayView(
         maskFilter = android.graphics.BlurMaskFilter(14f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
     }
 
+    /**
+     * The hairline sitting exactly on the cut-out's edge.
+     *
+     * Solid and thin, where it used to be a fat dashed line with a blurred glow
+     * behind it. Since the dim gained a hole, the edge of that hole already says
+     * where the selection is; the dashes were a second, louder voice saying the
+     * same thing. What is left just makes the boundary crisp instead of relying
+     * on a soft luminance step.
+     */
     private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 3f * density
+        strokeWidth = 1.5f * density
         color = ColorUtils.setAlphaComponent(colors.accent, SELECTION_ALPHA)
-        pathEffect = android.graphics.DashPathEffect(floatArrayOf(14f * density, 8f * density), 0f)
     }
-    private val boxGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+
+    /** Corner brackets — the crop-UI idiom, and the part that reads as "capture". */
+    private val bracketPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 7f * density
-        color = ColorUtils.setAlphaComponent(colors.accent, GLOW_ALPHA)
-        maskFilter = android.graphics.BlurMaskFilter(12f * density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        strokeWidth = 3.5f * density
+        color = colors.accent
+        strokeCap = Paint.Cap.ROUND
     }
 
     private val entityBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -138,6 +148,10 @@ class ScreenCropOverlayView(
 
     /** Held separately from [scratchRect], which [drawSelectionBox] is using. */
     private val scratchDim = RectF()
+
+    /** Reused by [drawCornerBrackets], which runs every frame. */
+    private val bracketPath = Path()
+    private val scratchArc = RectF()
 
     /** The bounds [pathPaint]'s gradient was last built for. */
     private var gradientMinX = Float.NaN
@@ -395,8 +409,60 @@ class ScreenCropOverlayView(
 
     private fun drawSelectionBox(canvas: Canvas, rect: RectF) {
         val radius = colors.buttonRadiusDp * density
-        canvas.drawRoundRect(rect, radius, radius, boxGlowPaint)
         canvas.drawRoundRect(rect, radius, radius, boxPaint)
+        drawCornerBrackets(canvas, rect)
+    }
+
+    /**
+     * Four brackets that trace the selection's own rounded corners.
+     *
+     * The straightforward version — eight straight stubs inset from each corner
+     * — does not work: the stubs sit *near* the rounded corner without following
+     * it, so they read as four floating marks rather than as a frame. Each
+     * bracket here is a line, the corner's actual arc, then another line, so it
+     * lies exactly on the boundary the hairline already draws.
+     */
+    private fun drawCornerBrackets(canvas: Canvas, rect: RectF) {
+        val radius = colors.buttonRadiusDp * density
+        // Leave at least a small gap between opposite brackets, so a tight
+        // selection does not end up with a solid outline.
+        val room = (min(rect.width(), rect.height()) / 2f - radius) * BRACKET_MAX_FRACTION
+        val len = min(BRACKET_LEN_DP * density, room)
+        if (len <= 0f) return
+
+        val l = rect.left
+        val t = rect.top
+        val r = rect.right
+        val b = rect.bottom
+        val d = radius * 2f
+
+        bracketPath.reset()
+        // top-left
+        scratchArc.set(l, t, l + d, t + d)
+        bracketPath.moveTo(l, t + radius + len)
+        bracketPath.lineTo(l, t + radius)
+        bracketPath.arcTo(scratchArc, 180f, 90f)
+        bracketPath.lineTo(l + radius + len, t)
+        // top-right
+        scratchArc.set(r - d, t, r, t + d)
+        bracketPath.moveTo(r - radius - len, t)
+        bracketPath.lineTo(r - radius, t)
+        bracketPath.arcTo(scratchArc, 270f, 90f)
+        bracketPath.lineTo(r, t + radius + len)
+        // bottom-right
+        scratchArc.set(r - d, b - d, r, b)
+        bracketPath.moveTo(r, b - radius - len)
+        bracketPath.lineTo(r, b - radius)
+        bracketPath.arcTo(scratchArc, 0f, 90f)
+        bracketPath.lineTo(r - radius - len, b)
+        // bottom-left
+        scratchArc.set(l, b - d, l + d, b)
+        bracketPath.moveTo(l + radius + len, b)
+        bracketPath.lineTo(l + radius, b)
+        bracketPath.arcTo(scratchArc, 90f, 90f)
+        bracketPath.lineTo(l, b - radius - len)
+
+        canvas.drawPath(bracketPath, bracketPaint)
     }
 
     fun freezeSelection(rect: Rect) {
@@ -557,5 +623,7 @@ class ScreenCropOverlayView(
         const val BORDER_ALPHA = 0xB0
         const val SELECTION_ALPHA = 0xD0
         const val GLOW_ALPHA = 0x55
+        const val BRACKET_LEN_DP = 20f
+        const val BRACKET_MAX_FRACTION = 0.6f
     }
 }
