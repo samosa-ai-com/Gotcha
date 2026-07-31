@@ -62,6 +62,15 @@ fun SettingsScreen(
     onTestVoice: suspend (Language) -> Boolean? = { null },
     packageName: String = "",
     /**
+     * Whether the assistive-ball service is currently running. Not read from
+     * [load]: the ball can also be dismissed from its own overlay, which stops
+     * the service directly, and the switch has to follow that.
+     */
+    assistiveBallEnabled: Boolean = false,
+    /** Asks the host to start or stop the assistive ball. May be refused (no
+     *  overlay permission), in which case [assistiveBallEnabled] stays false. */
+    onToggleAssistiveBall: (Boolean) -> Unit = {},
+    /**
      * Page to open on, instead of the home list. For the unconfigured first run,
      * where the one thing the user must do is enter an API key and a model, and
      * the home list would only ask them to guess which category that lives under.
@@ -120,6 +129,11 @@ fun SettingsScreen(
         SettingsPage.PROACTIVE -> ProactiveScreen(
             load = load,
             onSave = onSave,
+            onBack = backToHome
+        )
+        SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
+            enabled = assistiveBallEnabled,
+            onToggle = onToggleAssistiveBall,
             onBack = backToHome
         )
         SettingsPage.NOTIFICATIONS -> NotificationsScreen(

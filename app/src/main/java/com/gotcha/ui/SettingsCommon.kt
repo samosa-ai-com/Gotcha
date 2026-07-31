@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -91,6 +93,11 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Proactive Assistance",
         "Offers, OTP detection, what may be scanned",
         "settings_proactive_row"
+    ),
+    ASSISTIVE_BALL(
+        "Assistive Ball",
+        "Floating ball over other apps, hands-free calls",
+        "settings_assistive_ball_row"
     ),
     APPEARANCE(
         "Appearance",
@@ -312,7 +319,9 @@ fun SamosaAuthSection(
  *
  * [switchTestTag] tags the `Switch` rather than the row, so a test that clicks
  * it actually toggles something; a tag on the row would find a node that isn't
- * toggleable and no-op silently.
+ * toggleable and no-op silently. [switchContentDescription] names the `Switch`
+ * for the same reason — it is what a UiAutomator/Maestro flow, which cannot see
+ * test tags, has to aim at.
  */
 @Composable
 fun SettingsToggleRow(
@@ -321,6 +330,7 @@ fun SettingsToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     isLarge: Boolean = false,
     switchTestTag: String? = null,
+    switchContentDescription: String? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -335,7 +345,15 @@ fun SettingsToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier
+            modifier = Modifier
+                .then(if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier)
+                .then(
+                    if (switchContentDescription != null) {
+                        Modifier.semantics { contentDescription = switchContentDescription }
+                    } else {
+                        Modifier
+                    }
+                )
         )
     }
 }

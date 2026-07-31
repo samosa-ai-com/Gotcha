@@ -3,6 +3,13 @@ appId: com.gotcha
 # Requires scripts/maestro_run.sh to have granted the SYSTEM_ALERT_WINDOW appop first
 # (Maestro cannot send shell/appops commands itself).
 - launchApp
+# The toggle lives in Settings ▸ Assistive Ball.
+- tapOn: "Open menu"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element: "Assistive Ball"
+    direction: DOWN
+- tapOn: "Assistive Ball"
 - tapOn: "Turn on assistive ball"
 - pressKey: Home
 - assertVisible: "Gotcha assistive ball"

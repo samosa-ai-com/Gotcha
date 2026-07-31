@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
-import androidx.compose.material.icons.outlined.Adjust
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -89,8 +88,6 @@ fun ChatScreen(
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     sessionTitle: String? = null,
-    assistiveBallEnabled: Boolean = false,
-    onToggleAssistiveBall: (Boolean) -> Unit = {},
     onPickImage: (Uri) -> String?,
     onSwitchAgent: () -> Unit,
     onSetAgent: (AgentMode) -> Unit = {},
@@ -162,23 +159,9 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    if (isHome) {
-                        IconButton(onClick = { onToggleAssistiveBall(!assistiveBallEnabled) }) {
-                            Icon(
-                                Icons.Outlined.Adjust,
-                                contentDescription = if (assistiveBallEnabled) {
-                                    "Turn off assistive ball"
-                                } else {
-                                    "Turn on assistive ball"
-                                },
-                                tint = if (assistiveBallEnabled) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-                    } else {
+                    // The home screen carries no actions: its top bar is the menu
+                    // and the title only. Everything here belongs to an open chat.
+                    if (!isHome) {
                         // Operator can change the device, Monitor cannot. An icon
                         // that only changes shape is not enough signal for that, so
                         // the riskier of the two says its own name.

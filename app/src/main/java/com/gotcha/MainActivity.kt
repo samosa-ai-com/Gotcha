@@ -533,6 +533,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
                         packageName = packageName,
+                        assistiveBallEnabled = assistiveBallOn,
+                        onToggleAssistiveBall = { enabled ->
+                            assistiveBallOn = setAssistiveBall(enabled)
+                        },
                         initialPage = if (unconfigured) SettingsPage.AI_CONFIG else null
                     )
                 }
@@ -562,10 +566,6 @@ class MainActivity : ComponentActivity() {
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        assistiveBallEnabled = assistiveBallOn,
-                        onToggleAssistiveBall = { enabled ->
-                            assistiveBallOn = setAssistiveBall(enabled)
-                        },
                         onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
