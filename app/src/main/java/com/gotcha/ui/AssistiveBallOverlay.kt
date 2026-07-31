@@ -1,8 +1,10 @@
 package com.gotcha.ui
 
 import android.animation.ValueAnimator
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -110,6 +112,29 @@ class AssistiveBallOverlay(context: Context) {
     private var menuShowsSuggestions = false
 
     private var dockSide: Int = DOCK_SIDE_END
+
+    /**
+     * Whether the ball is parked on its edge rather than sitting where the user
+     * left it. A docked x is a function of the screen width, so it is the one
+     * position that has to be recomputed rather than remapped when the screen
+     * changes shape — see [handleScreenChanged].
+     */
+    private var isDocked: Boolean = true
+
+    /** Held so a rotation mid-glide cannot finish it against the old screen. */
+    private var dockAnimator: ValueAnimator? = null
+
+    /**
+     * The screen [ballParams] was last positioned against.
+     *
+     * The window position is in pixels and nothing moves it when the device
+     * rotates, so the ball has to be put back itself. Keeping the old size is
+     * what makes that possible: without it there is no way to tell where down
+     * the screen the ball used to be.
+     */
+    private var lastScreenWidth: Int = 0
+    private var lastScreenHeight: Int = 0
+
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
     private val settingsRepository by lazy { SettingsRepository(appContext) }
 
@@ -138,6 +163,59 @@ class AssistiveBallOverlay(context: Context) {
      */
     private val skinWatcher = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         mainHandler.post { restyleIfSkinChanged() }
+    }
+
+    /**
+     * Put the ball back on screen after the device rotates.
+     *
+     * An overlay window is positioned in raw pixels and nobody re-lays it out
+     * for us: a ball docked to the right edge in landscape is sitting at
+     * roughly x=2200, and in portrait that is a few hundred pixels past the
+     * right of a 1080px display. With FLAG_LAYOUT_NO_LIMITS there is nothing to
+     * clamp it either, so the ball simply vanished — it was never gone, just
+     * parked off the side of the screen.
+     */
+    private val configWatcher = object : ComponentCallbacks {
+        override fun onConfigurationChanged(newConfig: Configuration) {
+            // Posted rather than handled inline: the callback can arrive on the
+            // same pass that updates the app's resources, and every measurement
+            // below reads displayMetrics.
+            mainHandler.post { handleScreenChanged() }
+        }
+
+        override fun onLowMemory() { }
+    }
+
+    private fun handleScreenChanged() {
+        if (ballView == null) return
+        val metrics = appContext.resources.displayMetrics
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        if (width == lastScreenWidth && height == lastScreenHeight) return
+
+        // The menu is measured and placed once, against the screen it opened
+        // on, and the dismiss target only exists mid-drag. Neither survives a
+        // rotation in any useful shape, so both go.
+        removeMenu()
+        removeDismissTarget()
+
+        // A dock glide in flight is animating towards an edge that has moved.
+        dockAnimator?.cancel()
+        dockAnimator = null
+        if (isDocked) ballView?.alpha = PEEK_ALPHA
+
+        // Keep the ball as far down the screen as it was, and put it back on
+        // its edge. A ball the user dragged somewhere gets carried across
+        // proportionally instead, which is the closest thing to "where I left
+        // it" that survives the screen changing shape.
+        val xFraction = if (lastScreenWidth > 0) ballParams.x.toFloat() / lastScreenWidth else 0f
+        val yFraction = if (lastScreenHeight > 0) ballParams.y.toFloat() / lastScreenHeight else 0f
+        lastScreenWidth = width
+        lastScreenHeight = height
+
+        ballParams.x = if (isDocked) dockedX(dockSide) else (xFraction * width).toInt()
+        ballParams.y = (yFraction * height).toInt()
+        clampBallIntoBounds()
     }
 
     private fun currentSkinId(): String =
@@ -217,9 +295,13 @@ class AssistiveBallOverlay(context: Context) {
             if (ballView != null) return@post
             val ball = buildBall()
             try {
+                val metrics = appContext.resources.displayMetrics
+                lastScreenWidth = metrics.widthPixels
+                lastScreenHeight = metrics.heightPixels
                 windowManager.addView(ball, ballParams)
                 ballView = ball
                 refreshStatusRing()
+                appContext.registerComponentCallbacks(configWatcher)
                 // SharedPreferences keeps only a weak reference to a listener;
                 // [skinWatcher] is a field of this object, which the service
                 // holds, so it survives as long as the ball does.
@@ -239,6 +321,9 @@ class AssistiveBallOverlay(context: Context) {
                 settingsChangeNotifier(appContext)
                     .unregisterOnSharedPreferenceChangeListener(skinWatcher)
             }
+            runCatching { appContext.unregisterComponentCallbacks(configWatcher) }
+            dockAnimator?.cancel()
+            dockAnimator = null
             removeLongPressRing()
             removeStatusRing()
             removeMenu()
@@ -867,6 +952,7 @@ class AssistiveBallOverlay(context: Context) {
                     val dy = (event.rawY - touchDownRawY).toInt()
                     if (!dragging && !longPressFired && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                         dragging = true
+                        isDocked = false
                         mainHandler.removeCallbacks(longPressRunnable)
                         hideLongPressRing()
                         removeMenu()
@@ -954,6 +1040,7 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun expandFromEdge() {
         cancelAutoDock()
+        isDocked = false
         ballParams.x = dockedExpandX(dockSide)
         val view = ballView ?: return
         try {
@@ -972,10 +1059,12 @@ class AssistiveBallOverlay(context: Context) {
 
     private fun dockToEdge() {
         val view = ballView ?: return
+        isDocked = true
         val targetX = dockedX(dockSide)
         val startX = ballParams.x
         val startAlpha = view.alpha
-        ValueAnimator.ofFloat(0f, 1f).apply {
+        dockAnimator?.cancel()
+        dockAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 220L
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { anim ->
