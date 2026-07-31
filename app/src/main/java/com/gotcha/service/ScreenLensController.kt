@@ -48,6 +48,19 @@ class ScreenLensController(
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /**
+     * Lens does not survive a rotation, and should not pretend to.
+     *
+     * Everything the session is holding — the crop rectangle, the accessibility
+     * bounds the annotations are drawn at, the chip bar's placement, the crop
+     * bitmap already taken — is in the pixels of the screen it started on. When
+     * the device rotates, the app underneath re-lays itself out, so those
+     * coordinates no longer point at the thing the user was selecting. Closing
+     * is the only honest answer; re-placing the chrome would leave a selection
+     * that looks right and means nothing.
+     */
+    private val rotationWatcher = com.gotcha.ui.OverlayRotationWatcher(context) { _, _ -> cancel() }
+
     private var cropOverlay: View? = null
     private var actionMenu: View? = null
     private var textChips: View? = null
@@ -98,6 +111,7 @@ class ScreenLensController(
             try {
                 windowManager.addView(overlay, params)
                 cropOverlay = overlay
+                rotationWatcher.start()
             } catch (_: Exception) {
                 cropOverlay = null
                 onError("Couldn't start Lens mode")
@@ -107,6 +121,7 @@ class ScreenLensController(
 
     fun cancel() {
         mainHandler.post {
+            rotationWatcher.stop()
             removeCropOverlay()
             removeActionMenu()
             removeTextChips()

@@ -1,10 +1,8 @@
 package com.gotcha.ui
 
 import android.animation.ValueAnimator
-import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -12,6 +10,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Size
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -124,16 +123,9 @@ class AssistiveBallOverlay(context: Context) {
     /** Held so a rotation mid-glide cannot finish it against the old screen. */
     private var dockAnimator: ValueAnimator? = null
 
-    /**
-     * The screen [ballParams] was last positioned against.
-     *
-     * The window position is in pixels and nothing moves it when the device
-     * rotates, so the ball has to be put back itself. Keeping the old size is
-     * what makes that possible: without it there is no way to tell where down
-     * the screen the ball used to be.
-     */
-    private var lastScreenWidth: Int = 0
-    private var lastScreenHeight: Int = 0
+    private val rotationWatcher = OverlayRotationWatcher(context) { previous, current ->
+        handleScreenChanged(previous, current)
+    }
 
     private val ballParams: WindowManager.LayoutParams by lazy { ballLayoutParams() }
     private val settingsRepository by lazy { SettingsRepository(appContext) }
@@ -165,33 +157,9 @@ class AssistiveBallOverlay(context: Context) {
         mainHandler.post { restyleIfSkinChanged() }
     }
 
-    /**
-     * Put the ball back on screen after the device rotates.
-     *
-     * An overlay window is positioned in raw pixels and nobody re-lays it out
-     * for us: a ball docked to the right edge in landscape is sitting at
-     * roughly x=2200, and in portrait that is a few hundred pixels past the
-     * right of a 1080px display. With FLAG_LAYOUT_NO_LIMITS there is nothing to
-     * clamp it either, so the ball simply vanished — it was never gone, just
-     * parked off the side of the screen.
-     */
-    private val configWatcher = object : ComponentCallbacks {
-        override fun onConfigurationChanged(newConfig: Configuration) {
-            // Posted rather than handled inline: the callback can arrive on the
-            // same pass that updates the app's resources, and every measurement
-            // below reads displayMetrics.
-            mainHandler.post { handleScreenChanged() }
-        }
-
-        override fun onLowMemory() { }
-    }
-
-    private fun handleScreenChanged() {
+    /** Put the ball back on screen after the display changes shape. */
+    private fun handleScreenChanged(previous: Size, current: Size) {
         if (ballView == null) return
-        val metrics = appContext.resources.displayMetrics
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        if (width == lastScreenWidth && height == lastScreenHeight) return
 
         // The menu is measured and placed once, against the screen it opened
         // on, and the dismiss target only exists mid-drag. Neither survives a
@@ -205,16 +173,14 @@ class AssistiveBallOverlay(context: Context) {
         if (isDocked) ballView?.alpha = PEEK_ALPHA
 
         // Keep the ball as far down the screen as it was, and put it back on
-        // its edge. A ball the user dragged somewhere gets carried across
-        // proportionally instead, which is the closest thing to "where I left
-        // it" that survives the screen changing shape.
-        val xFraction = if (lastScreenWidth > 0) ballParams.x.toFloat() / lastScreenWidth else 0f
-        val yFraction = if (lastScreenHeight > 0) ballParams.y.toFloat() / lastScreenHeight else 0f
-        lastScreenWidth = width
-        lastScreenHeight = height
-
-        ballParams.x = if (isDocked) dockedX(dockSide) else (xFraction * width).toInt()
-        ballParams.y = (yFraction * height).toInt()
+        // its edge — the docked x is a function of the screen width, so it is
+        // the one position that has to be recomputed rather than carried over.
+        ballParams.x = if (isDocked) {
+            dockedX(dockSide)
+        } else {
+            remapAcrossScreen(ballParams.x, previous.width, current.width)
+        }
+        ballParams.y = remapAcrossScreen(ballParams.y, previous.height, current.height)
         clampBallIntoBounds()
     }
 
@@ -295,13 +261,10 @@ class AssistiveBallOverlay(context: Context) {
             if (ballView != null) return@post
             val ball = buildBall()
             try {
-                val metrics = appContext.resources.displayMetrics
-                lastScreenWidth = metrics.widthPixels
-                lastScreenHeight = metrics.heightPixels
                 windowManager.addView(ball, ballParams)
                 ballView = ball
                 refreshStatusRing()
-                appContext.registerComponentCallbacks(configWatcher)
+                rotationWatcher.start()
                 // SharedPreferences keeps only a weak reference to a listener;
                 // [skinWatcher] is a field of this object, which the service
                 // holds, so it survives as long as the ball does.
@@ -321,7 +284,7 @@ class AssistiveBallOverlay(context: Context) {
                 settingsChangeNotifier(appContext)
                     .unregisterOnSharedPreferenceChangeListener(skinWatcher)
             }
-            runCatching { appContext.unregisterComponentCallbacks(configWatcher) }
+            rotationWatcher.stop()
             dockAnimator?.cancel()
             dockAnimator = null
             removeLongPressRing()

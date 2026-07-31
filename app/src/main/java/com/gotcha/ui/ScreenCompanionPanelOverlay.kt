@@ -30,7 +30,11 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val markwon = Markwon.create(appContext)
 
+    private val rotationWatcher = OverlayRotationWatcher(context) { _, _ -> handleScreenChanged() }
+
     private var panelView: View? = null
+    private var panelParams: WindowManager.LayoutParams? = null
+    private var panelShadowPad: Int = 0
     private var responseTextView: TextView? = null
     private var inputEditText: EditText? = null
     private var micButton: TextView? = null
@@ -264,8 +268,8 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         // Sized to the card plus the room its shadow needs, so the shadow is not
         // clipped to the window's square edge.
         val params = WindowManager.LayoutParams(
-            dp(320) + shadowPad * 2,
-            dp(400) + shadowPad * 2,
+            0,
+            0,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
@@ -273,6 +277,8 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         ).apply {
             gravity = Gravity.CENTER
         }
+        panelShadowPad = shadowPad
+        applyPanelSize(params)
 
         editText.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
@@ -309,6 +315,34 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         try {
             windowManager.addView(container, params)
             panelView = container
+            panelParams = params
+            rotationWatcher.start()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Size the panel to the card it wants to be, or to the screen if that is
+     * smaller.
+     *
+     * The panel is centred, so rotating never strands it — but it asked for a
+     * flat 400dp of height, and a phone in landscape is only about 410dp tall.
+     * The card overflowed top and bottom, taking the close button and the
+     * input row off screen with it.
+     */
+    private fun applyPanelSize(params: WindowManager.LayoutParams) {
+        val metrics = appContext.resources.displayMetrics
+        val maxWidth = metrics.widthPixels - dp(SCREEN_MARGIN_DP) * 2
+        val maxHeight = metrics.heightPixels - dp(SCREEN_MARGIN_DP) * 2
+        params.width = (dp(PANEL_WIDTH_DP) + panelShadowPad * 2).coerceAtMost(maxWidth)
+        params.height = (dp(PANEL_HEIGHT_DP) + panelShadowPad * 2).coerceAtMost(maxHeight)
+    }
+
+    private fun handleScreenChanged() {
+        val view = panelView ?: return
+        val params = panelParams ?: return
+        applyPanelSize(params)
+        try {
+            windowManager.updateViewLayout(view, params)
         } catch (_: Exception) {}
     }
 
@@ -386,12 +420,14 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
     fun dismiss() {
         mainHandler.post {
+            rotationWatcher.stop()
             panelView?.let {
                 try {
                     windowManager.removeView(it)
                 } catch (_: Exception) {}
             }
             panelView = null
+            panelParams = null
             inputEditText = null
             micButton = null
             speakerButton = null
@@ -405,5 +441,11 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     private companion object {
         /** Semantic, not thematic: an open microphone is red in every skin. */
         val RECORDING_RED = Color.parseColor("#E23B3B")
+
+        const val PANEL_WIDTH_DP = 320
+        const val PANEL_HEIGHT_DP = 400
+
+        /** Breathing room so the card never runs into the display edge. */
+        const val SCREEN_MARGIN_DP = 16
     }
 }
