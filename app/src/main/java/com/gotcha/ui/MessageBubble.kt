@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -56,6 +55,7 @@ import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.SkinDropdownMenu
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.Material3RichText
 
@@ -264,7 +264,7 @@ fun MessageBubble(
             }
         }
 
-        DropdownMenu(
+        SkinDropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
         ) {

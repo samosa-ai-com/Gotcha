@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
+import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
 
 /**
@@ -145,7 +146,7 @@ fun AiConfigScreen(
                 },
                 modifier = Modifier.fillMaxWidth().menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = providerExpanded,
                 onDismissRequest = { providerExpanded = false }
             ) {
@@ -238,7 +239,7 @@ fun AiConfigScreen(
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                 modifier = Modifier.fillMaxWidth().menuAnchor().testTag("settings_model")
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = modelExpanded,
                 onDismissRequest = { modelExpanded = false }
             ) {
@@ -291,7 +292,7 @@ fun AiConfigScreen(
                 },
                 modifier = Modifier.fillMaxWidth().menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = subAgentModelExpanded,
                 onDismissRequest = { subAgentModelExpanded = false }
             ) {
@@ -339,7 +340,7 @@ fun AiConfigScreen(
                 },
                 modifier = Modifier.fillMaxWidth().menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = navigatorModelExpanded,
                 onDismissRequest = { navigatorModelExpanded = false }
             ) {

@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
+import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
 
 /** Currencies offered for [Settings.preferredCurrency]. */
@@ -179,7 +180,7 @@ fun PersonalInfoScreen(
                     .fillMaxWidth()
                     .menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = languageExpanded,
                 onDismissRequest = { languageExpanded = false }
             ) {
@@ -258,7 +259,7 @@ fun PersonalInfoScreen(
                     .fillMaxWidth()
                     .menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = currencyExpanded,
                 onDismissRequest = { currencyExpanded = false }
             ) {

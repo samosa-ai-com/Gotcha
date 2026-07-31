@@ -28,6 +28,7 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.Settings
+import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
 
 /**
@@ -193,7 +194,7 @@ fun SpeechScreen(
                 },
                 modifier = Modifier.fillMaxWidth().menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = ttsProviderExpanded,
                 onDismissRequest = { ttsProviderExpanded = false }
             ) {
@@ -305,7 +306,7 @@ fun SpeechScreen(
                 },
                 modifier = Modifier.fillMaxWidth().menuAnchor()
             )
-            ExposedDropdownMenu(
+            SkinExposedDropdownMenu(
                 expanded = sttProviderExpanded,
                 onDismissRequest = { sttProviderExpanded = false }
             ) {
@@ -453,7 +454,7 @@ private fun TtsModelPicker(
             },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
-        ExposedDropdownMenu(
+        SkinExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) }
         ) {
@@ -536,7 +537,7 @@ private fun TtsVoicePicker(
             },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
-        ExposedDropdownMenu(
+        SkinExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) }
         ) {
@@ -591,7 +592,7 @@ private fun SttModelPicker(
             },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
-        ExposedDropdownMenu(
+        SkinExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) }
         ) {
@@ -647,7 +648,7 @@ private fun SttLanguagePicker(
             },
             modifier = Modifier.fillMaxWidth().menuAnchor()
         )
-        ExposedDropdownMenu(
+        SkinExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) }
         ) {

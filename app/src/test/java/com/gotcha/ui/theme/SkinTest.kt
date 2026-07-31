@@ -134,6 +134,27 @@ class SkinTest {
         }
     }
 
+    /**
+     * A menu floats over live content. Whatever the panels do, the popup cannot
+     * be see-through or the page reads through the items.
+     */
+    @Test
+    fun `every skin gives menus an opaque container`() {
+        Skins.all.forEach { skin ->
+            assertEquals(
+                "${skin.id}: the page would read through its menus",
+                1f,
+                skin.menuContainer.alpha,
+                0.001f
+            )
+        }
+    }
+
+    @Test
+    fun `an already opaque skin keeps its surface for menus`() {
+        assertEquals(Skins.DeepSpaceDark.scheme.surface, Skins.DeepSpaceDark.menuContainer)
+    }
+
     @Test
     fun `the small radius is derived from the large one`() {
         Skins.all.forEach { skin ->

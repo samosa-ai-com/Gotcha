@@ -88,6 +88,16 @@ data class Skin(
         get() = if (isGlass) ground else scheme.background
 
     /**
+     * What a menu popup paints itself. Material 3 takes that colour from
+     * `surface`, which every glass skin leaves see-through for the in-page
+     * chrome — and a see-through popup lets the page read straight through the
+     * items under it. Same colour, composited onto the ground first: the menu
+     * looks like the rest of the skin and stops being a window.
+     */
+    val menuContainer: Color
+        get() = scheme.surface.over(ground)
+
+    /**
      * The same skin with the glass taken out: panels composited down onto their
      * own ground, no wallpaper, no grain. The palette and the layout are
      * untouched — it simply stops being see-through. This is what a device on
