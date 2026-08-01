@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.ui.renderLegalMarkdown
+import com.gotcha.ui.theme.LocalSkin
 
 /**
  * First-launch / re-acceptance gate. Non-dismissable: the only way out is the
@@ -73,11 +74,22 @@ fun LegalConsentDialog(
 
     AlertDialog(
         onDismissRequest = { /* non-dismissable until accepted */ },
+        // Material 3 paints a dialog from `surface`, which every glass skin
+        // leaves see-through for in-page chrome — so the chat screen reads
+        // straight through the legal copy. Same colour with the ground already
+        // behind it, exactly as the long-press menus do. See Skin.menuContainer.
+        containerColor = LocalSkin.current.menuContainer,
         title = {
-            Text(
-                text = stringResource(R.string.legal_consent_title),
-                fontWeight = FontWeight.Bold
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.legal_consent_title),
+                    fontWeight = FontWeight.Bold
+                )
+                // The body scrolls, and without a line to scroll under, a
+                // half-cut sentence sitting against the title reads as a
+                // rendering fault rather than as more text below.
+                HorizontalDivider(thickness = 1.dp)
+            }
         },
         text = {
             Column(

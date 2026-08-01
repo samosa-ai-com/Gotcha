@@ -8,6 +8,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import android.provider.Settings as AndroidSettings
 
 /** Gap between the spotlit control and the card explaining it. */
@@ -96,7 +99,12 @@ fun TourOverlay(
         val holePadPx = with(density) { HOLE_PADDING.toPx() }
         val spotlight = hole?.inflate(holePadPx)
 
-        Scrim(spotlight = spotlight)
+        val containerWidth = with(density) { maxWidth.toPx() }
+        val containerHeightPx = with(density) { maxHeight.toPx() }
+        Scrim(
+            spotlight = spotlight,
+            containerSize = Size(containerWidth, containerHeightPx)
+        )
 
         if (spotlight != null) Pulse(spotlight)
 
@@ -126,28 +134,24 @@ fun TourOverlay(
 /**
  * The dimming, with [spotlight] punched out of it.
  *
- * Touches land here and are swallowed, except inside the cut-out where they are
- * left unconsumed and reach the real control underneath. That is the whole point
- * of the coach layer: the user presses the actual button, in its actual place.
+ * Painting and touch-blocking are deliberately two different things here. A
+ * single full-screen node that swallowed touches outside the hole and declined
+ * to consume them inside it *looks* like it would work, and does not: Compose
+ * stops hit-testing at the topmost node covering a point, so the control under
+ * the cut-out never enters the hit path and consumption never gets a say.
+ *
+ * So the paint is one node that takes no input at all, and the blocking is four
+ * bands around the hole. The hole itself is covered by nothing, which is what
+ * lets the user press the real button — the entire point of the coach layer.
  */
 @Composable
-private fun Scrim(spotlight: Rect?) {
+private fun Scrim(spotlight: Rect?, containerSize: Size) {
     val scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.82f)
     val radius = with(LocalDensity.current) { 14.dp.toPx() }
 
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(spotlight) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val insideHole = spotlight != null &&
-                            event.changes.all { spotlight.contains(it.position) }
-                        if (!insideHole) event.changes.forEach { it.consume() }
-                    }
-                }
-            }
             // BlendMode.Clear needs a layer of its own to erase into; without it
             // the cut-out is drawn against the window and does nothing visible.
             .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
@@ -166,6 +170,41 @@ private fun Scrim(spotlight: Rect?) {
             )
         }
     }
+
+    val blocked = if (spotlight == null) {
+        listOf(Rect(Offset.Zero, containerSize))
+    } else {
+        listOf(
+            Rect(0f, 0f, containerSize.width, spotlight.top),
+            Rect(0f, spotlight.bottom, containerSize.width, containerSize.height),
+            Rect(0f, spotlight.top, spotlight.left, spotlight.bottom),
+            Rect(spotlight.right, spotlight.top, containerSize.width, spotlight.bottom)
+        )
+    }
+    blocked.forEach { TouchBlocker(it) }
+}
+
+/** Swallows every touch over [rect] so only the spotlit control stays live. */
+@Composable
+private fun TouchBlocker(rect: Rect) {
+    val density = LocalDensity.current
+    // A hole against an edge leaves a band with no area; asking for a negative
+    // size is a crash, and drawing nothing is the correct answer anyway.
+    val width = with(density) { rect.width.coerceAtLeast(0f).toDp() }
+    val height = with(density) { rect.height.coerceAtLeast(0f).toDp() }
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
+            .size(width, height)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                            .changes.forEach { it.consume() }
+                    }
+                }
+            }
+    )
 }
 
 /** A ring that breathes outward from the spotlit control, drawing the eye to it. */
