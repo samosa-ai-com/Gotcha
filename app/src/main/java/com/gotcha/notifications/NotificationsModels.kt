@@ -42,3 +42,13 @@ data class NotificationMessage(
             else -> 0 // NotificationCompat.PRIORITY_DEFAULT
         }
 }
+
+/**
+ * Payload model for presenting a full notification in a UI dialog.
+ */
+data class NotificationPayload(
+    val id: Int,
+    val title: String,
+    val body: String,
+    val url: String? = null
+)

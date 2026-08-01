@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
@@ -37,10 +38,13 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
+import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.NotificationDispatcher
+import com.gotcha.notifications.NotificationPayload
 import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
@@ -49,6 +53,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
@@ -68,6 +73,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var samosaAuthManager: SamosaAuthManager
 
+    /** Active notification payload for display in scrollable dialog. */
+    private var notificationPayload by mutableStateOf<NotificationPayload?>(null)
+
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
 
@@ -76,6 +84,13 @@ class MainActivity : ComponentActivity() {
 
     /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
     private var appearance by mutableStateOf(Appearance())
+
+    /**
+     * ETag-style version of the legal bundle the user has accepted. Empty until
+     * the first-launch dialog is dismissed with "I agree." Re-prompted whenever
+     * [Settings.LEGAL_VERSION] (in [SettingsRepository]) is bumped.
+     */
+    private var legalAcceptedVersion by mutableStateOf("")
 
     /** The one setting that decides what the app looks like. */
     private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
@@ -141,6 +156,7 @@ class MainActivity : ComponentActivity() {
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
+        handleNotificationIntent(intent)
 
         // Phase 7: tools report special-access markers; open Settings deep-links.
         // Runtime permissions are no longer requested here — they are pre-configured
@@ -184,6 +200,13 @@ class MainActivity : ComponentActivity() {
 
         appearance = settingsRepository.load().appearance()
         applyLaunchBackground()
+
+        // First-launch / re-acceptance gate. Stored version is whatever the user
+        // last agreed to; if it doesn't match the current LEGAL_VERSION (or is
+        // empty), the consent dialog shows and the rest of the app waits behind
+        // it. The dialog itself is mounted in [GotchaApp]; this only seeds the
+        // initial state for the activity.
+        legalAcceptedVersion = settingsRepository.load().legalAcceptedVersion
 
         setContent {
             GotchaTheme(skinId = appearance.skinId) {
@@ -296,6 +319,25 @@ class MainActivity : ComponentActivity() {
         }
         if (intent.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false)) {
             openedFromBall = true
+        }
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
+        val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
+        if (!title.isNullOrBlank() || !body.isNullOrBlank()) {
+            val notifyId = intent?.getIntExtra(NotificationDispatcher.EXTRA_NOTIFICATION_ID, -1) ?: -1
+            val url = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_URL)
+            if (notifyId != -1) {
+                NotificationManagerCompat.from(this).cancel(notifyId)
+            }
+            notificationPayload = NotificationPayload(
+                id = notifyId,
+                title = title.orEmpty(),
+                body = body.orEmpty(),
+                url = url
+            )
         }
     }
 
@@ -448,7 +490,8 @@ class MainActivity : ComponentActivity() {
 
         ModalNavigationDrawer(
             drawerState = drawerState,
-            gesturesEnabled = currentRoute == Route.HOME || drawerState.isOpen,
+            gesturesEnabled = (currentRoute == Route.HOME || drawerState.isOpen) &&
+                legalAcceptedVersion == LEGAL_VERSION,
             drawerContent = {
                 AppDrawerContent(
                     sessions = sessions,
@@ -646,9 +689,39 @@ class MainActivity : ComponentActivity() {
         }
 
         // Composed last so this innermost enabled handler wins back dispatch:
-        // back closes an open drawer before any other navigation.
+        // back closes an open drawer before any other navigation. When the
+        // legal-consent dialog is up, we swallow back entirely — the only way
+        // out is "I agree" (or uninstalling the app), which keeps a fresh
+        // install from booting straight into Settings via the back button.
         BackHandler(enabled = drawerState.isOpen) {
             scope.launch { drawerState.close() }
+        }
+        if (legalAcceptedVersion != LEGAL_VERSION) {
+            BackHandler(enabled = true) { /* swallow */ }
+        }
+
+        notificationPayload?.let { payload ->
+            NotificationDetailDialog(
+                payload = payload,
+                onDismiss = { notificationPayload = null }
+            )
+        }
+
+        // First-launch / re-acceptance gate. Non-dismissable while not accepted
+        // — the only way out is tapping "I agree." Re-prompted whenever the
+        // current LEGAL_VERSION doesn't match the stored acceptance, so a
+        // meaningful change to any of the three documents forces re-acceptance
+        // on every install.
+        if (legalAcceptedVersion != LEGAL_VERSION) {
+            LegalConsentDialog(
+                onAgree = {
+                    val current = settingsRepository.load()
+                    settingsRepository.save(
+                        current.copy(legalAcceptedVersion = LEGAL_VERSION)
+                    )
+                    legalAcceptedVersion = LEGAL_VERSION
+                }
+            )
         }
     }
 

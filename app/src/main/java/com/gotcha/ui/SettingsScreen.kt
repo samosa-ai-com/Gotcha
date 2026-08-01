@@ -149,6 +149,12 @@ fun SettingsScreen(
             onBack = backToHome,
             onSyncServerMessages = onSyncServerMessages
         )
+        SettingsPage.LEGAL -> LegalScreen(
+            context = androidx.compose.ui.platform.LocalContext.current,
+            load = load,
+            onSave = onSave,
+            onBack = backToHome
+        )
         null -> SettingsHome(
             onBack = onBack,
             onOpenPage = { page = it }
