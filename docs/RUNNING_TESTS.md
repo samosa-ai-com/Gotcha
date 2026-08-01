@@ -140,16 +140,24 @@ making a visible AVD from it):
   smoke layer. Requires Maestro installed separately (see
   `TESTING_PLAN.md` §Phase 5 for the install command). Not exercised in this
   session either.
-- **CI** (`.github/workflows/ci.yml`) — `instrumented-smoke` runs on every
-  push/PR (API 34 only); `instrumented-full` runs nightly and on manual
-  `workflow_dispatch` (API 27/30/33/34 as a job matrix). CI does **not** use
-  GMD: the emulator failed to boot on the GitHub runners and GMD swallowed
-  its stderr, reporting only "Error message from emulator process = []".
-  Switching to `reactivecircus/android-emulator-runner` surfaced the real
-  error — `FATAL | Not enough space to create userdata partition` (the
-  emulator needs ~7.4 GB free; the runner had ~6.5 GB) — fixed by the
-  "Free disk space" step that removes unused preinstalled toolchains.
-  emulator-runner stays because it reports emulator output and manages
-  boot/wait itself; CI runs plain `:app:connectedDebugAndroidTest`. GMD
-  remains the local workflow; the CI matrix mirrors the GMD device
-  definitions in `app/build.gradle.kts`.
+- **CI** (`.github/workflows/ci.yml`) — **disabled by default** to conserve GitHub Actions
+  budget: automatic triggers (push, PRs, the nightly full-matrix schedule) are removed. The
+  workflow still runs on manual `workflow_dispatch` (Actions → **Run workflow**, opt-in and
+  budget-consuming), but the canonical way to run the whole suite is locally:
+  - Detekt: `./gradlew :app:detekt`
+  - Unit tests: `./gradlew :app:testDebugUnitTest`
+  - Coverage reports: `./gradlew :app:koverHtmlReport`
+  - Android Lint: `./gradlew :app:lintDebug`
+  - Debug APK: `./gradlew :app:assembleDebug`
+  - Instrumented smoke (API 34): `./gradlew :app:smokeGroupDebugAndroidTest`
+  - Instrumented full matrix (API 27/30/33/34): `./gradlew :app:fullGroupDebugAndroidTest`
+  The CI jobs themselves are unchanged: `instrumented-smoke` runs on API 34 and `instrumented-full`
+  runs a matrix across API levels, using `reactivecircus/android-emulator-runner` (CI does **not**
+  use GMD: the emulator failed to boot on the GitHub runners and GMD swallowed its stderr,
+  reporting only "Error message from emulator process = []". Switching to
+  `reactivecircus/android-emulator-runner` surfaced the real error — `FATAL | Not enough space to
+  create userdata partition` (the emulator needs ~7.4 GB free; the runner had ~6.5 GB) — fixed by
+  the "Free disk space" step that removes unused preinstalled toolchains. emulator-runner stays
+  because it reports emulator output and manages boot/wait itself; CI runs plain
+  `:app:connectedDebugAndroidTest`. GMD remains the local workflow; the CI matrix mirrors the GMD
+  device definitions in `app/build.gradle.kts`.
