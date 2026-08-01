@@ -1,12 +1,13 @@
 name: CI
 
+# CI is DISABLED by default to conserve GitHub Actions budget. The automatic
+# triggers (push / pull_request / schedule) are intentionally removed; the
+# nightly full-matrix job no longer runs. The workflow can still be triggered
+# manually via Actions → Run workflow (opt-in, consumes budget), but prefer the
+# equivalent local commands in docs/RUNNING_TESTS.md. See AGENTS.md → CI.
+
 on:
-  push:
-    branches: [master, development, development, rishabh-development]
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "0 2 * * *"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -96,7 +97,6 @@ jobs:
   # GMD remains the local workflow. Device configs mirror the GMD definitions
   # in app/build.gradle.kts.
   instrumented-smoke:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -182,8 +182,9 @@ jobs:
   # Sharding (-Pandroid.testInstrumentationRunnerArguments.numShards/shardIndex plus a
   # `shard` matrix axis) is deliberately deferred until the instrumented suite exceeds
   # ~20 tests; at 6 tests it would cost more in emulator boots than it saves.
+  # The full matrix only runs on a manual workflow_dispatch now that the
+  # nightly schedule is removed.
   instrumented-full:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
