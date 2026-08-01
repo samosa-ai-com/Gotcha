@@ -586,7 +586,6 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.CONNECTORS
                     },
-                    onStartTour = { startTour() },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
                     liveTokenBySession = liveTokenBySession

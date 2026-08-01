@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
@@ -33,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.ChatSession
@@ -52,8 +50,6 @@ fun AppDrawerContent(
     onDeleteSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
-    /** Replays the guided setup from the beginning. */
-    onStartTour: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -175,14 +171,6 @@ fun AppDrawerContent(
                 onClick = onOpenSettings,
                 colors = itemColors,
                 modifier = itemModifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
-            )
-            NavigationDrawerItem(
-                label = { Text("Feature Tour") },
-                icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
-                selected = false,
-                onClick = onStartTour,
-                colors = itemColors,
-                modifier = itemModifier.testTag("drawer_feature_tour")
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
