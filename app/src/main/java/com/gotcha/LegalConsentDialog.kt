@@ -1,6 +1,7 @@
 package com.gotcha
 
 import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,9 +11,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,14 +37,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.ui.renderLegalMarkdown
+import com.gotcha.ui.theme.SkinAlertDialog
 
 /**
  * First-launch / re-acceptance gate. Non-dismissable: the only way out is the
- * "I agree" button, which is itself disabled until the user toggles the
- * "I have read and accept…" checkbox. When that toggle is on, the dialog
- * expands to show all three legal documents inline (Terms, Disclaimer, Data
- * Retention) so the user knows exactly what they are agreeing to without
- * leaving the dialog.
+ * "I agree" button. All three legal documents (Terms, Disclaimer, Data
+ * Retention) are shown inline up front, and the "I have read and accept…"
+ * checkbox sits at the very end, after the documents, since it attests to
+ * having read them. The button stays disabled until that checkbox is ticked.
  *
  * Re-prompted by [com.gotcha.MainActivity] whenever the stored
  * [com.gotcha.data.Settings.legalAcceptedVersion] doesn't match the current
@@ -52,32 +56,33 @@ fun LegalConsentDialog(
     onAgree: () -> Unit
 ) {
     val context = LocalContext.current
-    var showFull by remember { mutableStateOf(false) }
+    var accepted by remember { mutableStateOf(false) }
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
 
-    // Lazy load the three legal documents on first toggle. Reading them from
-    // assets is fast (a few KB each), but doing it eagerly would block the
-    // dialog's first frame for no benefit when the user never toggles.
-    LaunchedEffect(showFull) {
-        if (showFull && termsText == null) {
-            termsText = readAsset(context, "legal/terms.md")
-            disclaimerText = readAsset(context, "legal/disclaimer.md")
-            privacyText = readAsset(context, "legal/privacy-data-retention.md")
-        }
+    LaunchedEffect(Unit) {
+        termsText = readAsset(context, "legal/terms.md")
+        disclaimerText = readAsset(context, "legal/disclaimer.md")
+        privacyText = readAsset(context, "legal/privacy-data-retention.md")
     }
 
     val bullets = stringArrayResource(R.array.legal_consent_bullets)
     val loadingLabel = stringResource(R.string.legal_consent_loading)
 
-    AlertDialog(
+    SkinAlertDialog(
         onDismissRequest = { /* non-dismissable until accepted */ },
         title = {
-            Text(
-                text = stringResource(R.string.legal_consent_title),
-                fontWeight = FontWeight.Bold
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.legal_consent_title),
+                    fontWeight = FontWeight.Bold
+                )
+                // The body scrolls, and without a line to scroll under, a
+                // half-cut sentence sitting against the title reads as a
+                // rendering fault rather than as more text below.
+                HorizontalDivider(thickness = 1.dp)
+            }
         },
         text = {
             Column(
@@ -112,15 +117,35 @@ fun LegalConsentDialog(
 
                 HorizontalDivider(thickness = 1.dp)
 
-                // The toggle row. Whole row is clickable so the user can hit
-                // anywhere on the label, not just the small checkbox target.
+                DocumentBlock(
+                    title = stringResource(R.string.legal_consent_section_terms),
+                    body = termsText,
+                    loadingLabel = loadingLabel
+                )
+                DocumentBlock(
+                    title = stringResource(R.string.legal_consent_section_disclaimer),
+                    body = disclaimerText,
+                    loadingLabel = loadingLabel
+                )
+                DocumentBlock(
+                    title = stringResource(R.string.legal_consent_section_privacy),
+                    body = privacyText,
+                    loadingLabel = loadingLabel
+                )
+
+                HorizontalDivider(thickness = 1.dp)
+
+                // The acceptance row, last so it comes after the user has had
+                // the chance to read everything above it. Whole row is
+                // clickable so the user can hit anywhere on the label, not
+                // just the small checkbox target.
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .toggleable(
-                            value = showFull,
+                            value = accepted,
                             role = Role.Checkbox,
-                            onValueChange = { showFull = it }
+                            onValueChange = { accepted = it }
                         )
                         .padding(vertical = 4.dp)
                         .testTag("legal_consent_toggle_row"),
@@ -128,7 +153,7 @@ fun LegalConsentDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Checkbox(
-                        checked = showFull,
+                        checked = accepted,
                         onCheckedChange = null,
                         modifier = Modifier.testTag("legal_consent_toggle_checkbox")
                     )
@@ -138,32 +163,12 @@ fun LegalConsentDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
-
-                if (showFull) {
-                    HorizontalDivider(thickness = 1.dp)
-
-                    DocumentBlock(
-                        title = stringResource(R.string.legal_consent_section_terms),
-                        body = termsText,
-                        loadingLabel = loadingLabel
-                    )
-                    DocumentBlock(
-                        title = stringResource(R.string.legal_consent_section_disclaimer),
-                        body = disclaimerText,
-                        loadingLabel = loadingLabel
-                    )
-                    DocumentBlock(
-                        title = stringResource(R.string.legal_consent_section_privacy),
-                        body = privacyText,
-                        loadingLabel = loadingLabel
-                    )
-                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = onAgree,
-                enabled = showFull,
+                enabled = accepted,
                 modifier = Modifier.testTag("legal_consent_agree_button")
             ) { Text(stringResource(R.string.legal_consent_agree)) }
         }
@@ -172,12 +177,16 @@ fun LegalConsentDialog(
 }
 
 /**
- * One legal document inline: section title plus its rendered Markdown body.
- * Sits in a soft surface card so the eye picks it out from the surrounding
- * summary text, which uses the default background.
+ * One legal document inline: a tappable header (title + chevron) that
+ * expands to reveal the rendered Markdown body. Starts collapsed — these
+ * documents are long, and showing all three fully expanded by default would
+ * turn the dialog into a wall of text the user has to scroll past rather
+ * than one they can selectively dig into.
  */
 @Composable
 private fun DocumentBlock(title: String, body: String?, loadingLabel: String) {
+    var expanded by remember { mutableStateOf(false) }
+
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -189,17 +198,33 @@ private fun DocumentBlock(title: String, body: String?, loadingLabel: String) {
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = renderLegalMarkdown(body ?: loadingLabel),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (expanded) {
+                Text(
+                    text = renderLegalMarkdown(body ?: loadingLabel),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

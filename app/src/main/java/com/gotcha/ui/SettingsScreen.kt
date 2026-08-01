@@ -1,18 +1,25 @@
 package com.gotcha.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
+import com.gotcha.ui.tour.TourAnchor
+import com.gotcha.ui.tour.tourAnchor
 
 /**
  * Settings, shaped like the system Settings app: a home list of categories, each
@@ -77,17 +84,20 @@ fun SettingsScreen(
     /** Asks the host to start or stop the assistive ball. May be refused (no
      *  overlay permission), in which case [assistiveBallEnabled] stays false. */
     onToggleAssistiveBall: (Boolean) -> Unit = {},
+    /** Replays the guided setup from the beginning. */
+    onStartTour: () -> Unit = {},
     /**
-     * Page to open on, instead of the home list. For the unconfigured first run,
-     * where the one thing the user must do is enter an API key and a model, and
-     * the home list would only ask them to guess which category that lives under.
-     * Back still returns to the list, so the rest of Settings stays reachable.
+     * Which sub-page is open; null is the home list.
+     *
+     * Hoisted rather than kept here because two things outside this screen need
+     * it: the unconfigured first run opens straight on AI Configuration, and the
+     * feature tour has to know which page the user is looking at — and to be
+     * able to walk them to the next one.
      */
-    initialPage: SettingsPage? = null
+    page: SettingsPage? = null,
+    onPageChange: (SettingsPage?) -> Unit = {}
 ) {
-    // null = the home list. Saveable so a rotation doesn't bounce the user back out.
-    var page by rememberSaveable { mutableStateOf(initialPage) }
-    val backToHome = { page = null }
+    val backToHome = { onPageChange(null) }
 
     // Back leaves the sub-page for the list; only the list itself exits Settings.
     if (page != null) BackHandler(onBack = backToHome)
@@ -157,27 +167,72 @@ fun SettingsScreen(
         )
         null -> SettingsHome(
             onBack = onBack,
-            onOpenPage = { page = it }
+            onOpenPage = onPageChange,
+            onStartTour = onStartTour
         )
     }
 }
 
-/** The settings home list: one row per sub-page. */
+/** The settings home list: one row per sub-page, plus the way back into the tour. */
 @Composable
 private fun SettingsHome(
     onBack: () -> Unit,
-    onOpenPage: (SettingsPage) -> Unit
+    onOpenPage: (SettingsPage) -> Unit,
+    onStartTour: () -> Unit
 ) {
     val overlay = rememberSettingsOverlayState()
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
-        SettingsPage.entries.forEachIndexed { index, entry ->
-            if (index > 0) HorizontalDivider(thickness = 1.dp)
+        // First on the list, and phrased as an action rather than a category:
+        // someone who opens Settings because they are lost should not have to
+        // work out which of nine pages the answer is behind.
+        FeatureTourRow(onClick = onStartTour)
+        SettingsPage.entries.forEach { entry ->
+            HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
                 page = entry,
                 onClick = { onOpenPage(entry) },
-                modifier = Modifier.testTag(entry.testTag)
+                modifier = Modifier
+                    .testTag(entry.testTag)
+                    .then(entry.tourAnchorModifier())
             )
         }
+    }
+}
+
+/** The anchor the tour spotlights for this row, when it points at one at all. */
+@Composable
+private fun SettingsPage.tourAnchorModifier(): Modifier = when (this) {
+    SettingsPage.PERSONAL_INFO -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERSONAL_INFO)
+    SettingsPage.AI_CONFIG -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI_CONFIG)
+    SettingsPage.PERMISSIONS -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERMISSIONS)
+    else -> Modifier
+}
+
+/** Re-entry into the guided setup, shaped like the rows beneath it. */
+@Composable
+private fun FeatureTourRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
+            .testTag("settings_feature_tour_row"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Feature Tour",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Walk through setup again, one step at a time",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(text = "›", style = MaterialTheme.typography.titleLarge)
     }
 }

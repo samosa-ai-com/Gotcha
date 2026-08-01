@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerDefaults
@@ -38,6 +37,9 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.data.ChatSession
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.ui.tour.TourAnchor
+import com.gotcha.ui.tour.tourAnchor
 
 @Composable
 fun AppDrawerContent(
@@ -168,7 +170,7 @@ fun AppDrawerContent(
                 selected = false,
                 onClick = onOpenSettings,
                 colors = itemColors,
-                modifier = itemModifier
+                modifier = itemModifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -176,7 +178,7 @@ fun AppDrawerContent(
 
     sessionToDelete?.let { id ->
         val title = sessions.find { it.id == id }?.title ?: "this chat"
-        AlertDialog(
+        SkinAlertDialog(
             onDismissRequest = { sessionToDelete = null },
             title = { Text("Delete Chat?") },
             text = { Text("Are you sure you want to permanently delete \"$title\"? This action cannot be undone.") },

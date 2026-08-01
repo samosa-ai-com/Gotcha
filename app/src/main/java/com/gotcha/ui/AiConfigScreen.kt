@@ -26,6 +26,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
+import com.gotcha.ui.tour.TourAnchor
+import com.gotcha.ui.tour.tourAnchor
 import kotlinx.coroutines.launch
 
 /**
@@ -144,7 +146,10 @@ fun AiConfigScreen(
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
                 },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
+                    .tourAnchor(TourAnchor.AI_PROVIDER)
             )
             SkinExposedDropdownMenu(
                 expanded = providerExpanded,
@@ -168,6 +173,7 @@ fun AiConfigScreen(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
+                signInModifier = Modifier.tourAnchor(TourAnchor.AI_SAMOSA_SIGN_IN),
                 onSignIn = {
                     samosaBusy = true
                     status = "Signing in with Google…"
@@ -426,7 +432,10 @@ fun AiConfigScreen(
                 LlmProvider.SAMOSA_AI -> samosaToken.isNotBlank() && model.isNotBlank()
                 LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank() && model.isNotBlank()
             },
-            modifier = Modifier.fillMaxWidth().testTag("settings_save")
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("settings_save")
+                .tourAnchor(TourAnchor.AI_SAVE)
         ) { Text("Save") }
         OutlinedButton(
             onClick = {

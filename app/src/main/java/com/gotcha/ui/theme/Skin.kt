@@ -88,11 +88,15 @@ data class Skin(
         get() = if (isGlass) ground else scheme.background
 
     /**
-     * What a menu popup paints itself. Material 3 takes that colour from
-     * `surface`, which every glass skin leaves see-through for the in-page
-     * chrome — and a see-through popup lets the page read straight through the
-     * items under it. Same colour, composited onto the ground first: the menu
-     * looks like the rest of the skin and stops being a window.
+     * What anything floating over the app paints itself — menus and dialogs
+     * both. Material 3 takes that colour from `surface`, which every glass skin
+     * leaves see-through for the in-page chrome — and a see-through popup lets
+     * the page read straight through the items under it. Same colour,
+     * composited onto the ground first: the popup looks like the rest of the
+     * skin and stops being a window.
+     *
+     * Named for menus because they were the first to need it; see
+     * [com.gotcha.ui.theme.SkinAlertDialog] for the other caller.
      */
     val menuContainer: Color
         get() = scheme.surface.over(ground)

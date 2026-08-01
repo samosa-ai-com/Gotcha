@@ -151,7 +151,13 @@ private fun PermissionRow(
     }
 }
 
-private fun openSpecialAccess(context: android.content.Context, marker: String, packageName: String) {
+/**
+ * Opens the system screen that grants [marker]. Shared with the feature tour,
+ * whose permission steps offer the same journey from their coach card — two
+ * copies of this intent table would be two places for an OEM quirk to be fixed
+ * in only one.
+ */
+internal fun openSpecialAccess(context: android.content.Context, marker: String, packageName: String) {
     val intent: Intent? = when (marker) {
         ToolResult.WRITE_SETTINGS -> Intent(
             AndroidSettings.ACTION_MANAGE_WRITE_SETTINGS,

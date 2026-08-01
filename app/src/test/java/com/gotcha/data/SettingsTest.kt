@@ -250,4 +250,54 @@ class SettingsTest {
         )
         assertEquals(true, settings.isSpeechConfigured)
     }
+
+    @Test
+    fun `an untouched install satisfies isConfigured but has no usable model`() {
+        // The distinction the feature tour turns on: the default base URL is
+        // non-blank, so isConfigured alone would call a brand new install ready.
+        val settings = Settings()
+
+        assertEquals(true, settings.isConfigured)
+        assertEquals(false, settings.hasUsableModel)
+    }
+
+    @Test
+    fun `hasUsableModel needs a saved key and model on an OpenAI-compatible install`() {
+        val keyless = Settings(
+            provider = LlmProvider.OPENAI_COMPATIBLE,
+            baseUrl = "https://user.example/v1/",
+            apiKey = "",
+            model = "gpt-4o"
+        )
+        assertEquals(false, keyless.hasUsableModel)
+        assertEquals(true, keyless.copy(apiKey = "sk-test").hasUsableModel)
+    }
+
+    @Test
+    fun `hasUsableModel needs the Samosa choice saved, not just the session token`() {
+        // Signing in persists the token immediately, but the provider itself is
+        // only written when the page is saved — until then the app would still
+        // be calling whatever the previous provider was.
+        val signedInButUnsaved = Settings(
+            provider = LlmProvider.OPENAI_COMPATIBLE,
+            apiKey = "",
+            samosaSessionToken = "token",
+            model = "chai-small"
+        )
+        assertEquals(false, signedInButUnsaved.hasUsableModel)
+        assertEquals(
+            true,
+            signedInButUnsaved.copy(provider = LlmProvider.SAMOSA_AI).hasUsableModel
+        )
+    }
+
+    @Test
+    fun `hasUsableModel is false without a model, whichever provider is chosen`() {
+        val samosa = Settings(
+            provider = LlmProvider.SAMOSA_AI,
+            samosaSessionToken = "token",
+            model = ""
+        )
+        assertEquals(false, samosa.hasUsableModel)
+    }
 }
