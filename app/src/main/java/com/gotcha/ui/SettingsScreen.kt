@@ -1,35 +1,26 @@
 package com.gotcha.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
 import com.gotcha.data.Settings
-import com.gotcha.data.ThemeMode
 import com.gotcha.i18n.Language
 
 /**
  * Settings, shaped like the system Settings app: a home list of categories, each
- * opening its own page ([SettingsPage]), Back returning to the list. Appearance
- * is the one thing left on the home list itself — a single three-way control,
- * applied the moment it is touched, so a page of its own would be emptier than
- * the row that opened it.
+ * opening its own page ([SettingsPage]), Back returning to the list.
+ *
+ * Appearance used to be the exception, kept inline as a single three-way control
+ * because a page for it would have been emptier than the row that opened it.
+ * A theme picker settles that: it is now [AppearanceScreen], first on the list.
  *
  * Every page saves through [onSave]'s mutator, writing only the fields it owns.
  */
@@ -48,7 +39,8 @@ fun SettingsScreen(
     onClearLlmCache: () -> Unit,
     onClearDebugScreenshots: () -> Unit,
     onBack: () -> Unit,
-    onThemeChange: (ThemeMode) -> Unit = {},
+    /** Applies appearance changes to the running activity, without a restart. */
+    onAppearanceChange: (Settings) -> Unit = {},
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(emptyList(), emptyList())
     },
@@ -70,6 +62,15 @@ fun SettingsScreen(
     onTestVoice: suspend (Language) -> Boolean? = { null },
     packageName: String = "",
     /**
+     * Whether the assistive-ball service is currently running. Not read from
+     * [load]: the ball can also be dismissed from its own overlay, which stops
+     * the service directly, and the switch has to follow that.
+     */
+    assistiveBallEnabled: Boolean = false,
+    /** Asks the host to start or stop the assistive ball. May be refused (no
+     *  overlay permission), in which case [assistiveBallEnabled] stays false. */
+    onToggleAssistiveBall: (Boolean) -> Unit = {},
+    /**
      * Page to open on, instead of the home list. For the unconfigured first run,
      * where the one thing the user must do is enter an API key and a model, and
      * the home list would only ask them to guess which category that lives under.
@@ -85,6 +86,12 @@ fun SettingsScreen(
     if (page != null) BackHandler(onBack = backToHome)
 
     when (page) {
+        SettingsPage.APPEARANCE -> AppearanceScreen(
+            load = load,
+            onSave = onSave,
+            onBack = backToHome,
+            onApply = onAppearanceChange
+        )
         SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
             load = load,
             onSave = onSave,
@@ -124,60 +131,32 @@ fun SettingsScreen(
             onSave = onSave,
             onBack = backToHome
         )
+        SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
+            enabled = assistiveBallEnabled,
+            onToggle = onToggleAssistiveBall,
+            onBack = backToHome
+        )
         SettingsPage.NOTIFICATIONS -> NotificationsScreen(
             load = load,
             onSave = onSave,
             onBack = backToHome
         )
         null -> SettingsHome(
-            load = load,
             onBack = onBack,
-            onOpenPage = { page = it },
-            onThemeChange = onThemeChange
+            onOpenPage = { page = it }
         )
     }
 }
 
-/** The settings home list: the Appearance control, then a row per sub-page. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** The settings home list: one row per sub-page. */
 @Composable
 private fun SettingsHome(
-    load: () -> Settings,
     onBack: () -> Unit,
-    onOpenPage: (SettingsPage) -> Unit,
-    onThemeChange: (ThemeMode) -> Unit
+    onOpenPage: (SettingsPage) -> Unit
 ) {
-    val initial = remember { load() }
-    var themeMode by remember { mutableStateOf(initial.themeMode) }
-
     val overlay = rememberSettingsOverlayState()
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
-        // ---- Appearance (applies immediately) ----
-        Text(
-            "Appearance",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            ThemeMode.values().forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = themeMode == mode,
-                    onClick = {
-                        themeMode = mode
-                        onThemeChange(mode)
-                    },
-                    shape = SegmentedButtonDefaults.itemShape(
-                        index = index,
-                        count = ThemeMode.values().size
-                    )
-                ) { Text(mode.label) }
-            }
-        }
-
-        HorizontalDivider(thickness = 1.dp)
-
-        // ---- One row per sub-page ----
         SettingsPage.entries.forEachIndexed { index, entry ->
             if (index > 0) HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(

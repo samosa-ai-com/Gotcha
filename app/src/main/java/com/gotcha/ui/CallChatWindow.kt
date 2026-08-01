@@ -9,6 +9,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.util.Size
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -20,7 +21,10 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import com.gotcha.data.SettingsRepository
 import com.gotcha.service.CallState
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import kotlin.math.abs
 
 /**
@@ -43,6 +47,10 @@ class CallChatWindow(context: Context) {
     var onStopMic: () -> Unit = {}
     var onInterrupt: () -> Unit = {}
     var onEndCall: () -> Unit = {}
+
+    private val rotationWatcher = OverlayRotationWatcher(context) { previous, current ->
+        handleScreenChanged(previous, current)
+    }
 
     private var rootView: View? = null
     private var rootParams: WindowManager.LayoutParams? = null
@@ -67,7 +75,7 @@ class CallChatWindow(context: Context) {
     private var breatheAnimator: ValueAnimator? = null
     private var swapAnimator: ValueAnimator? = null
     private var currentActionEmoji: String = ""
-    private var currentActionTint: Int = TINT_MIC
+    private var currentActionTint: Int = Color.TRANSPARENT
     private var currentBreatheTag: String = ""
     private var entranceAnimating: Boolean = false
 
@@ -97,6 +105,7 @@ class CallChatWindow(context: Context) {
                 windowManager.addView(root, params)
                 rootView = root
                 rootParams = params
+                rotationWatcher.start()
                 renderButtons()
             } catch (_: Exception) {
                 rootView = null
@@ -108,6 +117,7 @@ class CallChatWindow(context: Context) {
     fun hide() {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
+            rotationWatcher.stop()
             stopBreathe()
             swapAnimator?.cancel()
             swapAnimator = null
@@ -145,7 +155,7 @@ class CallChatWindow(context: Context) {
 
     /** (emoji, glass tint) for the action button in a given call state. */
     private fun actionAppearance(s: CallState): Pair<String, Int>? = when (s) {
-        CallState.READY, CallState.WAITING_USER -> "\uD83C\uDFA4" to TINT_MIC
+        CallState.READY, CallState.WAITING_USER -> "\uD83C\uDFA4" to readyTint()
         CallState.LISTENING -> "\u23F9" to TINT_STOP
         CallState.THINKING, CallState.SPEAKING -> "\uD83D\uDED1" to TINT_INTERRUPT
         else -> null
@@ -331,7 +341,7 @@ class CallChatWindow(context: Context) {
 
     private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
         val density = appContext.resources.displayMetrics.density
-        val glass = GlassButtonDrawable(if (isEnd) TINT_END else TINT_MIC).apply {
+        val glass = GlassButtonDrawable(if (isEnd) TINT_END else readyTint()).apply {
             fillAlpha = if (isEnd) 120 else 105
         }
         if (isEnd) glassEnd = glass else glassAction = glass
@@ -720,13 +730,28 @@ class CallChatWindow(context: Context) {
                             windowManager.updateViewLayout(rootView, p)
                         } catch (_: Exception) { }
                     }
+                    // The ring is its own window and does not come along.
+                    followRootWithActionRing()
                 }
                 true
             }
             MotionEvent.ACTION_UP -> {
                 mainHandler.removeCallbacks(endLongPressRunnable)
                 removeRingOverlay()
-                if (!dragging && !longPressFired) {
+                if (dragging) {
+                    // Nothing else stops a drag from parking the end-call
+                    // button past the edge of the display, which during a call
+                    // is the one control that has to stay reachable.
+                    rootParams?.let { p ->
+                        rootView?.let { v ->
+                            clampIntoBounds(p, v)
+                            try {
+                                windowManager.updateViewLayout(v, p)
+                            } catch (_: Exception) { }
+                        }
+                    }
+                    followRootWithActionRing()
+                } else if (!longPressFired) {
                     handleActionUp(event.x, event.y)
                 }
                 longPressFired = false
@@ -742,6 +767,66 @@ class CallChatWindow(context: Context) {
     }
 
     // ---- Layout ----
+
+    /**
+     * Put the buttons back on screen after the display changes shape.
+     *
+     * They open anchored to the bottom-right corner and can be dragged
+     * anywhere from there, all in raw pixels against the display. Rotating
+     * leaves both cases stranded: the resting position alone is roughly
+     * (width - 120dp, height - 120dp), which in the other orientation is well
+     * past two of the four edges.
+     */
+    private fun handleScreenChanged(previous: Size, current: Size) {
+        val view = rootView ?: return
+        val params = rootParams ?: return
+
+        // Mid-press ring: the finger that started it is on an edge that moved.
+        removeRingOverlay()
+
+        params.x = remapAcrossScreen(params.x, previous.width, current.width)
+        params.y = remapAcrossScreen(params.y, previous.height, current.height)
+        clampIntoBounds(params, view)
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (_: Exception) { }
+        followRootWithActionRing()
+    }
+
+    /**
+     * Keep the whole control on the display.
+     *
+     * FLAG_LAYOUT_NO_LIMITS lets the window sit off the edge, which is what
+     * makes the ring overlays possible; it also means nothing stops the
+     * buttons from ending up somewhere unreachable.
+     */
+    private fun clampIntoBounds(params: WindowManager.LayoutParams, view: View) {
+        val metrics = appContext.resources.displayMetrics
+        // A window added this frame has not been measured yet; the resting
+        // size is a good enough floor to clamp against until it has.
+        val width = if (view.width > 0) view.width else dp(BTN_SIZE_DP * 2f + 32f)
+        val height = if (view.height > 0) view.height else dp(BTN_SIZE_DP.toFloat())
+        params.x = params.x.coerceIn(0, (metrics.widthPixels - width).coerceAtLeast(0))
+        params.y = params.y.coerceIn(0, (metrics.heightPixels - height).coerceAtLeast(0))
+    }
+
+    /**
+     * Move the action ring back onto the button it belongs to. It is its own
+     * window — sized for an aura that a button-sized window would clip — so it
+     * does not travel with the root on its own.
+     */
+    private fun followRootWithActionRing() {
+        val view = actionRingOverlayView ?: return
+        val params = view.layoutParams as? WindowManager.LayoutParams ?: return
+        val density = appContext.resources.displayMetrics.density
+        val paddingPx = (8 * density).toInt()
+        val btnPx = (BTN_SIZE_DP * density).toInt()
+        params.x = (rootParams?.x ?: 0) + paddingPx + btnPx / 2 - params.width / 2
+        params.y = (rootParams?.y ?: 0) + btnPx / 2 - params.height / 2
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (_: Exception) { }
+    }
 
     private fun layoutParams(): WindowManager.LayoutParams {
         val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -763,12 +848,21 @@ class CallChatWindow(context: Context) {
     private fun dp(value: Float): Int =
         (value * appContext.resources.displayMetrics.density).toInt()
 
+    /** The resting mic tint, taken from whichever skin is on. */
+    private fun readyTint(): Int = overlaySkin(
+        appContext,
+        runCatching { SettingsRepository(appContext).load().skinId }
+            .getOrDefault(Skins.DEFAULT_ID)
+    ).accent
+
     private companion object {
         const val BTN_SIZE_DP = 44
         const val END_LONG_PRESS_MS = 2000L
 
-        // Glass tints per action state and the end button.
-        val TINT_MIC = Color.parseColor("#2FB6C4") // calm teal — ready / mic
+        // Glass tints per action state. Three of these are semantic and stay
+        // fixed: amber, coral and red have to keep meaning the same thing in
+        // every theme, the way the context meter's warning colour does. Only
+        // the resting state follows the skin — see [readyTint].
         val TINT_STOP = Color.parseColor("#E8A13A") // amber — listening / stop
         val TINT_INTERRUPT = Color.parseColor("#E5544B") // coral — interrupt
         val TINT_END = Color.parseColor("#E23B3B") // red — end call

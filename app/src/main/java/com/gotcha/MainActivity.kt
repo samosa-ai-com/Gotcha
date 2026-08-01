@@ -3,6 +3,7 @@ package com.gotcha
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -13,7 +14,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
@@ -37,7 +38,6 @@ import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
-import com.gotcha.data.ThemeMode
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.service.AssistiveBallService
@@ -50,6 +50,8 @@ import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
+import com.gotcha.ui.theme.SkinBackdrop
+import com.gotcha.ui.theme.Skins
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,8 +72,24 @@ class MainActivity : ComponentActivity() {
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
 
-    /** In-app theme override, applied immediately when changed in Settings. */
-    private var themeMode by mutableStateOf(ThemeMode.SYSTEM)
+    /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
+    private var appearance by mutableStateOf(Appearance())
+
+    /** The one setting that decides what the app looks like. */
+    private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
+
+    /**
+     * Repaints the window behind Compose in the current skin's ground. themes.xml
+     * can only name one colour and has to guess Deep Space; once the setting has
+     * been read, an activity recreate should flash the skin the user actually
+     * chose rather than a slate blue they have never seen.
+     */
+    private fun applyLaunchBackground() {
+        val skin = Skins.byId(appearance.skinId)
+        window.setBackgroundDrawable(ColorDrawable(skin.launchGround.toArgb()))
+    }
+
+    private fun Settings.appearance() = Appearance(skinId = skinId)
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
@@ -162,19 +180,18 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        themeMode = settingsRepository.load().themeMode
+        appearance = settingsRepository.load().appearance()
+        applyLaunchBackground()
 
         setContent {
-            val darkTheme = when (themeMode) {
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            }
-            GotchaTheme(darkTheme = darkTheme) {
+            GotchaTheme(skinId = appearance.skinId) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    // The wallpaper sits under everything; an opaque skin draws
+                    // nothing here and the Surface above remains the whole story.
+                    SkinBackdrop(Modifier.fillMaxSize())
                     GotchaApp()
                 }
             }
@@ -448,9 +465,9 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
-                        onThemeChange = { mode ->
-                            themeMode = mode
-                            settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
+                        onAppearanceChange = { updated ->
+                            appearance = updated.appearance()
+                            applyLaunchBackground()
                         },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
@@ -516,6 +533,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
                         packageName = packageName,
+                        assistiveBallEnabled = assistiveBallOn,
+                        onToggleAssistiveBall = { enabled ->
+                            assistiveBallOn = setAssistiveBall(enabled)
+                        },
                         initialPage = if (unconfigured) SettingsPage.AI_CONFIG else null
                     )
                 }
@@ -538,17 +559,15 @@ class MainActivity : ComponentActivity() {
                     }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
+                        onSend = { text, imageBase64, isVoiceInput ->
+                            chatViewModel.sendMessage(text, imageBase64, isVoiceInput)
+                        },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
                         onAnswer = chatViewModel::submitAnswer,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        assistiveBallEnabled = assistiveBallOn,
-                        onToggleAssistiveBall = { enabled ->
-                            assistiveBallOn = setAssistiveBall(enabled)
-                        },
                         onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,

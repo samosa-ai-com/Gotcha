@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -33,7 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -52,6 +56,12 @@ import kotlinx.coroutines.delay
  *
  * [title] doubles as the row label on the home list and the sub-page's top-bar
  * title, so the two can't drift apart.
+ */
+/**
+ * Declaration order is the order of the home list; nothing reads the ordinal, so
+ * this is the only place the menu is arranged. What the assistant *is* comes
+ * first — who it thinks you are, which model it runs, what it may touch — and
+ * the two pages about how the app presents itself sit at the end.
  */
 enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
     PERSONAL_INFO(
@@ -83,6 +93,16 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Proactive Assistance",
         "Offers, OTP detection, what may be scanned",
         "settings_proactive_row"
+    ),
+    ASSISTIVE_BALL(
+        "Assistive Ball",
+        "Floating ball over other apps, hands-free calls",
+        "settings_assistive_ball_row"
+    ),
+    APPEARANCE(
+        "Appearance",
+        "How the app looks",
+        "settings_appearance_row"
     ),
     NOTIFICATIONS(
         "Notifications",
@@ -182,6 +202,11 @@ fun SettingsScaffold(
     Scaffold(
         topBar = {
             TopAppBar(
+                // See ChatScreen: glass on a skin that has a wallpaper, and
+                // indistinguishable from the default on one that doesn't.
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent
+                ),
                 title = { Text(title) },
                 navigationIcon = {
                     TextButton(
@@ -294,7 +319,9 @@ fun SamosaAuthSection(
  *
  * [switchTestTag] tags the `Switch` rather than the row, so a test that clicks
  * it actually toggles something; a tag on the row would find a node that isn't
- * toggleable and no-op silently.
+ * toggleable and no-op silently. [switchContentDescription] names the `Switch`
+ * for the same reason — it is what a UiAutomator/Maestro flow, which cannot see
+ * test tags, has to aim at.
  */
 @Composable
 fun SettingsToggleRow(
@@ -303,6 +330,7 @@ fun SettingsToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     isLarge: Boolean = false,
     switchTestTag: String? = null,
+    switchContentDescription: String? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -317,7 +345,15 @@ fun SettingsToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            modifier = if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier
+            modifier = Modifier
+                .then(if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier)
+                .then(
+                    if (switchContentDescription != null) {
+                        Modifier.semantics { contentDescription = switchContentDescription }
+                    } else {
+                        Modifier
+                    }
+                )
         )
     }
 }

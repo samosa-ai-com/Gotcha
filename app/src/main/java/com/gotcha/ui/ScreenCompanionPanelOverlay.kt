@@ -18,7 +18,10 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.graphics.ColorUtils
+import com.gotcha.data.SettingsRepository
+import com.gotcha.ui.theme.OverlaySkin
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import io.noties.markwon.Markwon
 
 class ScreenCompanionPanelOverlay(private val context: Context) {
@@ -27,7 +30,11 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val markwon = Markwon.create(appContext)
 
+    private val rotationWatcher = OverlayRotationWatcher(context) { _, _ -> handleScreenChanged() }
+
     private var panelView: View? = null
+    private var panelParams: WindowManager.LayoutParams? = null
+    private var panelShadowPad: Int = 0
     private var responseTextView: TextView? = null
     private var inputEditText: EditText? = null
     private var micButton: TextView? = null
@@ -47,7 +54,25 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     private var isListening = false
     private var isSpeaking = false
 
+    /**
+     * The skin the visible panel was built with. [setListening] and
+     * [setSpeaking] fire long after [show] and need the same palette the rest
+     * of the panel is wearing.
+     */
+    private var currentColors: OverlaySkin? = null
+
     private fun dp(value: Int): Int = (value * appContext.resources.displayMetrics.density).toInt()
+
+    /**
+     * The active skin, in View form. This panel used to paint itself `#CC1E1E1E`
+     * with a `Color.CYAN` stroke — Deep Space, hardcoded, from before there was
+     * more than one theme.
+     */
+    private fun skin(): OverlaySkin = overlaySkin(
+        appContext,
+        runCatching { SettingsRepository(appContext).load().skinId }
+            .getOrDefault(Skins.DEFAULT_ID)
+    )
 
     fun setVisibleForCapture(visible: Boolean) {
         mainHandler.post {
@@ -65,15 +90,13 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             panelView = null
         }
 
+        val colors = skin()
+        currentColors = colors
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(24).toFloat()
-                setColor(Color.parseColor("#CC1E1E1E"))
-                setStroke(dp(1), ColorUtils.setAlphaComponent(Color.CYAN, 80))
-            }
+            applyOverlayCard(colors, horizontalDp = 16, verticalDp = 16)
         }
+        val shadowPad = (container.background as? OverlayCardDrawable)?.shadowPadPx ?: 0
 
         val headerLayout = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -82,14 +105,15 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         }
         val titleText = TextView(appContext).apply {
             text = "Screen Companion"
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(colors.onSurface)
+            textSize = colors.titleSp
+            typeface = Typeface.create(colors.sans, Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         val speakerBtn = TextView(appContext).apply {
             text = "🔊"
-            textSize = 18f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.titleSp
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener {
                 if (isSpeaking) {
@@ -107,8 +131,8 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         speakerButton = speakerBtn
         val closeButton = TextView(appContext).apply {
             text = "✕"
-            setTextColor(Color.LTGRAY)
-            textSize = 18f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.titleSp
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener { dismiss() }
         }
@@ -130,16 +154,18 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
         val promptView = TextView(appContext).apply {
             text = initialPrompt
-            setTextColor(Color.LTGRAY)
-            textSize = 14f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.labelSp
+            typeface = colors.sans
             setPadding(0, 0, 0, dp(8))
         }
         chatContainer.addView(promptView)
 
         responseTextView = TextView(appContext).apply {
             text = resultText ?: "Thinking..."
-            setTextColor(Color.WHITE)
-            textSize = 15f
+            setTextColor(colors.onSurface)
+            textSize = colors.bodySp
+            typeface = colors.sans
             setPadding(0, dp(8), 0, dp(16))
             // Ensure links are clickable
             movementMethod = android.text.method.LinkMovementMethod.getInstance()
@@ -185,26 +211,28 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = GradientDrawable().apply {
-                cornerRadius = dp(20).toFloat()
-                setColor(Color.parseColor("#33FFFFFF"))
+                cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
+                setColor(colors.buttonBg)
             }
             setPadding(dp(12), dp(4), dp(4), dp(4))
         }
 
         val editText = EditText(appContext).apply {
             hint = "Ask a follow-up..."
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
+            setHintTextColor(colors.onSurfaceVariant)
+            setTextColor(colors.onSurface)
+            typeface = colors.sans
             background = null
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            textSize = 14f
+            textSize = colors.labelSp
             maxLines = 3
         }
         inputEditText = editText
 
         val micBtn = TextView(appContext).apply {
             text = "🎤"
-            textSize = 18f
+            setTextColor(colors.onSurfaceVariant)
+            textSize = colors.titleSp
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setOnClickListener {
                 if (isListening) {
@@ -220,7 +248,9 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
 
         val sendButton = Button(appContext).apply {
             text = "Send"
-            setTextColor(Color.CYAN)
+            // Was Color.CYAN — Deep Space, from before there was a second theme.
+            setTextColor(colors.accent)
+            typeface = colors.sans
             background = null
             setOnClickListener {
                 val input = editText.text.toString()
@@ -235,9 +265,11 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         inputLayout.addView(sendButton)
         container.addView(inputLayout)
 
+        // Sized to the card plus the room its shadow needs, so the shadow is not
+        // clipped to the window's square edge.
         val params = WindowManager.LayoutParams(
-            dp(320),
-            dp(400),
+            0,
+            0,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
@@ -245,6 +277,8 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         ).apply {
             gravity = Gravity.CENTER
         }
+        panelShadowPad = shadowPad
+        applyPanelSize(params)
 
         editText.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
@@ -281,19 +315,49 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         try {
             windowManager.addView(container, params)
             panelView = container
+            panelParams = params
+            rotationWatcher.start()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Size the panel to the card it wants to be, or to the screen if that is
+     * smaller.
+     *
+     * The panel is centred, so rotating never strands it — but it asked for a
+     * flat 400dp of height, and a phone in landscape is only about 410dp tall.
+     * The card overflowed top and bottom, taking the close button and the
+     * input row off screen with it.
+     */
+    private fun applyPanelSize(params: WindowManager.LayoutParams) {
+        val metrics = appContext.resources.displayMetrics
+        val maxWidth = metrics.widthPixels - dp(SCREEN_MARGIN_DP) * 2
+        val maxHeight = metrics.heightPixels - dp(SCREEN_MARGIN_DP) * 2
+        params.width = (dp(PANEL_WIDTH_DP) + panelShadowPad * 2).coerceAtMost(maxWidth)
+        params.height = (dp(PANEL_HEIGHT_DP) + panelShadowPad * 2).coerceAtMost(maxHeight)
+    }
+
+    private fun handleScreenChanged() {
+        val view = panelView ?: return
+        val params = panelParams ?: return
+        applyPanelSize(params)
+        try {
+            windowManager.updateViewLayout(view, params)
         } catch (_: Exception) {}
     }
 
     private fun createChip(label: String): TextView {
+        val colors = currentColors ?: skin()
         return TextView(appContext).apply {
             text = label
-            setTextColor(Color.WHITE)
-            textSize = 13f
+            setTextColor(colors.buttonText)
+            textSize = colors.bodySp
+            typeface = colors.sans
             setPadding(dp(12), dp(6), dp(12), dp(6))
             background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(Color.parseColor("#444444"))
-                setStroke(dp(1), Color.GRAY)
+                cornerRadius = dp(colors.buttonRadiusDp.toInt()).toFloat()
+                setColor(colors.buttonBg)
+                setStroke(dp(1), colors.outline)
             }
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -325,13 +389,19 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         }
     }
 
-    /** Reflect STT listening state on the mic icon (tinted while active). */
+    /**
+     * Reflect STT listening state on the mic icon (tinted while active).
+     *
+     * Recording stays red in every skin, the way the call window's amber and
+     * coral do: a colour that tells the user a microphone is open has to mean
+     * the same thing whichever theme they picked.
+     */
     fun setListening(listening: Boolean) {
         isListening = listening
         mainHandler.post {
             micButton?.apply {
                 text = if (listening) "⏺" else "🎤"
-                setTextColor(if (listening) Color.RED else Color.WHITE)
+                setTextColor(if (listening) RECORDING_RED else currentColors?.onSurfaceVariant ?: Color.WHITE)
             }
         }
     }
@@ -342,25 +412,40 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         mainHandler.post {
             speakerButton?.apply {
                 text = if (speaking) "⏹" else "🔊"
-                setTextColor(if (speaking) Color.CYAN else Color.WHITE)
+                val resting = currentColors?.onSurfaceVariant ?: Color.WHITE
+                setTextColor(if (speaking) currentColors?.accent ?: Color.WHITE else resting)
             }
         }
     }
 
     fun dismiss() {
         mainHandler.post {
+            rotationWatcher.stop()
             panelView?.let {
                 try {
                     windowManager.removeView(it)
                 } catch (_: Exception) {}
             }
             panelView = null
+            panelParams = null
             inputEditText = null
             micButton = null
             speakerButton = null
             isListening = false
             isSpeaking = false
+            currentColors = null
             onDismiss()
         }
+    }
+
+    private companion object {
+        /** Semantic, not thematic: an open microphone is red in every skin. */
+        val RECORDING_RED = Color.parseColor("#E23B3B")
+
+        const val PANEL_WIDTH_DP = 320
+        const val PANEL_HEIGHT_DP = 400
+
+        /** Breathing room so the card never runs into the display edge. */
+        const val SCREEN_MARGIN_DP = 16
     }
 }
