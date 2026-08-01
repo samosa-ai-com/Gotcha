@@ -40,12 +40,27 @@ class AlarmReceiver : BroadcastReceiver() {
 
     private fun showNotification(context: Context, tag: String, text: String, notifyId: Int, vibrate: Boolean) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val tapIntent = Intent(context, com.gotcha.MainActivity::class.java).apply {
+            action = com.gotcha.notifications.NotificationDispatcher.ACTION_SHOW_NOTIFICATION
+            putExtra(com.gotcha.notifications.NotificationDispatcher.EXTRA_NOTIFICATION_ID, notifyId)
+            putExtra(com.gotcha.notifications.NotificationDispatcher.EXTRA_NOTIFICATION_TITLE, "Gotcha")
+            putExtra(com.gotcha.notifications.NotificationDispatcher.EXTRA_NOTIFICATION_BODY, text)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = android.app.PendingIntent.getActivity(
+            context,
+            notifyId,
+            tapIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = NotificationCompat.Builder(context, if (vibrate) CHANNEL_ID else CHANNEL_ID_SILENT)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Gotcha")
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setContentIntent(pending)
             .build()
         nm.notify(tag, notifyId, notification)
     }

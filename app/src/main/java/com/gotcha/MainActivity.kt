@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
@@ -41,6 +42,8 @@ import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.NotificationDispatcher
+import com.gotcha.notifications.NotificationPayload
 import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
@@ -49,6 +52,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
@@ -67,6 +71,9 @@ class MainActivity : ComponentActivity() {
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var samosaAuthManager: SamosaAuthManager
+
+    /** Active notification payload for display in scrollable dialog. */
+    private var notificationPayload by mutableStateOf<NotificationPayload?>(null)
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
@@ -141,6 +148,7 @@ class MainActivity : ComponentActivity() {
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
+        handleNotificationIntent(intent)
 
         // Phase 7: tools report special-access markers; open Settings deep-links.
         // Runtime permissions are no longer requested here — they are pre-configured
@@ -296,6 +304,25 @@ class MainActivity : ComponentActivity() {
         }
         if (intent.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false)) {
             openedFromBall = true
+        }
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
+        val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
+        if (!title.isNullOrBlank() || !body.isNullOrBlank()) {
+            val notifyId = intent?.getIntExtra(NotificationDispatcher.EXTRA_NOTIFICATION_ID, -1) ?: -1
+            val url = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_URL)
+            if (notifyId != -1) {
+                NotificationManagerCompat.from(this).cancel(notifyId)
+            }
+            notificationPayload = NotificationPayload(
+                id = notifyId,
+                title = title.orEmpty(),
+                body = body.orEmpty(),
+                url = url
+            )
         }
     }
 
@@ -649,6 +676,13 @@ class MainActivity : ComponentActivity() {
         // back closes an open drawer before any other navigation.
         BackHandler(enabled = drawerState.isOpen) {
             scope.launch { drawerState.close() }
+        }
+
+        notificationPayload?.let { payload ->
+            NotificationDetailDialog(
+                payload = payload,
+                onDismiss = { notificationPayload = null }
+            )
         }
     }
 
