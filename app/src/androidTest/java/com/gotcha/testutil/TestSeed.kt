@@ -2,10 +2,12 @@ package com.gotcha.testutil
 
 import android.content.Context
 import com.gotcha.MainActivity
+import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.debug.seedTestSettings
+import com.gotcha.ui.tour.SUPPRESS_TOUR_KEY
 
 /**
  * Seeds [com.gotcha.data.SettingsRepository] in-process before the activity under
@@ -36,11 +38,18 @@ object TestSeed {
     fun seedUnconfigured(context: Context) {
         val repository = SettingsRepository(context)
         repository.save(
-            Settings(provider = LlmProvider.OPENAI_COMPATIBLE, baseUrl = "", apiKey = "")
+            Settings(
+                provider = LlmProvider.OPENAI_COMPATIBLE,
+                baseUrl = "",
+                apiKey = "",
+                // Unconfigured, but not un-consented — see seedTestSettings.
+                legalAcceptedVersion = LEGAL_VERSION
+            )
         )
         repository.prefs.edit()
             .putBoolean(MainActivity.KEY_FIRST_LAUNCH_DONE, true)
             .putBoolean(MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, true)
+            .putBoolean(SUPPRESS_TOUR_KEY, true)
             .apply()
     }
 }

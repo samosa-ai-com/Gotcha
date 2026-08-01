@@ -21,12 +21,14 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
@@ -59,6 +61,12 @@ import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.tour.LocalTourAnchors
+import com.gotcha.ui.tour.TourHost
+import com.gotcha.ui.tour.TourNavigation
+import com.gotcha.ui.tour.TourOverlay
+import com.gotcha.ui.tour.TourPlace
+import com.gotcha.ui.tour.rememberTourHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,6 +74,33 @@ import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
 enum class Route { HOME, SETTINGS, CONNECTORS }
+
+/**
+ * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
+ * nothing to say about — which is what hides the coach mark when they wander off
+ * mid-step rather than pinning it over an unrelated screen.
+ */
+private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean): TourPlace? = when {
+    route == Route.HOME && drawerOpen -> TourPlace.CHAT_DRAWER
+    route == Route.HOME -> TourPlace.CHAT
+    route == Route.SETTINGS -> when (page) {
+        null -> TourPlace.SETTINGS_HOME
+        SettingsPage.AI_CONFIG -> TourPlace.AI_CONFIG
+        SettingsPage.PERMISSIONS -> TourPlace.PERMISSIONS
+        SettingsPage.PERSONAL_INFO -> TourPlace.PERSONAL_INFO
+        else -> null
+    }
+    else -> null
+}
+
+/** The inverse: the route and settings page that put the user at [place]. */
+private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = when (place) {
+    TourPlace.CHAT, TourPlace.CHAT_DRAWER -> Route.HOME to null
+    TourPlace.SETTINGS_HOME -> Route.SETTINGS to null
+    TourPlace.AI_CONFIG -> Route.SETTINGS to SettingsPage.AI_CONFIG
+    TourPlace.PERMISSIONS -> Route.SETTINGS to SettingsPage.PERMISSIONS
+    TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -210,14 +245,24 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             GotchaTheme(skinId = appearance.skinId) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    // The wallpaper sits under everything; an opaque skin draws
-                    // nothing here and the Surface above remains the whole story.
-                    SkinBackdrop(Modifier.fillMaxSize())
-                    GotchaApp()
+                val tour = rememberTourHost(
+                    repository = settingsRepository,
+                    ready = legalAcceptedVersion == LEGAL_VERSION
+                )
+                CompositionLocalProvider(LocalTourAnchors provides tour.anchors) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        // The wallpaper sits under everything; an opaque skin draws
+                        // nothing here and the Surface above remains the whole story.
+                        SkinBackdrop(Modifier.fillMaxSize())
+                        GotchaApp(tour)
+                        // Above the navigation host, so every screen underneath
+                        // stays unaware it is being toured — all any of them
+                        // contribute is a tourAnchor on the control worth pointing at.
+                        TourOverlay(controller = tour.controller)
+                    }
                 }
             }
         }
@@ -436,20 +481,46 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun GotchaApp() {
+    private fun GotchaApp(tour: TourHost) {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
         val liveTokenBySession by chatViewModel.liveTokenBySession.collectAsState()
 
-        // An unconfigured install opens Settings; send it straight to the page
-        // holding the API key and model rather than to the category list.
-        val unconfigured = remember { !settingsRepository.load().isConfigured }
+        val initial = remember { settingsRepository.load() }
+
+        // A fresh install has the tour to run, and the tour walks the user to the
+        // API key itself — so it, not this, decides where they start. Only an
+        // install that has already seen the tour and is still unconfigured gets
+        // dropped straight on the page holding the key and model.
+        val unconfigured = remember { !initial.isConfigured && !tour.willRun }
         var currentRoute by remember {
             mutableStateOf(if (unconfigured) Route.SETTINGS else Route.HOME)
         }
-        var assistiveBallOn by remember { mutableStateOf(settingsRepository.load().assistiveBallEnabled) }
+        var settingsPage by rememberSaveable {
+            mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
+        }
+        var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+
+        val goToPlace: (TourPlace) -> Unit = { place ->
+            val (route, page) = routeForTourPlace(place)
+            currentRoute = route
+            settingsPage = page
+            scope.launch {
+                if (place == TourPlace.CHAT_DRAWER) drawerState.open() else drawerState.close()
+            }
+        }
+        val startTour = {
+            goToPlace(TourPlace.CHAT)
+            tour.controller.start()
+        }
+
+        TourNavigation(
+            host = tour,
+            place = tourPlaceOf(currentRoute, settingsPage, drawerState.isOpen),
+            goToPlace = goToPlace
+        )
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
@@ -515,6 +586,7 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.CONNECTORS
                     },
+                    onStartTour = { startTour() },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
                     liveTokenBySession = liveTokenBySession
@@ -641,7 +713,9 @@ class MainActivity : ComponentActivity() {
                         onToggleAssistiveBall = { enabled ->
                             assistiveBallOn = setAssistiveBall(enabled)
                         },
-                        initialPage = if (unconfigured) SettingsPage.AI_CONFIG else null
+                        onStartTour = { startTour() },
+                        page = settingsPage,
+                        onPageChange = { settingsPage = it }
                     )
                 }
                 Route.CONNECTORS -> {

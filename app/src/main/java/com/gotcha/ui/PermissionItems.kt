@@ -230,13 +230,7 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 "Read screen, tap, swipe, type",
                 null,
                 "special:accessibility_access",
-                { c ->
-                    val expected = "${c.packageName}/com.gotcha.service.GotchaAccessibilityService"
-                    val enabled = Settings.Secure.getString(
-                        c.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-                    ) ?: ""
-                    enabled.contains(expected, ignoreCase = true)
-                }
+                ::isAccessibilityGranted
             ),
             PermissionItem(
                 "Notification Listener",
@@ -256,7 +250,7 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 "Show floating overlays",
                 null,
                 "special:overlay_access",
-                { c -> Settings.canDrawOverlays(c) }
+                ::isOverlayGranted
             )
         )
     ),
@@ -275,6 +269,24 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     )
 )
+
+/**
+ * Whether Gotcha's accessibility service is switched on.
+ *
+ * Named rather than inlined into the catalog above because the feature tour asks
+ * the same question to decide when its "grant Accessibility" step is finished,
+ * and two copies of this string comparison would be two chances to drift.
+ */
+fun isAccessibilityGranted(context: Context): Boolean {
+    val expected = "${context.packageName}/com.gotcha.service.GotchaAccessibilityService"
+    val enabled = Settings.Secure.getString(
+        context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: ""
+    return enabled.contains(expected, ignoreCase = true)
+}
+
+/** Whether "Display over other apps" is allowed — the assistive ball and Lens need it. */
+fun isOverlayGranted(context: Context): Boolean = Settings.canDrawOverlays(context)
 
 private fun checkPerm(context: Context, permission: String): Boolean =
     ContextCompat.checkSelfPermission(context, permission) ==
