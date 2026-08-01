@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 class SmartActionDetectorTest {
 
@@ -328,5 +329,146 @@ class SmartActionDetectorTest {
         assertTrue(entities.isNotEmpty())
         assertEquals(EntityType.QR_CODE, entities.first().type)
         assertTrue(entities.first().normalizedValue.contains("HomeNet"))
+    }
+
+    // ---- Tense: a past date is a timestamp, not an event ----
+
+    @Test
+    fun `past dates are not calendar events`() {
+        val entities = SmartActionDetector.detectAll(
+            "Rebase #53 by DevUser2 was merged Jul 26, 2026",
+            today = LocalDate.of(2026, 8, 1)
+        )
+        assertTrue(
+            "A merge timestamp is not something to put on a calendar",
+            entities.none { it.type == EntityType.CALENDAR }
+        )
+    }
+
+    @Test
+    fun `future dates are still calendar events`() {
+        val entities = SmartActionDetector.detectAll(
+            "Design review Aug 14, 2026",
+            today = LocalDate.of(2026, 8, 1)
+        )
+        assertTrue(entities.any { it.type == EntityType.CALENDAR })
+    }
+
+    @Test
+    fun `a date without a year resolves to the next occurrence, never the past`() {
+        val today = LocalDate.of(2026, 12, 20)
+        assertEquals(LocalDate.of(2027, 1, 4), SmartActionDetector.eventDateOf("Jan 4", today))
+        assertEquals(LocalDate.of(2026, 12, 25), SmartActionDetector.eventDateOf("Dec 25", today))
+    }
+
+    @Test
+    fun `weekday and relative names resolve forwards`() {
+        val wednesday = LocalDate.of(2026, 8, 5)
+        assertEquals(wednesday, SmartActionDetector.eventDateOf("today", wednesday))
+        assertEquals(wednesday.plusDays(1), SmartActionDetector.eventDateOf("tomorrow", wednesday))
+        // The coming Monday, not the one just gone.
+        assertEquals(LocalDate.of(2026, 8, 10), SmartActionDetector.eventDateOf("Monday", wednesday))
+    }
+
+    @Test
+    fun `an event word outranks a bare time`() {
+        val today = LocalDate.of(2026, 8, 1)
+        val worded = SmartActionDetector.detectAll("Dinner tomorrow", today = today)
+            .first { it.type == EntityType.CALENDAR }
+        val bare = SmartActionDetector.detectAll("Doors open 8 pm", today = today)
+            .first { it.type == EntityType.CALENDAR }
+        assertTrue(bare.confidence < worded.confidence)
+    }
+
+    // ---- Annotation selection ----
+
+    /** The screen from the bug report: a PR list whose every row carries a merge timestamp. */
+    private val pullRequestList = """
+        Open: github.com/<org>/Gotcha
+        1 Open 30 Closed
+        Rebase #53 by DevUser2 was merged Jul 26, 2026
+        Feature test coverage manifest #52 by DevUser was merged Jul 26, 2026
+        Merging dev #51 by DevUser was merged Jul 26, 2026
+        Storage overhaul #50 by DevUser was merged Jul 26, 2026
+        Add connector framework #35 by DevUser was merged Jul 25, 2026
+        feat(audio/vision) #34 by DevUser was merged Jul 25, 2026
+        Onboarding #33 by DevUser was merged Jul 23, 2026
+    """.trimIndent()
+
+    @Test
+    fun `a list of merge timestamps produces no calendar annotations`() {
+        val entities = SmartActionDetector.detectAll(pullRequestList, today = LocalDate.of(2026, 8, 1))
+        val selected = SmartActionDetector.selectForAnnotation(entities)
+        assertTrue(
+            "Merge timestamps should not be annotated at all",
+            selected.none { it.entity.type == EntityType.CALENDAR }
+        )
+        assertTrue("The repo link is what is worth surfacing here", selected.isNotEmpty())
+        assertEquals(EntityType.URL, selected.first().entity.type)
+    }
+
+    @Test
+    fun `annotations are capped however busy the screen is`() {
+        val entities = SmartActionDetector.detectAll(pullRequestList, today = LocalDate.of(2026, 8, 1))
+        val selected = SmartActionDetector.selectForAnnotation(entities)
+        assertTrue(
+            "Expected at most ${SmartActionDetector.MAX_ANNOTATIONS}, got ${selected.size}",
+            selected.size <= SmartActionDetector.MAX_ANNOTATIONS
+        )
+    }
+
+    @Test
+    fun `a repeated type collapses to a single grouped annotation`() {
+        val catalogue = (1..12).joinToString("\n") { "Item $it — €${it * 10}.00" }
+        val entities = SmartActionDetector.detectAll(catalogue)
+        val prices = entities.filter { it.type == EntityType.CURRENCY }
+        assertTrue("Fixture should detect many prices", prices.size >= 10)
+
+        val selected = SmartActionDetector.selectForAnnotation(entities)
+        val currency = selected.filter { it.entity.type == EntityType.CURRENCY }
+        assertEquals("Twelve prices are a catalogue, not twelve calls to action", 1, currency.size)
+        assertEquals(prices.size, currency.first().groupCount)
+        assertEquals("💵 ${prices.size} prices", SmartActionDetector.chipLabel(currency.first().entity, prices.size))
+    }
+
+    @Test
+    fun `no single type may crowd out the others`() {
+        val text = """
+            Call (415) 555-2671 or (415) 555-9900.
+            Mail a@example.com, b@example.com, c@example.com, d@example.com.
+            Visit https://example.com/help
+        """.trimIndent()
+        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text))
+        val perType = selected.groupBy { it.entity.type }
+        for ((type, group) in perType) {
+            assertTrue(
+                "$type took ${group.size} slots",
+                group.size <= SmartActionDetector.MAX_ANNOTATIONS_PER_TYPE
+            )
+        }
+        assertTrue("The lone URL should survive four emails", perType.containsKey(EntityType.URL))
+    }
+
+    @Test
+    fun `identical values collapse before ranking`() {
+        val text = "Ping support@example.com — again, support@example.com — once more, support@example.com"
+        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text))
+        val emails = selected.filter { it.entity.type == EntityType.EMAIL }
+        assertEquals(1, emails.size)
+        assertEquals(3, emails.first().groupCount)
+    }
+
+    @Test
+    fun `chip labels drop the verb and keep the value`() {
+        val entity = SmartActionDetector.detectAll("Visit https://example.com/help")
+            .first { it.type == EntityType.URL }
+        val label = SmartActionDetector.chipLabel(entity)
+        assertTrue(label.startsWith("🌐"))
+        assertFalse("The verb belongs in the menu, not the chip", label.contains("Open:"))
+    }
+
+    @Test
+    fun `selectForAnnotation on an empty list is empty`() {
+        assertTrue(SmartActionDetector.selectForAnnotation(emptyList()).isEmpty())
     }
 }
