@@ -433,6 +433,14 @@ class GotchaAccessibilityService : AccessibilityService() {
                 count++
             }
             if (count == 0 || unionRect.width() <= 0 || unionRect.height() <= 0) continue
+            // A date nobody can see is a formatted timestamp. Every other type
+            // survives on a description alone — a phone number read out to a
+            // screen reader is still a phone number — but a node rendering
+            // "10 hours ago" while describing itself as a date is the one case
+            // where the description exists precisely because the value is not an
+            // event. Tense catches these once they are a day old; this catches
+            // them while they are still today.
+            if (derivedOnly && entity.type == EntityType.CALENDAR) continue
             val weighted = if (derivedOnly) {
                 entity.copy(confidence = entity.confidence * SmartActionDetector.DERIVED_TEXT_CONFIDENCE_SCALE)
             } else {

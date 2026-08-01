@@ -337,7 +337,7 @@ class SmartActionDetectorTest {
     fun `past dates are not calendar events`() {
         val entities = SmartActionDetector.detectAll(
             "Rebase #53 by DevUser2 was merged Jul 26, 2026",
-            today = LocalDate.of(2026, 8, 1)
+            now = NOON_AUG_1
         )
         assertTrue(
             "A merge timestamp is not something to put on a calendar",
@@ -349,7 +349,7 @@ class SmartActionDetectorTest {
     fun `future dates are still calendar events`() {
         val entities = SmartActionDetector.detectAll(
             "Design review Aug 14, 2026",
-            today = LocalDate.of(2026, 8, 1)
+            now = NOON_AUG_1
         )
         assertTrue(entities.any { it.type == EntityType.CALENDAR })
     }
@@ -372,12 +372,42 @@ class SmartActionDetectorTest {
 
     @Test
     fun `an event word outranks a bare time`() {
-        val today = LocalDate.of(2026, 8, 1)
-        val worded = SmartActionDetector.detectAll("Dinner tomorrow", today = today)
+        val worded = SmartActionDetector.detectAll("Dinner tomorrow", now = NOON_AUG_1)
             .first { it.type == EntityType.CALENDAR }
-        val bare = SmartActionDetector.detectAll("Doors open 8 pm", today = today)
+        val bare = SmartActionDetector.detectAll("Doors open 8 pm", now = NOON_AUG_1)
             .first { it.type == EntityType.CALENDAR }
         assertTrue(bare.confidence < worded.confidence)
+    }
+
+    @Test
+    fun `a timestamp from earlier today is still a timestamp`() {
+        // The gap the first pass left: "merged 10 hours ago" resolves to *today*,
+        // which is not before today, so a date-only check let it through.
+        val entities = SmartActionDetector.detectAll(
+            "rebase #64 by DevUser2 was merged Aug 1, 2026, 9:14 a.m.",
+            now = NOON_AUG_1
+        )
+        assertTrue(
+            "A merge from this morning is not an event this afternoon",
+            entities.none { it.type == EntityType.CALENDAR }
+        )
+    }
+
+    @Test
+    fun `an event later today survives`() {
+        val entities = SmartActionDetector.detectAll("Dinner today at 8 pm", now = NOON_AUG_1)
+        assertTrue(entities.any { it.type == EntityType.CALENDAR })
+    }
+
+    @Test
+    fun `a day with no clock time stays eligible all day`() {
+        // "lunch today" is a real event at 9am and at 9pm — with no time given
+        // there is nothing to compare against, so the day is the granularity.
+        val entities = SmartActionDetector.detectAll(
+            "Lunch today",
+            now = LocalDate.of(2026, 8, 1).atTime(23, 30)
+        )
+        assertTrue(entities.any { it.type == EntityType.CALENDAR })
     }
 
     // ---- Annotation selection ----
@@ -397,7 +427,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `a list of merge timestamps produces no calendar annotations`() {
-        val entities = SmartActionDetector.detectAll(pullRequestList, today = LocalDate.of(2026, 8, 1))
+        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1)
         val selected = SmartActionDetector.selectForAnnotation(entities)
         assertTrue(
             "Merge timestamps should not be annotated at all",
@@ -409,7 +439,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `annotations are capped however busy the screen is`() {
-        val entities = SmartActionDetector.detectAll(pullRequestList, today = LocalDate.of(2026, 8, 1))
+        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1)
         val selected = SmartActionDetector.selectForAnnotation(entities)
         assertTrue(
             "Expected at most ${SmartActionDetector.MAX_ANNOTATIONS}, got ${selected.size}",
@@ -491,15 +521,15 @@ class SmartActionDetectorTest {
 
     // ---- Calendar payloads carry a resolved start ----
 
-    private fun calendarPayload(text: String, today: LocalDate): String {
-        val entity = SmartActionDetector.detectAll(text, today = today)
+    private fun calendarPayload(text: String, now: java.time.LocalDateTime): String {
+        val entity = SmartActionDetector.detectAll(text, now = now)
             .first { it.type == EntityType.CALENDAR }
         return SmartActionDetector.decode(entity.primaryAction!!.prompt)!!.second
     }
 
     @Test
     fun `a dated event carries the resolved day and time`() {
-        val payload = calendarPayload("Design review Aug 14, 2026 at 9:30 a.m.", LocalDate.of(2026, 8, 1))
+        val payload = calendarPayload("Design review Aug 14, 2026 at 9:30 a.m.", NOON_AUG_1)
         val parts = payload.split("|", limit = 3)
         assertEquals("2026-08-14", parts[0])
         assertEquals("09:30", parts[1])
@@ -508,7 +538,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `an event with no clock time leaves the time field blank`() {
-        val payload = calendarPayload("Team meeting on Monday", LocalDate.of(2026, 8, 5))
+        val payload = calendarPayload("Team meeting on Monday", LocalDate.of(2026, 8, 5).atStartOfDay())
         val parts = payload.split("|", limit = 3)
         // Wednesday Aug 5 → the coming Monday. A calendar app handed the word
         // "Monday" would have dropped this on today instead.
@@ -522,5 +552,10 @@ class SmartActionDetectorTest {
         assertEquals(java.time.LocalTime.of(0, 30), SmartActionDetector.timeOfDayOf("12:30 am"))
         assertEquals(java.time.LocalTime.of(15, 0), SmartActionDetector.timeOfDayOf("3 p.m."))
         assertNull(SmartActionDetector.timeOfDayOf("sometime Monday"))
+    }
+
+    private companion object {
+        /** Midday on the day the bug-report screenshots were taken. */
+        val NOON_AUG_1: java.time.LocalDateTime = LocalDate.of(2026, 8, 1).atTime(12, 0)
     }
 }

@@ -2,6 +2,7 @@ package com.gotcha.service
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.regex.Pattern
 
@@ -193,7 +194,10 @@ object SmartActionDetector {
             "\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?" +
             "|\\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|" +
             "sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\\s+\\d{1,2}(st|nd|rd|th)?" +
-            "(,?\\s+\\d{4})?(\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?)?" +
+            // The time tail may be separated by a comma, not just a space:
+            // "Aug 1, 2026, 9:14 AM" is how a formatted timestamp reads, and
+            // stopping at the year threw away the very thing that dates it.
+            "(,?\\s+\\d{4})?(,?\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?)?" +
             "|\\b\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?",
         Pattern.CASE_INSENSITIVE
     )
@@ -264,7 +268,7 @@ object SmartActionDetector {
         allowChat: Boolean = false,
         targetCurrency: String = "USD",
         targetLanguage: String = "English",
-        today: LocalDate = LocalDate.now()
+        now: LocalDateTime = LocalDateTime.now()
     ): List<DetectedEntity> {
         if (text.isBlank()) return emptyList()
 
@@ -292,7 +296,7 @@ object SmartActionDetector {
         detectCurrencies(text, rawEntities, targetCurrency)
 
         // 7. Calendar
-        detectCalendars(text, rawEntities, today)
+        detectCalendars(text, rawEntities, now)
 
         // 8. Tracking numbers
         detectTracking(text, rawEntities)
@@ -804,7 +808,19 @@ object SmartActionDetector {
             event
         ).joinToString(PAYLOAD_SEP)
 
-    private fun detectCalendars(text: String, out: MutableList<DetectedEntity>, today: LocalDate) {
+    /**
+     * Whether a day (and clock time, when one was given) is still to come.
+     *
+     * Compared against the moment, not the date: "merged 10 hours ago" resolves
+     * to *earlier today*, which is not before today and so used to pass a
+     * date-only check. A day with no time on it stays eligible for the whole of
+     * that day, because "lunch today" is a real event at 9am and at 9pm.
+     */
+    private fun isStillAhead(date: LocalDate, time: LocalTime?, now: LocalDateTime): Boolean =
+        if (time != null) date.atTime(time).isAfter(now) else !date.isBefore(now.toLocalDate())
+
+    private fun detectCalendars(text: String, out: MutableList<DetectedEntity>, now: LocalDateTime) {
+        val today = now.toLocalDate()
         val m = calendarPattern.matcher(text)
         while (m.find()) {
             val event = m.group().trim()
@@ -816,7 +832,8 @@ object SmartActionDetector {
             // the parse is needed anyway to give the calendar intent a real start
             // time instead of a raw string to guess at.
             val date = eventDateOf(event, today)
-            if (date != null && date.isBefore(today)) continue
+            val timeOfDay = timeOfDayOf(event)
+            if (date != null && !isStillAhead(date, timeOfDay, now)) continue
 
             val confidence = when {
                 eventKeywordPattern.matcher(event).find() -> CONFIDENCE_EVENT_WORDED
@@ -829,7 +846,7 @@ object SmartActionDetector {
             val actions = listOf(
                 SmartAction(
                     label = "📅 Add to calendar: ${snippet(event, 24)}",
-                    prompt = encode(TYPE_CALENDAR, calendarPayload(event, date, timeOfDayOf(event))),
+                    prompt = encode(TYPE_CALENDAR, calendarPayload(event, date, timeOfDay)),
                     actionType = ActionType.NATIVE_CALENDAR,
                     isPrimary = true
                 ),
