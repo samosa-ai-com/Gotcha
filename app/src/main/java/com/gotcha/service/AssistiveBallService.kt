@@ -663,6 +663,7 @@ class AssistiveBallService : Service() {
     /** Start voice typing in the panel using the configured STT provider. */
     private fun startPanelVoiceInput() {
         val s = settingsRepository.load()
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         when {
             s.sttProvider == AudioProvider.ANDROID -> {
                 if (!hasMicPermission()) {
@@ -722,6 +723,7 @@ class AssistiveBallService : Service() {
             screenCompanionPanel.setListening(false)
             return
         }
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         scope.launch {
             val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
             val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
@@ -740,6 +742,7 @@ class AssistiveBallService : Service() {
             screenCompanionPanel.setSpeaking(false)
             return
         }
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         scope.launch {
             ttsEngine.speak(
                 text = text,

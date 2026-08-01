@@ -123,16 +123,19 @@ class CallSessionController(
         }
 
         val s = settingsRepository.load()
-        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.sttApiBaseUrl, s.sttApiModel)
+        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.effectiveSttBaseUrl, s.sttApiModel)
         if (sttError != null) {
             onError(sttError)
             return false
         }
-        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.ttsApiBaseUrl, s.ttsApiModel)
+        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.effectiveTtsBaseUrl, s.ttsApiModel)
         if (ttsError != null) {
             onError(ttsError)
             return false
         }
+
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
 
         val newEngine = AgentEngine(
             appContext = appContext,
@@ -220,8 +223,10 @@ class CallSessionController(
     fun startMic() {
         val current = _state.value
         if (current != CallState.READY && current != CallState.WAITING_USER) return
+        val s = settingsRepository.load()
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         val started = sttEngine.startListening(
-            settingsRepository.load().sttProvider,
+            s.sttProvider,
             currentLanguage()
         )
         if (started) {
@@ -236,6 +241,7 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
+            sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
             val language = Language.fromLabel(s.preferredLanguage)
             val sttLanguage = s.sttLanguage.ifBlank { language.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
@@ -479,7 +485,8 @@ class CallSessionController(
     private suspend fun speakText(text: String, language: Language): Boolean {
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return true
-        val voice = if (s.ttsProvider == AudioProvider.API) {
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
+        val voice = if (s.ttsProvider.isApiBased()) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
                 ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
@@ -541,9 +548,10 @@ class CallSessionController(
         if (text.isBlank() || _state.value != CallState.THINKING) return
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         narrationJob?.cancel()
         narrationJob = scope.launch {
-            val voice = if (s.ttsProvider == AudioProvider.API) {
+            val voice = if (s.ttsProvider.isApiBased()) {
                 s.ttsVoice.ifBlank {
                     if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
                     ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
