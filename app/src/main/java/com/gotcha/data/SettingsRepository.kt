@@ -6,13 +6,6 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.gotcha.audio.AudioProvider
 
-/** In-app theme override; SYSTEM follows the device dark-mode setting. */
-enum class ThemeMode(val label: String) {
-    SYSTEM("System"),
-    LIGHT("Light"),
-    DARK("Dark")
-}
-
 data class Settings(
     // Which LLM backend is active. Defaults to the original OpenAI-compatible flow.
     val provider: LlmProvider = LlmProvider.OPENAI_COMPATIBLE,
@@ -28,6 +21,15 @@ data class Settings(
     val maxToolRounds: Int = 300,
     val maxRepeatedToolCalls: Int = 20,
     val maxNavigationToolCalls: Int = 30,
+    /**
+     * How many consecutive rounds may consist only of delegation tools
+     * (`task`, `navigate_app`) before the run is stopped. A sub-agent hands
+     * back a text report and nothing else, so a round that only delegates
+     * shows the model no new evidence — repeating it is the re-delegation
+     * loop from issue #20, which the byte-identical guard cannot see because
+     * each call carries a freshly rephrased task string.
+     */
+    val maxConsecutiveDelegations: Int = 3,
     val maxContextTokens: Int = 70000,
     val apiTimeoutSeconds: Long = 0L,
     // TTS / STT settings
@@ -42,9 +44,29 @@ data class Settings(
     val sttApiModel: String = "",
     val sttLanguage: String = "",
     val autoReadReplies: Boolean = false,
+    /**
+     * Buzz when a reply arrives. On by default: a reply can land while the user
+     * is in another app, and the pattern is distinct from the error buzz so it
+     * says *how* the turn ended, not just that it did.
+     */
+    val notifyVibrationEnabled: Boolean = true,
+    /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
+    val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // ---- Appearance (Settings ▸ Appearance) ----
+    /**
+     * Which skin is painted. Stored as the id string rather than an enum so a
+     * build that drops a skin degrades to the default instead of throwing on a
+     * value it no longer knows.
+     */
+    val skinId: String = "deepspace",
     val disabledSkills: Set<String> = emptySet(),
+    /**
+     * Ids of connectors the user switched off. Credentials survive (re-enabling
+     * needs no re-auth), but the connector contributes no tools and its skills
+     * stop being injected.
+     */
+    val disabledConnectors: Set<String> = emptySet(),
     // Proactive Assistance Settings
     val proactiveEnabled: Boolean = true,
     val proactiveScanScreen: Boolean = true,
@@ -53,6 +75,25 @@ data class Settings(
     val proactiveOtpEnabled: Boolean = true,
     val proactiveAutoCopyOtp: Boolean = true,
     val proactiveAppBlacklist: Set<String> = emptySet(),
+    // ---- Personal info (Settings ▸ Personal Info) ----
+    // Everything the user chooses to tell the agent about themselves. All of it
+    // is optional, and all of it reaches the model's system prompt — see
+    // AgentEngine's <user_profile> block and the style directive.
+    /** What the user wants to be called. */
+    val userName: String = "",
+    /** Where the user is, in their own words ("Munich, Germany"). Grounds dates, units and prices. */
+    val userLocation: String = "",
+    /** What the user does — role, field, seniority. */
+    val userOccupation: String = "",
+    /** Free-text background: anything the agent should know about them by default. */
+    val userBackground: String = "",
+    /**
+     * Free-text output preferences ("no bullet lists", "always show the command
+     * you ran"). Kept apart from [userBackground] because it is an instruction
+     * about *how* to answer, not a fact, and is injected next to the language
+     * directive rather than into the profile block.
+     */
+    val userResponseStyle: String = "",
     val preferredLanguage: String = "English",
     val preferredCurrency: String = "USD",
     val communitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
@@ -150,6 +191,49 @@ data class Settings(
     }
 }
 
+/**
+ * Which skin an install lands on when it has never chosen one.
+ *
+ * Appearance used to be two settings — a Deep Space theme plus a light/dark
+ * mode — and is now a single skin per look. Someone who had deliberately set
+ * their app light must not be handed the dark one on upgrade, which is the
+ * whole reason this exists. It runs once: [SettingsRepository] writes the
+ * result, and every later load reads that instead.
+ *
+ * @param legacyThemeMode the old `theme_mode` value, or null if never set.
+ */
+internal fun migrateSkinId(legacyThemeMode: String?): String =
+    if (legacyThemeMode == LEGACY_THEME_MODE_LIGHT) {
+        SKIN_DEEP_SPACE_LIGHT
+    } else {
+        SKIN_DEEP_SPACE_DARK
+    }
+
+/** The preference file [SettingsRepository] encrypts into. */
+internal const val SETTINGS_PREFS_FILE = "gotcha_settings"
+
+/**
+ * The raw preference file underneath [SettingsRepository], for change
+ * notification and nothing else. Everything in it is encrypted; read values
+ * through the repository.
+ *
+ * This exists because [EncryptedSharedPreferences] holds its listener list on
+ * the *wrapper*, and `create` hands back a new wrapper every call — so a
+ * listener registered through one `SettingsRepository` is never told about a
+ * write made through another one, which is every write the app actually makes.
+ * The file beneath is the process-wide singleton the framework caches, and it
+ * notifies whoever wrote to it.
+ *
+ * Keys arrive encrypted, so a listener cannot match on one. Read the setting
+ * back and compare instead.
+ */
+fun settingsChangeNotifier(context: Context): SharedPreferences =
+    context.applicationContext.getSharedPreferences(SETTINGS_PREFS_FILE, Context.MODE_PRIVATE)
+
+internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
+internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
+private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
+
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
 class SettingsRepository(context: Context) {
 
@@ -159,59 +243,84 @@ class SettingsRepository(context: Context) {
             .build()
         EncryptedSharedPreferences.create(
             context.applicationContext,
-            "gotcha_settings",
+            SETTINGS_PREFS_FILE,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     }
 
+    private fun stringSet(key: String, default: Set<String> = emptySet()): Set<String> =
+        prefs.getStringSet(key, default) ?: default
+
+    /**
+     * `getString` is nullable even with a non-null default, so every field would
+     * otherwise carry its own elvis — enough of them to tip [load] over detekt's
+     * complexity ceiling on its own.
+     */
+    private fun string(key: String, default: String = ""): String =
+        prefs.getString(key, default) ?: default
+
+    /** Reads the stored skin, running the one-shot migration if it has not run. */
+    private fun resolvedSkinId(): String {
+        val stored = prefs.getString(KEY_SKIN_ID, null)
+        if (stored != null) return stored
+        val migrated = migrateSkinId(prefs.getString(KEY_LEGACY_THEME_MODE, null))
+        prefs.edit().putString(KEY_SKIN_ID, migrated).apply()
+        return migrated
+    }
+
     fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
-        apiKey = prefs.getString(KEY_API_KEY, "") ?: "",
-        baseUrl = prefs.getString(KEY_BASE_URL, Settings.DEFAULT_BASE_URL)
-            ?: Settings.DEFAULT_BASE_URL,
-        model = prefs.getString(KEY_MODEL, Settings.DEFAULT_MODEL) ?: Settings.DEFAULT_MODEL,
-        samosaSessionToken = prefs.getString(KEY_SAMOSA_TOKEN, "") ?: "",
-        samosaEmail = prefs.getString(KEY_SAMOSA_EMAIL, "") ?: "",
-        subAgentModel = prefs.getString(KEY_SUB_AGENT_MODEL, "") ?: "",
-        navigatorModel = prefs.getString(KEY_NAVIGATOR_MODEL, "") ?: "",
+        apiKey = string(KEY_API_KEY),
+        baseUrl = string(KEY_BASE_URL, Settings.DEFAULT_BASE_URL),
+        model = string(KEY_MODEL, Settings.DEFAULT_MODEL),
+        samosaSessionToken = string(KEY_SAMOSA_TOKEN),
+        samosaEmail = string(KEY_SAMOSA_EMAIL),
+        subAgentModel = string(KEY_SUB_AGENT_MODEL),
+        navigatorModel = string(KEY_NAVIGATOR_MODEL),
         maxToolRounds = prefs.getInt(KEY_MAX_TOOL_ROUNDS, 300),
         maxRepeatedToolCalls = prefs.getInt(KEY_MAX_REPEATED_TOOL_CALLS, 20),
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
+        maxConsecutiveDelegations = prefs.getInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, 3),
         maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = runCatching {
-            AudioProvider.valueOf(prefs.getString(KEY_TTS_PROVIDER, "ANDROID") ?: "ANDROID")
+            AudioProvider.valueOf(string(KEY_TTS_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
-        ttsApiBaseUrl = prefs.getString(KEY_TTS_API_URL, "") ?: "",
-        ttsApiKey = prefs.getString(KEY_TTS_API_KEY, "") ?: "",
-        ttsApiModel = prefs.getString(KEY_TTS_API_MODEL, "") ?: "",
-        ttsVoice = prefs.getString(KEY_TTS_VOICE, "") ?: "",
+        ttsApiBaseUrl = string(KEY_TTS_API_URL),
+        ttsApiKey = string(KEY_TTS_API_KEY),
+        ttsApiModel = string(KEY_TTS_API_MODEL),
+        ttsVoice = string(KEY_TTS_VOICE),
         sttProvider = runCatching {
-            AudioProvider.valueOf(prefs.getString(KEY_STT_PROVIDER, "ANDROID") ?: "ANDROID")
+            AudioProvider.valueOf(string(KEY_STT_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
-        sttApiBaseUrl = prefs.getString(KEY_STT_API_URL, "") ?: "",
-        sttApiKey = prefs.getString(KEY_STT_API_KEY, "") ?: "",
-        sttApiModel = prefs.getString(KEY_STT_API_MODEL, "") ?: "",
-        sttLanguage = prefs.getString(KEY_STT_LANGUAGE, "") ?: "",
+        sttApiBaseUrl = string(KEY_STT_API_URL),
+        sttApiKey = string(KEY_STT_API_KEY),
+        sttApiModel = string(KEY_STT_API_MODEL),
+        sttLanguage = string(KEY_STT_LANGUAGE),
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
+        notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
+        notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
-        themeMode = runCatching {
-            ThemeMode.valueOf(prefs.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
-        }.getOrDefault(ThemeMode.SYSTEM),
-        disabledSkills = prefs.getStringSet(KEY_DISABLED_SKILLS, emptySet()) ?: emptySet(),
+        skinId = resolvedSkinId(),
+        disabledSkills = stringSet(KEY_DISABLED_SKILLS),
+        disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
         proactiveScanScreen = prefs.getBoolean(KEY_PROACTIVE_SCAN_SCREEN, true),
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
         proactiveScanNotifications = prefs.getBoolean(KEY_PROACTIVE_SCAN_NOTIFICATIONS, true),
         proactiveOtpEnabled = prefs.getBoolean(KEY_PROACTIVE_OTP_ENABLED, true),
         proactiveAutoCopyOtp = prefs.getBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, true),
-        proactiveAppBlacklist = prefs.getStringSet(KEY_PROACTIVE_BLACKLIST, emptySet()) ?: emptySet(),
-        preferredLanguage = prefs.getString(KEY_PREFERRED_LANGUAGE, "English") ?: "English",
-        preferredCurrency = prefs.getString(KEY_PREFERRED_CURRENCY, "USD") ?: "USD",
-        communitySkillHosts = prefs.getStringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
-            ?: defaultCommunitySkillHosts
+        proactiveAppBlacklist = stringSet(KEY_PROACTIVE_BLACKLIST),
+        userName = string(KEY_USER_NAME),
+        userLocation = string(KEY_USER_LOCATION),
+        userOccupation = string(KEY_USER_OCCUPATION),
+        userBackground = string(KEY_USER_BACKGROUND),
+        userResponseStyle = string(KEY_USER_RESPONSE_STYLE),
+        preferredLanguage = string(KEY_PREFERRED_LANGUAGE, "English"),
+        preferredCurrency = string(KEY_PREFERRED_CURRENCY, "USD"),
+        communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
     )
 
     fun save(settings: Settings) {
@@ -227,6 +336,7 @@ class SettingsRepository(context: Context) {
             .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
             .putInt(KEY_MAX_REPEATED_TOOL_CALLS, settings.maxRepeatedToolCalls)
             .putInt(KEY_MAX_NAVIGATION_TOOL_CALLS, settings.maxNavigationToolCalls)
+            .putInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, settings.maxConsecutiveDelegations)
             .putInt(KEY_MAX_CONTEXT_TOKENS, settings.maxContextTokens)
             .putLong(KEY_API_TIMEOUT, settings.apiTimeoutSeconds)
             .putString(KEY_TTS_PROVIDER, settings.ttsProvider.name)
@@ -240,9 +350,12 @@ class SettingsRepository(context: Context) {
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
+            .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
+            .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
-            .putString(KEY_THEME_MODE, settings.themeMode.name)
+            .putString(KEY_SKIN_ID, settings.skinId)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
+            .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
             .putBoolean(KEY_PROACTIVE_SCAN_SCREEN, settings.proactiveScanScreen)
             .putBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, settings.proactiveScanClipboard)
@@ -250,6 +363,11 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_PROACTIVE_OTP_ENABLED, settings.proactiveOtpEnabled)
             .putBoolean(KEY_PROACTIVE_AUTO_COPY_OTP, settings.proactiveAutoCopyOtp)
             .putStringSet(KEY_PROACTIVE_BLACKLIST, settings.proactiveAppBlacklist)
+            .putString(KEY_USER_NAME, settings.userName)
+            .putString(KEY_USER_LOCATION, settings.userLocation)
+            .putString(KEY_USER_OCCUPATION, settings.userOccupation)
+            .putString(KEY_USER_BACKGROUND, settings.userBackground)
+            .putString(KEY_USER_RESPONSE_STYLE, settings.userResponseStyle)
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
@@ -284,6 +402,7 @@ class SettingsRepository(context: Context) {
         const val KEY_MAX_TOOL_ROUNDS = "max_tool_rounds"
         const val KEY_MAX_REPEATED_TOOL_CALLS = "max_repeated_tool_calls"
         const val KEY_MAX_NAVIGATION_TOOL_CALLS = "max_navigation_tool_calls"
+        const val KEY_MAX_CONSECUTIVE_DELEGATIONS = "max_consecutive_delegations"
         const val KEY_MAX_CONTEXT_TOKENS = "max_context_tokens"
         const val KEY_API_TIMEOUT = "api_timeout"
         const val KEY_TTS_PROVIDER = "tts_provider"
@@ -297,9 +416,15 @@ class SettingsRepository(context: Context) {
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_STT_LANGUAGE = "stt_language"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_NOTIFY_VIBRATION = "notify_vibration"
+        const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
-        const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_SKIN_ID = "skin_id"
+
+        /** Only read by [migrateSkinId]; never written any more. */
+        const val KEY_LEGACY_THEME_MODE = "theme_mode"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
+        const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"
         const val KEY_PROACTIVE_SCAN_SCREEN = "proactive_scan_screen"
         const val KEY_PROACTIVE_SCAN_CLIPBOARD = "proactive_scan_clipboard"
@@ -307,6 +432,11 @@ class SettingsRepository(context: Context) {
         const val KEY_PROACTIVE_OTP_ENABLED = "proactive_otp_enabled"
         const val KEY_PROACTIVE_AUTO_COPY_OTP = "proactive_auto_copy_otp"
         const val KEY_PROACTIVE_BLACKLIST = "proactive_blacklist"
+        const val KEY_USER_NAME = "user_name"
+        const val KEY_USER_LOCATION = "user_location"
+        const val KEY_USER_OCCUPATION = "user_occupation"
+        const val KEY_USER_BACKGROUND = "user_background"
+        const val KEY_USER_RESPONSE_STYLE = "user_response_style"
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"

@@ -1,5 +1,6 @@
 package com.gotcha.audio
 
+import com.gotcha.i18n.Language
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -75,6 +76,11 @@ data class AudioModel(
     val voices: List<VoiceInfo> = emptyList()
 ) {
     val defaultVoice: String get() = voices.firstOrNull()?.id ?: "af_heart"
+
+    /** Best voice for [language] (matched by [VoiceInfo.language]), falling back to [defaultVoice]. */
+    fun defaultVoiceFor(language: Language): String =
+        voices.firstOrNull { it.language.startsWith(language.iso639, ignoreCase = true) }?.id
+            ?: defaultVoice
 
     companion object {
         /**

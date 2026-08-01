@@ -7,7 +7,10 @@ import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.provider.Settings
 
-class SystemTool(private val context: Context) {
+class SystemTool(
+    private val context: Context,
+    private val settingsRouter: SettingsRouter = SettingsRouter(context)
+) {
 
     fun setBrightness(percent: Int): ToolResult {
         if (percent !in 0..100) {
@@ -22,6 +25,10 @@ class SystemTool(private val context: Context) {
         }
         return try {
             val resolver = context.contentResolver
+            // Read before writing so the reply can say what was overwritten — the
+            // user never sees this change happen, and it is the only way the model
+            // can put the old value back if asked.
+            val previous = previousBrightnessLabel(resolver)
             Settings.System.putInt(
                 resolver,
                 Settings.System.SCREEN_BRIGHTNESS_MODE,
@@ -32,10 +39,33 @@ class SystemTool(private val context: Context) {
                 Settings.System.SCREEN_BRIGHTNESS,
                 (percent * 255) / 100
             )
-            ToolResult.ok("Screen brightness set to $percent%.")
+            ToolResult.ok("Brightness $previous → $percent%.")
         } catch (e: Exception) {
             ToolResult.error("Could not set brightness: ${e.message}")
         }
+    }
+
+    /**
+     * The brightness the user had, as text. Reports "auto" when adaptive
+     * brightness was on: the stored [Settings.System.SCREEN_BRIGHTNESS] is
+     * whatever the system last picked, so quoting it as the user's setting would
+     * be misleading, and telling the model to restore it would silently leave
+     * adaptive brightness off.
+     */
+    private fun previousBrightnessLabel(resolver: android.content.ContentResolver): String = try {
+        val auto = Settings.System.getInt(
+            resolver,
+            Settings.System.SCREEN_BRIGHTNESS_MODE,
+            Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+        ) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+        if (auto) {
+            "auto"
+        } else {
+            val raw = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS, -1)
+            if (raw < 0) "unknown" else "${(raw * 100) / 255}%"
+        }
+    } catch (_: Exception) {
+        "unknown"
     }
 
     fun getBatteryInfo(): ToolResult {
@@ -107,16 +137,13 @@ class SystemTool(private val context: Context) {
         }
     }
 
-    private fun openWifiSettings(): ToolResult {
-        return try {
-            val intent = Intent(Settings.Panel.ACTION_WIFI)
-                .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            context.startActivity(intent)
-            ToolResult.ok("Opened the Wi-Fi settings panel so the user can toggle Wi-Fi.")
-        } catch (e: Exception) {
-            ToolResult.error("Could not open Wi-Fi settings: ${e.message}")
-        }
-    }
+    /**
+     * The path every device from Android 10 on actually takes: `setWifiEnabled`
+     * has been a no-op since API 29, so the panel is the only way. Routed through
+     * [SettingsRouter] so there is one place that knows how Wi-Fi is reached.
+     */
+    private fun openWifiSettings(): ToolResult =
+        settingsRouter.open("wifi", confirmed = false)
 
     fun openApp(packageName: String): ToolResult {
         return try {

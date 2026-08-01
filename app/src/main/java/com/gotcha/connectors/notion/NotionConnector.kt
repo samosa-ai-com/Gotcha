@@ -45,6 +45,7 @@ class NotionConnector(
         "notion_create_page",
         "notion_append_to_page"
     )
+    override val spec = com.gotcha.connectors.ConnectorCatalog.NOTION
 
     @Volatile
     private var credentials: NotionCredentials? = store.loadRaw(id)?.let { blob ->

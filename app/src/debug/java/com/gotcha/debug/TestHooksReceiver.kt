@@ -3,6 +3,7 @@ package com.gotcha.debug
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.gotcha.MainActivity
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
@@ -23,8 +24,31 @@ import com.gotcha.data.SettingsRepository
 class TestHooksReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != ACTION_SEED_SETTINGS) return
+        when (intent.action) {
+            ACTION_SEED_SETTINGS -> seedSettings(context, intent)
+            ACTION_SET_APPEARANCE -> setAppearance(context, intent)
+        }
+    }
 
+    /**
+     * Sets the theme from adb, and logs what the app will actually paint.
+     *
+     * Appearance bugs are hard to tell apart from the outside: a skin whose
+     * wallpaper is missing and a skin the device has quietly downgraded to solid
+     * panels look identical in a screenshot. This makes the inputs settable and
+     * the resolved state readable without driving the UI.
+     */
+    private fun setAppearance(context: Context, intent: Intent) {
+        val repository = SettingsRepository(context)
+        val current = repository.load()
+        val updated = current.copy(
+            skinId = intent.getStringExtra(EXTRA_SKIN) ?: current.skinId
+        )
+        repository.save(updated)
+        Log.i(TAG, "appearance: skin=${updated.skinId}")
+    }
+
+    private fun seedSettings(context: Context, intent: Intent) {
         val repository = SettingsRepository(context)
         val current = repository.load()
         repository.save(
@@ -47,7 +71,10 @@ class TestHooksReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        private const val TAG = "GotchaTestHooks"
         const val ACTION_SEED_SETTINGS = "com.gotcha.debug.SEED_SETTINGS"
+        const val ACTION_SET_APPEARANCE = "com.gotcha.debug.SET_APPEARANCE"
+        const val EXTRA_SKIN = "skin"
         const val EXTRA_BASE_URL = "base_url"
         const val EXTRA_API_KEY = "api_key"
         const val EXTRA_MODEL = "model"

@@ -3,7 +3,9 @@ package com.gotcha
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -75,7 +77,15 @@ class AssistiveBallTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag("chat_input").assertExists()
-        composeRule.onNode(hasContentDescription("Turn on assistive ball")).performClick()
+
+        // The toggle lives in Settings ▸ Assistive Ball: drawer, category, switch.
+        composeRule.onNode(hasContentDescription("Open menu")).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Settings").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_assistive_ball_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_assistive_ball").performClick()
         composeRule.waitForIdle()
 
         assertTrue(

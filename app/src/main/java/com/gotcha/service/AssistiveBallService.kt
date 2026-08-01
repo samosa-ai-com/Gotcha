@@ -16,6 +16,7 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import kotlinx.coroutines.CoroutineScope
@@ -212,7 +213,12 @@ class AssistiveBallService : Service() {
         scope.launch {
             try {
                 val compressed = if (attachScreenshot) {
-                    com.gotcha.tools.ScreenPerception.compressScreenshot(maxDimension = 1024, quality = 85)
+                    showingActivity(com.gotcha.ui.BallActivity.ACTING) {
+                        com.gotcha.tools.ScreenPerception.compressScreenshot(
+                            maxDimension = 1024,
+                            quality = 85
+                        )
+                    }
                 } else {
                     null
                 }
@@ -233,7 +239,9 @@ class AssistiveBallService : Service() {
                 )
                 history.add(userMsg)
 
-                val response = llmClient.chat(history.toList())
+                val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                    llmClient.chat(history.toList())
+                }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                 history.add(
                     com.gotcha.llm.ChatMessage(
@@ -258,7 +266,9 @@ class AssistiveBallService : Service() {
         overlay.isPanelOpen = true
         screenCompanionPanel.updateResponse("Fetching $url …")
         scope.launch {
-            val fetched = withContext(Dispatchers.IO) { webFetchTool.fetch(url, "text") }
+            val fetched = showingActivity(com.gotcha.ui.BallActivity.ACTING) {
+                withContext(Dispatchers.IO) { webFetchTool.fetch(url, "text") }
+            }
             if (!fetched.success) {
                 screenCompanionPanel.updateResponse("Couldn't fetch the link: ${fetched.message}")
                 return@launch
@@ -283,7 +293,9 @@ class AssistiveBallService : Service() {
                         )
                     )
                 )
-                val response = llmClient.chat(history.toList())
+                val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                    llmClient.chat(history.toList())
+                }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                 history.add(
                     com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
@@ -516,7 +528,9 @@ class AssistiveBallService : Service() {
         val currentHistory = activeCompanionHistory.toList()
         scope.launch {
             try {
-                val response = llmClient.chat(currentHistory)
+                val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                    llmClient.chat(currentHistory)
+                }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                 activeCompanionHistory.add(
                     com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
@@ -536,8 +550,10 @@ class AssistiveBallService : Service() {
                     com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
                 )
                 val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-                val result = withContext(Dispatchers.Default) {
-                    com.google.android.gms.tasks.Tasks.await(recognizer.process(image))
+                val result = showingActivity(com.gotcha.ui.BallActivity.ACTING) {
+                    withContext(Dispatchers.Default) {
+                        com.google.android.gms.tasks.Tasks.await(recognizer.process(image))
+                    }
                 }
                 val text = result.text.trim()
                 if (text.isBlank()) {
@@ -554,6 +570,35 @@ class AssistiveBallService : Service() {
             }
         }
     }
+
+    /**
+     * Run [block] with the ball showing [state].
+     *
+     * The ball is the only piece of Gotcha on screen while the companion panel
+     * is working, and until now it sat perfectly still through every model call
+     * — the in-app indicator breathed and its counterpart over other apps did
+     * not. This is what tells it when to.
+     *
+     * Ref-counted because these overlap: a Lens crop can be summarising while a
+     * clipboard action fetches. The last one out turns the ring off, so a
+     * finishing call cannot clear a ring that another is still using.
+     */
+    private suspend fun <T> showingActivity(
+        state: com.gotcha.ui.BallActivity,
+        block: suspend () -> T
+    ): T {
+        activityDepth.incrementAndGet()
+        overlay.setActivity(state)
+        try {
+            return block()
+        } finally {
+            if (activityDepth.decrementAndGet() <= 0) {
+                overlay.setActivity(com.gotcha.ui.BallActivity.IDLE)
+            }
+        }
+    }
+
+    private val activityDepth = java.util.concurrent.atomic.AtomicInteger(0)
 
     private fun showToast(msg: String) {
         android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -594,7 +639,9 @@ class AssistiveBallService : Service() {
                 updateResponse("Thinking...")
                 scope.launch {
                     try {
-                        val response = llmClient.chat(currentHistory)
+                        val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                            llmClient.chat(currentHistory)
+                        }
                         val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                         activeCompanionHistory.add(
                             com.gotcha.llm.ChatMessage(
@@ -616,6 +663,7 @@ class AssistiveBallService : Service() {
     /** Start voice typing in the panel using the configured STT provider. */
     private fun startPanelVoiceInput() {
         val s = settingsRepository.load()
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         when {
             s.sttProvider == AudioProvider.ANDROID -> {
                 if (!hasMicPermission()) {
@@ -623,7 +671,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening()) {
+                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError("Failed to start speech recognition.")
@@ -675,8 +723,10 @@ class AssistiveBallService : Service() {
             screenCompanionPanel.setListening(false)
             return
         }
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         scope.launch {
-            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel)
+            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
@@ -692,12 +742,14 @@ class AssistiveBallService : Service() {
             screenCompanionPanel.setSpeaking(false)
             return
         }
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         scope.launch {
             ttsEngine.speak(
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
-                voice = s.ttsVoice
+                voice = s.ttsVoice,
+                language = Language.fromLabel(s.preferredLanguage)
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)

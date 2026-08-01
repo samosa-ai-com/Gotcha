@@ -69,10 +69,18 @@
       "tool": "toggle_wifi",
       "tier": "MANUAL_ONLY",
       "reason": "The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier.",
-      "manualSteps": "Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio.",
+      "manualSteps": "Ask the agent to turn Wi-Fi off; confirm the Wi-Fi settings panel opens (Android 10+ forbids programmatic toggling) rather than the agent claiming it toggled the radio. The panel is opened via SettingsRouter, so open_setting('wifi') must behave identically.",
       "tests": [
         "com.gotcha.tools.SystemToolTest"
       ]
+    },
+    {
+      "tool": "open_setting",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.SettingsRouterTest"
+      ],
+      "notes": "routing table integrity, SDK fallback selection, unknown-key fallback to navigate_app, and the confirm-first gate"
     },
     {
       "tool": "set_wallpaper",
@@ -359,6 +367,14 @@
       "tier": "MANUAL_ONLY",
       "reason": "Only reachable from inside a sub-agent loop with a live LLM connection.",
       "manualSteps": "Run a navigator/sub-agent task; confirm the final answer is returned to the parent agent rather than to the chat."
+    },
+    {
+      "tool": "finish_task",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.FinishTaskToolTest"
+      ],
+      "notes": "covers the FINISH_TASK: marker and which agents may emit it; that AgentEngine ends the run and speaks the summary needs a live LLM and is manual"
     },
     {
       "tool": "todowrite",

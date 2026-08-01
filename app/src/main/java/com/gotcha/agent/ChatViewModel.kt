@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
@@ -15,6 +16,8 @@ import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -76,6 +79,8 @@ data class ChatUiState(
     val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
+    /** True from the moment recording stops until the transcript (and cleanup) is ready. */
+    val isTranscribing: Boolean = false,
     val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
@@ -96,6 +101,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** True when the most recent user message was sent via voice (STT). */
     @Volatile
     private var lastInputWasVoice = false
+
+    /** True when the active LLM run was initiated by voice dictation. */
+    @Volatile
+    private var currentRunIsVoice = false
+
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
         settings.effectiveTtsBaseUrl,
@@ -143,6 +153,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     /** Agent mode of the session currently bound to [agentEngine]. */
     private var engineAgent: AgentMode = AgentMode.MONITOR
+
+    /**
+     * True when the run in flight has surfaced an error bubble (LLM failure,
+     * user interruption, …). Decides whether an arriving reply gets the normal
+     * alert or the error buzz, since the engine reports both outcomes through
+     * the same `onAssistantReply` path.
+     */
+    @Volatile
+    private var runHadError = false
 
     /** True when the session the user is viewing is the one bound to the engine. */
     private fun viewingEngineSession(): Boolean =
@@ -215,12 +234,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     override fun onAssistantReply(text: String) {
-        val shouldRead = lastInputWasVoice ||
+        signalReplyArrived()
+        val shouldRead = lastInputWasVoice || currentRunIsVoice ||
             (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
         if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
             speak(text)
         }
         lastInputWasVoice = false
+        currentRunIsVoice = false
     }
 
     override fun onSubAgentUpdate(running: String?, currentAction: String?) {
@@ -332,7 +353,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return client.listModels()
     }
 
-    fun sendMessage(text: String, imageBase64: String? = null) {
+    fun sendMessage(text: String, imageBase64: String? = null, isVoiceInput: Boolean = false) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && imageBase64 == null) return
         // One agent runs at a time. Block sending while any run is in flight —
@@ -342,6 +363,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
+        currentRunIsVoice = isVoiceInput || lastInputWasVoice
+        lastInputWasVoice = false
         val msg = if (imageBase64 != null) {
             visionUserMessage(trimmed, imageBase64, "jpeg")
         } else {
@@ -367,12 +390,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     runningSessionTitle = runningTitle
                 )
             }
+            runHadError = false
             try {
                 agentEngine.run(engineAgent)
             } catch (_: CancellationException) {
                 appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
                 withContext(NonCancellable) {
+                    currentRunIsVoice = false
+                    lastInputWasVoice = false
                     agentEngine.saveCurrentSession()
                     _uiState.update {
                         it.copy(
@@ -387,6 +413,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     agentJob = null
                 }
             }
+        }
+    }
+
+    /**
+     * Buzz/chime as a reply lands. The chat screen has no spoken "I'm done"
+     * unless auto-read is on, so without this a reply that arrives while the
+     * user is elsewhere goes unnoticed.
+     */
+    private fun signalReplyArrived() {
+        if (runHadError) {
+            CompletionFeedback.error(getApplication())
+        } else {
+            CompletionFeedback.replyArrived(
+                context = getApplication(),
+                vibrate = settings.notifyVibrationEnabled,
+                chime = settings.notifyChimeEnabled
+            )
         }
     }
 
@@ -464,15 +507,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ttsEngine.stop()
             _uiState.update { it.copy(isSpeaking = true) }
             try {
+                val language = Language.fromLabel(settings.preferredLanguage)
                 val defaultVoice = _uiState.value.ttsModels
                     .firstOrNull { it.id == settings.ttsApiModel }
-                    ?.defaultVoice ?: "af_heart"
+                    ?.defaultVoiceFor(language) ?: "af_heart"
                 val voice = settings.ttsVoice.ifBlank { defaultVoice }
                 ttsEngine.speak(
                     text = text,
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
-                    voice = voice
+                    voice = voice,
+                    language = language
                 )
             } finally {
                 _uiState.update { it.copy(isSpeaking = false) }
@@ -486,10 +531,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update { it.copy(isSpeaking = false) }
     }
 
+    /**
+     * Speak [language]'s call-started phrase through the shared Android TTS
+     * engine (regardless of [AudioProvider] setting) so Settings can verify the
+     * installed voice data without spinning up a second TtsEngine instance.
+     *
+     * Returns true when the requested language was actually used, false when
+     * the engine had to fall back to English because Android is missing the
+     * voice data. Returns null when TTS isn't configured at all.
+     */
+    suspend fun testAndroidTts(language: Language): Boolean? {
+        if (settings.ttsProvider == AudioProvider.NONE) return null
+        ttsEngine.stop()
+        ttsEngine.speak(
+            text = SpokenPhrases.callStarted(language),
+            provider = AudioProvider.ANDROID,
+            language = language
+        )
+        return ttsEngine.lastLanguageUnavailable != language
+    }
+
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
         stopSpeaking()
-        if (_uiState.value.isListening || _uiState.value.isRecording) return
+        if (_uiState.value.isListening || _uiState.value.isRecording || _uiState.value.isTranscribing) return
         when {
             settings.sttProvider == AudioProvider.ANDROID -> {
                 val perm = android.Manifest.permission.RECORD_AUDIO
@@ -503,7 +568,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening()
+                val started = sttEngine.startAndroidListening(Language.fromLabel(settings.preferredLanguage))
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
@@ -543,32 +608,47 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
-            var transcript = ""
-            when {
-                provider.isApiBased() -> {
-                    _uiState.update { it.copy(isRecording = false) }
-                    val audioFile = sttEngine.stopRecording()
-                    if (audioFile == null) {
-                        appendUi(MessageKind.ERROR, "Failed to record audio.")
-                        return@launch
-                    }
-                    transcript = sttEngine.transcribeApi(
-                        audioFile, settings.sttApiModel, settings.sttLanguage
-                    )
-                        .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
-                        .getOrDefault("")
-                }
-                provider == AudioProvider.ANDROID -> {
-                    _uiState.update { it.copy(isListening = false) }
-                    transcript = sttEngine.stopAndroidListening()
-                }
+            _uiState.update {
+                it.copy(isRecording = false, isListening = false, isTranscribing = true)
             }
+            try {
+                var transcript = ""
+                when {
+                    provider.isApiBased() -> {
+                        val audioFile = sttEngine.stopRecording()
+                        if (audioFile == null) {
+                            appendUi(MessageKind.ERROR, "Failed to record audio.")
+                            return@launch
+                        }
+                        val sttLanguage = settings.sttLanguage.ifBlank {
+                            Language.fromLabel(settings.preferredLanguage).iso639
+                        }
+                        transcript = sttEngine.transcribeApi(
+                            audioFile, settings.sttApiModel, sttLanguage
+                        )
+                            .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                            .getOrDefault("")
+                    }
+                    provider == AudioProvider.ANDROID -> {
+                        transcript = sttEngine.stopAndroidListening()
+                    }
+                }
 
-            if (transcript.isNotBlank()) {
-                lastInputWasVoice = true
-                val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                val cleaned = client?.cleanText(transcript, navModel) ?: transcript
-                onResult(cleaned)
+                if (transcript.isNotBlank()) {
+                    lastInputWasVoice = true
+                    // API STT (Whisper-class) output is already punctuated and cased —
+                    // cleanText is redundant there and would cost an extra LLM round-trip.
+                    val cleaned = if (provider == AudioProvider.ANDROID) {
+                        val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                        client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                            ?: transcript
+                    } else {
+                        transcript
+                    }
+                    onResult(cleaned)
+                }
+            } finally {
+                _uiState.update { it.copy(isTranscribing = false) }
             }
         }
     }
@@ -653,6 +733,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * is only re-pointed at the new blank chat when nothing is running.
      */
     fun clearChat(defaultAgent: AgentMode = AgentMode.MONITOR) {
+        lastInputWasVoice = false
+        currentRunIsVoice = false
         val newId = java.util.UUID.randomUUID().toString()
         val runInProgress = _uiState.value.runningSessionId != null
         nextId = 0
@@ -717,6 +799,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun openSession(id: String?) {
+        lastInputWasVoice = false
+        currentRunIsVoice = false
         viewModelScope.launch {
             if (id == null) {
                 clearChat()
@@ -830,6 +914,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     ) {
         val viewing = viewingEngineSession()
         val id = if (viewing) nextId++ else engineNextId++
+        if (kind == MessageKind.ERROR) runHadError = true
         val message = UiMessage(id, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent)
         engineTranscript = engineTranscript + message
         if (viewing) {

@@ -7,6 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("io.gitlab.arturbosch.detekt")
     id("org.jetbrains.kotlinx.kover")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 // Load signing credentials from local.properties (gitignored), if present.
@@ -67,10 +68,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.10"
     }
 
     packaging {

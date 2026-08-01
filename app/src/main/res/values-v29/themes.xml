@@ -5,5 +5,7 @@
          leaving white text on light surfaces. Opt out explicitly. -->
     <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:forceDarkAllowed">false</item>
+        <!-- Stops the white flash before Compose's first frame. See colors.xml. -->
+        <item name="android:windowBackground">@color/launch_background</item>
     </style>
 </resources>

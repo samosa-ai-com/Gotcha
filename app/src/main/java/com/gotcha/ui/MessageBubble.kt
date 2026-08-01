@@ -10,9 +10,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,7 +28,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
+import com.gotcha.ui.theme.GotchaMono
+import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.SkinDropdownMenu
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.material3.Material3RichText
 
@@ -66,19 +71,33 @@ fun MessageBubble(
     val isUser = message.kind == MessageKind.USER
     val isAssistant = message.kind == MessageKind.ASSISTANT
     val isTool = message.kind == MessageKind.TOOL
+    // A failed tool call arrives as ERROR (see AgentEngine), which used to make
+    // it a fat red bubble in the middle of a column of ledger lines — the one
+    // row you most want to find, rendered as the one row that breaks the scan.
+    // App-level errors are prose and keep their bubble; tool failures do not.
+    val isToolFailure = message.kind == MessageKind.ERROR && looksLikeToolOutput(message.text)
     val isSubAgent = message.kind == MessageKind.SUBAGENT
     val colors = MaterialTheme.colorScheme
+    // Only the user gets a bubble. An assistant reply can run to several
+    // paragraphs, and wrapping that in a container turns reading into scanning a
+    // receipt; set on the ground it reads like prose, which is what it is.
+    // A tool call is neither — see the ledger rail below.
     val (container, contentColor) = when (message.kind) {
         MessageKind.USER -> colors.primaryContainer to colors.onPrimaryContainer
-        MessageKind.ASSISTANT -> colors.surfaceVariant to colors.onSurfaceVariant
-        MessageKind.TOOL -> colors.secondaryContainer to colors.onSecondaryContainer
-        MessageKind.ERROR -> colors.errorContainer to colors.onErrorContainer
-        MessageKind.SUBAGENT -> {
-            val bg = Color(0xFF1A1A2E)
-            val fg = Color(0xFFE0D4FF)
-            bg to fg
-        }
+        MessageKind.ASSISTANT -> Color.Transparent to colors.onSurface
+        MessageKind.TOOL -> Color.Transparent to colors.onSurfaceVariant
+        MessageKind.ERROR ->
+            if (isToolFailure) {
+                Color.Transparent to colors.error
+            } else {
+                colors.errorContainer to colors.onErrorContainer
+            }
+        // Was a hardcoded navy/lilac pair, which looked deliberate only while
+        // every theme happened to be navy.
+        MessageKind.SUBAGENT -> colors.secondaryContainer to colors.onSecondaryContainer
     }
+    val unbubbled = isAssistant || isTool || isToolFailure
+    val skin = LocalSkin.current
     val expanded = remember { mutableStateOf(!isTool && !isSubAgent) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -91,17 +110,22 @@ fun MessageBubble(
         Surface(
             color = container,
             contentColor = contentColor,
-            shadowElevation = 2.dp,
+            shadowElevation = if (unbubbled) 0.dp else 2.dp,
+            // The skin owns the shape as well as the colour: Orchid is generous,
+            // Nocturne is tight, Deep Space is exactly what it always was.
             shape = RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 20.dp,
-                bottomStart = if (isUser) 20.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 20.dp
+                topStart = skin.corner,
+                topEnd = skin.corner,
+                bottomStart = if (isUser) skin.corner else 4.dp,
+                bottomEnd = if (isUser) 4.dp else skin.corner
             )
         ) {
             Column(
                 modifier = Modifier
-                    .widthIn(max = 320.dp)
+                    .then(
+                        // Prose wants the full column; a bubble wants to stay a bubble.
+                        if (isAssistant) Modifier.fillMaxWidth() else Modifier.widthIn(max = 320.dp)
+                    )
                     .then(
                         if (isTool || isSubAgent) {
                             Modifier.combinedClickable(
@@ -115,7 +139,10 @@ fun MessageBubble(
                             )
                         }
                     )
-                    .padding(16.dp)
+                    .padding(
+                        horizontal = if (unbubbled) 6.dp else 16.dp,
+                        vertical = if (unbubbled) 6.dp else 16.dp
+                    )
             ) {
                 message.imageBase64?.let { base64 ->
                     val bitmap = try {
@@ -140,7 +167,7 @@ fun MessageBubble(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(skin.cornerSmall))
                             .background(contentColor.copy(alpha = 0.05f))
                     ) {
                         Row(
@@ -177,37 +204,23 @@ fun MessageBubble(
                     }
                 }
                 if (message.text.isNotEmpty()) {
-                    val displayText = when (message.kind) {
-                        MessageKind.TOOL -> "🔧 ${message.text}"
-                        else -> message.text
-                    }
+                    val displayText = message.text
                     val firstLine = displayText.substringBefore("\n").trimEnd()
                     val hasMore = displayText.contains("\n")
 
-                    if (isTool && !expanded.value) {
-                        Text(
-                            text = firstLine,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                    if (isTool || isToolFailure) {
+                        ToolLedger(
+                            text = if (expanded.value) displayText else firstLine,
+                            hint = if (!expanded.value && hasMore) "tap to expand" else null,
+                            railColor = if (isToolFailure) colors.error else colors.primary,
+                            contentColor = contentColor,
+                            collapsed = !expanded.value
                         )
-                        if (hasMore) {
-                            Text(
-                                text = "… tap to expand",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = contentColor.copy(alpha = 0.6f)
-                            )
-                        }
                     } else if (isSubAgent) {
                         SubAgentContent(
                             message = message,
                             contentColor = contentColor,
                             expanded = expanded
-                        )
-                    } else if (isTool || isSubAgent) {
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodySmall
                         )
                     } else {
                         Material3RichText {
@@ -251,7 +264,7 @@ fun MessageBubble(
             }
         }
 
-        DropdownMenu(
+        SkinDropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
         ) {
@@ -269,6 +282,61 @@ fun MessageBubble(
                     showMenu = false
                 }
             )
+        }
+    }
+}
+
+/**
+ * A tool call, rendered as a ledger line rather than a chat bubble: an accent
+ * rail, the call in monospace, one line until tapped. A turn can make twenty of
+ * these, and twenty bubbles bury the two sentences of prose that answered the
+ * question.
+ */
+/**
+ * Tool output is formatted `name: message` by the engine, so an ERROR that opens
+ * with a bare identifier and a colon came from a tool. App errors are sentences
+ * — "No API key configured.", "Transcription failed: …" — and never match, since
+ * they start with a capital or contain a space before the colon.
+ */
+private val ToolOutputPrefix = Regex("^[a-z][a-z0-9_.]{1,40}:")
+
+private fun looksLikeToolOutput(text: String): Boolean =
+    ToolOutputPrefix.containsMatchIn(text)
+
+@Composable
+private fun ToolLedger(
+    text: String,
+    hint: String?,
+    railColor: Color,
+    contentColor: Color,
+    collapsed: Boolean
+) {
+    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+        Box(
+            modifier = Modifier
+                .width(2.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(1.dp))
+                .background(railColor.copy(alpha = 0.7f))
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = GotchaMono,
+                color = contentColor,
+                maxLines = if (collapsed) 1 else Int.MAX_VALUE,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (hint != null) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = GotchaMono,
+                    color = contentColor.copy(alpha = 0.55f)
+                )
+            }
         }
     }
 }

@@ -10,12 +10,14 @@ object SkillImportValidator {
 
     private val ID_REGEX = Regex("^[a-z][a-z0-9_]{2,63}$")
     private val PACKAGE_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z0-9_]+)+$")
+    private val TOOL_NAME_REGEX = Regex("^[a-z][a-z0-9_]{1,63}$")
 
     const val MAX_ID_LENGTH = 64
     const val MAX_TITLE_LENGTH = 120
     const val MAX_DESCRIPTION_LENGTH = 1024
     const val MAX_INSTRUCTIONS_LENGTH = 32 * 1024
     const val MAX_TARGET_PACKAGES = 32
+    const val MAX_REQUIRED_TOOLS = 32
     const val MAX_TOTAL_INSTRUCTIONS = 64 * 1024
 
     fun validate(skill: Skill) {
@@ -48,6 +50,16 @@ object SkillImportValidator {
         skill.targetPackageNames.forEach { pkg ->
             if (pkg != "*" && !PACKAGE_REGEX.matches(pkg)) {
                 throw SkillValidationException("invalid target package name: $pkg")
+            }
+        }
+        if (skill.requiresTools.size > MAX_REQUIRED_TOOLS) {
+            throw SkillValidationException("requiresTools exceeds $MAX_REQUIRED_TOOLS entries")
+        }
+        // Names only — an unknown name simply never matches, which fails closed
+        // (the skill stays hidden) rather than exposing anything.
+        skill.requiresTools.forEach { tool ->
+            if (!TOOL_NAME_REGEX.matches(tool)) {
+                throw SkillValidationException("invalid tool name in requiresTools: $tool")
             }
         }
         if (containsControlChars(skill.instructions)) {
