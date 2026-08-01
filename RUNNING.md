@@ -221,3 +221,93 @@ Other controls: **Clear** (top bar) wipes chat history; **Clear LLM cache**
 - Chat history: `filesDir/chat_history.json` (survives restarts).
 - Audit log of every tool run: `filesDir/action_log.txt`.
 - LLM response cache: `cacheDir/llm_cache/`.
+
+## 9. Production release checklist
+
+Before publishing to Google Play or distributing a release APK, complete this checklist.
+
+### Signing configuration
+
+- [ ] **Create a release keystore** (do NOT use the debug keystore):
+  ```bash
+  keytool -genkey -v -keystore gotcha-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias gotcha
+  ```
+- [ ] **Store keystore credentials securely** in `local.properties` (gitignored):
+  ```properties
+  RELEASE_STORE_FILE=/path/to/gotcha-release.jks
+  RELEASE_STORE_PASSWORD=your_strong_password
+  RELEASE_KEY_ALIAS=gotcha
+  RELEASE_KEY_PASSWORD=your_strong_password
+  ```
+- [ ] **Verify signing config** loads in `app/build.gradle.kts` (lines 36-46)
+- [ ] **Backup the release keystore** — losing it means you cannot update the app
+- [ ] **Never commit the keystore** to git (already in `.gitignore`)
+
+### Samosa AI / Google OAuth setup
+
+- [ ] **Register release SHA-1** in Google Cloud Console:
+  1. Get the release keystore fingerprint:
+     ```bash
+     keytool -list -v -keystore gotcha-release.jks -alias gotcha
+     ```
+  2. Copy the **SHA-1** fingerprint
+  3. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
+  4. Edit the Android OAuth client (or create a new one)
+  5. Paste the SHA-1 fingerprint
+- [ ] **Update `WEB_CLIENT_ID`** in `SamosaAuthManager.kt` if you created a new OAuth client
+- [ ] **Update `GOOGLE_CLIENT_ID`** in the backend `.env` to match the new client ID
+- [ ] **Verify backend validates `aud`** — the backend at `api.samosa-ai.example` must reject tokens not minted for your client ID (already implemented in `the backend`)
+
+### Backend environment (Samosa AI backend)
+
+- [ ] **Set strong secrets** in production `.env`:
+  ```bash
+  ***=<strong_random_hex>      # For session JWT signing
+  ***=<strong_random_hex> # For encrypting user API keys at rest
+  ***=<your_admin_key>      # For creating users on the gateway
+  ```
+- [ ] **Set `ENVIRONMENT=production`** to enforce strict security checks
+- [ ] **Disable test tokens**: ensure `***=false` (default)
+- [ ] **Configure CORS**: set `***` if needed
+- [ ] **Set database credentials**: use strong passwords for Postgres/Redis
+- [ ] **Review rate limits**: adjust `***`, `***`, `***` as needed
+
+### Build & verify
+
+- [ ] **Run static analysis**:
+  ```bash
+  ./gradlew detekt lintDebug
+  ```
+- [ ] **Run unit tests**:
+  ```bash
+  ./gradlew testDebugUnitTest
+  ```
+- [ ] **Build release APK**:
+  ```bash
+  ./gradlew assembleRelease
+  ```
+- [ ] **Verify APK signature**:
+  ```bash
+  apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
+  ```
+- [ ] **Test on physical device** — install the release APK and verify:
+  - [ ] Samosa AI sign-in works
+  - [ ] OpenAI-compatible mode works
+  - [ ] Tool permissions function correctly
+  - [ ] No crashes on API 30-34 devices
+
+### Security verification
+
+- [ ] **No secrets in source code**: search for hardcoded API keys, passwords, or tokens
+  ```bash
+  grep -r "sk-\|password\|secret\|token" app/src/main/java/ --include="*.kt" | grep -v "EncryptedSharedPreferences\|SettingsRepository\|samosaSession"
+  ```
+- [ ] **Keystore not in git**: verify `*.keystore` is in `.gitignore`
+- [ ] **Backend secrets not exposed**: ensure `.env` files are gitignored and not in Docker images
+- [ ] **Test token bypass disabled**: confirm `***=false` in production backend
+
+### Post-release
+
+- [ ] **Monitor crash reports** for signing-related issues
+- [ ] **Rotate secrets** if any credentials are compromised
+- [ ] **Document the release** in `CHANGELOG.md`
