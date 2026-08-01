@@ -702,6 +702,7 @@ class MainActivity : ComponentActivity() {
             add(android.Manifest.permission.READ_CALENDAR)
             add(android.Manifest.permission.WRITE_CALENDAR)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(android.Manifest.permission.POST_NOTIFICATIONS)
                 add(android.Manifest.permission.READ_MEDIA_IMAGES)
             }
         }
