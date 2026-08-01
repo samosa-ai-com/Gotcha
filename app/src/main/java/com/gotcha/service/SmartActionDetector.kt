@@ -2,6 +2,7 @@ package com.gotcha.service
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.regex.Pattern
 
 /**
@@ -79,17 +80,26 @@ data class DetectedEntity(
 data class AnnotatedEntity(
     val entity: DetectedEntity,
     val boundsOnScreen: android.graphics.Rect,
-    val groupCount: Int = 1
-)
+    /** Every detection the chip stands for, [entity] included. */
+    val members: List<DetectedEntity> = listOf(entity)
+) {
+    val groupCount: Int get() = members.size
+}
 
 /**
- * An entity that survived annotation ranking, with the number of detections it
- * represents.
+ * An entity that survived annotation ranking, together with the detections it
+ * was chosen to represent.
+ *
+ * [members] is carried rather than a bare count so a tap on "12 prices" can open
+ * all twelve. A chip that promises a group and delivers one of them is worse
+ * than not grouping at all.
  */
 data class AnnotationCandidate(
     val entity: DetectedEntity,
-    val groupCount: Int = 1
-)
+    val members: List<DetectedEntity> = listOf(entity)
+) {
+    val groupCount: Int get() = members.size
+}
 
 /**
  * Lightweight text scanner that recognises structured data types — physical
@@ -137,6 +147,8 @@ object SmartActionDetector {
     private const val CONFIDENCE_EVENT_BARE_TIME = 0.5f
     private const val CHIP_LABEL_MAX = 18
     private const val DAYS_IN_WEEK = 7
+    private const val HOURS_ON_A_CLOCK = 12
+    private const val MAX_MINUTE = 59
 
     /**
      * Street addresses: supports single-line and multi-line house numbers, street names,
@@ -213,6 +225,11 @@ object SmartActionDetector {
 
     private val weekdayNamePattern: Pattern = Pattern.compile(
         "\\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\\b",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private val timeOfDayPattern: Pattern = Pattern.compile(
+        "\\b(\\d{1,2})(?::(\\d{2}))?\\s?([ap])\\.?\\s?m\\.?",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -383,14 +400,14 @@ object SmartActionDetector {
         }
         val unique = byValue.values.mapNotNull { group ->
             val best = group.maxByOrNull { calculateScore(it) } ?: return@mapNotNull null
-            AnnotationCandidate(best, group.size)
+            AnnotationCandidate(best, group)
         }
 
         val kept = mutableListOf<AnnotationCandidate>()
         for ((_, group) in unique.groupBy { it.entity.type }) {
             val ranked = group.sortedByDescending { calculateScore(it.entity) }
-            val occurrences = group.sumOf { it.groupCount }
-            if (occurrences >= repetitionThreshold) {
+            val occurrences = ranked.flatMap { it.members }
+            if (occurrences.size >= repetitionThreshold) {
                 kept.add(AnnotationCandidate(ranked.first().entity, occurrences))
             } else {
                 kept.addAll(ranked.take(maxPerType))
@@ -753,6 +770,40 @@ object SmartActionDetector {
         return null
     }
 
+    /** The clock time named in [event], or null when it names only a day. */
+    internal fun timeOfDayOf(event: String): LocalTime? {
+        val m = timeOfDayPattern.matcher(event)
+        if (!m.find()) return null
+        val rawHour = m.group(1)?.toIntOrNull() ?: return null
+        if (rawHour !in 1..HOURS_ON_A_CLOCK) return null
+        val minute = m.group(2)?.toIntOrNull() ?: 0
+        if (minute !in 0..MAX_MINUTE) return null
+        val pm = m.group(3)?.lowercase() == "p"
+        val hour = when {
+            rawHour == HOURS_ON_A_CLOCK && !pm -> 0
+            rawHour == HOURS_ON_A_CLOCK -> HOURS_ON_A_CLOCK
+            pm -> rawHour + HOURS_ON_A_CLOCK
+            else -> rawHour
+        }
+        return runCatching { LocalTime.of(hour, minute) }.getOrNull()
+    }
+
+    /**
+     * The calendar payload: `yyyy-MM-dd|HH:mm|title`, either of the first two
+     * fields blank when the text did not say.
+     *
+     * The date is carried resolved rather than raw because the receiving app
+     * cannot resolve it — handed "Monday", a calendar has no idea which one, and
+     * the event lands on today. Left as text rather than epoch millis so the
+     * detector stays free of a timezone.
+     */
+    private fun calendarPayload(event: String, date: LocalDate?, time: LocalTime?): String =
+        listOf(
+            date?.toString().orEmpty(),
+            time?.toString().orEmpty(),
+            event
+        ).joinToString(PAYLOAD_SEP)
+
     private fun detectCalendars(text: String, out: MutableList<DetectedEntity>, today: LocalDate) {
         val m = calendarPattern.matcher(text)
         while (m.find()) {
@@ -778,7 +829,7 @@ object SmartActionDetector {
             val actions = listOf(
                 SmartAction(
                     label = "📅 Add to calendar: ${snippet(event, 24)}",
-                    prompt = encode(TYPE_CALENDAR, event),
+                    prompt = encode(TYPE_CALENDAR, calendarPayload(event, date, timeOfDayOf(event))),
                     actionType = ActionType.NATIVE_CALENDAR,
                     isPrimary = true
                 ),

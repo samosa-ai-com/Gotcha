@@ -406,7 +406,7 @@ class GotchaAccessibilityService : AccessibilityService() {
         return selected.mapNotNull { candidate ->
             val bounds = placeable.firstOrNull { it.entity === candidate.entity }?.boundsOnScreen
                 ?: return@mapNotNull null
-            AnnotatedEntity(candidate.entity, bounds, candidate.groupCount)
+            AnnotatedEntity(candidate.entity, bounds, candidate.members)
         }
     }
 

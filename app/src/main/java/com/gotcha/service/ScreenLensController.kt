@@ -93,6 +93,18 @@ class ScreenLensController(
                 onAnnotatedEntitySelected = { prompt ->
                     cancel()
                     onContextualAction(prompt)
+                },
+                // A grouped chip opens its members instead of firing one of them.
+                // The Lens overlay stays up behind the menu: picking from a list
+                // of prices is a choice, and closing the thing they are listed on
+                // would leave nothing to choose against.
+                onAnnotatedGroupSelected = { group ->
+                    showActionMenu(
+                        group.members
+                            .mapNotNull { it.primaryAction }
+                            .distinctBy { it.prompt }
+                            .take(MAX_GROUP_MENU_ITEMS)
+                    )
                 }
             )
             overlay.setAnnotatedEntities(annotatedEntities)
@@ -622,6 +634,9 @@ class ScreenLensController(
         const val CHIP_ICON_DP = 18
         const val CHIP_ICON_GAP_DP = 3
         const val MENU_WIDTH_DP = 240
+
+        /** Cap on a grouped chip's menu — past this it is a list, not a choice. */
+        const val MAX_GROUP_MENU_ITEMS = 8
         const val GAP_DP = 12
         const val EDGE_MARGIN_DP = 12
     }

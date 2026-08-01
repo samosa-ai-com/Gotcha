@@ -46,7 +46,8 @@ class ScreenCropOverlayView(
     private val onSelection: (Rect) -> Unit,
     private val onCancel: () -> Unit,
     private val onReselectStart: () -> Unit = {},
-    private val onAnnotatedEntitySelected: (prompt: String) -> Unit = {}
+    private val onAnnotatedEntitySelected: (prompt: String) -> Unit = {},
+    private val onAnnotatedGroupSelected: (AnnotatedEntity) -> Unit = {}
 ) : View(context) {
 
     private val density = resources.displayMetrics.density
@@ -604,9 +605,8 @@ class ScreenCropOverlayView(
         for (i in 0 until drawnChipCount) {
             val hit = chipHits[i]
             if (!hit.rect.contains(touchX, touchY)) continue
-            val prompt = hit.item?.entity?.primaryAction?.prompt ?: continue
-            onAnnotatedEntitySelected(prompt)
-            return true
+            val item = hit.item ?: continue
+            if (fireAnnotation(item)) return true
         }
 
         getLocationOnScreen(scratchLocation)
@@ -633,7 +633,20 @@ class ScreenCropOverlayView(
             }
         }
 
-        val prompt = best?.entity?.primaryAction?.prompt ?: return false
+        return fireAnnotation(best ?: return false)
+    }
+
+    /**
+     * Act on [item]: run its action, or open the group when the chip stands for
+     * more than one detection. "12 prices" that converts a single price is a
+     * chip lying about what it is.
+     */
+    private fun fireAnnotation(item: AnnotatedEntity): Boolean {
+        if (item.groupCount > 1) {
+            onAnnotatedGroupSelected(item)
+            return true
+        }
+        val prompt = item.entity.primaryAction?.prompt ?: return false
         onAnnotatedEntitySelected(prompt)
         return true
     }

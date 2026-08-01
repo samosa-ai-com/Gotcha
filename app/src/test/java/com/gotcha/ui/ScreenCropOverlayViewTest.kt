@@ -16,6 +16,7 @@ import com.gotcha.ui.theme.Skins
 import com.gotcha.ui.theme.overlaySkin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,37 +76,41 @@ class ScreenCropOverlayViewTest {
 
     // ---- Annotation chips ----
 
+    private fun urlEntity(value: String) = DetectedEntity(
+        type = EntityType.URL,
+        rawValue = value,
+        normalizedValue = value,
+        span = 0..value.length,
+        confidence = 0.9f,
+        actions = listOf(
+            SmartAction(
+                label = "🌐 Open: $value",
+                prompt = "@@SMART:VIEW|$value",
+                isPrimary = true
+            )
+        )
+    )
+
     private fun annotation(left: Int, top: Int, right: Int, bottom: Int, value: String, groupCount: Int = 1) =
         AnnotatedEntity(
-            entity = DetectedEntity(
-                type = EntityType.URL,
-                rawValue = value,
-                normalizedValue = value,
-                span = 0..value.length,
-                confidence = 0.9f,
-                actions = listOf(
-                    SmartAction(
-                        label = "🌐 Open: $value",
-                        prompt = "@@SMART:VIEW|$value",
-                        isPrimary = true
-                    )
-                )
-            ),
+            entity = urlEntity(value),
             boundsOnScreen = Rect(left, top, right, bottom),
-            groupCount = groupCount
+            members = (0 until groupCount).map { urlEntity(if (it == 0) value else "$value-$it") }
         )
 
     /** A laid-out view that has drawn one frame, so chips have been placed. */
     private fun drawnViewWith(
         entities: List<AnnotatedEntity>,
-        onSelected: (String) -> Unit = {}
+        onSelected: (String) -> Unit = {},
+        onGroupSelected: (AnnotatedEntity) -> Unit = {}
     ): ScreenCropOverlayView {
         val view = ScreenCropOverlayView(
             context,
             colors = overlaySkin(context, Skins.DEFAULT_ID),
             onSelection = {},
             onCancel = {},
-            onAnnotatedEntitySelected = onSelected
+            onAnnotatedEntitySelected = onSelected,
+            onAnnotatedGroupSelected = onGroupSelected
         )
         view.measure(
             View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
@@ -171,19 +176,48 @@ class ScreenCropOverlayViewTest {
             listOf(
                 annotation(0, 0, WIDTH, HEIGHT, "outer-container"),
                 annotation(100, 500, 300, 560, "inner-target")
-            )
-        ) { selected = it }
+            ),
+            onSelected = { selected = it }
+        )
 
         tap(view, 200f, 530f)
         assertEquals("@@SMART:VIEW|inner-target", selected)
     }
 
     @Test
-    fun `a grouped annotation is labelled by count`() {
+    fun `tapping a grouped chip opens the group, not one of its members`() {
+        // A chip reading "7 links" that follows a single link is lying about what
+        // it is — the whole point of collapsing is that the rest stay reachable.
+        var single: String? = null
+        var group: AnnotatedEntity? = null
         val view = drawnViewWith(
-            listOf(annotation(40, 400, 400, 440, "example.com", groupCount = 7))
+            listOf(annotation(40, 400, 400, 440, "example.com", groupCount = 7)),
+            onSelected = { single = it },
+            onGroupSelected = { group = it }
         )
-        assertEquals(1, view.drawnChipRects().size)
+
+        val chip = view.drawnChipRects().single()
+        tap(view, chip.centerX(), chip.centerY())
+
+        assertNull("a grouped chip must not fire a member's action", single)
+        assertEquals(7, group?.members?.size)
+    }
+
+    @Test
+    fun `tapping an ungrouped chip fires its action directly`() {
+        var single: String? = null
+        var group: AnnotatedEntity? = null
+        val view = drawnViewWith(
+            listOf(annotation(40, 400, 400, 440, "example.com")),
+            onSelected = { single = it },
+            onGroupSelected = { group = it }
+        )
+
+        val chip = view.drawnChipRects().single()
+        tap(view, chip.centerX(), chip.centerY())
+
+        assertEquals("@@SMART:VIEW|example.com", single)
+        assertNull(group)
     }
 
     private companion object {

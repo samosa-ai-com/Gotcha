@@ -471,4 +471,56 @@ class SmartActionDetectorTest {
     fun `selectForAnnotation on an empty list is empty`() {
         assertTrue(SmartActionDetector.selectForAnnotation(emptyList()).isEmpty())
     }
+
+    @Test
+    fun `a grouped candidate carries every member, not just a count`() {
+        val catalogue = (1..12).joinToString("\n") { "Item $it — €${it * 10}.00" }
+        val entities = SmartActionDetector.detectAll(catalogue)
+        val grouped = SmartActionDetector.selectForAnnotation(entities)
+            .first { it.entity.type == EntityType.CURRENCY }
+
+        assertEquals(grouped.groupCount, grouped.members.size)
+        assertTrue("the representative must be one of its own members", grouped.entity in grouped.members)
+        assertTrue(
+            "every member needs an action, or the group menu has dead rows",
+            grouped.members.all { it.primaryAction != null }
+        )
+        // Distinct prices, so the menu is twelve real choices rather than one repeated.
+        assertEquals(grouped.members.size, grouped.members.map { it.normalizedValue }.distinct().size)
+    }
+
+    // ---- Calendar payloads carry a resolved start ----
+
+    private fun calendarPayload(text: String, today: LocalDate): String {
+        val entity = SmartActionDetector.detectAll(text, today = today)
+            .first { it.type == EntityType.CALENDAR }
+        return SmartActionDetector.decode(entity.primaryAction!!.prompt)!!.second
+    }
+
+    @Test
+    fun `a dated event carries the resolved day and time`() {
+        val payload = calendarPayload("Design review Aug 14, 2026 at 9:30 a.m.", LocalDate.of(2026, 8, 1))
+        val parts = payload.split("|", limit = 3)
+        assertEquals("2026-08-14", parts[0])
+        assertEquals("09:30", parts[1])
+        assertTrue("the title should survive", parts[2].contains("Aug 14"))
+    }
+
+    @Test
+    fun `an event with no clock time leaves the time field blank`() {
+        val payload = calendarPayload("Team meeting on Monday", LocalDate.of(2026, 8, 5))
+        val parts = payload.split("|", limit = 3)
+        // Wednesday Aug 5 → the coming Monday. A calendar app handed the word
+        // "Monday" would have dropped this on today instead.
+        assertEquals("2026-08-10", parts[0])
+        assertEquals("", parts[1])
+    }
+
+    @Test
+    fun `midday and midnight convert correctly`() {
+        assertEquals(java.time.LocalTime.of(12, 0), SmartActionDetector.timeOfDayOf("lunch at 12 pm"))
+        assertEquals(java.time.LocalTime.of(0, 30), SmartActionDetector.timeOfDayOf("12:30 am"))
+        assertEquals(java.time.LocalTime.of(15, 0), SmartActionDetector.timeOfDayOf("3 p.m."))
+        assertNull(SmartActionDetector.timeOfDayOf("sometime Monday"))
+    }
 }
