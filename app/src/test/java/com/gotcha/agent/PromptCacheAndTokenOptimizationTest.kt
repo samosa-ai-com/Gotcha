@@ -128,7 +128,7 @@ class PromptCacheAndTokenOptimizationTest {
         val msg = engine.systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR)
         assertEquals("system", msg.role)
         val text = msg.textContent
-        assertTrue("Should contain core Operator instructions", text.contains("You are Operator"))
+        assertTrue("Should contain core Operator instructions", text.contains("You are Gotcha"))
         assertTrue("Should contain env block", text.contains("<env>"))
         assertTrue("Should contain device model info", text.contains("Device model:"))
     }

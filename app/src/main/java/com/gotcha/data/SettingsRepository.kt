@@ -2,8 +2,6 @@ package com.gotcha.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.gotcha.audio.AudioProvider
 
 data class Settings(
@@ -238,16 +236,7 @@ private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
 class SettingsRepository(context: Context) {
 
     val prefs: SharedPreferences by lazy {
-        val masterKey = MasterKey.Builder(context.applicationContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context.applicationContext,
-            SETTINGS_PREFS_FILE,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        SafeEncryptedSharedPreferences.create(context, SETTINGS_PREFS_FILE)
     }
 
     private fun stringSet(key: String, default: Set<String> = emptySet()): Set<String> =
