@@ -41,6 +41,7 @@ import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ScreenPerception
@@ -303,6 +304,38 @@ class MainActivity : ComponentActivity() {
         chatViewModel.setForeground(true)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Server-driven notifications — fetch fresh if the cached value is
+        // older than 6h. The dispatcher itself no-ops when the user has the
+        // toggle off, so calling it on every resume is safe.
+        lifecycleScope.launch {
+            try {
+                val settings = settingsRepository.load()
+                val dispatcher = ServerMessages.create(
+                    context = this@MainActivity,
+                    settings = settings,
+                    onUnauthorized = { onSamosaUnauthorized() }
+                )
+                ServerMessages.syncIfStale(
+                    dispatcher = dispatcher,
+                    enabled = settings.serverMessagesEnabled
+                )
+                // Persist the store's lastFetchedAt so Settings → Notifications
+                // shows a correct "Last synced: …" line on next open, even if
+                // the user never tapped Sync now.
+                val fresh = dispatcher.lastFetchedAt()
+                if (fresh > 0L && fresh != settings.serverMessagesLastFetchedAt) {
+                    settingsRepository.save(settings.copy(serverMessagesLastFetchedAt = fresh))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Server messages are best-effort; never surface errors.
+            }
+        }
+    }
+
     /**
      * Start or stop the assistive-ball foreground service. Returns the resulting
      * enabled state. When enabling without the overlay permission, deep-links the user
@@ -539,6 +572,25 @@ class MainActivity : ComponentActivity() {
                         onSamosaSignOut = {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
+                        },
+                        onSyncServerMessages = {
+                            val s = settingsRepository.load()
+                            if (!s.serverMessagesEnabled) return@SettingsScreen null
+                            val dispatcher = ServerMessages.create(
+                                context = this@MainActivity,
+                                settings = s,
+                                onUnauthorized = { onSamosaUnauthorized() }
+                            )
+                            dispatcher.fetchAndDeliver()
+                            // Persist the fresh last-fetched-at so a future
+                            // Settings reload reads the same value the screen
+                            // is showing, and so a process kill + relaunch
+                            // starts from this point.
+                            val updated = s.copy(
+                                serverMessagesLastFetchedAt = dispatcher.lastFetchedAt()
+                            )
+                            settingsRepository.save(updated)
+                            dispatcher.lastFetchedAt()
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
                         packageName = packageName,
