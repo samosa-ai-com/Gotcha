@@ -27,6 +27,8 @@ import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
+import com.gotcha.ui.tour.TourAnchor
+import com.gotcha.ui.tour.tourAnchor
 import kotlinx.coroutines.launch
 
 /** Currencies offered for [Settings.preferredCurrency]. */
@@ -103,6 +105,7 @@ fun PersonalInfoScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_user_name")
+                .tourAnchor(TourAnchor.PERSONAL_NAME)
         )
         OutlinedTextField(
             value = userLocation,
@@ -283,6 +286,7 @@ fun PersonalInfoScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save_personal_info")
+                .tourAnchor(TourAnchor.PERSONAL_SAVE)
         ) { Text("Save Personal Info") }
     }
 }

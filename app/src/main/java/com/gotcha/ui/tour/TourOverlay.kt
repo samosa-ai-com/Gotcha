@@ -1,5 +1,6 @@
 package com.gotcha.ui.tour
 
+import android.content.Context
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,10 +53,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.gotcha.ui.openSpecialAccess
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import android.provider.Settings as AndroidSettings
+
+/** Runs a coach card's primary action — always a trip to a system settings screen. */
+private fun openTourAction(context: Context, action: TourAction) {
+    openSpecialAccess(context, action.marker, context.packageName)
+}
 
 /** Gap between the spotlit control and the card explaining it. */
 private val CARD_GAP = 12.dp
@@ -84,9 +92,16 @@ fun TourOverlay(
     val anchors = LocalTourAnchors.current
     val hole = step.anchor?.let { anchors[it] }
 
+    // The control this step is about is often below the fold — a Save button at
+    // the foot of a long page. Scroll it up before asking the user to press it.
+    LaunchedEffect(step.id, step.anchor) {
+        step.anchor?.let { anchors.bringIntoView(it) }
+    }
+
     // A step that belongs to a branch this user isn't on — signing in to Samosa
     // when they have chosen their own API key. Wait a beat for the page to
-    // finish laying out before concluding the control is genuinely not there.
+    // finish laying out, and for the scroll above to land, before concluding the
+    // control is genuinely not there.
     LaunchedEffect(step.id) {
         if (step.requiresAnchor) {
             delay(ANCHOR_GRACE_MS)
@@ -298,6 +313,20 @@ private fun CoachCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            // The way out of the app, for the steps whose toggle lives in
+            // Android's own settings. Telling someone where to go is not the
+            // same as taking them, and the path is three screens deep on some
+            // phones — see the hint above, which is only there because of that.
+            step.action?.let { action ->
+                val context = LocalContext.current
+                Button(
+                    onClick = { openTourAction(context, action) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                        .testTag("tour_action")
+                ) { Text(action.label) }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),

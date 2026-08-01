@@ -1,9 +1,13 @@
 package com.gotcha.ui.tour
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -25,8 +29,17 @@ enum class TourAnchor {
     SETTINGS_PERMISSIONS,
     AI_PROVIDER,
     AI_SAMOSA_SIGN_IN,
-    AI_SAVE
+    AI_SAVE,
+    PERSONAL_NAME,
+    PERSONAL_SAVE
 }
+
+/** Where one anchored control is, and how to scroll it back into view. */
+@OptIn(ExperimentalFoundationApi::class)
+private class AnchorHandle(
+    val bounds: Rect,
+    val requester: BringIntoViewRequester
+)
 
 /**
  * Where each registered [TourAnchor] currently is, in root coordinates.
@@ -37,16 +50,34 @@ enum class TourAnchor {
  */
 @Stable
 class TourAnchors {
-    private val bounds = mutableStateMapOf<TourAnchor, Rect>()
+    private val handles = mutableStateMapOf<TourAnchor, AnchorHandle>()
 
-    operator fun get(anchor: TourAnchor): Rect? = bounds[anchor]
+    /**
+     * The visible bounds of [anchor], or null when it is not on screen.
+     *
+     * Deliberately the *clipped* bounds. A control scrolled out of its list
+     * still exists and still reports a position, and treating that as a
+     * spotlight punches the hole somewhere the user cannot see while blocking
+     * every part of the screen they can — which is precisely the trap the tour
+     * must never spring. Null here means "not visible", and the overlay asks
+     * [bringIntoView] to fix that rather than drawing a hole into nothing.
+     */
+    operator fun get(anchor: TourAnchor): Rect? =
+        handles[anchor]?.bounds?.takeIf { !it.isEmpty }
 
-    internal fun record(anchor: TourAnchor, rect: Rect) {
-        bounds[anchor] = rect
+    /** Scrolls [anchor] back into view, if it is registered and scrollable. */
+    @OptIn(ExperimentalFoundationApi::class)
+    suspend fun bringIntoView(anchor: TourAnchor) {
+        handles[anchor]?.requester?.bringIntoView()
+    }
+
+    @OptIn(ExperimentalFoundationApi::class)
+    internal fun record(anchor: TourAnchor, bounds: Rect, requester: BringIntoViewRequester) {
+        handles[anchor] = AnchorHandle(bounds, requester)
     }
 
     internal fun forget(anchor: TourAnchor) {
-        bounds.remove(anchor)
+        handles.remove(anchor)
     }
 }
 
@@ -64,13 +95,20 @@ val LocalTourAnchors = staticCompositionLocalOf { TourAnchors() }
  * reads the result, and a build with the tour disabled writes into the default
  * registry above and is otherwise unaffected.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.tourAnchor(anchor: TourAnchor): Modifier {
     val anchors = LocalTourAnchors.current
+    // Half the controls worth pointing at — a Save button at the foot of a long
+    // settings page — are off screen when their step opens. Registering a
+    // requester here is what lets the tour scroll them back to the user.
+    val requester = remember { BringIntoViewRequester() }
     // Rows scroll away and pages are left; a stale rect would spotlight whatever
     // has since been laid out in the same place.
     DisposableEffect(anchors, anchor) {
         onDispose { anchors.forget(anchor) }
     }
-    return onGloballyPositioned { anchors.record(anchor, it.boundsInRoot()) }
+    return this
+        .bringIntoViewRequester(requester)
+        .onGloballyPositioned { anchors.record(anchor, it.boundsInRoot(), requester) }
 }

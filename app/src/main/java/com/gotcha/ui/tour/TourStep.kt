@@ -2,6 +2,7 @@ package com.gotcha.ui.tour
 
 import android.content.Context
 import com.gotcha.data.Settings
+import com.gotcha.tools.ToolResult
 import com.gotcha.ui.isAccessibilityGranted
 import com.gotcha.ui.isOverlayGranted
 
@@ -25,6 +26,13 @@ enum class TourPlace {
 }
 
 /**
+ * A coach card's primary button, for the steps whose real work happens outside
+ * the app. [marker] is one of [com.gotcha.tools.ToolResult]'s special-access
+ * markers, resolved through the same intent table the Permissions screen uses.
+ */
+data class TourAction(val label: String, val marker: String)
+
+/**
  * One instruction in the guided setup.
  *
  * The design rule the whole flow follows: a step is finished when the app's own
@@ -46,6 +54,8 @@ enum class TourPlace {
  *   not on screen. Used for branches that only exist under some configurations.
  * @param ackLabel label for the button that dismisses the step without doing the
  *   thing. Null means the step can only be finished by acting on it.
+ * @param action a primary button that leaves for a system settings screen, for
+ *   the steps whose toggle is not ours to draw.
  * @param isDone the state that ends the step, re-read on every resume.
  */
 data class TourStep(
@@ -58,6 +68,7 @@ data class TourStep(
     val hint: String? = null,
     val requiresAnchor: Boolean = false,
     val ackLabel: String? = null,
+    val action: TourAction? = null,
     val isDone: (Settings, Context) -> Boolean = { _, _ -> false }
 )
 
@@ -69,7 +80,11 @@ data class TourStep(
  * merely nice to know belongs in the screen it lives on, not in a queue the user
  * has to clear before they can type their first message.
  */
-fun defaultTourSteps(): List<TourStep> = listOf(
+fun defaultTourSteps(): List<TourStep> =
+    brainSteps() + permissionSteps() + profileSteps()
+
+/** Finding Settings, and giving the assistant something to think with. */
+private fun brainSteps(): List<TourStep> = listOf(
     TourStep(
         id = "open_settings",
         place = TourPlace.CHAT_DRAWER,
@@ -114,7 +129,11 @@ fun defaultTourSteps(): List<TourStep> = listOf(
         body = "Nothing on this page takes effect until you do.",
         ackLabel = "Skip",
         isDone = { settings, _ -> settings.hasUsableModel }
-    ),
+    )
+)
+
+/** The two grants the assistant is crippled without. Both live in Android's own settings. */
+private fun permissionSteps(): List<TourStep> = listOf(
     TourStep(
         id = "open_permissions",
         place = TourPlace.SETTINGS_HOME,
@@ -127,21 +146,27 @@ fun defaultTourSteps(): List<TourStep> = listOf(
         place = TourPlace.PERMISSIONS,
         title = "Accessibility is the important one",
         body = "It's what lets Gotcha read the screen and tap for you. Without it the assistant " +
-            "can answer questions but cannot do anything. Turn on Accessibility under System Access.",
-        hint = "On some phones this lives under Settings › Additional settings › Accessibility › " +
-            "Installed apps.",
+            "can answer questions but cannot do anything. The switch is Android's, not ours.",
+        hint = "Look for Gotcha in the list. On some phones it lives under Settings › " +
+            "Additional settings › Accessibility › Installed apps.",
         ackLabel = "Skip for now",
+        action = TourAction("Open Android settings", ToolResult.ACCESSIBILITY_ACCESS),
         isDone = { _, context -> isAccessibilityGranted(context) }
     ),
     TourStep(
         id = "grant_overlay",
         place = TourPlace.PERMISSIONS,
         title = "And one for the floating ball",
-        body = "\"Display Over Apps\" lets the assistive ball and Screen Lens appear on top of " +
-            "other apps.",
+        body = "\"Display over other apps\" lets the assistive ball and Screen Lens appear on " +
+            "top of whatever you're using.",
         ackLabel = "Skip for now",
+        action = TourAction("Open Android settings", ToolResult.OVERLAY_ACCESS),
         isDone = { _, context -> isOverlayGranted(context) }
-    ),
+    )
+)
+
+/** Who the user is, and the way back out into the chat. */
+private fun profileSteps(): List<TourStep> = listOf(
     TourStep(
         id = "open_personal_info",
         place = TourPlace.SETTINGS_HOME,
@@ -153,9 +178,18 @@ fun defaultTourSteps(): List<TourStep> = listOf(
     TourStep(
         id = "fill_personal_info",
         place = TourPlace.PERSONAL_INFO,
+        anchor = TourAnchor.PERSONAL_NAME,
         title = "Tell it your name",
-        body = "All of this is optional, and all of it makes the answers fit you better. Fill in " +
-            "what you like, then save.",
+        body = "Type whatever you'd like to be called. Everything on this page is optional, and " +
+            "all of it makes the answers fit you better.",
+        ackLabel = "Skip"
+    ),
+    TourStep(
+        id = "save_personal_info",
+        place = TourPlace.PERSONAL_INFO,
+        anchor = TourAnchor.PERSONAL_SAVE,
+        title = "Save it",
+        body = "Same as before — nothing on the page counts until you do.",
         ackLabel = "Skip",
         isDone = { settings, _ -> settings.userName.isNotBlank() }
     ),

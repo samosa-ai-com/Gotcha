@@ -238,6 +238,41 @@ class TourControllerTest {
     }
 
     @Test
+    fun `a step that asks the user to type points at the field they type into`() {
+        // A coach mark with no anchor blocks the entire screen, so an
+        // instruction to fill something in is one the user cannot follow.
+        val typing = defaultTourSteps().single { it.id == "fill_personal_info" }
+
+        assertEquals(TourAnchor.PERSONAL_NAME, typing.anchor)
+    }
+
+    @Test
+    fun `the steps that leave for Android settings offer a way to get there`() {
+        val leaving = defaultTourSteps().filter {
+            it.id == "grant_accessibility" || it.id == "grant_overlay"
+        }
+
+        assertEquals(2, leaving.size)
+        leaving.forEach { step ->
+            assertTrue("Step '${step.id}' has no action button", step.action != null)
+        }
+    }
+
+    @Test
+    fun `anything the user must act on is anchored to the control they act on`() {
+        // The rule the whole coach layer rests on: everything but the spotlit
+        // control is covered, so a step demanding an in-app action without an
+        // anchor is a step the scrim makes impossible. Steps that only inform,
+        // or that hand off to another app through `action`, are exempt.
+        val informational = setOf("grant_accessibility", "grant_overlay", "finish")
+        defaultTourSteps()
+            .filterNot { it.id in informational }
+            .forEach { step ->
+                assertTrue("Step '${step.id}' asks for an action it covers up", step.anchor != null)
+            }
+    }
+
+    @Test
     fun `no shipped step can strand the user with no way out`() {
         // A step is escapable if it offers a button of its own, or if the next
         // step is somewhere else so that simply moving on finishes it. "Skip
