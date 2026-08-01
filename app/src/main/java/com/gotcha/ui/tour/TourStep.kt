@@ -52,8 +52,10 @@ data class TourAction(val label: String, val marker: String)
  *   path to a system settings toggle.
  * @param requiresAnchor when true, the step is skipped outright if [anchor] is
  *   not on screen. Used for branches that only exist under some configurations.
- * @param ackLabel label for the button that dismisses the step without doing the
- *   thing. Null means the step can only be finished by acting on it.
+ * @param ackLabel label for the button that moves past this step whether or not
+ *   the user did what it asked — "Next" on every step but the last, deliberately
+ *   uniform so it reads as the way forward rather than as an admission of having
+ *   given up. Null means the step can only be finished by acting on it.
  * @param action a primary button that leaves for a system settings screen, for
  *   the steps whose toggle is not ours to draw.
  * @param isDone the state that ends the step, re-read on every resume.
@@ -109,7 +111,7 @@ private fun brainSteps(): List<TourStep> = listOf(
         title = "Pick who does the thinking",
         body = "Samosa AI gives you a model, speech and transcription on a free daily allowance — " +
             "no keys to paste. Choose OpenAI-compatible instead if you'd rather bring your own.",
-        ackLabel = "Got it"
+        ackLabel = "Next"
     ),
     TourStep(
         id = "samosa_sign_in",
@@ -118,7 +120,7 @@ private fun brainSteps(): List<TourStep> = listOf(
         requiresAnchor = true,
         title = "Sign in once",
         body = "One Google account covers the model, the voice and the transcription.",
-        ackLabel = "Not now",
+        ackLabel = "Next",
         isDone = { settings, _ -> settings.isSamosaAuthenticated }
     ),
     TourStep(
@@ -127,7 +129,7 @@ private fun brainSteps(): List<TourStep> = listOf(
         anchor = TourAnchor.AI_SAVE,
         title = "Save it",
         body = "Nothing on this page takes effect until you do.",
-        ackLabel = "Skip",
+        ackLabel = "Next",
         isDone = { settings, _ -> settings.hasUsableModel }
     )
 )
@@ -149,7 +151,7 @@ private fun permissionSteps(): List<TourStep> = listOf(
             "can answer questions but cannot do anything. The switch is Android's, not ours.",
         hint = "Look for Gotcha in the list. On some phones it lives under Settings › " +
             "Additional settings › Accessibility › Installed apps.",
-        ackLabel = "Skip for now",
+        ackLabel = "Next",
         action = TourAction("Open Android settings", ToolResult.ACCESSIBILITY_ACCESS),
         isDone = { _, context -> isAccessibilityGranted(context) }
     ),
@@ -159,7 +161,7 @@ private fun permissionSteps(): List<TourStep> = listOf(
         title = "And one for the floating ball",
         body = "\"Display over other apps\" lets the assistive ball and Screen Lens appear on " +
             "top of whatever you're using.",
-        ackLabel = "Skip for now",
+        ackLabel = "Next",
         action = TourAction("Open Android settings", ToolResult.OVERLAY_ACCESS),
         isDone = { _, context -> isOverlayGranted(context) }
     )
@@ -182,7 +184,7 @@ private fun profileSteps(): List<TourStep> = listOf(
         title = "Tell it your name",
         body = "Type whatever you'd like to be called. Everything on this page is optional, and " +
             "all of it makes the answers fit you better.",
-        ackLabel = "Skip"
+        ackLabel = "Next"
     ),
     TourStep(
         id = "save_personal_info",
@@ -190,7 +192,7 @@ private fun profileSteps(): List<TourStep> = listOf(
         anchor = TourAnchor.PERSONAL_SAVE,
         title = "Save it",
         body = "Same as before — nothing on the page counts until you do.",
-        ackLabel = "Skip",
+        ackLabel = "Next",
         isDone = { settings, _ -> settings.userName.isNotBlank() }
     ),
     TourStep(

@@ -92,22 +92,30 @@ fun TourOverlay(
     val anchors = LocalTourAnchors.current
     val hole = step.anchor?.let { anchors[it] }
 
+    // A branch this user isn't on, most likely: the Samosa sign-in button, for
+    // someone who chose their own API key. The step is about to skip itself, so
+    // show nothing in the meantime — a card that appears and then vanishes on
+    // its own reads as a glitch, and the user cannot tell whether they missed
+    // something. If the control does turn up inside the grace period the card
+    // appears normally, because this is read from live anchor state.
+    val awaitingAbsentAnchor = step.requiresAnchor && hole == null
+
     // The control this step is about is often below the fold — a Save button at
     // the foot of a long page. Scroll it up before asking the user to press it.
     LaunchedEffect(step.id, step.anchor) {
         step.anchor?.let { anchors.bringIntoView(it) }
     }
 
-    // A step that belongs to a branch this user isn't on — signing in to Samosa
-    // when they have chosen their own API key. Wait a beat for the page to
-    // finish laying out, and for the scroll above to land, before concluding the
-    // control is genuinely not there.
+    // Wait a beat for the page to finish laying out, and for the scroll above to
+    // land, before concluding the control is genuinely not there.
     LaunchedEffect(step.id) {
         if (step.requiresAnchor) {
             delay(ANCHOR_GRACE_MS)
             if (anchors[step.anchor ?: return@LaunchedEffect] == null) controller.skipMissingAnchor()
         }
     }
+
+    if (awaitingAbsentAnchor) return
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val density = LocalDensity.current
