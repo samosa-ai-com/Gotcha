@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +32,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.ui.renderLegalMarkdown
-import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.SkinAlertDialog
 
 /**
  * First-launch / re-acceptance gate. Non-dismissable: the only way out is the
@@ -72,13 +71,8 @@ fun LegalConsentDialog(
     val bullets = stringArrayResource(R.array.legal_consent_bullets)
     val loadingLabel = stringResource(R.string.legal_consent_loading)
 
-    AlertDialog(
+    SkinAlertDialog(
         onDismissRequest = { /* non-dismissable until accepted */ },
-        // Material 3 paints a dialog from `surface`, which every glass skin
-        // leaves see-through for in-page chrome — so the chat screen reads
-        // straight through the legal copy. Same colour with the ground already
-        // behind it, exactly as the long-press menus do. See Skin.menuContainer.
-        containerColor = LocalSkin.current.menuContainer,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(

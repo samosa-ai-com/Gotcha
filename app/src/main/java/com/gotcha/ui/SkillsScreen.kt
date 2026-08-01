@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.data.Settings
+import com.gotcha.ui.theme.SkinAlertDialog
 import kotlinx.coroutines.launch
 
 /**
@@ -289,7 +289,7 @@ fun SkillsScreen(
 
         // ---- Delete confirmation dialog ----
         communitySkillToDelete?.let { pending ->
-            AlertDialog(
+            SkinAlertDialog(
                 onDismissRequest = { communitySkillToDelete = null },
                 title = { Text("Delete community skill?") },
                 text = {

@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -78,6 +77,7 @@ import com.gotcha.agent.ChatUiState
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.motionSpec
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image as ComposeImage
@@ -592,7 +592,7 @@ fun ChatScreen(
     }
 
     state.pendingConfirmation?.let { pending ->
-        AlertDialog(
+        SkinAlertDialog(
             onDismissRequest = { onConfirm(false) },
             title = { Text("Allow these actions?") },
             text = {
@@ -613,7 +613,7 @@ fun ChatScreen(
     if (state.pendingQuestion != null) {
         val pending = state.pendingQuestion!!
         var customAnswer by remember { mutableStateOf("") }
-        AlertDialog(
+        SkinAlertDialog(
             onDismissRequest = { onAnswer(null) },
             title = { Text(pending.question) },
             text = {

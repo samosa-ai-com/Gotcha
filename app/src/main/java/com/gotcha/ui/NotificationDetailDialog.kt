@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.gotcha.notifications.NotificationPayload
+import com.gotcha.ui.theme.SkinAlertDialog
 
 @Composable
 fun NotificationDetailDialog(
@@ -26,7 +26,7 @@ fun NotificationDetailDialog(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    AlertDialog(
+    SkinAlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
