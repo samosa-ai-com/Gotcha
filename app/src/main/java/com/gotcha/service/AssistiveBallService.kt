@@ -416,6 +416,40 @@ class AssistiveBallService : Service() {
      * an Android system intent — navigate on a map, open the dialer, or create a
      * calendar event. Failures are surfaced on the ball's error card.
      */
+    /**
+     * Build the "new event" intent from a `yyyy-MM-dd|HH:mm|title` payload.
+     *
+     * The date has to be resolved before it gets here: handed the words "Monday"
+     * or "Jul 26", a calendar app has nothing to resolve them against and drops
+     * the event on today. A payload with no parseable date — anything encoded
+     * before this format existed — still opens the composer with a title, which
+     * is what the old behaviour was.
+     */
+    private fun calendarInsertIntent(payload: String): Intent {
+        val parts = payload.split(SmartActionDetector.PAYLOAD_SEP, limit = CALENDAR_PAYLOAD_FIELDS)
+        val title = parts.getOrNull(2)?.takeIf { it.isNotBlank() } ?: payload
+        return Intent(Intent.ACTION_INSERT).apply {
+            data = android.provider.CalendarContract.Events.CONTENT_URI
+            putExtra(android.provider.CalendarContract.Events.TITLE, title)
+
+            val date = parts.getOrNull(0)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+                ?: return@apply
+            val time = parts.getOrNull(1)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { runCatching { java.time.LocalTime.parse(it) }.getOrNull() }
+
+            val start = if (time != null) date.atTime(time) else date.atStartOfDay()
+            val beginMs = start.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val durationMs = if (time != null) DEFAULT_EVENT_DURATION_MS else DAY_MS
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginMs)
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, beginMs + durationMs)
+            // A day with no clock time is an all-day event, not one starting at midnight.
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, time == null)
+        }
+    }
+
     private fun handleNativeAction(prompt: String) {
         val decoded = SmartActionDetector.decode(prompt) ?: return
         val (type, payload) = decoded
@@ -425,11 +459,7 @@ class AssistiveBallService : Service() {
                     Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(payload)))
                 SmartActionDetector.TYPE_DIAL ->
                     Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + android.net.Uri.encode(payload)))
-                SmartActionDetector.TYPE_CALENDAR ->
-                    Intent(Intent.ACTION_INSERT).apply {
-                        data = android.provider.CalendarContract.Events.CONTENT_URI
-                        putExtra(android.provider.CalendarContract.Events.TITLE, payload)
-                    }
+                SmartActionDetector.TYPE_CALENDAR -> calendarInsertIntent(payload)
                 SmartActionDetector.TYPE_SMS ->
                     Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + android.net.Uri.encode(payload)))
                 SmartActionDetector.TYPE_VIEW ->
@@ -929,6 +959,11 @@ class AssistiveBallService : Service() {
 
         /** Cap on fetched page text handed to the LLM for link summarization. */
         private const val MAX_FETCH_CHARS = 12000
+
+        /** `date|time|title` — see [calendarInsertIntent]. */
+        private const val CALENDAR_PAYLOAD_FIELDS = 3
+        private const val DEFAULT_EVENT_DURATION_MS = 60L * 60L * 1000L
+        private const val DAY_MS = 24L * 60L * 60L * 1000L
 
         @Volatile
         var instance: AssistiveBallService? = null

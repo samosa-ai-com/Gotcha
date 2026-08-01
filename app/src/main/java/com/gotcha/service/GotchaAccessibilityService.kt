@@ -347,7 +347,7 @@ class GotchaAccessibilityService : AccessibilityService() {
      */
     fun extractScreenEntitiesWithBounds(): List<AnnotatedEntity> {
         val root = hostRoot() ?: return emptyList()
-        val nodes = mutableListOf<Pair<String, android.graphics.Rect>>()
+        val nodes = mutableListOf<ScreenTextNode>()
 
         fun findValidBounds(node: AccessibilityNodeInfo): android.graphics.Rect? {
             var curr: AccessibilityNodeInfo? = node
@@ -364,11 +364,18 @@ class GotchaAccessibilityService : AccessibilityService() {
 
         fun walk(node: AccessibilityNodeInfo?) {
             if (node == null) return
-            val txt = (node.text?.toString() ?: node.contentDescription?.toString())?.trim()
-            if (!txt.isNullOrBlank()) {
-                val rect = findValidBounds(node)
-                if (rect != null) {
-                    nodes.add(Pair(txt, rect))
+            val visible = node.text?.toString()?.trim()
+            val described = node.contentDescription?.toString()?.trim()
+            val rect = if (!visible.isNullOrBlank() || !described.isNullOrBlank()) findValidBounds(node) else null
+            if (rect != null) {
+                if (!visible.isNullOrBlank()) nodes.add(ScreenTextNode(visible, rect, derived = false))
+                // Both are kept when they disagree, rather than `text ?: description`.
+                // A node that *renders* "3 hours ago" while *describing* itself as
+                // "Jul 26, 2026" is a formatted-timestamp widget telling us so, and
+                // collapsing the two threw that signal away. Anything found only in
+                // the description is marked so ranking can weigh it lower.
+                if (!described.isNullOrBlank() && !described.equals(visible, ignoreCase = true)) {
+                    nodes.add(ScreenTextNode(described, rect, derived = !visible.isNullOrBlank()))
                 }
             }
             for (i in 0 until node.childCount) {
@@ -382,37 +389,101 @@ class GotchaAccessibilityService : AccessibilityService() {
         if (nodes.isEmpty()) return emptyList()
 
         val fullTextBuilder = StringBuilder()
-        val nodeRanges = mutableListOf<Pair<IntRange, android.graphics.Rect>>()
-        for ((txt, rect) in nodes) {
+        val nodeRanges = mutableListOf<Pair<IntRange, ScreenTextNode>>()
+        for (node in nodes) {
             val startIdx = fullTextBuilder.length
-            fullTextBuilder.append(txt).append("\n")
+            fullTextBuilder.append(node.text).append("\n")
             val endIdx = fullTextBuilder.length
-            nodeRanges.add(Pair(startIdx..endIdx, rect))
+            nodeRanges.add(Pair(startIdx..endIdx, node))
         }
 
         val fullText = fullTextBuilder.toString()
         val entities = SmartActionDetector.detectAll(fullText, allowChat = false)
-        val annotated = mutableListOf<AnnotatedEntity>()
+        val placeable = discardOversizedBounds(locateEntities(entities, nodeRanges))
+        val selected = SmartActionDetector.selectForAnnotation(placeable.map { it.entity })
+        // Matched by identity, not equality: selection hands back the very objects
+        // it was given, and two genuinely distinct detections can compare equal.
+        return selected.mapNotNull { candidate ->
+            val bounds = placeable.firstOrNull { it.entity === candidate.entity }?.boundsOnScreen
+                ?: return@mapNotNull null
+            AnnotatedEntity(candidate.entity, bounds, candidate.members)
+        }
+    }
 
+    /**
+     * Map each entity onto the union of the bounds of the nodes its span covers.
+     *
+     * An entity that turned up *only* in nodes' contentDescriptions is weighted
+     * down rather than dropped: that it was never rendered as text is a reason to
+     * doubt it, not proof it is wrong.
+     */
+    private fun locateEntities(
+        entities: List<DetectedEntity>,
+        nodeRanges: List<Pair<IntRange, ScreenTextNode>>
+    ): List<AnnotatedEntity> {
+        val located = mutableListOf<AnnotatedEntity>()
         for (entity in entities) {
             val unionRect = android.graphics.Rect()
             var count = 0
-            for ((range, rect) in nodeRanges) {
-                if (range.first <= entity.span.last && entity.span.first <= range.last) {
-                    if (count == 0) {
-                        unionRect.set(rect)
-                    } else {
-                        unionRect.union(rect)
-                    }
-                    count++
-                }
+            var derivedOnly = true
+            for ((range, node) in nodeRanges) {
+                if (range.first > entity.span.last || entity.span.first > range.last) continue
+                if (count == 0) unionRect.set(node.bounds) else unionRect.union(node.bounds)
+                if (!node.derived) derivedOnly = false
+                count++
             }
-            if (count > 0 && unionRect.width() > 0 && unionRect.height() > 0) {
-                annotated.add(AnnotatedEntity(entity, unionRect))
+            if (count == 0 || unionRect.width() <= 0 || unionRect.height() <= 0) continue
+            // A date nobody can see is a formatted timestamp. Every other type
+            // survives on a description alone — a phone number read out to a
+            // screen reader is still a phone number — but a node rendering
+            // "10 hours ago" while describing itself as a date is the one case
+            // where the description exists precisely because the value is not an
+            // event. Tense catches these once they are a day old; this catches
+            // them while they are still today.
+            if (derivedOnly && entity.type == EntityType.CALENDAR) continue
+            val weighted = if (derivedOnly) {
+                entity.copy(confidence = entity.confidence * SmartActionDetector.DERIVED_TEXT_CONFIDENCE_SCALE)
+            } else {
+                entity
+            }
+            located.add(AnnotatedEntity(weighted, unionRect))
+        }
+        return located
+    }
+
+    /**
+     * Drop annotations whose bounds are too big to mean anything.
+     *
+     * `findValidBounds` climbs to a parent when a text node is smaller than 10px,
+     * which for a compact timestamp can walk all the way up to the list container
+     * — so the "annotation" is a box around the entire feed. Two things give that
+     * away without knowing the app: it covers most of the screen, or it wholly
+     * contains another annotation's bounds.
+     */
+    private fun discardOversizedBounds(items: List<AnnotatedEntity>): List<AnnotatedEntity> {
+        if (items.size <= 1) return items
+        val metrics = resources.displayMetrics
+        val screenArea = metrics.widthPixels.toLong() * metrics.heightPixels.toLong()
+        val maxArea = (screenArea * SmartActionDetector.MAX_ANNOTATION_SCREEN_FRACTION).toLong()
+
+        return items.filter { item ->
+            val bounds = item.boundsOnScreen
+            val area = bounds.width().toLong() * bounds.height().toLong()
+            if (screenArea > 0 && area > maxArea) return@filter false
+            items.none { other ->
+                other !== item &&
+                    bounds.contains(other.boundsOnScreen) &&
+                    bounds != other.boundsOnScreen
             }
         }
-        return annotated
     }
+
+    /** One piece of text on screen, and whether it came from a node's description rather than its label. */
+    private data class ScreenTextNode(
+        val text: String,
+        val bounds: android.graphics.Rect,
+        val derived: Boolean
+    )
 
     fun longPressByText(query: String): Boolean {
         val root = rootInActiveWindow ?: return false

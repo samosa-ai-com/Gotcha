@@ -82,7 +82,8 @@ class AudioApi(
                     val modelObj = element.jsonObject
                     val id = modelObj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                     val task = modelObj["task"]?.jsonPrimitive?.contentOrNull
-                    val category = AudioModel.categorize(id, task)
+                    val providerType = modelObj["provider_type"]?.jsonPrimitive?.contentOrNull
+                    val category = AudioModel.categorize(id, task, providerType)
                     val languages = when (val langElem = modelObj["language"]) {
                         is kotlinx.serialization.json.JsonArray -> langElem.mapNotNull { l ->
                             l.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }

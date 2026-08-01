@@ -206,6 +206,23 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
+        "Notifications",
+        listOf(
+            PermissionItem(
+                "Show Notifications",
+                "Display server messages and reply alerts in the status bar",
+                android.Manifest.permission.POST_NOTIFICATIONS,
+                null,
+                // Below Android 13 (API 33) the permission is granted at install
+                // time and there is no runtime dialog to show.
+                { c ->
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        checkPerm(c, android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            )
+        )
+    ),
+    PermissionGroup(
         "System Access",
         listOf(
             PermissionItem(

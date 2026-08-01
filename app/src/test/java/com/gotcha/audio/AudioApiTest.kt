@@ -129,6 +129,27 @@ class AudioApiTest {
     }
 
     @Test
+    fun `listAudioModels parses provider_type as a category hint`() {
+        val jsonResponse = """
+            {
+              "data": [
+                {"id": "kokoro-82m", "provider_type": "tts", "voices": ["af_heart"]},
+                {"id": "whisper-1", "provider_type": "stt"},
+                {"id": "my-llm", "provider_type": "llm"}
+              ]
+            }
+        """.trimIndent()
+
+        server.enqueue(MockResponse().setResponseCode(200).setBody(jsonResponse))
+
+        val models = audioApi.listAudioModels()
+        assertEquals(3, models.size)
+        assertEquals(ModelCategory.TTS, models[0].category)
+        assertEquals(ModelCategory.STT, models[1].category)
+        assertEquals(ModelCategory.LLM, models[2].category)
+    }
+
+    @Test
     fun `401 on transcribe also fires onUnauthorized`() {
         var calls = 0
         val api = AudioApi(

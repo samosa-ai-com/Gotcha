@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
+import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
@@ -40,6 +41,7 @@ import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ScreenPerception
@@ -302,6 +304,38 @@ class MainActivity : ComponentActivity() {
         chatViewModel.setForeground(true)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Server-driven notifications — fetch fresh if the cached value is
+        // older than 6h. The dispatcher itself no-ops when the user has the
+        // toggle off, so calling it on every resume is safe.
+        lifecycleScope.launch {
+            try {
+                val settings = settingsRepository.load()
+                val dispatcher = ServerMessages.create(
+                    context = this@MainActivity,
+                    settings = settings,
+                    onUnauthorized = { onSamosaUnauthorized() }
+                )
+                ServerMessages.syncIfStale(
+                    dispatcher = dispatcher,
+                    enabled = settings.serverMessagesEnabled
+                )
+                // Persist the store's lastFetchedAt so Settings → Notifications
+                // shows a correct "Last synced: …" line on next open, even if
+                // the user never tapped Sync now.
+                val fresh = dispatcher.lastFetchedAt()
+                if (fresh > 0L && fresh != settings.serverMessagesLastFetchedAt) {
+                    settingsRepository.save(settings.copy(serverMessagesLastFetchedAt = fresh))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Server messages are best-effort; never surface errors.
+            }
+        }
+    }
+
     /**
      * Start or stop the assistive-ball foreground service. Returns the resulting
      * enabled state. When enabling without the overlay permission, deep-links the user
@@ -363,6 +397,7 @@ class MainActivity : ComponentActivity() {
     private fun GotchaApp() {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
+        val liveTokenBySession by chatViewModel.liveTokenBySession.collectAsState()
 
         // An unconfigured install opens Settings; send it straight to the page
         // holding the API key and model rather than to the category list.
@@ -438,7 +473,8 @@ class MainActivity : ComponentActivity() {
                         currentRoute = Route.CONNECTORS
                     },
                     maxContextTokens = state.maxContextTokens,
-                    activeTokenCount = state.tokenCount
+                    activeTokenCount = state.tokenCount,
+                    liveTokenBySession = liveTokenBySession
                 )
             }
         ) {
@@ -472,31 +508,37 @@ class MainActivity : ComponentActivity() {
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl
-                                if (ttsBase.isBlank()) return@withContext Pair(emptyList(), emptyList())
-                                // AudioApi's onUnauthorized fires on an OkHttp thread; Toast
-                                // and refreshSettings() must run on the main thread.
-                                val onUnauthorized: () -> Unit = {
-                                    this@MainActivity.runOnUiThread {
-                                        this@MainActivity.onSamosaUnauthorized()
-                                    }
-                                }
-                                val ttsApi = AudioApi(
-                                    baseUrl = ttsBase,
-                                    apiKey = s.effectiveTtsApiKey,
-                                    onUnauthorized = onUnauthorized
-                                )
-                                val ttsAll = ttsApi.listAudioModels()
-                                val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
                                 val sttBase = s.effectiveSttBaseUrl
-                                val sttModels = if (sttBase.isNotBlank() && sttBase != ttsBase) {
-                                    val sttApi = AudioApi(
-                                        baseUrl = sttBase,
-                                        apiKey = s.effectiveSttApiKey,
-                                        onUnauthorized = onUnauthorized
-                                    )
-                                    sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
+                                if (ttsBase.isBlank() && sttBase.isBlank()) {
+                                    return@withContext Pair(emptyList(), emptyList())
+                                }
+                                val fetch: (String, String) -> List<AudioModel> =
+                                    { base, key ->
+                                        AudioApi(
+                                            baseUrl = base,
+                                            apiKey = key,
+                                            onUnauthorized = { this@MainActivity.runOnUiThread { onSamosaUnauthorized() } }
+                                        ).listAudioModels()
+                                    }
+                                // Fetch the shared server once when both audio sides
+                                // point at the same URL; fetch each side independently
+                                // otherwise (STT-only configurations are valid).
+                                val sharedAll = if (ttsBase.isNotBlank() && ttsBase == sttBase) {
+                                    fetch(ttsBase, s.effectiveTtsApiKey)
                                 } else {
-                                    ttsAll.filter { it.category == ModelCategory.STT }
+                                    emptyList()
+                                }
+                                val ttsModels = when {
+                                    ttsBase.isBlank() -> emptyList()
+                                    ttsBase == sttBase -> sharedAll.filter { it.category == ModelCategory.TTS }
+                                    else -> fetch(ttsBase, s.effectiveTtsApiKey)
+                                        .filter { it.category == ModelCategory.TTS }
+                                }
+                                val sttModels = when {
+                                    sttBase.isBlank() -> emptyList()
+                                    sttBase == ttsBase -> sharedAll.filter { it.category == ModelCategory.STT }
+                                    else -> fetch(sttBase, s.effectiveSttApiKey)
+                                        .filter { it.category == ModelCategory.STT }
                                 }
                                 Pair(ttsModels, sttModels)
                             }
@@ -530,6 +572,25 @@ class MainActivity : ComponentActivity() {
                         onSamosaSignOut = {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
+                        },
+                        onSyncServerMessages = {
+                            val s = settingsRepository.load()
+                            if (!s.serverMessagesEnabled) return@SettingsScreen null
+                            val dispatcher = ServerMessages.create(
+                                context = this@MainActivity,
+                                settings = s,
+                                onUnauthorized = { onSamosaUnauthorized() }
+                            )
+                            dispatcher.fetchAndDeliver()
+                            // Persist the fresh last-fetched-at so a future
+                            // Settings reload reads the same value the screen
+                            // is showing, and so a process kill + relaunch
+                            // starts from this point.
+                            val updated = s.copy(
+                                serverMessagesLastFetchedAt = dispatcher.lastFetchedAt()
+                            )
+                            settingsRepository.save(updated)
+                            dispatcher.lastFetchedAt()
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
                         packageName = packageName,
@@ -641,6 +702,7 @@ class MainActivity : ComponentActivity() {
             add(android.Manifest.permission.READ_CALENDAR)
             add(android.Manifest.permission.WRITE_CALENDAR)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(android.Manifest.permission.POST_NOTIFICATIONS)
                 add(android.Manifest.permission.READ_MEDIA_IMAGES)
             }
         }

@@ -2,8 +2,7 @@ package com.gotcha.connectors
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.gotcha.data.SafeEncryptedSharedPreferences
 
 /** Raw per-connector blob storage, implemented by the encrypted prod store and by test fakes. */
 interface CredentialStore {
@@ -20,16 +19,7 @@ interface CredentialStore {
 class ConnectorCredentialStore(context: Context) : CredentialStore {
 
     private val prefs: SharedPreferences by lazy {
-        val masterKey = MasterKey.Builder(context.applicationContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context.applicationContext,
-            "gotcha_connectors",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        SafeEncryptedSharedPreferences.create(context, "gotcha_connectors")
     }
 
     override fun loadRaw(connectorId: String): String? = prefs.getString(connectorId, null)

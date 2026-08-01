@@ -6,6 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 class SmartActionDetectorTest {
 
@@ -328,5 +329,233 @@ class SmartActionDetectorTest {
         assertTrue(entities.isNotEmpty())
         assertEquals(EntityType.QR_CODE, entities.first().type)
         assertTrue(entities.first().normalizedValue.contains("HomeNet"))
+    }
+
+    // ---- Tense: a past date is a timestamp, not an event ----
+
+    @Test
+    fun `past dates are not calendar events`() {
+        val entities = SmartActionDetector.detectAll(
+            "Rebase #53 by DevUser2 was merged Jul 26, 2026",
+            now = NOON_AUG_1
+        )
+        assertTrue(
+            "A merge timestamp is not something to put on a calendar",
+            entities.none { it.type == EntityType.CALENDAR }
+        )
+    }
+
+    @Test
+    fun `future dates are still calendar events`() {
+        val entities = SmartActionDetector.detectAll(
+            "Design review Aug 14, 2026",
+            now = NOON_AUG_1
+        )
+        assertTrue(entities.any { it.type == EntityType.CALENDAR })
+    }
+
+    @Test
+    fun `a date without a year resolves to the next occurrence, never the past`() {
+        val today = LocalDate.of(2026, 12, 20)
+        assertEquals(LocalDate.of(2027, 1, 4), SmartActionDetector.eventDateOf("Jan 4", today))
+        assertEquals(LocalDate.of(2026, 12, 25), SmartActionDetector.eventDateOf("Dec 25", today))
+    }
+
+    @Test
+    fun `weekday and relative names resolve forwards`() {
+        val wednesday = LocalDate.of(2026, 8, 5)
+        assertEquals(wednesday, SmartActionDetector.eventDateOf("today", wednesday))
+        assertEquals(wednesday.plusDays(1), SmartActionDetector.eventDateOf("tomorrow", wednesday))
+        // The coming Monday, not the one just gone.
+        assertEquals(LocalDate.of(2026, 8, 10), SmartActionDetector.eventDateOf("Monday", wednesday))
+    }
+
+    @Test
+    fun `an event word outranks a bare time`() {
+        val worded = SmartActionDetector.detectAll("Dinner tomorrow", now = NOON_AUG_1)
+            .first { it.type == EntityType.CALENDAR }
+        val bare = SmartActionDetector.detectAll("Doors open 8 pm", now = NOON_AUG_1)
+            .first { it.type == EntityType.CALENDAR }
+        assertTrue(bare.confidence < worded.confidence)
+    }
+
+    @Test
+    fun `a timestamp from earlier today is still a timestamp`() {
+        // The gap the first pass left: "merged 10 hours ago" resolves to *today*,
+        // which is not before today, so a date-only check let it through.
+        val entities = SmartActionDetector.detectAll(
+            "rebase #64 by DevUser2 was merged Aug 1, 2026, 9:14 a.m.",
+            now = NOON_AUG_1
+        )
+        assertTrue(
+            "A merge from this morning is not an event this afternoon",
+            entities.none { it.type == EntityType.CALENDAR }
+        )
+    }
+
+    @Test
+    fun `an event later today survives`() {
+        val entities = SmartActionDetector.detectAll("Dinner today at 8 pm", now = NOON_AUG_1)
+        assertTrue(entities.any { it.type == EntityType.CALENDAR })
+    }
+
+    @Test
+    fun `a day with no clock time stays eligible all day`() {
+        // "lunch today" is a real event at 9am and at 9pm — with no time given
+        // there is nothing to compare against, so the day is the granularity.
+        val entities = SmartActionDetector.detectAll(
+            "Lunch today",
+            now = LocalDate.of(2026, 8, 1).atTime(23, 30)
+        )
+        assertTrue(entities.any { it.type == EntityType.CALENDAR })
+    }
+
+    // ---- Annotation selection ----
+
+    /** The screen from the bug report: a PR list whose every row carries a merge timestamp. */
+    private val pullRequestList = """
+        Open: github.com/<org>/Gotcha
+        1 Open 30 Closed
+        Rebase #53 by DevUser2 was merged Jul 26, 2026
+        Feature test coverage manifest #52 by DevUser was merged Jul 26, 2026
+        Merging dev #51 by DevUser was merged Jul 26, 2026
+        Storage overhaul #50 by DevUser was merged Jul 26, 2026
+        Add connector framework #35 by DevUser was merged Jul 25, 2026
+        feat(audio/vision) #34 by DevUser was merged Jul 25, 2026
+        Onboarding #33 by DevUser was merged Jul 23, 2026
+    """.trimIndent()
+
+    @Test
+    fun `a list of merge timestamps produces no calendar annotations`() {
+        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1)
+        val selected = SmartActionDetector.selectForAnnotation(entities)
+        assertTrue(
+            "Merge timestamps should not be annotated at all",
+            selected.none { it.entity.type == EntityType.CALENDAR }
+        )
+        assertTrue("The repo link is what is worth surfacing here", selected.isNotEmpty())
+        assertEquals(EntityType.URL, selected.first().entity.type)
+    }
+
+    @Test
+    fun `annotations are capped however busy the screen is`() {
+        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1)
+        val selected = SmartActionDetector.selectForAnnotation(entities)
+        assertTrue(
+            "Expected at most ${SmartActionDetector.MAX_ANNOTATIONS}, got ${selected.size}",
+            selected.size <= SmartActionDetector.MAX_ANNOTATIONS
+        )
+    }
+
+    @Test
+    fun `a repeated type collapses to a single grouped annotation`() {
+        val catalogue = (1..12).joinToString("\n") { "Item $it — €${it * 10}.00" }
+        val entities = SmartActionDetector.detectAll(catalogue)
+        val prices = entities.filter { it.type == EntityType.CURRENCY }
+        assertTrue("Fixture should detect many prices", prices.size >= 10)
+
+        val selected = SmartActionDetector.selectForAnnotation(entities)
+        val currency = selected.filter { it.entity.type == EntityType.CURRENCY }
+        assertEquals("Twelve prices are a catalogue, not twelve calls to action", 1, currency.size)
+        assertEquals(prices.size, currency.first().groupCount)
+        assertEquals("💵 ${prices.size} prices", SmartActionDetector.chipLabel(currency.first().entity, prices.size))
+    }
+
+    @Test
+    fun `no single type may crowd out the others`() {
+        val text = """
+            Call (415) 555-2671 or (415) 555-9900.
+            Mail a@example.com, b@example.com, c@example.com, d@example.com.
+            Visit https://example.com/help
+        """.trimIndent()
+        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text))
+        val perType = selected.groupBy { it.entity.type }
+        for ((type, group) in perType) {
+            assertTrue(
+                "$type took ${group.size} slots",
+                group.size <= SmartActionDetector.MAX_ANNOTATIONS_PER_TYPE
+            )
+        }
+        assertTrue("The lone URL should survive four emails", perType.containsKey(EntityType.URL))
+    }
+
+    @Test
+    fun `identical values collapse before ranking`() {
+        val text = "Ping support@example.com — again, support@example.com — once more, support@example.com"
+        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text))
+        val emails = selected.filter { it.entity.type == EntityType.EMAIL }
+        assertEquals(1, emails.size)
+        assertEquals(3, emails.first().groupCount)
+    }
+
+    @Test
+    fun `chip labels drop the verb and keep the value`() {
+        val entity = SmartActionDetector.detectAll("Visit https://example.com/help")
+            .first { it.type == EntityType.URL }
+        val label = SmartActionDetector.chipLabel(entity)
+        assertTrue(label.startsWith("🌐"))
+        assertFalse("The verb belongs in the menu, not the chip", label.contains("Open:"))
+    }
+
+    @Test
+    fun `selectForAnnotation on an empty list is empty`() {
+        assertTrue(SmartActionDetector.selectForAnnotation(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `a grouped candidate carries every member, not just a count`() {
+        val catalogue = (1..12).joinToString("\n") { "Item $it — €${it * 10}.00" }
+        val entities = SmartActionDetector.detectAll(catalogue)
+        val grouped = SmartActionDetector.selectForAnnotation(entities)
+            .first { it.entity.type == EntityType.CURRENCY }
+
+        assertEquals(grouped.groupCount, grouped.members.size)
+        assertTrue("the representative must be one of its own members", grouped.entity in grouped.members)
+        assertTrue(
+            "every member needs an action, or the group menu has dead rows",
+            grouped.members.all { it.primaryAction != null }
+        )
+        // Distinct prices, so the menu is twelve real choices rather than one repeated.
+        assertEquals(grouped.members.size, grouped.members.map { it.normalizedValue }.distinct().size)
+    }
+
+    // ---- Calendar payloads carry a resolved start ----
+
+    private fun calendarPayload(text: String, now: java.time.LocalDateTime): String {
+        val entity = SmartActionDetector.detectAll(text, now = now)
+            .first { it.type == EntityType.CALENDAR }
+        return SmartActionDetector.decode(entity.primaryAction!!.prompt)!!.second
+    }
+
+    @Test
+    fun `a dated event carries the resolved day and time`() {
+        val payload = calendarPayload("Design review Aug 14, 2026 at 9:30 a.m.", NOON_AUG_1)
+        val parts = payload.split("|", limit = 3)
+        assertEquals("2026-08-14", parts[0])
+        assertEquals("09:30", parts[1])
+        assertTrue("the title should survive", parts[2].contains("Aug 14"))
+    }
+
+    @Test
+    fun `an event with no clock time leaves the time field blank`() {
+        val payload = calendarPayload("Team meeting on Monday", LocalDate.of(2026, 8, 5).atStartOfDay())
+        val parts = payload.split("|", limit = 3)
+        // Wednesday Aug 5 → the coming Monday. A calendar app handed the word
+        // "Monday" would have dropped this on today instead.
+        assertEquals("2026-08-10", parts[0])
+        assertEquals("", parts[1])
+    }
+
+    @Test
+    fun `midday and midnight convert correctly`() {
+        assertEquals(java.time.LocalTime.of(12, 0), SmartActionDetector.timeOfDayOf("lunch at 12 pm"))
+        assertEquals(java.time.LocalTime.of(0, 30), SmartActionDetector.timeOfDayOf("12:30 am"))
+        assertEquals(java.time.LocalTime.of(15, 0), SmartActionDetector.timeOfDayOf("3 p.m."))
+        assertNull(SmartActionDetector.timeOfDayOf("sometime Monday"))
+    }
+
+    private companion object {
+        /** Midday on the day the bug-report screenshots were taken. */
+        val NOON_AUG_1: java.time.LocalDateTime = LocalDate.of(2026, 8, 1).atTime(12, 0)
     }
 }

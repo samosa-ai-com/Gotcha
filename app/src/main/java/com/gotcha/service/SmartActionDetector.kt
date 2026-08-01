@@ -1,5 +1,9 @@
 package com.gotcha.service
 
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.regex.Pattern
 
 /**
@@ -69,11 +73,34 @@ data class DetectedEntity(
 
 /**
  * An entity mapped to absolute screen bounds for the Lens auto-annotate overlay.
+ *
+ * [groupCount] is how many detections this one stands for. A screen listing a
+ * dozen prices collapses to a single annotation with `groupCount = 12` rather
+ * than a dozen chips — see [SmartActionDetector.selectForAnnotation].
  */
 data class AnnotatedEntity(
     val entity: DetectedEntity,
-    val boundsOnScreen: android.graphics.Rect
-)
+    val boundsOnScreen: android.graphics.Rect,
+    /** Every detection the chip stands for, [entity] included. */
+    val members: List<DetectedEntity> = listOf(entity)
+) {
+    val groupCount: Int get() = members.size
+}
+
+/**
+ * An entity that survived annotation ranking, together with the detections it
+ * was chosen to represent.
+ *
+ * [members] is carried rather than a bare count so a tap on "12 prices" can open
+ * all twelve. A chip that promises a group and delivers one of them is worse
+ * than not grouping at all.
+ */
+data class AnnotationCandidate(
+    val entity: DetectedEntity,
+    val members: List<DetectedEntity> = listOf(entity)
+) {
+    val groupCount: Int get() = members.size
+}
 
 /**
  * Lightweight text scanner that recognises structured data types — physical
@@ -100,6 +127,29 @@ object SmartActionDetector {
 
     /** Separator between the encoded action type and its payload. */
     const val PAYLOAD_SEP = "|"
+
+    /** Most annotations Lens will draw at once, however many entities the screen holds. */
+    const val MAX_ANNOTATIONS = 5
+
+    /** Most annotations of a single type, so one noisy type cannot crowd out the rest. */
+    const val MAX_ANNOTATIONS_PER_TYPE = 2
+
+    /** At this many detections of a type, the screen is a list and the type collapses to one chip. */
+    const val REPETITION_THRESHOLD = 3
+
+    /** Largest share of the screen an annotation's bounds may cover before it is discarded. */
+    const val MAX_ANNOTATION_SCREEN_FRACTION = 0.35f
+
+    /** Confidence multiplier for an entity found only in a node's contentDescription. */
+    const val DERIVED_TEXT_CONFIDENCE_SCALE = 0.6f
+
+    private const val CONFIDENCE_EVENT_WORDED = 0.85f
+    private const val CONFIDENCE_EVENT_DATED = 0.8f
+    private const val CONFIDENCE_EVENT_BARE_TIME = 0.5f
+    private const val CHIP_LABEL_MAX = 18
+    private const val DAYS_IN_WEEK = 7
+    private const val HOURS_ON_A_CLOCK = 12
+    private const val MAX_MINUTE = 59
 
     /**
      * Street addresses: supports single-line and multi-line house numbers, street names,
@@ -144,8 +194,46 @@ object SmartActionDetector {
             "\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?" +
             "|\\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?|" +
             "sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\\s+\\d{1,2}(st|nd|rd|th)?" +
-            "(,?\\s+\\d{4})?(\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?)?" +
+            // The time tail may be separated by a comma, not just a space:
+            // "Aug 1, 2026, 9:14 AM" is how a formatted timestamp reads, and
+            // stopping at the year threw away the very thing that dates it.
+            "(,?\\s+\\d{4})?(,?\\s+(at\\s+)?\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?)?" +
             "|\\b\\d{1,2}(:\\d{2})?\\s?([ap])\\.?\\s?m\\.?",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    /**
+     * The event vocabulary, deliberately frozen.
+     *
+     * It is the same list `calendarPattern`'s first alternative already carried,
+     * reused here only as a *weak positive* signal for confidence. Precision now
+     * comes from tense ([eventDateOf]) and from repetition
+     * ([selectForAnnotation]) — neither of which needs a word list — so this one
+     * does not have to grow every time an app phrases something new.
+     */
+    private val eventKeywordPattern: Pattern = Pattern.compile(
+        "\\b(meeting|appointment|event|call|lunch|dinner|reminder|deadline)\\b",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private val monthPrefixes =
+        listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+    private val weekdayPrefixes =
+        listOf("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+    private val explicitDatePattern: Pattern = Pattern.compile(
+        "\\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+" +
+            "(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private val weekdayNamePattern: Pattern = Pattern.compile(
+        "\\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\\b",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private val timeOfDayPattern: Pattern = Pattern.compile(
+        "\\b(\\d{1,2})(?::(\\d{2}))?\\s?([ap])\\.?\\s?m\\.?",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -179,7 +267,8 @@ object SmartActionDetector {
         text: String,
         allowChat: Boolean = false,
         targetCurrency: String = "USD",
-        targetLanguage: String = "English"
+        targetLanguage: String = "English",
+        now: LocalDateTime = LocalDateTime.now()
     ): List<DetectedEntity> {
         if (text.isBlank()) return emptyList()
 
@@ -207,7 +296,7 @@ object SmartActionDetector {
         detectCurrencies(text, rawEntities, targetCurrency)
 
         // 7. Calendar
-        detectCalendars(text, rawEntities)
+        detectCalendars(text, rawEntities, now)
 
         // 8. Tracking numbers
         detectTracking(text, rawEntities)
@@ -283,6 +372,101 @@ object SmartActionDetector {
     fun detectContextual(text: String): List<SmartAction> {
         val entities = detectAll(text, allowChat = false)
         return entities.mapNotNull { it.primaryAction }
+    }
+
+    /**
+     * Choose which detections are worth drawing on screen.
+     *
+     * Lens used to annotate every match, which is how a GitHub PR list ends up
+     * with seven overlapping "Add to calendar" chips and a shopping page with one
+     * "Convert" chip per price. Three passes fix that without knowing anything
+     * about the app:
+     *
+     * 1. Exact repeats of the same value collapse to one.
+     * 2. A type appearing [repetitionThreshold] times or more is list *metadata*,
+     *    not a call to action, and collapses to a single grouped chip. This is
+     *    right even when every detection is correct — a calendar app showing
+     *    eight real events still should not produce eight overlapping chips.
+     * 3. What survives is capped at [maxPerType] per type and [max] overall, so a
+     *    misclassification costs one wasted chip rather than a covered screen.
+     */
+    fun selectForAnnotation(
+        entities: List<DetectedEntity>,
+        max: Int = MAX_ANNOTATIONS,
+        maxPerType: Int = MAX_ANNOTATIONS_PER_TYPE,
+        repetitionThreshold: Int = REPETITION_THRESHOLD
+    ): List<AnnotationCandidate> {
+        if (entities.isEmpty()) return emptyList()
+
+        val byValue = LinkedHashMap<Pair<EntityType, String>, MutableList<DetectedEntity>>()
+        for (entity in entities) {
+            byValue.getOrPut(entity.type to entity.normalizedValue) { mutableListOf() }.add(entity)
+        }
+        val unique = byValue.values.mapNotNull { group ->
+            val best = group.maxByOrNull { calculateScore(it) } ?: return@mapNotNull null
+            AnnotationCandidate(best, group)
+        }
+
+        val kept = mutableListOf<AnnotationCandidate>()
+        for ((_, group) in unique.groupBy { it.entity.type }) {
+            val ranked = group.sortedByDescending { calculateScore(it.entity) }
+            val occurrences = ranked.flatMap { it.members }
+            if (occurrences.size >= repetitionThreshold) {
+                kept.add(AnnotationCandidate(ranked.first().entity, occurrences))
+            } else {
+                kept.addAll(ranked.take(maxPerType))
+            }
+        }
+
+        return kept
+            .sortedWith(
+                compareByDescending<AnnotationCandidate> { calculateScore(it.entity) }
+                    .thenByDescending { it.groupCount }
+            )
+            .take(max)
+    }
+
+    /**
+     * The compact label for an annotation chip: an icon plus the value itself,
+     * or a count when the chip stands for a group.
+     *
+     * The verb ("Add to calendar", "Convert to USD") belongs in the menu that
+     * opens on tap, not on a pill sitting over somebody else's UI — it is the
+     * same word on every chip of a type, and it is what made the chips wide
+     * enough to bury the screen underneath them.
+     */
+    fun chipLabel(entity: DetectedEntity, groupCount: Int = 1): String {
+        val icon = iconFor(entity.type)
+        if (groupCount > 1) return "$icon $groupCount ${pluralFor(entity.type)}"
+        return "$icon ${snippet(entity.normalizedValue, CHIP_LABEL_MAX)}"
+    }
+
+    private fun iconFor(type: EntityType): String = when (type) {
+        EntityType.QR_CODE, EntityType.BARCODE -> "⬛"
+        EntityType.OTP -> "🔑"
+        EntityType.PHONE -> "📞"
+        EntityType.ADDRESS -> "📍"
+        EntityType.EMAIL -> "📧"
+        EntityType.URL -> "🌐"
+        EntityType.CALENDAR -> "📅"
+        EntityType.CURRENCY -> "💵"
+        EntityType.TRACKING_NUMBER -> "📦"
+        EntityType.CHAT_REPLY -> "💬"
+        EntityType.GENERIC_TEXT -> "✨"
+    }
+
+    private fun pluralFor(type: EntityType): String = when (type) {
+        EntityType.QR_CODE, EntityType.BARCODE -> "codes"
+        EntityType.OTP -> "codes"
+        EntityType.PHONE -> "numbers"
+        EntityType.ADDRESS -> "addresses"
+        EntityType.EMAIL -> "emails"
+        EntityType.URL -> "links"
+        EntityType.CALENDAR -> "dates"
+        EntityType.CURRENCY -> "prices"
+        EntityType.TRACKING_NUMBER -> "packages"
+        EntityType.CHAT_REPLY -> "messages"
+        EntityType.GENERIC_TEXT -> "items"
     }
 
     private fun detectOtps(text: String, out: MutableList<DetectedEntity>) {
@@ -542,14 +726,127 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectCalendars(text: String, out: MutableList<DetectedEntity>) {
+    /**
+     * The date [event] refers to, or null when it names no resolvable day.
+     *
+     * A bare `Dec 12` resolves to the *next* December 12th, because that is what
+     * a person writing it means. Weekday names resolve forwards for the same
+     * reason, so neither can ever come back as a past date.
+     */
+    @Suppress("ReturnCount")
+    internal fun eventDateOf(event: String, today: LocalDate): LocalDate? {
+        val lower = event.lowercase()
+        if (lower.contains("today")) return today
+        if (lower.contains("tomorrow")) return today.plusDays(1)
+
+        val m = explicitDatePattern.matcher(event)
+        if (m.find()) {
+            val month = monthPrefixes.indexOf(m.group(1)?.lowercase()?.take(3).orEmpty()) + 1
+            val day = m.group(2)?.toIntOrNull()
+            if (month >= 1 && day != null) {
+                val year = m.group(3)?.toIntOrNull()
+                if (year != null) {
+                    return runCatching { LocalDate.of(year, month, day) }.getOrNull()
+                }
+                val thisYear = runCatching { LocalDate.of(today.year, month, day) }.getOrNull()
+                return when {
+                    thisYear == null -> null
+                    thisYear.isBefore(today) -> thisYear.plusYears(1)
+                    else -> thisYear
+                }
+            }
+        }
+
+        val w = weekdayNamePattern.matcher(event)
+        if (w.find()) {
+            val idx = weekdayPrefixes.indexOf(w.group(1)?.lowercase()?.take(3).orEmpty())
+            if (idx >= 0) {
+                val target = DayOfWeek.of(idx + 1)
+                var day = today
+                var guard = 0
+                while (day.dayOfWeek != target && guard < DAYS_IN_WEEK) {
+                    day = day.plusDays(1)
+                    guard++
+                }
+                return day
+            }
+        }
+        return null
+    }
+
+    /** The clock time named in [event], or null when it names only a day. */
+    internal fun timeOfDayOf(event: String): LocalTime? {
+        val m = timeOfDayPattern.matcher(event)
+        if (!m.find()) return null
+        val rawHour = m.group(1)?.toIntOrNull() ?: return null
+        if (rawHour !in 1..HOURS_ON_A_CLOCK) return null
+        val minute = m.group(2)?.toIntOrNull() ?: 0
+        if (minute !in 0..MAX_MINUTE) return null
+        val pm = m.group(3)?.lowercase() == "p"
+        val hour = when {
+            rawHour == HOURS_ON_A_CLOCK && !pm -> 0
+            rawHour == HOURS_ON_A_CLOCK -> HOURS_ON_A_CLOCK
+            pm -> rawHour + HOURS_ON_A_CLOCK
+            else -> rawHour
+        }
+        return runCatching { LocalTime.of(hour, minute) }.getOrNull()
+    }
+
+    /**
+     * The calendar payload: `yyyy-MM-dd|HH:mm|title`, either of the first two
+     * fields blank when the text did not say.
+     *
+     * The date is carried resolved rather than raw because the receiving app
+     * cannot resolve it — handed "Monday", a calendar has no idea which one, and
+     * the event lands on today. Left as text rather than epoch millis so the
+     * detector stays free of a timezone.
+     */
+    private fun calendarPayload(event: String, date: LocalDate?, time: LocalTime?): String =
+        listOf(
+            date?.toString().orEmpty(),
+            time?.toString().orEmpty(),
+            event
+        ).joinToString(PAYLOAD_SEP)
+
+    /**
+     * Whether a day (and clock time, when one was given) is still to come.
+     *
+     * Compared against the moment, not the date: "merged 10 hours ago" resolves
+     * to *earlier today*, which is not before today and so used to pass a
+     * date-only check. A day with no time on it stays eligible for the whole of
+     * that day, because "lunch today" is a real event at 9am and at 9pm.
+     */
+    private fun isStillAhead(date: LocalDate, time: LocalTime?, now: LocalDateTime): Boolean =
+        if (time != null) date.atTime(time).isAfter(now) else !date.isBefore(now.toLocalDate())
+
+    private fun detectCalendars(text: String, out: MutableList<DetectedEntity>, now: LocalDateTime) {
+        val today = now.toLocalDate()
         val m = calendarPattern.matcher(text)
         while (m.find()) {
             val event = m.group().trim()
+
+            // A date that has already passed is a timestamp, not an event. "merged
+            // 3 hours ago" reaches us as `Jul 26, 2026`; so does "posted Mar 4".
+            // Checking tense is arithmetic rather than a vocabulary of timestamp
+            // words, so it holds for apps whose phrasing we have never seen — and
+            // the parse is needed anyway to give the calendar intent a real start
+            // time instead of a raw string to guess at.
+            val date = eventDateOf(event, today)
+            val timeOfDay = timeOfDayOf(event)
+            if (date != null && !isStillAhead(date, timeOfDay, now)) continue
+
+            val confidence = when {
+                eventKeywordPattern.matcher(event).find() -> CONFIDENCE_EVENT_WORDED
+                date != null -> CONFIDENCE_EVENT_DATED
+                // A bare time with neither a date nor an event word ("3 pm") is the
+                // thinnest thing this pattern matches. Ranking should treat it that way.
+                else -> CONFIDENCE_EVENT_BARE_TIME
+            }
+
             val actions = listOf(
                 SmartAction(
                     label = "📅 Add to calendar: ${snippet(event, 24)}",
-                    prompt = encode(TYPE_CALENDAR, event),
+                    prompt = encode(TYPE_CALENDAR, calendarPayload(event, date, timeOfDay)),
                     actionType = ActionType.NATIVE_CALENDAR,
                     isPrimary = true
                 ),
@@ -565,7 +862,7 @@ object SmartActionDetector {
                     rawValue = event,
                     normalizedValue = event,
                     span = m.start()..m.end(),
-                    confidence = 0.8f,
+                    confidence = confidence,
                     actions = actions
                 )
             )
