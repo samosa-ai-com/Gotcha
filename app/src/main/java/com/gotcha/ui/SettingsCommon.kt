@@ -108,6 +108,11 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Notifications",
         "How you're alerted when a reply arrives",
         "settings_notifications_row"
+    ),
+    LEGAL(
+        "Legal",
+        "Terms, disclaimer, data retention",
+        "settings_legal_row"
     )
 }
 

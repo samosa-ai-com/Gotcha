@@ -38,6 +38,7 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
+import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
@@ -83,6 +84,13 @@ class MainActivity : ComponentActivity() {
 
     /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
     private var appearance by mutableStateOf(Appearance())
+
+    /**
+     * ETag-style version of the legal bundle the user has accepted. Empty until
+     * the first-launch dialog is dismissed with "I agree." Re-prompted whenever
+     * [Settings.LEGAL_VERSION] (in [SettingsRepository]) is bumped.
+     */
+    private var legalAcceptedVersion by mutableStateOf("")
 
     /** The one setting that decides what the app looks like. */
     private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
@@ -192,6 +200,13 @@ class MainActivity : ComponentActivity() {
 
         appearance = settingsRepository.load().appearance()
         applyLaunchBackground()
+
+        // First-launch / re-acceptance gate. Stored version is whatever the user
+        // last agreed to; if it doesn't match the current LEGAL_VERSION (or is
+        // empty), the consent dialog shows and the rest of the app waits behind
+        // it. The dialog itself is mounted in [GotchaApp]; this only seeds the
+        // initial state for the activity.
+        legalAcceptedVersion = settingsRepository.load().legalAcceptedVersion
 
         setContent {
             GotchaTheme(skinId = appearance.skinId) {
@@ -475,7 +490,8 @@ class MainActivity : ComponentActivity() {
 
         ModalNavigationDrawer(
             drawerState = drawerState,
-            gesturesEnabled = currentRoute == Route.HOME || drawerState.isOpen,
+            gesturesEnabled = (currentRoute == Route.HOME || drawerState.isOpen) &&
+                legalAcceptedVersion == LEGAL_VERSION,
             drawerContent = {
                 AppDrawerContent(
                     sessions = sessions,
@@ -673,15 +689,38 @@ class MainActivity : ComponentActivity() {
         }
 
         // Composed last so this innermost enabled handler wins back dispatch:
-        // back closes an open drawer before any other navigation.
+        // back closes an open drawer before any other navigation. When the
+        // legal-consent dialog is up, we swallow back entirely — the only way
+        // out is "I agree" (or uninstalling the app), which keeps a fresh
+        // install from booting straight into Settings via the back button.
         BackHandler(enabled = drawerState.isOpen) {
             scope.launch { drawerState.close() }
+        }
+        if (legalAcceptedVersion != LEGAL_VERSION) {
+            BackHandler(enabled = true) { /* swallow */ }
         }
 
         notificationPayload?.let { payload ->
             NotificationDetailDialog(
                 payload = payload,
                 onDismiss = { notificationPayload = null }
+            )
+        }
+
+        // First-launch / re-acceptance gate. Non-dismissable while not accepted
+        // — the only way out is tapping "I agree." Re-prompted whenever the
+        // current LEGAL_VERSION doesn't match the stored acceptance, so a
+        // meaningful change to any of the three documents forces re-acceptance
+        // on every install.
+        if (legalAcceptedVersion != LEGAL_VERSION) {
+            LegalConsentDialog(
+                onAgree = {
+                    val current = settingsRepository.load()
+                    settingsRepository.save(
+                        current.copy(legalAcceptedVersion = LEGAL_VERSION)
+                    )
+                    legalAcceptedVersion = LEGAL_VERSION
+                }
             )
         }
     }
