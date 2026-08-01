@@ -100,7 +100,16 @@ data class Settings(
     val userResponseStyle: String = "",
     val preferredLanguage: String = "English",
     val preferredCurrency: String = "USD",
-    val communitySkillHosts: Set<String> = setOf("samosa-ai.example")
+    val communitySkillHosts: Set<String> = setOf("samosa-ai.example"),
+    /**
+     * Version tag of the Terms / Disclaimer / Data Retention bundle the user has
+     * accepted. Empty string means "never accepted." The first-launch consent
+     * dialog writes the current [LEGAL_VERSION] here when the user agrees;
+     * MainActivity re-prompts whenever the stored tag is older than
+     * [LEGAL_VERSION], so a meaningful change to the legal copy forces re-acceptance
+     * without losing any user data.
+     */
+    val legalAcceptedVersion: String = ""
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
@@ -318,7 +327,8 @@ class SettingsRepository(context: Context) {
         userResponseStyle = string(KEY_USER_RESPONSE_STYLE),
         preferredLanguage = string(KEY_PREFERRED_LANGUAGE, "English"),
         preferredCurrency = string(KEY_PREFERRED_CURRENCY, "USD"),
-        communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts)
+        communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts),
+        legalAcceptedVersion = string(KEY_LEGAL_ACCEPTED_VERSION)
     )
 
     fun save(settings: Settings) {
@@ -372,6 +382,7 @@ class SettingsRepository(context: Context) {
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
+            .putString(KEY_LEGAL_ACCEPTED_VERSION, settings.legalAcceptedVersion)
             .apply()
     }
 
@@ -444,6 +455,16 @@ class SettingsRepository(context: Context) {
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
+        const val KEY_LEGAL_ACCEPTED_VERSION = "legal_accepted_version"
         val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example")
     }
 }
+
+/**
+ * Bump this whenever any of the three legal documents in `assets/legal/`
+ * changes in a way the user must re-acknowledge. The first-launch consent
+ * dialog re-prompts whenever the stored accepted version is older than this
+ * constant, so non-material edits (typo fixes, formatting) should leave it
+ * unchanged.
+ */
+const val LEGAL_VERSION: String = "1"

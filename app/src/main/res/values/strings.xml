@@ -3,4 +3,19 @@
     <string name="app_name">Gotcha</string>
     <string name="accessibility_service_description">Lets Gotcha read on-screen content and perform taps, swipes and text input on your behalf, so the assistant can operate other apps for you.</string>
     <string name="device_admin_description">Lets Gotcha lock the screen, enforce password policy and disable the camera when you ask it to.</string>
+    <string name="legal_consent_title">Before you continue</string>
+    <string name="legal_consent_intro">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
+    <string name="legal_consent_toggle_label">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
+    <string name="legal_consent_agree">I agree</string>
+    <string name="legal_consent_section_terms">Terms and Conditions</string>
+    <string name="legal_consent_section_disclaimer">Disclaimer and Declaration</string>
+    <string name="legal_consent_section_privacy">Data Retention and Privacy Policy</string>
+    <string name="legal_consent_loading">(loading…)</string>
+    <string-array name="legal_consent_bullets">
+        <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
+        <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
+        <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
+        <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
+    </string-array>
 </resources>

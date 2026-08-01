@@ -36,6 +36,7 @@ class NotificationDispatcher(
     private val api: NotificationApi,
     private val store: NotificationStore,
     private val versionName: String,
+    @Suppress("UnusedPrivateProperty")
     private val openIntent: (url: String) -> Intent = { url ->
         Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -127,24 +128,34 @@ class NotificationDispatcher(
     @Suppress("MissingPermission") // hasPostPermission() is enforced in deliver().
     private fun postOne(msg: NotificationMessage) {
         val notifyId = stableNotifyId(msg.id)
+        val tapIntent = Intent(context, com.gotcha.MainActivity::class.java).apply {
+            action = ACTION_SHOW_NOTIFICATION
+            putExtra(EXTRA_NOTIFICATION_ID, notifyId)
+            putExtra(EXTRA_NOTIFICATION_TITLE, msg.title)
+            putExtra(EXTRA_NOTIFICATION_BODY, msg.body)
+            if (!msg.url.isNullOrBlank() && msg.url.startsWith("https://")) {
+                putExtra(EXTRA_NOTIFICATION_URL, msg.url)
+            }
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = PendingIntent.getActivity(
+            context,
+            notifyId,
+            tapIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(com.gotcha.R.drawable.ic_notification)
             .setContentTitle(msg.title)
             .setContentText(msg.body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(msg.body))
             .setPriority(msg.androidPriority)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
-        if (!msg.url.isNullOrBlank() && msg.url.startsWith("https://")) {
-            val intent = openIntent(msg.url)
-            val pending = PendingIntent.getActivity(
-                context,
-                notifyId,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            builder.setContentIntent(pending)
-        }
+            .setContentIntent(pending)
+
         NotificationManagerCompat.from(context).notify(notifyId, builder.build())
     }
 
@@ -214,6 +225,11 @@ class NotificationDispatcher(
 
     companion object {
         const val CHANNEL_ID = "gotcha_messages"
+        const val ACTION_SHOW_NOTIFICATION = "com.gotcha.ACTION_SHOW_NOTIFICATION"
+        const val EXTRA_NOTIFICATION_ID = "com.gotcha.NOTIFICATION_ID"
+        const val EXTRA_NOTIFICATION_TITLE = "com.gotcha.NOTIFICATION_TITLE"
+        const val EXTRA_NOTIFICATION_BODY = "com.gotcha.NOTIFICATION_BODY"
+        const val EXTRA_NOTIFICATION_URL = "com.gotcha.NOTIFICATION_URL"
         private const val TAG = "NotificationDispatcher"
     }
 }

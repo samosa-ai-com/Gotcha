@@ -170,6 +170,15 @@ class NotificationDispatcherTest {
         assertEquals(1_000L, store.lastFetchedAt())
     }
 
+    @Test
+    fun `notification intent constants are formatted correctly`() {
+        assertEquals("com.gotcha.ACTION_SHOW_NOTIFICATION", NotificationDispatcher.ACTION_SHOW_NOTIFICATION)
+        assertEquals("com.gotcha.NOTIFICATION_ID", NotificationDispatcher.EXTRA_NOTIFICATION_ID)
+        assertEquals("com.gotcha.NOTIFICATION_TITLE", NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
+        assertEquals("com.gotcha.NOTIFICATION_BODY", NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
+        assertEquals("com.gotcha.NOTIFICATION_URL", NotificationDispatcher.EXTRA_NOTIFICATION_URL)
+    }
+
     private fun msg(
         id: String,
         title: String = "T",
