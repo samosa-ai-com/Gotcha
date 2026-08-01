@@ -335,8 +335,12 @@ class AgentEngine(
                 if (preserveLast != null) {
                     history.add(preserveLast)
                 }
-                // The new token count is roughly the size of the summary + preserved message
-                val newTokensApprox = (summary.length / 4) + ((preserveLast?.textContent?.length ?: 0) / 4)
+                // The new token count is the size of the summary + preserved
+                // message + the static prompt prefix overhead, so the unit
+                // matches what the API would report on the next round.
+                val historyEstimate = (summary.length / 4) +
+                    ((preserveLast?.textContent?.length ?: 0) / 4)
+                val newTokensApprox = historyEstimate + PROMPT_OVERHEAD_TOKENS
                 tokenCount = newTokensApprox
                 events.onTokenCount(newTokensApprox)
                 // Drop the pre-compaction on-screen transcript, then show the
@@ -384,14 +388,13 @@ class AgentEngine(
             events.onActivity("Thinking…")
 
             // Build message array optimized for prompt caching:
-            //   1. Agent instructions (static until agent switches)
-            //   2. Full conversation history (images culled non-mutatively)
-            //   3. Base environment block (volatile, e.g. battery)
-            //   4. Current timestamp (volatile)
+            //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile)
+            //   2. Conversation history (4-turn screen observation retention window)
+            //   3. Current timestamp (system message at tail)
+            //   4. Active skills index summary (user message at tail)
             val messages = buildList {
-                addAll(agentInstructionMessages(agent))
-                addAll(cullOldImages(trimmedHistory()))
-                add(baseEnvironmentBlock(agent))
+                add(systemPromptMessage(agent))
+                addAll(cullOldObservations(trimmedHistory()))
                 add(currentTimestampMessage())
                 addAll(activeSkillsMessages())
             }
@@ -411,10 +414,13 @@ class AgentEngine(
                 return
             }
 
-            response.usage?.totalTokens?.let {
-                tokenCount = it
-                events.onTokenCount(it)
-            }
+            // Use the API-reported totalTokens when available; fall back to a
+            // local estimate so the meter still moves and compaction can still
+            // fire on proxies that omit `usage`.
+            val totalTokens = response.usage?.totalTokens
+                ?: (messages.sumOf { it.textContent.length / 4 } + PROMPT_OVERHEAD_TOKENS)
+            tokenCount = totalTokens
+            events.onTokenCount(totalTokens)
 
             val message = response.choices.firstOrNull()?.message
             if (message == null) {
@@ -910,18 +916,8 @@ class AgentEngine(
             DeviceCapabilities.hiddenToolNames(appContext)
 
     /**
-     * Environment block sent as the first system message.
-     * Fully static within a session — no volatile fields like timestamps.
-     * Only "Active agent: X" differs between Monitor and Operator.
-     * The server KV cache for this prefix is preserved across all calls.
-     */
-    private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
-        return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
-    }
-
-    /**
      * A separate system message carrying only the current date/time.
-     * Placed after the conversation history so the [baseEnvironmentBlock] +
+     * Placed after the conversation history so the Index 0 static System Prompt +
      * history prefix stays in the KV cache while the timestamp is always fresh.
      */
     private fun currentTimestampMessage(): ChatMessage {
@@ -948,12 +944,25 @@ class AgentEngine(
     }
 
     /**
-     * Agent-specific core prompt + system-reminder, sent at the tail of the
-     * message array (right before the latest user message).  Placing these
-     * after the conversation history ensures the [baseEnvironmentBlock] +
-     * history prefix stays in the KV cache when the user switches agents.
+     * Complete System Prompt sent at Index 0.
+     *
+     * Combines core instructions, mode restrictions, language/style directives,
+     * static environment specs (<env>), connected account lists, and user profile
+     * (<user_profile>) into a single contiguous system message at Index 0.
+     *
+     * Because device specs and profile facts are static during a session, placing
+     * this entire block at Index 0 forms a 100% cache-stable prefix across turns.
      */
-    private fun agentInstructionMessages(agent: AgentMode): List<ChatMessage> {
+    internal fun systemPromptMessage(agent: AgentMode): ChatMessage {
+        val instructions = agentInstructionText(agent)
+        val environment = buildEnvironmentString(agent)
+        return ChatMessage(
+            role = "system",
+            content = JsonPrimitive("$instructions\n\n$environment")
+        )
+    }
+
+    private fun agentInstructionText(agent: AgentMode): String {
         val languageDirective = "\n\nRespond to the user in ${settings.preferredLanguage}. If the " +
             "user writes to you in a different language, reply in that language instead.\n" +
             "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
@@ -973,7 +982,8 @@ class AgentEngine(
             .orEmpty()
         val core = when (agent) {
             AgentMode.MONITOR ->
-                "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
+                "You are Gotcha (operating in Monitor mode), a read-only AI assistant " +
+                    "created by Samosa AI running on the user's Android phone. " +
                     "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
                     "delete anything. You control the device only through the provided tools; never " +
                     "invent tool names or capabilities. If a tool reports a missing permission, " +
@@ -984,7 +994,8 @@ class AgentEngine(
                     "delivers it to the user. " +
                     "Keep replies short and conversational."
             AgentMode.OPERATOR ->
-                "You are Operator, an AI assistant running on the user's Android phone. " +
+                "You are Gotcha (operating in Operator mode), an AI assistant " +
+                    "created by Samosa AI running on the user's Android phone. " +
                     "You can inspect, read, query, create, modify, and delete on the device. " +
                     "You control the device only through the provided tools; never invent tool " +
                     "names or capabilities. If a tool reports a missing permission, explain what " +
@@ -1043,12 +1054,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return listOf(
-            ChatMessage(
-                role = "system",
-                content = JsonPrimitive(core + languageDirective + styleDirective + reminder)
-            )
-        )
+        return core + languageDirective + styleDirective + reminder
     }
 
     /**
@@ -1306,38 +1312,53 @@ class AgentEngine(
         )
     }
 
-    /**
-     * Returns a copy of [messages] with old vision messages replaced by
-     * text-only versions. Only the 2 most recent vision messages keep their
-     * image data. The original list (and [history]) is NOT modified,
-     * so the prefix sent in previous iterations stays cache-stable.
-     */
-    private fun cullOldImages(messages: List<ChatMessage>): List<ChatMessage> {
-        val imageMsgIndices = messages.indices.filter { i ->
-            val content = messages[i].content
-            content is JsonArray && content.any { part ->
-                part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
-            }
-        }
-        val toCull = imageMsgIndices.dropLast(2).toSet()
-        if (toCull.isEmpty()) return messages
-
-        return messages.mapIndexed { idx, msg ->
-            if (idx in toCull) {
-                msg.copy(
-                    content = JsonPrimitive(
-                        "[Previous screen observation removed to save context. Only the 2 most recent are retained.]"
-                    )
-                )
-            } else {
-                msg
-            }
-        }
-    }
-
     companion object {
+        /**
+         * Returns a copy of [messages] with old vision images and bulky UI hierarchy
+         * screen observations replaced by text-only summaries.
+         * Retains full content for the 4 most recent screen perception turns.
+         * The original list (and [history]) is NOT modified.
+         */
+        internal fun cullOldObservations(messages: List<ChatMessage>): List<ChatMessage> {
+            val observationMsgIndices = messages.indices.filter { i ->
+                val msg = messages[i]
+                val content = msg.content
+                val isVisionArray = content is JsonArray && content.any { part ->
+                    part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
+                }
+                val text = msg.textContent
+                val isScreenObservation = text.contains("[Screen State]") ||
+                    text.contains("── UI Elements ──") ||
+                    text.contains("read_screen_raw:")
+                isVisionArray || isScreenObservation
+            }
+            val toCull = observationMsgIndices.dropLast(4).toSet()
+            if (toCull.isEmpty()) return messages
+
+            return messages.mapIndexed { idx, msg ->
+                if (idx in toCull) {
+                    msg.copy(
+                        content = JsonPrimitive(
+                            "[Previous screen observation removed to save context. Only the 4 most recent are retained.]"
+                        )
+                    )
+                } else {
+                    msg
+                }
+            }
+        }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /**
+         * Conservative floor for the static prefix the engine sends every call
+         * (agent instructions + environment block + timestamp + active-skills
+         * index + tool schemas). The real API-reported `usage.totalTokens` is the
+         * source of truth whenever the server returns it; this only fills the
+         * gap when it doesn't, and it keeps the post-compaction estimate in the
+         * same units so the meter doesn't visibly collapse after compaction.
+         */
+        internal const val PROMPT_OVERHEAD_TOKENS = 3_000
 
         /** Injected one round before the delegation guard gives up. */
         private const val REDELEGATION_REMINDER =

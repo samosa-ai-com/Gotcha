@@ -49,7 +49,15 @@ fun AppDrawerContent(
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
     maxContextTokens: Int = 0,
-    activeTokenCount: Int = 0
+    activeTokenCount: Int = 0,
+    /**
+     * Live per-session token counts published from [com.gotcha.agent.ChatViewModel.onTokenCount].
+     * When present for a given session, this overlay wins over both [activeTokenCount]
+     * and the persisted [ChatSession.tokenCount] so the running session's row
+     * updates within the same frame as the round, without waiting for the
+     * end-of-round disk save.
+     */
+    liveTokenBySession: Map<String, Int> = emptyMap()
 ) {
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
 
@@ -103,7 +111,8 @@ fun AppDrawerContent(
             )
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(sessions, key = { it.id }) { session ->
-                    val tokens = if (session.id == activeSessionId) activeTokenCount else session.tokenCount
+                    val tokens = liveTokenBySession[session.id]
+                        ?: (if (session.id == activeSessionId) activeTokenCount else session.tokenCount)
                     val usage = formatContextUsage(tokens, maxContextTokens)
                     NavigationDrawerItem(
                         label = {

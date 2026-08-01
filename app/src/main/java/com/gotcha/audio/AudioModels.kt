@@ -43,7 +43,7 @@ data class ModelInfo(
 )
 
 /** Categorization of a model from the API. */
-enum class ModelCategory { TTS, STT, UNKNOWN }
+enum class ModelCategory { TTS, STT, LLM, UNKNOWN }
 
 /** Detailed voice metadata for TTS models. */
 data class VoiceInfo(
@@ -83,19 +83,51 @@ data class AudioModel(
             ?: defaultVoice
 
     companion object {
+        private val TTS_HINTS = setOf(
+            "text-to-speech",
+            "tts"
+        )
+        private val STT_HINTS = setOf(
+            "automatic-speech-recognition",
+            "stt",
+            "speech-to-text",
+            "transcription"
+        )
+        private val LLM_HINTS = setOf(
+            "llm",
+            "chat",
+            "text-generation",
+            "chat-completion",
+            "chat_completion",
+            "language-model",
+            "completions"
+        )
+
         /**
-         * Categorize a model by its [task] field (from the API) and fall back
-         * to name heuristics when the task field is absent.
+         * Categorize a model by the API-declared hint fields and fall back to
+         * name heuristics. Different servers publish the hint under different
+         * keys — `task` is the OpenAI-compatible norm, `provider_type` is what
+         * the Samosa proxy uses, so both are checked. Name heuristics remain
+         * the last resort when neither is present.
          */
-        fun categorize(id: String, task: String? = null): ModelCategory {
-            if (task != null) {
-                val t = task.lowercase().trim()
-                when {
-                    t == "text-to-speech" || t == "tts" -> return ModelCategory.TTS
-                    t == "automatic-speech-recognition" || t == "stt" ||
-                        t == "speech-to-text" || t == "transcription" -> return ModelCategory.STT
-                }
+        fun categorize(id: String, task: String? = null, providerType: String? = null): ModelCategory {
+            classifyByHint(task)?.let { return it }
+            classifyByHint(providerType)?.let { return it }
+            return classifyByName(id)
+        }
+
+        private fun classifyByHint(hint: String?): ModelCategory? {
+            if (hint.isNullOrBlank()) return null
+            val normalized = hint.lowercase().trim()
+            return when (normalized) {
+                in TTS_HINTS -> ModelCategory.TTS
+                in STT_HINTS -> ModelCategory.STT
+                in LLM_HINTS -> ModelCategory.LLM
+                else -> null
             }
+        }
+
+        private fun classifyByName(id: String): ModelCategory {
             val lower = id.lowercase()
             return when {
                 lower.contains("whisper") -> ModelCategory.STT

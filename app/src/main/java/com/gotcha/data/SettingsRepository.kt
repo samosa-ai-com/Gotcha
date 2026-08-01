@@ -2,8 +2,6 @@ package com.gotcha.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.gotcha.audio.AudioProvider
 
 data class Settings(
@@ -53,6 +51,12 @@ data class Settings(
     /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
     val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
+    /** Server-driven notifications from `api.samosa-ai.example/v1/gotcha/notifications`. */
+    val serverMessagesEnabled: Boolean = true,
+    /** Epoch millis of the last successful server-messages fetch. 0 = never. */
+    val serverMessagesLastFetchedAt: Long = 0L,
+    /** Last seen ETag from the notifications endpoint; round-tripped in `If-None-Match`. */
+    val serverMessagesEtag: String = "",
     // ---- Appearance (Settings ▸ Appearance) ----
     /**
      * Which skin is painted. Stored as the id string rather than an enum so a
@@ -96,7 +100,7 @@ data class Settings(
     val userResponseStyle: String = "",
     val preferredLanguage: String = "English",
     val preferredCurrency: String = "USD",
-    val communitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
+    val communitySkillHosts: Set<String> = setOf("samosa-ai.example")
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
@@ -238,16 +242,7 @@ private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
 class SettingsRepository(context: Context) {
 
     val prefs: SharedPreferences by lazy {
-        val masterKey = MasterKey.Builder(context.applicationContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context.applicationContext,
-            SETTINGS_PREFS_FILE,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+        SafeEncryptedSharedPreferences.create(context, SETTINGS_PREFS_FILE)
     }
 
     private fun stringSet(key: String, default: Set<String> = emptySet()): Set<String> =
@@ -303,6 +298,9 @@ class SettingsRepository(context: Context) {
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
+        serverMessagesEnabled = prefs.getBoolean(KEY_SERVER_MESSAGES_ENABLED, true),
+        serverMessagesLastFetchedAt = prefs.getLong(KEY_SERVER_MESSAGES_LAST_FETCHED, 0L),
+        serverMessagesEtag = string(KEY_SERVER_MESSAGES_ETAG),
         skinId = resolvedSkinId(),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
         disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
@@ -353,6 +351,9 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
+            .putBoolean(KEY_SERVER_MESSAGES_ENABLED, settings.serverMessagesEnabled)
+            .putLong(KEY_SERVER_MESSAGES_LAST_FETCHED, settings.serverMessagesLastFetchedAt)
+            .putString(KEY_SERVER_MESSAGES_ETAG, settings.serverMessagesEtag)
             .putString(KEY_SKIN_ID, settings.skinId)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
             .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
@@ -419,6 +420,9 @@ class SettingsRepository(context: Context) {
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"
         const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
+        const val KEY_SERVER_MESSAGES_ENABLED = "server_messages_enabled"
+        const val KEY_SERVER_MESSAGES_LAST_FETCHED = "server_messages_last_fetched"
+        const val KEY_SERVER_MESSAGES_ETAG = "server_messages_etag"
         const val KEY_SKIN_ID = "skin_id"
 
         /** Only read by [migrateSkinId]; never written any more. */
@@ -440,6 +444,6 @@ class SettingsRepository(context: Context) {
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
-        val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example", "samosa.ai")
+        val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example")
     }
 }

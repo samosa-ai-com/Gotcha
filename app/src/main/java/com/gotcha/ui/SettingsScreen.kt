@@ -54,6 +54,13 @@ fun SettingsScreen(
     /** Logs out of Samosa (clears JWT + Google state). */
     onSamosaSignOut: suspend () -> Unit = {},
     /**
+     * Forces a fetch of the server-messages feed (notifications). Bypasses
+     * the 6h gate. Returns the new last-fetched-at timestamp (ms), or null
+     * if the sync failed. The screen uses this to refresh its "Last synced"
+     * label without an extra round-trip through the Settings repo.
+     */
+    onSyncServerMessages: suspend () -> Long? = { null },
+    /**
      * Speaks the call-started phrase through the host's TTS engine and reports
      * whether the requested language was actually used. Returning null means
      * TTS isn't configured and the button should be a no-op. The default
@@ -139,7 +146,8 @@ fun SettingsScreen(
         SettingsPage.NOTIFICATIONS -> NotificationsScreen(
             load = load,
             onSave = onSave,
-            onBack = backToHome
+            onBack = backToHome,
+            onSyncServerMessages = onSyncServerMessages
         )
         null -> SettingsHome(
             onBack = onBack,

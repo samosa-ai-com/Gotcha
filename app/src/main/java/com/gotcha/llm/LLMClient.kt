@@ -1,6 +1,8 @@
 package com.gotcha.llm
 
 import android.content.Context
+import com.gotcha.audio.AudioModel
+import com.gotcha.audio.ModelCategory
 import com.gotcha.i18n.Language
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.builtins.ListSerializer
@@ -135,7 +137,20 @@ class LLMClient(
 
     suspend fun listModels(): Result<List<String>> = runCatching {
         val response = apiService.listModels()
-        response.data.map { it.id }.sorted()
+        response.data
+            .mapNotNull { info ->
+                val category = AudioModel.categorize(info.id, info.task, info.providerType)
+                // Keep anything the server did not flag as audio. UNKNOWN covers
+                // servers that omit the hint field entirely (e.g. OpenAI's
+                // /v1/models); LLM is the explicit declaration; TTS/STT are
+                // dropped so they never reach the chat-model dropdown.
+                if (category == ModelCategory.TTS || category == ModelCategory.STT) {
+                    null
+                } else {
+                    info.id
+                }
+            }
+            .sorted()
     }
 
     private fun buildCacheKey(

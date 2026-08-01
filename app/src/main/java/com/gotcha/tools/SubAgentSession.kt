@@ -2,6 +2,7 @@ package com.gotcha.tools
 
 import android.content.Context
 import android.util.Log
+import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.skills.SkillPromptBuilder
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.connectors.ConnectorRegistry
@@ -176,7 +177,7 @@ class SubAgentSession(
         val systemMsg = ChatMessage(
             role = "system",
             content = JsonPrimitive(
-                "You are General, a general-purpose AI agent running on the user's Android phone. " +
+                "You are Gotcha's General sub-agent, created by Samosa AI running on the user's Android phone. " +
                     "You have access to all device tools. " +
                     "Your job is to complete the task delegated to you. " +
                     "Use the available tools to perform the required steps. " +
@@ -197,7 +198,8 @@ class SubAgentSession(
             role = "user",
             content = JsonPrimitive(prompt)
         )
-        activeTokenCount = (systemMsg.textContent.length + userMsg.textContent.length) / 4
+        activeTokenCount = (systemMsg.textContent.length + userMsg.textContent.length) / 4 +
+            AgentEngine.PROMPT_OVERHEAD_TOKENS
         return mutableListOf(systemMsg, userMsg)
     }
 
@@ -263,7 +265,10 @@ class SubAgentSession(
                         content = JsonPrimitive("[Context compacted]\n$summary")
                     )
                 )
-                activeTokenCount = history.sumOf { it.textContent.length / 4 }
+                // Keep the units consistent with what the API would report on the
+                // next round: history length plus the static prompt prefix.
+                activeTokenCount = history.sumOf { it.textContent.length / 4 } +
+                    AgentEngine.PROMPT_OVERHEAD_TOKENS
             }
         } catch (e: CancellationException) {
             throw e

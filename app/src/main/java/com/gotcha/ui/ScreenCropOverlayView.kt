@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.ColorUtils
 import com.gotcha.service.AnnotatedEntity
+import com.gotcha.service.SmartActionDetector
 import com.gotcha.ui.theme.OverlaySkin
 import kotlin.math.max
 import kotlin.math.min
@@ -45,7 +46,8 @@ class ScreenCropOverlayView(
     private val onSelection: (Rect) -> Unit,
     private val onCancel: () -> Unit,
     private val onReselectStart: () -> Unit = {},
-    private val onAnnotatedEntitySelected: (prompt: String) -> Unit = {}
+    private val onAnnotatedEntitySelected: (prompt: String) -> Unit = {},
+    private val onAnnotatedGroupSelected: (AnnotatedEntity) -> Unit = {}
 ) : View(context) {
 
     private val density = resources.displayMetrics.density
@@ -141,6 +143,15 @@ class ScreenCropOverlayView(
     private val blueGlowShader by lazy { unitGlowShader(PARTICLE_BLUE) }
     private val glowMatrix = android.graphics.Matrix()
 
+    /** Where each chip was actually drawn, so [onTouchEvent] can hit-test what is on screen. */
+    private class ChipHit {
+        val rect = RectF()
+        var item: AnnotatedEntity? = null
+    }
+
+    private val chipHits = ArrayList<ChipHit>()
+    private var drawnChipCount = 0
+
     /** Scratch, reused by [drawAnnotatedEntities] and [onTouchEvent]. */
     private val scratchLocation = IntArray(2)
     private val scratchRect = RectF()
@@ -201,8 +212,13 @@ class ScreenCropOverlayView(
     @androidx.annotation.VisibleForTesting
     internal fun decorationColors(): IntArray = intArrayOf(dimPaint.color, hintPaint.color)
 
+    /** Where chips actually landed on the last frame, for tests. */
+    @androidx.annotation.VisibleForTesting
+    internal fun drawnChipRects(): List<RectF> = (0 until drawnChipCount).map { RectF(chipHits[it].rect) }
+
     fun setAnnotatedEntities(entities: List<AnnotatedEntity>) {
         this.annotatedEntities = entities
+        drawnChipCount = 0
         postInvalidateOnAnimation()
     }
 
@@ -357,12 +373,25 @@ class ScreenCropOverlayView(
         return null
     }
 
+    /**
+     * Boxes and chips for whatever the detector decided is worth showing.
+     *
+     * Two rules keep this legible on a busy screen. Only the top-ranked
+     * annotation carries its full verb — "🌐 Open: github.com/…" — because the
+     * verb is identical on every chip of a type and it is what made them wide
+     * enough to bury the app underneath. And a chip that cannot find a clear spot
+     * is not drawn at all: its box still marks the thing, which is better than a
+     * label stacked on another label.
+     */
     private fun drawAnnotatedEntities(canvas: Canvas) {
         getLocationOnScreen(scratchLocation)
         val viewOffsetX = scratchLocation[0].toFloat()
         val viewOffsetY = scratchLocation[1].toFloat()
+        val radius = colors.buttonRadiusDp * density
+        val padding = CHIP_PADDING_DP * density
+        drawnChipCount = 0
 
-        for (item in annotatedEntities) {
+        for ((index, item) in annotatedEntities.withIndex()) {
             val bounds = item.boundsOnScreen
             val rectF = scratchRect
             rectF.set(
@@ -371,23 +400,19 @@ class ScreenCropOverlayView(
                 bounds.right.toFloat() - viewOffsetX,
                 bounds.bottom.toFloat() - viewOffsetY
             )
-
-            // Draw bounding box
-            val radius = colors.buttonRadiusDp * density
             canvas.drawRoundRect(rectF, radius, radius, entityBoxPaint)
 
-            // Draw primary action chip pill anchored above the box
             val action = item.entity.primaryAction ?: continue
-            val labelStr = action.label
-            val textWidth = entityChipTextPaint.measureText(labelStr)
-            val chipW = textWidth + 16f * density
-            val chipH = 24f * density
+            val labelStr = if (index == 0 && item.groupCount == 1) {
+                action.label
+            } else {
+                SmartActionDetector.chipLabel(item.entity, item.groupCount)
+            }
+            val chipW = entityChipTextPaint.measureText(labelStr) + padding * 2f
+            val chipH = CHIP_HEIGHT_DP * density
+            if (!placeChip(rectF, chipW, chipH)) continue
 
-            val chipLeft = (rectF.left).coerceIn(8f * density, width - chipW - 8f * density)
-            val chipTop = (rectF.top - chipH - 4f * density).coerceAtLeast(8f * density)
             val chipRect = scratchChipRect
-            chipRect.set(chipLeft, chipTop, chipLeft + chipW, chipTop + chipH)
-
             canvas.drawRoundRect(chipRect, radius, radius, entityChipBgPaint)
             canvas.drawRoundRect(chipRect, radius, radius, entityBoxPaint)
             // Centred off the font's own metrics rather than a fixed baseline:
@@ -395,8 +420,43 @@ class ScreenCropOverlayView(
             // offset would drift as soon as that scale moved.
             val fm = entityChipTextPaint.fontMetrics
             val baseline = chipRect.centerY() - (fm.ascent + fm.descent) / 2f
-            canvas.drawText(labelStr, chipLeft + 8f * density, baseline, entityChipTextPaint)
+            canvas.drawText(labelStr, chipRect.left + padding, baseline, entityChipTextPaint)
+            recordChip(chipRect, item)
         }
+    }
+
+    /**
+     * Find a clear spot for a [w]×[h] chip near [box], writing it into
+     * [scratchChipRect]. Above the box first, then below; false when both are
+     * taken or off-screen, which the caller reads as "draw no label".
+     */
+    private fun placeChip(box: RectF, w: Float, h: Float): Boolean {
+        val gap = CHIP_GAP_DP * density
+        val margin = CHIP_MARGIN_DP * density
+        val left = box.left.coerceIn(margin, (width - w - margin).coerceAtLeast(margin))
+        val candidates = floatArrayOf(box.top - h - gap, box.bottom + gap)
+        for (top in candidates) {
+            if (top < margin || top + h > height - margin) continue
+            scratchChipRect.set(left, top, left + w, top + h)
+            var clear = true
+            for (i in 0 until drawnChipCount) {
+                if (RectF.intersects(chipHits[i].rect, scratchChipRect)) {
+                    clear = false
+                    break
+                }
+            }
+            if (clear) return true
+        }
+        return false
+    }
+
+    /** Remember a drawn chip so a tap can find it. Pooled — this runs every frame. */
+    private fun recordChip(rect: RectF, item: AnnotatedEntity) {
+        while (chipHits.size <= drawnChipCount) chipHits.add(ChipHit())
+        val hit = chipHits[drawnChipCount]
+        hit.rect.set(rect)
+        hit.item = item
+        drawnChipCount++
     }
 
     private fun drawScreenBorder(canvas: Canvas) {
@@ -527,35 +587,76 @@ class ScreenCropOverlayView(
         return RadialGradient(0f, 0f, 1f, centre, Color.TRANSPARENT, Shader.TileMode.CLAMP)
     }
 
+    /**
+     * Fire the annotation under ([touchX], [touchY]), if any.
+     *
+     * Chips are tested before boxes, and among boxes the *smallest* containing
+     * one wins. Accessibility bounds nest — one entity's box can wholly contain
+     * another's — and this used to take whichever came first in list order, so a
+     * tap on an inner chip was answered by the container around it.
+     */
+    private fun selectAnnotationAt(touchX: Float, touchY: Float): Boolean {
+        // Only `frozenRect`, deliberately not `drawing`: ACTION_DOWN sets that
+        // flag before the ACTION_UP that gets us here, so testing it would reject
+        // every tap. A tap is a press with no movement, and the chips it is
+        // hit-testing against are the ones from the last frame before the press —
+        // which is exactly what the user was looking at when they aimed.
+        if (frozenRect != null) return false
+        for (i in 0 until drawnChipCount) {
+            val hit = chipHits[i]
+            if (!hit.rect.contains(touchX, touchY)) continue
+            val item = hit.item ?: continue
+            if (fireAnnotation(item)) return true
+        }
+
+        getLocationOnScreen(scratchLocation)
+        val viewOffsetX = scratchLocation[0].toFloat()
+        val viewOffsetY = scratchLocation[1].toFloat()
+        val slop = ENTITY_TOUCH_SLOP_DP * density
+        val expanded = scratchRect
+        var best: AnnotatedEntity? = null
+        var bestArea = Float.MAX_VALUE
+
+        for (item in annotatedEntities) {
+            val bounds = item.boundsOnScreen
+            expanded.set(
+                bounds.left.toFloat() - viewOffsetX - slop,
+                bounds.top.toFloat() - viewOffsetY - slop,
+                bounds.right.toFloat() - viewOffsetX + slop,
+                bounds.bottom.toFloat() - viewOffsetY + slop
+            )
+            if (!expanded.contains(touchX, touchY)) continue
+            val area = expanded.width() * expanded.height()
+            if (area < bestArea) {
+                bestArea = area
+                best = item
+            }
+        }
+
+        return fireAnnotation(best ?: return false)
+    }
+
+    /**
+     * Act on [item]: run its action, or open the group when the chip stands for
+     * more than one detection. "12 prices" that converts a single price is a
+     * chip lying about what it is.
+     */
+    private fun fireAnnotation(item: AnnotatedEntity): Boolean {
+        if (item.groupCount > 1) {
+            onAnnotatedGroupSelected(item)
+            return true
+        }
+        val prompt = item.entity.primaryAction?.prompt ?: return false
+        onAnnotatedEntitySelected(prompt)
+        return true
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (captureMode) return false
 
         // Check if touch hits an annotated entity box/chip
         if (event.action == MotionEvent.ACTION_UP && !moved) {
-            getLocationOnScreen(scratchLocation)
-            val viewOffsetX = scratchLocation[0].toFloat()
-            val viewOffsetY = scratchLocation[1].toFloat()
-
-            val touchX = event.x
-            val touchY = event.y
-            val chipH = 24f * density
-            val expandedBounds = scratchRect
-            for (item in annotatedEntities) {
-                val bounds = item.boundsOnScreen
-                expandedBounds.set(
-                    bounds.left.toFloat() - viewOffsetX - 16f,
-                    bounds.top.toFloat() - viewOffsetY - chipH - 16f,
-                    bounds.right.toFloat() - viewOffsetX + 16f,
-                    bounds.bottom.toFloat() - viewOffsetY + 16f
-                )
-                if (expandedBounds.contains(touchX, touchY)) {
-                    val prompt = item.entity.primaryAction?.prompt
-                    if (prompt != null) {
-                        onAnnotatedEntitySelected(prompt)
-                        return true
-                    }
-                }
-            }
+            if (selectAnnotationAt(event.x, event.y)) return true
         }
 
         when (event.action) {
@@ -625,5 +726,10 @@ class ScreenCropOverlayView(
         const val GLOW_ALPHA = 0x55
         const val BRACKET_LEN_DP = 20f
         const val BRACKET_MAX_FRACTION = 0.6f
+        const val CHIP_HEIGHT_DP = 24f
+        const val CHIP_PADDING_DP = 8f
+        const val CHIP_GAP_DP = 4f
+        const val CHIP_MARGIN_DP = 8f
+        const val ENTITY_TOUCH_SLOP_DP = 8f
     }
 }

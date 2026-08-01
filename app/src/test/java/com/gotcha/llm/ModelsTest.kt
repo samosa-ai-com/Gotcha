@@ -170,4 +170,26 @@ class ModelsTest {
         assertEquals(original, decoded)
         assertEquals(2, decoded.content!!.jsonArray.size)
     }
+
+    @Test
+    fun `ModelInfo parses provider_type and task hints`() {
+        val decoded = json.decodeFromString(
+            ModelListResponse.serializer(),
+            """
+            {
+              "data": [
+                {"id": "gpt-4o", "provider_type": "llm"},
+                {"id": "kokoro-82m", "task": "text-to-speech"},
+                {"id": "plain-model"}
+              ]
+            }
+            """.trimIndent()
+        )
+        assertEquals(3, decoded.data.size)
+        assertEquals("gpt-4o", decoded.data[0].id)
+        assertEquals("llm", decoded.data[0].providerType)
+        assertEquals("text-to-speech", decoded.data[1].task)
+        assertNull(decoded.data[2].providerType)
+        assertNull(decoded.data[2].task)
+    }
 }
