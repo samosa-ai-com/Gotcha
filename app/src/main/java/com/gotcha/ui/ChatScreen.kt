@@ -3,6 +3,8 @@ package com.gotcha.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,7 +40,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,8 +61,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -74,6 +78,7 @@ import com.gotcha.agent.ChatUiState
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.motionSpec
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image as ComposeImage
 
@@ -655,30 +660,23 @@ private fun AgentModeSelector(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            AgentModeOption(
+                label = "Monitor",
+                icon = Icons.Outlined.Visibility,
                 selected = selected == AgentMode.MONITOR,
                 onClick = { onSelect(AgentMode.MONITOR) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Outlined.Visibility,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                label = { Text("Monitor") }
+                modifier = Modifier.weight(1f)
             )
-            FilterChip(
+            AgentModeOption(
+                label = "Operator",
+                icon = Icons.Filled.TouchApp,
                 selected = selected == AgentMode.OPERATOR,
                 onClick = { onSelect(AgentMode.OPERATOR) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Filled.TouchApp,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                label = { Text("Operator") }
+                modifier = Modifier.weight(1f)
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -692,5 +690,87 @@ private fun AgentModeSelector(
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+/**
+ * One half of [AgentModeSelector].
+ *
+ * Material's own FilterChip marks the chosen one with `secondaryContainer`,
+ * which every glass skin leaves translucent — on those the two chips came out
+ * the same weight and neither read as chosen. So the difference is carried four
+ * ways at once instead of by fill alone: an opaque accent fill, an accent
+ * outline, bold label, and a soft accent glow underneath. The unchosen one goes
+ * the other way — no fill, hairline outline, dimmed ink — so at a glance the
+ * pair reads as one lit and one dark, in every skin.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentModeOption(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val colorSpec = motionSpec<Color>(180)
+    // A veil of the accent over its own container: the light skins' containers
+    // are a few points off their near-white ground, and a fill that pale reads
+    // as no fill at all next to the empty one.
+    val filled = scheme.primary.copy(alpha = 0.16f).compositeOver(scheme.primaryContainer)
+    val container by animateColorAsState(
+        targetValue = if (selected) filled else Color.Transparent,
+        animationSpec = colorSpec,
+        label = "agentModeContainer"
+    )
+    val content by animateColorAsState(
+        targetValue = if (selected) {
+            scheme.onPrimaryContainer
+        } else {
+            scheme.onSurfaceVariant.copy(alpha = 0.75f)
+        },
+        animationSpec = colorSpec,
+        label = "agentModeContent"
+    )
+    val outline by animateColorAsState(
+        targetValue = if (selected) scheme.primary else scheme.outlineVariant.copy(alpha = 0.6f),
+        animationSpec = colorSpec,
+        label = "agentModeOutline"
+    )
+    // The glow. Coloured shadow, so it picks up whichever accent the skin uses.
+    val glow by animateDpAsState(
+        targetValue = if (selected) 10.dp else 0.dp,
+        animationSpec = motionSpec(180),
+        label = "agentModeGlow"
+    )
+
+    Surface(
+        selected = selected,
+        onClick = onClick,
+        shape = CircleShape,
+        color = container,
+        contentColor = content,
+        border = BorderStroke(if (selected) 1.5.dp else 1.dp, outline),
+        modifier = modifier.shadow(
+            elevation = glow,
+            shape = CircleShape,
+            ambientColor = scheme.primary,
+            spotColor = scheme.primary
+        )
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+        }
     }
 }
