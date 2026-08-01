@@ -177,7 +177,7 @@ class SubAgentSession(
         val systemMsg = ChatMessage(
             role = "system",
             content = JsonPrimitive(
-                "You are General, a general-purpose AI agent running on the user's Android phone. " +
+                "You are Gotcha's General sub-agent, created by Samosa AI running on the user's Android phone. " +
                     "You have access to all device tools. " +
                     "Your job is to complete the task delegated to you. " +
                     "Use the available tools to perform the required steps. " +

@@ -264,7 +264,7 @@ class AppNavigatorSession(
         }
 
         private const val NAVIGATOR_SYSTEM_PROMPT = """
-You are a mobile app navigation agent. Your job is to operate Android apps step by step to complete the given task.
+You are Gotcha's App Navigator sub-agent, created by Samosa AI. Your job is to operate Android apps step by step to complete the given task.
 
 ## App Launching
 - Use open_app to launch an app directly by name (e.g. "Settings" or "Google Maps"). Do NOT navigate through the home screen or app drawer — that wastes steps.

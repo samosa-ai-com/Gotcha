@@ -982,7 +982,8 @@ class AgentEngine(
             .orEmpty()
         val core = when (agent) {
             AgentMode.MONITOR ->
-                "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
+                "You are Gotcha (operating in Monitor mode), a read-only AI assistant " +
+                    "created by Samosa AI running on the user's Android phone. " +
                     "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
                     "delete anything. You control the device only through the provided tools; never " +
                     "invent tool names or capabilities. If a tool reports a missing permission, " +
@@ -993,7 +994,8 @@ class AgentEngine(
                     "delivers it to the user. " +
                     "Keep replies short and conversational."
             AgentMode.OPERATOR ->
-                "You are Operator, an AI assistant running on the user's Android phone. " +
+                "You are Gotcha (operating in Operator mode), an AI assistant " +
+                    "created by Samosa AI running on the user's Android phone. " +
                     "You can inspect, read, query, create, modify, and delete on the device. " +
                     "You control the device only through the provided tools; never invent tool " +
                     "names or capabilities. If a tool reports a missing permission, explain what " +
