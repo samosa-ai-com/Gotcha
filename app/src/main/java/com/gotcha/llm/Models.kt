@@ -138,5 +138,10 @@ data class ModelInfo(
     @SerialName("object")
     val objectType: String = "model",
     @SerialName("owned_by")
-    val ownedBy: String = ""
+    val ownedBy: String = "",
+    /** OpenAI-style task hint (e.g. "text-generation", "text-to-speech"). */
+    val task: String? = null,
+    /** Samosa-style provider hint (e.g. "llm", "tts", "stt"). */
+    @SerialName("provider_type")
+    val providerType: String? = null
 )

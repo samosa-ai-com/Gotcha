@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
+import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
@@ -474,31 +475,37 @@ class MainActivity : ComponentActivity() {
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
                                 val ttsBase = s.effectiveTtsBaseUrl
-                                if (ttsBase.isBlank()) return@withContext Pair(emptyList(), emptyList())
-                                // AudioApi's onUnauthorized fires on an OkHttp thread; Toast
-                                // and refreshSettings() must run on the main thread.
-                                val onUnauthorized: () -> Unit = {
-                                    this@MainActivity.runOnUiThread {
-                                        this@MainActivity.onSamosaUnauthorized()
-                                    }
-                                }
-                                val ttsApi = AudioApi(
-                                    baseUrl = ttsBase,
-                                    apiKey = s.effectiveTtsApiKey,
-                                    onUnauthorized = onUnauthorized
-                                )
-                                val ttsAll = ttsApi.listAudioModels()
-                                val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
                                 val sttBase = s.effectiveSttBaseUrl
-                                val sttModels = if (sttBase.isNotBlank() && sttBase != ttsBase) {
-                                    val sttApi = AudioApi(
-                                        baseUrl = sttBase,
-                                        apiKey = s.effectiveSttApiKey,
-                                        onUnauthorized = onUnauthorized
-                                    )
-                                    sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
+                                if (ttsBase.isBlank() && sttBase.isBlank()) {
+                                    return@withContext Pair(emptyList(), emptyList())
+                                }
+                                val fetch: (String, String) -> List<AudioModel> =
+                                    { base, key ->
+                                        AudioApi(
+                                            baseUrl = base,
+                                            apiKey = key,
+                                            onUnauthorized = { this@MainActivity.runOnUiThread { onSamosaUnauthorized() } }
+                                        ).listAudioModels()
+                                    }
+                                // Fetch the shared server once when both audio sides
+                                // point at the same URL; fetch each side independently
+                                // otherwise (STT-only configurations are valid).
+                                val sharedAll = if (ttsBase.isNotBlank() && ttsBase == sttBase) {
+                                    fetch(ttsBase, s.effectiveTtsApiKey)
                                 } else {
-                                    ttsAll.filter { it.category == ModelCategory.STT }
+                                    emptyList()
+                                }
+                                val ttsModels = when {
+                                    ttsBase.isBlank() -> emptyList()
+                                    ttsBase == sttBase -> sharedAll.filter { it.category == ModelCategory.TTS }
+                                    else -> fetch(ttsBase, s.effectiveTtsApiKey)
+                                        .filter { it.category == ModelCategory.TTS }
+                                }
+                                val sttModels = when {
+                                    sttBase.isBlank() -> emptyList()
+                                    sttBase == ttsBase -> sharedAll.filter { it.category == ModelCategory.STT }
+                                    else -> fetch(sttBase, s.effectiveSttApiKey)
+                                        .filter { it.category == ModelCategory.STT }
                                 }
                                 Pair(ttsModels, sttModels)
                             }
