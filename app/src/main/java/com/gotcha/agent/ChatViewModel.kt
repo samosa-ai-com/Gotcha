@@ -101,6 +101,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** True when the most recent user message was sent via voice (STT). */
     @Volatile
     private var lastInputWasVoice = false
+
+    /** True when the active LLM run was initiated by voice dictation. */
+    @Volatile
+    private var currentRunIsVoice = false
+
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
         settings.effectiveTtsBaseUrl,
@@ -230,12 +235,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     override fun onAssistantReply(text: String) {
         signalReplyArrived()
-        val shouldRead = lastInputWasVoice ||
+        val shouldRead = lastInputWasVoice || currentRunIsVoice ||
             (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
         if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
             speak(text)
         }
         lastInputWasVoice = false
+        currentRunIsVoice = false
     }
 
     override fun onSubAgentUpdate(running: String?, currentAction: String?) {
@@ -347,7 +353,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return client.listModels()
     }
 
-    fun sendMessage(text: String, imageBase64: String? = null) {
+    fun sendMessage(text: String, imageBase64: String? = null, isVoiceInput: Boolean = false) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && imageBase64 == null) return
         // One agent runs at a time. Block sending while any run is in flight —
@@ -357,6 +363,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
+        currentRunIsVoice = isVoiceInput || lastInputWasVoice
+        lastInputWasVoice = false
         val msg = if (imageBase64 != null) {
             visionUserMessage(trimmed, imageBase64, "jpeg")
         } else {
@@ -389,6 +397,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
                 withContext(NonCancellable) {
+                    currentRunIsVoice = false
+                    lastInputWasVoice = false
                     agentEngine.saveCurrentSession()
                     _uiState.update {
                         it.copy(
@@ -723,6 +733,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * is only re-pointed at the new blank chat when nothing is running.
      */
     fun clearChat(defaultAgent: AgentMode = AgentMode.MONITOR) {
+        lastInputWasVoice = false
+        currentRunIsVoice = false
         val newId = java.util.UUID.randomUUID().toString()
         val runInProgress = _uiState.value.runningSessionId != null
         nextId = 0
@@ -787,6 +799,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun openSession(id: String?) {
+        lastInputWasVoice = false
+        currentRunIsVoice = false
         viewModelScope.launch {
             if (id == null) {
                 clearChat()

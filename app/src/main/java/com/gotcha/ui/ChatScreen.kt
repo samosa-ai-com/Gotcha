@@ -81,7 +81,7 @@ import androidx.compose.foundation.Image as ComposeImage
 @Composable
 fun ChatScreen(
     state: ChatUiState,
-    onSend: (String, String?) -> Unit,
+    onSend: (String, String?, Boolean) -> Unit,
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
     onAnswer: (String?) -> Unit,
@@ -105,6 +105,7 @@ fun ChatScreen(
     val otherChatRunning = state.runningSessionId != null &&
         state.runningSessionId != state.activeSessionId
     var input by rememberSaveable { mutableStateOf("") }
+    var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
@@ -468,7 +469,10 @@ fun ChatScreen(
                     }
                     OutlinedTextField(
                         value = input,
-                        onValueChange = { input = it },
+                        onValueChange = {
+                            input = it
+                            inputWasVoice = false
+                        },
                         modifier = Modifier.weight(1f).testTag("chat_input"),
                         shape = RoundedCornerShape(24.dp),
                         placeholder = {
@@ -517,10 +521,13 @@ fun ChatScreen(
                                 Button(
                                     onClick = {
                                         onStopRecording { text ->
-                                            if (input.isNotEmpty()) {
-                                                input += " " + text
-                                            } else {
-                                                input = text
+                                            if (text.isNotBlank()) {
+                                                inputWasVoice = true
+                                                if (input.isNotEmpty()) {
+                                                    input += " " + text
+                                                } else {
+                                                    input = text
+                                                }
                                             }
                                         }
                                     },
@@ -559,8 +566,9 @@ fun ChatScreen(
                             else -> {
                                 IconButton(
                                     onClick = {
-                                        onSend(input, pendingImageBase64)
+                                        onSend(input, pendingImageBase64, inputWasVoice)
                                         input = ""
+                                        inputWasVoice = false
                                         pendingImageUri = null
                                         pendingImageBase64 = null
                                     },

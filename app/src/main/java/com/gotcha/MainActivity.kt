@@ -559,7 +559,9 @@ class MainActivity : ComponentActivity() {
                     }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
+                        onSend = { text, imageBase64, isVoiceInput ->
+                            chatViewModel.sendMessage(text, imageBase64, isVoiceInput)
+                        },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
                         onAnswer = chatViewModel::submitAnswer,
