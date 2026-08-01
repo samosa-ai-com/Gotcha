@@ -375,7 +375,7 @@ class AgentEngine(
             //   4. Current timestamp (volatile)
             val messages = buildList {
                 addAll(agentInstructionMessages(agent))
-                addAll(cullOldImages(trimmedHistory()))
+                addAll(cullOldObservations(trimmedHistory()))
                 add(baseEnvironmentBlock(agent))
                 add(currentTimestampMessage())
                 addAll(activeSkillsMessages())
@@ -1113,36 +1113,41 @@ class AgentEngine(
         )
     }
 
-    /**
-     * Returns a copy of [messages] with old vision messages replaced by
-     * text-only versions. Only the 2 most recent vision messages keep their
-     * image data. The original list (and [history]) is NOT modified,
-     * so the prefix sent in previous iterations stays cache-stable.
-     */
-    private fun cullOldImages(messages: List<ChatMessage>): List<ChatMessage> {
-        val imageMsgIndices = messages.indices.filter { i ->
-            val content = messages[i].content
-            content is JsonArray && content.any { part ->
-                part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
-            }
-        }
-        val toCull = imageMsgIndices.dropLast(2).toSet()
-        if (toCull.isEmpty()) return messages
-
-        return messages.mapIndexed { idx, msg ->
-            if (idx in toCull) {
-                msg.copy(
-                    content = JsonPrimitive(
-                        "[Previous screen observation removed to save context. Only the 2 most recent are retained.]"
-                    )
-                )
-            } else {
-                msg
-            }
-        }
-    }
-
     companion object {
+        /**
+         * Returns a copy of [messages] with old vision images and bulky UI hierarchy
+         * screen observations replaced by text-only summaries.
+         * Retains full content for the 4 most recent screen perception turns.
+         * The original list (and [history]) is NOT modified.
+         */
+        internal fun cullOldObservations(messages: List<ChatMessage>): List<ChatMessage> {
+            val observationMsgIndices = messages.indices.filter { i ->
+                val msg = messages[i]
+                val content = msg.content
+                val isVisionArray = content is JsonArray && content.any { part ->
+                    part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
+                }
+                val text = msg.textContent
+                val isScreenObservation = text.contains("[Screen State]") ||
+                    text.contains("── UI Elements ──") ||
+                    text.contains("read_screen_raw:")
+                isVisionArray || isScreenObservation
+            }
+            val toCull = observationMsgIndices.dropLast(4).toSet()
+            if (toCull.isEmpty()) return messages
+
+            return messages.mapIndexed { idx, msg ->
+                if (idx in toCull) {
+                    msg.copy(
+                        content = JsonPrimitive(
+                            "[Previous screen observation removed to save context. Only the 4 most recent are retained.]"
+                        )
+                    )
+                } else {
+                    msg
+                }
+            }
+        }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
 
