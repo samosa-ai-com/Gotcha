@@ -61,6 +61,7 @@ class SkillRegistryTest {
         val community = SkillRegistry.getCommunitySkills()
         assertEquals(1, community.size)
         assertEquals("im_community_skill", community[0].id)
+        assertTrue("keywords should default to empty list when missing in JSON", community[0].keywords.isEmpty())
     }
 
     @Test
