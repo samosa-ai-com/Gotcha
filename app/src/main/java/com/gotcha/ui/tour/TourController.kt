@@ -73,7 +73,7 @@ class TourController(
         onPersist(current?.id, false)
     }
 
-    /** Abandons the tour without marking it complete — "Skip tour". */
+    /** Abandons the tour — "Skip tour". Marks it complete so it does not return. */
     fun cancel() {
         index = -1
         onPersist(null, true)

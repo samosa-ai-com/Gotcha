@@ -53,14 +53,15 @@ class TourAnchors {
     private val handles = mutableStateMapOf<TourAnchor, AnchorHandle>()
 
     /**
-     * The visible bounds of [anchor], or null when it is not on screen.
+     * The bounds of [anchor] in root coordinates, or null when nothing is registered.
      *
-     * Deliberately the *clipped* bounds. A control scrolled out of its list
-     * still exists and still reports a position, and treating that as a
-     * spotlight punches the hole somewhere the user cannot see while blocking
-     * every part of the screen they can — which is precisely the trap the tour
-     * must never spring. Null here means "not visible", and the overlay asks
-     * [bringIntoView] to fix that rather than drawing a hole into nothing.
+     * These are [androidx.compose.ui.layout.boundsInRoot] — unclipped. A control
+     * scrolled out of its list still exists and still reports a position here,
+     * so on its own this would let a spotlight punch a hole somewhere the user
+     * cannot see while blocking every part of the screen they can — precisely
+     * the trap the tour must never spring. [TourOverlay] avoids that by calling
+     * [bringIntoView] before it trusts these bounds, scrolling the anchor into
+     * view rather than drawing a hole into nothing.
      */
     operator fun get(anchor: TourAnchor): Rect? =
         handles[anchor]?.bounds?.takeIf { !it.isEmpty }

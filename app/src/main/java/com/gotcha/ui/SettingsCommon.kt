@@ -315,7 +315,9 @@ fun SamosaAuthSection(
             Button(
                 onClick = onSignIn,
                 enabled = !busy,
-                modifier = Modifier.fillMaxWidth().then(signInModifier)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(signInModifier)
             ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
         }
     }

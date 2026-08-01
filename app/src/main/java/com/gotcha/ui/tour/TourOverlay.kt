@@ -70,7 +70,10 @@ private val CARD_GAP = 12.dp
 /** How far the cut-out is inflated beyond the control itself. */
 private val HOLE_PADDING = 6.dp
 
-/** Grace period before deciding a [TourStep.requiresAnchor] control is really absent. */
+/**
+ * Grace period before deciding a [TourStep.requiresAnchor] control is really absent.
+ * Long enough to cover a settings-page scroll plus a layout pass on a mid-range device.
+ */
 private const val ANCHOR_GRACE_MS = 1200L
 
 /**
