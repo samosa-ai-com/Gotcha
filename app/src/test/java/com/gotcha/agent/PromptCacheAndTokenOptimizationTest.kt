@@ -12,7 +12,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class PromptCacheAndTokenOptimizationTest {
 
     @Test
@@ -93,5 +96,40 @@ class PromptCacheAndTokenOptimizationTest {
         assertTrue(culled[3].textContent.contains("Turn 4"))
         assertTrue(culled[4].textContent.contains("Turn 5"))
         assertTrue(culled[5].textContent.contains("Turn 6"))
+    }
+
+    @Test
+    fun `AgentEngine systemPromptMessage combines instructions and environment into Index 0 System message`() {
+        com.gotcha.testsupport.FakeAndroidKeyStore.setUp()
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val repository = com.gotcha.data.ChatHistoryRepository(context)
+        val engine = AgentEngine(
+            appContext = context,
+            events = object : AgentEvents {
+                override fun onUi(
+                    kind: MessageKind,
+                    text: String,
+                    imageBase64: String?,
+                    subAgentSteps: List<String>,
+                    reasoningContent: String?
+                ) {}
+                override fun onActivity(activity: String?) {}
+                override fun onTokenCount(totalTokens: Int) {}
+                override fun onAssistantReply(text: String) {}
+                override fun onSubAgentUpdate(running: String?, currentAction: String?) {}
+                override fun onPermissionRequest(marker: String) {}
+                override suspend fun awaitQuestionAnswer(question: PendingQuestion): String = ""
+                override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean = true
+            },
+            historyRepository = repository,
+            settingsProvider = { com.gotcha.data.Settings() },
+            clientProvider = { null }
+        )
+        val msg = engine.systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR)
+        assertEquals("system", msg.role)
+        val text = msg.textContent
+        assertTrue("Should contain core Operator instructions", text.contains("You are Operator"))
+        assertTrue("Should contain env block", text.contains("<env>"))
+        assertTrue("Should contain device model info", text.contains("Device model:"))
     }
 }

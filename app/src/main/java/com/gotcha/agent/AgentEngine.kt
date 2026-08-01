@@ -384,14 +384,13 @@ class AgentEngine(
             events.onActivity("Thinking…")
 
             // Build message array optimized for prompt caching:
-            //   1. Agent instructions (static until agent switches)
-            //   2. Full conversation history (images culled non-mutatively)
-            //   3. Base environment block (volatile, e.g. battery)
-            //   4. Current timestamp (volatile)
+            //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile)
+            //   2. Conversation history (4-turn screen observation retention window)
+            //   3. Current timestamp (system message at tail)
+            //   4. Active skills index summary (user message at tail)
             val messages = buildList {
-                addAll(agentInstructionMessages(agent))
+                add(systemPromptMessage(agent))
                 addAll(cullOldObservations(trimmedHistory()))
-                add(baseEnvironmentBlock(agent))
                 add(currentTimestampMessage())
                 addAll(activeSkillsMessages())
             }
@@ -910,18 +909,8 @@ class AgentEngine(
             DeviceCapabilities.hiddenToolNames(appContext)
 
     /**
-     * Environment block sent as the first system message.
-     * Fully static within a session — no volatile fields like timestamps.
-     * Only "Active agent: X" differs between Monitor and Operator.
-     * The server KV cache for this prefix is preserved across all calls.
-     */
-    private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
-        return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
-    }
-
-    /**
      * A separate system message carrying only the current date/time.
-     * Placed after the conversation history so the [baseEnvironmentBlock] +
+     * Placed after the conversation history so the Index 0 static System Prompt +
      * history prefix stays in the KV cache while the timestamp is always fresh.
      */
     private fun currentTimestampMessage(): ChatMessage {
@@ -948,12 +937,25 @@ class AgentEngine(
     }
 
     /**
-     * Agent-specific core prompt + system-reminder, sent at the tail of the
-     * message array (right before the latest user message).  Placing these
-     * after the conversation history ensures the [baseEnvironmentBlock] +
-     * history prefix stays in the KV cache when the user switches agents.
+     * Complete System Prompt sent at Index 0.
+     *
+     * Combines core instructions, mode restrictions, language/style directives,
+     * static environment specs (<env>), connected account lists, and user profile
+     * (<user_profile>) into a single contiguous system message at Index 0.
+     *
+     * Because device specs and profile facts are static during a session, placing
+     * this entire block at Index 0 forms a 100% cache-stable prefix across turns.
      */
-    private fun agentInstructionMessages(agent: AgentMode): List<ChatMessage> {
+    internal fun systemPromptMessage(agent: AgentMode): ChatMessage {
+        val instructions = agentInstructionText(agent)
+        val environment = buildEnvironmentString(agent)
+        return ChatMessage(
+            role = "system",
+            content = JsonPrimitive("$instructions\n\n$environment")
+        )
+    }
+
+    private fun agentInstructionText(agent: AgentMode): String {
         val languageDirective = "\n\nRespond to the user in ${settings.preferredLanguage}. If the " +
             "user writes to you in a different language, reply in that language instead.\n" +
             "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
@@ -1043,12 +1045,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return listOf(
-            ChatMessage(
-                role = "system",
-                content = JsonPrimitive(core + languageDirective + styleDirective + reminder)
-            )
-        )
+        return core + languageDirective + styleDirective + reminder
     }
 
     /**
