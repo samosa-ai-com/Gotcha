@@ -335,8 +335,12 @@ class AgentEngine(
                 if (preserveLast != null) {
                     history.add(preserveLast)
                 }
-                // The new token count is roughly the size of the summary + preserved message
-                val newTokensApprox = (summary.length / 4) + ((preserveLast?.textContent?.length ?: 0) / 4)
+                // The new token count is the size of the summary + preserved
+                // message + the static prompt prefix overhead, so the unit
+                // matches what the API would report on the next round.
+                val historyEstimate = (summary.length / 4) +
+                    ((preserveLast?.textContent?.length ?: 0) / 4)
+                val newTokensApprox = historyEstimate + PROMPT_OVERHEAD_TOKENS
                 tokenCount = newTokensApprox
                 events.onTokenCount(newTokensApprox)
                 // Drop the pre-compaction on-screen transcript, then show the
@@ -410,10 +414,13 @@ class AgentEngine(
                 return
             }
 
-            response.usage?.totalTokens?.let {
-                tokenCount = it
-                events.onTokenCount(it)
-            }
+            // Use the API-reported totalTokens when available; fall back to a
+            // local estimate so the meter still moves and compaction can still
+            // fire on proxies that omit `usage`.
+            val totalTokens = response.usage?.totalTokens
+                ?: (messages.sumOf { it.textContent.length / 4 } + PROMPT_OVERHEAD_TOKENS)
+            tokenCount = totalTokens
+            events.onTokenCount(totalTokens)
 
             val message = response.choices.firstOrNull()?.message
             if (message == null) {
@@ -1340,6 +1347,16 @@ class AgentEngine(
         }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /**
+         * Conservative floor for the static prefix the engine sends every call
+         * (agent instructions + environment block + timestamp + active-skills
+         * index + tool schemas). The real API-reported `usage.totalTokens` is the
+         * source of truth whenever the server returns it; this only fills the
+         * gap when it doesn't, and it keeps the post-compaction estimate in the
+         * same units so the meter doesn't visibly collapse after compaction.
+         */
+        internal const val PROMPT_OVERHEAD_TOKENS = 3_000
 
         /** Injected one round before the delegation guard gives up. */
         private const val REDELEGATION_REMINDER =

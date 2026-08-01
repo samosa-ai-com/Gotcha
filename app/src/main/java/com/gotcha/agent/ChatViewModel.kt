@@ -183,6 +183,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val _sessions = MutableStateFlow<List<ChatSession>>(emptyList())
     val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
 
+    /**
+     * Live per-session token counts. Updated on every [onTokenCount] so the
+     * drawer's per-row readout doesn't lag one round behind the running
+     * session. The persisted [ChatSession.tokenCount] on disk catches up
+     * through [saveCurrentSession], so this overlay is read-first, disk-second.
+     */
+    private val _liveTokenBySession = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val liveTokenBySession: StateFlow<Map<String, Int>> = _liveTokenBySession.asStateFlow()
+
     /** Permission names (or ToolResult.WRITE_SETTINGS) the Activity should request. */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
@@ -228,9 +237,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     override fun onTokenCount(totalTokens: Int) {
+        val engineId = agentEngine.sessionId ?: return
+        // Publish live to the drawer so the running session's row updates in
+        // the same frame, without waiting for the disk save at end-of-round.
+        _liveTokenBySession.update { it + (engineId to totalTokens) }
         if (viewingEngineSession()) updateContextUsage()
-        // Keep the running-session token count fresh in the drawer regardless.
-        refreshSessions()
+        // Best-effort disk write so a crash mid-run doesn't lose the count.
+        viewModelScope.launch { agentEngine.saveCurrentSession() }
     }
 
     override fun onAssistantReply(text: String) {
@@ -291,7 +304,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     // ---- Settings / models ----
 
-    private fun updateContextUsage() = applyContextUsage(agentEngine.tokenCount)
+    // Never read from the engine here. The engine may be bound to a different
+    // session than the one being viewed (background run); use the value
+    // already shown on screen so refreshSettings() etc. cannot clobber the
+    // viewed session's readout with another session's live count.
+    private fun updateContextUsage() = applyContextUsage(_uiState.value.tokenCount)
 
     /** Sets the context readout for an explicit token count (viewed session). */
     private fun applyContextUsage(tokens: Int) {
@@ -879,6 +896,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             if (agentEngine.sessionId == id) {
                 clearChat()
             }
+            // Drop any live overlay entry for the deleted session so the
+            // drawer doesn't keep showing a token count for a chat that no
+            // longer exists.
+            _liveTokenBySession.update { it - id }
             refreshSessions()
         }
     }

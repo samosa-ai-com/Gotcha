@@ -363,6 +363,7 @@ class MainActivity : ComponentActivity() {
     private fun GotchaApp() {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
+        val liveTokenBySession by chatViewModel.liveTokenBySession.collectAsState()
 
         // An unconfigured install opens Settings; send it straight to the page
         // holding the API key and model rather than to the category list.
@@ -438,7 +439,8 @@ class MainActivity : ComponentActivity() {
                         currentRoute = Route.CONNECTORS
                     },
                     maxContextTokens = state.maxContextTokens,
-                    activeTokenCount = state.tokenCount
+                    activeTokenCount = state.tokenCount,
+                    liveTokenBySession = liveTokenBySession
                 )
             }
         ) {
