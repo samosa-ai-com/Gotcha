@@ -9,6 +9,7 @@ import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.gotcha.BuildConfig
 import com.gotcha.data.SettingsRepository
 import retrofit2.HttpException
 import java.io.IOException
@@ -134,8 +135,11 @@ class SamosaAuthManager(
         /**
          * WEB OAuth client ID. Google mints the ID token with aud = this value,
          * which is what the backend verifies. Do NOT use the Android client ID.
+         *
+         * Supplied at build time via the `SAMOSA_WEB_CLIENT_ID` environment
+         * variable or `local.properties`; a public checkout falls back to an
+         * inert placeholder, so Samosa sign-in is disabled until you set it.
          */
-        const val WEB_CLIENT_ID =
-            "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+        val WEB_CLIENT_ID: String = BuildConfig.SAMOSA_WEB_CLIENT_ID
     }
 }

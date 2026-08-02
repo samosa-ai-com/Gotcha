@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gotcha.BuildConfig
 import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.data.Settings
@@ -121,7 +122,7 @@ fun SkillsScreen(
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Import skills from samosa-ai.example or paste JSON. " +
+            "Import skills from ${BuildConfig.SAMOSA_SKILL_HOST} or paste JSON. " +
                 "Community skills appear in the agent's system prompt " +
                 "as advisory guidance.",
             style = MaterialTheme.typography.bodySmall
@@ -130,7 +131,7 @@ fun SkillsScreen(
         OutlinedTextField(
             value = communitySkillUrl,
             onValueChange = { communitySkillUrl = it.trim() },
-            label = { Text("Skill URL (https://samosa-ai.example/...)") },
+            label = { Text("Skill URL (https://${BuildConfig.SAMOSA_SKILL_HOST}/...)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -336,7 +337,7 @@ fun SkillsScreen(
         )
         Text(
             "Only HTTPS hosts in this list can be fetched. " +
-                "Default: samosa-ai.example.",
+                "Default: ${BuildConfig.SAMOSA_SKILL_HOST}.",
             style = MaterialTheme.typography.bodySmall
         )
         communitySkillHosts.forEach { host ->

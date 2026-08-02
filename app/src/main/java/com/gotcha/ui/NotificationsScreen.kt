@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.gotcha.BuildConfig
 import com.gotcha.audio.CompletionFeedback
 import com.gotcha.data.Settings
 import kotlinx.coroutines.launch
@@ -94,7 +95,8 @@ fun NotificationsScreen(
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            "Updates, tips and maintenance notices from Gotcha, fetched from api.samosa-ai.example. " +
+            "Updates, tips and maintenance notices from Gotcha, fetched from " +
+                "${BuildConfig.SAMOSA_API_URL.removePrefix("https://")}. " +
                 "Each message shows at most the number of times the server asks; re-deliveries are suppressed automatically.",
             style = MaterialTheme.typography.bodySmall
         )

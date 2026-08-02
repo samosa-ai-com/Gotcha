@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
  * The fetcher is intentionally tiny: HTTPS only, host allowlist, short
  * timeouts, a single body-size cap, and a strict JSON parser. We follow
  * redirects only when each hop lands on a host in the same allowlist
- * (e.g. samosa-ai.example -> samosa.ai), and never chase cross-host redirects.
+ * (e.g. example.com -> evil.com), and never chase cross-host redirects.
  */
 @Suppress("ThrowsCount", "SwallowedException")
 class SkillImporter(

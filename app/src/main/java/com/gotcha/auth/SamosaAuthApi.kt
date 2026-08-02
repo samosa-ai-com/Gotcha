@@ -1,5 +1,6 @@
 package com.gotcha.auth
 
+import com.gotcha.BuildConfig
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -36,9 +37,9 @@ data class RegisterResponse(
 )
 
 /**
- * Samosa AI auth endpoints (base URL https://api.samosa-ai.example/).
+ * Samosa AI auth endpoints (base URL [AUTH_BASE_URL], from BuildConfig).
  * The OpenAI-compatible chat/model endpoints are handled by the existing
- * LLMClient against https://api.samosa-ai.example/v1/ — these are auth-only.
+ * LLMClient against the /v1/ proxy root — these are auth-only.
  */
 interface SamosaAuthApi {
 
@@ -53,7 +54,7 @@ interface SamosaAuthApi {
 
     companion object {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */
-        const val AUTH_BASE_URL = "https://api.samosa-ai.example/"
+        val AUTH_BASE_URL: String = "${BuildConfig.SAMOSA_API_URL}/"
 
         fun create(): SamosaAuthApi {
             @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)

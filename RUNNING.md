@@ -29,6 +29,47 @@ If you open on another machine, delete that line and let Android Studio regenera
 
 If sync succeeds, `app` appears as a run configuration in the toolbar.
 
+### Samosa endpoints (optional, developers only)
+
+This repository ships with **inert placeholder endpoints**, so a fresh checkout
+builds and runs but cannot reach the Samosa backend — "Samosa AI" sign-in will
+not work until you supply real values. Everything else, including the
+OpenAI-compatible provider flow, works out of the box.
+
+Three build-time values control it:
+
+| Variable | Placeholder | What it is |
+|---|---|---|
+| `SAMOSA_API_URL` | `https://api.samosa-ai.example` | API root, **no** trailing slash. `/v1/` and the auth root are derived from it. |
+| `SAMOSA_SKILL_HOST` | `samosa-ai.example` | Host allowed for community-skill imports |
+| `SAMOSA_WEB_CLIENT_ID` | `YOUR_GOOGLE_WEB_CLIENT_ID.…` | Google **WEB** OAuth client ID (not the Android one) |
+
+Supply them either way — environment variables take precedence, so CI can
+override a developer's file:
+
+```bash
+# Option A — environment (per shell, nothing on disk)
+export SAMOSA_API_URL="https://api.example.com"
+export SAMOSA_SKILL_HOST="example.com"
+export SAMOSA_WEB_CLIENT_ID="1234567890-abcdef.apps.googleusercontent.com"
+./gradlew installDebug
+```
+
+```properties
+# Option B — local.properties at the repo root (gitignored, persists across shells)
+SAMOSA_API_URL=https://api.example.com
+SAMOSA_SKILL_HOST=example.com
+SAMOSA_WEB_CLIENT_ID=1234567890-abcdef.apps.googleusercontent.com
+```
+
+They are read in `app/build.gradle.kts` and exposed as `BuildConfig.SAMOSA_*`.
+Changing either source triggers a rebuild of `BuildConfig` automatically.
+
+> **Never commit real values.** `local.properties` is gitignored and the
+> generated `BuildConfig.java` lives under `app/build/`, which is also ignored —
+> but note the values *are* compiled into any APK you build, so treat a release
+> APK built with real endpoints accordingly.
+
 ## 3. Get a device ready
 
 **Option A — Emulator (easiest):**

@@ -1,5 +1,7 @@
 package com.gotcha.data
 
+import com.gotcha.BuildConfig
+
 /**
  * Which LLM backend the app talks to.
  *
@@ -16,8 +18,11 @@ enum class LlmProvider(val label: String) {
     OPENAI_COMPATIBLE("OpenAI Compatible");
 
     companion object {
-        /** OpenAI-compatible proxy exposed by the Samosa AI backend. */
-        const val SAMOSA_BASE_URL = "https://api.samosa-ai.example/v1/"
+        /**
+         * OpenAI-compatible proxy exposed by the Samosa AI backend. Derived from
+         * the build-time `SAMOSA_API_URL` (environment or `local.properties`).
+         */
+        val SAMOSA_BASE_URL: String = "${BuildConfig.SAMOSA_API_URL}/v1/"
 
         fun fromName(name: String?): LlmProvider =
             entries.firstOrNull { it.name == name } ?: SAMOSA_AI

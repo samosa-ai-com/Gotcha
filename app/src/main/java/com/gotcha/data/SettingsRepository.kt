@@ -2,6 +2,7 @@ package com.gotcha.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
 
 data class Settings(
@@ -51,7 +52,7 @@ data class Settings(
     /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
     val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
-    /** Server-driven notifications from `api.samosa-ai.example/v1/gotcha/notifications`. */
+    /** Server-driven notifications from `<SAMOSA_API_URL>/v1/gotcha/notifications`. */
     val serverMessagesEnabled: Boolean = true,
     /** Epoch millis of the last successful server-messages fetch. 0 = never. */
     val serverMessagesLastFetchedAt: Long = 0L,
@@ -100,7 +101,7 @@ data class Settings(
     val userResponseStyle: String = "",
     val preferredLanguage: String = "English",
     val preferredCurrency: String = "USD",
-    val communitySkillHosts: Set<String> = setOf("samosa-ai.example"),
+    val communitySkillHosts: Set<String> = setOf(BuildConfig.SAMOSA_SKILL_HOST),
     /**
      * Version tag of the Terms / Disclaimer / Data Retention bundle the user has
      * accepted. Empty string means "never accepted." The first-launch consent
@@ -516,7 +517,7 @@ class SettingsRepository(context: Context) {
         const val KEY_ONBOARDING_DONE = "onboarding_completed"
         const val KEY_TOUR_STEP = "tour_step_id"
         const val KEY_ONBOARDING_VERSION = "onboarding_version"
-        val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example")
+        val defaultCommunitySkillHosts: Set<String> = setOf(BuildConfig.SAMOSA_SKILL_HOST)
     }
 }
 

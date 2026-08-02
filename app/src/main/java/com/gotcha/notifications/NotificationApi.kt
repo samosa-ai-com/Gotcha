@@ -1,6 +1,7 @@
 package com.gotcha.notifications
 
 import android.util.Log
+import com.gotcha.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -13,7 +14,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
 /**
- * HTTP client for `GET https://api.samosa-ai.example/v1/gotcha/notifications`.
+ * HTTP client for `GET <SAMOSA_API_URL>/v1/gotcha/notifications`.
  *
  * Mirrors the [com.gotcha.audio.AudioApi] pattern (OkHttp directly, no
  * Retrofit). Surfaces a 304 via [NotificationsApiResult.NotModified] so the
@@ -122,7 +123,7 @@ open class NotificationApi(
 
         /** OpenAI-compatible proxy exposed by the Samosa AI backend; reused as the
          *  notifications host so a single network identity covers LLM/audio/notifications. */
-        const val DEFAULT_BASE_URL = "https://api.samosa-ai.example"
+        val DEFAULT_BASE_URL: String = BuildConfig.SAMOSA_API_URL
     }
 }
 

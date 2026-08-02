@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Wire DTOs for `GET /v1/gotcha/notifications` on `api.samosa-ai.example`.
+ * Wire DTOs for `GET /v1/gotcha/notifications` on the configured Samosa host.
  *
  * The server is stateless w.r.t. per-device delivery: all dedupe is enforced
  * on the client against [NotificationStore.deliveredIds] and the per-id

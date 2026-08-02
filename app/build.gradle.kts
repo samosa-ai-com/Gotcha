@@ -16,6 +16,17 @@ val keystoreProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+/**
+ * Developer-specific Samosa endpoints. A public checkout builds against inert
+ * placeholders so it cannot reach the real backend; supply your own values via
+ * an environment variable or `local.properties` (both gitignored, neither is
+ * ever committed). Environment wins, so CI can override a developer's file.
+ */
+fun samosaConfig(name: String, placeholder: String): String =
+    providers.environmentVariable(name).orNull
+        ?: keystoreProps.getProperty(name)
+        ?: placeholder
+
 android {
     namespace = "com.gotcha"
     compileSdk = 34
@@ -31,6 +42,25 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField(
+            "String",
+            "SAMOSA_API_URL",
+            "\"${samosaConfig("SAMOSA_API_URL", "https://api.samosa-ai.example")}\""
+        )
+        buildConfigField(
+            "String",
+            "SAMOSA_SKILL_HOST",
+            "\"${samosaConfig("SAMOSA_SKILL_HOST", "samosa-ai.example")}\""
+        )
+        buildConfigField(
+            "String",
+            "SAMOSA_WEB_CLIENT_ID",
+            "\"${samosaConfig(
+                "SAMOSA_WEB_CLIENT_ID",
+                "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
+            )}\""
+        )
     }
 
     signingConfigs {
@@ -68,6 +98,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
