@@ -164,7 +164,12 @@ class ScreenLensController(
             withContext(Dispatchers.Main) { overlay?.freezeSelection(finalRect) }
 
             val regionText = service.dumpTextInRegion(finalRect)
-            val contextualActions = regionText?.let { SmartActionDetector.detectContextual(it) } ?: emptyList()
+            val settings = runCatching { com.gotcha.data.SettingsRepository(appContext).load() }.getOrNull()
+            val preferredLang = settings?.preferredLanguage ?: "English"
+            val preferredCurr = settings?.preferredCurrency ?: "USD"
+            val contextualActions = regionText?.let {
+                SmartActionDetector.detectContextual(it, targetCurrency = preferredCurr, targetLanguage = preferredLang)
+            } ?: emptyList()
 
             withContext(Dispatchers.Main) {
                 overlay?.setCaptureMode(true)

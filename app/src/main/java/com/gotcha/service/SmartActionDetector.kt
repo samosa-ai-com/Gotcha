@@ -369,8 +369,17 @@ object SmartActionDetector {
      * Contextual detection wrapper for Lens mode.
      * Returns primary actions for all distinct entities found in the text.
      */
-    fun detectContextual(text: String): List<SmartAction> {
-        val entities = detectAll(text, allowChat = false)
+    fun detectContextual(
+        text: String,
+        targetCurrency: String = "USD",
+        targetLanguage: String = "English"
+    ): List<SmartAction> {
+        val entities = detectAll(
+            text = text,
+            allowChat = false,
+            targetCurrency = targetCurrency,
+            targetLanguage = targetLanguage
+        )
         return entities.mapNotNull { it.primaryAction }
     }
 

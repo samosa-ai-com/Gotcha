@@ -398,7 +398,15 @@ class GotchaAccessibilityService : AccessibilityService() {
         }
 
         val fullText = fullTextBuilder.toString()
-        val entities = SmartActionDetector.detectAll(fullText, allowChat = false)
+        val settings = runCatching { com.gotcha.data.SettingsRepository(applicationContext).load() }.getOrNull()
+        val prefCurr = settings?.preferredCurrency ?: "USD"
+        val prefLang = settings?.preferredLanguage ?: "English"
+        val entities = SmartActionDetector.detectAll(
+            fullText,
+            allowChat = false,
+            targetCurrency = prefCurr,
+            targetLanguage = prefLang
+        )
         val placeable = discardOversizedBounds(locateEntities(entities, nodeRanges))
         val selected = SmartActionDetector.selectForAnnotation(placeable.map { it.entity })
         // Matched by identity, not equality: selection hands back the very objects
