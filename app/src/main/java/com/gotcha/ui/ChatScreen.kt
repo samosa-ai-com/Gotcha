@@ -38,7 +38,6 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -80,6 +79,7 @@ import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.ui.theme.SkinDropdownMenu
 import com.gotcha.ui.theme.motionSpec
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image as ComposeImage
@@ -677,7 +677,7 @@ private fun ChatShareMenu(
         IconButton(onClick = { expanded = true }, enabled = enabled) {
             Icon(Icons.Default.Share, contentDescription = "Share chat")
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        SkinDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
                 text = { Text("Export chat") },
                 onClick = {

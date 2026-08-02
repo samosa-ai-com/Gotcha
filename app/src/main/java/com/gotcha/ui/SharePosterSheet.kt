@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.RunSummary
+import com.gotcha.ui.theme.SkinAlertDialog
 
 /**
  * Share flow for the "Share your Gotcha moment" feature.
@@ -56,7 +56,7 @@ fun SharePosterSheet(
 ) {
     var includeScreenshot by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    SkinAlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
         title = {
             Text(
