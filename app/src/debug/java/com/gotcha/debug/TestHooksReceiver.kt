@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.gotcha.MainActivity
+import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.ui.tour.SUPPRESS_TOUR_KEY
 
 /**
  * Debug-only broadcast receiver that seeds app settings for automated testing.
@@ -97,11 +99,16 @@ fun seedTestSettings(
             baseUrl = baseUrl,
             apiKey = apiKey,
             model = model,
-            assistiveBallEnabled = assistiveBallEnabled
+            assistiveBallEnabled = assistiveBallEnabled,
+            // A seeded install stands for one already in use. Without this the
+            // consent gate is up before the first assertion runs, and every
+            // instrumented test is tapping at a dialog it never asked for.
+            legalAcceptedVersion = LEGAL_VERSION
         )
     )
     repository.prefs.edit()
         .putBoolean(MainActivity.KEY_FIRST_LAUNCH_DONE, true)
         .putBoolean(MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, true)
+        .putBoolean(SUPPRESS_TOUR_KEY, true)
         .apply()
 }

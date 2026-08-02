@@ -1,7 +1,6 @@
 package com.gotcha.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,7 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
+import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
+import com.gotcha.ui.tour.TourAnchor
+import com.gotcha.ui.tour.tourAnchor
 import kotlinx.coroutines.launch
 
 /** Currencies offered for [Settings.preferredCurrency]. */
@@ -103,6 +105,7 @@ fun PersonalInfoScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_user_name")
+                .tourAnchor(TourAnchor.PERSONAL_NAME)
         )
         OutlinedTextField(
             value = userLocation,
@@ -213,7 +216,7 @@ fun PersonalInfoScreen(
             Text(if (testingVoice) "Playing…" else "Test voice")
         }
         voiceDataMissing?.let { missingLang ->
-            AlertDialog(
+            SkinAlertDialog(
                 onDismissRequest = { voiceDataMissing = null },
                 title = { Text("Voice data not installed") },
                 text = {
@@ -283,6 +286,7 @@ fun PersonalInfoScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save_personal_info")
+                .tourAnchor(TourAnchor.PERSONAL_SAVE)
         ) { Text("Save Personal Info") }
     }
 }

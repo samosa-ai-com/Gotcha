@@ -282,7 +282,9 @@ fun SamosaAuthSection(
     signedIn: Boolean,
     busy: Boolean,
     onSignIn: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    /** Applied to the sign-in button only, so the tour can spotlight it. */
+    signInModifier: Modifier = Modifier
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -313,7 +315,9 @@ fun SamosaAuthSection(
             Button(
                 onClick = onSignIn,
                 enabled = !busy,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(signInModifier)
             ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
         }
     }

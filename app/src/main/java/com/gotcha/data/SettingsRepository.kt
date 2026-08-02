@@ -109,13 +109,48 @@ data class Settings(
      * [LEGAL_VERSION], so a meaningful change to the legal copy forces re-acceptance
      * without losing any user data.
      */
-    val legalAcceptedVersion: String = ""
+    val legalAcceptedVersion: String = "",
+    // ---- Guided setup (the feature tour) ----
+    /** False on a fresh install, which is what launches the tour. */
+    val hasCompletedOnboarding: Boolean = false,
+    /**
+     * The tour step to resume on, or blank when it is not running.
+     *
+     * Stored rather than derived because half the tour sends the user out to
+     * Android Settings to grant a permission, and a phone under memory pressure
+     * is free to kill the app while they are away. Without this the tour would
+     * start again from the top on their return, which is the point most people
+     * would give up on it.
+     */
+    val tourStepId: String = "",
+    /**
+     * Which edition of the tour this install has seen. A later release that adds
+     * a step bumps this and replays only what is new, rather than making
+     * everyone sit through the parts they have already done.
+     */
+    val onboardingVersion: Int = 0
 ) {
     /** True when the active provider has everything it needs to make requests. */
     val isConfigured: Boolean
         get() = when (provider) {
             LlmProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank()
             LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
+        }
+
+    /**
+     * Whether credentials the user has actually *saved* would answer a question.
+     *
+     * Stricter than [isConfigured], which an untouched install already satisfies
+     * because the default base URL is non-blank. The feature tour needs to tell
+     * "they have set this up" from "they have not started", and a step that
+     * considered itself finished before the user had done anything would be
+     * exactly the kind of false progress the tour exists to avoid.
+     */
+    val hasUsableModel: Boolean
+        get() = when (provider) {
+            LlmProvider.SAMOSA_AI -> samosaSessionToken.isNotBlank() && model.isNotBlank()
+            LlmProvider.OPENAI_COMPATIBLE ->
+                baseUrl.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank()
         }
 
     /** Base URL the networking stack should actually use for the active provider. */
@@ -328,7 +363,10 @@ class SettingsRepository(context: Context) {
         preferredLanguage = string(KEY_PREFERRED_LANGUAGE, "English"),
         preferredCurrency = string(KEY_PREFERRED_CURRENCY, "USD"),
         communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts),
-        legalAcceptedVersion = string(KEY_LEGAL_ACCEPTED_VERSION)
+        legalAcceptedVersion = string(KEY_LEGAL_ACCEPTED_VERSION),
+        hasCompletedOnboarding = prefs.getBoolean(KEY_ONBOARDING_DONE, false),
+        tourStepId = string(KEY_TOUR_STEP),
+        onboardingVersion = prefs.getInt(KEY_ONBOARDING_VERSION, 0)
     )
 
     fun save(settings: Settings) {
@@ -383,6 +421,25 @@ class SettingsRepository(context: Context) {
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
             .putString(KEY_LEGAL_ACCEPTED_VERSION, settings.legalAcceptedVersion)
+            .putBoolean(KEY_ONBOARDING_DONE, settings.hasCompletedOnboarding)
+            .putString(KEY_TOUR_STEP, settings.tourStepId)
+            .putInt(KEY_ONBOARDING_VERSION, settings.onboardingVersion)
+            .apply()
+    }
+
+    /**
+     * Persist tour progress alone.
+     *
+     * The tour moves while other screens are open and holding unsaved edits of
+     * their own — that is the entire point of a coach mark. A full [save] here
+     * would take the settings as they were when the page loaded and write them
+     * back over whatever the user has since typed.
+     */
+    fun saveTourProgress(stepId: String?, completed: Boolean, version: Int) {
+        prefs.edit()
+            .putString(KEY_TOUR_STEP, stepId.orEmpty())
+            .putBoolean(KEY_ONBOARDING_DONE, completed)
+            .putInt(KEY_ONBOARDING_VERSION, version)
             .apply()
     }
 
@@ -456,6 +513,9 @@ class SettingsRepository(context: Context) {
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
         const val KEY_LEGAL_ACCEPTED_VERSION = "legal_accepted_version"
+        const val KEY_ONBOARDING_DONE = "onboarding_completed"
+        const val KEY_TOUR_STEP = "tour_step_id"
+        const val KEY_ONBOARDING_VERSION = "onboarding_version"
         val defaultCommunitySkillHosts: Set<String> = setOf("samosa-ai.example")
     }
 }
