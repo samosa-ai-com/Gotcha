@@ -13,11 +13,26 @@ A step-by-step guide to build, run, and configure the Gotcha Android app.
 | Android SDK | Platform 34 (Android 14) installed via SDK Manager |
 | A device | A physical phone **or** an emulator running **API 30 (Android 11) or higher** |
 
-The project already has a `local.properties` pointing at an SDK:
+A fresh clone has **no `local.properties`** — it is gitignored, so it is never
+committed. Android Studio writes one pointing at your SDK the first time it
+syncs the project, which is usually all you need.
+
+To build from the command line before ever opening Android Studio, create it
+yourself at the repo root (beside `settings.gradle.kts`):
+
+```properties
+# Windows
+sdk.dir=C\:\\Users\\you\\AppData\\Local\\Android\\Sdk
+# Linux
+#sdk.dir=/home/you/Android/Sdk
+# macOS
+#sdk.dir=/Users/you/Library/Android/sdk
 ```
-sdk.dir=/home/developer/Android/Sdk
-```
-If you open on another machine, delete that line and let Android Studio regenerate it, or point it at your own SDK.
+
+Keep each `#` at the start of its own line — in a `.properties` file a `#`
+mid-line is part of the value, not a comment. Backslashes are escaped; forward
+slashes work too.
+Alternatively, set `ANDROID_HOME` in your environment and skip the file.
 
 ## 2. Open and build the project
 
