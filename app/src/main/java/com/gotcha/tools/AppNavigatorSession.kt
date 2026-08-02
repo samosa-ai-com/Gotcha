@@ -1,6 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
+import com.gotcha.agent.AgentEngine.SCREEN_CAPTURE_SETTLE_MS
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.ChatResponse
@@ -30,7 +31,9 @@ class AppNavigatorSession(
     private val settings: Settings,
     private val task: String,
     private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
-    private val sessionId: String? = null
+    private val sessionId: String? = null,
+    private val onCaptureChrome: (hide: Boolean) -> Unit = { },
+    private val onScreenReadDone: () -> Unit = { }
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val maxSteps = settings.maxNavigationToolCalls
@@ -60,7 +63,14 @@ class AppNavigatorSession(
                 java.io.File(FileResolver.WORKING_DIR_BASE),
                 com.gotcha.data.GotchaStorage.Kind.DEBUG
             )
-            val screenshot = ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
+            val screenshot = try {
+                onCaptureChrome(true)
+                delay(SCREEN_CAPTURE_SETTLE_MS) // chrome vanishes before the frame is captured
+                ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
+            } finally {
+                onCaptureChrome(false)
+            }
+            onScreenReadDone()
 
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }

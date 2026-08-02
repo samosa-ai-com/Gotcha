@@ -153,7 +153,9 @@ class AgentEngine(
                             }
                         )
                     },
-                    sessionId = sessionId?.let { "${it}_nav" }
+                    sessionId = sessionId?.let { "${it}_nav" },
+                    onCaptureChrome = { hide -> events.onScreenCaptureChrome(hide) },
+                    onScreenReadDone = { events.onScreenReadDone() }
                 )
                 val output = session.run()
                 val stepsEncoded = output.steps.joinToString("\n")
