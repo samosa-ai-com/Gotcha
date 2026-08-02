@@ -9,6 +9,7 @@ class SettingsTest {
     @Test
     fun `effectiveTtsApiKey falls back to effectiveApiKey when ttsApiKey is blank and provider is API`() {
         val settings = Settings(
+            provider = LlmProvider.OPENAI_COMPATIBLE,
             apiKey = "main-key",
             ttsProvider = AudioProvider.API,
             ttsApiKey = ""
@@ -29,6 +30,7 @@ class SettingsTest {
     @Test
     fun `effectiveSttApiKey falls back to effectiveApiKey when sttApiKey is blank and provider is API`() {
         val settings = Settings(
+            provider = LlmProvider.OPENAI_COMPATIBLE,
             apiKey = "main-key",
             sttProvider = AudioProvider.API,
             sttApiKey = ""
@@ -252,12 +254,15 @@ class SettingsTest {
     }
 
     @Test
-    fun `an untouched install satisfies isConfigured but has no usable model`() {
-        // The distinction the feature tour turns on: the default base URL is
-        // non-blank, so isConfigured alone would call a brand new install ready.
+    fun `an untouched install is not configured until a Samosa sign-in`() {
+        // The default provider is Samosa AI and the model chai-small, so a brand
+        // new install has neither a session token nor an API key — the feature
+        // tour must treat it as not started.
         val settings = Settings()
 
-        assertEquals(true, settings.isConfigured)
+        assertEquals(LlmProvider.SAMOSA_AI, settings.provider)
+        assertEquals("chai-small", settings.model)
+        assertEquals(false, settings.isConfigured)
         assertEquals(false, settings.hasUsableModel)
     }
 

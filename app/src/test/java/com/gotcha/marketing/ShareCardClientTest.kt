@@ -2,6 +2,7 @@ package com.gotcha.marketing
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.ToolSummary
@@ -38,7 +39,11 @@ class ShareCardClientTest {
 
     private fun client(baseUrl: String = server.url("/").toString()) = ShareCardClient(
         context = context,
-        settings = Settings(apiKey = "test-key", baseUrl = baseUrl)
+        settings = Settings(
+            provider = LlmProvider.OPENAI_COMPATIBLE,
+            apiKey = "test-key",
+            baseUrl = baseUrl
+        )
     )
 
     private fun run(

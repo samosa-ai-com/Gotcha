@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import com.gotcha.audio.AudioProvider
 
 data class Settings(
-    // Which LLM backend is active. Defaults to the original OpenAI-compatible flow.
-    val provider: LlmProvider = LlmProvider.OPENAI_COMPATIBLE,
+    // Which LLM backend is active. Defaults to the Samosa AI flow.
+    val provider: LlmProvider = LlmProvider.SAMOSA_AI,
     val apiKey: String = "",
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
@@ -140,9 +140,9 @@ data class Settings(
     /**
      * Whether credentials the user has actually *saved* would answer a question.
      *
-     * Stricter than [isConfigured], which an untouched install already satisfies
-     * because the default base URL is non-blank. The feature tour needs to tell
-     * "they have set this up" from "they have not started", and a step that
+     * Stricter than [isConfigured], which on the Samosa default an untouched
+     * install does not yet satisfy (no session token). The feature tour needs to
+     * tell "they have set this up" from "they have not started", and a step that
      * considered itself finished before the user had done anything would be
      * exactly the kind of false progress the tour exists to avoid.
      */
@@ -235,7 +235,7 @@ data class Settings(
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.openai.com/v1/"
-        const val DEFAULT_MODEL = "gpt-4o"
+        const val DEFAULT_MODEL = "chai-small"
     }
 }
 

@@ -25,6 +25,7 @@ data class PendingQuestion(
  * TTS) is delegated through this interface so the engine can run inside the
  * in-app [ChatViewModel] or a background service equally well.
  */
+@Suppress("TooManyFunctions")
 interface AgentEvents {
     /** Append a message bubble to whatever transcript the host renders. */
     fun onUi(
@@ -64,6 +65,16 @@ interface AgentEvents {
      * no-op for hosts that don't care (e.g. voice-call host).
      */
     fun onRunSummary(runSummary: RunSummary) {}
+
+    /**
+     * The host should hide/show its floating chrome (ball, call buttons) around
+     * an agent screenshot capture so Gotcha's own controls never appear in the
+     * frame. Default no-op for hosts that have no floating chrome to hide.
+     */
+    fun onScreenCaptureChrome(hide: Boolean) {}
+
+    /** A read_screen / read_screen_raw just finished; the host may flash "screen read" feedback. */
+    fun onScreenReadDone() {}
 
     /** Ask the user the agent's question; returns "" when unanswered. */
     suspend fun awaitQuestionAnswer(question: PendingQuestion): String

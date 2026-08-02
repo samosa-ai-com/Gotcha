@@ -183,10 +183,6 @@ private fun SettingsHome(
     val overlay = rememberSettingsOverlayState()
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
-        // First on the list, and phrased as an action rather than a category:
-        // someone who opens Settings because they are lost should not have to
-        // work out which of nine pages the answer is behind.
-        FeatureTourRow(onClick = onStartTour)
         SettingsPage.entries.forEach { entry ->
             HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
@@ -196,6 +192,12 @@ private fun SettingsHome(
                     .testTag(entry.testTag)
                     .then(entry.tourAnchorModifier())
             )
+            // Re-entry into the guided setup sits just above Legal, so the menu
+            // ends on the two rows a returning user is least likely to need.
+            if (entry == SettingsPage.NOTIFICATIONS) {
+                HorizontalDivider(thickness = 1.dp)
+                FeatureTourRow(onClick = onStartTour)
+            }
         }
     }
 }
@@ -224,8 +226,7 @@ private fun FeatureTourRow(onClick: () -> Unit) {
             Text(
                 text = "Feature Tour",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
+                fontWeight = FontWeight.Medium
             )
             Text(
                 text = "Walk through setup again, one step at a time",

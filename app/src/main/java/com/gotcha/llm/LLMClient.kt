@@ -16,7 +16,7 @@ import java.security.MessageDigest
 class LLMClient(
     private val apiKey: String,
     private val baseUrl: String,
-    private val model: String = "gpt-4o",
+    private val model: String = "chai-small",
     context: Context? = null,
     private val apiTimeoutSeconds: Long = 0L,
     private val cache: LLMCache = LLMCache(context),
