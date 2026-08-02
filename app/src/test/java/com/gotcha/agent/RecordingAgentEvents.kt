@@ -11,6 +11,9 @@ class RecordingAgentEvents : AgentEvents {
     val assistantReplies = mutableListOf<String>()
     val permissionRequests = mutableListOf<String>()
     val confirmationRequests = mutableListOf<String>()
+    val screenCaptureChrome = mutableListOf<Boolean>()
+    var screenReadDoneCount = 0
+        private set
     var historyResets = 0
         private set
 
@@ -48,6 +51,14 @@ class RecordingAgentEvents : AgentEvents {
 
     override fun onHistoryReset() {
         historyResets++
+    }
+
+    override fun onScreenCaptureChrome(hide: Boolean) {
+        screenCaptureChrome += hide
+    }
+
+    override fun onScreenReadDone() {
+        screenReadDoneCount++
     }
 
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String = questionAnswer

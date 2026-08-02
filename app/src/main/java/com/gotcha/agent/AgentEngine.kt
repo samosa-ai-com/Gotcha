@@ -1248,7 +1248,7 @@ class AgentEngine(
      * read_screen call and injects them as a vision user message so the LLM
      * can "see" the screen alongside structured element data.
      */
-    private suspend fun injectReadScreenObservation() {
+    internal suspend fun injectReadScreenObservation() {
         android.util.Log.d(
             "ScreenCapture",
             "read_screen auto-injection: calling captureCompressedScreenshot()"
@@ -1293,7 +1293,7 @@ class AgentEngine(
      * Captures a full-resolution PNG screenshot after read_screen_raw,
      * saves it to the working directory, and injects it as a vision message.
      */
-    private suspend fun injectFullResScreenshot(result: ToolResult) {
+    internal suspend fun injectFullResScreenshot(result: ToolResult) {
         val captured = try {
             events.onScreenCaptureChrome(true)
             delay(SCREEN_CAPTURE_SETTLE_MS)

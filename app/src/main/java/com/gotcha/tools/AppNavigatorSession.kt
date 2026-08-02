@@ -1,7 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
-import com.gotcha.agent.AgentEngine.SCREEN_CAPTURE_SETTLE_MS
+import com.gotcha.agent.AgentEngine
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.ChatResponse
@@ -65,7 +65,7 @@ class AppNavigatorSession(
             )
             val screenshot = try {
                 onCaptureChrome(true)
-                delay(SCREEN_CAPTURE_SETTLE_MS) // chrome vanishes before the frame is captured
+                delay(AgentEngine.SCREEN_CAPTURE_SETTLE_MS) // chrome vanishes before the frame is captured
                 ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
             } finally {
                 onCaptureChrome(false)

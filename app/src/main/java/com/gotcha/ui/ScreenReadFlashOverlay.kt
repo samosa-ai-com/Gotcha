@@ -47,7 +47,12 @@ class ScreenReadFlashOverlay(context: Context) {
                     interpolator = DecelerateInterpolator()
                     addUpdateListener { a -> flash.pulse = a.animatedValue as Float }
                     addListener(object : android.animation.AnimatorListenerAdapter() {
-                        override fun onAnimationEnd(a: android.animation.Animator?) { removeView() }
+                        override fun onAnimationEnd(
+                            animation: android.animation.Animator,
+                            isReverse: Boolean
+                        ) {
+                            removeView()
+                        }
                     })
                     start()
                 }
