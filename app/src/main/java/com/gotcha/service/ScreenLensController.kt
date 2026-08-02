@@ -366,11 +366,17 @@ class ScreenLensController(
      * One chip on the Lens bar. The icon sits *above* the label rather than
      * beside it, unlike the ball's menu rows: five of these have to fit across a
      * phone, and side-by-side icons would push the bar wider than the screen.
+     *
+     * When [filled] is set the chip gets a [OverlaySkin.buttonBg] rounded
+     * background (the same treatment the contextual-action menu buttons use), so
+     * it stays legible on every skin instead of relying on `buttonText` against
+     * the card surface.
      */
     private fun chipButton(
         label: String,
         colors: OverlaySkin,
         iconRes: Int? = null,
+        filled: Boolean = false,
         onClick: () -> Unit
     ): TextView {
         val density = appContext.resources.displayMetrics.density
@@ -381,6 +387,12 @@ class ScreenLensController(
             typeface = colors.sans
             setTextColor(colors.buttonText)
             gravity = Gravity.CENTER
+            if (filled) {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = colors.buttonRadiusDp * density
+                    setColor(colors.buttonBg)
+                }
+            }
             if (iconRes != null) {
                 val icon = androidx.core.content.ContextCompat.getDrawable(appContext, iconRes)
                 icon?.setBounds(0, 0, iconPx, iconPx)
@@ -444,28 +456,26 @@ class ScreenLensController(
         }
 
         btnRow.addView(
-            chipButton("Copy All", colors, R.drawable.ic_lens_copy) {
-                val clipService = Context.CLIPBOARD_SERVICE
-                val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
-                clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", text))
-                android.widget.Toast.makeText(
-                    appContext,
-                    "Copied to clipboard",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                cancel()
+            chipButton("Copy Selected", colors, filled = true) {
+                copyTextSelection(textView, text)
             }
         )
 
         btnRow.addView(
-            chipButton("Close", colors) {
+            chipButton("Copy All", colors, R.drawable.ic_lens_copy, filled = true) {
+                copyTextToClipboard(text)
+            }
+        )
+
+        btnRow.addView(
+            chipButton("Close", colors, filled = true) {
                 cancel()
             }
         )
         cardLayout.addView(btnRow)
 
         val params = WindowManager.LayoutParams(
-            (300 * density).toInt(),
+            (TEXT_CARD_WIDTH_DP * density).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -480,6 +490,38 @@ class ScreenLensController(
         } catch (_: Exception) {
             actionMenu = null
         }
+    }
+
+    /**
+     * Copy the user's highlighted range from [textView] to the clipboard. When
+     * nothing is selected (no handles dragged), fall back to a hint instead of
+     * silently copying everything.
+     */
+    private fun copyTextSelection(textView: TextView, fullText: String) {
+        val start = textView.selectionStart
+        val end = textView.selectionEnd
+        if (start >= 0 && end > start && end <= fullText.length) {
+            copyTextToClipboard(fullText.substring(start, end))
+        } else {
+            android.widget.Toast.makeText(
+                appContext,
+                "Select some text first, then tap Copy Selected",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    /** Copy [content] to the clipboard and confirm with a toast. */
+    private fun copyTextToClipboard(content: String) {
+        val clipService = Context.CLIPBOARD_SERVICE
+        val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
+        clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", content))
+        android.widget.Toast.makeText(
+            appContext,
+            "Copied to clipboard",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+        cancel()
     }
 
     private fun showActionMenu(actions: List<SmartAction>) {
@@ -653,5 +695,11 @@ class ScreenLensController(
         const val MAX_GROUP_MENU_ITEMS = 8
         const val GAP_DP = 12
         const val EDGE_MARGIN_DP = 12
+
+        /**
+         * Width of the extracted-text card. Wide enough for the three-button
+         * row (Copy Selected / Copy All / Close) to fit without wrapping.
+         */
+        const val TEXT_CARD_WIDTH_DP = 340
     }
 }
