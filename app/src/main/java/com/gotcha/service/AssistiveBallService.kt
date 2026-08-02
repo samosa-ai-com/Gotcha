@@ -875,7 +875,7 @@ class AssistiveBallService : Service() {
                     fileName,
                     bitmap
                 )
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved to $location") }
+                withContext(Dispatchers.Main) { overlay.showSuccess("Screenshot saved to $location") }
                 bitmap.recycle()
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {

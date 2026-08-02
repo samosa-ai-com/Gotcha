@@ -415,11 +415,20 @@ class ScreenLensController(
             setTextIsSelectable(true)
         }
 
-        val scroll = android.widget.ScrollView(appContext).apply {
+        val maxLensH = (180 * density).toInt()
+        val scroll = object : android.widget.ScrollView(appContext) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val maxHSpec = android.view.View.MeasureSpec.makeMeasureSpec(
+                    maxLensH,
+                    android.view.View.MeasureSpec.AT_MOST
+                )
+                super.onMeasure(widthMeasureSpec, maxHSpec)
+            }
+        }.apply {
             addView(textView)
             layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                (180 * density).toInt()
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
         cardLayout.addView(scroll)

@@ -328,6 +328,14 @@ class AssistiveBallOverlay(context: Context) {
         }
     }
 
+    fun showSuccess(message: String) {
+        showCard("✅ $message", showClose = true)
+    }
+
+    fun showInfo(message: String) {
+        showCard("ℹ️ $message", showClose = true)
+    }
+
     fun showError(message: String) {
         showCard("⚠️ $message", showClose = true)
     }
@@ -342,7 +350,12 @@ class AssistiveBallOverlay(context: Context) {
                 orientation = LinearLayout.VERTICAL
                 applyOverlayCard(colors, horizontalDp = 20, verticalDp = 16)
             }
-            val scroll = ScrollView(appContext).apply {
+            val scroll = object : ScrollView(appContext) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    val maxHSpec = MeasureSpec.makeMeasureSpec(dp(240), MeasureSpec.AT_MOST)
+                    super.onMeasure(widthMeasureSpec, maxHSpec)
+                }
+            }.apply {
                 addView(
                     TextView(appContext).apply {
                         text = message
@@ -353,7 +366,7 @@ class AssistiveBallOverlay(context: Context) {
                 )
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(240)
+                    LinearLayout.LayoutParams.WRAP_CONTENT
                 )
             }
             container.addView(scroll)
@@ -563,10 +576,15 @@ class AssistiveBallOverlay(context: Context) {
 
         // Then show proactive screen-scan entities if any
         if (proactiveSessionItems.isNotEmpty()) {
-            val scroll = ScrollView(appContext).apply {
+            val scroll = object : ScrollView(appContext) {
+                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                    val maxHSpec = MeasureSpec.makeMeasureSpec(dp(240), MeasureSpec.AT_MOST)
+                    super.onMeasure(widthMeasureSpec, maxHSpec)
+                }
+            }.apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(240)
+                    LinearLayout.LayoutParams.WRAP_CONTENT
                 )
             }
             val listContent = LinearLayout(appContext).apply {
