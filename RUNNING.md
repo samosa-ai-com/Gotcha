@@ -274,6 +274,11 @@ Before publishing to Google Play or distributing a release APK, complete this ch
 
 ### Build & verify
 
+- [ ] **Bump version** in `app/build.gradle.kts`:
+  ```kotlin
+  versionCode = <increment>  // e.g. 2
+  versionName = "0.2.0"     // semantic version
+  ```
 - [ ] **Run static analysis**:
   ```bash
   ./gradlew detekt lintDebug
@@ -300,11 +305,12 @@ Before publishing to Google Play or distributing a release APK, complete this ch
 
 - [ ] **No secrets in source code**: search for hardcoded API keys, passwords, or tokens
   ```bash
-  grep -r "sk-\|password\|secret\|token" app/src/main/java/ --include="*.kt" | grep -v "EncryptedSharedPreferences\|SettingsRepository\|samosaSession"
+  grep -rn "sk-\|password\|secret\|token\|api_key" app/src/main/java/ --include="*.kt" | grep -v "EncryptedSharedPreferences\|SettingsRepository\|samosaSession\|SamosaAuthApi\|LLMClient"
   ```
 - [ ] **Keystore not in git**: verify `*.keystore` is in `.gitignore`
 - [ ] **Backend secrets not exposed**: ensure `.env` files are gitignored and not in Docker images
 - [ ] **Test token bypass disabled**: confirm `***=false` in production backend
+- [ ] **Admin credentials changed**: update `***` and `***` from defaults
 
 ### Post-release
 

@@ -18,6 +18,11 @@ import java.security.KeyStore
  * This factory catches such errors, clears the corrupted shared preference file and master key,
  * and recreates fresh encrypted preferences. If recovery still fails, it falls back to standard
  * unencrypted [SharedPreferences] to ensure the application does not crash on startup.
+ *
+ * **Every store gets its own master-key alias** (derived from its file name), never the shared
+ * `MasterKey.DEFAULT_MASTER_KEY_ALIAS`. Without this, one store's recovery deletes the one key
+ * that all stores depend on — the other stores' Tink keysets become undecryptable and cascade-wipe
+ * in turn (credentials, appearance, and the notification delivery log all vanishing at once).
  */
 object SafeEncryptedSharedPreferences {
     private const val TAG = "SafeEncryptedPrefs"
@@ -43,10 +48,13 @@ object SafeEncryptedSharedPreferences {
             Log.w(TAG, "Failed to delete corrupt SharedPreferences file '$fileName'", delErr)
         }
 
+        // Delete only this store's own key. The alias is derived from the file
+        // name so a corruption in one store can never invalidate the keys that
+        // other stores are encrypted under.
         try {
             val keyStore = KeyStore.getInstance("AndroidKeyStore")
             keyStore.load(null)
-            keyStore.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+            keyStore.deleteEntry(masterKeyAlias(fileName))
         } catch (ksErr: Exception) {
             Log.w(TAG, "Failed to clear master key alias from AndroidKeyStore", ksErr)
         }
@@ -65,7 +73,7 @@ object SafeEncryptedSharedPreferences {
     }
 
     private fun buildEncryptedPrefs(context: Context, fileName: String): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
+        val masterKey = MasterKey.Builder(context, masterKeyAlias(fileName))
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
         return EncryptedSharedPreferences.create(
@@ -76,4 +84,7 @@ object SafeEncryptedSharedPreferences {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     }
+
+    /** Per-store master-key alias so stores are isolated from each other's corruption. */
+    private fun masterKeyAlias(fileName: String): String = "_gotcha_master_$fileName"
 }

@@ -22,9 +22,28 @@ data class Skill(
      * served by Gmail *or* Microsoft *or* IMAP, so naming one connector would be
      * wrong for the other two, and this also covers permission-gated tools.
      */
-    val requiresTools: List<String> = emptyList()
+    val requiresTools: List<String> = emptyList(),
+    val keywords: List<String> = emptyList()
 ) {
+    private val compiledKeywordRegexes: List<Regex> by lazy {
+        keywords.map { kw ->
+            Regex("""\b${Regex.escape(kw)}\b""", RegexOption.IGNORE_CASE)
+        }
+    }
+
     /** True when nothing this skill teaches is currently withheld from the model. */
     fun isAvailable(hiddenTools: Set<String>): Boolean =
         requiresTools.isEmpty() || requiresTools.any { it !in hiddenTools }
+
+    /**
+     * True when keywords are empty, or when at least one keyword matches a word
+     * boundary in [text] (case-insensitive). Word-boundary matching prevents false
+     * positives like keyword "call" matching "recall" or "vocaller".
+     */
+    fun matchesIntent(text: String): Boolean {
+        if (keywords.isEmpty() || text.isBlank()) return true
+        return compiledKeywordRegexes.any { regex ->
+            regex.containsMatchIn(text)
+        }
+    }
 }
