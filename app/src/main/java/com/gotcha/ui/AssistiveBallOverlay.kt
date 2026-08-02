@@ -20,7 +20,6 @@ import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import com.gotcha.R
@@ -350,12 +349,8 @@ class AssistiveBallOverlay(context: Context) {
                 orientation = LinearLayout.VERTICAL
                 applyOverlayCard(colors, horizontalDp = 20, verticalDp = 16)
             }
-            val scroll = object : ScrollView(appContext) {
-                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                    val maxHSpec = MeasureSpec.makeMeasureSpec(dp(240), MeasureSpec.AT_MOST)
-                    super.onMeasure(widthMeasureSpec, maxHSpec)
-                }
-            }.apply {
+            val scroll = MaxHeightScrollView(appContext).apply {
+                maxHeightPx = dp(240)
                 addView(
                     TextView(appContext).apply {
                         text = message
@@ -576,12 +571,8 @@ class AssistiveBallOverlay(context: Context) {
 
         // Then show proactive screen-scan entities if any
         if (proactiveSessionItems.isNotEmpty()) {
-            val scroll = object : ScrollView(appContext) {
-                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                    val maxHSpec = MeasureSpec.makeMeasureSpec(dp(240), MeasureSpec.AT_MOST)
-                    super.onMeasure(widthMeasureSpec, maxHSpec)
-                }
-            }.apply {
+            val scroll = MaxHeightScrollView(appContext).apply {
+                maxHeightPx = dp(240)
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT

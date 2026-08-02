@@ -40,7 +40,6 @@ class PosterRendererTest {
             stats = PosterStats(
                 runCount = 1,
                 totalDurationSeconds = 42,
-                model = "chai-small",
                 toolCount = 3
             )
         )
@@ -65,7 +64,6 @@ class PosterRendererTest {
             stats = PosterStats(
                 runCount = 7,
                 totalDurationSeconds = 300,
-                model = "chai-small",
                 toolCount = 9
             )
         )
@@ -78,7 +76,7 @@ class PosterRendererTest {
         val bitmap = PosterRenderer.render(
             context = context,
             content = PosterContent(), // all defaults, blank copy
-            stats = PosterStats(runCount = 0, totalDurationSeconds = 0, model = "", toolCount = 0)
+            stats = PosterStats(runCount = 0, totalDurationSeconds = 0, toolCount = 0)
         )
         assertNotNull(bitmap)
         assertEquals(PosterRenderer.WIDTH_PX, bitmap.width)

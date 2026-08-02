@@ -12,6 +12,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import com.gotcha.R
+import com.gotcha.ui.MaxHeightScrollView
 import com.gotcha.ui.ScreenCropOverlayView
 import com.gotcha.ui.applyOverlayCard
 import com.gotcha.ui.theme.OverlaySkin
@@ -433,15 +434,8 @@ class ScreenLensController(
         }
 
         val maxLensH = (180 * density).toInt()
-        val scroll = object : android.widget.ScrollView(appContext) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val maxHSpec = android.view.View.MeasureSpec.makeMeasureSpec(
-                    maxLensH,
-                    android.view.View.MeasureSpec.AT_MOST
-                )
-                super.onMeasure(widthMeasureSpec, maxHSpec)
-            }
-        }.apply {
+        val scroll = MaxHeightScrollView(appContext).apply {
+            maxHeightPx = maxLensH
             addView(textView)
             layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -500,7 +494,7 @@ class ScreenLensController(
     private fun copyTextSelection(textView: TextView, fullText: String) {
         val start = textView.selectionStart
         val end = textView.selectionEnd
-        if (start >= 0 && end > start && end <= fullText.length) {
+        if (start >= 0 && start <= fullText.length && end > start && end <= fullText.length) {
             copyTextToClipboard(fullText.substring(start, end))
         } else {
             android.widget.Toast.makeText(

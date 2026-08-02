@@ -79,14 +79,13 @@ class CallSessionController(
      * across turns within a call (mirrors ChatViewModel's single `client`).
      * Rebuilt only when the settings it depends on change; tracked by
      * [cachedClientFingerprint] so [buildClient] can detect staleness.
-     * @Volatile because [buildClient] is reached from both the main thread
-     * (startCall) and the engine's coroutine (clientProvider).
+     * Pair reads and writes go through [clientCacheLock] so concurrent callers
+     * (main thread via `startCall`, engine coroutine via `clientProvider`)
+     * cannot both observe a stale fingerprint and build two clients.
      */
-    @Volatile
     private var cachedClient: LLMClient? = null
-
-    @Volatile
     private var cachedClientFingerprint: String? = null
+    private val clientCacheLock = Any()
 
     /** Gate for [awaitQuestionAnswer]: completed when the user taps mic stop. */
     private var questionGate: CompletableDeferred<String>? = null
@@ -571,10 +570,12 @@ class CallSessionController(
 
     internal fun buildClient(): LLMClient? {
         val s = settingsRepository.load()
-        return if (s.isConfigured) {
-            val fingerprint = "${s.provider}|${s.effectiveApiKey}|${s.effectiveBaseUrl}|${s.model}|${s.apiTimeoutSeconds}"
-            if (cachedClient != null && cachedClientFingerprint == fingerprint) {
-                cachedClient
+        if (!s.isConfigured) return null
+        val fingerprint = "${s.provider}|${s.effectiveApiKey}|${s.effectiveBaseUrl}|${s.model}|${s.apiTimeoutSeconds}"
+        return synchronized(clientCacheLock) {
+            val cached = cachedClient
+            if (cached != null && cachedClientFingerprint == fingerprint) {
+                cached
             } else {
                 LLMClient(
                     apiKey = s.effectiveApiKey,
@@ -587,8 +588,6 @@ class CallSessionController(
                     cachedClientFingerprint = fingerprint
                 }
             }
-        } else {
-            null
         }
     }
 

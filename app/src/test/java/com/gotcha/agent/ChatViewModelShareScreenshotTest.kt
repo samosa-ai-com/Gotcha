@@ -8,9 +8,7 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.testsupport.FakeAndroidKeyStore
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
-import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -30,6 +28,10 @@ class ChatViewModelShareScreenshotTest {
 
     private val application: Application = ApplicationProvider.getApplicationContext()
     private lateinit var settingsRepository: SettingsRepository
+
+    // The repository is constructed only to satisfy ChatViewModel's constructor;
+    // the tests below reach the engine history directly via reflection and never
+    // open a session, so no per-session cleanup is needed.
     private lateinit var historyRepository: ChatHistoryRepository
     private lateinit var viewModel: ChatViewModel
 
@@ -41,11 +43,6 @@ class ChatViewModelShareScreenshotTest {
         settingsRepository.save(Settings(apiKey = "test-key"))
         viewModel = ChatViewModel(application)
         ShadowLooper.idleMainLooper()
-    }
-
-    @After
-    fun tearDown() {
-        runBlocking { historyRepository.deleteSession("session") }
     }
 
     private fun engineHistory(): MutableList<ChatMessage> {

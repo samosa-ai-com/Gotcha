@@ -290,14 +290,8 @@ class GotchaAccessibilityService : AccessibilityService() {
      * at least [REGION_TEXT_COVERAGE] of the node's own area. This keeps the
      * "Extracted Text" card scoped to the selected area.
      */
-    private fun substantiallyInside(bounds: android.graphics.Rect, region: android.graphics.Rect): Boolean {
-        if (bounds.isEmpty || bounds.width() <= 0 || bounds.height() <= 0) return false
-        val inter = android.graphics.Rect(bounds)
-        if (!inter.intersect(region)) return false
-        val nodeArea = bounds.width().toLong() * bounds.height().toLong()
-        val interArea = inter.width().toLong() * inter.height().toLong()
-        return interArea >= nodeArea * REGION_TEXT_COVERAGE
-    }
+    internal fun substantiallyInside(bounds: android.graphics.Rect, region: android.graphics.Rect): Boolean =
+        Companion.substantiallyInside(bounds, region, REGION_TEXT_COVERAGE)
 
     /**
      * Grow [region] (screen pixels) to include any UI element it substantially
@@ -641,6 +635,25 @@ class GotchaAccessibilityService : AccessibilityService() {
          * snap-to-element coverage so the extracted text matches the selection.
          */
         private const val REGION_TEXT_COVERAGE = 0.5f
+
+        /**
+         * Pure geometric helper exposed for tests. True when [bounds] is mostly
+         * inside [region]: the intersection must cover at least [coverage] of
+         * the node's own area. Kept on the companion so unit tests can pin the
+         * threshold without instantiating the service.
+         */
+        internal fun substantiallyInside(
+            bounds: android.graphics.Rect,
+            region: android.graphics.Rect,
+            coverage: Float = REGION_TEXT_COVERAGE
+        ): Boolean {
+            if (bounds.isEmpty || bounds.width() <= 0 || bounds.height() <= 0) return false
+            val inter = android.graphics.Rect(bounds)
+            if (!inter.intersect(region)) return false
+            val nodeArea = bounds.width().toLong() * bounds.height().toLong()
+            val interArea = inter.width().toLong() * inter.height().toLong()
+            return interArea >= nodeArea * coverage
+        }
     }
 
     /** Register a clipboard listener to cache clipboard content. */

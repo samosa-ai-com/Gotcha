@@ -769,6 +769,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.sessionId = newId
             agentEngine.tokenCount = 0
             agentEngine.restoreTitle(null)
+            // Without this the previous chat's run summaries survive into the
+            // new session: the share card would promote the old conversation
+            // and saveCurrentSession() would persist the stale list into the
+            // new chat file.
+            agentEngine.restoreRunSummaries(emptyList())
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -1113,6 +1118,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         val dataUri = agentEngine.history.toList().asReversed()
             .firstNotNullOfOrNull { it.imageUrl() }
             ?: return null
+        // Early bound on the URI before allocating the Base64 byte array:
+        // Base64 inflates payload by 4/3, so even a 50 MB payload produces a
+        // ~67 MB string; reject anything that cannot possibly fit under the
+        // byte cap without decoding it.
+        if (dataUri.length > MAX_SHARE_SCREENSHOT_BYTES * 4 / 3 + SAFE_DATA_URI_PREFIX) {
+            return null
+        }
         val base64 = dataUri.substringAfter("base64,")
         return try {
             val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
@@ -1141,6 +1153,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * run-summary feature landed have none persisted, so fall back to
      * [synthesizeRunSummariesFromHistory] — the same history [exportChat]
      * reads, which keeps the share card and the export consistent.
+     *
+     * No memoization: the only caller is the share-card tap handler, not a
+     * recomposition, and the synthesis walk only trims text content — cheaper
+     * than fingerprinting the history (which would hash vision base64 payloads).
      */
     fun activeSessionRunSummaries(): List<RunSummary> {
         val recorded = agentEngine.runSummaries
@@ -1202,6 +1218,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         /** Poster-thumbnail screenshot guards (see [loadShareScreenshot]). */
         const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
         const val MAX_SHARE_SCREENSHOT_DIM = 2048
+
+        /**
+         * Slack added to the dataUri length ceiling to account for the
+         * `data:image/...;base64,` MIME prefix that Base64 decoding strips.
+         * 64 bytes is far more than any real MIME prefix and well below the
+         * 4/3 inflation ratio that motivates the guard.
+         */
+        const val SAFE_DATA_URI_PREFIX = 64L
     }
 }
 

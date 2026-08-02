@@ -21,7 +21,7 @@ import kotlinx.serialization.json.JsonPrimitive
  * with a [fallback] poster means the feature degrades gracefully when the model
  * returns garbage — it never crashes.
  *
- * The stats (duration, model, tool counts) are computed by [PosterStatsBuilder],
+ * The stats (duration, tool counts) are computed by [PosterStatsBuilder],
  * never by the LLM, so the numbers on the poster can't be hallucinated.
  */
 class ShareCardClient(

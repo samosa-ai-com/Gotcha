@@ -4,6 +4,49 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Changed — PR #77 user-visible behavior
+
+- **Share poster is top-bar only.** The per-message "Share as poster" icon on
+  the assistant message bubble has been removed. The share card is now
+  reachable only from the top-bar "Create share card" action, which produces
+  a recap of the whole chat.
+- **Poster branding is fixed.** The poster footer now reads "Built with Samosa
+  AI · on Android" and the model-name chip is hardcoded to "🤖 Samosa AI"
+  regardless of the configured model. The model identity is no longer carried
+  on `PosterStats`.
+- **Share-card `eligible: false` is treated as a parse failure.** When the
+  marketing LLM returns a JSON verdict that the digest is not worth promoting,
+  the share card silently falls back to the deterministic poster instead of
+  failing. The fallback always renders, so the card never appears to break
+  intermittently.
+
+### Fixed — PR #77 review follow-ups
+
+- `copyTextSelection` in `ScreenLensController` now rejects indices that run
+  past the end of the text instead of throwing `StringIndexOutOfBoundsException`.
+- `CallSessionController.buildClient()` caches the `LLMClient` under a monitor
+  so the main thread and the engine coroutine cannot both rebuild for the same
+  fingerprint.
+- `loadShareScreenshot()` rejects over-sized data URIs before allocating the
+  Base64 byte array.
+- `gotcha` overlay system uses a shared `MaxHeightScrollView` (was three
+  inline `onMeasure` overrides).
+- `GotchaApp` writes uncaught exceptions to `filesDir/crash.log` (capped at
+  50 entries) in addition to logcat, so post-mortem analysis is possible
+  from a user report after the logcat buffer has rolled over.
+
+### Added — HumanReadableError (PR #77 utility)
+
+- New `com.gotcha.util.HumanReadableError` centralizes HTTP status, STT/TTS
+  error codes, and network exceptions. `AgentEngine`, `ChatViewModel`,
+  `AssistiveBallService`, and `SttEngine` now route through the helper.
+
+### Added — Voice-call prompt-cache (PR #77 performance)
+
+- `CallSessionController` reuses a single `LLMClient` across turns within a
+  call so the in-memory `LLMCache` survives. A stable `CALL_PROMPT_CACHE_KEY`
+  is passed to the provider for server-side KV reuse.
+
 ### Added — Personal Info, fed into the system prompt
 
 The assistant knew what device it was running on and nothing about the person

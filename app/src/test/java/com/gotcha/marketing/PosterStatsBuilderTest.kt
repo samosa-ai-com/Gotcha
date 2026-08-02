@@ -46,16 +46,6 @@ class PosterStatsBuilderTest {
     }
 
     @Test
-    fun `model comes from the latest run`() {
-        val runs = listOf(
-            run(0, 1000, "old-model", emptyList()),
-            run(2000, 3000, "chai-small", emptyList())
-        )
-        val stats = PosterStatsBuilder.from(runs)
-        assertEquals("chai-small", stats.model)
-    }
-
-    @Test
     fun `runCount reflects the number of runs`() {
         val runs = listOf(
             run(0, 1, "m", emptyList()),
