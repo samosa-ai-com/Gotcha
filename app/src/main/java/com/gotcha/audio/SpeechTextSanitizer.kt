@@ -12,6 +12,8 @@ object SpeechTextSanitizer {
 
     private const val MAX_ORDINAL = 12
 
+    private const val SENTENCE_TERMINATORS = ".?!"
+
     private val ORDINALS = arrayOf(
         "First", "Second", "Third", "Fourth", "Fifth", "Sixth",
         "Seventh", "Eighth", "Ninth", "Tenth", "Eleventh", "Twelfth"
@@ -77,10 +79,18 @@ object SpeechTextSanitizer {
 
         fun flushBlock() {
             if (block.isEmpty()) return
+            val lastIdx = block.lastIndex
             val numbered = block.mapIndexed { idx, line ->
-                ordinalFor(idx + 1) + BULLET_PREFIX.replace(line, "")
+                val item = ordinalFor(idx + 1) + BULLET_PREFIX.replace(line, "")
+                // Strip trailing sentence punctuation from non-final items so the
+                // ". " join separator doesn't double up; preserve the last item's
+                // own terminator (? / !) so a question / exclamation survives.
+                if (idx == lastIdx) item else item.trimEnd { it in SENTENCE_TERMINATORS }
             }
-            out.append(numbered.joinToString(". ")).append(".\n")
+            val joined = numbered.joinToString(". ")
+            val lastChar = joined.lastOrNull()
+            val suffix = if (lastChar != null && lastChar in SENTENCE_TERMINATORS) "" else "."
+            out.append(joined).append(suffix).append("\n")
             block = mutableListOf()
         }
 
@@ -99,15 +109,17 @@ object SpeechTextSanitizer {
     /**
      * Replace a bare URL match with the literal word "link", but keep any
      * sentence-ending punctuation that immediately follows it (`link.` rather
-     * than eating the period). Trailing `[.,;:!?)\]']` chars are treated as
-     * outside the URL.
+     * than eating the period). Trailing ASCII + CJK punctuation chars are
+     * treated as outside the URL.
      */
     private fun replaceBareUrl(url: String): String {
         val trailing = url.takeLastWhile { it in TRAILING_PUNCT_CHARS }
         return "link$trailing"
     }
 
-    private const val TRAILING_PUNCT_CHARS = ".,;:!?)]'"
+    private const val TRAILING_PUNCT_CHARS =
+        ".,;:!?)]'\"" +
+            "。，！？、；：）"
 
     private val EMOJI_REGEX = Regex(
         "[\\x{1F000}-\\x{1FFFF}\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{FE0F}\\x{FE0E}\\x{200D}]+"
@@ -117,8 +129,12 @@ object SpeechTextSanitizer {
     private val INLINE_CODE = Regex("`([^`]+)`")
     private val BOLD_ASTERISK = Regex("\\*\\*(.+?)\\*\\*")
     private val BOLD_UNDERSCORE = Regex("__(.+?)__")
-    private val ITALIC_ASTERISK = Regex("(?<![\\w*])\\*(.+?)\\*(?![\\w*])")
-    private val ITALIC_UNDERSCORE = Regex("(?<![\\w])_(.+?)_(?![\\w])")
+    private val ITALIC_ASTERISK = Regex(
+        "(?U)(?<![\\w*])\\*(.+?)\\*(?![\\w*])"
+    )
+    private val ITALIC_UNDERSCORE = Regex(
+        "(?U)(?<![\\w])_(.+?)_(?![\\w])"
+    )
     private val STRIKE = Regex("~~(.+?)~~")
     private val HEADING_PREFIX = Regex("^[ \\t]{0,3}#{1,6}[ \\t]+", RegexOption.MULTILINE)
     private val BLOCKQUOTE_PREFIX = Regex("^[ \\t]{0,3}>[ \\t]+", RegexOption.MULTILINE)
@@ -129,5 +145,5 @@ object SpeechTextSanitizer {
     private val MULTI_EXCLAIM = Regex("!{2,}")
     private val MULTI_QUESTION = Regex("\\?{2,}")
     private val ELLIPSIS_UNICODE = Regex("…")
-    private val WHITESPACE_RUN = Regex("[ \\t\\n\\r]+")
+    private val WHITESPACE_RUN = Regex("(?U)\\s+")
 }

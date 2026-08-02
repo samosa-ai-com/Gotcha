@@ -226,4 +226,65 @@ class SpeechTextSanitizerTest {
         // Non-bullet text already has its own punctuation — don't add extra.
         assertEquals("Hello there.", SpeechTextSanitizer.sanitize("Hello there."))
     }
+
+    @Test
+    fun `sanitize does not double up punctuation when bullet items already end with sentence punctuation`() {
+        assertEquals(
+            "First, Done. Second, Start.",
+            SpeechTextSanitizer.sanitize("- Done.\n- Start.")
+        )
+        assertEquals(
+            "First, Done. Second, really?",
+            SpeechTextSanitizer.sanitize("- Done.\n- really?")
+        )
+        assertEquals(
+            "First, wow!",
+            SpeechTextSanitizer.sanitize("- wow!")
+        )
+    }
+
+    @Test
+    fun `sanitize keeps CJK sentence punctuation after a URL`() {
+        // Japanese full stop (。) and Chinese fullwidth comma (，) are common
+        // sentence terminators after URLs in CJK text.
+        assertEquals(
+            "詳細は link を参照。",
+            SpeechTextSanitizer.sanitize("詳細は https://x.com を参照。")
+        )
+        assertEquals(
+            "见 link，",
+            SpeechTextSanitizer.sanitize("见 https://x.com，")
+        )
+    }
+
+    @Test
+    fun `sanitize keeps a trailing double quote after a URL`() {
+        assertEquals(
+            "see \"link\" today",
+            SpeechTextSanitizer.sanitize("see \"https://x.com\" today")
+        )
+    }
+
+    @Test
+    fun `sanitize collapses CJK ideographic spaces`() {
+        // U+3000 (ideographic space) is whitespace under UNICODE_CHARACTER_CLASS.
+        assertEquals(
+            "今天 天气 不错",
+            SpeechTextSanitizer.sanitize("今天\u3000天气\u3000不错")
+        )
+    }
+
+    @Test
+    fun `sanitize preserves asterisks inside Hindi words`() {
+        // Without UNICODE_CHARACTER_CLASS, \w doesn't match Devanagari chars,
+        // so `*ब*` between Hindi words would be wrongly stripped as italic.
+        assertEquals(
+            "अ*ब*स",
+            SpeechTextSanitizer.sanitize("अ*ब*स")
+        )
+        assertEquals(
+            "यह italic है",
+            SpeechTextSanitizer.sanitize("यह *italic* है")
+        )
+    }
 }
