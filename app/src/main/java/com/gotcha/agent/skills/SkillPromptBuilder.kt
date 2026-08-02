@@ -16,6 +16,53 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 object SkillPromptBuilder {
 
+    /** Regex matching the tool result header format emitted by ToolExecutor for search_skills. */
+    val SKILL_RESULT_REGEX = Regex("""Skill \[([^\]]+)\]:""")
+
+    /**
+     * Scans conversation history for tool-result messages containing full skill bodies
+     * previously fetched via `search_skills`.
+     */
+    fun extractFetchedSkillIds(history: List<ChatMessage>): Set<String> {
+        return history.asSequence()
+            .filter { it.role == "tool" }
+            .flatMap { SKILL_RESULT_REGEX.findAll(it.textContent) }
+            .map { it.groupValues[1] }
+            .toSet()
+    }
+
+    /**
+     * Extracts the text of the last genuine user (human) message from history,
+     * skipping synthetic observation messages (e.g. vision/screenshot observations
+     * or system notes that start with `[`).
+     */
+    fun extractLastHumanUserMessage(history: List<ChatMessage>): String {
+        return history.lastOrNull { msg ->
+            msg.role == "user" && !msg.textContent.trimStart().startsWith("[")
+        }?.textContent ?: ""
+    }
+
+    /**
+     * Builds the prompt block by extracting fetched skill IDs and the last human
+     * user message directly from conversation history.
+     */
+    fun buildFromHistory(
+        currentPackage: String,
+        activeSkills: List<Skill>,
+        communityIds: Set<String>,
+        history: List<ChatMessage>
+    ): ChatMessage? {
+        val fetchedIds = extractFetchedSkillIds(history)
+        val lastUserMsg = extractLastHumanUserMessage(history)
+        return build(
+            currentPackage = currentPackage,
+            activeSkills = activeSkills,
+            communityIds = communityIds,
+            recentlyFetchedSkillIds = fetchedIds,
+            lastUserMessage = lastUserMsg
+        )
+    }
+
     private const val HEADER =
         "<available-skills>\n" +
             "The user is currently using %s. Here are suggested skills for this app:\n"
@@ -37,11 +84,22 @@ object SkillPromptBuilder {
     fun build(
         currentPackage: String,
         activeSkills: List<Skill>,
-        communityIds: Set<String>
+        communityIds: Set<String>,
+        recentlyFetchedSkillIds: Set<String> = emptySet(),
+        lastUserMessage: String = ""
     ): ChatMessage? {
-        if (activeSkills.isEmpty()) return null
-        val bundled = activeSkills.filter { it.id !in communityIds }
-        val community = activeSkills.filter { it.id in communityIds }
+        val eligible = activeSkills
+            .filter { it.id !in recentlyFetchedSkillIds }
+            .filter { skill ->
+                if (skill.targetPackageNames.contains("*")) {
+                    skill.keywords.isNotEmpty() && skill.matchesIntent(lastUserMessage)
+                } else {
+                    skill.matchesIntent(lastUserMessage)
+                }
+            }
+        if (eligible.isEmpty()) return null
+        val bundled = eligible.filter { it.id !in communityIds }
+        val community = eligible.filter { it.id in communityIds }
 
         val sb = StringBuilder()
         sb.append(HEADER.format(currentPackage))

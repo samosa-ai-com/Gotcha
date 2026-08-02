@@ -61,6 +61,192 @@ class PromptCacheAndTokenOptimizationTest {
     }
 
     @Test
+    fun `SkillPromptBuilder excludes skills already fetched in history`() {
+        val skill1 = Skill(id = "whatsapp_calling", description = "Call skills", instructions = "x")
+        val skill2 = Skill(id = "whatsapp_messaging", description = "Message skills", instructions = "y")
+
+        val history = listOf(
+            ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive("Call Mom")),
+            ChatMessage(
+                role = "tool",
+                content = kotlinx.serialization.json.JsonPrimitive(
+                    "Found 1 skills matching 'calling':\n\nSkill [whatsapp_calling]:\nLine 1"
+                )
+            )
+        )
+        val fetched = SkillPromptBuilder.extractFetchedSkillIds(history)
+        assertEquals(setOf("whatsapp_calling"), fetched)
+
+        val msg = SkillPromptBuilder.build(
+            currentPackage = "com.whatsapp",
+            activeSkills = listOf(skill1, skill2),
+            communityIds = emptySet(),
+            recentlyFetchedSkillIds = fetched
+        )
+        assertNotNull(msg)
+        val text = msg!!.textContent
+        assertFalse("Should exclude whatsapp_calling since it was already fetched", text.contains("whatsapp_calling"))
+        assertTrue("Should include whatsapp_messaging", text.contains("whatsapp_messaging"))
+    }
+
+    @Test
+    fun `SkillPromptBuilder extractFetchedSkillIds handles malformed or non-matching tool messages safely`() {
+        val history = listOf(
+            ChatMessage(role = "user", content = kotlinx.serialization.json.JsonPrimitive("hello")),
+            ChatMessage(role = "tool", content = kotlinx.serialization.json.JsonPrimitive("Random tool result")),
+            ChatMessage(role = "tool", content = kotlinx.serialization.json.JsonPrimitive(""))
+        )
+        val fetched = SkillPromptBuilder.extractFetchedSkillIds(history)
+        assertTrue("Should return empty set for non-matching tool messages", fetched.isEmpty())
+    }
+
+    @Test
+    fun `Skill matchesIntent performs case-insensitive word-boundary matching`() {
+        val skill = Skill(
+            id = "call_skill",
+            instructions = "x",
+            keywords = listOf("call")
+        )
+        assertTrue("Should match 'call'", skill.matchesIntent("Call John"))
+        assertTrue("Should match lower 'call'", skill.matchesIntent("can you call mom"))
+        assertFalse("Should NOT match substring inside 'recall'", skill.matchesIntent("please recall this message"))
+        assertFalse("Should NOT match substring inside 'vocaller'", skill.matchesIntent("vocaller app"))
+    }
+
+    @Test
+    fun `SkillPromptBuilder filters skills by user intent keywords`() {
+        val callSkill = Skill(
+            id = "whatsapp_call",
+            description = "Call features",
+            instructions = "x",
+            keywords = listOf("call", "phone", "ring")
+        )
+        val msgSkill = Skill(
+            id = "whatsapp_msg",
+            description = "Messaging features",
+            instructions = "y",
+            keywords = listOf("message", "text", "send")
+        )
+
+        val callMsg = SkillPromptBuilder.build(
+            currentPackage = "com.whatsapp",
+            activeSkills = listOf(callSkill, msgSkill),
+            communityIds = emptySet(),
+            lastUserMessage = "Can you call Alex on WhatsApp?"
+        )
+        assertNotNull(callMsg)
+        assertTrue(callMsg!!.textContent.contains("whatsapp_call"))
+        assertFalse(callMsg.textContent.contains("whatsapp_msg"))
+    }
+
+    @Test
+    fun `Skill matchesIntent handles empty and blank text correctly`() {
+        val skillWithKw = Skill(id = "test_kw", instructions = "x", keywords = listOf("call"))
+        val skillNoKw = Skill(id = "test_nokw", instructions = "x", keywords = emptyList())
+
+        assertTrue("Skill with keywords matches empty text", skillWithKw.matchesIntent(""))
+        assertTrue("Skill with keywords matches blank text", skillWithKw.matchesIntent("   "))
+        assertTrue("Skill without keywords matches empty text", skillNoKw.matchesIntent(""))
+    }
+
+    @Test
+    fun `SkillPromptBuilder extractLastHumanUserMessage skips synthetic screenshot observations`() {
+        val history = listOf(
+            ChatMessage(
+                role = "user",
+                content = kotlinx.serialization.json.JsonPrimitive("Send a message on WhatsApp")
+            ),
+            ChatMessage(
+                role = "assistant",
+                content = kotlinx.serialization.json.JsonPrimitive("Opening app")
+            ),
+            ChatMessage(
+                role = "user",
+                content = kotlinx.serialization.json.JsonPrimitive("[Screen State]\nTurn observation")
+            ),
+            ChatMessage(
+                role = "user",
+                content = kotlinx.serialization.json.JsonPrimitive("[Previous screen observation removed]")
+            )
+        )
+
+        val lastHumanMsg = SkillPromptBuilder.extractLastHumanUserMessage(history)
+        assertEquals("Send a message on WhatsApp", lastHumanMsg)
+    }
+
+    @Test
+    fun `SkillPromptBuilder SKILL_RESULT_REGEX matches ToolExecutor search_skills format`() {
+        val toolOutput = "Found 2 skills matching 'test':\n\nSkill [skill_a]:\nLine 1\n\nSkill [skill_b]:\nLine 2"
+        val matches = SkillPromptBuilder.SKILL_RESULT_REGEX.findAll(toolOutput).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("skill_a", "skill_b"), matches)
+    }
+
+    @Test
+    fun `SkillPromptBuilder buildFromHistory integrates history extraction and intent filtering`() {
+        val skillCall = Skill(id = "call_skill", instructions = "x", keywords = listOf("call"))
+        val skillMsg = Skill(id = "msg_skill", instructions = "y", keywords = listOf("send"))
+
+        val history = listOf(
+            ChatMessage(
+                role = "user",
+                content = kotlinx.serialization.json.JsonPrimitive("Please call Alex")
+            ),
+            ChatMessage(
+                role = "tool",
+                content = kotlinx.serialization.json.JsonPrimitive(
+                    "Found 1 skills:\n\nSkill [call_skill]:\nBody"
+                )
+            )
+        )
+
+        val msg = SkillPromptBuilder.buildFromHistory(
+            currentPackage = "com.whatsapp",
+            activeSkills = listOf(skillCall, skillMsg),
+            communityIds = emptySet(),
+            history = history
+        )
+
+        // call_skill is excluded because it's in history; msg_skill is excluded because user said "call", not "send"
+        assertTrue("Should return null when all skills are excluded by history or intent", msg == null)
+    }
+
+    @Test
+    fun `SkillPromptBuilder demotes unqualified wildcard skills to search-only`() {
+        val wildcardNoKw = Skill(
+            id = "wildcard_unqualified",
+            targetPackageNames = listOf("*"),
+            description = "Generic wildcard skill",
+            instructions = "x",
+            keywords = emptyList()
+        )
+        val wildcardWithKw = Skill(
+            id = "wildcard_qualified",
+            targetPackageNames = listOf("*"),
+            description = "Specific wildcard skill",
+            instructions = "y",
+            keywords = listOf("special")
+        )
+
+        val result1 = SkillPromptBuilder.build(
+            currentPackage = "com.example.any",
+            activeSkills = listOf(wildcardNoKw, wildcardWithKw),
+            communityIds = emptySet(),
+            lastUserMessage = "General task"
+        )
+        assertTrue("Should return null when no wildcard skills match intent", result1 == null)
+
+        val result2 = SkillPromptBuilder.build(
+            currentPackage = "com.example.any",
+            activeSkills = listOf(wildcardNoKw, wildcardWithKw),
+            communityIds = emptySet(),
+            lastUserMessage = "Do a special action"
+        )
+        assertNotNull(result2)
+        assertFalse(result2!!.textContent.contains("wildcard_unqualified"))
+        assertTrue(result2.textContent.contains("wildcard_qualified"))
+    }
+
+    @Test
     fun `AgentEngine cullOldObservations retains 4 most recent screen observations and culls older ones`() {
         val messages = mutableListOf<ChatMessage>()
         // Add 6 screen observation messages

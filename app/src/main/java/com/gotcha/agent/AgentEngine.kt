@@ -938,8 +938,12 @@ class AgentEngine(
         val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
             .filter { !disabledSkills.contains(it.id) }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
-        val message = SkillPromptBuilder.build(currentPackage, activeSkills, communityIds)
-            ?: return emptyList()
+        val message = SkillPromptBuilder.buildFromHistory(
+            currentPackage = currentPackage,
+            activeSkills = activeSkills,
+            communityIds = communityIds,
+            history = history
+        ) ?: return emptyList()
         return listOf(message)
     }
 
