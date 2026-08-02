@@ -12,6 +12,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import com.gotcha.i18n.Language
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -182,7 +183,8 @@ class SttEngine(
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() { Log.d(TAG, "onEndOfSpeech") }
                 override fun onError(error: Int) {
-                    Log.d(TAG, "onError: $error")
+                    val humanMsg = HumanReadableError.fromSpeechRecognizerCode(error)
+                    Log.d(TAG, "onError: $error ($humanMsg)")
                     if (error == SpeechRecognizer.ERROR_CLIENT ||
                         error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                         error == SpeechRecognizer.ERROR_SERVER

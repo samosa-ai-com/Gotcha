@@ -24,6 +24,7 @@ import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -40,15 +41,7 @@ private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 private val WHITESPACE = Regex("\\s+")
 
 /** Maps API/network failures to a short, user-readable message. */
-internal fun friendlyAgentError(e: Exception): String = when {
-    e is retrofit2.HttpException && e.code() == 401 ->
-        "The API rejected the key (401). Check your API key in settings."
-    e is retrofit2.HttpException ->
-        "The API returned an error (HTTP ${e.code()}). ${e.message()}"
-    e is java.io.IOException ->
-        "Network problem: ${e.message ?: "could not reach the API"}. Check your connection."
-    else -> "Something went wrong: ${e.message}"
-}
+internal fun friendlyAgentError(e: Exception): String = HumanReadableError.format(e)
 
 /**
  * The core agent loop, extracted from ChatViewModel so it can run both inside
@@ -75,6 +68,14 @@ class AgentEngine(
     val history = mutableListOf<ChatMessage>()
     var sessionId: String? = null
     var tokenCount: Int = 0
+
+    /**
+     * Stable key for the provider's server-side prompt KV cache
+     * (`prompt_cache_key` / `X-Session-Id`), independent of [sessionId] which
+     * also serves as per-session file identity. Defaults to [sessionId] when
+     * unset (chat mode keeps the chat id, which is already stable across turns).
+     */
+    var promptCacheKey: String? = null
 
     /**
      * Structured records of completed runs in this session, newest last. Fed to
@@ -455,7 +456,7 @@ class AgentEngine(
                 llm.chat(
                     messages,
                     ToolRegistry.toolsForAgent(agent, hiddenTools()),
-                    sessionId = sessionId
+                    sessionId = promptCacheKey ?: sessionId
                 )
             } catch (e: CancellationException) {
                 throw e

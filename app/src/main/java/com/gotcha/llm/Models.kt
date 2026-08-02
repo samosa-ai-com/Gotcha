@@ -42,6 +42,25 @@ data class ChatMessage(
 
     /** True when this message has a non-blank text portion. */
     val hasText: Boolean get() = textContent.isNotBlank()
+
+    /** True when this message carries an image (vision) part. */
+    val hasImage: Boolean get() = imageUrl() != null
+
+    /**
+     * The data URI of this message's first image part (e.g.
+     * "data:image/jpeg;base64,…"), or null when there is no image part.
+     */
+    fun imageUrl(): String? {
+        val parts = content as? JsonArray ?: return null
+        return parts.firstNotNullOfOrNull { part ->
+            val obj = part as? JsonObject ?: return@firstNotNullOfOrNull null
+            if ((obj["type"] as? JsonPrimitive)?.content != "image_url") {
+                return@firstNotNullOfOrNull null
+            }
+            val img = obj["image_url"] as? JsonObject ?: return@firstNotNullOfOrNull null
+            (img["url"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+        }
+    }
 }
 
 /** Build a vision-content ChatMessage with text + an image. */

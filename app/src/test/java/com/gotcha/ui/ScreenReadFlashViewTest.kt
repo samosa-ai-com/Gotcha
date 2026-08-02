@@ -36,15 +36,30 @@ class ScreenReadFlashViewTest {
     )
 
     @Test
-    fun `border and glow follow the skin accent`() {
+    fun `edge glow follows the skin accent`() {
         val orchid = viewFor(Skins.Orchid.id)
         val vellum = viewFor(Skins.Vellum.id)
 
-        assertNotEquals("border is hardcoded across skins", orchid.borderColor(), vellum.borderColor())
-        assertNotEquals("glow is hardcoded across skins", orchid.glowColor(), vellum.glowColor())
-        // Both derive from the accent, at their fixed alphas.
-        assertEquals(0xB0, Color.alpha(orchid.borderColor()))
-        assertEquals(0x66, Color.alpha(orchid.glowColor()))
+        assertNotEquals("edge glow is hardcoded across skins", orchid.edgeColor(), vellum.edgeColor())
+        // The edge colour derives from the accent at its fixed pre-envelope alpha.
+        assertEquals(0xA0, Color.alpha(orchid.edgeColor()))
+    }
+
+    @Test
+    fun `pulseAlpha is a smooth raised cosine with no hard on or off`() {
+        val view = viewFor(Skins.DEFAULT_ID)
+        // Invisible exactly at the endpoints — no on/off snap.
+        assertEquals(0f, view.pulseAlpha(0f))
+        assertEquals(0f, view.pulseAlpha(1f))
+        // Single smooth peak mid-pulse, never above 1.
+        val mid = view.pulseAlpha(0.5f)
+        assertTrue("peak must be positive", mid > 0f)
+        assertTrue("peak must never exceed 1", mid <= 1f)
+        // Monotonic rise then fall (no flicker/strobe): each half is monotonic.
+        val rising = listOf(0.1f, 0.2f, 0.3f, 0.4f, 0.5f).map(view::pulseAlpha)
+        val falling = listOf(0.5f, 0.6f, 0.7f, 0.8f, 0.9f).map(view::pulseAlpha)
+        assertEquals("rise must be monotonic", rising.sorted(), rising)
+        assertEquals("fall must be monotonic", falling.sortedDescending(), falling)
     }
 
     @Test

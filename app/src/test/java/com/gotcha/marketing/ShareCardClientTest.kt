@@ -158,14 +158,16 @@ class ShareCardClientTest {
     }
 
     @Test
-    fun `generate returns eligible=false from the model`() = runTest {
+    fun `generate ignores a model veto and falls back to the deterministic poster`() = runTest {
         server.enqueue(
             MockResponse().setBody(
                 """{"choices":[{"message":{"role":"assistant","content":"{\"eligible\":false}"}}]}"""
             )
         )
         val content = client().generate(listOf(run()))
-        assertFalse(content.eligible)
+        assertTrue("a model veto must not fail the card: $content", content.eligible)
+        assertEquals("hero", content.template)
+        assertTrue(content.headline.isNotBlank())
     }
 
     @Test

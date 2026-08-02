@@ -115,4 +115,43 @@ class CallSessionControllerTest {
         assertTrue("Expected startCall to succeed but got error: $errorMessage", started)
         assertTrue(errorMessage == null)
     }
+
+    @Test
+    fun `buildClient returns the same instance while settings are unchanged`() {
+        settingsRepository.save(
+            Settings(
+                provider = LlmProvider.OPENAI_COMPATIBLE,
+                baseUrl = "https://api.openai.com/v1",
+                apiKey = "llm-key"
+            )
+        )
+
+        val first = controller.buildClient()
+        val second = controller.buildClient()
+
+        assertTrue("cached LLMClient must be reused for an unchanged fingerprint", first === second)
+    }
+
+    @Test
+    fun `buildClient rebuilds when the settings fingerprint changes`() {
+        settingsRepository.save(
+            Settings(
+                provider = LlmProvider.OPENAI_COMPATIBLE,
+                baseUrl = "https://api.openai.com/v1",
+                apiKey = "llm-key"
+            )
+        )
+        val first = controller.buildClient()
+
+        settingsRepository.save(
+            Settings(
+                provider = LlmProvider.OPENAI_COMPATIBLE,
+                baseUrl = "https://api.openai.com/v1",
+                apiKey = "changed-key"
+            )
+        )
+        val second = controller.buildClient()
+
+        assertTrue("a changed API key must force a client rebuild", first !== second)
+    }
 }

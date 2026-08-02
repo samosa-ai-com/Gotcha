@@ -554,6 +554,106 @@ class SmartActionDetectorTest {
         assertNull(SmartActionDetector.timeOfDayOf("sometime Monday"))
     }
 
+    // ---- Settings → detector propagation (call sites in ScreenLensController,
+    //      AssistiveBallService, ScreenCompanionController, GotchaAccessibilityService
+    //      all read preferredCurrency / preferredLanguage from Settings and pass
+    //      them straight into detectAll()). These tests pin the parameter contract
+    //      so the call sites can't silently drop the prefs. ----
+
+    @Test
+    fun `detectAll respects a French target language for currency labels`() {
+        // USD string with EUR target: the conversion action should mention EUR
+        // (the EUR label is what a French-user sees in the proactive action).
+        val entities = SmartActionDetector.detectAll("Prix: \$50,00", targetCurrency = "EUR")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull("USD-string should be detected as CURRENCY", currency)
+        assertTrue(
+            "Conversion action should mention EUR when target is EUR — was: ${currency!!.actions}",
+            currency.actions.any { it.label.contains("EUR") }
+        )
+    }
+
+    @Test
+    fun `detectAll respects a EUR target when source is USD`() {
+        val entities = SmartActionDetector.detectAll("Total: \$50.00", targetCurrency = "EUR")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull(currency)
+        assertTrue(
+            "Should offer Convert to EUR when source is USD and target is EUR",
+            currency!!.actions.any { it.label.contains("EUR") }
+        )
+    }
+
+    @Test
+    fun `detectAll default target currency is USD when not specified`() {
+        val entities = SmartActionDetector.detectAll("Price is €50")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull(currency)
+        assertTrue(
+            "Default target currency should be USD — was: ${currency!!.actions}",
+            currency.actions.any { it.label.contains("Convert to USD") }
+        )
+    }
+
+    @Test
+    fun `detectAll GBP target suppresses GBP conversion action`() {
+        val entities = SmartActionDetector.detectAll("Price is £25.00", targetCurrency = "GBP")
+        val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
+        assertNotNull(currency)
+        assertFalse(
+            "Should not offer Convert to GBP when source is GBP",
+            currency!!.actions.any { it.label.contains("Convert to GBP") }
+        )
+    }
+
+    @Test
+    fun `chat fallback translation label uses targetLanguage`() {
+        // Foreign text in a non-English target language should produce a
+        // "Translate to <targetLanguage>" action — the label is what the user
+        // sees in the Lens proactive card.
+        val entities = SmartActionDetector.detectAll(
+            "Hola, ¿cómo estás?",
+            allowChat = true,
+            targetLanguage = "French"
+        )
+        val chat = entities.firstOrNull { it.type == EntityType.CHAT_REPLY }
+        assertNotNull("Should detect Spanish chat text with allowChat=true", chat)
+        assertTrue(
+            "Translation label should mention targetLanguage — was: ${chat!!.actions}",
+            chat.actions.any { it.label.contains("Translate to French") }
+        )
+    }
+
+    @Test
+    fun `chat fallback does not translate when text already matches targetLanguage`() {
+        // English text with targetLanguage=English → no translate action.
+        val entities = SmartActionDetector.detectAll(
+            "How are you doing today?",
+            allowChat = true,
+            targetLanguage = "English"
+        )
+        val chat = entities.firstOrNull { it.type == EntityType.CHAT_REPLY }
+        assertNotNull(chat)
+        assertFalse(
+            "Should not offer Translate to English when text is already English",
+            chat!!.actions.any { it.label.contains("Translate to") }
+        )
+    }
+
+    @Test
+    fun `call sites propagate the same targetCurrency and targetLanguage`() {
+        // Pin the shape of the call signature so any change to detectAll's
+        // parameter list surfaces here, not in a runtime ClassCastException.
+        val a = SmartActionDetector.detectAll("100 USD", targetCurrency = "USD")
+        val b = SmartActionDetector.detectAll(
+            "100 EUR",
+            targetCurrency = "USD",
+            targetLanguage = "English"
+        )
+        assertNotNull(a.firstOrNull { it.type == EntityType.CURRENCY })
+        assertNotNull(b.firstOrNull { it.type == EntityType.CURRENCY })
+    }
+
     private companion object {
         /** Midday on the day the bug-report screenshots were taken. */
         val NOON_AUG_1: java.time.LocalDateTime = LocalDate.of(2026, 8, 1).atTime(12, 0)

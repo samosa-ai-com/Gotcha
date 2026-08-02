@@ -19,6 +19,7 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -251,7 +252,7 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
+                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
             }
         }
     }
@@ -302,7 +303,7 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
+                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
             }
         }
     }
@@ -511,7 +512,7 @@ class AssistiveBallService : Service() {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         } catch (e: Exception) {
-            overlay.showError("Couldn't open action: ${e.message}")
+            overlay.showError("Couldn't open action: ${HumanReadableError.format(e)}")
         }
     }
 
@@ -567,7 +568,7 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
+                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
             }
         }
     }
@@ -594,7 +595,7 @@ class AssistiveBallService : Service() {
                     showToast("Copied to clipboard")
                 }
             } catch (e: Exception) {
-                showToast("Couldn't read text: ${e.message}")
+                showToast("Couldn't read text: ${HumanReadableError.format(e)}")
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
@@ -681,7 +682,7 @@ class AssistiveBallService : Service() {
                         )
                         updateResponse(replyText)
                     } catch (e: Exception) {
-                        updateResponse("Error: ${e.message}")
+                        updateResponse("Error: ${HumanReadableError.format(e)}")
                     }
                 }
             }
@@ -760,7 +761,7 @@ class AssistiveBallService : Service() {
             screenCompanionPanel.setListening(false)
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
-                .onFailure { e -> overlay.showError("Transcription failed: ${e.message}") }
+                .onFailure { e -> overlay.showError("Transcription failed: ${HumanReadableError.format(e)}") }
         }
     }
 
@@ -875,14 +876,14 @@ class AssistiveBallService : Service() {
                     fileName,
                     bitmap
                 )
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved to $location") }
+                withContext(Dispatchers.Main) { overlay.showSuccess("Screenshot saved to $location") }
                 bitmap.recycle()
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
                     overlay.showChromeAfterCapture()
                     chatWindow.setVisibleForCapture(true)
                     screenCompanionPanel.setVisibleForCapture(true)
-                    overlay.showError("Screenshot error: ${e.message}")
+                    overlay.showError("Screenshot error: ${HumanReadableError.format(e)}")
                 }
             }
         }

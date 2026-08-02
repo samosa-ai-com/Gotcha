@@ -28,6 +28,7 @@ import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -649,7 +650,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         transcript = sttEngine.transcribeApi(
                             audioFile, settings.sttApiModel, sttLanguage
                         )
-                            .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                            .onFailure { e ->
+                                appendUi(MessageKind.ERROR, "Transcription failed: ${HumanReadableError.format(e)}")
+                            }
                             .getOrDefault("")
                     }
                     provider == AudioProvider.ANDROID -> {
@@ -766,6 +769,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.sessionId = newId
             agentEngine.tokenCount = 0
             agentEngine.restoreTitle(null)
+            // Without this the previous chat's run summaries survive into the
+            // new session: the share card would promote the old conversation
+            // and saveCurrentSession() would persist the stale list into the
+            // new chat file.
+            agentEngine.restoreRunSummaries(emptyList())
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -1094,46 +1102,82 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
-     * Best-effort screenshot for the poster thumbnail: the newest PNG in the
-     * engine session's working dir, else a fresh screen capture, else null.
+     * Best-effort screenshot for the poster thumbnail: the newest image in the
+     * engine session's chat history (a user-attached photo or an agent screen
+     * capture), else null.
      *
-     * Guarded so a huge or malformed PNG can't OOM the decode: files over
+     * Guarded so a huge or malformed image can't OOM the decode: files over
      * [MAX_SHARE_SCREENSHOT_BYTES] are skipped, and anything larger than
      * [MAX_SHARE_SCREENSHOT_DIM] on either side is downsampled before decoding
      * (the poster draws the thumbnail at 460×345, so full-res is wasteful).
      */
     private fun loadShareScreenshot(): Bitmap? {
-        val dir = com.gotcha.data.GotchaStorage.subdir(
-            agentEngine.workingDir(),
-            com.gotcha.data.GotchaStorage.Kind.SCREENSHOTS
-        )
-        val newest = dir.listFiles { f -> f.isFile && f.extension.equals("png", true) }
-            ?.maxByOrNull { it.lastModified() }
-        if (newest != null) {
-            return try {
-                if (newest.length() > MAX_SHARE_SCREENSHOT_BYTES) return null
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(newest.absolutePath, bounds)
-                val w = bounds.outWidth
-                val h = bounds.outHeight
-                if (w <= 0 || h <= 0) return null
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = when {
-                        w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
-                        else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
-                    }
-                }
-                BitmapFactory.decodeFile(newest.absolutePath, options)
-            } catch (_: Exception) {
-                null
-            }
+        // Snapshot before scanning: the engine coroutine mutates history as it
+        // runs, and this is read from the UI thread. asReversed() alone is a
+        // live view, not a copy.
+        val dataUri = agentEngine.history.toList().asReversed()
+            .firstNotNullOfOrNull { it.imageUrl() }
+            ?: return null
+        // Early bound on the URI before allocating the Base64 byte array:
+        // Base64 inflates payload by 4/3, so even a 50 MB payload produces a
+        // ~67 MB string; reject anything that cannot possibly fit under the
+        // byte cap without decoding it.
+        if (dataUri.length > MAX_SHARE_SCREENSHOT_BYTES * 4 / 3 + SAFE_DATA_URI_PREFIX) {
+            return null
         }
-        return null
+        val base64 = dataUri.substringAfter("base64,")
+        return try {
+            val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+            if (bytes.size > MAX_SHARE_SCREENSHOT_BYTES) return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val w = bounds.outWidth
+            val h = bounds.outHeight
+            if (w <= 0 || h <= 0) return null
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = when {
+                    w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
+                    else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
+                }
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        } catch (_: Exception) {
+            null
+        }
     }
 
-    /** All persisted run summaries for the session currently bound to the engine. */
-    fun activeSessionRunSummaries(): List<RunSummary> =
-        agentEngine.runSummaries.toList()
+    /**
+     * Run summaries for the session currently bound to the engine.
+     *
+     * Returns the recorded summaries when present. Chats created before the
+     * run-summary feature landed have none persisted, so fall back to
+     * [synthesizeRunSummariesFromHistory] — the same history [exportChat]
+     * reads, which keeps the share card and the export consistent.
+     *
+     * No memoization: the only caller is the share-card tap handler, not a
+     * recomposition, and the synthesis walk only trims text content — cheaper
+     * than fingerprinting the history (which would hash vision base64 payloads).
+     */
+    fun activeSessionRunSummaries(): List<RunSummary> {
+        val recorded = agentEngine.runSummaries
+        if (recorded.isNotEmpty()) return recorded.toList()
+        // Snapshot the history before iterating: the engine coroutine mutates it
+        // as it runs, and this is read from the UI thread.
+        val snapshot = agentEngine.history.toList()
+        return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
+    }
+
+    /**
+     * True when the session currently bound to the engine has an image in its
+     * history. Drives whether the poster sheet offers "Include a screenshot":
+     * the option only makes sense when there is something to embed, and it must
+     * disappear once the image is culled from history.
+     */
+    fun activeSessionHasImage(): Boolean {
+        // Snapshot before reading: the engine coroutine mutates history as it
+        // runs, and this is read from the UI thread.
+        return agentEngine.history.toList().any { it.hasImage }
+    }
 
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
     private fun appendSubAgentExport(sb: StringBuilder, text: String) {
@@ -1174,5 +1218,74 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         /** Poster-thumbnail screenshot guards (see [loadShareScreenshot]). */
         const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
         const val MAX_SHARE_SCREENSHOT_DIM = 2048
+
+        /**
+         * Slack added to the dataUri length ceiling to account for the
+         * `data:image/...;base64,` MIME prefix that Base64 decoding strips.
+         * 64 bytes is far more than any real MIME prefix and well below the
+         * 4/3 inflation ratio that motivates the guard.
+         */
+        const val SAFE_DATA_URI_PREFIX = 64L
     }
+}
+
+/**
+ * Builds one [RunSummary] per user → assistant exchange in [history], for the
+ * "Share your Gotcha moment" card when a chat predates recorded run summaries.
+ *
+ * A vision request is a plain user message, so text extraction via
+ * [ChatMessage.textContent] covers both. Each exchange starts at a "user"
+ * message and ends at the next one; the assistant text that lands in between
+ * becomes the [RunSummary.finalReply]. Exchanges with no assistant reply are
+ * skipped, so an empty or unanswered chat still yields an empty list (the
+ * share card correctly reports nothing to share).
+ */
+internal fun synthesizeRunSummariesFromHistory(
+    history: List<ChatMessage>,
+    model: String,
+    agentMode: String
+): List<RunSummary> {
+    val summaries = mutableListOf<RunSummary>()
+    var pendingPrompt: String? = null
+    var pendingReply: String? = null
+    // Original exchange times aren't in history, so every synthesized summary
+    // shares one synthetic timestamp rather than a distinct per-exchange one.
+    val synthesizedAt = System.currentTimeMillis()
+
+    fun flush() {
+        val prompt = pendingPrompt
+        val reply = pendingReply
+        if (!prompt.isNullOrBlank() && !reply.isNullOrBlank()) {
+            summaries += RunSummary(
+                startedAt = synthesizedAt,
+                endedAt = synthesizedAt,
+                userPrompt = prompt.take(400),
+                finalReply = reply.take(800),
+                model = model,
+                agentMode = agentMode,
+                delegated = false,
+                succeeded = true,
+                toolCalls = emptyList()
+            )
+        }
+        pendingPrompt = null
+        pendingReply = null
+    }
+
+    for (msg in history) {
+        when (msg.role) {
+            "user" -> {
+                flush()
+                pendingPrompt = msg.textContent.trim()
+            }
+            "assistant" -> {
+                val text = msg.textContent.trim()
+                // Only the final assistant text of the exchange matters; tool
+                // rounds between the prompt and the answer carry no copy.
+                if (text.isNotBlank()) pendingReply = text
+            }
+        }
+    }
+    flush()
+    return summaries
 }

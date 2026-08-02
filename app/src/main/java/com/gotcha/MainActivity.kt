@@ -762,11 +762,6 @@ class MainActivity : ComponentActivity() {
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },
-                        onShareMessage = { message ->
-                            chatViewModel.activeSessionRunSummaries().lastOrNull()?.let {
-                                sharePoster.open(listOf(it))
-                            }
-                        },
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         }
@@ -800,6 +795,7 @@ class MainActivity : ComponentActivity() {
                 loading = sharePoster.loading,
                 preview = sharePoster.preview,
                 error = sharePoster.error,
+                hasImage = chatViewModel.activeSessionHasImage(),
                 onGenerate = sharePoster::generate,
                 onShare = { sharePoster.preview?.let { sharePoster.share(it) } },
                 onSave = { sharePoster.preview?.let { sharePoster.save(it) } },

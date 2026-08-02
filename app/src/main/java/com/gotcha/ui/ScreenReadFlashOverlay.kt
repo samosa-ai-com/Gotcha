@@ -8,14 +8,13 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
-import android.view.animation.DecelerateInterpolator
 import com.gotcha.data.SettingsRepository
 import com.gotcha.ui.theme.Skins
 import com.gotcha.ui.theme.overlaySkin
 
 /**
  * Flashes a brief accent border around the screen after an agent screen read.
- * Fire-and-forget: [pulse] adds a non-touchable window, animates ~650 ms, then
+ * Fire-and-forget: [pulse] adds a non-touchable window, animates ~1 s, then
  * removes it. No-op without the "Display over other apps" permission.
  */
 class ScreenReadFlashOverlay(context: Context) {
@@ -43,7 +42,6 @@ class ScreenReadFlashOverlay(context: Context) {
                 view = flash
                 animator = ValueAnimator.ofFloat(0f, 1f).apply {
                     duration = PULSE_MS
-                    interpolator = DecelerateInterpolator()
                     addUpdateListener { a -> flash.pulse = a.animatedValue as Float }
                     addListener(object : android.animation.AnimatorListenerAdapter() {
                         override fun onAnimationEnd(
@@ -95,6 +93,6 @@ class ScreenReadFlashOverlay(context: Context) {
     }
 
     private companion object {
-        const val PULSE_MS = 650L
+        const val PULSE_MS = 1_000L
     }
 }

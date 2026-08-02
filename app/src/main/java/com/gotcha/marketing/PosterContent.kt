@@ -5,10 +5,12 @@ import kotlinx.serialization.Serializable
 
 /**
  * Structured copy produced by the one marketing LLM call, merged with
- * app-computed stats (duration, model, tool counts) by [PosterRenderer].
+ * app-computed stats (duration, tool counts) by [PosterRenderer].
  *
- * The LLM never writes the numbers — duration/model/counts are computed
- * deterministically by the app so they can't be hallucinated.
+ * The LLM never writes the numbers — duration/counts are computed
+ * deterministically by the app so they can't be hallucinated. The model
+ * identity is intentionally hardcoded in the renderer's branding copy
+ * ("Built with Samosa AI") and is not carried on [PosterStats].
  */
 @Serializable
 data class PosterContent(
@@ -31,7 +33,6 @@ data class PosterContent(
 data class PosterStats(
     val runCount: Int,
     val totalDurationSeconds: Long,
-    val model: String,
     val toolCount: Int,
     val achievementCount: Int = 0
 ) {
@@ -54,8 +55,6 @@ object PosterStatsBuilder {
         return PosterStats(
             runCount = runs.size,
             totalDurationSeconds = duration,
-            model = runs.lastOrNull()?.model?.takeIf { it.isNotBlank() }
-                ?: runs.firstOrNull()?.model ?: "",
             toolCount = tools
         )
     }

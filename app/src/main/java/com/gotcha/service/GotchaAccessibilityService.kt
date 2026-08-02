@@ -268,7 +268,12 @@ class GotchaAccessibilityService : AccessibilityService() {
         if (node == null || out.size >= limit) return
         val bounds = android.graphics.Rect()
         node.getBoundsInScreen(bounds)
-        if (android.graphics.Rect.intersects(bounds, region)) {
+        // Only text that actually lives inside the selection: a node must be
+        // substantially within the region, not merely touching it. A bare
+        // Rect.intersects would pull in the full text of any wide block or
+        // container that overlaps the selection by a single pixel, which made
+        // the extracted-text card read like the whole screen.
+        if (substantiallyInside(bounds, region)) {
             val text = node.text?.toString()?.trim()
             val desc = node.contentDescription?.toString()?.trim()
             if (!text.isNullOrEmpty()) {
@@ -279,6 +284,14 @@ class GotchaAccessibilityService : AccessibilityService() {
             collectTextInRegion(node.getChild(i), region, out, limit)
         }
     }
+
+    /**
+     * True when [bounds] is mostly inside [region]: the intersection must cover
+     * at least [REGION_TEXT_COVERAGE] of the node's own area. This keeps the
+     * "Extracted Text" card scoped to the selected area.
+     */
+    internal fun substantiallyInside(bounds: android.graphics.Rect, region: android.graphics.Rect): Boolean =
+        Companion.substantiallyInside(bounds, region, REGION_TEXT_COVERAGE)
 
     /**
      * Grow [region] (screen pixels) to include any UI element it substantially
@@ -398,7 +411,15 @@ class GotchaAccessibilityService : AccessibilityService() {
         }
 
         val fullText = fullTextBuilder.toString()
-        val entities = SmartActionDetector.detectAll(fullText, allowChat = false)
+        val settings = runCatching { com.gotcha.data.SettingsRepository(applicationContext).load() }.getOrNull()
+        val prefCurr = settings?.preferredCurrency ?: "USD"
+        val prefLang = settings?.preferredLanguage ?: "English"
+        val entities = SmartActionDetector.detectAll(
+            fullText,
+            allowChat = false,
+            targetCurrency = prefCurr,
+            targetLanguage = prefLang
+        )
         val placeable = discardOversizedBounds(locateEntities(entities, nodeRanges))
         val selected = SmartActionDetector.selectForAnnotation(placeable.map { it.entity })
         // Matched by identity, not equality: selection hands back the very objects
@@ -607,6 +628,32 @@ class GotchaAccessibilityService : AccessibilityService() {
         @Volatile
         var lastClipboardData: ClipData? = null
             internal set
+
+        /**
+         * Fraction of a node's own area that must fall inside the Lens selection
+         * for its text to be included (see [substantiallyInside]). Mirrors the
+         * snap-to-element coverage so the extracted text matches the selection.
+         */
+        private const val REGION_TEXT_COVERAGE = 0.5f
+
+        /**
+         * Pure geometric helper exposed for tests. True when [bounds] is mostly
+         * inside [region]: the intersection must cover at least [coverage] of
+         * the node's own area. Kept on the companion so unit tests can pin the
+         * threshold without instantiating the service.
+         */
+        internal fun substantiallyInside(
+            bounds: android.graphics.Rect,
+            region: android.graphics.Rect,
+            coverage: Float = REGION_TEXT_COVERAGE
+        ): Boolean {
+            if (bounds.isEmpty || bounds.width() <= 0 || bounds.height() <= 0) return false
+            val inter = android.graphics.Rect(bounds)
+            if (!inter.intersect(region)) return false
+            val nodeArea = bounds.width().toLong() * bounds.height().toLong()
+            val interArea = inter.width().toLong() * inter.height().toLong()
+            return interArea >= nodeArea * coverage
+        }
     }
 
     /** Register a clipboard listener to cache clipboard content. */

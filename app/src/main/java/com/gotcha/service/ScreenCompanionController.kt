@@ -90,11 +90,12 @@ class ScreenCompanionController(
         if (settings != null && !settings.proactiveEnabled) return
 
         if (triggerType == "Screenshot") {
+            val prefLang = settings?.preferredLanguage ?: "English"
             onSmartActionPairReady(
                 "📸 Screenshot taken. Extract text?",
                 "Extract the text from this screenshot.",
                 "🌐 Translate Screenshot",
-                TRANSLATE_SCREENSHOT_PROMPT
+                translateScreenshotPrompt(prefLang)
             )
             return
         }
@@ -144,8 +145,14 @@ class ScreenCompanionController(
                     }
 
                     val prefCurrency = effectiveSettings?.preferredCurrency ?: "USD"
+                    val prefLang = effectiveSettings?.preferredLanguage ?: "English"
                     val textEntities = if (screenText.isNotEmpty()) {
-                        SmartActionDetector.detectAll(screenText, allowChat = false, targetCurrency = prefCurrency)
+                        SmartActionDetector.detectAll(
+                            screenText,
+                            allowChat = false,
+                            targetCurrency = prefCurrency,
+                            targetLanguage = prefLang
+                        )
                     } else {
                         emptyList()
                     }
@@ -181,9 +188,8 @@ class ScreenCompanionController(
         const val ACTION_CLIPBOARD_CHANGED = "com.gotcha.action.CLIPBOARD_CHANGED"
         private const val DEBOUNCE_DELAY_MS = 600L
 
-        const val TRANSLATE_SCREENSHOT_PROMPT =
-            "Extract any text present on this screenshot, translate it to English " +
-                "(or the user's system language), and display both the original text " +
-                "and its translation side-by-side using a markdown table."
+        fun translateScreenshotPrompt(targetLang: String = "English"): String =
+            "Extract any text present on this screenshot, translate it to $targetLang, " +
+                "and display both the original text and its translation side-by-side using a markdown table."
     }
 }
