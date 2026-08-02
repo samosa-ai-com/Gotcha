@@ -28,6 +28,7 @@ import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -649,7 +650,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         transcript = sttEngine.transcribeApi(
                             audioFile, settings.sttApiModel, sttLanguage
                         )
-                            .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
+                            .onFailure { e ->
+                                appendUi(MessageKind.ERROR, "Transcription failed: ${HumanReadableError.format(e)}")
+                            }
                             .getOrDefault("")
                     }
                     provider == AudioProvider.ANDROID -> {

@@ -24,6 +24,7 @@ import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -40,15 +41,7 @@ private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 private val WHITESPACE = Regex("\\s+")
 
 /** Maps API/network failures to a short, user-readable message. */
-internal fun friendlyAgentError(e: Exception): String = when {
-    e is retrofit2.HttpException && e.code() == 401 ->
-        "The API rejected the key (401). Check your API key in settings."
-    e is retrofit2.HttpException ->
-        "The API returned an error (HTTP ${e.code()}). ${e.message()}"
-    e is java.io.IOException ->
-        "Network problem: ${e.message ?: "could not reach the API"}. Check your connection."
-    else -> "Something went wrong: ${e.message}"
-}
+internal fun friendlyAgentError(e: Exception): String = HumanReadableError.format(e)
 
 /**
  * The core agent loop, extracted from ChatViewModel so it can run both inside
