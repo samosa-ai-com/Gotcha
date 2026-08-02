@@ -229,7 +229,7 @@ class FeatureCoverageManifestTest {
                 "| OEM behaviour | **Not covered.** No emulator reproduces Samsung/Xiaomi battery " +
                     "managers killing overlay services and background agents — this app's largest " +
                     "real-world risk. Firebase Test Lab on physical devices is the only path; " +
-                    "parked pending a GCP project (see `docs/TESTING_PLAN.md`). |"
+                    "parked pending a GCP project. |"
             )
             appendLine()
             appendLine("### Instrumented suite")

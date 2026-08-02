@@ -158,7 +158,7 @@ class ToolExecutor(
             ?: "Send an email (details unavailable)."
 
     // Single when-dispatch over the entire fixed tool catalog; size and branch count are
-    // inherent to the design (see AGENTS.md).
+    // inherent to the design.
     @Suppress("CyclomaticComplexMethod", "LongMethod")
     private suspend fun dispatch(name: String, args: JsonObject, hidden: Set<String>): ToolResult {
         com.gotcha.connectors.ConnectorRegistry.toolHandler(name)?.let { return it.invoke(name, args) }

@@ -7,8 +7,7 @@ import android.provider.Settings
 
 /**
  * How a settings destination is reached. The tier is dictated by what Android
- * permits a non-privileged app to do, not by preference — see the tier model in
- * `AGENTS.md`.
+ * permits a non-privileged app to do, not by preference.
  *
  * Tier 1 (change it silently through an API) is not represented here: those are
  * ordinary tools on [DeviceTool] / [SystemTool]. This router owns tiers 2 and 3,

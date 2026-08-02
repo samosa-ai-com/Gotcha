@@ -4,7 +4,7 @@ name: CI
 # triggers (push / pull_request / schedule) are intentionally removed; the
 # nightly full-matrix job no longer runs. The workflow can still be triggered
 # manually via Actions → Run workflow (opt-in, consumes budget), but prefer the
-# equivalent local commands in docs/RUNNING_TESTS.md. See AGENTS.md → CI.
+# equivalent local commands in docs/RUNNING_TESTS.md.
 
 on:
   workflow_dispatch:

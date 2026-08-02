@@ -94,7 +94,7 @@ other device recording, independent of which chat produced them.
 
 Chat folders are named `slug(title)_<first 8 chars of the session UUID>` and renamed in place
 when the title becomes known. Deleting a chat moves its working directory to `old_chats/` instead
-of deleting it. See `STORAGE_PLAN.md` for the full rationale.
+of deleting it.
 
 ## 5. Configure the LLM (required before chatting)
 

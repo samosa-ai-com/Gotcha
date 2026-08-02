@@ -145,7 +145,7 @@ The tiers above say *whether* a feature is tested. This says *where*.
 |---|---|
 | Android versions (JVM) | `ROBOLECTRIC` tests run under `@Config(sdk = [...])`, typically API 30/33/34, so version-branching logic is covered in seconds without an emulator. |
 | Android versions (emulator) | Nightly `instrumented-full` matrix: API 30 (minSdk), 33, 34, 35, 36. Per-PR smoke runs API 34 only. |
-| OEM behaviour | **Not covered.** No emulator reproduces Samsung/Xiaomi battery managers killing overlay services and background agents — this app's largest real-world risk. Firebase Test Lab on physical devices is the only path; parked pending a GCP project (see `docs/TESTING_PLAN.md`). |
+| OEM behaviour | **Not covered.** No emulator reproduces Samsung/Xiaomi battery managers killing overlay services and background agents — this app's largest real-world risk. Firebase Test Lab on physical devices is the only path; parked pending a GCP project. |
 
 ### Instrumented suite
 

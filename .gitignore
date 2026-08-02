@@ -22,6 +22,13 @@ out/
 .gradle/
 build/
 
+# Release build outputs (bundles, baseline profiles, metadata)
+app/release/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
 # Local configuration file (sdk path, etc)
 local.properties
 

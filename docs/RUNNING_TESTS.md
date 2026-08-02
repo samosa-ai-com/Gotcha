@@ -2,8 +2,8 @@
 
 Operational guide: environment setup, every way to run the tests, and every
 gotcha hit while getting Android 11–16 (API 30–36) coverage working on this
-machine (Windows, SDK at `%LOCALAPPDATA%\Android\Sdk`). For *why* this suite
-was built the way it was, see [`TESTING_PLAN.md`](TESTING_PLAN.md).
+machine (Windows, SDK at `%LOCALAPPDATA%\Android\Sdk`). For what the suite
+covers, see [`FEATURE_TEST_COVERAGE.md`](FEATURE_TEST_COVERAGE.md).
 
 ## 1. One-time environment setup
 
@@ -140,8 +140,7 @@ making a visible AVD from it):
   convenience path rather than a required one. Not run end-to-end
   in this session — check it works before depending on it.
 - **`scripts/maestro_run.sh`** + **`.maestro/flows/*.yaml`** — the Maestro
-  smoke layer. Requires Maestro installed separately (see
-  `TESTING_PLAN.md` §Phase 5 for the install command). Not exercised in this
+  smoke layer. Requires Maestro installed separately. Not exercised in this
   session either.
 - **CI** (`.github/workflows/ci.yml`) — **disabled by default** to conserve GitHub Actions
   budget: automatic triggers (push, PRs, the nightly full-matrix schedule) are removed. The

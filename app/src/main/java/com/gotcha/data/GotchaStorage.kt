@@ -13,7 +13,7 @@ import java.io.IOException
 
 /**
  * Single source of truth for every path Gotcha reads or writes under shared
- * storage. See STORAGE_PLAN.md for the full layout and rationale.
+ * storage.
  */
 object GotchaStorage {
 
