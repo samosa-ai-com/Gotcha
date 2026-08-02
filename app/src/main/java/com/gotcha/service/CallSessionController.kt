@@ -24,6 +24,7 @@ import com.gotcha.tools.AgentMode
 import com.gotcha.tools.Category
 import com.gotcha.tools.ToolCategories
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.ScreenReadFlashOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +64,7 @@ class CallSessionController(
 
     private val callsRepo = ChatHistoryRepository(appContext, "calls")
     private val confirmationOverlay = ConfirmationOverlay(appContext)
+    private val screenReadFlash = ScreenReadFlashOverlay(appContext)
 
     /** Survives service teardown so end-of-call deletion always completes. */
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -178,6 +180,7 @@ class CallSessionController(
         questionGate = null
         pendingReply = null
         onActionRingColor(null)
+        screenReadFlash.dismiss()
         _state.value = CallState.READY
     }
 
@@ -197,6 +200,7 @@ class CallSessionController(
         questionGate?.complete("")
         questionGate = null
         confirmationOverlay.dismiss()
+        screenReadFlash.dismiss()
         engine = null
 
         val id = endingEngine.sessionId
@@ -321,6 +325,11 @@ class CallSessionController(
             screenshot = ScreenSnapshot.captureScreenBase64()
             screenText = ScreenSnapshot.captureScreenText()
             onCaptureChrome(false)
+            // The model reads the screen from this per-turn capture on every
+            // voice turn and usually answers without calling the read_screen
+            // tool, so this — not the engine's inject path — is the screen read
+            // the user actually sees. Flash the same "screen was read" pulse.
+            onScreenReadDone()
         }
         val userText = buildString {
             if (!screenText.isNullOrBlank()) {
@@ -410,6 +419,18 @@ class CallSessionController(
 
     override fun onPermissionRequest(marker: String) {
         reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
+    }
+
+    override fun onScreenCaptureChrome(hide: Boolean) {
+        // Never capture the pulse: drop any stale window before a capture starts.
+        if (hide) screenReadFlash.dismiss()
+        onCaptureChrome(hide)
+    }
+
+    override fun onScreenReadDone() {
+        // Only flash during an active agent turn; the engine only runs in this
+        // host's THINKING state.
+        if (_state.value == CallState.THINKING) screenReadFlash.pulse()
     }
 
     /** The agent asked a question: speak it and wait for a PTT answer. */

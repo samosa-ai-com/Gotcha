@@ -3,12 +3,14 @@ package com.gotcha.agent
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.llm.LLMClient
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -62,6 +64,7 @@ class AgentLoopTest {
             historyRepository = ChatHistoryRepository(context, "agent-loop-test-chats"),
             settingsProvider = {
                 Settings(
+                    provider = LlmProvider.OPENAI_COMPATIBLE,
                     apiKey = "test-key",
                     baseUrl = server.url("/").toString(),
                     // Keep the loop short so a scripted script that never terminates fails fast.
@@ -445,5 +448,33 @@ class AgentLoopTest {
             "the assistant reply is missing from history: ${engine.history}",
             engine.history.any { it.textContent.contains("Recorded.") }
         )
+    }
+
+    // ---- screen-read chrome events ----
+
+    /**
+     * The accessibility service is final with a private `instance` setter, so a
+     * real `read_screen` tool round cannot run in Robolectric. These tests drive
+     * the engine's injection methods directly — same code path the loop runs on
+     * a successful read — and assert the chrome-hide/restore + pulse contract.
+     * The screenshot capture itself fails in Robolectric, which is exactly the
+     * text-read-only path that must still fire `onScreenReadDone`.
+     */
+    @Test
+    fun `read_screen capture hides chrome then fires the pulse`() = runTest {
+        engine.injectReadScreenObservation()
+
+        assertEquals(listOf(true, false), events.screenCaptureChrome)
+        assertEquals(1, events.screenReadDoneCount)
+    }
+
+    @Test
+    fun `read_screen_raw capture hides chrome and fires the pulse even when the screenshot fails`() = runTest {
+        engine.injectFullResScreenshot(
+            ToolResult.ok("read_screen_raw:On-screen text\n- Test screen text")
+        )
+
+        assertEquals(listOf(true, false), events.screenCaptureChrome)
+        assertEquals(1, events.screenReadDoneCount)
     }
 }

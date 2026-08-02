@@ -3,6 +3,7 @@ package com.gotcha.agent
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.audio.AudioProvider
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.testsupport.FakeAndroidKeyStore
@@ -28,6 +29,7 @@ class ChatViewModelAutoReadTest {
         settingsRepository = SettingsRepository(application)
         settingsRepository.save(
             Settings(
+                provider = LlmProvider.OPENAI_COMPATIBLE,
                 autoReadReplies = false,
                 ttsProvider = AudioProvider.ANDROID,
                 apiKey = "test-api-key"

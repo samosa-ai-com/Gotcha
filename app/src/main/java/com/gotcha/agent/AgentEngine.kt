@@ -153,7 +153,9 @@ class AgentEngine(
                             }
                         )
                     },
-                    sessionId = sessionId?.let { "${it}_nav" }
+                    sessionId = sessionId?.let { "${it}_nav" },
+                    onCaptureChrome = { hide -> events.onScreenCaptureChrome(hide) },
+                    onScreenReadDone = { events.onScreenReadDone() }
                 )
                 val output = session.run()
                 val stepsEncoded = output.steps.joinToString("\n")
@@ -1246,17 +1248,26 @@ class AgentEngine(
      * read_screen call and injects them as a vision user message so the LLM
      * can "see" the screen alongside structured element data.
      */
-    private suspend fun injectReadScreenObservation() {
+    internal suspend fun injectReadScreenObservation() {
         android.util.Log.d(
             "ScreenCapture",
             "read_screen auto-injection: calling captureCompressedScreenshot()"
         )
         val uiTree = ScreenPerception.buildUiHierarchyText()
-        val screenshot = captureCompressedScreenshot()
+        val screenshot = try {
+            events.onScreenCaptureChrome(true)
+            delay(SCREEN_CAPTURE_SETTLE_MS) // chrome vanishes before the frame is captured
+            captureCompressedScreenshot()
+        } finally {
+            events.onScreenCaptureChrome(false)
+        }
         android.util.Log.d(
             "ScreenCapture",
             "read_screen auto-injection: screenshot=${screenshot != null}"
         )
+        // The accessibility text read happened regardless of screenshot success —
+        // signal the host so it can flash the "screen was read" feedback.
+        events.onScreenReadDone()
         if (screenshot != null) {
             val observationText = ScreenPerception.buildObservationText(screenshot, uiTree)
             val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
@@ -1282,8 +1293,16 @@ class AgentEngine(
      * Captures a full-resolution PNG screenshot after read_screen_raw,
      * saves it to the working directory, and injects it as a vision message.
      */
-    private suspend fun injectFullResScreenshot(result: ToolResult) {
-        val screenshot = captureFullResScreenshot() ?: return
+    internal suspend fun injectFullResScreenshot(result: ToolResult) {
+        val captured = try {
+            events.onScreenCaptureChrome(true)
+            delay(SCREEN_CAPTURE_SETTLE_MS)
+            captureFullResScreenshot()
+        } finally {
+            events.onScreenCaptureChrome(false)
+        }
+        events.onScreenReadDone()
+        val screenshot = captured ?: return
         val screenText = result.message.removePrefix("read_screen_raw:").take(500)
         // Save screenshot to working directory
         val savedPath = try {
@@ -1353,6 +1372,13 @@ class AgentEngine(
         }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /**
+         * How long to wait after hiding host chrome before an agent screenshot
+         * capture, so the chrome is gone from the frame. Same intent as the
+         * call host's per-user-turn CAPTURE_SETTLE_MS.
+         */
+        internal const val SCREEN_CAPTURE_SETTLE_MS = 350L
 
         /**
          * Conservative floor for the static prefix the engine sends every call
