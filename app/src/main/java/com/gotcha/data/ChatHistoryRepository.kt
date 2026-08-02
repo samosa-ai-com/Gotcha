@@ -24,7 +24,12 @@ data class ChatSession(
      */
     val displayMessages: List<UiMessage> = emptyList(),
     /** Persisted agent mode ("MONITOR"/"OPERATOR") so it survives app restarts. */
-    val agentMode: String? = null
+    val agentMode: String? = null,
+    /**
+     * Structured records of completed runs (the "share your moment" raw data),
+     * newest last. Bounded at capture time so this can't grow unbounded.
+     */
+    val runSummaries: List<RunSummary> = emptyList()
 )
 
 /**

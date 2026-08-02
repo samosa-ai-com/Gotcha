@@ -86,7 +86,7 @@ class TtsEngine(
         voice: String = "",
         language: Language = Language.ENGLISH
     ): Boolean = withContext(Dispatchers.IO) {
-        val sanitized = SpeechTextSanitizer.stripEmoji(text)
+        val sanitized = SpeechTextSanitizer.sanitize(text)
         if (sanitized.isBlank()) return@withContext true
         try {
             when {

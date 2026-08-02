@@ -1,5 +1,6 @@
 package com.gotcha.agent
 
+import com.gotcha.data.RunSummary
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -57,6 +58,13 @@ interface AgentEvents {
      * don't render a persistent transcript.
      */
     fun onHistoryReset() {}
+
+    /**
+     * A run just ended with a structured record of what it did. The host may
+     * surface a "share this moment" affordance or persist the summary. Default
+     * no-op for hosts that don't care (e.g. voice-call host).
+     */
+    fun onRunSummary(runSummary: RunSummary) {}
 
     /**
      * The host should hide/show its floating chrome (ball, call buttons) around

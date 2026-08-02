@@ -8,7 +8,9 @@ import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.GotchaStorage
+import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
+import com.gotcha.data.ToolSummary
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
@@ -73,6 +75,14 @@ class AgentEngine(
     val history = mutableListOf<ChatMessage>()
     var sessionId: String? = null
     var tokenCount: Int = 0
+
+    /**
+     * Structured records of completed runs in this session, newest last. Fed to
+     * the marketing copy LLM call for the "Share your Gotcha moment" poster.
+     * Bounded to [MAX_RUN_SUMMARIES]; restored from disk when the engine is
+     * re-bound to a saved session.
+     */
+    val runSummaries = mutableListOf<RunSummary>()
 
     /** When true, the system prompt includes a voice-call brevity reminder. */
     var callMode: Boolean = false
@@ -283,11 +293,18 @@ class AgentEngine(
                 messages = history.toList(),
                 tokenCount = tokenCount,
                 displayMessages = displayMessagesProvider(),
-                agentMode = agentModeProvider()?.name
+                agentMode = agentModeProvider()?.name,
+                runSummaries = runSummaries.toList()
             )
         )
         // Rename the chat dir in place now that the real title is known.
         setupWorkingDir()
+    }
+
+    /** Replaces the persisted run-summary list when switching to another session. */
+    fun restoreRunSummaries(saved: List<RunSummary>) {
+        runSummaries.clear()
+        runSummaries.addAll(saved)
     }
 
     private suspend fun checkAndCompactHistory(llm: LLMClient) {
@@ -385,6 +402,40 @@ class AgentEngine(
         // Delegation guard: see [consecutiveDelegationRounds] below.
         var consecutiveDelegationRounds = 0
         lastDelegatedAnswer = null
+        // Run-summary capture: what this run did, in a form the marketing
+        // poster can consume. Collected locally and emitted once at the end.
+        val runStartedAt = System.currentTimeMillis()
+        val toolSummaries = mutableListOf<ToolSummary>()
+        fun recordTool(call: ToolCall, result: ToolResult) {
+            toolSummaries += ToolSummary(
+                name = call.function.name,
+                success = result.success,
+                result = result.message.take(160)
+            )
+        }
+
+        // Called at every terminal path: builds the structured record and hands
+        // it to the host (persists into this session's runSummaries).
+        fun emitRunSummary(finalReply: String, succeeded: Boolean) {
+            val userPrompt = history.lastOrNull { it.role == "user" }?.textContent?.take(400) ?: ""
+            val summary = RunSummary(
+                startedAt = runStartedAt,
+                endedAt = System.currentTimeMillis(),
+                userPrompt = userPrompt,
+                finalReply = finalReply.take(800),
+                model = settings.model,
+                agentMode = agent.name,
+                delegated = toolSummaries.any { it.name in ToolRegistry.delegationTools },
+                succeeded = succeeded,
+                toolCalls = toolSummaries
+            )
+            runSummaries += summary
+            if (runSummaries.size > MAX_RUN_SUMMARIES) {
+                val overflow = runSummaries.size - MAX_RUN_SUMMARIES
+                repeat(overflow) { runSummaries.removeAt(0) }
+            }
+            events.onRunSummary(summary)
+        }
         repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             events.onActivity("Thinking…")
@@ -413,6 +464,7 @@ class AgentEngine(
                 val error = friendlyAgentError(e)
                 events.onUi(MessageKind.ERROR, error)
                 events.onAssistantReply(error)
+                emitRunSummary(error, succeeded = false)
                 return
             }
 
@@ -429,6 +481,7 @@ class AgentEngine(
                 val error = "The model returned an empty response."
                 events.onUi(MessageKind.ERROR, error)
                 events.onAssistantReply(error)
+                emitRunSummary(error, succeeded = false)
                 return
             }
 
@@ -453,6 +506,7 @@ class AgentEngine(
                 if (content.isNotEmpty()) {
                     events.onAssistantReply(content)
                 }
+                emitRunSummary(content, succeeded = true)
                 return
             }
 
@@ -480,6 +534,7 @@ class AgentEngine(
                                 "Do not retry automatically; tell the user to ask again when ready."
                         )
                     }
+                    recordTool(call, result)
 
                     // Special-access markers: emit the marker and continue.
                     // Runtime permissions are pre-configured in Settings — the tool
@@ -564,6 +619,7 @@ class AgentEngine(
                 history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
                 events.onUi(MessageKind.ASSISTANT, reply)
                 events.onAssistantReply(reply)
+                emitRunSummary(reply, succeeded = true)
                 saveCurrentSession()
                 return
             }
@@ -589,6 +645,7 @@ class AgentEngine(
                         "Check that the required service/permission is available, then try again."
                     events.onUi(MessageKind.ERROR, stopped)
                     events.onAssistantReply(stopped)
+                    emitRunSummary(stopped, succeeded = false)
                     return
                 }
             } else {
@@ -618,6 +675,7 @@ class AgentEngine(
                     history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
                     events.onUi(MessageKind.ASSISTANT, reply)
                     events.onAssistantReply(reply)
+                    emitRunSummary(reply, succeeded = lastDelegatedAnswer != null)
                     saveCurrentSession()
                     return
                 }
@@ -637,6 +695,7 @@ class AgentEngine(
             "to avoid running forever."
         events.onUi(MessageKind.ERROR, exhausted)
         events.onAssistantReply(exhausted)
+        emitRunSummary(exhausted, succeeded = false)
     }
 
     /**
@@ -1372,6 +1431,9 @@ class AgentEngine(
         }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /** Upper bound on persisted [RunSummary]s per session (newest wins). */
+        private const val MAX_RUN_SUMMARIES = 20
 
         /**
          * How long to wait after hiding host chrome before an agent screenshot

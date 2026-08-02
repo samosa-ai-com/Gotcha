@@ -58,6 +58,8 @@ import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
+import com.gotcha.ui.SharePosterSheet
+import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -102,6 +104,7 @@ private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = wh
     TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
 }
 
+@Suppress("LargeClass")
 class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
@@ -119,6 +122,9 @@ class MainActivity : ComponentActivity() {
 
     /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
     private var appearance by mutableStateOf(Appearance())
+
+    // ---- "Share your Gotcha moment" poster state ----
+    private val sharePoster: SharePosterState by lazy { SharePosterState(this, chatViewModel) }
 
     /**
      * ETag-style version of the legal bundle the user has accepted. Empty until
@@ -755,6 +761,14 @@ class MainActivity : ComponentActivity() {
                         onExportChat = chatViewModel::exportChat,
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
+                        },
+                        onShareMessage = { message ->
+                            chatViewModel.activeSessionRunSummaries().lastOrNull()?.let {
+                                sharePoster.open(listOf(it))
+                            }
+                        },
+                        onCreateShareCard = {
+                            sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         }
                     )
                 }
@@ -777,6 +791,20 @@ class MainActivity : ComponentActivity() {
             NotificationDetailDialog(
                 payload = payload,
                 onDismiss = { notificationPayload = null }
+            )
+        }
+
+        sharePoster.runs?.let { runs ->
+            SharePosterSheet(
+                runs = runs,
+                loading = sharePoster.loading,
+                preview = sharePoster.preview,
+                error = sharePoster.error,
+                onGenerate = sharePoster::generate,
+                onShare = { sharePoster.preview?.let { sharePoster.share(it) } },
+                onSave = { sharePoster.preview?.let { sharePoster.save(it) } },
+                onRegenerate = sharePoster::generate,
+                onDismiss = sharePoster::dismiss
             )
         }
 
