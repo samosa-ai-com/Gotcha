@@ -414,7 +414,7 @@ class SmartActionDetectorTest {
 
     /** The screen from the bug report: a PR list whose every row carries a merge timestamp. */
     private val pullRequestList = """
-        Open: github.com/<org>/Gotcha
+        Open: github.com/samosa-ai-com/Gotcha
         1 Open 30 Closed
         Rebase #53 by DevUser2 was merged Jul 26, 2026
         Feature test coverage manifest #52 by DevUser was merged Jul 26, 2026

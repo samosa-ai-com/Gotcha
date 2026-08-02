@@ -1,6 +1,6 @@
 # Running Gotcha
 
-![CI](https://github.com/<org>/Gotcha/actions/workflows/ci.yml/badge.svg?branch=master)
+![CI](https://github.com/samosa-ai-com/Gotcha/actions/workflows/ci.yml/badge.svg?branch=main)
 
 A step-by-step guide to build, run, and configure the Gotcha Android app.
 
@@ -61,11 +61,11 @@ From the project root:
 
 ### Continuous integration
 
-Every pull request and push to `master` runs the
-GitHub Actions workflow (`.github/workflows/ci.yml`): detekt → JVM unit tests →
-Android Lint → `assembleDebug`. Test and analysis reports are attached to each
-run as artifacts. The workflow can also be triggered manually from the Actions
-tab (**workflow_dispatch**) on any branch.
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs detekt → JVM unit
+tests → Android Lint → `assembleDebug`, attaching test and analysis reports to
+each run as artifacts. Automatic triggers are disabled to conserve Actions
+budget, so it runs only when started manually from the Actions tab
+(**workflow_dispatch**), on any branch.
 Detekt and lint have **no baselines** — the whole repository must pass both
 checks on every run, so any new finding fails CI immediately.
 The unit tests shell out to a POSIX `sh` (TerminalTool), so they need Linux,
