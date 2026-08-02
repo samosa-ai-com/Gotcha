@@ -171,43 +171,56 @@ fun ChatScreen(
                     // The home screen carries no actions: its top bar is the menu
                     // and the title only. Everything here belongs to an open chat.
                     if (!isHome) {
-                        // Operator can change the device, Monitor cannot. An icon
-                        // that only changes shape is not enough signal for that, so
-                        // the riskier of the two says its own name.
+                        // Operator can change the device, Monitor cannot. Both
+                        // badges name their own mode so that distinction is never
+                        // left to icon shape alone.
                         val isOperator = state.activeAgent == AgentMode.OPERATOR
-                        if (isOperator) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                shape = RoundedCornerShape(999.dp),
-                                modifier = Modifier
-                                    .padding(end = 4.dp)
-                                    .clickable(enabled = !state.isBusy, onClick = onSwitchAgent)
-                                    .testTag("agent_mode_badge")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Filled.TouchApp,
-                                        contentDescription = "Operator mode — tap to switch to Monitor",
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(
-                                        "Operator",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
+                        val badgeAccent = if (isOperator) {
+                            MaterialTheme.colorScheme.primary
                         } else {
-                            IconButton(onClick = onSwitchAgent, enabled = !state.isBusy) {
+                            MaterialTheme.colorScheme.secondary
+                        }
+                        Surface(
+                            color = if (isOperator) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            },
+                            contentColor = if (isOperator) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            },
+                            shape = RoundedCornerShape(999.dp),
+                            modifier = Modifier
+                                .padding(end = 4.dp)
+                                .shadow(
+                                    elevation = 8.dp,
+                                    shape = RoundedCornerShape(999.dp),
+                                    ambientColor = badgeAccent,
+                                    spotColor = badgeAccent
+                                )
+                                .clickable(enabled = !state.isBusy, onClick = onSwitchAgent)
+                                .testTag("agent_mode_badge")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(
-                                    Icons.Outlined.Visibility,
-                                    contentDescription = "Monitor mode — tap to switch to Operator",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    if (isOperator) Icons.Filled.TouchApp else Icons.Outlined.Visibility,
+                                    contentDescription = if (isOperator) {
+                                        "Operator mode — tap to switch to Monitor"
+                                    } else {
+                                        "Monitor mode — tap to switch to Operator"
+                                    },
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    if (isOperator) "Operator" else "Monitor",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
