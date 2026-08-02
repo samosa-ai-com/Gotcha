@@ -3,6 +3,7 @@ package com.gotcha.agent
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.llm.LLMClient
 import com.gotcha.testsupport.FakeAndroidKeyStore
@@ -63,6 +64,7 @@ class AgentLoopTest {
             historyRepository = ChatHistoryRepository(context, "agent-loop-test-chats"),
             settingsProvider = {
                 Settings(
+                    provider = LlmProvider.OPENAI_COMPATIBLE,
                     apiKey = "test-key",
                     baseUrl = server.url("/").toString(),
                     // Keep the loop short so a scripted script that never terminates fails fast.

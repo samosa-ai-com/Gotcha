@@ -20,6 +20,6 @@ enum class LlmProvider(val label: String) {
         const val SAMOSA_BASE_URL = "https://api.samosa-ai.example/v1/"
 
         fun fromName(name: String?): LlmProvider =
-            entries.firstOrNull { it.name == name } ?: OPENAI_COMPATIBLE
+            entries.firstOrNull { it.name == name } ?: SAMOSA_AI
     }
 }
