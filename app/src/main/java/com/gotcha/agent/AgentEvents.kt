@@ -57,6 +57,16 @@ interface AgentEvents {
      */
     fun onHistoryReset() {}
 
+    /**
+     * The host should hide/show its floating chrome (ball, call buttons) around
+     * an agent screenshot capture so Gotcha's own controls never appear in the
+     * frame. Default no-op for hosts that have no floating chrome to hide.
+     */
+    fun onScreenCaptureChrome(hide: Boolean) {}
+
+    /** A read_screen / read_screen_raw just finished; the host may flash "screen read" feedback. */
+    fun onScreenReadDone() {}
+
     /** Ask the user the agent's question; returns "" when unanswered. */
     suspend fun awaitQuestionAnswer(question: PendingQuestion): String
 
