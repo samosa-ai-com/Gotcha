@@ -193,7 +193,7 @@ search bar" vs "start searching manually by swiping").
 Adds "Samosa AI" as an additional LLM provider alongside the existing
 OpenAI-compatible workflow. Samosa AI authenticates with Google Sign-In (via
 Android Credential Manager + Google Identity Services) and exchanges the Google
-ID token for an `Samosa AI backend` session JWT, which is then used as the bearer
+ID token for a backend session JWT, which is then used as the bearer
 token against the OpenAI-compatible proxy at `https://api.samosa-ai.example/v1/`.
 The existing OpenAI-compatible providers (OpenAI, LocalAI, Ollama, vLLM, LM
 Studio, OpenRouter, any OpenAI-compatible server) are unchanged.
@@ -210,7 +210,7 @@ Studio, OpenRouter, any OpenAI-compatible server) are unchanged.
   `saveSamosaSession` / `clearSamosaSession`. Defaults keep existing users on the
   OpenAI-compatible flow.
 - **auth/SamosaAuthApi.kt** (new): Retrofit interface + models for the
-  auth-manager `POST /register`, `GET /me`, and `POST /logout` endpoints against
+  backend `POST /register`, `GET /me`, and `POST /logout` endpoints against
   `https://api.samosa-ai.example/`.
 - **auth/SamosaAuthManager.kt** (new): drives Google Sign-In via Credential
   Manager (WEB client ID as `serverClientId`), exchanges the Google ID token at

@@ -255,22 +255,6 @@ Before publishing to Google Play or distributing a release APK, complete this ch
   4. Edit the Android OAuth client (or create a new one)
   5. Paste the SHA-1 fingerprint
 - [ ] **Update `WEB_CLIENT_ID`** in `SamosaAuthManager.kt` if you created a new OAuth client
-- [ ] **Update `GOOGLE_CLIENT_ID`** in the backend `.env` to match the new client ID
-- [ ] **Verify backend validates `aud`** — the backend at `api.samosa-ai.example` must reject tokens not minted for your client ID (already implemented in `the backend`)
-
-### Backend environment (Samosa AI backend)
-
-- [ ] **Set strong secrets** in production `.env`:
-  ```bash
-  ***=<strong_random_hex>      # For session JWT signing
-  ***=<strong_random_hex> # For encrypting user API keys at rest
-  ***=<your_admin_key>      # For creating users on the gateway
-  ```
-- [ ] **Set `ENVIRONMENT=production`** to enforce strict security checks
-- [ ] **Disable test tokens**: ensure `***=false` (default)
-- [ ] **Configure CORS**: set `***` if needed
-- [ ] **Set database credentials**: use strong passwords for Postgres/Redis
-- [ ] **Review rate limits**: adjust `***`, `***`, `***` as needed
 
 ### Build & verify
 
@@ -308,9 +292,6 @@ Before publishing to Google Play or distributing a release APK, complete this ch
   grep -rn "sk-\|password\|secret\|token\|api_key" app/src/main/java/ --include="*.kt" | grep -v "EncryptedSharedPreferences\|SettingsRepository\|samosaSession\|SamosaAuthApi\|LLMClient"
   ```
 - [ ] **Keystore not in git**: verify `*.keystore` is in `.gitignore`
-- [ ] **Backend secrets not exposed**: ensure `.env` files are gitignored and not in Docker images
-- [ ] **Test token bypass disabled**: confirm `***=false` in production backend
-- [ ] **Admin credentials changed**: update `***` and `***` from defaults
 
 ### Post-release
 

@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 /**
  * Provider type for TTS / STT.
  * - [ANDROID]: device-native TextToSpeech / SpeechRecognizer (no network).
- * - [SAMOSA_AI]: Samosa AI backend session JWT against the Samosa `/v1/audio/`
+ * - [SAMOSA_AI]: backend session JWT against the Samosa `/v1/audio/`
  *   endpoints. No credentials to enter — the same Google Sign-In used for the
  *   LLM provider covers audio here.
  * - [API]: user-supplied OpenAI-compatible base URL + API key.

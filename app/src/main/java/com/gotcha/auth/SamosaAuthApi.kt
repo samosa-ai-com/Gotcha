@@ -36,7 +36,7 @@ data class RegisterResponse(
 )
 
 /**
- * Samosa AI backend auth endpoints (base URL https://api.samosa-ai.example/).
+ * Samosa AI auth endpoints (base URL https://api.samosa-ai.example/).
  * The OpenAI-compatible chat/model endpoints are handled by the existing
  * LLMClient against https://api.samosa-ai.example/v1/ — these are auth-only.
  */

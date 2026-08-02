@@ -25,7 +25,7 @@ sealed interface SamosaSignInResult {
 /**
  * Drives Samosa AI authentication:
  *  1. Request a Google ID token via Credential Manager (using the WEB client ID
- *     as serverClientId, per Samosa AI backend requirements).
+ *     as serverClientId, per the backend's requirements).
  *  2. Exchange it at POST /register for a session JWT.
  *  3. Persist the JWT + account email in EncryptedSharedPreferences.
  *
@@ -133,7 +133,7 @@ class SamosaAuthManager(
 
         /**
          * WEB OAuth client ID. Google mints the ID token with aud = this value,
-         * which is what Samosa AI backend verifies. Do NOT use the Android client ID.
+         * which is what the backend verifies. Do NOT use the Android client ID.
          */
         const val WEB_CLIENT_ID =
             "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"

@@ -120,7 +120,7 @@ open class NotificationApi(
     companion object {
         private const val TAG = "NotificationApi"
 
-        /** OpenAI-compatible proxy exposed by Samosa AI backend; reused as the
+        /** OpenAI-compatible proxy exposed by the Samosa AI backend; reused as the
          *  notifications host so a single network identity covers LLM/audio/notifications. */
         const val DEFAULT_BASE_URL = "https://api.samosa-ai.example"
     }

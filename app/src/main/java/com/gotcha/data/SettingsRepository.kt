@@ -10,7 +10,7 @@ data class Settings(
     val apiKey: String = "",
     val baseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
-    // Samosa AI: Samosa AI backend session JWT + connected Google account (never
+    // Samosa AI: backend session JWT + connected Google account (never
     // stores the Google ID token). Only used when provider == SAMOSA_AI.
     val samosaSessionToken: String = "",
     val samosaEmail: String = "",

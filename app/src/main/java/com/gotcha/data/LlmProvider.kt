@@ -7,7 +7,7 @@ package com.gotcha.data
  * API key (OpenAI, LocalAI, Ollama, vLLM, LM Studio, OpenRouter, any
  * OpenAI-compatible server).
  *
- * [SAMOSA_AI] authenticates with Google Sign-In and uses an Samosa AI backend
+ * [SAMOSA_AI] authenticates with Google Sign-In and uses a backend-issued
  * session JWT against the OpenAI-compatible proxy at [SAMOSA_BASE_URL]. Base URL
  * and API key are ignored in this mode.
  */
@@ -16,7 +16,7 @@ enum class LlmProvider(val label: String) {
     OPENAI_COMPATIBLE("OpenAI Compatible");
 
     companion object {
-        /** OpenAI-compatible proxy exposed by Samosa AI backend. */
+        /** OpenAI-compatible proxy exposed by the Samosa AI backend. */
         const val SAMOSA_BASE_URL = "https://api.samosa-ai.example/v1/"
 
         fun fromName(name: String?): LlmProvider =
