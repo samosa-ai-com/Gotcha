@@ -446,4 +446,83 @@ class AgentLoopTest {
             engine.history.any { it.textContent.contains("Recorded.") }
         )
     }
+
+    // ---- run summaries (the marketing-poster raw material) ----
+
+    @Test
+    fun `a successful run emits a run summary with the tool record`() = runTest {
+        val target = File(workDir, "summarized.txt")
+        enqueueToolCall("write_file", """{"path":"${target.absolutePath}","content":"hello"}""")
+        enqueueTextReply("Done.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("exactly one summary for one run", 1, events.runSummaries.size)
+        val summary = events.runSummaries.single()
+        assertTrue(summary.succeeded)
+        assertEquals(AgentMode.OPERATOR.name, summary.agentMode)
+        assertEquals("gpt-4o", summary.model)
+        assertEquals("Done.", summary.finalReply)
+        assertTrue(
+            "the executed tool must appear in the summary: ${summary.toolCalls}",
+            summary.toolCalls.any { it.name == "write_file" && it.success }
+        )
+        assertTrue("the run must have a duration", summary.endedAt >= summary.startedAt)
+    }
+
+    @Test
+    fun `the run summary records the user prompt and failed tools`() = runTest {
+        // The engine's history has the user message appended by the host before
+        // run() is called (mirrors ChatViewModel.sendMessage). Pin the title so
+        // saveCurrentSession's generateTitleIfNeeded skips its extra LLM call.
+        engine.restoreTitle("Wifi fix chat")
+        engine.history += com.gotcha.llm.ChatMessage(
+            role = "user",
+            content = kotlinx.serialization.json.JsonPrimitive("Fix my wifi please")
+        )
+        enqueueToolCall("toggle_wifi", """{}""")
+        enqueueTextReply("Could not toggle Wi-Fi directly; opened settings instead.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        val summary = events.runSummaries.single()
+        assertEquals("Fix my wifi please", summary.userPrompt)
+        assertTrue(
+            "the failed tool must be recorded as failed: ${summary.toolCalls}",
+            summary.toolCalls.any { it.name == "toggle_wifi" && !it.success }
+        )
+    }
+
+    @Test
+    fun `a failed run emits a summary marked not succeeded`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, events.runSummaries.size)
+        assertFalse(events.runSummaries.single().succeeded)
+    }
+
+    @Test
+    fun `finish_task emits a succeeded run summary`() = runTest {
+        enqueueToolCall("finish_task", """{"summary":"All done."}""")
+
+        engine.run(AgentMode.OPERATOR)
+
+        val summary = events.runSummaries.single()
+        assertTrue(summary.succeeded)
+        assertEquals("All done.", summary.finalReply)
+    }
+
+    @Test
+    fun `run summaries persist into the saved session`() = runTest {
+        enqueueToolCall("finish_task", """{"summary":"Persisted."}""")
+
+        engine.run(AgentMode.OPERATOR)
+        engine.saveCurrentSession()
+
+        val saved = ChatHistoryRepository(context, "agent-loop-test-chats").loadSession("agent-loop-test")
+        assertTrue(saved != null)
+        assertTrue("the summary must survive save/reload: ${saved!!.runSummaries}", saved.runSummaries.isNotEmpty())
+    }
 }

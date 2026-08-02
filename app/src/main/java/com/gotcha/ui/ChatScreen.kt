@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
@@ -38,6 +39,8 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,6 +77,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.agent.ChatUiState
+import com.gotcha.agent.MessageKind
+import com.gotcha.agent.UiMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
@@ -101,7 +106,9 @@ fun ChatScreen(
     onStartListening: () -> Unit = {},
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
-    onReturnToRunning: () -> Unit = {}
+    onReturnToRunning: () -> Unit = {},
+    onShareMessage: (UiMessage) -> Unit = {},
+    onCreateShareCard: () -> Unit = {}
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -220,6 +227,11 @@ fun ChatScreen(
                         IconButton(onClick = onExportChat, enabled = !state.isBusy) {
                             Icon(Icons.Default.Share, contentDescription = "Export chat")
                         }
+                        ShareCardMenu(
+                            onExportChat = onExportChat,
+                            onCreateShareCard = onCreateShareCard,
+                            enabled = !state.isBusy
+                        )
                     }
                 }
             )
@@ -275,7 +287,12 @@ fun ChatScreen(
                                 message = message,
                                 onSpeak = onSpeak,
                                 isSpeaking = state.isSpeaking,
-                                onStopSpeaking = onStopSpeaking
+                                onStopSpeaking = onStopSpeaking,
+                                onShare = if (message.kind == MessageKind.ASSISTANT) {
+                                    { onShareMessage(message) }
+                                } else {
+                                    null
+                                }
                             )
                         }
                     }
@@ -640,6 +657,40 @@ fun ChatScreen(
             },
             confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
         )
+    }
+}
+
+/**
+ * Overflow menu in the chat top bar: chat export plus the "Create share card"
+ * (whole-chat aggregation) entry point for the marketing poster.
+ */
+@Composable
+private fun ShareCardMenu(
+    onExportChat: () -> Unit,
+    onCreateShareCard: () -> Unit,
+    enabled: Boolean
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, enabled = enabled) {
+            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Export chat") },
+                onClick = {
+                    expanded = false
+                    onExportChat()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Create share card") },
+                onClick = {
+                    expanded = false
+                    onCreateShareCard()
+                }
+            )
+        }
     }
 }
 

@@ -14,6 +14,7 @@ import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
+import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
@@ -21,6 +22,9 @@ import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
+import com.gotcha.marketing.PosterRenderer
+import com.gotcha.marketing.PosterStatsBuilder
+import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.ui.ConfirmationOverlay
@@ -465,9 +469,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.history.addAll(saved.messages)
                 agentEngine.tokenCount = saved.tokenCount
                 agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
+                agentEngine.restoreRunSummaries(saved.runSummaries)
             } else {
                 agentEngine.tokenCount = 0
                 agentEngine.restoreTitle(null)
+                agentEngine.restoreRunSummaries(emptyList())
             }
             agentEngine.setupWorkingDir()
         }
@@ -849,6 +855,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.sessionId = session.id
                 agentEngine.tokenCount = session.tokenCount
                 agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
+                agentEngine.restoreRunSummaries(session.runSummaries)
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent
@@ -1063,6 +1070,53 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
         _exportContent.tryEmit(sb.toString())
     }
+
+    /**
+     * Generates the "Share your Gotcha moment" poster for [runs] (one LLM call
+     * for the copy + a deterministic on-device render). Returns the finished
+     * Bitmap, or a failure message. Safe to call from a coroutine; the render
+     * hops to the main thread internally.
+     */
+    suspend fun generateShareCard(
+        runs: List<RunSummary>,
+        includeScreenshot: Boolean = false
+    ): Result<Bitmap> = runCatching {
+        val client = ShareCardClient(getApplication(), settings)
+        val content = client.generate(runs)
+        if (!content.eligible) {
+            error("Nothing accomplished in this run to showcase yet.")
+        }
+        val stats = PosterStatsBuilder.from(runs)
+        val screenshot = if (includeScreenshot) loadShareScreenshot() else null
+        withContext(Dispatchers.Main) {
+            PosterRenderer.render(getApplication(), content, stats, screenshot)
+        }
+    }
+
+    /**
+     * Best-effort screenshot for the poster thumbnail: the newest PNG in the
+     * engine session's working dir, else a fresh screen capture, else null.
+     */
+    private fun loadShareScreenshot(): Bitmap? {
+        val dir = com.gotcha.data.GotchaStorage.subdir(
+            agentEngine.workingDir(),
+            com.gotcha.data.GotchaStorage.Kind.SCREENSHOTS
+        )
+        val newest = dir.listFiles { f -> f.isFile && f.extension.equals("png", true) }
+            ?.maxByOrNull { it.lastModified() }
+        if (newest != null) {
+            return try {
+                BitmapFactory.decodeFile(newest.absolutePath)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        return null
+    }
+
+    /** All persisted run summaries for the session currently bound to the engine. */
+    fun activeSessionRunSummaries(): List<RunSummary> =
+        agentEngine.runSummaries.toList()
 
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
     private fun appendSubAgentExport(sb: StringBuilder, text: String) {

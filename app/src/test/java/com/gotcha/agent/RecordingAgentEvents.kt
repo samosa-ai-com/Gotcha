@@ -1,5 +1,7 @@
 package com.gotcha.agent
 
+import com.gotcha.data.RunSummary
+
 /**
  * An [AgentEvents] that records what the agent loop emitted instead of driving a UI,
  * so tests can assert on the loop's externally visible behaviour.
@@ -11,6 +13,7 @@ class RecordingAgentEvents : AgentEvents {
     val assistantReplies = mutableListOf<String>()
     val permissionRequests = mutableListOf<String>()
     val confirmationRequests = mutableListOf<String>()
+    val runSummaries = mutableListOf<RunSummary>()
     var historyResets = 0
         private set
 
@@ -48,6 +51,10 @@ class RecordingAgentEvents : AgentEvents {
 
     override fun onHistoryReset() {
         historyResets++
+    }
+
+    override fun onRunSummary(runSummary: RunSummary) {
+        runSummaries += runSummary
     }
 
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String = questionAnswer
