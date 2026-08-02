@@ -198,13 +198,11 @@ object PosterRenderer {
             y += 46f
 
             // Body / screenshot / achievements. The CTA band starts 320px up
-            // from the bottom, so content above it must stop before that.
+            // from the bottom, so content above it must stop before that. A
+            // provided screenshot wins over everything else — the user opted
+            // into embedding it, so it must never be silently dropped.
             val ctaBandTop = HEIGHT_PX - 320f - CTA_PILL_H - 120f
             when {
-                content.template == "recap" && content.achievements.isNotEmpty() -> {
-                    y = drawAchievements(canvas, content.achievements, y, ctaBandTop)
-                    y += 46f
-                }
                 screenshot != null -> {
                     val sw = 460f
                     val sh = 345f
@@ -229,6 +227,10 @@ object PosterRenderer {
                     canvas.drawBitmap(screenshot, null, RectF(left, y, left + sw, y + sh), Paint(Paint.ANTI_ALIAS_FLAG))
                     canvas.restore()
                     y += sh + 40f
+                }
+                content.template == "recap" && content.achievements.isNotEmpty() -> {
+                    y = drawAchievements(canvas, content.achievements, y, ctaBandTop)
+                    y += 46f
                 }
                 content.body.isNotBlank() -> {
                     y += drawWrapped(
@@ -269,7 +271,7 @@ object PosterRenderer {
                 hashtagPaint
             )
             canvas.drawText(
-                "Built with ${stats.model.ifBlank { "an AI agent" }} · on Android",
+                "Built with Samosa AI · on Android",
                 WIDTH_PX / 2f,
                 pillTop + pillH + 132f,
                 textPaint(36f, Color.argb(180, 255, 255, 255), center = true)
@@ -344,7 +346,7 @@ object PosterRenderer {
             val chips = listOf(
                 "⚡ ${stats.durationDisplay}",
                 "🧰 ${stats.toolCount} tool" + if (stats.toolCount == 1) "" else "s",
-                "🤖 ${stats.model.take(14)}"
+                "🤖 Samosa AI"
             )
             val h = 88f
             val gap = 24f

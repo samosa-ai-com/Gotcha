@@ -47,6 +47,7 @@ fun SharePosterSheet(
     loading: Boolean,
     preview: Bitmap?,
     error: String?,
+    hasImage: Boolean,
     onGenerate: (includeScreenshot: Boolean) -> Unit,
     onShare: () -> Unit,
     onSave: () -> Unit,
@@ -74,17 +75,22 @@ fun SharePosterSheet(
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Include a screenshot", style = MaterialTheme.typography.bodyMedium)
-                    Switch(
-                        checked = includeScreenshot,
-                        onCheckedChange = { includeScreenshot = it },
-                        enabled = !loading
-                    )
+                // The screenshot toggle only makes sense when the chat history
+                // actually holds an image the poster can embed; hide it otherwise
+                // (e.g. the image was culled from the session).
+                if (hasImage) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Include a screenshot", style = MaterialTheme.typography.bodyMedium)
+                        Switch(
+                            checked = includeScreenshot,
+                            onCheckedChange = { includeScreenshot = it },
+                            enabled = !loading
+                        )
+                    }
                 }
 
                 when {

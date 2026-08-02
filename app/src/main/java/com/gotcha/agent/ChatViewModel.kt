@@ -1097,41 +1097,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
-     * Best-effort screenshot for the poster thumbnail: the newest PNG in the
-     * engine session's working dir, else a fresh screen capture, else null.
+     * Best-effort screenshot for the poster thumbnail: the newest image in the
+     * engine session's chat history (a user-attached photo or an agent screen
+     * capture), else null.
      *
-     * Guarded so a huge or malformed PNG can't OOM the decode: files over
+     * Guarded so a huge or malformed image can't OOM the decode: files over
      * [MAX_SHARE_SCREENSHOT_BYTES] are skipped, and anything larger than
      * [MAX_SHARE_SCREENSHOT_DIM] on either side is downsampled before decoding
      * (the poster draws the thumbnail at 460×345, so full-res is wasteful).
      */
     private fun loadShareScreenshot(): Bitmap? {
-        val dir = com.gotcha.data.GotchaStorage.subdir(
-            agentEngine.workingDir(),
-            com.gotcha.data.GotchaStorage.Kind.SCREENSHOTS
-        )
-        val newest = dir.listFiles { f -> f.isFile && f.extension.equals("png", true) }
-            ?.maxByOrNull { it.lastModified() }
-        if (newest != null) {
-            return try {
-                if (newest.length() > MAX_SHARE_SCREENSHOT_BYTES) return null
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(newest.absolutePath, bounds)
-                val w = bounds.outWidth
-                val h = bounds.outHeight
-                if (w <= 0 || h <= 0) return null
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = when {
-                        w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
-                        else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
-                    }
+        // Snapshot before scanning: the engine coroutine mutates history as it
+        // runs, and this is read from the UI thread. asReversed() alone is a
+        // live view, not a copy.
+        val dataUri = agentEngine.history.toList().asReversed()
+            .firstNotNullOfOrNull { it.imageUrl() }
+            ?: return null
+        val base64 = dataUri.substringAfter("base64,")
+        return try {
+            val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+            if (bytes.size > MAX_SHARE_SCREENSHOT_BYTES) return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val w = bounds.outWidth
+            val h = bounds.outHeight
+            if (w <= 0 || h <= 0) return null
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = when {
+                    w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
+                    else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
                 }
-                BitmapFactory.decodeFile(newest.absolutePath, options)
-            } catch (_: Exception) {
-                null
             }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        } catch (_: Exception) {
+            null
         }
-        return null
     }
 
     /**
@@ -1149,6 +1149,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // as it runs, and this is read from the UI thread.
         val snapshot = agentEngine.history.toList()
         return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
+    }
+
+    /**
+     * True when the session currently bound to the engine has an image in its
+     * history. Drives whether the poster sheet offers "Include a screenshot":
+     * the option only makes sense when there is something to embed, and it must
+     * disappear once the image is culled from history.
+     */
+    fun activeSessionHasImage(): Boolean {
+        // Snapshot before reading: the engine coroutine mutates history as it
+        // runs, and this is read from the UI thread.
+        return agentEngine.history.toList().any { it.hasImage }
     }
 
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
