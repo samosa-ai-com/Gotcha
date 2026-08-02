@@ -24,6 +24,7 @@ data class PendingQuestion(
  * TTS) is delegated through this interface so the engine can run inside the
  * in-app [ChatViewModel] or a background service equally well.
  */
+@Suppress("TooManyFunctions")
 interface AgentEvents {
     /** Append a message bubble to whatever transcript the host renders. */
     fun onUi(
