@@ -46,8 +46,14 @@ class ShareCardClient(
 
     /**
      * Generates poster copy for [runs]. Returns a [PosterContent] that may have
-     * [PosterContent.eligible] == false (nothing worth promoting) or fall back
-     * to [fallback] if the model's JSON is unparseable.
+     * [PosterContent.eligible] == false when [runs] is empty, or fall back to
+     * [fallback] if the model's JSON is unparseable or the model judged the
+     * digest not worth promoting.
+     *
+     * A model "eligible": false is treated like a parse failure, not a verdict:
+     * the fallback poster is deterministic and stays true to the digest, so a
+     * non-deterministic LLM can't make the share card appear to work one tap
+     * and fail the next.
      */
     suspend fun generate(runs: List<RunSummary>): PosterContent {
         if (runs.isEmpty()) return PosterContent(eligible = false)
@@ -63,7 +69,7 @@ class ShareCardClient(
             ""
         }
         val parsed = parse(content)
-        return if (parsed != null) parsed else fallback(runs)
+        return if (parsed?.eligible == true) parsed else fallback(runs)
     }
 
     private fun buildMessages(runs: List<RunSummary>): List<ChatMessage> {

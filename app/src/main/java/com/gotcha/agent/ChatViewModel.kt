@@ -1134,9 +1134,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return null
     }
 
-    /** All persisted run summaries for the session currently bound to the engine. */
-    fun activeSessionRunSummaries(): List<RunSummary> =
-        agentEngine.runSummaries.toList()
+    /**
+     * Run summaries for the session currently bound to the engine.
+     *
+     * Returns the recorded summaries when present. Chats created before the
+     * run-summary feature landed have none persisted, so fall back to
+     * [synthesizeRunSummariesFromHistory] — the same history [exportChat]
+     * reads, which keeps the share card and the export consistent.
+     */
+    fun activeSessionRunSummaries(): List<RunSummary> {
+        val recorded = agentEngine.runSummaries
+        if (recorded.isNotEmpty()) return recorded.toList()
+        // Snapshot the history before iterating: the engine coroutine mutates it
+        // as it runs, and this is read from the UI thread.
+        val snapshot = agentEngine.history.toList()
+        return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
+    }
 
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
     private fun appendSubAgentExport(sb: StringBuilder, text: String) {
@@ -1178,4 +1191,65 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
         const val MAX_SHARE_SCREENSHOT_DIM = 2048
     }
+}
+
+/**
+ * Builds one [RunSummary] per user → assistant exchange in [history], for the
+ * "Share your Gotcha moment" card when a chat predates recorded run summaries.
+ *
+ * A vision request is a plain user message, so text extraction via
+ * [ChatMessage.textContent] covers both. Each exchange starts at a "user"
+ * message and ends at the next one; the assistant text that lands in between
+ * becomes the [RunSummary.finalReply]. Exchanges with no assistant reply are
+ * skipped, so an empty or unanswered chat still yields an empty list (the
+ * share card correctly reports nothing to share).
+ */
+internal fun synthesizeRunSummariesFromHistory(
+    history: List<ChatMessage>,
+    model: String,
+    agentMode: String
+): List<RunSummary> {
+    val summaries = mutableListOf<RunSummary>()
+    var pendingPrompt: String? = null
+    var pendingReply: String? = null
+    // Original exchange times aren't in history, so every synthesized summary
+    // shares one synthetic timestamp rather than a distinct per-exchange one.
+    val synthesizedAt = System.currentTimeMillis()
+
+    fun flush() {
+        val prompt = pendingPrompt
+        val reply = pendingReply
+        if (!prompt.isNullOrBlank() && !reply.isNullOrBlank()) {
+            summaries += RunSummary(
+                startedAt = synthesizedAt,
+                endedAt = synthesizedAt,
+                userPrompt = prompt.take(400),
+                finalReply = reply.take(800),
+                model = model,
+                agentMode = agentMode,
+                delegated = false,
+                succeeded = true,
+                toolCalls = emptyList()
+            )
+        }
+        pendingPrompt = null
+        pendingReply = null
+    }
+
+    for (msg in history) {
+        when (msg.role) {
+            "user" -> {
+                flush()
+                pendingPrompt = msg.textContent.trim()
+            }
+            "assistant" -> {
+                val text = msg.textContent.trim()
+                // Only the final assistant text of the exchange matters; tool
+                // rounds between the prompt and the answer carry no copy.
+                if (text.isNotBlank()) pendingReply = text
+            }
+        }
+    }
+    flush()
+    return summaries
 }

@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -66,8 +65,7 @@ fun MessageBubble(
     message: UiMessage,
     onSpeak: (String) -> Unit = {},
     isSpeaking: Boolean = false,
-    onStopSpeaking: () -> Unit = {},
-    onShare: (() -> Unit)? = null
+    onStopSpeaking: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val isUser = message.kind == MessageKind.USER
@@ -236,19 +234,6 @@ fun MessageBubble(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        if (onShare != null) {
-                            IconButton(
-                                onClick = onShare,
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Share as poster",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = contentColor.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
                         IconButton(
                             onClick = {
                                 if (isSpeaking) {

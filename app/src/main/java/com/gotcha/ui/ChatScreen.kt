@@ -76,8 +76,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.agent.ChatUiState
-import com.gotcha.agent.MessageKind
-import com.gotcha.agent.UiMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
@@ -106,7 +104,6 @@ fun ChatScreen(
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
     onReturnToRunning: () -> Unit = {},
-    onShareMessage: (UiMessage) -> Unit = {},
     onCreateShareCard: () -> Unit = {}
 ) {
     val skin = LocalSkin.current
@@ -283,12 +280,7 @@ fun ChatScreen(
                                 message = message,
                                 onSpeak = onSpeak,
                                 isSpeaking = state.isSpeaking,
-                                onStopSpeaking = onStopSpeaking,
-                                onShare = if (message.kind == MessageKind.ASSISTANT) {
-                                    { onShareMessage(message) }
-                                } else {
-                                    null
-                                }
+                                onStopSpeaking = onStopSpeaking
                             )
                         }
                     }

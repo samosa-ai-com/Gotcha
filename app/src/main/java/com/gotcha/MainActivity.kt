@@ -762,11 +762,6 @@ class MainActivity : ComponentActivity() {
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },
-                        onShareMessage = { message ->
-                            chatViewModel.activeSessionRunSummaries().lastOrNull()?.let {
-                                sharePoster.open(listOf(it))
-                            }
-                        },
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         }
