@@ -12,7 +12,7 @@ import kotlin.math.pow
 
 /**
  * One-shot "the screen was read" pulse: an accent rounded-rect border with a
- * blurred glow that ramps in and out over ~400 ms. The owning controller removes
+ * blurred glow that ramps in and out over ~650 ms. The owning controller removes
  * the window on animation end — this view only draws. Deliberately drawn only
  * AFTER a capture has finished so it never appears in a screenshot.
  */

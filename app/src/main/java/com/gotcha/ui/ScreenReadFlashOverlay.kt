@@ -15,7 +15,7 @@ import com.gotcha.ui.theme.overlaySkin
 
 /**
  * Flashes a brief accent border around the screen after an agent screen read.
- * Fire-and-forget: [pulse] adds a non-touchable window, animates ~400 ms, then
+ * Fire-and-forget: [pulse] adds a non-touchable window, animates ~650 ms, then
  * removes it. No-op without the "Display over other apps" permission.
  */
 class ScreenReadFlashOverlay(context: Context) {
@@ -25,7 +25,6 @@ class ScreenReadFlashOverlay(context: Context) {
     private val windowManager: WindowManager
         get() = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    @Volatile
     private var view: ScreenReadFlashView? = null
     private var animator: ValueAnimator? = null
 
