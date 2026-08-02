@@ -96,6 +96,6 @@ class ScreenReadFlashOverlay(context: Context) {
     }
 
     private companion object {
-        const val PULSE_MS = 400L
+        const val PULSE_MS = 650L
     }
 }

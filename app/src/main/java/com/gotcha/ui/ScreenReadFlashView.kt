@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.view.View
 import androidx.core.graphics.ColorUtils
 import com.gotcha.ui.theme.OverlaySkin
+import kotlin.math.pow
 
 /**
  * One-shot "the screen was read" pulse: an accent rounded-rect border with a
@@ -49,8 +50,12 @@ class ScreenReadFlashView(
         if (progress <= 0f || progress >= 1f) return
         val inset = glowPaint.strokeWidth / 2f + 1f
         borderRect.set(inset, inset, width - inset, height - inset)
-        // Rise quickly, fall slowly (like a pulse), then vanish.
-        val alpha = (kotlin.math.sin(progress * kotlin.math.PI) * 255).toInt().coerceIn(0, 255)
+        // Rise fast and hold near peak so the pulse reads as a clear flash rather
+        // than a flicker: the sin wave alone only sits at full brightness for a
+        // fraction of the duration. Raising it to ^0.4 keeps it bright across
+        // most of the middle of the animation.
+        val wave = kotlin.math.sin(progress * kotlin.math.PI)
+        val alpha = (wave.pow(0.4) * 255).toInt().coerceIn(0, 255)
         borderPaint.alpha = alpha
         glowPaint.alpha = alpha
         val radius = colors.cardRadiusDp * resources.displayMetrics.density
@@ -65,9 +70,9 @@ class ScreenReadFlashView(
     internal fun glowColor(): Int = ColorUtils.setAlphaComponent(colors.accent, GLOW_ALPHA)
 
     private companion object {
-        const val BORDER_DP = 3f
-        const val GLOW_DP = 10f
-        const val GLOW_BLUR_DP = 18f
+        const val BORDER_DP = 6f
+        const val GLOW_DP = 14f
+        const val GLOW_BLUR_DP = 26f
         const val BORDER_ALPHA = 0xB0
         const val GLOW_ALPHA = 0x66
     }

@@ -325,6 +325,11 @@ class CallSessionController(
             screenshot = ScreenSnapshot.captureScreenBase64()
             screenText = ScreenSnapshot.captureScreenText()
             onCaptureChrome(false)
+            // The model reads the screen from this per-turn capture on every
+            // voice turn and usually answers without calling the read_screen
+            // tool, so this — not the engine's inject path — is the screen read
+            // the user actually sees. Flash the same "screen was read" pulse.
+            onScreenReadDone()
         }
         val userText = buildString {
             if (!screenText.isNullOrBlank()) {
