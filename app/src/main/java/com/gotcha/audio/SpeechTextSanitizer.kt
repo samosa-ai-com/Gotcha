@@ -130,10 +130,10 @@ object SpeechTextSanitizer {
     private val BOLD_ASTERISK = Regex("\\*\\*(.+?)\\*\\*")
     private val BOLD_UNDERSCORE = Regex("__(.+?)__")
     private val ITALIC_ASTERISK = Regex(
-        "(?U)(?<![\\w*])\\*(.+?)\\*(?![\\w*])"
+        "(?<![\\p{L}\\p{M}\\p{N}_*])\\*(.+?)\\*(?![\\p{L}\\p{M}\\p{N}_*])"
     )
     private val ITALIC_UNDERSCORE = Regex(
-        "(?U)(?<![\\w])_(.+?)_(?![\\w])"
+        "(?<![\\p{L}\\p{M}\\p{N}_])_(.+?)_(?![\\p{L}\\p{M}\\p{N}_])"
     )
     private val STRIKE = Regex("~~(.+?)~~")
     private val HEADING_PREFIX = Regex("^[ \\t]{0,3}#{1,6}[ \\t]+", RegexOption.MULTILINE)
@@ -145,5 +145,5 @@ object SpeechTextSanitizer {
     private val MULTI_EXCLAIM = Regex("!{2,}")
     private val MULTI_QUESTION = Regex("\\?{2,}")
     private val ELLIPSIS_UNICODE = Regex("…")
-    private val WHITESPACE_RUN = Regex("(?U)\\s+")
+    private val WHITESPACE_RUN = Regex("[\\s\\p{Z}\\u0085]+")
 }
