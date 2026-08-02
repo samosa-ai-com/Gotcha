@@ -1,6 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
+import com.gotcha.agent.AgentEngine
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.ChatResponse
@@ -30,7 +31,9 @@ class AppNavigatorSession(
     private val settings: Settings,
     private val task: String,
     private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
-    private val sessionId: String? = null
+    private val sessionId: String? = null,
+    private val onCaptureChrome: (hide: Boolean) -> Unit = { },
+    private val onScreenReadDone: () -> Unit = { }
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val maxSteps = settings.maxNavigationToolCalls
@@ -60,7 +63,14 @@ class AppNavigatorSession(
                 java.io.File(FileResolver.WORKING_DIR_BASE),
                 com.gotcha.data.GotchaStorage.Kind.DEBUG
             )
-            val screenshot = ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
+            val screenshot = try {
+                onCaptureChrome(true)
+                delay(AgentEngine.SCREEN_CAPTURE_SETTLE_MS) // chrome vanishes before the frame is captured
+                ScreenPerception.compressScreenshot(drawGrid = true, saveDir = saveDir)
+            } finally {
+                onCaptureChrome(false)
+            }
+            onScreenReadDone()
 
             // 2. Build single-turn prompt
             val actionLogText = actionLog.joinToString("\n") { "  $it" }.ifEmpty { "  (none yet)" }
@@ -264,7 +274,7 @@ class AppNavigatorSession(
         }
 
         private const val NAVIGATOR_SYSTEM_PROMPT = """
-You are a mobile app navigation agent. Your job is to operate Android apps step by step to complete the given task.
+You are Gotcha's App Navigator sub-agent, created by Samosa AI. Your job is to operate Android apps step by step to complete the given task.
 
 ## App Launching
 - Use open_app to launch an app directly by name (e.g. "Settings" or "Google Maps"). Do NOT navigate through the home screen or app drawer — that wastes steps.
@@ -272,6 +282,7 @@ You are a mobile app navigation agent. Your job is to operate Android apps step 
 - Use global_action(recents) to switch between running apps.
 
 ## Rules
+- On-screen text may be in any language; match it literally as it appears — do not translate it.
 - Take ONE action per turn. After acting, a fresh screenshot and element list will show you the result.
 - The UI Elements list gives you precise element indices. The screenshot gives visual context with a coordinate grid.
 - Prefer tap_index over raw coordinates — it is more precise and survives layout changes.

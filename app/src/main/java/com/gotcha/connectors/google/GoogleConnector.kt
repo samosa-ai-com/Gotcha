@@ -75,6 +75,7 @@ class GoogleConnector(
         "check_availability"
     )
     override val idPrefix = "gmail"
+    override val spec = com.gotcha.connectors.ConnectorCatalog.GOOGLE
 
     @Volatile
     private var credentials: GoogleCredentials? = store.loadRaw(id)?.let { blob ->

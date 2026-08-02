@@ -11,6 +11,8 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import com.gotcha.i18n.Language
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,10 +39,15 @@ sealed class SttOutcome {
 class SttEngine(
     private val context: Context,
     apiBaseUrl: String = "",
-    apiKey: String = ""
+    apiKey: String = "",
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
     // API STT state
-    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
+    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) {
+        AudioApi(apiBaseUrl, apiKey, onUnauthorized = onUnauthorized)
+    } else {
+        null
+    }
     private var currentRecorder: MediaRecorder? = null
     private var currentAudioFile: File? = null
 
@@ -61,6 +68,9 @@ class SttEngine(
     /** Latest partial result from the current recognizer segment (not yet finalized). */
     private var currentPartialResult = ""
 
+    /** Language for the current/next Android recognizer session. */
+    private var currentLanguage = Language.ENGLISH
+
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
         private set
@@ -75,7 +85,11 @@ class SttEngine(
 
     /** Set API config at runtime. */
     fun configureApi(baseUrl: String, apiKey: String) {
-        audioApi = if (baseUrl.isNotBlank()) AudioApi(baseUrl, apiKey) else null
+        audioApi = if (baseUrl.isNotBlank()) {
+            AudioApi(baseUrl, apiKey, onUnauthorized = onUnauthorized)
+        } else {
+            null
+        }
     }
 
     // ---- API STT (MediaRecorder + transcription) ----
@@ -135,8 +149,9 @@ class SttEngine(
     // ---- Android STT (SpeechRecognizer) ----
 
     /** Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening(). */
-    fun startAndroidListening(): Boolean {
+    fun startAndroidListening(language: Language = Language.ENGLISH): Boolean {
         if (isContinuousListening) return false
+        currentLanguage = language
         listenGate = CompletableDeferred<String>()
         isContinuousListening = true
         continuousTranscript.clear()
@@ -168,7 +183,8 @@ class SttEngine(
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() { Log.d(TAG, "onEndOfSpeech") }
                 override fun onError(error: Int) {
-                    Log.d(TAG, "onError: $error")
+                    val humanMsg = HumanReadableError.fromSpeechRecognizerCode(error)
+                    Log.d(TAG, "onError: $error ($humanMsg)")
                     if (error == SpeechRecognizer.ERROR_CLIENT ||
                         error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                         error == SpeechRecognizer.ERROR_SERVER
@@ -235,7 +251,7 @@ class SttEngine(
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage.bcp47)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
 
             // Prevent auto-stopping on pauses to mimic API-based continuous recording
@@ -306,7 +322,7 @@ class SttEngine(
      * its own (no stop call needed) and this returns the transcript or the
      * SpeechRecognizer error code. Used by the voice-call loop.
      */
-    suspend fun listenOnceAndroid(): SttOutcome {
+    suspend fun listenOnceAndroid(language: Language = Language.ENGLISH): SttOutcome {
         if (currentRecognizer != null || onceGate != null) {
             return SttOutcome.Error(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
         }
@@ -344,7 +360,7 @@ class SttEngine(
                 })
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault())
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.bcp47)
                 }
                 recognizer.startListening(intent)
             } catch (_: Exception) {
@@ -363,11 +379,11 @@ class SttEngine(
     // ---- Provider-agnostic PTT ----
 
     /** Start listening with the current provider. Returns false on failure. */
-    fun startListening(provider: AudioProvider): Boolean {
-        return when (provider) {
-            AudioProvider.ANDROID -> startAndroidListening()
-            AudioProvider.API -> startRecording()
-            AudioProvider.NONE -> false
+    fun startListening(provider: AudioProvider, language: Language = Language.ENGLISH): Boolean {
+        return when {
+            provider == AudioProvider.ANDROID -> startAndroidListening(language)
+            provider.isApiBased() -> startRecording()
+            else -> false
         }
     }
 
@@ -380,8 +396,8 @@ class SttEngine(
         model: String,
         language: String = ""
     ): Result<String> {
-        return when (provider) {
-            AudioProvider.ANDROID -> {
+        return when {
+            provider == AudioProvider.ANDROID -> {
                 val text = stopAndroidListening()
                 if (text.isBlank()) {
                     Result.failure(Exception("No speech detected"))
@@ -389,14 +405,14 @@ class SttEngine(
                     Result.success(text)
                 }
             }
-            AudioProvider.API -> {
+            provider.isApiBased() -> {
                 val file = stopRecording()
                 if (file == null) {
                     return Result.failure(Exception("Recording failed"))
                 }
                 transcribeApi(file, model, language)
             }
-            AudioProvider.NONE -> Result.failure(Exception("STT not configured"))
+            else -> Result.failure(Exception("STT not configured"))
         }
     }
 
@@ -405,8 +421,8 @@ class SttEngine(
      * Safe to call from any thread.
      */
     fun cancelListening(provider: AudioProvider) {
-        when (provider) {
-            AudioProvider.ANDROID -> {
+        when {
+            provider == AudioProvider.ANDROID -> {
                 isContinuousListening = false
                 currentPartialResult = ""
                 onceGate?.complete(SttOutcome.Error(ERROR_CANCELLED))
@@ -421,7 +437,7 @@ class SttEngine(
                     currentRecognizer = null
                 }
             }
-            AudioProvider.API -> {
+            provider.isApiBased() -> {
                 try {
                     currentRecorder?.apply {
                         stop()
@@ -431,7 +447,7 @@ class SttEngine(
                 currentRecorder = null
                 currentAudioFile = null
             }
-            AudioProvider.NONE -> {}
+            else -> {}
         }
     }
 

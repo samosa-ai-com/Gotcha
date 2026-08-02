@@ -11,7 +11,7 @@ object ToolCategories {
     private val foregroundTools = setOf(
         "tap", "tap_index", "long_press", "long_press_index",
         "swipe", "input_text", "press_key",
-        "global_action", "open_app",
+        "global_action", "open_app", "open_setting",
         "read_screen", "read_screen_raw",
         "navigate_app", "task",
         "dial_number", "compose_email", "show_alarms"

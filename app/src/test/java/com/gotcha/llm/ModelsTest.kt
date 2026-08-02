@@ -3,9 +3,12 @@ package com.gotcha.llm
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -76,6 +79,37 @@ class ModelsTest {
     fun `visionUserMessage falls back to a default prompt for blank text`() {
         val msg = visionUserMessage("  ", "QUJD")
         assertEquals("What is in this image?", msg.textContent)
+    }
+
+    @Test
+    fun `hasImage is true for vision messages and imageUrl returns the data uri`() {
+        val msg = visionUserMessage("look", "QUJD", imageFormat = "jpeg")
+        assertTrue(msg.hasImage)
+        assertEquals("data:image/jpeg;base64,QUJD", msg.imageUrl())
+    }
+
+    @Test
+    fun `hasImage is false and imageUrl null for text-only messages`() {
+        assertFalse(ChatMessage(role = "user", content = JsonPrimitive("hi")).hasImage)
+        assertNull(ChatMessage(role = "user", content = JsonPrimitive("hi")).imageUrl())
+        assertNull(ChatMessage(role = "assistant", content = null).imageUrl())
+    }
+
+    @Test
+    fun `imageUrl returns null when the content array has no image part`() {
+        val msg = ChatMessage(
+            role = "user",
+            content = buildJsonArray {
+                add(
+                    buildJsonObject {
+                        put("type", "text")
+                        put("text", "no image here")
+                    }
+                )
+            }
+        )
+        assertFalse(msg.hasImage)
+        assertNull(msg.imageUrl())
     }
 
     @Test
@@ -169,5 +203,27 @@ class ModelsTest {
         )
         assertEquals(original, decoded)
         assertEquals(2, decoded.content!!.jsonArray.size)
+    }
+
+    @Test
+    fun `ModelInfo parses provider_type and task hints`() {
+        val decoded = json.decodeFromString(
+            ModelListResponse.serializer(),
+            """
+            {
+              "data": [
+                {"id": "gpt-4o", "provider_type": "llm"},
+                {"id": "kokoro-82m", "task": "text-to-speech"},
+                {"id": "plain-model"}
+              ]
+            }
+            """.trimIndent()
+        )
+        assertEquals(3, decoded.data.size)
+        assertEquals("gpt-4o", decoded.data[0].id)
+        assertEquals("llm", decoded.data[0].providerType)
+        assertEquals("text-to-speech", decoded.data[1].task)
+        assertNull(decoded.data[2].providerType)
+        assertNull(decoded.data[2].task)
     }
 }

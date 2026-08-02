@@ -158,7 +158,6 @@ class GotchaAccessibilityService : AccessibilityService() {
      */
     @RequiresApi(Build.VERSION_CODES.R)
     suspend fun takeScreenshotBitmap(): Bitmap? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         return suspendCancellableCoroutine { cont ->
             try {
                 takeScreenshot(
@@ -188,9 +187,47 @@ class GotchaAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * The node tree of the app we are looking *at*, which is not always
+     * [rootInActiveWindow].
+     *
+     * Lens adds a full-screen overlay and only then asks what is on screen. That
+     * window is focusable, so it becomes the active one, and
+     * `rootInActiveWindow` starts returning our own canvas — a bare custom View
+     * with no text anywhere in it. Everything downstream then behaves as though
+     * the screen were empty: no Select chip, no contextual actions, no action
+     * menu. It reproduced identically on two emulators and a Nothing Phone 3a,
+     * and looked for a long time like a bug in the text extraction itself.
+     *
+     * Callers own the returned node and must recycle it, as before.
+     */
+    private fun hostRoot(): AccessibilityNodeInfo? {
+        val candidates = runCatching { windows }.getOrNull().orEmpty()
+        var best: AccessibilityNodeInfo? = null
+        var bestLayer = Int.MIN_VALUE
+        for (window in candidates) {
+            // The window *type* is the discriminator, not the package. Our
+            // overlays are added as TYPE_APPLICATION_OVERLAY and surface here as
+            // TYPE_SYSTEM, alongside the status bar; the app underneath is the
+            // only TYPE_APPLICATION. Filtering by package instead looks right
+            // until Lens is used on Gotcha itself, at which point it throws away
+            // the host too.
+            if (window.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION) continue
+            val root = window.root ?: continue
+            if (window.layer <= bestLayer) {
+                root.recycle()
+                continue
+            }
+            best?.recycle()
+            best = root
+            bestLayer = window.layer
+        }
+        return best ?: rootInActiveWindow
+    }
+
     /** Recursively collect visible, non-blank text/content-descriptions from the active window. */
     fun dumpScreenText(limit: Int = 200): List<String> {
-        val root = rootInActiveWindow ?: return emptyList()
+        val root = hostRoot() ?: return emptyList()
         val out = ArrayList<String>()
         collectText(root, out, limit)
         root.recycle()
@@ -215,7 +252,7 @@ class GotchaAccessibilityService : AccessibilityService() {
      * inside the user's selection without OCR. Returns joined text or null.
      */
     fun dumpTextInRegion(regionInScreen: android.graphics.Rect, limit: Int = 60): String? {
-        val root = rootInActiveWindow ?: return null
+        val root = hostRoot() ?: return null
         val out = ArrayList<String>()
         collectTextInRegion(root, regionInScreen, out, limit)
         root.recycle()
@@ -231,7 +268,12 @@ class GotchaAccessibilityService : AccessibilityService() {
         if (node == null || out.size >= limit) return
         val bounds = android.graphics.Rect()
         node.getBoundsInScreen(bounds)
-        if (android.graphics.Rect.intersects(bounds, region)) {
+        // Only text that actually lives inside the selection: a node must be
+        // substantially within the region, not merely touching it. A bare
+        // Rect.intersects would pull in the full text of any wide block or
+        // container that overlaps the selection by a single pixel, which made
+        // the extracted-text card read like the whole screen.
+        if (substantiallyInside(bounds, region)) {
             val text = node.text?.toString()?.trim()
             val desc = node.contentDescription?.toString()?.trim()
             if (!text.isNullOrEmpty()) {
@@ -242,6 +284,14 @@ class GotchaAccessibilityService : AccessibilityService() {
             collectTextInRegion(node.getChild(i), region, out, limit)
         }
     }
+
+    /**
+     * True when [bounds] is mostly inside [region]: the intersection must cover
+     * at least [REGION_TEXT_COVERAGE] of the node's own area. This keeps the
+     * "Extracted Text" card scoped to the selected area.
+     */
+    internal fun substantiallyInside(bounds: android.graphics.Rect, region: android.graphics.Rect): Boolean =
+        Companion.substantiallyInside(bounds, region, REGION_TEXT_COVERAGE)
 
     /**
      * Grow [region] (screen pixels) to include any UI element it substantially
@@ -255,7 +305,7 @@ class GotchaAccessibilityService : AccessibilityService() {
         region: android.graphics.Rect,
         coverage: Float = 0.6f
     ): android.graphics.Rect {
-        val root = rootInActiveWindow ?: return region
+        val root = hostRoot() ?: return region
         val result = android.graphics.Rect(region)
         val regionArea = region.width().toLong() * region.height().toLong()
         accumulateSnap(root, region, regionArea, coverage, result)
@@ -309,8 +359,8 @@ class GotchaAccessibilityService : AccessibilityService() {
      * runs SmartActionDetector.detectAll, and constructs union bounding boxes for every entity.
      */
     fun extractScreenEntitiesWithBounds(): List<AnnotatedEntity> {
-        val root = rootInActiveWindow ?: return emptyList()
-        val nodes = mutableListOf<Pair<String, android.graphics.Rect>>()
+        val root = hostRoot() ?: return emptyList()
+        val nodes = mutableListOf<ScreenTextNode>()
 
         fun findValidBounds(node: AccessibilityNodeInfo): android.graphics.Rect? {
             var curr: AccessibilityNodeInfo? = node
@@ -327,11 +377,18 @@ class GotchaAccessibilityService : AccessibilityService() {
 
         fun walk(node: AccessibilityNodeInfo?) {
             if (node == null) return
-            val txt = (node.text?.toString() ?: node.contentDescription?.toString())?.trim()
-            if (!txt.isNullOrBlank()) {
-                val rect = findValidBounds(node)
-                if (rect != null) {
-                    nodes.add(Pair(txt, rect))
+            val visible = node.text?.toString()?.trim()
+            val described = node.contentDescription?.toString()?.trim()
+            val rect = if (!visible.isNullOrBlank() || !described.isNullOrBlank()) findValidBounds(node) else null
+            if (rect != null) {
+                if (!visible.isNullOrBlank()) nodes.add(ScreenTextNode(visible, rect, derived = false))
+                // Both are kept when they disagree, rather than `text ?: description`.
+                // A node that *renders* "3 hours ago" while *describing* itself as
+                // "Jul 26, 2026" is a formatted-timestamp widget telling us so, and
+                // collapsing the two threw that signal away. Anything found only in
+                // the description is marked so ranking can weigh it lower.
+                if (!described.isNullOrBlank() && !described.equals(visible, ignoreCase = true)) {
+                    nodes.add(ScreenTextNode(described, rect, derived = !visible.isNullOrBlank()))
                 }
             }
             for (i in 0 until node.childCount) {
@@ -345,37 +402,109 @@ class GotchaAccessibilityService : AccessibilityService() {
         if (nodes.isEmpty()) return emptyList()
 
         val fullTextBuilder = StringBuilder()
-        val nodeRanges = mutableListOf<Pair<IntRange, android.graphics.Rect>>()
-        for ((txt, rect) in nodes) {
+        val nodeRanges = mutableListOf<Pair<IntRange, ScreenTextNode>>()
+        for (node in nodes) {
             val startIdx = fullTextBuilder.length
-            fullTextBuilder.append(txt).append("\n")
+            fullTextBuilder.append(node.text).append("\n")
             val endIdx = fullTextBuilder.length
-            nodeRanges.add(Pair(startIdx..endIdx, rect))
+            nodeRanges.add(Pair(startIdx..endIdx, node))
         }
 
         val fullText = fullTextBuilder.toString()
-        val entities = SmartActionDetector.detectAll(fullText, allowChat = false)
-        val annotated = mutableListOf<AnnotatedEntity>()
+        val settings = runCatching { com.gotcha.data.SettingsRepository(applicationContext).load() }.getOrNull()
+        val prefCurr = settings?.preferredCurrency ?: "USD"
+        val prefLang = settings?.preferredLanguage ?: "English"
+        val entities = SmartActionDetector.detectAll(
+            fullText,
+            allowChat = false,
+            targetCurrency = prefCurr,
+            targetLanguage = prefLang
+        )
+        val placeable = discardOversizedBounds(locateEntities(entities, nodeRanges))
+        val selected = SmartActionDetector.selectForAnnotation(placeable.map { it.entity })
+        // Matched by identity, not equality: selection hands back the very objects
+        // it was given, and two genuinely distinct detections can compare equal.
+        return selected.mapNotNull { candidate ->
+            val bounds = placeable.firstOrNull { it.entity === candidate.entity }?.boundsOnScreen
+                ?: return@mapNotNull null
+            AnnotatedEntity(candidate.entity, bounds, candidate.members)
+        }
+    }
 
+    /**
+     * Map each entity onto the union of the bounds of the nodes its span covers.
+     *
+     * An entity that turned up *only* in nodes' contentDescriptions is weighted
+     * down rather than dropped: that it was never rendered as text is a reason to
+     * doubt it, not proof it is wrong.
+     */
+    private fun locateEntities(
+        entities: List<DetectedEntity>,
+        nodeRanges: List<Pair<IntRange, ScreenTextNode>>
+    ): List<AnnotatedEntity> {
+        val located = mutableListOf<AnnotatedEntity>()
         for (entity in entities) {
             val unionRect = android.graphics.Rect()
             var count = 0
-            for ((range, rect) in nodeRanges) {
-                if (range.first <= entity.span.last && entity.span.first <= range.last) {
-                    if (count == 0) {
-                        unionRect.set(rect)
-                    } else {
-                        unionRect.union(rect)
-                    }
-                    count++
-                }
+            var derivedOnly = true
+            for ((range, node) in nodeRanges) {
+                if (range.first > entity.span.last || entity.span.first > range.last) continue
+                if (count == 0) unionRect.set(node.bounds) else unionRect.union(node.bounds)
+                if (!node.derived) derivedOnly = false
+                count++
             }
-            if (count > 0 && unionRect.width() > 0 && unionRect.height() > 0) {
-                annotated.add(AnnotatedEntity(entity, unionRect))
+            if (count == 0 || unionRect.width() <= 0 || unionRect.height() <= 0) continue
+            // A date nobody can see is a formatted timestamp. Every other type
+            // survives on a description alone — a phone number read out to a
+            // screen reader is still a phone number — but a node rendering
+            // "10 hours ago" while describing itself as a date is the one case
+            // where the description exists precisely because the value is not an
+            // event. Tense catches these once they are a day old; this catches
+            // them while they are still today.
+            if (derivedOnly && entity.type == EntityType.CALENDAR) continue
+            val weighted = if (derivedOnly) {
+                entity.copy(confidence = entity.confidence * SmartActionDetector.DERIVED_TEXT_CONFIDENCE_SCALE)
+            } else {
+                entity
+            }
+            located.add(AnnotatedEntity(weighted, unionRect))
+        }
+        return located
+    }
+
+    /**
+     * Drop annotations whose bounds are too big to mean anything.
+     *
+     * `findValidBounds` climbs to a parent when a text node is smaller than 10px,
+     * which for a compact timestamp can walk all the way up to the list container
+     * — so the "annotation" is a box around the entire feed. Two things give that
+     * away without knowing the app: it covers most of the screen, or it wholly
+     * contains another annotation's bounds.
+     */
+    private fun discardOversizedBounds(items: List<AnnotatedEntity>): List<AnnotatedEntity> {
+        if (items.size <= 1) return items
+        val metrics = resources.displayMetrics
+        val screenArea = metrics.widthPixels.toLong() * metrics.heightPixels.toLong()
+        val maxArea = (screenArea * SmartActionDetector.MAX_ANNOTATION_SCREEN_FRACTION).toLong()
+
+        return items.filter { item ->
+            val bounds = item.boundsOnScreen
+            val area = bounds.width().toLong() * bounds.height().toLong()
+            if (screenArea > 0 && area > maxArea) return@filter false
+            items.none { other ->
+                other !== item &&
+                    bounds.contains(other.boundsOnScreen) &&
+                    bounds != other.boundsOnScreen
             }
         }
-        return annotated
     }
+
+    /** One piece of text on screen, and whether it came from a node's description rather than its label. */
+    private data class ScreenTextNode(
+        val text: String,
+        val bounds: android.graphics.Rect,
+        val derived: Boolean
+    )
 
     fun longPressByText(query: String): Boolean {
         val root = rootInActiveWindow ?: return false
@@ -466,7 +595,6 @@ class GotchaAccessibilityService : AccessibilityService() {
         gesture(x1, y1, x2, y2, durationMs)
 
     private fun gesture(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
         val path = Path().apply {
             moveTo(x1, y1)
             lineTo(x2, y2)
@@ -484,8 +612,7 @@ class GotchaAccessibilityService : AccessibilityService() {
             "recents", "recent_apps" -> GLOBAL_ACTION_RECENTS
             "notifications" -> GLOBAL_ACTION_NOTIFICATIONS
             "quick_settings" -> GLOBAL_ACTION_QUICK_SETTINGS
-            "lock_screen" ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) GLOBAL_ACTION_LOCK_SCREEN else -1
+            "lock_screen" -> GLOBAL_ACTION_LOCK_SCREEN
             else -> -1
         }
         return if (code >= 0) performGlobalAction(code) else false
@@ -501,6 +628,32 @@ class GotchaAccessibilityService : AccessibilityService() {
         @Volatile
         var lastClipboardData: ClipData? = null
             internal set
+
+        /**
+         * Fraction of a node's own area that must fall inside the Lens selection
+         * for its text to be included (see [substantiallyInside]). Mirrors the
+         * snap-to-element coverage so the extracted text matches the selection.
+         */
+        private const val REGION_TEXT_COVERAGE = 0.5f
+
+        /**
+         * Pure geometric helper exposed for tests. True when [bounds] is mostly
+         * inside [region]: the intersection must cover at least [coverage] of
+         * the node's own area. Kept on the companion so unit tests can pin the
+         * threshold without instantiating the service.
+         */
+        internal fun substantiallyInside(
+            bounds: android.graphics.Rect,
+            region: android.graphics.Rect,
+            coverage: Float = REGION_TEXT_COVERAGE
+        ): Boolean {
+            if (bounds.isEmpty || bounds.width() <= 0 || bounds.height() <= 0) return false
+            val inter = android.graphics.Rect(bounds)
+            if (!inter.intersect(region)) return false
+            val nodeArea = bounds.width().toLong() * bounds.height().toLong()
+            val interArea = inter.width().toLong() * inter.height().toLong()
+            return interArea >= nodeArea * coverage
+        }
     }
 
     /** Register a clipboard listener to cache clipboard content. */

@@ -2,6 +2,10 @@ package com.gotcha.tools
 
 import android.content.Context
 import android.util.Log
+import com.gotcha.agent.AgentEngine
+import com.gotcha.agent.skills.SkillPromptBuilder
+import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
@@ -49,14 +53,15 @@ class SubAgentSession(
         val history = initialHistory()
 
         val maxRounds = settings.maxToolRounds
-        val subAgentTools = ToolRegistry.toolsForSubAgent()
+        val hiddenTools = hiddenTools()
+        val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
 
         for (round in 0 until maxRounds) {
             Log.d(TAG, "Sub-agent round ${round + 1}/$maxRounds")
 
             val messages = buildList {
                 addAll(history)
-                addAll(activeSkillsMessages(settings.disabledSkills))
+                addAll(activeSkillsMessages(history, settings.disabledSkills, hiddenTools))
             }
 
             val response = try {
@@ -123,7 +128,13 @@ class SubAgentSession(
                 }
 
                 val result = try {
-                    toolExecutor.execute(call.function.name, args, AgentMode.OPERATOR, isSubAgent = true)
+                    toolExecutor.execute(
+                        call.function.name,
+                        args,
+                        AgentMode.OPERATOR,
+                        isSubAgent = true,
+                        hiddenTools = hiddenTools
+                    )
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Throwable) {
@@ -166,7 +177,7 @@ class SubAgentSession(
         val systemMsg = ChatMessage(
             role = "system",
             content = JsonPrimitive(
-                "You are General, a general-purpose AI agent running on the user's Android phone. " +
+                "You are Gotcha's General sub-agent, created by Samosa AI running on the user's Android phone. " +
                     "You have access to all device tools. " +
                     "Your job is to complete the task delegated to you. " +
                     "Use the available tools to perform the required steps. " +
@@ -175,14 +186,20 @@ class SubAgentSession(
                     "operational instructions.\n" +
                     "When you have fully completed the task and have the final answer, " +
                     "call the ask_final_answer tool with your complete result. " +
-                    "Do NOT call ask_final_answer until all work is actually done."
+                    "Do NOT call ask_final_answer until all work is actually done.\n\n" +
+                    "Respond to the user in ${settings.preferredLanguage}. If the user writes " +
+                    "to you in a different language, reply in that language instead.\n" +
+                    "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
+                    "app names, search queries passed to tools, and shell commands — regardless of " +
+                    "the language you are replying in."
             )
         )
         val userMsg = ChatMessage(
             role = "user",
             content = JsonPrimitive(prompt)
         )
-        activeTokenCount = (systemMsg.textContent.length + userMsg.textContent.length) / 4
+        activeTokenCount = (systemMsg.textContent.length + userMsg.textContent.length) / 4 +
+            AgentEngine.PROMPT_OVERHEAD_TOKENS
         return mutableListOf(systemMsg, userMsg)
     }
 
@@ -248,7 +265,10 @@ class SubAgentSession(
                         content = JsonPrimitive("[Context compacted]\n$summary")
                     )
                 )
-                activeTokenCount = history.sumOf { it.textContent.length / 4 }
+                // Keep the units consistent with what the API would report on the
+                // next round: history length plus the static prompt prefix.
+                activeTokenCount = history.sumOf { it.textContent.length / 4 } +
+                    AgentEngine.PROMPT_OVERHEAD_TOKENS
             }
         } catch (e: CancellationException) {
             throw e
@@ -258,23 +278,30 @@ class SubAgentSession(
         }
     }
 
-    private fun activeSkillsMessages(disabledSkills: Set<String>): List<ChatMessage> {
-        val currentPackage = com.gotcha.tools.ScreenPerception.getCurrentPackageName() ?: return emptyList()
-        val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
+    /**
+     * Sub-agents inherit the parent's gating: no point paying for schemas of
+     * tools nothing can serve, once per round, again.
+     */
+    private fun hiddenTools(): Set<String> =
+        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
+            DeviceCapabilities.hiddenToolNames(appContext)
+
+    private fun activeSkillsMessages(
+        history: List<ChatMessage>,
+        disabledSkills: Set<String>,
+        hiddenTools: Set<String>
+    ): List<ChatMessage> {
+        val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools)
             .filter { !disabledSkills.contains(it.id) }
-
-        if (activeSkills.isEmpty()) return emptyList()
-
-        val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
-        return listOf(
-            ChatMessage(
-                role = "system",
-                content = JsonPrimitive(
-                    "<active-skills>\nThe user is currently using $currentPackage. " +
-                        "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
-                )
-            )
-        )
+        val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
+        val message = SkillPromptBuilder.buildFromHistory(
+            currentPackage = currentPackage,
+            activeSkills = activeSkills,
+            communityIds = communityIds,
+            history = history
+        ) ?: return emptyList()
+        return listOf(message)
     }
 
     private companion object {

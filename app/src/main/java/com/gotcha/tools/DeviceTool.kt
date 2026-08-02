@@ -14,7 +14,15 @@ import android.os.VibratorManager
 
 class DeviceTool(private val context: Context) {
 
-    /** Turn the camera flash on or off. No permission needed for CameraManager.setTorchMode. */
+    /**
+     * Turn the camera flash on or off. No permission needed for CameraManager.setTorchMode.
+     *
+     * Unlike the other device tools this does *not* report a previous state.
+     * `CameraManager` has no synchronous torch getter — the only way to read it is
+     * `registerTorchCallback`, which delivers asynchronously on a handler thread.
+     * The point of prior-state reporting is to surface changes the user cannot
+     * observe, and a flashlight is the one change here they always can.
+     */
     fun toggleTorch(on: Boolean, durationSeconds: Int?): ToolResult {
         return try {
             val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -121,8 +129,9 @@ class DeviceTool(private val context: Context) {
         }
         return try {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val previous = ringerLabel(am.ringerMode)
             am.ringerMode = ringerMode
-            ToolResult.ok("Ringer set to ${mode.lowercase().trim()}.")
+            ToolResult.ok("Ringer $previous → ${mode.lowercase().trim()}.")
         } catch (_: SecurityException) {
             ToolResult.permissionNeeded(
                 ToolResult.DND_ACCESS,
@@ -196,6 +205,7 @@ class DeviceTool(private val context: Context) {
         }
         return try {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val wasOn = nm.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
             nm.setInterruptionFilter(
                 if (enabled) {
                     NotificationManager.INTERRUPTION_FILTER_PRIORITY
@@ -203,10 +213,19 @@ class DeviceTool(private val context: Context) {
                     NotificationManager.INTERRUPTION_FILTER_ALL
                 }
             )
-            ToolResult.ok("Do Not Disturb turned ${if (enabled) "on" else "off"}.")
+            ToolResult.ok(
+                "Do Not Disturb ${if (wasOn) "on" else "off"} → ${if (enabled) "on" else "off"}."
+            )
         } catch (e: Exception) {
             ToolResult.error("Could not change Do Not Disturb: ${e.message}")
         }
+    }
+
+    private fun ringerLabel(mode: Int): String = when (mode) {
+        AudioManager.RINGER_MODE_NORMAL -> "normal"
+        AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+        AudioManager.RINGER_MODE_SILENT -> "silent"
+        else -> "unknown"
     }
 
     private fun hasDndAccess(): Boolean {

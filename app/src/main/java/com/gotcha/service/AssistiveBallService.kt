@@ -11,12 +11,15 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import com.gotcha.MainActivity
+import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -107,8 +110,8 @@ class AssistiveBallService : Service() {
         instance = this
         settingsRepository = SettingsRepository(this)
         val s = settingsRepository.load()
-        ttsEngine = TtsEngine(this, s.ttsApiBaseUrl, s.effectiveTtsApiKey)
-        sttEngine = SttEngine(this, s.sttApiBaseUrl, s.effectiveSttApiKey)
+        ttsEngine = TtsEngine(this, s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
+        sttEngine = SttEngine(this, s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         callController = CallSessionController(
             appContext = applicationContext,
             scope = scope,
@@ -211,7 +214,12 @@ class AssistiveBallService : Service() {
         scope.launch {
             try {
                 val compressed = if (attachScreenshot) {
-                    com.gotcha.tools.ScreenPerception.compressScreenshot(maxDimension = 1024, quality = 85)
+                    showingActivity(com.gotcha.ui.BallActivity.ACTING) {
+                        com.gotcha.tools.ScreenPerception.compressScreenshot(
+                            maxDimension = 1024,
+                            quality = 85
+                        )
+                    }
                 } else {
                     null
                 }
@@ -232,7 +240,9 @@ class AssistiveBallService : Service() {
                 )
                 history.add(userMsg)
 
-                val response = llmClient.chat(history.toList())
+                val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                    llmClient.chat(history.toList())
+                }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                 history.add(
                     com.gotcha.llm.ChatMessage(
@@ -242,7 +252,7 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
+                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
             }
         }
     }
@@ -257,7 +267,9 @@ class AssistiveBallService : Service() {
         overlay.isPanelOpen = true
         screenCompanionPanel.updateResponse("Fetching $url …")
         scope.launch {
-            val fetched = withContext(Dispatchers.IO) { webFetchTool.fetch(url, "text") }
+            val fetched = showingActivity(com.gotcha.ui.BallActivity.ACTING) {
+                withContext(Dispatchers.IO) { webFetchTool.fetch(url, "text") }
+            }
             if (!fetched.success) {
                 screenCompanionPanel.updateResponse("Couldn't fetch the link: ${fetched.message}")
                 return@launch
@@ -282,14 +294,16 @@ class AssistiveBallService : Service() {
                         )
                     )
                 )
-                val response = llmClient.chat(history.toList())
+                val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                    llmClient.chat(history.toList())
+                }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                 history.add(
                     com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
+                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
             }
         }
     }
@@ -403,6 +417,40 @@ class AssistiveBallService : Service() {
      * an Android system intent — navigate on a map, open the dialer, or create a
      * calendar event. Failures are surfaced on the ball's error card.
      */
+    /**
+     * Build the "new event" intent from a `yyyy-MM-dd|HH:mm|title` payload.
+     *
+     * The date has to be resolved before it gets here: handed the words "Monday"
+     * or "Jul 26", a calendar app has nothing to resolve them against and drops
+     * the event on today. A payload with no parseable date — anything encoded
+     * before this format existed — still opens the composer with a title, which
+     * is what the old behaviour was.
+     */
+    private fun calendarInsertIntent(payload: String): Intent {
+        val parts = payload.split(SmartActionDetector.PAYLOAD_SEP, limit = CALENDAR_PAYLOAD_FIELDS)
+        val title = parts.getOrNull(2)?.takeIf { it.isNotBlank() } ?: payload
+        return Intent(Intent.ACTION_INSERT).apply {
+            data = android.provider.CalendarContract.Events.CONTENT_URI
+            putExtra(android.provider.CalendarContract.Events.TITLE, title)
+
+            val date = parts.getOrNull(0)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+                ?: return@apply
+            val time = parts.getOrNull(1)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { runCatching { java.time.LocalTime.parse(it) }.getOrNull() }
+
+            val start = if (time != null) date.atTime(time) else date.atStartOfDay()
+            val beginMs = start.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val durationMs = if (time != null) DEFAULT_EVENT_DURATION_MS else DAY_MS
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, beginMs)
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, beginMs + durationMs)
+            // A day with no clock time is an all-day event, not one starting at midnight.
+            putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, time == null)
+        }
+    }
+
     private fun handleNativeAction(prompt: String) {
         val decoded = SmartActionDetector.decode(prompt) ?: return
         val (type, payload) = decoded
@@ -412,11 +460,7 @@ class AssistiveBallService : Service() {
                     Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(payload)))
                 SmartActionDetector.TYPE_DIAL ->
                     Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + android.net.Uri.encode(payload)))
-                SmartActionDetector.TYPE_CALENDAR ->
-                    Intent(Intent.ACTION_INSERT).apply {
-                        data = android.provider.CalendarContract.Events.CONTENT_URI
-                        putExtra(android.provider.CalendarContract.Events.TITLE, payload)
-                    }
+                SmartActionDetector.TYPE_CALENDAR -> calendarInsertIntent(payload)
                 SmartActionDetector.TYPE_SMS ->
                     Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("smsto:" + android.net.Uri.encode(payload)))
                 SmartActionDetector.TYPE_VIEW ->
@@ -468,7 +512,7 @@ class AssistiveBallService : Service() {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         } catch (e: Exception) {
-            overlay.showError("Couldn't open action: ${e.message}")
+            overlay.showError("Couldn't open action: ${HumanReadableError.format(e)}")
         }
     }
 
@@ -515,14 +559,16 @@ class AssistiveBallService : Service() {
         val currentHistory = activeCompanionHistory.toList()
         scope.launch {
             try {
-                val response = llmClient.chat(currentHistory)
+                val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                    llmClient.chat(currentHistory)
+                }
                 val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                 activeCompanionHistory.add(
                     com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${e.message}")
+                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
             }
         }
     }
@@ -535,8 +581,10 @@ class AssistiveBallService : Service() {
                     com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
                 )
                 val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-                val result = withContext(Dispatchers.Default) {
-                    com.google.android.gms.tasks.Tasks.await(recognizer.process(image))
+                val result = showingActivity(com.gotcha.ui.BallActivity.ACTING) {
+                    withContext(Dispatchers.Default) {
+                        com.google.android.gms.tasks.Tasks.await(recognizer.process(image))
+                    }
                 }
                 val text = result.text.trim()
                 if (text.isBlank()) {
@@ -547,12 +595,41 @@ class AssistiveBallService : Service() {
                     showToast("Copied to clipboard")
                 }
             } catch (e: Exception) {
-                showToast("Couldn't read text: ${e.message}")
+                showToast("Couldn't read text: ${HumanReadableError.format(e)}")
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
     }
+
+    /**
+     * Run [block] with the ball showing [state].
+     *
+     * The ball is the only piece of Gotcha on screen while the companion panel
+     * is working, and until now it sat perfectly still through every model call
+     * — the in-app indicator breathed and its counterpart over other apps did
+     * not. This is what tells it when to.
+     *
+     * Ref-counted because these overlap: a Lens crop can be summarising while a
+     * clipboard action fetches. The last one out turns the ring off, so a
+     * finishing call cannot clear a ring that another is still using.
+     */
+    private suspend fun <T> showingActivity(
+        state: com.gotcha.ui.BallActivity,
+        block: suspend () -> T
+    ): T {
+        activityDepth.incrementAndGet()
+        overlay.setActivity(state)
+        try {
+            return block()
+        } finally {
+            if (activityDepth.decrementAndGet() <= 0) {
+                overlay.setActivity(com.gotcha.ui.BallActivity.IDLE)
+            }
+        }
+    }
+
+    private val activityDepth = java.util.concurrent.atomic.AtomicInteger(0)
 
     private fun showToast(msg: String) {
         android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -593,7 +670,9 @@ class AssistiveBallService : Service() {
                 updateResponse("Thinking...")
                 scope.launch {
                     try {
-                        val response = llmClient.chat(currentHistory)
+                        val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
+                            llmClient.chat(currentHistory)
+                        }
                         val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
                         activeCompanionHistory.add(
                             com.gotcha.llm.ChatMessage(
@@ -603,7 +682,7 @@ class AssistiveBallService : Service() {
                         )
                         updateResponse(replyText)
                     } catch (e: Exception) {
-                        updateResponse("Error: ${e.message}")
+                        updateResponse("Error: ${HumanReadableError.format(e)}")
                     }
                 }
             }
@@ -615,23 +694,30 @@ class AssistiveBallService : Service() {
     /** Start voice typing in the panel using the configured STT provider. */
     private fun startPanelVoiceInput() {
         val s = settingsRepository.load()
-        when (s.sttProvider) {
-            com.gotcha.audio.AudioProvider.ANDROID -> {
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        when {
+            s.sttProvider == AudioProvider.ANDROID -> {
                 if (!hasMicPermission()) {
                     overlay.showError("Microphone permission not granted.")
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening()) {
+                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError("Failed to start speech recognition.")
                     screenCompanionPanel.setListening(false)
                 }
             }
-            com.gotcha.audio.AudioProvider.API -> {
-                if (s.sttApiBaseUrl.isBlank() || s.sttApiModel.isBlank()) {
-                    overlay.showError("Configure an STT API URL and model in settings.")
+            s.sttProvider.isApiBased() -> {
+                if (s.effectiveSttBaseUrl.isBlank() || s.sttApiModel.isBlank()) {
+                    overlay.showError(
+                        if (s.sttProvider == AudioProvider.SAMOSA_AI) {
+                            "Configure Samosa AI for STT in settings (sign in + select a model)."
+                        } else {
+                            "Configure an STT API URL and model in settings."
+                        }
+                    )
                     screenCompanionPanel.setListening(false)
                     return
                 }
@@ -647,7 +733,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                 }
             }
-            com.gotcha.audio.AudioProvider.NONE -> {
+            else -> {
                 overlay.showError("No STT provider configured. Enable one in settings.")
                 screenCompanionPanel.setListening(false)
             }
@@ -664,33 +750,37 @@ class AssistiveBallService : Service() {
         panelVoiceActive = false
         val s = settingsRepository.load()
         val provider = s.sttProvider
-        if (provider == com.gotcha.audio.AudioProvider.NONE) {
+        if (provider == AudioProvider.NONE) {
             screenCompanionPanel.setListening(false)
             return
         }
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         scope.launch {
-            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel)
+            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
-                .onFailure { e -> overlay.showError("Transcription failed: ${e.message}") }
+                .onFailure { e -> overlay.showError("Transcription failed: ${HumanReadableError.format(e)}") }
         }
     }
 
     /** Read the panel's current response aloud using the configured TTS provider. */
     private fun readPanelResponseAloud(text: String) {
         val s = settingsRepository.load()
-        if (s.ttsProvider == com.gotcha.audio.AudioProvider.NONE) {
+        if (s.ttsProvider == AudioProvider.NONE) {
             overlay.showError("No TTS provider configured. Enable one in settings.")
             screenCompanionPanel.setSpeaking(false)
             return
         }
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         scope.launch {
             ttsEngine.speak(
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
-                voice = s.ttsVoice
+                voice = s.ttsVoice,
+                language = Language.fromLabel(s.preferredLanguage)
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
@@ -750,10 +840,6 @@ class AssistiveBallService : Service() {
 
     private fun takeScreenshot() {
         scope.launch(Dispatchers.IO) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot requires Android 11+") }
-                return@launch
-            }
             try {
                 val service = GotchaAccessibilityService.instance
                 if (service == null) {
@@ -790,14 +876,14 @@ class AssistiveBallService : Service() {
                     fileName,
                     bitmap
                 )
-                withContext(Dispatchers.Main) { overlay.showError("Screenshot saved to $location") }
+                withContext(Dispatchers.Main) { overlay.showSuccess("Screenshot saved to $location") }
                 bitmap.recycle()
             } catch (e: Throwable) {
                 withContext(Dispatchers.Main) {
                     overlay.showChromeAfterCapture()
                     chatWindow.setVisibleForCapture(true)
                     screenCompanionPanel.setVisibleForCapture(true)
-                    overlay.showError("Screenshot error: ${e.message}")
+                    overlay.showError("Screenshot error: ${HumanReadableError.format(e)}")
                 }
             }
         }
@@ -839,29 +925,25 @@ class AssistiveBallService : Service() {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        } else {
             startForeground(
                 NOTIFICATION_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
     private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        CHANNEL_ID,
-                        "Assistive ball",
-                        NotificationManager.IMPORTANCE_LOW
-                    ).apply { description = "Keeps the floating assistive ball running." }
-                )
-            }
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Assistive ball",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply { description = "Keeps the floating assistive ball running." }
+            )
         }
     }
 
@@ -878,6 +960,11 @@ class AssistiveBallService : Service() {
 
         /** Cap on fetched page text handed to the LLM for link summarization. */
         private const val MAX_FETCH_CHARS = 12000
+
+        /** `date|time|title` — see [calendarInsertIntent]. */
+        private const val CALENDAR_PAYLOAD_FIELDS = 3
+        private const val DEFAULT_EVENT_DURATION_MS = 60L * 60L * 1000L
+        private const val DAY_MS = 24L * 60L * 60L * 1000L
 
         @Volatile
         var instance: AssistiveBallService? = null

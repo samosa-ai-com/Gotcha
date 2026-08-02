@@ -4,4 +4,6 @@
     <external-path name="gotcha" path="Gotcha/" />
     <!-- Lens-mode cropped images shared for "Copy Image" (content:// clip). -->
     <cache-path name="lens" path="lens/" />
+    <!-- "Share your Gotcha moment" poster PNGs. -->
+    <cache-path name="poster" path="poster/" />
 </paths>

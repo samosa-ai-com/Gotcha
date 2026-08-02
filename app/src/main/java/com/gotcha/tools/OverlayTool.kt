@@ -3,7 +3,6 @@ package com.gotcha.tools
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -80,12 +79,7 @@ class OverlayTool(private val context: Context) {
     }
 
     private fun layoutParams(): WindowManager.LayoutParams {
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+        val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         return WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -99,8 +93,7 @@ class OverlayTool(private val context: Context) {
         }
     }
 
-    private fun canDrawOverlays(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
+    private fun canDrawOverlays(): Boolean = Settings.canDrawOverlays(context)
 
     private fun notEnabled() = ToolResult.permissionNeeded(
         ToolResult.OVERLAY_ACCESS,

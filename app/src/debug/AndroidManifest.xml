@@ -11,6 +11,7 @@
             tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="com.gotcha.debug.SEED_SETTINGS" />
+                <action android:name="com.gotcha.debug.SET_APPEARANCE" />
             </intent-filter>
         </receiver>
     </application>

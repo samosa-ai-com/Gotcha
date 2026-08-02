@@ -1,5 +1,6 @@
 package com.gotcha.llm
 
+import com.gotcha.i18n.Language
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -144,5 +145,133 @@ class LLMClientTest {
         client.chat(messages = messages, tools = listOf(dummyTool))
 
         assertTrue(server.requestCount == 2)
+    }
+
+    @Test
+    fun `cleanText request body contains the language name and no-translate clause`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"choices":[{"message":{"role":"assistant","content":"नमस्ते, आप कैसे हैं?"}}]}"""
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        client.cleanText("namaste aap kaise hain", language = Language.HINDI)
+
+        val request = server.takeRequest()
+        val body = request.body.readUtf8()
+        assertTrue(body.contains(Language.HINDI.label))
+        assertTrue(body.contains("Never translate"))
+        assertTrue(body.contains("<dictation>"))
+    }
+
+    @Test
+    fun `listModels filters out audio models by provider_type`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "data": [
+                    {"id": "gpt-4o", "provider_type": "llm"},
+                    {"id": "kokoro-82m", "provider_type": "tts"},
+                    {"id": "whisper-1", "provider_type": "stt"},
+                    {"id": "claude-opus-4", "provider_type": "llm"}
+                  ]
+                }
+                """.trimIndent()
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        val result = client.listModels().getOrThrow()
+
+        assertEquals(listOf("claude-opus-4", "gpt-4o"), result)
+    }
+
+    @Test
+    fun `listModels filters out audio models by task field`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "data": [
+                    {"id": "gpt-4o-mini"},
+                    {"id": "tts-1", "task": "text-to-speech"},
+                    {"id": "whisper-large-v3", "task": "automatic-speech-recognition"}
+                  ]
+                }
+                """.trimIndent()
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        val result = client.listModels().getOrThrow()
+
+        assertEquals(listOf("gpt-4o-mini"), result)
+    }
+
+    @Test
+    fun `listModels falls back to name heuristics when no hint field is present`() = runTest {
+        // OpenAI's /v1/models omits both `provider_type` and `task`; the name
+        // heuristic is the last line of defence.
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "data": [
+                    {"id": "gpt-4o"},
+                    {"id": "tts-1"},
+                    {"id": "whisper-1"},
+                    {"id": "llama-3-8b-instruct"}
+                  ]
+                }
+                """.trimIndent()
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        val result = client.listModels().getOrThrow()
+
+        assertEquals(listOf("gpt-4o", "llama-3-8b-instruct"), result)
+    }
+
+    @Test
+    fun `listModels keeps explicitly tagged LLM models alongside UNKNOWN ones`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "data": [
+                    {"id": "samosa-llm-pro", "provider_type": "llm"},
+                    {"id": "gpt-4o"},
+                    {"id": "kokoro-82m", "provider_type": "tts"}
+                  ]
+                }
+                """.trimIndent()
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        val result = client.listModels().getOrThrow()
+
+        assertEquals(listOf("gpt-4o", "samosa-llm-pro"), result)
+    }
+
+    @Test
+    fun `listModels keeps UNKNOWN-categorized models with no hint and no name match`() = runTest {
+        // Custom / private model with neither provider_type nor task field, and
+        // an id that triggers no audio name heuristic — must survive filtering.
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "data": [
+                    {"id": "my-private-llm"},
+                    {"id": "tts-1"},
+                    {"id": "whisper-large-v3"}
+                  ]
+                }
+                """.trimIndent()
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        val result = client.listModels().getOrThrow()
+
+        assertEquals(listOf("my-private-llm"), result)
     }
 }

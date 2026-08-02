@@ -31,6 +31,26 @@ private fun variableFamily(resId: Int) = FontFamily(
 /** Figtree — the app-wide typeface (OFL-licensed; see assets/licenses). */
 val Figtree = variableFamily(R.font.figtree)
 
+/**
+ * Machine text: tool names, exit codes, file paths, terminal output, token
+ * counts. Figtree is for what the agent *said*; this is for what it *did*, and
+ * the eye separates the two before it has read either.
+ *
+ * The platform family rather than a bundled face — it is the one typeface every
+ * Android device already has a real monospace for, and a second font file is a
+ * poor trade for text that is deliberately secondary.
+ */
+val GotchaMono = FontFamily.Monospace
+
+/**
+ * Digits that hold their column. Counters that tick while a reply streams jitter
+ * badly in a proportional face, because the glyphs are different widths.
+ */
+val TabularNumerals = TextStyle(
+    fontFamily = GotchaMono,
+    fontFeatureSettings = "tnum"
+)
+
 private val baseline = Typography()
 
 val Typography = Typography(

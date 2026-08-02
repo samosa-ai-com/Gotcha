@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The app had no adaptive icon at all: launchers on Android 8+ were letterboxing
+    the legacy PNG inside whatever mask shape they use. The foreground is the mark
+    drawn at 72dp inside the 108dp layer, which is the zone every mask is
+    guaranteed to keep, and the background is the white field the mark is drawn on
+    in the artwork itself.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

@@ -3,6 +3,7 @@ package com.gotcha
 import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -13,7 +14,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.MaterialTheme
@@ -21,25 +21,33 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
+import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
+import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
-import com.gotcha.data.ThemeMode
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.NotificationDispatcher
+import com.gotcha.notifications.NotificationPayload
+import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ScreenPerception
@@ -47,8 +55,20 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.NotificationDetailDialog
+import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
+import com.gotcha.ui.SharePosterSheet
+import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.theme.GotchaTheme
+import com.gotcha.ui.theme.SkinBackdrop
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.tour.LocalTourAnchors
+import com.gotcha.ui.tour.TourHost
+import com.gotcha.ui.tour.TourNavigation
+import com.gotcha.ui.tour.TourOverlay
+import com.gotcha.ui.tour.TourPlace
+import com.gotcha.ui.tour.rememberTourHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -57,11 +77,42 @@ import android.provider.Settings as AndroidSettings
 
 enum class Route { HOME, SETTINGS, CONNECTORS }
 
+/**
+ * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
+ * nothing to say about — which is what hides the coach mark when they wander off
+ * mid-step rather than pinning it over an unrelated screen.
+ */
+private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean): TourPlace? = when {
+    route == Route.HOME && drawerOpen -> TourPlace.CHAT_DRAWER
+    route == Route.HOME -> TourPlace.CHAT
+    route == Route.SETTINGS -> when (page) {
+        null -> TourPlace.SETTINGS_HOME
+        SettingsPage.AI_CONFIG -> TourPlace.AI_CONFIG
+        SettingsPage.PERMISSIONS -> TourPlace.PERMISSIONS
+        SettingsPage.PERSONAL_INFO -> TourPlace.PERSONAL_INFO
+        else -> null
+    }
+    else -> null
+}
+
+/** The inverse: the route and settings page that put the user at [place]. */
+private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = when (place) {
+    TourPlace.CHAT, TourPlace.CHAT_DRAWER -> Route.HOME to null
+    TourPlace.SETTINGS_HOME -> Route.SETTINGS to null
+    TourPlace.AI_CONFIG -> Route.SETTINGS to SettingsPage.AI_CONFIG
+    TourPlace.PERMISSIONS -> Route.SETTINGS to SettingsPage.PERMISSIONS
+    TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
+}
+
+@Suppress("LargeClass")
 class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var samosaAuthManager: SamosaAuthManager
+
+    /** Active notification payload for display in scrollable dialog. */
+    private var notificationPayload by mutableStateOf<NotificationPayload?>(null)
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
@@ -69,8 +120,34 @@ class MainActivity : ComponentActivity() {
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
 
-    /** In-app theme override, applied immediately when changed in Settings. */
-    private var themeMode by mutableStateOf(ThemeMode.SYSTEM)
+    /** Appearance, applied immediately when changed in Settings ▸ Appearance. */
+    private var appearance by mutableStateOf(Appearance())
+
+    // ---- "Share your Gotcha moment" poster state ----
+    private val sharePoster: SharePosterState by lazy { SharePosterState(this, chatViewModel) }
+
+    /**
+     * ETag-style version of the legal bundle the user has accepted. Empty until
+     * the first-launch dialog is dismissed with "I agree." Re-prompted whenever
+     * [Settings.LEGAL_VERSION] (in [SettingsRepository]) is bumped.
+     */
+    private var legalAcceptedVersion by mutableStateOf("")
+
+    /** The one setting that decides what the app looks like. */
+    private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
+
+    /**
+     * Repaints the window behind Compose in the current skin's ground. themes.xml
+     * can only name one colour and has to guess Deep Space; once the setting has
+     * been read, an activity recreate should flash the skin the user actually
+     * chose rather than a slate blue they have never seen.
+     */
+    private fun applyLaunchBackground() {
+        val skin = Skins.byId(appearance.skinId)
+        window.setBackgroundDrawable(ColorDrawable(skin.launchGround.toArgb()))
+    }
+
+    private fun Settings.appearance() = Appearance(skinId = skinId)
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
@@ -115,13 +192,12 @@ class MainActivity : ComponentActivity() {
         lifecycleOwner = this
         // Some OEM skins (e.g. MIUI) force-dark light-themed apps even when the
         // theme opts out; disabling on the decorView covers those cases too.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.decorView.isForceDarkAllowed = false
-        }
+        window.decorView.isForceDarkAllowed = false
         settingsRepository = SettingsRepository(this)
         samosaAuthManager = SamosaAuthManager(applicationContext, settingsRepository)
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
+        handleNotificationIntent(intent)
 
         // Phase 7: tools report special-access markers; open Settings deep-links.
         // Runtime permissions are no longer requested here — they are pre-configured
@@ -156,29 +232,43 @@ class MainActivity : ComponentActivity() {
             if (ScreenPerception.mediaProjectionResultData == null &&
                 !prefs.getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
             ) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(
-                        Context.MEDIA_PROJECTION_SERVICE
-                    ) as android.media.projection.MediaProjectionManager
-                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                }
+                val mpManager = getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+                ) as android.media.projection.MediaProjectionManager
+                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
             }
         }
 
-        themeMode = settingsRepository.load().themeMode
+        appearance = settingsRepository.load().appearance()
+        applyLaunchBackground()
+
+        // First-launch / re-acceptance gate. Stored version is whatever the user
+        // last agreed to; if it doesn't match the current LEGAL_VERSION (or is
+        // empty), the consent dialog shows and the rest of the app waits behind
+        // it. The dialog itself is mounted in [GotchaApp]; this only seeds the
+        // initial state for the activity.
+        legalAcceptedVersion = settingsRepository.load().legalAcceptedVersion
 
         setContent {
-            val darkTheme = when (themeMode) {
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            }
-            GotchaTheme(darkTheme = darkTheme) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    GotchaApp()
+            GotchaTheme(skinId = appearance.skinId) {
+                val tour = rememberTourHost(
+                    repository = settingsRepository,
+                    ready = legalAcceptedVersion == LEGAL_VERSION
+                )
+                CompositionLocalProvider(LocalTourAnchors provides tour.anchors) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        // The wallpaper sits under everything; an opaque skin draws
+                        // nothing here and the Surface above remains the whole story.
+                        SkinBackdrop(Modifier.fillMaxSize())
+                        GotchaApp(tour)
+                        // Above the navigation host, so every screen underneath
+                        // stays unaware it is being toured — all any of them
+                        // contribute is a tourAnchor on the control worth pointing at.
+                        TourOverlay(controller = tour.controller)
+                    }
                 }
             }
         }
@@ -206,17 +296,10 @@ class MainActivity : ComponentActivity() {
                 Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
             )
             ToolResult.ALL_FILES_ACCESS -> startActivity(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Intent(
-                        AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                } else {
-                    Intent(
-                        AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName")
-                    )
-                }
+                Intent(
+                    AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
             )
             ToolResult.OVERLAY_ACCESS -> startActivity(
                 Intent(
@@ -242,12 +325,10 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_SHORT
             ).show()
             "special:screenshot_consent" -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    val mpManager = getSystemService(
-                        Context.MEDIA_PROJECTION_SERVICE
-                    ) as android.media.projection.MediaProjectionManager
-                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                }
+                val mpManager = getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+                ) as android.media.projection.MediaProjectionManager
+                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
@@ -290,11 +371,62 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false)) {
             openedFromBall = true
         }
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
+        val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
+        if (!title.isNullOrBlank() || !body.isNullOrBlank()) {
+            val notifyId = intent?.getIntExtra(NotificationDispatcher.EXTRA_NOTIFICATION_ID, -1) ?: -1
+            val url = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_URL)
+            if (notifyId != -1) {
+                NotificationManagerCompat.from(this).cancel(notifyId)
+            }
+            notificationPayload = NotificationPayload(
+                id = notifyId,
+                title = title.orEmpty(),
+                body = body.orEmpty(),
+                url = url
+            )
+        }
     }
 
     override fun onStart() {
         super.onStart()
         chatViewModel.setForeground(true)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Server-driven notifications — fetch fresh if the cached value is
+        // older than 6h. The dispatcher itself no-ops when the user has the
+        // toggle off, so calling it on every resume is safe.
+        lifecycleScope.launch {
+            try {
+                val settings = settingsRepository.load()
+                val dispatcher = ServerMessages.create(
+                    context = this@MainActivity,
+                    settings = settings,
+                    onUnauthorized = { onSamosaUnauthorized() }
+                )
+                ServerMessages.syncIfStale(
+                    dispatcher = dispatcher,
+                    enabled = settings.serverMessagesEnabled
+                )
+                // Persist the store's lastFetchedAt so Settings → Notifications
+                // shows a correct "Last synced: …" line on next open, even if
+                // the user never tapped Sync now.
+                val fresh = dispatcher.lastFetchedAt()
+                if (fresh > 0L && fresh != settings.serverMessagesLastFetchedAt) {
+                    settingsRepository.save(settings.copy(serverMessagesLastFetchedAt = fresh))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Server messages are best-effort; never surface errors.
+            }
+        }
     }
 
     /**
@@ -334,22 +466,67 @@ class MainActivity : ComponentActivity() {
         settingsRepository.save(current.copy(assistiveBallEnabled = enabled))
     }
 
+    /** Any Samosa 401 (LLM or audio) clears the session and refreshes the
+     *  ChatViewModel so the UI reflects the unauthenticated state. */
+    fun onSamosaUnauthorized() {
+        val current = settingsRepository.load()
+        val samosaUsed = current.provider == com.gotcha.data.LlmProvider.SAMOSA_AI
+        val samosaToken = current.samosaSessionToken
+        if (!samosaUsed && samosaToken.isBlank()) {
+            // No Samosa session to invalidate — bail.
+            return
+        }
+        settingsRepository.clearSamosaSession()
+        Toast.makeText(this, "Samosa session expired — please sign in again.", Toast.LENGTH_LONG).show()
+        chatViewModel.refreshSettings()
+    }
+
     override fun onStop() {
         super.onStop()
         chatViewModel.setForeground(false)
     }
 
     @Composable
-    private fun GotchaApp() {
+    private fun GotchaApp(tour: TourHost) {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
+        val liveTokenBySession by chatViewModel.liveTokenBySession.collectAsState()
 
+        val initial = remember { settingsRepository.load() }
+
+        // A fresh install has the tour to run, and the tour walks the user to the
+        // API key itself — so it, not this, decides where they start. Only an
+        // install that has already seen the tour and is still unconfigured gets
+        // dropped straight on the page holding the key and model.
+        val unconfigured = remember { !initial.isConfigured && !tour.willRun }
         var currentRoute by remember {
-            mutableStateOf(if (settingsRepository.load().isConfigured) Route.HOME else Route.SETTINGS)
+            mutableStateOf(if (unconfigured) Route.SETTINGS else Route.HOME)
         }
-        var assistiveBallOn by remember { mutableStateOf(settingsRepository.load().assistiveBallEnabled) }
+        var settingsPage by rememberSaveable {
+            mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
+        }
+        var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+
+        val goToPlace: (TourPlace) -> Unit = { place ->
+            val (route, page) = routeForTourPlace(place)
+            currentRoute = route
+            settingsPage = page
+            scope.launch {
+                if (place == TourPlace.CHAT_DRAWER) drawerState.open() else drawerState.close()
+            }
+        }
+        val startTour = {
+            goToPlace(TourPlace.CHAT)
+            tour.controller.start()
+        }
+
+        TourNavigation(
+            host = tour,
+            place = tourPlaceOf(currentRoute, settingsPage, drawerState.isOpen),
+            goToPlace = goToPlace
+        )
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
 
@@ -390,7 +567,8 @@ class MainActivity : ComponentActivity() {
 
         ModalNavigationDrawer(
             drawerState = drawerState,
-            gesturesEnabled = currentRoute == Route.HOME || drawerState.isOpen,
+            gesturesEnabled = (currentRoute == Route.HOME || drawerState.isOpen) &&
+                legalAcceptedVersion == LEGAL_VERSION,
             drawerContent = {
                 AppDrawerContent(
                     sessions = sessions,
@@ -415,7 +593,8 @@ class MainActivity : ComponentActivity() {
                         currentRoute = Route.CONNECTORS
                     },
                     maxContextTokens = state.maxContextTokens,
-                    activeTokenCount = state.tokenCount
+                    activeTokenCount = state.tokenCount,
+                    liveTokenBySession = liveTokenBySession
                 )
             }
         ) {
@@ -423,9 +602,9 @@ class MainActivity : ComponentActivity() {
                 Route.SETTINGS -> {
                     BackHandler { currentRoute = Route.HOME }
                     SettingsScreen(
-                        initial = settingsRepository.load(),
-                        onSave = { settings ->
-                            settingsRepository.save(settings)
+                        load = { settingsRepository.load() },
+                        onSave = { mutate ->
+                            settingsRepository.save(mutate(settingsRepository.load()))
                             chatViewModel.refreshSettings()
                         },
                         onTestConnection = ::testConnection,
@@ -442,20 +621,44 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onBack = { currentRoute = Route.HOME },
-                        onThemeChange = { mode ->
-                            themeMode = mode
-                            settingsRepository.save(settingsRepository.load().copy(themeMode = mode))
+                        onAppearanceChange = { updated ->
+                            appearance = updated.appearance()
+                            applyLaunchBackground()
                         },
                         onRefreshAudioModels = { s ->
                             withContext(Dispatchers.IO) {
-                                val ttsApi = AudioApi(s.ttsApiBaseUrl.ifBlank { s.baseUrl }, s.effectiveTtsApiKey)
-                                val ttsAll = ttsApi.listAudioModels()
-                                val ttsModels = ttsAll.filter { it.category == ModelCategory.TTS }
-                                val sttModels = if (s.sttApiBaseUrl.isNotBlank() && s.sttApiBaseUrl != s.ttsApiBaseUrl) {
-                                    val sttApi = AudioApi(s.sttApiBaseUrl, s.effectiveSttApiKey)
-                                    sttApi.listAudioModels().filter { it.category == ModelCategory.STT }
+                                val ttsBase = s.effectiveTtsBaseUrl
+                                val sttBase = s.effectiveSttBaseUrl
+                                if (ttsBase.isBlank() && sttBase.isBlank()) {
+                                    return@withContext Pair(emptyList(), emptyList())
+                                }
+                                val fetch: (String, String) -> List<AudioModel> =
+                                    { base, key ->
+                                        AudioApi(
+                                            baseUrl = base,
+                                            apiKey = key,
+                                            onUnauthorized = { this@MainActivity.runOnUiThread { onSamosaUnauthorized() } }
+                                        ).listAudioModels()
+                                    }
+                                // Fetch the shared server once when both audio sides
+                                // point at the same URL; fetch each side independently
+                                // otherwise (STT-only configurations are valid).
+                                val sharedAll = if (ttsBase.isNotBlank() && ttsBase == sttBase) {
+                                    fetch(ttsBase, s.effectiveTtsApiKey)
                                 } else {
-                                    ttsAll.filter { it.category == ModelCategory.STT }
+                                    emptyList()
+                                }
+                                val ttsModels = when {
+                                    ttsBase.isBlank() -> emptyList()
+                                    ttsBase == sttBase -> sharedAll.filter { it.category == ModelCategory.TTS }
+                                    else -> fetch(ttsBase, s.effectiveTtsApiKey)
+                                        .filter { it.category == ModelCategory.TTS }
+                                }
+                                val sttModels = when {
+                                    sttBase.isBlank() -> emptyList()
+                                    sttBase == ttsBase -> sharedAll.filter { it.category == ModelCategory.STT }
+                                    else -> fetch(sttBase, s.effectiveSttApiKey)
+                                        .filter { it.category == ModelCategory.STT }
                                 }
                                 Pair(ttsModels, sttModels)
                             }
@@ -490,12 +693,46 @@ class MainActivity : ComponentActivity() {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
                         },
-                        packageName = packageName
+                        onSyncServerMessages = {
+                            val s = settingsRepository.load()
+                            if (!s.serverMessagesEnabled) return@SettingsScreen null
+                            val dispatcher = ServerMessages.create(
+                                context = this@MainActivity,
+                                settings = s,
+                                onUnauthorized = { onSamosaUnauthorized() }
+                            )
+                            dispatcher.fetchAndDeliver()
+                            // Persist the fresh last-fetched-at so a future
+                            // Settings reload reads the same value the screen
+                            // is showing, and so a process kill + relaunch
+                            // starts from this point.
+                            val updated = s.copy(
+                                serverMessagesLastFetchedAt = dispatcher.lastFetchedAt()
+                            )
+                            settingsRepository.save(updated)
+                            dispatcher.lastFetchedAt()
+                        },
+                        onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
+                        packageName = packageName,
+                        assistiveBallEnabled = assistiveBallOn,
+                        onToggleAssistiveBall = { enabled ->
+                            assistiveBallOn = setAssistiveBall(enabled)
+                        },
+                        onStartTour = { startTour() },
+                        page = settingsPage,
+                        onPageChange = { settingsPage = it }
                     )
                 }
                 Route.CONNECTORS -> {
-                    BackHandler { currentRoute = Route.HOME }
-                    ConnectorsScreen(onBack = { currentRoute = Route.HOME })
+                    // refreshSettings() on the way out, like every other route: the
+                    // enable/disable toggles write disabledConnectors, and the agent
+                    // reads it from ChatViewModel's cached Settings.
+                    val leaveConnectors = {
+                        chatViewModel.refreshSettings()
+                        currentRoute = Route.HOME
+                    }
+                    BackHandler { leaveConnectors() }
+                    ConnectorsScreen(onBack = leaveConnectors)
                 }
                 Route.HOME -> {
                     // Back from an active chat returns to a fresh home (new session,
@@ -505,17 +742,15 @@ class MainActivity : ComponentActivity() {
                     }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64 -> chatViewModel.sendMessage(text, imageBase64) },
+                        onSend = { text, imageBase64, isVoiceInput ->
+                            chatViewModel.sendMessage(text, imageBase64, isVoiceInput)
+                        },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
                         onAnswer = chatViewModel::submitAnswer,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        assistiveBallEnabled = assistiveBallOn,
-                        onToggleAssistiveBall = { enabled ->
-                            assistiveBallOn = setAssistiveBall(enabled)
-                        },
                         onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
@@ -526,6 +761,9 @@ class MainActivity : ComponentActivity() {
                         onExportChat = chatViewModel::exportChat,
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
+                        },
+                        onCreateShareCard = {
+                            sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         }
                     )
                 }
@@ -533,9 +771,54 @@ class MainActivity : ComponentActivity() {
         }
 
         // Composed last so this innermost enabled handler wins back dispatch:
-        // back closes an open drawer before any other navigation.
+        // back closes an open drawer before any other navigation. When the
+        // legal-consent dialog is up, we swallow back entirely — the only way
+        // out is "I agree" (or uninstalling the app), which keeps a fresh
+        // install from booting straight into Settings via the back button.
         BackHandler(enabled = drawerState.isOpen) {
             scope.launch { drawerState.close() }
+        }
+        if (legalAcceptedVersion != LEGAL_VERSION) {
+            BackHandler(enabled = true) { /* swallow */ }
+        }
+
+        notificationPayload?.let { payload ->
+            NotificationDetailDialog(
+                payload = payload,
+                onDismiss = { notificationPayload = null }
+            )
+        }
+
+        sharePoster.runs?.let { runs ->
+            SharePosterSheet(
+                runs = runs,
+                loading = sharePoster.loading,
+                preview = sharePoster.preview,
+                error = sharePoster.error,
+                hasImage = chatViewModel.activeSessionHasImage(),
+                onGenerate = sharePoster::generate,
+                onShare = { sharePoster.preview?.let { sharePoster.share(it) } },
+                onSave = { sharePoster.preview?.let { sharePoster.save(it) } },
+                onRegenerate = sharePoster::generate,
+                onDismiss = sharePoster::dismiss
+            )
+        }
+
+        // First-launch / re-acceptance gate. Non-dismissable while not accepted
+        // — the only way out is tapping "I agree." Re-prompted whenever the
+        // current LEGAL_VERSION doesn't match the stored acceptance, so a
+        // meaningful change to any of the three documents forces re-acceptance
+        // on every install.
+        if (legalAcceptedVersion != LEGAL_VERSION) {
+            LegalConsentDialog(
+                onAgree = {
+                    val current = settingsRepository.load()
+                    settingsRepository.save(
+                        current.copy(legalAcceptedVersion = LEGAL_VERSION)
+                    )
+                    legalAcceptedVersion = LEGAL_VERSION
+                }
+            )
         }
     }
 
@@ -588,11 +871,8 @@ class MainActivity : ComponentActivity() {
             add(android.Manifest.permission.WRITE_CONTACTS)
             add(android.Manifest.permission.READ_CALENDAR)
             add(android.Manifest.permission.WRITE_CALENDAR)
-            if (Build.VERSION.SDK_INT <= 29) {
-                add(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                add(android.Manifest.permission.POST_NOTIFICATIONS)
                 add(android.Manifest.permission.READ_MEDIA_IMAGES)
             }
         }

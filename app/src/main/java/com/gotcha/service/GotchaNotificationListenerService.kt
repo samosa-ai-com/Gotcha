@@ -69,7 +69,12 @@ class GotchaNotificationListenerService : NotificationListenerService() {
         val fullText = "$title $text".trim()
         if (fullText.isBlank()) return
 
-        val entities = SmartActionDetector.detectAll(fullText, allowChat = false)
+        val entities = SmartActionDetector.detectAll(
+            fullText,
+            allowChat = false,
+            targetCurrency = settings.preferredCurrency,
+            targetLanguage = settings.preferredLanguage
+        )
         if (entities.isEmpty()) return
 
         // Auto-copy OTP if enabled

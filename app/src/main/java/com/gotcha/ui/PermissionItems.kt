@@ -136,26 +136,15 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 "Write files to shared storage",
                 android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 null,
-                { c ->
-                    if (Build.VERSION.SDK_INT <= 29) {
-                        checkPerm(c, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    } else {
-                        true // API 30+ uses MANAGE_EXTERNAL_STORAGE
-                    }
-                }
+                // API 30+ uses MANAGE_EXTERNAL_STORAGE instead; nothing to request here.
+                { true }
             ),
             PermissionItem(
                 "All Files Access",
                 "Full access to all files on device",
                 null,
                 "special:all_files_access",
-                { c ->
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Environment.isExternalStorageManager()
-                    } else {
-                        checkPerm(c, android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                    }
-                }
+                { Environment.isExternalStorageManager() }
             )
         )
     ),
@@ -197,15 +186,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 null,
                 "special:usage_access",
                 { c ->
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                        val appOps = c.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
-                        appOps?.checkOpNoThrow(
-                            AppOpsManager.OPSTR_GET_USAGE_STATS,
-                            android.os.Process.myUid(), c.packageName
-                        ) == AppOpsManager.MODE_ALLOWED
-                    } else {
-                        true
-                    }
+                    val appOps = c.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
+                    appOps?.unsafeCheckOpNoThrow(
+                        AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        android.os.Process.myUid(), c.packageName
+                    ) == AppOpsManager.MODE_ALLOWED
                 }
             ),
             PermissionItem(
@@ -221,6 +206,23 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
+        "Notifications",
+        listOf(
+            PermissionItem(
+                "Show Notifications",
+                "Display server messages and reply alerts in the status bar",
+                android.Manifest.permission.POST_NOTIFICATIONS,
+                null,
+                // Below Android 13 (API 33) the permission is granted at install
+                // time and there is no runtime dialog to show.
+                { c ->
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        checkPerm(c, android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            )
+        )
+    ),
+    PermissionGroup(
         "System Access",
         listOf(
             PermissionItem(
@@ -228,13 +230,7 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 "Read screen, tap, swipe, type",
                 null,
                 "special:accessibility_access",
-                { c ->
-                    val expected = "${c.packageName}/com.gotcha.service.GotchaAccessibilityService"
-                    val enabled = Settings.Secure.getString(
-                        c.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-                    ) ?: ""
-                    enabled.contains(expected, ignoreCase = true)
-                }
+                ::isAccessibilityGranted
             ),
             PermissionItem(
                 "Notification Listener",
@@ -254,7 +250,7 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 "Show floating overlays",
                 null,
                 "special:overlay_access",
-                { c -> Settings.canDrawOverlays(c) }
+                ::isOverlayGranted
             )
         )
     ),
@@ -273,6 +269,24 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     )
 )
+
+/**
+ * Whether Gotcha's accessibility service is switched on.
+ *
+ * Named rather than inlined into the catalog above because the feature tour asks
+ * the same question to decide when its "grant Accessibility" step is finished,
+ * and two copies of this string comparison would be two chances to drift.
+ */
+fun isAccessibilityGranted(context: Context): Boolean {
+    val expected = "${context.packageName}/com.gotcha.service.GotchaAccessibilityService"
+    val enabled = Settings.Secure.getString(
+        context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: ""
+    return enabled.contains(expected, ignoreCase = true)
+}
+
+/** Whether "Display over other apps" is allowed — the assistive ball and Lens need it. */
+fun isOverlayGranted(context: Context): Boolean = Settings.canDrawOverlays(context)
 
 private fun checkPerm(context: Context, permission: String): Boolean =
     ContextCompat.checkSelfPermission(context, permission) ==

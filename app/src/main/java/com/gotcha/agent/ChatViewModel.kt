@@ -8,18 +8,27 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
+import com.gotcha.data.LlmProvider
+import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
+import com.gotcha.marketing.PosterRenderer
+import com.gotcha.marketing.PosterStatsBuilder
+import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +84,8 @@ data class ChatUiState(
     val maxContextTokens: Int = 0,
     val isListening: Boolean = false,
     val isRecording: Boolean = false,
+    /** True from the moment recording stops until the transcript (and cleanup) is ready. */
+    val isTranscribing: Boolean = false,
     val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
     val sttModels: List<AudioModel> = emptyList()
@@ -95,15 +106,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** True when the most recent user message was sent via voice (STT). */
     @Volatile
     private var lastInputWasVoice = false
+
+    /** True when the active LLM run was initiated by voice dictation. */
+    @Volatile
+    private var currentRunIsVoice = false
+
     private val ttsEngine: TtsEngine = TtsEngine(
         getApplication(),
-        settings.ttsApiBaseUrl,
-        settings.effectiveTtsApiKey
+        settings.effectiveTtsBaseUrl,
+        settings.effectiveTtsApiKey,
+        onUnauthorized = { viewModelScope.launch { onSamosaUnauthorized() } }
     )
     private val sttEngine: SttEngine = SttEngine(
         getApplication(),
-        settings.sttApiBaseUrl,
-        settings.effectiveSttApiKey
+        settings.effectiveSttBaseUrl,
+        settings.effectiveSttApiKey,
+        onUnauthorized = { viewModelScope.launch { onSamosaUnauthorized() } }
     )
 
     /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
@@ -141,6 +159,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** Agent mode of the session currently bound to [agentEngine]. */
     private var engineAgent: AgentMode = AgentMode.MONITOR
 
+    /**
+     * True when the run in flight has surfaced an error bubble (LLM failure,
+     * user interruption, …). Decides whether an arriving reply gets the normal
+     * alert or the error buzz, since the engine reports both outcomes through
+     * the same `onAssistantReply` path.
+     */
+    @Volatile
+    private var runHadError = false
+
     /** True when the session the user is viewing is the one bound to the engine. */
     private fun viewingEngineSession(): Boolean =
         _uiState.value.activeSessionId == agentEngine.sessionId
@@ -160,6 +187,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     private val _sessions = MutableStateFlow<List<ChatSession>>(emptyList())
     val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
+
+    /**
+     * Live per-session token counts. Updated on every [onTokenCount] so the
+     * drawer's per-row readout doesn't lag one round behind the running
+     * session. The persisted [ChatSession.tokenCount] on disk catches up
+     * through [saveCurrentSession], so this overlay is read-first, disk-second.
+     */
+    private val _liveTokenBySession = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val liveTokenBySession: StateFlow<Map<String, Int>> = _liveTokenBySession.asStateFlow()
 
     /** Permission names (or ToolResult.WRITE_SETTINGS) the Activity should request. */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
@@ -206,18 +242,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     override fun onTokenCount(totalTokens: Int) {
+        val engineId = agentEngine.sessionId ?: return
+        // Publish live to the drawer so the running session's row updates in
+        // the same frame, without waiting for the disk save at end-of-round.
+        _liveTokenBySession.update { it + (engineId to totalTokens) }
         if (viewingEngineSession()) updateContextUsage()
-        // Keep the running-session token count fresh in the drawer regardless.
-        refreshSessions()
+        // Best-effort disk write so a crash mid-run doesn't lose the count.
+        viewModelScope.launch { agentEngine.saveCurrentSession() }
     }
 
     override fun onAssistantReply(text: String) {
-        val shouldRead = lastInputWasVoice ||
+        signalReplyArrived()
+        val shouldRead = lastInputWasVoice || currentRunIsVoice ||
             (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
         if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
             speak(text)
         }
         lastInputWasVoice = false
+        currentRunIsVoice = false
     }
 
     override fun onSubAgentUpdate(running: String?, currentAction: String?) {
@@ -267,7 +309,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     // ---- Settings / models ----
 
-    private fun updateContextUsage() = applyContextUsage(agentEngine.tokenCount)
+    // Never read from the engine here. The engine may be bound to a different
+    // session than the one being viewed (background run); use the value
+    // already shown on screen so refreshSettings() etc. cannot clobber the
+    // viewed session's readout with another session's live count.
+    private fun updateContextUsage() = applyContextUsage(_uiState.value.tokenCount)
 
     /** Sets the context readout for an explicit token count (viewed session). */
     private fun applyContextUsage(tokens: Int) {
@@ -297,8 +343,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } else {
             null
         }
-        ttsEngine.configureApi(settings.ttsApiBaseUrl, settings.effectiveTtsApiKey)
-        sttEngine.configureApi(settings.sttApiBaseUrl, settings.effectiveSttApiKey)
+        ttsEngine.configureApi(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        sttEngine.configureApi(settings.effectiveSttBaseUrl, settings.effectiveSttApiKey)
         _uiState.update { it.copy(isConfigured = settings.isConfigured) }
         updateContextUsage()
     }
@@ -308,7 +354,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * the app returns to the unauthenticated state and prompts sign-in again.
      */
     private fun onSamosaUnauthorized() {
-        if (settings.provider != com.gotcha.data.LlmProvider.SAMOSA_AI) return
+        val usingSamosa = settings.provider == LlmProvider.SAMOSA_AI
+        if (!usingSamosa) return
         settingsRepository.clearSamosaSession()
         settings = settingsRepository.load()
         client = null
@@ -328,7 +375,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return client.listModels()
     }
 
-    fun sendMessage(text: String, imageBase64: String? = null) {
+    fun sendMessage(text: String, imageBase64: String? = null, isVoiceInput: Boolean = false) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && imageBase64 == null) return
         // One agent runs at a time. Block sending while any run is in flight —
@@ -338,6 +385,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
+        currentRunIsVoice = isVoiceInput || lastInputWasVoice
+        lastInputWasVoice = false
         val msg = if (imageBase64 != null) {
             visionUserMessage(trimmed, imageBase64, "jpeg")
         } else {
@@ -363,12 +412,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     runningSessionTitle = runningTitle
                 )
             }
+            runHadError = false
             try {
                 agentEngine.run(engineAgent)
             } catch (_: CancellationException) {
                 appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             } finally {
                 withContext(NonCancellable) {
+                    currentRunIsVoice = false
+                    lastInputWasVoice = false
                     agentEngine.saveCurrentSession()
                     _uiState.update {
                         it.copy(
@@ -387,6 +439,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
+     * Buzz/chime as a reply lands. The chat screen has no spoken "I'm done"
+     * unless auto-read is on, so without this a reply that arrives while the
+     * user is elsewhere goes unnoticed.
+     */
+    private fun signalReplyArrived() {
+        if (runHadError) {
+            CompletionFeedback.error(getApplication())
+        } else {
+            CompletionFeedback.replyArrived(
+                context = getApplication(),
+                vibrate = settings.notifyVibrationEnabled,
+                chime = settings.notifyChimeEnabled
+            )
+        }
+    }
+
+    /**
      * Point [agentEngine] at [viewedId] (the session being viewed) so a run
      * operates on it. Only called from [sendMessage], which is gated on nothing
      * else running, so re-pointing the engine here is safe. Reloads the session's
@@ -401,9 +470,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.history.addAll(saved.messages)
                 agentEngine.tokenCount = saved.tokenCount
                 agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
+                agentEngine.restoreRunSummaries(saved.runSummaries)
             } else {
                 agentEngine.tokenCount = 0
                 agentEngine.restoreTitle(null)
+                agentEngine.restoreRunSummaries(emptyList())
             }
             agentEngine.setupWorkingDir()
         }
@@ -460,15 +531,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ttsEngine.stop()
             _uiState.update { it.copy(isSpeaking = true) }
             try {
+                val language = Language.fromLabel(settings.preferredLanguage)
                 val defaultVoice = _uiState.value.ttsModels
                     .firstOrNull { it.id == settings.ttsApiModel }
-                    ?.defaultVoice ?: "af_heart"
+                    ?.defaultVoiceFor(language) ?: "af_heart"
                 val voice = settings.ttsVoice.ifBlank { defaultVoice }
                 ttsEngine.speak(
                     text = text,
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
-                    voice = voice
+                    voice = voice,
+                    language = language
                 )
             } finally {
                 _uiState.update { it.copy(isSpeaking = false) }
@@ -482,12 +555,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update { it.copy(isSpeaking = false) }
     }
 
+    /**
+     * Speak [language]'s call-started phrase through the shared Android TTS
+     * engine (regardless of [AudioProvider] setting) so Settings can verify the
+     * installed voice data without spinning up a second TtsEngine instance.
+     *
+     * Returns true when the requested language was actually used, false when
+     * the engine had to fall back to English because Android is missing the
+     * voice data. Returns null when TTS isn't configured at all.
+     */
+    suspend fun testAndroidTts(language: Language): Boolean? {
+        if (settings.ttsProvider == AudioProvider.NONE) return null
+        ttsEngine.stop()
+        ttsEngine.speak(
+            text = SpokenPhrases.callStarted(language),
+            provider = AudioProvider.ANDROID,
+            language = language
+        )
+        return ttsEngine.lastLanguageUnavailable != language
+    }
+
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
         stopSpeaking()
-        if (_uiState.value.isListening || _uiState.value.isRecording) return
-        when (settings.sttProvider) {
-            AudioProvider.ANDROID -> {
+        if (_uiState.value.isListening || _uiState.value.isRecording || _uiState.value.isTranscribing) return
+        when {
+            settings.sttProvider == AudioProvider.ANDROID -> {
                 val perm = android.Manifest.permission.RECORD_AUDIO
                 val granted = androidx.core.content.ContextCompat.checkSelfPermission(
                     getApplication(), perm
@@ -499,16 +592,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening()
+                val started = sttEngine.startAndroidListening(Language.fromLabel(settings.preferredLanguage))
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
                     appendUi(MessageKind.ERROR, "Failed to start speech recognition.")
                 }
             }
-            AudioProvider.API -> {
-                if (settings.sttApiBaseUrl.isBlank()) {
-                    appendUi(MessageKind.ERROR, "No STT API URL configured in settings.")
+            settings.sttProvider.isApiBased() -> {
+                if (settings.effectiveSttBaseUrl.isBlank()) {
+                    appendUi(
+                        MessageKind.ERROR,
+                        if (settings.sttProvider == AudioProvider.SAMOSA_AI) {
+                            "Samosa STT is not configured. Sign in from Settings → Speech."
+                        } else {
+                            "No STT API URL configured in settings."
+                        }
+                    )
                     return
                 }
                 if (settings.sttApiModel.isBlank()) {
@@ -522,7 +622,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     appendUi(MessageKind.ERROR, "Failed to start recording.")
                 }
             }
-            AudioProvider.NONE -> {
+            else -> {
                 appendUi(MessageKind.ERROR, "No STT provider configured. Enable one in settings.")
             }
         }
@@ -532,27 +632,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun stopRecording(onResult: (String) -> Unit) {
         viewModelScope.launch {
             val provider = settings.sttProvider
-            var transcript = ""
-            if (provider == AudioProvider.API) {
-                _uiState.update { it.copy(isRecording = false) }
-                val audioFile = sttEngine.stopRecording()
-                if (audioFile == null) {
-                    appendUi(MessageKind.ERROR, "Failed to record audio.")
-                    return@launch
-                }
-                transcript = sttEngine.transcribeApi(audioFile, settings.sttApiModel, settings.sttLanguage)
-                    .onFailure { e -> appendUi(MessageKind.ERROR, "Transcription failed: ${e.message}") }
-                    .getOrDefault("")
-            } else if (provider == AudioProvider.ANDROID) {
-                _uiState.update { it.copy(isListening = false) }
-                transcript = sttEngine.stopAndroidListening()
+            _uiState.update {
+                it.copy(isRecording = false, isListening = false, isTranscribing = true)
             }
+            try {
+                var transcript = ""
+                when {
+                    provider.isApiBased() -> {
+                        val audioFile = sttEngine.stopRecording()
+                        if (audioFile == null) {
+                            appendUi(MessageKind.ERROR, "Failed to record audio.")
+                            return@launch
+                        }
+                        val sttLanguage = settings.sttLanguage.ifBlank {
+                            Language.fromLabel(settings.preferredLanguage).iso639
+                        }
+                        transcript = sttEngine.transcribeApi(
+                            audioFile, settings.sttApiModel, sttLanguage
+                        )
+                            .onFailure { e ->
+                                appendUi(MessageKind.ERROR, "Transcription failed: ${HumanReadableError.format(e)}")
+                            }
+                            .getOrDefault("")
+                    }
+                    provider == AudioProvider.ANDROID -> {
+                        transcript = sttEngine.stopAndroidListening()
+                    }
+                }
 
-            if (transcript.isNotBlank()) {
-                lastInputWasVoice = true
-                val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                val cleaned = client?.cleanText(transcript, navModel) ?: transcript
-                onResult(cleaned)
+                if (transcript.isNotBlank()) {
+                    lastInputWasVoice = true
+                    // API STT (Whisper-class) output is already punctuated and cased —
+                    // cleanText is redundant there and would cost an extra LLM round-trip.
+                    val cleaned = if (provider == AudioProvider.ANDROID) {
+                        val navModel = settings.navigatorModel.ifEmpty { settings.model }
+                        client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                            ?: transcript
+                    } else {
+                        transcript
+                    }
+                    onResult(cleaned)
+                }
+            } finally {
+                _uiState.update { it.copy(isTranscribing = false) }
             }
         }
     }
@@ -637,6 +759,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * is only re-pointed at the new blank chat when nothing is running.
      */
     fun clearChat(defaultAgent: AgentMode = AgentMode.MONITOR) {
+        lastInputWasVoice = false
+        currentRunIsVoice = false
         val newId = java.util.UUID.randomUUID().toString()
         val runInProgress = _uiState.value.runningSessionId != null
         nextId = 0
@@ -645,6 +769,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.sessionId = newId
             agentEngine.tokenCount = 0
             agentEngine.restoreTitle(null)
+            // Without this the previous chat's run summaries survive into the
+            // new session: the share card would promote the old conversation
+            // and saveCurrentSession() would persist the stale list into the
+            // new chat file.
+            agentEngine.restoreRunSummaries(emptyList())
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -701,6 +830,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun openSession(id: String?) {
+        lastInputWasVoice = false
+        currentRunIsVoice = false
         viewModelScope.launch {
             if (id == null) {
                 clearChat()
@@ -732,6 +863,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.sessionId = session.id
                 agentEngine.tokenCount = session.tokenCount
                 agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
+                agentEngine.restoreRunSummaries(session.runSummaries)
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent
@@ -779,6 +911,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             if (agentEngine.sessionId == id) {
                 clearChat()
             }
+            // Drop any live overlay entry for the deleted session so the
+            // drawer doesn't keep showing a token count for a chat that no
+            // longer exists.
+            _liveTokenBySession.update { it - id }
             refreshSessions()
         }
     }
@@ -814,6 +950,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     ) {
         val viewing = viewingEngineSession()
         val id = if (viewing) nextId++ else engineNextId++
+        if (kind == MessageKind.ERROR) runHadError = true
         val message = UiMessage(id, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent)
         engineTranscript = engineTranscript + message
         if (viewing) {
@@ -942,6 +1079,106 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _exportContent.tryEmit(sb.toString())
     }
 
+    /**
+     * Generates the "Share your Gotcha moment" poster for [runs] (one LLM call
+     * for the copy + a deterministic on-device render). Returns the finished
+     * Bitmap, or a failure message. Safe to call from a coroutine; the render
+     * hops to the main thread internally.
+     */
+    suspend fun generateShareCard(
+        runs: List<RunSummary>,
+        includeScreenshot: Boolean = false
+    ): Result<Bitmap> = runCatching {
+        val client = ShareCardClient(getApplication(), settings)
+        val content = client.generate(runs)
+        if (!content.eligible) {
+            error("Nothing accomplished in this run to showcase yet.")
+        }
+        val stats = PosterStatsBuilder.from(runs)
+        val screenshot = if (includeScreenshot) loadShareScreenshot() else null
+        withContext(Dispatchers.Main) {
+            PosterRenderer.render(getApplication(), content, stats, screenshot)
+        }
+    }
+
+    /**
+     * Best-effort screenshot for the poster thumbnail: the newest image in the
+     * engine session's chat history (a user-attached photo or an agent screen
+     * capture), else null.
+     *
+     * Guarded so a huge or malformed image can't OOM the decode: files over
+     * [MAX_SHARE_SCREENSHOT_BYTES] are skipped, and anything larger than
+     * [MAX_SHARE_SCREENSHOT_DIM] on either side is downsampled before decoding
+     * (the poster draws the thumbnail at 460×345, so full-res is wasteful).
+     */
+    private fun loadShareScreenshot(): Bitmap? {
+        // Snapshot before scanning: the engine coroutine mutates history as it
+        // runs, and this is read from the UI thread. asReversed() alone is a
+        // live view, not a copy.
+        val dataUri = agentEngine.history.toList().asReversed()
+            .firstNotNullOfOrNull { it.imageUrl() }
+            ?: return null
+        // Early bound on the URI before allocating the Base64 byte array:
+        // Base64 inflates payload by 4/3, so even a 50 MB payload produces a
+        // ~67 MB string; reject anything that cannot possibly fit under the
+        // byte cap without decoding it.
+        if (dataUri.length > MAX_SHARE_SCREENSHOT_BYTES * 4 / 3 + SAFE_DATA_URI_PREFIX) {
+            return null
+        }
+        val base64 = dataUri.substringAfter("base64,")
+        return try {
+            val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+            if (bytes.size > MAX_SHARE_SCREENSHOT_BYTES) return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val w = bounds.outWidth
+            val h = bounds.outHeight
+            if (w <= 0 || h <= 0) return null
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = when {
+                    w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
+                    else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
+                }
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Run summaries for the session currently bound to the engine.
+     *
+     * Returns the recorded summaries when present. Chats created before the
+     * run-summary feature landed have none persisted, so fall back to
+     * [synthesizeRunSummariesFromHistory] — the same history [exportChat]
+     * reads, which keeps the share card and the export consistent.
+     *
+     * No memoization: the only caller is the share-card tap handler, not a
+     * recomposition, and the synthesis walk only trims text content — cheaper
+     * than fingerprinting the history (which would hash vision base64 payloads).
+     */
+    fun activeSessionRunSummaries(): List<RunSummary> {
+        val recorded = agentEngine.runSummaries
+        if (recorded.isNotEmpty()) return recorded.toList()
+        // Snapshot the history before iterating: the engine coroutine mutates it
+        // as it runs, and this is read from the UI thread.
+        val snapshot = agentEngine.history.toList()
+        return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
+    }
+
+    /**
+     * True when the session currently bound to the engine has an image in its
+     * history. Drives whether the poster sheet offers "Include a screenshot":
+     * the option only makes sense when there is something to embed, and it must
+     * disappear once the image is culled from history.
+     */
+    fun activeSessionHasImage(): Boolean {
+        // Snapshot before reading: the engine coroutine mutates history as it
+        // runs, and this is read from the UI thread.
+        return agentEngine.history.toList().any { it.hasImage }
+    }
+
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
     private fun appendSubAgentExport(sb: StringBuilder, text: String) {
         val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
@@ -977,5 +1214,78 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
+
+        /** Poster-thumbnail screenshot guards (see [loadShareScreenshot]). */
+        const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
+        const val MAX_SHARE_SCREENSHOT_DIM = 2048
+
+        /**
+         * Slack added to the dataUri length ceiling to account for the
+         * `data:image/...;base64,` MIME prefix that Base64 decoding strips.
+         * 64 bytes is far more than any real MIME prefix and well below the
+         * 4/3 inflation ratio that motivates the guard.
+         */
+        const val SAFE_DATA_URI_PREFIX = 64L
     }
+}
+
+/**
+ * Builds one [RunSummary] per user → assistant exchange in [history], for the
+ * "Share your Gotcha moment" card when a chat predates recorded run summaries.
+ *
+ * A vision request is a plain user message, so text extraction via
+ * [ChatMessage.textContent] covers both. Each exchange starts at a "user"
+ * message and ends at the next one; the assistant text that lands in between
+ * becomes the [RunSummary.finalReply]. Exchanges with no assistant reply are
+ * skipped, so an empty or unanswered chat still yields an empty list (the
+ * share card correctly reports nothing to share).
+ */
+internal fun synthesizeRunSummariesFromHistory(
+    history: List<ChatMessage>,
+    model: String,
+    agentMode: String
+): List<RunSummary> {
+    val summaries = mutableListOf<RunSummary>()
+    var pendingPrompt: String? = null
+    var pendingReply: String? = null
+    // Original exchange times aren't in history, so every synthesized summary
+    // shares one synthetic timestamp rather than a distinct per-exchange one.
+    val synthesizedAt = System.currentTimeMillis()
+
+    fun flush() {
+        val prompt = pendingPrompt
+        val reply = pendingReply
+        if (!prompt.isNullOrBlank() && !reply.isNullOrBlank()) {
+            summaries += RunSummary(
+                startedAt = synthesizedAt,
+                endedAt = synthesizedAt,
+                userPrompt = prompt.take(400),
+                finalReply = reply.take(800),
+                model = model,
+                agentMode = agentMode,
+                delegated = false,
+                succeeded = true,
+                toolCalls = emptyList()
+            )
+        }
+        pendingPrompt = null
+        pendingReply = null
+    }
+
+    for (msg in history) {
+        when (msg.role) {
+            "user" -> {
+                flush()
+                pendingPrompt = msg.textContent.trim()
+            }
+            "assistant" -> {
+                val text = msg.textContent.trim()
+                // Only the final assistant text of the exchange matters; tool
+                // rounds between the prompt and the answer carry no copy.
+                if (text.isNotBlank()) pendingReply = text
+            }
+        }
+    }
+    flush()
+    return summaries
 }

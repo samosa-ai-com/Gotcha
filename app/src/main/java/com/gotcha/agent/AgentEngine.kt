@@ -2,22 +2,29 @@ package com.gotcha.agent
 
 import android.content.Context
 import android.util.Log
+import com.gotcha.agent.skills.SkillPromptBuilder
+import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.GotchaStorage
+import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
+import com.gotcha.data.ToolSummary
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
+import com.gotcha.tools.DeviceCapabilities
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
@@ -30,16 +37,11 @@ import kotlinx.serialization.json.jsonPrimitive
 /** Outcome of the sensitive-action confirmation step. */
 private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 
+/** Whitespace collapsed when emitting multi-line user-profile fields, so a Background paragraph can't be read as the start of a new fact. */
+private val WHITESPACE = Regex("\\s+")
+
 /** Maps API/network failures to a short, user-readable message. */
-internal fun friendlyAgentError(e: Exception): String = when {
-    e is retrofit2.HttpException && e.code() == 401 ->
-        "The API rejected the key (401). Check your API key in settings."
-    e is retrofit2.HttpException ->
-        "The API returned an error (HTTP ${e.code()}). ${e.message()}"
-    e is java.io.IOException ->
-        "Network problem: ${e.message ?: "could not reach the API"}. Check your connection."
-    else -> "Something went wrong: ${e.message}"
-}
+internal fun friendlyAgentError(e: Exception): String = HumanReadableError.format(e)
 
 /**
  * The core agent loop, extracted from ChatViewModel so it can run both inside
@@ -67,8 +69,31 @@ class AgentEngine(
     var sessionId: String? = null
     var tokenCount: Int = 0
 
+    /**
+     * Stable key for the provider's server-side prompt KV cache
+     * (`prompt_cache_key` / `X-Session-Id`), independent of [sessionId] which
+     * also serves as per-session file identity. Defaults to [sessionId] when
+     * unset (chat mode keeps the chat id, which is already stable across turns).
+     */
+    var promptCacheKey: String? = null
+
+    /**
+     * Structured records of completed runs in this session, newest last. Fed to
+     * the marketing copy LLM call for the "Share your Gotcha moment" poster.
+     * Bounded to [MAX_RUN_SUMMARIES]; restored from disk when the engine is
+     * re-bound to a saved session.
+     */
+    val runSummaries = mutableListOf<RunSummary>()
+
     /** When true, the system prompt includes a voice-call brevity reminder. */
     var callMode: Boolean = false
+
+    /**
+     * Final answer of the most recent sub-agent delegation. The delegation guard
+     * falls back to it: if the model kept re-delegating instead of reporting, the
+     * work itself usually succeeded and this is the result the user wanted.
+     */
+    private var lastDelegatedAnswer: String? = null
 
     lateinit var toolExecutor: ToolExecutor
         private set
@@ -139,7 +164,9 @@ class AgentEngine(
                             }
                         )
                     },
-                    sessionId = sessionId?.let { "${it}_nav" }
+                    sessionId = sessionId?.let { "${it}_nav" },
+                    onCaptureChrome = { hide -> events.onScreenCaptureChrome(hide) },
+                    onScreenReadDone = { events.onScreenReadDone() }
                 )
                 val output = session.run()
                 val stepsEncoded = output.steps.joinToString("\n")
@@ -267,11 +294,18 @@ class AgentEngine(
                 messages = history.toList(),
                 tokenCount = tokenCount,
                 displayMessages = displayMessagesProvider(),
-                agentMode = agentModeProvider()?.name
+                agentMode = agentModeProvider()?.name,
+                runSummaries = runSummaries.toList()
             )
         )
         // Rename the chat dir in place now that the real title is known.
         setupWorkingDir()
+    }
+
+    /** Replaces the persisted run-summary list when switching to another session. */
+    fun restoreRunSummaries(saved: List<RunSummary>) {
+        runSummaries.clear()
+        runSummaries.addAll(saved)
     }
 
     private suspend fun checkAndCompactHistory(llm: LLMClient) {
@@ -321,8 +355,12 @@ class AgentEngine(
                 if (preserveLast != null) {
                     history.add(preserveLast)
                 }
-                // The new token count is roughly the size of the summary + preserved message
-                val newTokensApprox = (summary.length / 4) + ((preserveLast?.textContent?.length ?: 0) / 4)
+                // The new token count is the size of the summary + preserved
+                // message + the static prompt prefix overhead, so the unit
+                // matches what the API would report on the next round.
+                val historyEstimate = (summary.length / 4) +
+                    ((preserveLast?.textContent?.length ?: 0) / 4)
+                val newTokensApprox = historyEstimate + PROMPT_OVERHEAD_TOKENS
                 tokenCount = newTokensApprox
                 events.onTokenCount(newTokensApprox)
                 // Drop the pre-compaction on-screen transcript, then show the
@@ -362,39 +400,89 @@ class AgentEngine(
         // new information. Break after [maxRepeatedToolCalls] such rounds.
         var lastRoundSignature: String? = null
         var repeatedRoundCount = 0
+        // Delegation guard: see [consecutiveDelegationRounds] below.
+        var consecutiveDelegationRounds = 0
+        lastDelegatedAnswer = null
+        // Run-summary capture: what this run did, in a form the marketing
+        // poster can consume. Collected locally and emitted once at the end.
+        val runStartedAt = System.currentTimeMillis()
+        val toolSummaries = mutableListOf<ToolSummary>()
+        fun recordTool(call: ToolCall, result: ToolResult) {
+            toolSummaries += ToolSummary(
+                name = call.function.name,
+                success = result.success,
+                result = result.message.take(160)
+            )
+        }
+
+        // Called at every terminal path: builds the structured record and hands
+        // it to the host (persists into this session's runSummaries).
+        fun emitRunSummary(finalReply: String, succeeded: Boolean) {
+            val userPrompt = history.lastOrNull { it.role == "user" }?.textContent?.take(400) ?: ""
+            val summary = RunSummary(
+                startedAt = runStartedAt,
+                endedAt = System.currentTimeMillis(),
+                userPrompt = userPrompt,
+                finalReply = finalReply.take(800),
+                model = settings.model,
+                agentMode = agent.name,
+                delegated = toolSummaries.any { it.name in ToolRegistry.delegationTools },
+                succeeded = succeeded,
+                toolCalls = toolSummaries
+            )
+            runSummaries += summary
+            if (runSummaries.size > MAX_RUN_SUMMARIES) {
+                val overflow = runSummaries.size - MAX_RUN_SUMMARIES
+                repeat(overflow) { runSummaries.removeAt(0) }
+            }
+            events.onRunSummary(summary)
+        }
         repeat(settings.maxToolRounds) { iteration ->
             if (iteration > 0) delay(INTER_CALL_DELAY_MS)
             events.onActivity("Thinking…")
 
             // Build message array optimized for prompt caching:
-            //   1. Agent instructions (static until agent switches)
-            //   2. Full conversation history (images culled non-mutatively)
-            //   3. Base environment block (volatile, e.g. battery)
-            //   4. Current timestamp (volatile)
+            //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile)
+            //   2. Conversation history (4-turn screen observation retention window)
+            //   3. Current timestamp (system message at tail)
+            //   4. Active skills index summary (user message at tail)
             val messages = buildList {
-                addAll(agentInstructionMessages(agent))
-                addAll(cullOldImages(trimmedHistory()))
-                add(baseEnvironmentBlock(agent))
+                add(systemPromptMessage(agent))
+                addAll(cullOldObservations(trimmedHistory()))
                 add(currentTimestampMessage())
                 addAll(activeSkillsMessages())
             }
             val response = try {
-                llm.chat(messages, ToolRegistry.toolsForAgent(agent), sessionId = sessionId)
+                llm.chat(
+                    messages,
+                    ToolRegistry.toolsForAgent(agent, hiddenTools()),
+                    sessionId = promptCacheKey ?: sessionId
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                events.onUi(MessageKind.ERROR, friendlyAgentError(e))
+                // Also spoken: on a voice call an unannounced return is silence.
+                val error = friendlyAgentError(e)
+                events.onUi(MessageKind.ERROR, error)
+                events.onAssistantReply(error)
+                emitRunSummary(error, succeeded = false)
                 return
             }
 
-            response.usage?.totalTokens?.let {
-                tokenCount = it
-                events.onTokenCount(it)
-            }
+            // Use the API-reported totalTokens when available; fall back to a
+            // local estimate so the meter still moves and compaction can still
+            // fire on proxies that omit `usage`.
+            val totalTokens = response.usage?.totalTokens
+                ?: (messages.sumOf { it.textContent.length / 4 } + PROMPT_OVERHEAD_TOKENS)
+            tokenCount = totalTokens
+            events.onTokenCount(totalTokens)
 
             val message = response.choices.firstOrNull()?.message
             if (message == null) {
-                events.onUi(MessageKind.ERROR, "The model returned an empty response.")
+                val error = "The model returned an empty response."
+                events.onUi(MessageKind.ERROR, error)
+                events.onAssistantReply(error)
+                emitRunSummary(error, succeeded = false)
                 return
             }
 
@@ -419,6 +507,7 @@ class AgentEngine(
                 if (content.isNotEmpty()) {
                     events.onAssistantReply(content)
                 }
+                emitRunSummary(content, succeeded = true)
                 return
             }
 
@@ -432,6 +521,9 @@ class AgentEngine(
             }
 
             val decision = requestConfirmation(toolCalls)
+            // Set by the FINISH_TASK: marker below; non-null means the model
+            // declared the work done and this is what the user should be told.
+            var finishSummary: String? = null
             suspend fun executeToolCalls() {
                 for (call in toolCalls) {
                     val result = when (decision) {
@@ -443,6 +535,7 @@ class AgentEngine(
                                 "Do not retry automatically; tell the user to ask again when ready."
                         )
                     }
+                    recordTool(call, result)
 
                     // Special-access markers: emit the marker and continue.
                     // Runtime permissions are pre-configured in Settings — the tool
@@ -460,6 +553,21 @@ class AgentEngine(
                         handleQuestionResult(call, result)
                     } else if (result.success && result.message.startsWith("TASK_RESULT:")) {
                         handleTaskResult(call, result)
+                    } else if (result.success && result.message.startsWith("FINISH_TASK:")) {
+                        finishSummary = result.message.removePrefix("FINISH_TASK:")
+                        // The assistant turn carrying this call needs a matching
+                        // tool result or the next request would be malformed —
+                        // even though there is no next request on this path.
+                        history += ChatMessage(
+                            role = "tool",
+                            content = JsonPrimitive("Reported to the user. The turn ends here."),
+                            toolCallId = call.id
+                        )
+                        // finish_task is a terminal signal: any sibling tool calls
+                        // past it would still execute their side effects, then sit
+                        // unread in history while the engine returns on finishSummary.
+                        // Break out so the user sees only what finish_task reported.
+                        break
                     } else if (result.success && result.message.startsWith("CONFIRM_UNINSTALL:")) {
                         handleUninstallConfirm(call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_ALARM:")) {
@@ -501,6 +609,22 @@ class AgentEngine(
             }
             val historySizeBeforeTools = history.size
             executeToolCalls()
+
+            // finish_task: the model's explicit "done" signal. Without it the only
+            // way out of this loop is a reply that happens to carry no tool calls,
+            // which is exactly what never arrives when the model keeps delegating
+            // (issue #20) — and onAssistantReply is what drives TTS, so the user
+            // was left with no spoken outcome at all.
+            finishSummary?.let { summary ->
+                val reply = summary.trim().ifEmpty { "Done." }
+                history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
+                events.onUi(MessageKind.ASSISTANT, reply)
+                events.onAssistantReply(reply)
+                emitRunSummary(reply, succeeded = true)
+                saveCurrentSession()
+                return
+            }
+
             saveCurrentSession()
             // Re-assert after each round; a concurrent engine may have moved it.
             setupWorkingDir()
@@ -517,23 +641,62 @@ class AgentEngine(
             if (roundSignature == lastRoundSignature) {
                 repeatedRoundCount++
                 if (repeatedRoundCount >= settingsProvider().maxRepeatedToolCalls) {
-                    events.onUi(
-                        MessageKind.ERROR,
-                        "Stopped: the same tool action kept returning the same result " +
-                            "($repeatedRoundCount times in a row) with no progress. " +
-                            "Check that the required service/permission is available, then try again."
-                    )
+                    val stopped = "Stopped: the same tool action kept returning the same result " +
+                        "($repeatedRoundCount times in a row) with no progress. " +
+                        "Check that the required service/permission is available, then try again."
+                    events.onUi(MessageKind.ERROR, stopped)
+                    events.onAssistantReply(stopped)
+                    emitRunSummary(stopped, succeeded = false)
                     return
                 }
             } else {
                 repeatedRoundCount = 0
                 lastRoundSignature = roundSignature
             }
+
+            // Delegation guard, for the loop the signature guard structurally
+            // cannot see. task/navigate_app hand the whole job to a sub-agent and
+            // return a prose report; navigate_app additionally re-launches Gotcha,
+            // so the screen the sub-agent left behind is gone by the time the model
+            // reads the report. A model that wants to verify has nothing to look at
+            // and re-delegates a reworded copy of the same task — different bytes
+            // every round, so repeatedRoundCount never climbs.
+            if (toolCalls.all { it.function.name in ToolRegistry.delegationTools }) {
+                consecutiveDelegationRounds++
+                // At least 2, so one delegation always gets to run and be reported.
+                val limit = settings.maxConsecutiveDelegations.coerceAtLeast(2)
+                if (consecutiveDelegationRounds >= limit) {
+                    events.onUi(
+                        MessageKind.ERROR,
+                        "Stopped: delegated to a sub-agent $consecutiveDelegationRounds times in a " +
+                            "row without reporting back. Reporting the last sub-agent result instead."
+                    )
+                    val reply = lastDelegatedAnswer?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: "I ran the task but could not confirm the result. Please check the app."
+                    history += ChatMessage(role = "assistant", content = JsonPrimitive(reply))
+                    events.onUi(MessageKind.ASSISTANT, reply)
+                    events.onAssistantReply(reply)
+                    emitRunSummary(reply, succeeded = lastDelegatedAnswer != null)
+                    saveCurrentSession()
+                    return
+                }
+                // One round before the hard stop, say so — the model can usually
+                // close the turn itself, which reads far better than our fallback.
+                if (consecutiveDelegationRounds == limit - 1) {
+                    history += ChatMessage(
+                        role = "system",
+                        content = JsonPrimitive(REDELEGATION_REMINDER)
+                    )
+                }
+            } else {
+                consecutiveDelegationRounds = 0
+            }
         }
-        events.onUi(
-            MessageKind.ERROR,
-            "Stopped after ${settings.maxToolRounds} tool rounds to avoid an infinite loop."
-        )
+        val exhausted = "I stopped after ${settings.maxToolRounds} tool rounds without finishing, " +
+            "to avoid running forever."
+        events.onUi(MessageKind.ERROR, exhausted)
+        events.onAssistantReply(exhausted)
+        emitRunSummary(exhausted, succeeded = false)
     }
 
     /**
@@ -768,6 +931,7 @@ class AgentEngine(
             steps = emptyList()
             answer = payload
         }
+        lastDelegatedAnswer = answer
         // Show as a collapsible SUBAGENT bubble in the UI
         events.onUi(MessageKind.SUBAGENT, answer, subAgentSteps = steps)
         // Store in LLM history with steps embedded for persistence
@@ -794,22 +958,28 @@ class AgentEngine(
         } catch (_: Exception) {
             return ToolResult.error("Malformed tool arguments: ${call.function.arguments.take(200)}")
         }
-        return toolExecutor.execute(call.function.name, args, agent)
+        return toolExecutor.execute(
+            call.function.name,
+            args,
+            agent,
+            hiddenTools = hiddenTools()
+        )
     }
 
     /**
-     * Environment block sent as the first system message.
-     * Fully static within a session — no volatile fields like timestamps.
-     * Only "Active agent: X" differs between Monitor and Operator.
-     * The server KV cache for this prefix is preserved across all calls.
+     * Tools withheld this turn: those whose connector is disconnected or switched
+     * off, plus those whose device capability is missing (accessibility off, not
+     * rooted, …). Recomputed per call — the user can connect an account or grant
+     * a permission mid-conversation, and the `<env>` block reports both so the
+     * model can see a capability appear rather than only inferring it.
      */
-    private fun baseEnvironmentBlock(agent: AgentMode): ChatMessage {
-        return ChatMessage(role = "system", content = JsonPrimitive(buildEnvironmentString(agent)))
-    }
+    private fun hiddenTools(): Set<String> =
+        ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
+            DeviceCapabilities.hiddenToolNames(appContext)
 
     /**
      * A separate system message carrying only the current date/time.
-     * Placed after the conversation history so the [baseEnvironmentBlock] +
+     * Placed after the conversation history so the Index 0 static System Prompt +
      * history prefix stays in the KV cache while the timestamp is always fresh.
      */
     private fun currentTimestampMessage(): ChatMessage {
@@ -827,42 +997,71 @@ class AgentEngine(
     private fun activeSkillsMessages(): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
         val disabledSkills = settingsProvider().disabledSkills
-        val activeSkills = com.gotcha.agent.skills.SkillRegistry.getSkillsForPackage(currentPackage)
+        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
             .filter { !disabledSkills.contains(it.id) }
-
-        if (activeSkills.isEmpty()) return emptyList()
-
-        val instructions = activeSkills.joinToString("\n\n") { "Skill [${it.id}]:\n${it.instructions}" }
-        return listOf(
-            ChatMessage(
-                role = "system",
-                content = JsonPrimitive(
-                    "<active-skills>\nThe user is currently using $currentPackage. " +
-                        "Use the following skills to operate it optimally:\n\n$instructions\n</active-skills>"
-                )
-            )
-        )
+        val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
+        val message = SkillPromptBuilder.buildFromHistory(
+            currentPackage = currentPackage,
+            activeSkills = activeSkills,
+            communityIds = communityIds,
+            history = history
+        ) ?: return emptyList()
+        return listOf(message)
     }
 
     /**
-     * Agent-specific core prompt + system-reminder, sent at the tail of the
-     * message array (right before the latest user message).  Placing these
-     * after the conversation history ensures the [baseEnvironmentBlock] +
-     * history prefix stays in the KV cache when the user switches agents.
+     * Complete System Prompt sent at Index 0.
+     *
+     * Combines core instructions, mode restrictions, language/style directives,
+     * static environment specs (<env>), connected account lists, and user profile
+     * (<user_profile>) into a single contiguous system message at Index 0.
+     *
+     * Because device specs and profile facts are static during a session, placing
+     * this entire block at Index 0 forms a 100% cache-stable prefix across turns.
      */
-    private fun agentInstructionMessages(agent: AgentMode): List<ChatMessage> {
+    internal fun systemPromptMessage(agent: AgentMode): ChatMessage {
+        val instructions = agentInstructionText(agent)
+        val environment = buildEnvironmentString(agent)
+        return ChatMessage(
+            role = "system",
+            content = JsonPrimitive("$instructions\n\n$environment")
+        )
+    }
+
+    private fun agentInstructionText(agent: AgentMode): String {
+        val languageDirective = "\n\nRespond to the user in ${settings.preferredLanguage}. If the " +
+            "user writes to you in a different language, reply in that language instead.\n" +
+            "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
+            "app names, search queries passed to tools, and shell commands — regardless of " +
+            "the language you are replying in."
+        // The user's own words about how they want to be answered (Settings ▸
+        // Personal Info). It rides with the language directive at the tail of
+        // the message array rather than in the <user_profile> block: it is an
+        // instruction about the reply being written now, not a fact to remember.
+        val styleDirective = settings.userResponseStyle.trim()
+            .takeIf { it.isNotEmpty() }
+            ?.let {
+                "\n\nThe user has described how they want replies written:\n$it\n" +
+                    "Follow that unless it would conflict with a safety constraint, with the " +
+                    "mode restrictions below, or with a format a tool requires."
+            }
+            .orEmpty()
         val core = when (agent) {
             AgentMode.MONITOR ->
-                "You are Monitor, a read-only AI assistant running on the user's Android phone. " +
+                "You are Gotcha (operating in Monitor mode), a read-only AI assistant " +
+                    "created by Samosa AI running on the user's Android phone. " +
                     "You can inspect, read, and query the device, but you CANNOT create, modify, or " +
                     "delete anything. You control the device only through the provided tools; never " +
                     "invent tool names or capabilities. If a tool reports a missing permission, " +
                     "explain what to grant and ask again. Use the sleep tool to pause and wait " +
                     "between operations. Use the search_skills tool when interacting with " +
                     "unfamiliar apps or complex operations to learn the optimal steps. " +
+                    "When you have the answer, call finish_task with it — that is what actually " +
+                    "delivers it to the user. " +
                     "Keep replies short and conversational."
             AgentMode.OPERATOR ->
-                "You are Operator, an AI assistant running on the user's Android phone. " +
+                "You are Gotcha (operating in Operator mode), an AI assistant " +
+                    "created by Samosa AI running on the user's Android phone. " +
                     "You can inspect, read, query, create, modify, and delete on the device. " +
                     "You control the device only through the provided tools; never invent tool " +
                     "names or capabilities. If a tool reports a missing permission, explain what " +
@@ -880,6 +1079,14 @@ class AgentEngine(
                     "scrolling through results, or reading on-screen information. The navigator " +
                     "will look at the screen, tap, swipe, and type step by step. " +
                     "You will receive its complete report when done. " +
+                    "A sub-agent's report is the outcome — trust it. It runs in the foreground and " +
+                    "control returns to Gotcha afterwards, so the screen it worked on is no longer " +
+                    "in front of you and re-delegating cannot verify anything; it only repeats the " +
+                    "work. Delegate a second time only for a genuinely different remaining step.\n" +
+                    "When the work is done, call finish_task with a short summary. That is what " +
+                    "ends your turn and delivers the outcome to the user — until you call it (or " +
+                    "reply in plain text with no tool calls) the user has been told nothing. " +
+                    "Call it for failures too, saying what went wrong.\n" +
                     "Keep replies short and conversational. Be careful with destructive actions.\n" +
                     "If the accessibility service is enabled, you have the ability to control any app on the device.\n" +
                     "When interacting with unfamiliar apps, system settings, or complex " +
@@ -913,9 +1120,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return listOf(
-            ChatMessage(role = "system", content = JsonPrimitive(core + reminder))
-        )
+        return core + languageDirective + styleDirective + reminder
     }
 
     /**
@@ -934,28 +1139,11 @@ class AgentEngine(
             pm.getPackageInfo(app.packageName, 0).versionName ?: "unknown"
         } catch (_: Exception) { "unknown" }
 
-        val accEnabled = try {
-            val expected = "${app.packageName}/com.gotcha.service.GotchaAccessibilityService"
-            val enabled = android.provider.Settings.Secure.getString(
-                app.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-            ) ?: ""
-            enabled.contains(expected, ignoreCase = true)
-        } catch (_: Exception) { false }
-
-        val notifEnabled = try {
-            val expected = app.packageName
-            val enabled = android.provider.Settings.Secure.getString(
-                app.contentResolver, "enabled_notification_listeners"
-            ) ?: ""
-            enabled.contains(expected, ignoreCase = true)
-        } catch (_: Exception) { false }
-
-        val deviceAdmin = try {
-            val dpm = app.getSystemService(android.app.admin.DevicePolicyManager::class.java)
-            dpm?.isAdminActive(
-                android.content.ComponentName(app, com.gotcha.service.GotchaDeviceAdminReceiver::class.java)
-            ) ?: false
-        } catch (_: Exception) { false }
+        // Same probes that decide tool exposure, so the status the model reads can
+        // never disagree with the tools it was offered.
+        val accEnabled = DeviceCapabilities.accessibilityEnabled(app)
+        val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
+        val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -977,11 +1165,81 @@ class AgentEngine(
             appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
+            // Tools depending on a capability that is "no" here are withheld from
+            // the tool list, so these lines are the model's only way to explain
+            // what the user should enable.
+            appendLine(
+                "  Display over other apps: " +
+                    if (DeviceCapabilities.overlayAllowed(app)) "yes" else "no"
+            )
             appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
             appendLine("  App version: $versionName")
             appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
             appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
+            // Connector state, rebuilt every call. The active list is what lets the
+            // model notice a connector that appeared mid-conversation: its own
+            // earlier turns may say "no account is connected", and a tool quietly
+            // materialising in the schema list is too weak a signal to overturn
+            // that. The unconfigured list is the only way it can suggest connecting
+            // Notion or To Do, whose tools are hidden and which — unlike email —
+            // have no no-connector fallback tool. Connectors that are configured
+            // but switched off appear in neither: the user already decided.
+            val active = ConnectorRegistry.active(settings.disabledConnectors)
+            if (active.isNotEmpty()) {
+                appendLine(
+                    "  Connected accounts, usable right now via their tools: " +
+                        active.joinToString(", ") { it.displayName }
+                )
+            }
+            val unconfigured = ConnectorRegistry.unconfigured()
+            if (unconfigured.isNotEmpty()) {
+                appendLine(
+                    "  Connectors available to set up (drawer menu ▸ Connectors): " +
+                        unconfigured.joinToString(", ") { it.displayName }
+                )
+            }
             append("</env>")
+            append("\n\n")
+            append(buildUserProfileString())
+        }
+    }
+
+    /**
+     * What the user told us about themselves in Settings ▸ Personal Info.
+     *
+     * A block of its own rather than more `<env>` lines: `<env>` describes the
+     * device and the run, this describes the person asking, and the model needs
+     * to keep the two apart — a preference here is something to honour, not a
+     * capability to reason about. Blank fields are omitted entirely so an
+     * untouched profile costs a couple of lines rather than a list of "unknown"s
+     * the model may then try to fill in by asking.
+     *
+     * Language and currency always appear: they have real defaults, and the
+     * model is worse off guessing them than reading a default it can be
+     * corrected on.
+     */
+    private fun buildUserProfileString(): String {
+        val s = settings
+        val facts = buildList {
+            // One fact per line, so a multi-line Background can't be mistaken for
+            // the start of a new one.
+            fun fact(label: String, value: String) {
+                value.replace(WHITESPACE, " ").trim()
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { add("$label: $it") }
+            }
+            fact("Name", s.userName)
+            fact("Location", s.userLocation)
+            fact("Occupation", s.userOccupation)
+            fact("Background", s.userBackground)
+            fact("Preferred language", s.preferredLanguage)
+            fact("Preferred currency", s.preferredCurrency)
+        }
+        return buildString {
+            appendLine("Here is what the user has told you about themselves:")
+            appendLine("<user_profile>")
+            facts.forEach { appendLine("  $it") }
+            append("</user_profile>")
         }
     }
 
@@ -1050,17 +1308,26 @@ class AgentEngine(
      * read_screen call and injects them as a vision user message so the LLM
      * can "see" the screen alongside structured element data.
      */
-    private suspend fun injectReadScreenObservation() {
+    internal suspend fun injectReadScreenObservation() {
         android.util.Log.d(
             "ScreenCapture",
             "read_screen auto-injection: calling captureCompressedScreenshot()"
         )
         val uiTree = ScreenPerception.buildUiHierarchyText()
-        val screenshot = captureCompressedScreenshot()
+        val screenshot = try {
+            events.onScreenCaptureChrome(true)
+            delay(SCREEN_CAPTURE_SETTLE_MS) // chrome vanishes before the frame is captured
+            captureCompressedScreenshot()
+        } finally {
+            events.onScreenCaptureChrome(false)
+        }
         android.util.Log.d(
             "ScreenCapture",
             "read_screen auto-injection: screenshot=${screenshot != null}"
         )
+        // The accessibility text read happened regardless of screenshot success —
+        // signal the host so it can flash the "screen was read" feedback.
+        events.onScreenReadDone()
         if (screenshot != null) {
             val observationText = ScreenPerception.buildObservationText(screenshot, uiTree)
             val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
@@ -1086,8 +1353,16 @@ class AgentEngine(
      * Captures a full-resolution PNG screenshot after read_screen_raw,
      * saves it to the working directory, and injects it as a vision message.
      */
-    private suspend fun injectFullResScreenshot(result: ToolResult) {
-        val screenshot = captureFullResScreenshot() ?: return
+    internal suspend fun injectFullResScreenshot(result: ToolResult) {
+        val captured = try {
+            events.onScreenCaptureChrome(true)
+            delay(SCREEN_CAPTURE_SETTLE_MS)
+            captureFullResScreenshot()
+        } finally {
+            events.onScreenCaptureChrome(false)
+        }
+        events.onScreenReadDone()
+        val screenshot = captured ?: return
         val screenText = result.message.removePrefix("read_screen_raw:").take(500)
         // Save screenshot to working directory
         val savedPath = try {
@@ -1120,38 +1395,75 @@ class AgentEngine(
         )
     }
 
-    /**
-     * Returns a copy of [messages] with old vision messages replaced by
-     * text-only versions. Only the 2 most recent vision messages keep their
-     * image data. The original list (and [history]) is NOT modified,
-     * so the prefix sent in previous iterations stays cache-stable.
-     */
-    private fun cullOldImages(messages: List<ChatMessage>): List<ChatMessage> {
-        val imageMsgIndices = messages.indices.filter { i ->
-            val content = messages[i].content
-            content is JsonArray && content.any { part ->
-                part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
-            }
-        }
-        val toCull = imageMsgIndices.dropLast(2).toSet()
-        if (toCull.isEmpty()) return messages
-
-        return messages.mapIndexed { idx, msg ->
-            if (idx in toCull) {
-                msg.copy(
-                    content = JsonPrimitive(
-                        "[Previous screen observation removed to save context. Only the 2 most recent are retained.]"
-                    )
-                )
-            } else {
-                msg
-            }
-        }
-    }
-
     companion object {
+        /**
+         * Returns a copy of [messages] with old vision images and bulky UI hierarchy
+         * screen observations replaced by text-only summaries.
+         * Retains full content for the 4 most recent screen perception turns.
+         * The original list (and [history]) is NOT modified.
+         */
+        internal fun cullOldObservations(messages: List<ChatMessage>): List<ChatMessage> {
+            val observationMsgIndices = messages.indices.filter { i ->
+                val msg = messages[i]
+                val content = msg.content
+                val isVisionArray = content is JsonArray && content.any { part ->
+                    part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
+                }
+                val text = msg.textContent
+                val isScreenObservation = text.contains("[Screen State]") ||
+                    text.contains("── UI Elements ──") ||
+                    text.contains("read_screen_raw:")
+                isVisionArray || isScreenObservation
+            }
+            val toCull = observationMsgIndices.dropLast(4).toSet()
+            if (toCull.isEmpty()) return messages
+
+            return messages.mapIndexed { idx, msg ->
+                if (idx in toCull) {
+                    msg.copy(
+                        content = JsonPrimitive(
+                            "[Previous screen observation removed to save context. Only the 4 most recent are retained.]"
+                        )
+                    )
+                } else {
+                    msg
+                }
+            }
+        }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /** Upper bound on persisted [RunSummary]s per session (newest wins). */
+        private const val MAX_RUN_SUMMARIES = 20
+
+        /**
+         * How long to wait after hiding host chrome before an agent screenshot
+         * capture, so the chrome is gone from the frame. Same intent as the
+         * call host's per-user-turn CAPTURE_SETTLE_MS.
+         */
+        internal const val SCREEN_CAPTURE_SETTLE_MS = 350L
+
+        /**
+         * Conservative floor for the static prefix the engine sends every call
+         * (agent instructions + environment block + timestamp + active-skills
+         * index + tool schemas). The real API-reported `usage.totalTokens` is the
+         * source of truth whenever the server returns it; this only fills the
+         * gap when it doesn't, and it keeps the post-compaction estimate in the
+         * same units so the meter doesn't visibly collapse after compaction.
+         */
+        internal const val PROMPT_OVERHEAD_TOKENS = 3_000
+
+        /** Injected one round before the delegation guard gives up. */
+        private const val REDELEGATION_REMINDER =
+            "<system-reminder>\n" +
+                "You have delegated to a sub-agent on every round so far and have not yet told " +
+                "the user anything. The sub-agent's report above is the result — you cannot see " +
+                "the screen it left behind, and delegating the same task again will not give you " +
+                "a better view of it, only a repeat of the work.\n" +
+                "End the turn now: call finish_task with a short summary of what happened, or " +
+                "reply in plain text. Delegate again only if there is a genuinely different, " +
+                "still-unfinished step left to do.\n" +
+                "</system-reminder>"
 
         private val COMPACTION_SYSTEM_PROMPT = listOf(
             "You are an advanced Context Compaction Agent for an Android-based personal assistant. " +

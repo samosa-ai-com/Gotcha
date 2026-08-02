@@ -64,6 +64,50 @@ class ToolDefinitionsSchemaTest {
         }
     }
 
+    /**
+     * A parameter with no `type` or no `description` is the most common cause of the model
+     * passing the wrong shape — the schema still validates, so nothing else catches it.
+     */
+    @Test
+    fun `every parameter declares a type and a description`() {
+        ToolDefinitions.all.forEach { def ->
+            def.function.parameters["properties"]!!.jsonObject.forEach { (param, spec) ->
+                val obj = spec.jsonObject
+                assertTrue(
+                    "'${def.function.name}.$param' has no type",
+                    obj["type"]?.jsonPrimitive?.content?.isNotBlank() == true
+                )
+                assertTrue(
+                    "'${def.function.name}.$param' has no description",
+                    obj["description"]?.jsonPrimitive?.content?.isNotBlank() == true
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `required lists have no duplicates`() {
+        ToolDefinitions.all.forEach { def ->
+            val required = def.function.parameters["required"]?.jsonArray
+                ?.map { it.jsonPrimitive.content } ?: emptyList()
+            assertEquals(
+                "'${def.function.name}' lists a required parameter twice: $required",
+                required.size,
+                required.toSet().size
+            )
+        }
+    }
+
+    @Test
+    fun `parameter names follow the snake_case convention`() {
+        val pattern = Regex("^[a-z][a-zA-Z0-9_]*$")
+        ToolDefinitions.all.forEach { def ->
+            def.function.parameters["properties"]!!.jsonObject.keys.forEach { param ->
+                assertTrue("'${def.function.name}.$param' is not a valid parameter name", pattern.matches(param))
+            }
+        }
+    }
+
     @Test
     fun `tool names follow the snake_case convention`() {
         val pattern = Regex("^[a-z][a-z0-9_]*$")

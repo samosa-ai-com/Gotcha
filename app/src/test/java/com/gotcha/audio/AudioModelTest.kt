@@ -49,6 +49,29 @@ class AudioModelTest {
     }
 
     @Test
+    fun `provider_type field is honored for audio hints`() {
+        assertEquals(ModelCategory.TTS, AudioModel.categorize("m", task = null, providerType = "tts"))
+        assertEquals(ModelCategory.STT, AudioModel.categorize("m", task = null, providerType = "STT"))
+        assertEquals(ModelCategory.LLM, AudioModel.categorize("m", task = null, providerType = "llm"))
+    }
+
+    @Test
+    fun `task field is honored for LLM hints`() {
+        assertEquals(ModelCategory.LLM, AudioModel.categorize("m", task = "text-generation"))
+        assertEquals(ModelCategory.LLM, AudioModel.categorize("m", task = "chat-completion"))
+        assertEquals(ModelCategory.LLM, AudioModel.categorize("m", task = "chat"))
+        assertEquals(ModelCategory.LLM, AudioModel.categorize("m", task = "language-model"))
+    }
+
+    @Test
+    fun `provider_type overrides name heuristics`() {
+        // Name says TTS (kokoro) but provider_type says LLM — provider_type wins.
+        assertEquals(ModelCategory.LLM, AudioModel.categorize("kokoro-82m", task = null, providerType = "llm"))
+        // Name says STT (whisper) but provider_type says TTS — provider_type wins.
+        assertEquals(ModelCategory.TTS, AudioModel.categorize("whisper-1", task = null, providerType = "tts"))
+    }
+
+    @Test
     fun `default voice falls back to af_heart when no voices are listed`() {
         val model = AudioModel(id = "kokoro-82m", category = ModelCategory.TTS)
         assertEquals("af_heart", model.defaultVoice)
@@ -62,5 +85,34 @@ class AudioModelTest {
             voices = listOf(VoiceInfo(id = "bm_lewis"), VoiceInfo(id = "af_heart"))
         )
         assertEquals("bm_lewis", model.defaultVoice)
+    }
+
+    @Test
+    fun `AudioProvider has the expected dropdown labels`() {
+        assertEquals("Android Built-in", AudioProvider.ANDROID.label)
+        assertEquals("Samosa AI", AudioProvider.SAMOSA_AI.label)
+        assertEquals("External API", AudioProvider.API.label)
+        assertEquals("None", AudioProvider.NONE.label)
+    }
+
+    @Test
+    fun `AudioProvider dropdown order is Android then Samosa then API then None`() {
+        val labels = AudioProvider.entries.map { it.label }
+        assertEquals(
+            listOf("Android Built-in", "Samosa AI", "External API", "None"),
+            labels
+        )
+    }
+
+    @Test
+    fun `isApiBased is true for Samosa AI and External API`() {
+        assertEquals(true, AudioProvider.SAMOSA_AI.isApiBased())
+        assertEquals(true, AudioProvider.API.isApiBased())
+    }
+
+    @Test
+    fun `isApiBased is false for Android and None`() {
+        assertEquals(false, AudioProvider.ANDROID.isApiBased())
+        assertEquals(false, AudioProvider.NONE.isApiBased())
     }
 }

@@ -1,7 +1,7 @@
 # Running the Test Suite
 
 Operational guide: environment setup, every way to run the tests, and every
-gotcha hit while getting Android 10–16 (API 29–36) coverage working on this
+gotcha hit while getting Android 11–16 (API 30–36) coverage working on this
 machine (Windows, SDK at `%LOCALAPPDATA%\Android\Sdk`). For *why* this suite
 was built the way it was, see [`TESTING_PLAN.md`](TESTING_PLAN.md).
 
@@ -49,8 +49,7 @@ window ever appears. This is what CI uses.
 
 **Single Android version:**
 ```bash
-./gradlew :app:api29DebugAndroidTest   # Android 10
-./gradlew :app:api30DebugAndroidTest   # Android 11
+./gradlew :app:api30DebugAndroidTest   # Android 11 (minSdk)
 ./gradlew :app:api31DebugAndroidTest   # Android 12
 ./gradlew :app:api33DebugAndroidTest   # Android 13
 ./gradlew :app:api34DebugAndroidTest   # Android 14
@@ -58,14 +57,17 @@ window ever appears. This is what CI uses.
 ./gradlew :app:api36DebugAndroidTest   # Android 16
 ```
 
-**All of Android 10–16 in one command:**
+**All of Android 11–16 in one command:**
 ```bash
-./gradlew :app:android10to16GroupDebugAndroidTest
+./gradlew :app:android11to16GroupDebugAndroidTest
 ```
 
 **Other predefined groups** (in `app/build.gradle.kts` → `testOptions.managedDevices`):
 - `smokeGroupDebugAndroidTest` — just `api34`, for a fast PR-level check.
-- `fullGroupDebugAndroidTest` — `api27` (Android 8.1, the app's `minSdk`), `api30`, `api33`, `api34`.
+- `fullGroupDebugAndroidTest` — `api30` (Android 11, the app's `minSdk`), `api33`, `api34`,
+  `api35`, `api36`. This mirrors the nightly CI matrix. API 35/36 matter disproportionately
+  for this app: they tighten background-start, foreground-service and notification rules,
+  which is exactly what an overlay/assistant app leans on.
 
 **Reports** land at `app/build/reports/androidTests/managedDevice/debug/<device>/index.html`
 per device (a combined summary too, if you ran a group).
@@ -126,15 +128,16 @@ making a visible AVD from it):
 |---|---|---|
 | `LicenceNotAcceptedException` for a specific ATD package | That package's license isn't in `$SDK/licenses/` yet — most are covered by the generic `android-sdk-license`, but some ATD packages ship under a separate license id | `sdkmanager --licenses` (§1 step 3) |
 | `api36Setup` fails: "System Image specified by api36 does not exist" | No `aosp-atd` image published for API 36 yet | Already fixed in `build.gradle.kts` — `api36` uses `systemImageSource = "google"` |
-| `api30` hangs at ~96% for 10+ minutes, `adb devices` shows it `offline`, a real `qemu-system-x86_64-headless.exe` process is running but its memory usage is flat (not climbing) | The `aosp-atd` **32-bit x86** image for API 30 appears to hang on boot under Windows/WHPX. (API 31+ ATD images are all 64-bit and don't have this problem; API 29/30's plain `aosp` 32-bit images boot fine — it's specific to this one ATD package.) | Already fixed — `api30` uses `systemImageSource = "aosp"` instead of `"aosp-atd"` |
-| Downloading the whole `android10to16Group` for the first time silently corrupts 2–3 of the images (missing `system.img` entirely, confirmed by inspecting the files on disk) | `maxConcurrentDevices` only throttles concurrent *emulator execution* — the SDK **download/setup phase still runs all devices in parallel**, and that concurrent download race corrupts some of them | Run `--max-workers=1` on the very first full-matrix run to force serial downloads, or (safer) run each `apiNN...` task individually once to populate the cache before ever using the combined group task |
+| `api30` hangs at ~96% for 10+ minutes, `adb devices` shows it `offline`, a real `qemu-system-x86_64-headless.exe` process is running but its memory usage is flat (not climbing) | The `aosp-atd` **32-bit x86** image for API 30 appears to hang on boot under Windows/WHPX. (API 31+ ATD images are all 64-bit and don't have this problem; API 30's plain `aosp` 32-bit image boots fine — it's specific to this one ATD package.) | Already fixed — `api30` uses `systemImageSource = "aosp"` instead of `"aosp-atd"` |
+| Downloading the whole `android11to16Group` for the first time silently corrupts 2–3 of the images (missing `system.img` entirely, confirmed by inspecting the files on disk) | `maxConcurrentDevices` only throttles concurrent *emulator execution* — the SDK **download/setup phase still runs all devices in parallel**, and that concurrent download race corrupts some of them | Run `--max-workers=1` on the very first full-matrix run to force serial downloads, or (safer) run each `apiNN...` task individually once to populate the cache before ever using the combined group task |
 | `AccessibilityServiceTest.enablingViaSecureSettings_connectsService` fails, every API level, even waiting 45s | Confirmed structural, not timing: `GotchaAccessibilityService` cannot reliably self-bind while the app is under active instrumentation, even with the process pre-warmed and confirmed not in Android's "stopped" state. The identical sequence binds in 0–5s via plain `adb shell` outside instrumentation. This is a platform-level rough edge with `AccessibilityManagerService` + self-instrumented processes, not a bug in the app. Full writeup is in the test file's doc comment. | The whole class is now `@Ignore`'d, so runs report it as skipped rather than failed — a clean `BUILD SUCCESSFUL` with 5 passed / 1 skipped is the expected result. Don't re-investigate or un-ignore without addressing the platform limitation |
 
 ## 6. Other test-suite paths (less exercised — verify before relying on them)
 
-- **`scripts/test_matrix.sh`** — the local full-matrix script (Phase 5),
-  needed for API 26 (`minSdk`) coverage since GMD only supports API 27+.
-  Boots real AVDs serially via `adb`/`emulator` directly. Not run end-to-end
+- **`scripts/test_matrix.sh`** — the local full-matrix script (Phase 5).
+  Boots real AVDs serially via `adb`/`emulator` directly. GMD covers the
+  whole supported range (API 30+) now that `minSdk` is 30, so this is a
+  convenience path rather than a required one. Not run end-to-end
   in this session — check it works before depending on it.
 - **`scripts/maestro_run.sh`** + **`.maestro/flows/*.yaml`** — the Maestro
   smoke layer. Requires Maestro installed separately (see
@@ -150,7 +153,7 @@ making a visible AVD from it):
   - Android Lint: `./gradlew :app:lintDebug`
   - Debug APK: `./gradlew :app:assembleDebug`
   - Instrumented smoke (API 34): `./gradlew :app:smokeGroupDebugAndroidTest`
-  - Instrumented full matrix (API 27/30/33/34): `./gradlew :app:fullGroupDebugAndroidTest`
+  - Instrumented full matrix (API 30/33/34/35/36): `./gradlew :app:fullGroupDebugAndroidTest`
   The CI jobs themselves are unchanged: `instrumented-smoke` runs on API 34 and `instrumented-full`
   runs a matrix across API levels, using `reactivecircus/android-emulator-runner` (CI does **not**
   use GMD: the emulator failed to boot on the GitHub runners and GMD swallowed its stderr,

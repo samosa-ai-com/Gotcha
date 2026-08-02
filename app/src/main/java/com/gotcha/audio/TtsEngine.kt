@@ -6,6 +6,7 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import com.gotcha.i18n.Language
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,9 +21,14 @@ import java.util.Locale
 class TtsEngine(
     private val context: Context,
     apiBaseUrl: String = "",
-    apiKey: String = ""
+    apiKey: String = "",
+    private val onUnauthorized: (() -> Unit)? = null
 ) {
-    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) AudioApi(apiBaseUrl, apiKey) else null
+    private var audioApi: AudioApi? = if (apiBaseUrl.isNotBlank()) {
+        AudioApi(apiBaseUrl, apiKey, onUnauthorized = onUnauthorized)
+    } else {
+        null
+    }
     private var androidTts: TextToSpeech? = null
     private var androidReady = false
     private var ttsInitGate = CompletableDeferred<Boolean>()
@@ -35,6 +41,10 @@ class TtsEngine(
 
     /** The models available from the API (empty if provider is Android). */
     var apiTtsModels: List<AudioModel> = emptyList()
+        private set
+
+    /** Set when [Language] has no installed Android TTS voice data — read by Settings for the install prompt. */
+    var lastLanguageUnavailable: Language? = null
         private set
 
     init {
@@ -58,7 +68,11 @@ class TtsEngine(
 
     /** Set a different API base URL / key at runtime (e.g. after settings change). */
     fun configureApi(baseUrl: String, apiKey: String) {
-        audioApi = if (baseUrl.isNotBlank()) AudioApi(baseUrl, apiKey) else null
+        audioApi = if (baseUrl.isNotBlank()) {
+            AudioApi(baseUrl, apiKey, onUnauthorized = onUnauthorized)
+        } else {
+            null
+        }
     }
 
     /**
@@ -69,18 +83,21 @@ class TtsEngine(
         text: String,
         provider: AudioProvider = AudioProvider.ANDROID,
         apiModel: String = "",
-        voice: String = ""
+        voice: String = "",
+        language: Language = Language.ENGLISH
     ): Boolean = withContext(Dispatchers.IO) {
+        val sanitized = SpeechTextSanitizer.sanitize(text)
+        if (sanitized.isBlank()) return@withContext true
         try {
-            when (provider) {
-                AudioProvider.ANDROID -> speakAndroid(text)
-                AudioProvider.API -> speakApi(text, apiModel, voice)
-                AudioProvider.NONE -> false
+            when {
+                provider == AudioProvider.ANDROID -> speakAndroid(sanitized, language)
+                provider.isApiBased() -> speakApi(sanitized, apiModel, voice, language)
+                else -> false
             }
         } catch (_: Exception) { false }
     }
 
-    private suspend fun speakAndroid(text: String): Boolean {
+    private suspend fun speakAndroid(text: String, language: Language): Boolean {
         val tts = androidTts ?: return false
         if (!androidReady) {
             ttsInitGate.await()
@@ -97,16 +114,23 @@ class TtsEngine(
             // and a suspended speak() would hang (e.g. pausing a voice call).
             override fun onStop(utteranceId: String?, interrupted: Boolean) { gate.complete(false) }
         })
-        tts.setLanguage(Locale.US)
+        val res = tts.setLanguage(language.locale)
+        val ok = res != TextToSpeech.LANG_MISSING_DATA && res != TextToSpeech.LANG_NOT_SUPPORTED
+        if (ok) {
+            lastLanguageUnavailable = null
+        } else {
+            lastLanguageUnavailable = language
+            tts.setLanguage(Locale.US)
+        }
         val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_utterance")
         return if (result == TextToSpeech.SUCCESS) gate.await() else false
     }
 
-    private suspend fun speakApi(text: String, model: String, voice: String): Boolean {
+    private suspend fun speakApi(text: String, model: String, voice: String, language: Language): Boolean {
         val api = audioApi ?: return false
         if (model.isBlank()) return false
         val effectiveVoice = voice.ifBlank {
-            apiTtsModels.firstOrNull { it.id == model }?.defaultVoice ?: "af_heart"
+            apiTtsModels.firstOrNull { it.id == model }?.defaultVoiceFor(language) ?: "af_heart"
         }
         val result = api.synthesize(text, model, effectiveVoice)
         if (result.isFailure) return false

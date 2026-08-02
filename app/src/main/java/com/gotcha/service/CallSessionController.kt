@@ -2,9 +2,6 @@ package com.gotcha.service
 
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
 import androidx.core.content.ContextCompat
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
@@ -13,10 +10,13 @@ import com.gotcha.agent.PendingQuestion
 import com.gotcha.agent.ScreenSnapshot
 import com.gotcha.agent.friendlyAgentError
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -24,6 +24,7 @@ import com.gotcha.tools.AgentMode
 import com.gotcha.tools.Category
 import com.gotcha.tools.ToolCategories
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.ScreenReadFlashOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +64,7 @@ class CallSessionController(
 
     private val callsRepo = ChatHistoryRepository(appContext, "calls")
     private val confirmationOverlay = ConfirmationOverlay(appContext)
+    private val screenReadFlash = ScreenReadFlashOverlay(appContext)
 
     /** Survives service teardown so end-of-call deletion always completes. */
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -71,6 +73,19 @@ class CallSessionController(
     private var loopJob: Job? = null
     private var currentTurnJob: Job? = null
     private var nextTranscriptId = 0L
+
+    /**
+     * Reused LLM client so the in-memory [com.gotcha.llm.LLMCache] survives
+     * across turns within a call (mirrors ChatViewModel's single `client`).
+     * Rebuilt only when the settings it depends on change; tracked by
+     * [cachedClientFingerprint] so [buildClient] can detect staleness.
+     * Pair reads and writes go through [clientCacheLock] so concurrent callers
+     * (main thread via `startCall`, engine coroutine via `clientProvider`)
+     * cannot both observe a stale fingerprint and build two clients.
+     */
+    private var cachedClient: LLMClient? = null
+    private var cachedClientFingerprint: String? = null
+    private val clientCacheLock = Any()
 
     /** Gate for [awaitQuestionAnswer]: completed when the user taps mic stop. */
     private var questionGate: CompletableDeferred<String>? = null
@@ -123,16 +138,19 @@ class CallSessionController(
         }
 
         val s = settingsRepository.load()
-        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.sttApiBaseUrl, s.sttApiModel)
+        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.effectiveSttBaseUrl, s.sttApiModel)
         if (sttError != null) {
             onError(sttError)
             return false
         }
-        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.ttsApiBaseUrl, s.ttsApiModel)
+        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.effectiveTtsBaseUrl, s.ttsApiModel)
         if (ttsError != null) {
             onError(ttsError)
             return false
         }
+
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
 
         val newEngine = AgentEngine(
             appContext = appContext,
@@ -144,11 +162,17 @@ class CallSessionController(
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
         newEngine.callMode = true
+        // Stable server-side prompt-cache key shared by every call: the static
+        // system prompt + <env> prefix is byte-identical across calls, so the
+        // provider can reuse its cached KV instead of re-warming per call. The
+        // random sessionId above stays as the per-call file/working-dir identity.
+        newEngine.promptCacheKey = CALL_PROMPT_CACHE_KEY
         newEngine.setupWorkingDir()
         engine = newEngine
         _state.value = CallState.STARTING
         scope.launch {
-            if (!speakText("Call started. I'm ready when you are.")) {
+            val language = Language.fromLabel(s.preferredLanguage)
+            if (!speakText(SpokenPhrases.callStarted(language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
@@ -174,6 +198,7 @@ class CallSessionController(
         questionGate = null
         pendingReply = null
         onActionRingColor(null)
+        screenReadFlash.dismiss()
         _state.value = CallState.READY
     }
 
@@ -193,6 +218,7 @@ class CallSessionController(
         questionGate?.complete("")
         questionGate = null
         confirmationOverlay.dismiss()
+        screenReadFlash.dismiss()
         engine = null
 
         val id = endingEngine.sessionId
@@ -220,7 +246,11 @@ class CallSessionController(
         val current = _state.value
         if (current != CallState.READY && current != CallState.WAITING_USER) return
         val s = settingsRepository.load()
-        val started = sttEngine.startListening(s.sttProvider)
+        sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        val started = sttEngine.startListening(
+            s.sttProvider,
+            currentLanguage()
+        )
         if (started) {
             _state.value = CallState.LISTENING
         }
@@ -233,7 +263,10 @@ class CallSessionController(
         currentTurnJob = scope.launch {
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
-            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, s.sttLanguage)
+            sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+            val language = Language.fromLabel(s.preferredLanguage)
+            val sttLanguage = s.sttLanguage.ifBlank { language.iso639 }
+            val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
             val text = result.getOrDefault("")
 
             if (text.isBlank()) {
@@ -247,9 +280,15 @@ class CallSessionController(
                 return@launch
             }
 
-            val llmClient = buildClient()
-            val navModel = s.navigatorModel.ifEmpty { s.model }
-            val cleanedText = llmClient?.cleanText(text, navModel) ?: text
+            // API STT (Whisper-class) output is already punctuated and cased —
+            // cleanText is redundant there and would cost an extra LLM round-trip.
+            val cleanedText = if (s.sttProvider == AudioProvider.ANDROID) {
+                val llmClient = buildClient()
+                val navModel = s.navigatorModel.ifEmpty { s.model }
+                llmClient?.cleanText(text, navModel, language) ?: text
+            } else {
+                text
+            }
 
             addTranscript(MessageKind.USER, cleanedText)
 
@@ -266,7 +305,7 @@ class CallSessionController(
             pendingReply = null
 
             // Narrate start-of-turn to give the user immediate feedback
-            narrate(pickTurnStartPhrase())
+            narrate(pickTurnStartPhrase(language), language)
             onActionRingColor(Category.FOREGROUND.ringColorArgb)
 
             try {
@@ -281,7 +320,7 @@ class CallSessionController(
 
             val reply = pendingReply ?: return@launch
             _state.value = CallState.SPEAKING
-            if (speakText(reply)) {
+            if (speakText(reply, language)) {
                 triggerEndVibration()
             } else {
                 reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
@@ -304,6 +343,11 @@ class CallSessionController(
             screenshot = ScreenSnapshot.captureScreenBase64()
             screenText = ScreenSnapshot.captureScreenText()
             onCaptureChrome(false)
+            // The model reads the screen from this per-turn capture on every
+            // voice turn and usually answers without calling the read_screen
+            // tool, so this — not the engine's inject path — is the screen read
+            // the user actually sees. Flash the same "screen was read" pulse.
+            onScreenReadDone()
         }
         val userText = buildString {
             if (!screenText.isNullOrBlank()) {
@@ -395,6 +439,18 @@ class CallSessionController(
         reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
     }
 
+    override fun onScreenCaptureChrome(hide: Boolean) {
+        // Never capture the pulse: drop any stale window before a capture starts.
+        if (hide) screenReadFlash.dismiss()
+        onCaptureChrome(hide)
+    }
+
+    override fun onScreenReadDone() {
+        // Only flash during an active agent turn; the engine only runs in this
+        // host's THINKING state.
+        if (_state.value == CallState.THINKING) screenReadFlash.pulse()
+    }
+
     /** The agent asked a question: speak it and wait for a PTT answer. */
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String {
         _state.value = CallState.WAITING_USER
@@ -406,7 +462,7 @@ class CallSessionController(
             }
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
-        if (!speakText(prompt)) {
+        if (!speakText(prompt, currentLanguage())) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<String>()
@@ -424,7 +480,8 @@ class CallSessionController(
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
-        if (!speakText("I need a confirmation — check the dialog on your screen.")) {
+        val language = currentLanguage()
+        if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<Boolean>()
@@ -445,6 +502,10 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
+    /** Resolve the persisted [preferredLanguage] to a [Language]. */
+    private fun currentLanguage(): Language =
+        Language.fromLabel(settingsRepository.load().preferredLanguage)
+
     /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
     private fun reportError(message: String) {
         addTranscript(MessageKind.ERROR, message)
@@ -456,15 +517,18 @@ class CallSessionController(
      * Speak with the configured TTS provider; suspends until speech finishes.
      * Returns false (without reporting — callers decide whether a given
      * utterance is important enough to surface) if playback failed, e.g. a
-     * misconfigured API TTS provider.
+     * misconfigured API TTS provider. [language] is taken from the caller so
+     * multiple speeches within one turn (e.g. start + reply) re-use the same
+     * parsed value rather than re-loading settings and re-parsing.
      */
-    private suspend fun speakText(text: String): Boolean {
+    private suspend fun speakText(text: String, language: Language): Boolean {
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return true
-        val voice = if (s.ttsProvider == AudioProvider.API) {
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
+        val voice = if (s.ttsProvider.isApiBased()) {
             s.ttsVoice.ifBlank {
                 if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
             }
         } else {
             ""
@@ -473,7 +537,8 @@ class CallSessionController(
             text = text,
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
-            voice = voice
+            voice = voice,
+            language = language
         )
     }
 
@@ -486,6 +551,13 @@ class CallSessionController(
     private fun audioConfigError(label: String, provider: AudioProvider, baseUrl: String, model: String): String? =
         when (provider) {
             AudioProvider.NONE -> "$label is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT)."
+            AudioProvider.SAMOSA_AI -> when {
+                baseUrl.isBlank() ->
+                    "$label Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT)."
+                model.isBlank() ->
+                    "$label model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                else -> null
+            }
             AudioProvider.API -> when {
                 baseUrl.isBlank() || baseUrl.trim().toHttpUrlOrNull() == null ->
                     "$label API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT)."
@@ -496,36 +568,45 @@ class CallSessionController(
             AudioProvider.ANDROID -> null
         }
 
-    private fun buildClient(): LLMClient? {
+    internal fun buildClient(): LLMClient? {
         val s = settingsRepository.load()
-        return if (s.isConfigured) {
-            LLMClient(
-                apiKey = s.effectiveApiKey,
-                baseUrl = s.effectiveBaseUrl,
-                model = s.model,
-                context = appContext,
-                apiTimeoutSeconds = s.apiTimeoutSeconds
-            )
-        } else {
-            null
+        if (!s.isConfigured) return null
+        val fingerprint = "${s.provider}|${s.effectiveApiKey}|${s.effectiveBaseUrl}|${s.model}|${s.apiTimeoutSeconds}"
+        return synchronized(clientCacheLock) {
+            val cached = cachedClient
+            if (cached != null && cachedClientFingerprint == fingerprint) {
+                cached
+            } else {
+                LLMClient(
+                    apiKey = s.effectiveApiKey,
+                    baseUrl = s.effectiveBaseUrl,
+                    model = s.model,
+                    context = appContext,
+                    apiTimeoutSeconds = s.apiTimeoutSeconds
+                ).also {
+                    cachedClient = it
+                    cachedClientFingerprint = fingerprint
+                }
+            }
         }
     }
 
-    private fun narrate(text: String) {
+    private fun narrate(text: String, language: Language = currentLanguage()) {
         if (text.isBlank() || _state.value != CallState.THINKING) return
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) return
+        ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         narrationJob?.cancel()
         narrationJob = scope.launch {
-            val voice = if (s.ttsProvider == AudioProvider.API) {
+            val voice = if (s.ttsProvider.isApiBased()) {
                 s.ttsVoice.ifBlank {
                     if (ttsEngine.apiTtsModels.isEmpty()) ttsEngine.refreshApiModels()
-                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoice ?: "af_heart"
+                    ttsEngine.apiTtsModels.firstOrNull { it.id == s.ttsApiModel }?.defaultVoiceFor(language) ?: "af_heart"
                 }
             } else {
                 ""
             }
-            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice)
+            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
         }
     }
 
@@ -534,65 +615,42 @@ class CallSessionController(
         return category != lastNarratedCategory || (now - lastNarrationTimeMs) > NARRATION_THROTTLE_MS
     }
 
-    private fun pickTurnStartPhrase(): String {
-        val total = turnStartPhrases.sumOf { it.second }
+    private fun pickTurnStartPhrase(lang: Language): String {
+        val phrases = SpokenPhrases.turnStart(lang)
+        val total = phrases.sumOf { it.second }
         var roll = kotlin.random.Random.nextFloat() * total
-        for ((phrase, weight) in turnStartPhrases) {
+        for ((phrase, weight) in phrases) {
             roll -= weight
             if (roll <= 0f) return phrase
         }
-        return turnStartPhrases.last().first
+        return phrases.last().first
     }
 
-    private val turnStartPhrases = listOf(
-        "Gotcha" to 5,
-        "Let me look into that" to 2,
-        "Hmm hmm" to 2,
-        "Got it" to 2,
-        "On it" to 1,
-        "Working on it" to 1,
-        "One moment" to 1,
-        "Let me check" to 1,
-        "I'm on it" to 1,
-        "Sure thing" to 1,
-        "Okay" to 1,
-        "Alright" to 1,
-        "Let me see" to 1,
-        "Give me a second" to 1,
-        "Hang on" to 1
-    )
-
+    /** Buzz/chime the turn's end, subject to the user's notification settings. */
     private fun triggerEndVibration() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        if (vibrator?.hasVibrator() == true) {
-            vibrator.vibrate(
-                VibrationEffect.createWaveform(
-                    longArrayOf(0, 50, 100, 50),
-                    -1
-                )
-            )
-        }
+        val s = settingsRepository.load()
+        CompletionFeedback.replyArrived(
+            context = appContext,
+            vibrate = s.notifyVibrationEnabled,
+            chime = s.notifyChimeEnabled
+        )
     }
 
-    /** Distinct (longer, triple-buzz) pattern so an error doesn't feel like a normal turn end. */
-    private fun triggerErrorVibration() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val vibrator = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-        if (vibrator?.hasVibrator() == true) {
-            vibrator.vibrate(
-                VibrationEffect.createWaveform(
-                    longArrayOf(0, 100, 80, 100, 80, 100),
-                    -1
-                )
-            )
-        }
-    }
+    private fun triggerErrorVibration() = CompletionFeedback.error(appContext)
 
     companion object {
         private const val NARRATION_THROTTLE_MS = 3_000L
         private const val CONFIRM_TIMEOUT_MS = 90_000L
         val CALLS_WORKING_ROOT: String get() = com.gotcha.data.GotchaStorage.callsRoot().absolutePath
+
+        /**
+         * Stable server-side prompt-cache key for every voice call. The static
+         * system-prompt prefix is identical across calls, so sharing one key lets
+         * the provider reuse the cached KV instead of re-warming it per call.
+         * Distinct from the per-call random [AgentEngine.sessionId] (file identity).
+         */
+        private const val CALL_PROMPT_CACHE_KEY = "gotcha_voice_call"
+
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
         private const val TOOL_TEXT_LIMIT = 300

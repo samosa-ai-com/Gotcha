@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Stops the white flash before Compose's first frame. See colors.xml. -->
+        <item name="android:windowBackground">@color/launch_background</item>
+    </style>
 </resources>

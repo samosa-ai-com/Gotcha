@@ -57,14 +57,12 @@ object ToolDefinitions {
 
     val listFiles = tool(
         "list_files",
-        "List files and directories at the given path. Accepts absolute paths like " +
-            "'/storage/emulated/0/Download' or paths relative to the working directory. " +
-            "Supports recursive listing, sorting, and filtering.",
+        "List files and directories at a path, optionally recursive, sorted and filtered.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "Absolute or relative directory path to list.")
+                    put("description", "Directory path to list.")
                 }
                 putJsonObject("recursive") {
                     put("type", "boolean")
@@ -93,19 +91,14 @@ object ToolDefinitions {
 
     val readFile = tool(
         "read_file",
-        "Read any file — text, image, archive, or binary — at the given path. Accepts absolute paths " +
-            "like '/storage/emulated/0/notes.txt' or paths relative to the working directory. " +
-            "Automatically detects file type:\n" +
-            "- Text files: returns content line-by-line with offset/limit support\n" +
-            "- Images: feeds visual content to the vision model so you can 'see' them\n" +
-            "- Archives (zip/apk/aar/jar/war): lists contents; supports reading entries via 'archive.zip/path'\n" +
-            "- PDF & other binaries: returns base64 data\n" +
-            "This tool replaces read_image — use read_file for ALL file reading needs.",
+        "Read any file, detecting its type: text line-by-line (offset/limit), images fed to " +
+            "the vision model so you can see them, archives (zip/apk/jar) listed and readable " +
+            "entry-wise via 'archive.zip/path', other binaries as base64.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "Absolute or relative path to the file or directory to read.")
+                    put("description", "Path to the file or directory to read.")
                 }
                 putJsonObject("offset") {
                     put("type", "integer")
@@ -126,14 +119,12 @@ object ToolDefinitions {
 
     val writeFile = tool(
         "write_file",
-        "Write or append content to a file at the given path. Accepts absolute paths like " +
-            "'/storage/emulated/0/notes.txt' or paths relative to the working directory. " +
-            "Supports both text and binary content. Parent directories are created automatically.",
+        "Write or append text or binary content to a file. Parent directories are created.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "Absolute or relative file path to write to.")
+                    put("description", "File path to write to.")
                 }
                 putJsonObject("content") {
                     put("type", "string")
@@ -186,8 +177,9 @@ object ToolDefinitions {
 
     val toggleWifi = tool(
         "toggle_wifi",
-        "Turn Wi-Fi on or off directly (on Android 13+) or open the Wi-Fi settings panel for the " +
-            "user to toggle it (older Android). Reports whether Wi-Fi is currently enabled.",
+        "Turn Wi-Fi on or off. Android 10 and newer forbid apps from toggling the radio, so on " +
+            "any current device this opens the Wi-Fi panel for the user to flip instead — say so " +
+            "rather than claiming the radio changed. Direct toggling only works below Android 10.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("enabled") {
@@ -196,6 +188,38 @@ object ToolDefinitions {
                 }
             }
             putJsonArray("required") { add("enabled") }
+        }
+    )
+
+    val openSetting = tool(
+        "open_setting",
+        "Open an Android settings screen directly, for settings this app is not allowed to " +
+            "change on its own. Much more reliable than opening the Settings app and searching. " +
+            "Use it before navigate_app for anything it covers, then tap the control it " +
+            "describes. Valid values for 'setting': " +
+            "wifi, internet, mobile_data, nfc, bluetooth, location, airplane_mode, " +
+            "battery_saver, display, sound, date_time, language, input_method, " +
+            "storage, accessibility, default_apps, cast, developer_options, lock_screen, vpn, " +
+            "device_admin. For anything not listed, use navigate_app instead. " +
+            "Prefer the direct tools where they exist — set_volume, set_brightness, set_dnd, " +
+            "set_ringer_mode and toggle_torch change those without leaving the app.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("setting") {
+                    put("type", "string")
+                    put("description", "Which settings screen to open, e.g. 'location' or 'bluetooth'.")
+                }
+                putJsonObject("confirmed") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Set true only after the user has explicitly agreed. Required for the " +
+                            "security-relevant screens (developer_options, lock_screen, vpn, " +
+                            "device_admin), which otherwise refuse to open."
+                    )
+                }
+            }
+            putJsonArray("required") { add("setting") }
         }
     )
 
@@ -214,9 +238,8 @@ object ToolDefinitions {
 
     val runCommand = tool(
         "run_command",
-        "Run a shell command as the unprivileged app user and return stdout/stderr/exit code. " +
-            "Useful commands: ls, cat, find, getprop, pm list packages, df, uptime, date, id, ps. " +
-            "No root; many system paths are unreadable. Output is capped and commands time out.",
+        "Run a shell command as the unprivileged app user, returning stdout/stderr/exit code. " +
+            "No root, so many system paths are unreadable. Output is capped; commands time out.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {
@@ -227,7 +250,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Working directory for the command (absolute path). Defaults to the app's working directory."
+                        "Absolute working directory. Defaults to the app's working directory."
                     )
                 }
                 putJsonObject("timeout_seconds") {
@@ -243,10 +266,8 @@ object ToolDefinitions {
 
     val callNumber = tool(
         "call_number",
-        "Place a phone call directly — the call is dialed immediately. This is the DEFAULT tool for " +
-            "any 'call X' / 'phone X' / 'ring X' request. Resolve names to numbers with find_contact " +
-            "first if needed. Needs the Phone permission. Only fall back to dial_number if the user " +
-            "explicitly wants to press call themselves. Supports speakerphone toggle and SIM selection.",
+        "Dial a number immediately. The default tool for any 'call X' request — resolve names " +
+            "with find_contact first. Use dial_number only if the user wants to press call.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("number") {
@@ -261,7 +282,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "SIM slot to use: 'sim1' or 'sim2'. Only needed on dual-SIM devices. Default is the system default."
+                        "'sim1' or 'sim2', for dual-SIM devices. Defaults to the system default."
                     )
                 }
             }
@@ -271,8 +292,7 @@ object ToolDefinitions {
 
     val readCallLog = tool(
         "read_call_log",
-        "Read the most recent call-log entries (incoming/outgoing/missed) with names, times and duration. " +
-            "Supports filtering by call type, contact name/number, and date range.",
+        "Read recent call-log entries with names, times and duration.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("limit") {
@@ -304,10 +324,8 @@ object ToolDefinitions {
 
     val findContact = tool(
         "find_contact",
-        "Look up a saved contact by name or phone number (partial match). Returns matching contacts with " +
-            "their phone numbers (with type labels like mobile/home/work), email, and organization. " +
-            "Use this to resolve requests like 'call mom' before dial_number/call_number, " +
-            "or to identify who called from a number.",
+        "Look up a saved contact by name or number (partial match), returning numbers, email " +
+            "and organization. Resolves 'call mom' before call_number, or identifies a caller.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("name") {
@@ -324,9 +342,7 @@ object ToolDefinitions {
 
     val addContact = tool(
         "add_contact",
-        "Create a new contact with a name, phone number, and optional fields. " +
-            "Automatically detects and warns about duplicate contacts before creating. " +
-            "Supports adding email and organization alongside the phone number.",
+        "Create a contact. Warns about likely duplicates before creating.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("name") {
@@ -362,10 +378,8 @@ object ToolDefinitions {
 
     val sendSms = tool(
         "send_sms",
-        "Send a text (SMS) message directly to a number. The message is sent immediately. " +
-            "Supports delivery confirmation, auto-detects GSM 7-bit vs UCS-2 encoding, " +
-            "reports segment count, shows recent conversation context after sending, " +
-            "and can schedule future delivery. Needs the SMS permission.",
+        "Send an SMS, immediately or scheduled. Reports segment count and recent " +
+            "conversation context after sending.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("number") {
@@ -384,7 +398,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Schedule future delivery: ISO-8601 timestamp like '2026-01-15T14:30:00' or epoch millis. Omit for immediate send."
+                        "Schedule delivery: ISO-8601 like '2026-01-15T14:30:00' or epoch millis."
                     )
                 }
             }
@@ -397,9 +411,7 @@ object ToolDefinitions {
 
     val readRecentSms = tool(
         "read_recent_sms",
-        "Read SMS messages from the inbox (and optionally sent folder) with filters. " +
-            "Supports filtering by sender, date range, unread status, and body keyword search. " +
-            "Contact names are resolved automatically when available.",
+        "Read SMS messages from the inbox, with contact names resolved where known.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("limit") {
@@ -439,25 +451,21 @@ object ToolDefinitions {
 
     val listCalendarEvents = tool(
         "list_calendar_events",
-        "List calendar events within a date range. Supports looking ahead (days_ahead) or explicit " +
-            "from/to dates, title keyword search, and shows status, description preview, and calendar name. " +
-            "Reads the phone's own calendars by default; set source to read a connected Google or " +
-            "Outlook account instead.",
+        "List calendar events in a date range, with optional title search.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("source") {
                     put("type", "string")
                     put(
                         "description",
-                        "Which calendar to read: 'device' (default, the phone's own calendars), " +
-                            "'google' or 'microsoft' (needs that connector in Settings)."
+                        "'device' (default, the phone's own calendars), 'google' or 'microsoft'."
                     )
                 }
                 putJsonObject("days_ahead") {
                     put("type", "integer")
                     put(
                         "description",
-                        "How many days ahead to include (1-365). Default 7 when from_date/to_date not set."
+                        "Days ahead to include (1-365). Default 7 when from_date/to_date are unset."
                     )
                 }
                 putJsonObject("from_date") {
@@ -478,18 +486,15 @@ object ToolDefinitions {
 
     val createCalendarEvent = tool(
         "create_calendar_event",
-        "Add an event to a calendar. Supports optional description, all-day flag, reminder, " +
-            "and calendar selection. Writes to the phone's primary writable calendar by default; " +
-            "set source to write to a connected Google or Outlook account instead.",
+        "Add an event to a calendar. Defaults to the phone's primary writable calendar.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("source") {
                     put("type", "string")
                     put(
                         "description",
-                        "Where to create it: 'device' (default), 'google' or 'microsoft' " +
-                            "(needs that connector in Settings). all_day, reminder_minutes and " +
-                            "recurrence apply to source='device' only."
+                        "'device' (default), 'google' or 'microsoft'. all_day, " +
+                            "reminder_minutes and recurrence apply to 'device' only."
                     )
                 }
                 putJsonObject("title") {
@@ -524,7 +529,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Calendar account name to add the event to (e.g. 'Work', 'Personal'). Defaults to the primary writable calendar."
+                        "Calendar account name, e.g. 'Work'. Defaults to the primary writable one."
                     )
                 }
                 putJsonObject("attendees") {
@@ -532,7 +537,7 @@ object ToolDefinitions {
                     putJsonObject("items") { put("type", "string") }
                     put(
                         "description",
-                        "Optional attendee email addresses. On a synced Google calendar this sends real invites."
+                        "Attendee email addresses. On a synced Google calendar this sends real invites."
                     )
                 }
                 putJsonObject("recurrence") {
@@ -563,11 +568,8 @@ object ToolDefinitions {
 
     val checkAvailability = tool(
         "check_availability",
-        "Find when the user is busy and free in a date range, using the free/busy data of a " +
-            "connected Google Calendar or Outlook account. This is the only way to get real " +
-            "availability — the phone's own calendar copy cannot answer it. Returns merged busy " +
-            "blocks plus free slots of at least duration_minutes. Requires a connected account; " +
-            "for on-device calendars fall back to list_calendar_events.",
+        "Real free/busy availability from the connected Google or Outlook account. Returns " +
+            "merged busy blocks plus free slots of at least duration_minutes.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("days_ahead") {
@@ -595,10 +597,8 @@ object ToolDefinitions {
 
     val editCalendarEvent = tool(
         "edit_calendar_event",
-        "Update an existing calendar event on the phone's own calendar. Only the fields you " +
-            "provide will be changed. Get the event ID from list_calendar_events first — this " +
-            "works on bare numeric device ids only, not on 'gcal:'/'ms:' ids from a connected " +
-            "account.",
+        "Update an event on the phone's own calendar; omit a field to keep it. Needs a bare " +
+            "numeric event_id from list_calendar_events, not a 'gcal:'/'ms:' id.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("event_id") {
@@ -607,43 +607,40 @@ object ToolDefinitions {
                 }
                 putJsonObject("title") {
                     put("type", "string")
-                    put("description", "New title. Omit to keep current.")
+                    put("description", "New title.")
                 }
                 putJsonObject("start") {
                     put("type", "string")
-                    put("description", "New start time as 'yyyy-MM-dd HH:mm' or epoch millis. Omit to keep current.")
+                    put("description", "New start as 'yyyy-MM-dd HH:mm' or epoch millis.")
                 }
                 putJsonObject("end") {
                     put("type", "string")
-                    put("description", "New end time. Omit to keep current.")
+                    put("description", "New end time.")
                 }
                 putJsonObject("location") {
                     put("type", "string")
-                    put("description", "New location. Omit to keep current.")
+                    put("description", "New location.")
                 }
                 putJsonObject("description") {
                     put("type", "string")
-                    put("description", "New description. Omit to keep current.")
+                    put("description", "New description.")
                 }
                 putJsonObject("all_day") {
                     put("type", "boolean")
-                    put("description", "Set or unset all-day. Omit to keep current.")
+                    put("description", "Set or unset all-day.")
                 }
                 putJsonObject("reminder_minutes") {
                     put("type", "integer")
-                    put(
-                        "description",
-                        "New reminder before event in minutes. -1 to remove reminder. Omit to keep current."
-                    )
+                    put("description", "New reminder in minutes before the event; -1 removes it.")
                 }
                 putJsonObject("attendees") {
                     put("type", "array")
                     putJsonObject("items") { put("type", "string") }
-                    put("description", "Replace the attendee list with these email addresses. Omit to keep current.")
+                    put("description", "Replaces the attendee list with these email addresses.")
                 }
                 putJsonObject("recurrence") {
                     put("type", "string")
-                    put("description", "New repeat frequency: daily, weekly, monthly, or yearly. Omit to keep current.")
+                    put("description", "New repeat frequency: daily, weekly, monthly, or yearly.")
                 }
                 putJsonObject("recurrence_count") {
                     put("type", "integer")
@@ -676,11 +673,8 @@ object ToolDefinitions {
 
     val setAlarm = tool(
         "set_alarm",
-        "Set an alarm at a given hour and minute. Supports repeating by day of week and silent mode. " +
-            "The alarm is created in the system clock app when one is available (visible in its alarm " +
-            "list, rings with the full alarm UI); otherwise it falls back to an in-app alarm that rings " +
-            "as a notification. Returns an alarm ID that can be used to edit or delete it later. " +
-            "List alarms with list_alarms. Edit with edit_alarm. Delete with delete_alarm.",
+        "Set an alarm, in the system clock app when one is available and in-app otherwise. " +
+            "Returns an alarm ID for edit_alarm/delete_alarm.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("hour") {
@@ -717,15 +711,13 @@ object ToolDefinitions {
 
     val setTimer = tool(
         "set_timer",
-        "Start a countdown timer. By default it's managed in-app (a notification fires when done), " +
-            "not in the system clock app. Returns a timer ID that can be used to delete it later. " +
-            "List timers with list_timers. Delete with delete_timer (dismiss a ringing system timer " +
-            "with dismiss_timer instead).",
+        "Start a countdown timer, in-app by default (a notification fires when done). " +
+            "Returns a timer ID for delete_timer; dismiss_timer stops a ringing one.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("seconds") {
                     put("type", "integer")
-                    put("description", "Timer length in seconds. Combine with hours/minutes for longer durations.")
+                    put("description", "Seconds; combine with minutes/hours for longer durations.")
                 }
                 putJsonObject("minutes") {
                     put("type", "integer")
@@ -743,8 +735,7 @@ object ToolDefinitions {
                     put("type", "boolean")
                     put(
                         "description",
-                        "If true, start the timer in the system clock app instead of in-app. " +
-                            "Default false."
+                        "Start it in the system clock app instead of in-app. Default false."
                     )
                 }
             }
@@ -805,8 +796,7 @@ object ToolDefinitions {
 
     val setVolume = tool(
         "set_volume",
-        "Set a volume stream to a percentage (0-100). Use 0 to mute or 100 for max volume. " +
-            "Streams: media, ring, alarm, notification, call. Reports the previous and new volume levels.",
+        "Set a volume stream to a percentage, reporting the previous and new levels.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("stream") {
@@ -831,8 +821,7 @@ object ToolDefinitions {
 
     val getVolume = tool(
         "get_volume",
-        "Read the current volume level (0-100) of a stream, or all streams if none is specified. " +
-            "Streams: media, ring, alarm, notification, call. Reports each stream's current percentage.",
+        "Read a stream's current volume percentage, or every stream's if none is given.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("stream") {
@@ -1093,10 +1082,8 @@ object ToolDefinitions {
 
     val editAlarm = tool(
         "edit_alarm",
-        "Edit an existing alarm by ID. Only the fields you provide will be changed. " +
-            "Get the alarm ID from list_alarms. For alarms living in the system clock app this is " +
-            "done by dismissing the old alarm and creating a new one, which is best-effort — relay " +
-            "any caveat in the result to the user.",
+        "Edit an alarm by ID from list_alarms; omit a field to keep it. For system-clock " +
+            "alarms this is best-effort — relay any caveat in the result to the user.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("alarm_id") {
@@ -1105,24 +1092,24 @@ object ToolDefinitions {
                 }
                 putJsonObject("hour") {
                     put("type", "integer")
-                    put("description", "New hour (0-23). Omit to keep current.")
+                    put("description", "New hour (0-23).")
                 }
                 putJsonObject("minute") {
                     put("type", "integer")
-                    put("description", "New minute (0-59). Omit to keep current.")
+                    put("description", "New minute (0-59).")
                 }
                 putJsonObject("message") {
                     put("type", "string")
-                    put("description", "New label. Omit to keep current.")
+                    put("description", "New label.")
                 }
                 putJsonObject("days") {
                     put("type", "array")
-                    put("description", "New repeating days. Omit to keep current. Pass empty array for one-time.")
+                    put("description", "New repeating days; empty array makes it one-time.")
                     putJsonObject("items") { put("type", "string") }
                 }
                 putJsonObject("vibrate") {
                     put("type", "boolean")
-                    put("description", "New vibrate setting. Omit to keep current.")
+                    put("description", "New vibrate setting.")
                 }
             }
             putJsonArray("required") { add("alarm_id") }
@@ -1131,10 +1118,8 @@ object ToolDefinitions {
 
     val deleteAlarm = tool(
         "delete_alarm",
-        "Permanently delete an alarm by ID. Requires explicit user confirmation (destructive action). " +
-            "Get the alarm ID from list_alarms. For alarms living in the system clock app the delete " +
-            "is best-effort (some clock apps only disable the alarm or skip its next occurrence) — " +
-            "relay any caveat in the result to the user.",
+        "Delete an alarm by ID from list_alarms. Destructive — confirm with the user first. " +
+            "Best-effort for system-clock alarms (some only disable it); relay any caveat.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("alarm_id") {
@@ -1148,8 +1133,7 @@ object ToolDefinitions {
 
     val deleteTimer = tool(
         "delete_timer",
-        "Cancel and remove a running timer by ID. Requires explicit user confirmation (destructive action). " +
-            "Get the timer ID from list_timers.",
+        "Cancel a running timer by ID from list_timers. Destructive — confirm with the user first.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("timer_id") {
@@ -1163,11 +1147,8 @@ object ToolDefinitions {
 
     val edit = tool(
         "edit",
-        "Replace exact text in a file. Use this for surgical edits — changing specific " +
-            "lines, variables, or values — without rewriting the entire file. " +
-            "The oldString must match the existing text exactly, including whitespace and " +
-            "indentation. Set replaceAll=true to replace every occurrence. " +
-            "Only available in the app sandbox (files, cache, external) or 'storage' root.",
+        "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
+            "must match exactly, whitespace included. Writable roots only (app sandbox, storage).",
         schema {
             putJsonObject("properties") {
                 putJsonObject("path") {
@@ -1197,9 +1178,8 @@ object ToolDefinitions {
 
     val question = tool(
         "question",
-        "Ask the user a question when you need clarification, a decision, or more information " +
-            "to proceed. Provide clear, concise options when possible. " +
-            "Use this instead of guessing the user's intent.",
+        "Ask the user for a decision or clarification instead of guessing their intent. " +
+            "Offer concise options where you can.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("question") {
@@ -1222,10 +1202,8 @@ object ToolDefinitions {
 
     val todowrite = tool(
         "todowrite",
-        "Create and maintain a structured task list for the current session. " +
-            "Use this to plan multi-step tasks, track progress, and check off completed items. " +
-            "Each call replaces the entire list. Status values: pending, in_progress, completed, cancelled. " +
-            "Priority values (optional): high, medium, low.",
+        "Track your own plan for this session; each call replaces the whole list. " +
+            "status: pending, in_progress, completed, cancelled. priority: high, medium, low.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("items") {
@@ -1285,38 +1263,29 @@ object ToolDefinitions {
 
     val task = tool(
         "task",
-        "Delegate a multi-step task to a sub-agent. The sub-agent runs independently " +
-            "with full access to all Operator tools and returns a final report. " +
-            "Use this when the work involves many steps whose intermediate details are " +
-            "not important to you — only the final result matters. " +
-            "Available sub-agents: GENERAL — a general-purpose agent that can perform " +
-            "any multi-step operation using all available device tools. " +
-            "Cannot be called from within a sub-agent (no recursive delegation). " +
-            "Only available to Operator mode.",
+        "Delegate a multi-step task to the General sub-agent, which runs independently with " +
+            "the Operator tools and returns a final report. No recursive delegation.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("description") {
                     put("type", "string")
                     put(
                         "description",
-                        "Brief description of what the sub-agent should do " +
-                            "(shown in the UI while it runs)."
+                        "Brief description of the task, shown in the UI while it runs."
                     )
                 }
                 putJsonObject("prompt") {
                     put("type", "string")
                     put(
                         "description",
-                        "Detailed instructions for the sub-agent. " +
-                            "Include all context the sub-agent needs to complete the task."
+                        "Full instructions, including all context the sub-agent needs."
                     )
                 }
                 putJsonObject("subagent_type") {
                     put("type", "string")
                     put(
                         "description",
-                        "Which sub-agent to use. Default: 'general'. " +
-                            "Available: general."
+                        "Which sub-agent to use. Only 'general' (the default) exists."
                     )
                 }
             }
@@ -1329,11 +1298,8 @@ object ToolDefinitions {
 
     val ask_final_answer = tool(
         "ask_final_answer",
-        "Signal that the delegated task is complete and provide the final result. " +
-            "Only available to General sub-agent. " +
-            "Call this once all required steps have been executed and you have the " +
-            "complete answer to report back. " +
-            "Do NOT call this before the work is actually done.",
+        "Report the final result of the delegated task. Call it only once every step is " +
+            "actually done, never before.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("answer") {
@@ -1345,12 +1311,32 @@ object ToolDefinitions {
         }
     )
 
+    val finishTask = tool(
+        "finish_task",
+        "End the turn and report the outcome to the user. This is the only way to be sure the " +
+            "user actually hears the result: it stops the tool loop, shows your summary, and " +
+            "reads it aloud when the reply is spoken. Call it as soon as the work is done — " +
+            "especially after task or navigate_app comes back successful, instead of delegating " +
+            "again to double-check. Use it for failures too, saying what went wrong.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("summary") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "What to tell the user: what was done or what went wrong. One or two " +
+                            "sentences, phrased to be read aloud."
+                    )
+                }
+            }
+            putJsonArray("required") { add("summary") }
+        }
+    )
+
     val glob = tool(
         "glob",
-        "Find files matching a glob pattern within an allowed directory. " +
-            "Use * to match any non-/ characters, ** to match any path recursively, " +
-            "and ? for a single character. Examples: '**/*.txt', 'downloads/*.jpg', " +
-            "'files/**/*.kt'. Returns matching file paths relative to the search root.",
+        "Find files by glob pattern (* non-/, ** recursive, ? one char), returning paths " +
+            "relative to the search root.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("pattern") {
@@ -1359,7 +1345,7 @@ object ToolDefinitions {
                 }
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
+                    put("description", "Root and optional sub-path, e.g. 'files' or 'downloads/reports'.")
                 }
             }
             putJsonArray("required") {
@@ -1371,11 +1357,8 @@ object ToolDefinitions {
 
     val grep = tool(
         "grep",
-        "Search file contents by regular expression within an allowed directory. " +
-            "Use a path root (e.g. 'files', 'downloads') to narrow the search, " +
-            "and include to filter files by name pattern (e.g. '*.txt', '*.{kt,java}'). " +
-            "Returns matching file path, line number, and line content. " +
-            "Uses case-insensitive matching.",
+        "Search file contents by case-insensitive regex, returning path, line number and " +
+            "line content.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("pattern") {
@@ -1384,7 +1367,7 @@ object ToolDefinitions {
                 }
                 putJsonObject("path") {
                     put("type", "string")
-                    put("description", "Root and optional sub-path to search, e.g. 'files' or 'downloads/reports'.")
+                    put("description", "Root and optional sub-path, e.g. 'files' or 'downloads/reports'.")
                 }
                 putJsonObject("include") {
                     put("type", "string")
@@ -1400,10 +1383,8 @@ object ToolDefinitions {
 
     val webSearch = tool(
         "websearch",
-        "Search the web for information using a text query. Returns up to 10 results with titles, URLs, and snippets. " +
-            "Use this to find current information, documentation, tutorials, or anything online. " +
-            "The results are from DuckDuckGo — no API key needed. " +
-            "If you need the full content of a specific result, use webfetch on its URL.",
+        "Search the web (DuckDuckGo), returning up to 10 titles, URLs and snippets. " +
+            "For a result's full content, follow up with webfetch on its URL.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("query") {
@@ -1479,9 +1460,7 @@ object ToolDefinitions {
 
     val tap = tool(
         "tap",
-        "Tap the screen via the accessibility service — either an on-screen element matching " +
-            "some text/label, or absolute pixel coordinates. Prefer matching by text. Needs the " +
-            "accessibility service enabled.",
+        "Tap an on-screen element by its text/label, or by coordinates. Prefer text.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("text") {
@@ -1490,15 +1469,15 @@ object ToolDefinitions {
                 }
                 putJsonObject("x") {
                     put("type", "integer")
-                    put("description", "X coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                    put("description", "X coordinate, in [0,1000] space unless normalized=false.")
                 }
                 putJsonObject("y") {
                     put("type", "integer")
-                    put("description", "Y coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                    put("description", "Y coordinate, in [0,1000] space unless normalized=false.")
                 }
                 putJsonObject("normalized") {
                     put("type", "boolean")
-                    put("description", "If true, x and y are in [0, 1000] normalized space. Default true.")
+                    put("description", "x and y are in [0,1000] space. Default true.")
                 }
             }
         }
@@ -1506,10 +1485,8 @@ object ToolDefinitions {
 
     val swipe = tool(
         "swipe",
-        "Swipe/scroll the screen or a specific element. " +
-            "If using a direction, 'down' means scroll the content down to see lower items. " +
-            "'up' means scroll the content up to see higher items. " +
-            "Needs the accessibility service enabled.",
+        "Swipe or scroll the screen or one element. 'down' reveals lower content, " +
+            "'up' reveals higher content.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("direction") {
@@ -1538,7 +1515,7 @@ object ToolDefinitions {
                 }
                 putJsonObject("normalized") {
                     put("type", "boolean")
-                    put("description", "If true, coordinate params are in [0, 1000] normalized space. Default true.")
+                    put("description", "Coordinates are in [0,1000] space. Default true.")
                 }
             }
         }
@@ -1546,14 +1523,13 @@ object ToolDefinitions {
 
     val tapIndex = tool(
         "tap_index",
-        "Tap a UI element from the numbered elements list shown in the screen observation. " +
-            "The index corresponds to the number shown before each element. " +
-            "Prefer this over raw coordinate tap when possible for precision.",
+        "Tap a UI element by its number in the screen observation's element list. " +
+            "More precise than a coordinate tap — prefer it.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("index") {
                     put("type", "integer")
-                    put("description", "Index of the element to tap (from the ── UI Elements ── list).")
+                    put("description", "Element index from the UI Elements list.")
                 }
             }
             putJsonArray("required") { add("index") }
@@ -1571,15 +1547,15 @@ object ToolDefinitions {
                 }
                 putJsonObject("x") {
                     put("type", "integer")
-                    put("description", "X coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                    put("description", "X coordinate, in [0,1000] space unless normalized=false.")
                 }
                 putJsonObject("y") {
                     put("type", "integer")
-                    put("description", "Y coordinate. If normalized=true, use [0,1000] space; else absolute pixels.")
+                    put("description", "Y coordinate, in [0,1000] space unless normalized=false.")
                 }
                 putJsonObject("normalized") {
                     put("type", "boolean")
-                    put("description", "If true, x and y are in [0, 1000] normalized space. Default true.")
+                    put("description", "x and y are in [0,1000] space. Default true.")
                 }
             }
         }
@@ -1752,9 +1728,8 @@ object ToolDefinitions {
 
     val getNowPlaying = tool(
         "get_now_playing",
-        "Report what every app with an active media session is currently playing: app, playback " +
-            "state, title, artist, album, and position/duration. Use this to answer 'what song is " +
-            "this?' or to pick the right 'app' value for media_control. Needs Notification access.",
+        "Report what each app with an active media session is playing: app, state, title, " +
+            "artist, album, position/duration. Also gives the 'app' value for media_control.",
         schema { putJsonObject("properties") {} }
     )
 
@@ -1829,10 +1804,8 @@ object ToolDefinitions {
 
     val runRootCommand = tool(
         "run_root_command",
-        "Run a shell command as ROOT via `su` and return its output. Only works on a rooted device; " +
-            "on a normal phone this fails with a clear 'not rooted' message. This is the Tier 4 escape " +
-            "hatch for privileged operations an ordinary app can't do — e.g. silent `pm install`, reading " +
-            "other apps' data, `settings put secure …`. A few irreversible device-wiping commands are blocked.",
+        "Run a shell command as root via `su`, for privileged operations an ordinary app " +
+            "cannot do. Rooted devices only; device-wiping commands are blocked.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {
@@ -1846,9 +1819,8 @@ object ToolDefinitions {
 
     val writeSecureSettings = tool(
         "write_secure_settings",
-        "Write an Android setting in the system/secure/global namespace (the WRITE_SECURE_SETTINGS " +
-            "capability, e.g. Settings.Secure). Uses root under the hood, so it needs a rooted device. " +
-            "Example: namespace='secure', key='location_mode', value='3'.",
+        "Write an Android system/secure/global setting, e.g. secure/location_mode=3. " +
+            "Uses root, so it needs a rooted device.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("namespace") {
@@ -1882,7 +1854,7 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_search')."
+                        "The package name, app name, or operation to search for (e.g. 'com.whatsapp', 'whatsapp', 'settings_operations')."
                     )
                 }
             }
@@ -1894,19 +1866,16 @@ object ToolDefinitions {
 
     val listEmails = tool(
         "list_emails",
-        "List emails from the connected account's inbox (Gmail or IMAP connector). " +
-            "Returns one row per message: [id] read-state | date | from | subject + snippet. " +
-            "Use the returned id with read_email / mark_email_read. Requires an email " +
-            "connector in Settings; if none is connected, use compose_email or the Gmail app.",
+        "List inbox emails as [id] read-state | date | from | subject + snippet. " +
+            "Use the id with read_email / mark_email_read.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("query") {
                     put("type", "string")
                     put(
                         "description",
-                        "Optional search text. With Gmail connected this is full Gmail query " +
-                            "syntax (e.g. 'from:alice is:unread newer_than:7d'); with IMAP it " +
-                            "matches subject/from/body."
+                        "Search text. Full Gmail query syntax when Gmail is the backend " +
+                            "(e.g. 'from:alice is:unread'); IMAP matches subject/from/body."
                     )
                 }
                 putJsonObject("unread_only") {
@@ -1938,10 +1907,8 @@ object ToolDefinitions {
 
     val sendEmail = tool(
         "send_email",
-        "Send a plain-text email from the connected account (Gmail or IMAP connector). " +
-            "The user always sees a confirmation dialog with recipient, subject and a body " +
-            "preview before anything is sent. If no email connector is connected, use " +
-            "compose_email instead.",
+        "Send a plain-text email from the connected account. The user always sees a " +
+            "confirmation dialog before anything is sent, so don't ask separately.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("to") {
@@ -1996,9 +1963,9 @@ object ToolDefinitions {
 
     val composeEmail = tool(
         "compose_email",
-        "Open the user's email app with a pre-filled draft (recipient/subject/body) that they " +
-            "review and send themselves. Works without any connector — use this when no email " +
-            "account is connected, or when the user wants to review before sending.",
+        "Open the user's email app with a pre-filled draft they review and send themselves. " +
+            "Only a fallback: whenever send_email is in your tool list, use that instead — " +
+            "it sends directly, and it confirms with the user anyway.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("to") {
@@ -2021,17 +1988,15 @@ object ToolDefinitions {
 
     val listTasks = tool(
         "list_tasks",
-        "List the user's real, persistent to-do items from their connected Microsoft To Do " +
-            "account. These sync to the user's other devices — this is NOT the same as " +
-            "todowrite, which is only your own scratch plan for the current conversation. " +
-            "Returns rows of [id] state | title | due date; use the id with complete_task.",
+        "List the user's real Microsoft To Do items, which sync to their other devices — not " +
+            "todowrite, your own scratch plan. Rows are [id] state | title | due date.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("list") {
                     put("type", "string")
                     put(
                         "description",
-                        "Optional task-list name (e.g. 'Groceries'). Defaults to the account's main list."
+                        "Task-list name, e.g. 'Groceries'. Defaults to the account's main list."
                     )
                 }
                 putJsonObject("include_completed") {
@@ -2097,10 +2062,9 @@ object ToolDefinitions {
 
     val notionSearch = tool(
         "notion_search",
-        "Search the user's Notion workspace for pages and databases. Only pages that have been " +
-            "explicitly shared with the integration are visible — an empty result usually means " +
-            "the page was never shared, not that it does not exist. Returns [id] rows; use the " +
-            "id with notion_read_page or notion_append_to_page.",
+        "Search Notion for pages and databases, returning [id] rows for the other notion " +
+            "tools. Only pages shared with the integration are visible, so an empty result " +
+            "usually means unshared rather than nonexistent.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("query") {
@@ -2132,10 +2096,8 @@ object ToolDefinitions {
 
     val notionCreatePage = tool(
         "notion_create_page",
-        "Create a new Notion page underneath an existing one. Notion has no workspace root an " +
-            "integration can write to, so a parent_page_id is always required — find one with " +
-            "notion_search first. Content accepts Markdown (headings, bullets, numbered lists, " +
-            "to-dos, quotes).",
+        "Create a Notion page under an existing one; parent_page_id is always required " +
+            "(find it with notion_search). Content accepts Markdown.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("title") {
@@ -2223,7 +2185,7 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
-        openApp, setBrightness, toggleWifi,
+        openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,
@@ -2241,6 +2203,8 @@ object ToolDefinitions {
         // Sub-agent delegation (Operator only)
         task,
         ask_final_answer,
+        // Terminal signal for the top-level agent (see AgentEngine's FINISH_TASK: marker)
+        finishTask,
         // Task tracking
         todowrite,
         // Surgical file editing (Operator only)

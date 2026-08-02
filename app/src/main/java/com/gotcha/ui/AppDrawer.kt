@@ -13,9 +13,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DrawerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,9 +31,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.ChatSession
+import com.gotcha.ui.theme.GotchaMono
+import com.gotcha.ui.theme.LocalSkin
+import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.ui.tour.TourAnchor
+import com.gotcha.ui.tour.tourAnchor
 
 @Composable
 fun AppDrawerContent(
@@ -45,11 +51,45 @@ fun AppDrawerContent(
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
     maxContextTokens: Int = 0,
-    activeTokenCount: Int = 0
+    activeTokenCount: Int = 0,
+    /**
+     * Live per-session token counts published from [com.gotcha.agent.ChatViewModel.onTokenCount].
+     * When present for a given session, this overlay wins over both [activeTokenCount]
+     * and the persisted [ChatSession.tokenCount] so the running session's row
+     * updates within the same frame as the round, without waiting for the
+     * end-of-round disk save.
+     */
+    liveTokenBySession: Map<String, Int> = emptyMap()
 ) {
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
 
-    ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+    // The drawer covers the app rather than floating in it, so it gets a ground
+    // of its own. Stated explicitly rather than left to DrawerDefaults, because
+    // which surface role the default reads has changed between Material 3
+    // versions and a see-through sidebar is unreadable.
+    val skin = LocalSkin.current
+    val drawerColor = if (skin.isGlass) skin.ground else DrawerDefaults.containerColor
+
+    // Every row was painting a pale container, selected or not, so the list read
+    // as a stack of white lozenges with no gaps — their pill corners interlocking
+    // where they met. Only the open chat gets a background now, and it is a tint
+    // of the skin's own accent rather than a wash of white.
+    val itemColors = NavigationDrawerItemDefaults.colors(
+        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+        unselectedContainerColor = Color.Transparent,
+        selectedTextColor = MaterialTheme.colorScheme.onSurface,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+        selectedIconColor = MaterialTheme.colorScheme.primary,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    val itemModifier = Modifier
+        .padding(NavigationDrawerItemDefaults.ItemPadding)
+        .padding(vertical = 2.dp)
+
+    ModalDrawerSheet(
+        drawerContainerColor = drawerColor,
+        modifier = Modifier.width(300.dp)
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 "Gotcha",
@@ -61,7 +101,8 @@ fun AppDrawerContent(
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 selected = false,
                 onClick = onNewChat,
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                colors = itemColors,
+                modifier = itemModifier
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Text(
@@ -72,7 +113,8 @@ fun AppDrawerContent(
             )
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(sessions, key = { it.id }) { session ->
-                    val tokens = if (session.id == activeSessionId) activeTokenCount else session.tokenCount
+                    val tokens = liveTokenBySession[session.id]
+                        ?: (if (session.id == activeSessionId) activeTokenCount else session.tokenCount)
                     val usage = formatContextUsage(tokens, maxContextTokens)
                     NavigationDrawerItem(
                         label = {
@@ -83,10 +125,16 @@ fun AppDrawerContent(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 if (usage != null) {
+                                    // Tabular figures: this counter ticks while a
+                                    // reply streams, and proportional digits make
+                                    // the whole line twitch as it does.
                                     Text(
                                         usage,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        fontFamily = GotchaMono,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -102,7 +150,8 @@ fun AppDrawerContent(
                                 )
                             }
                         },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        colors = itemColors,
+                        modifier = itemModifier
                     )
                 }
             }
@@ -112,14 +161,16 @@ fun AppDrawerContent(
                 icon = { Icon(Icons.Default.Link, contentDescription = null) },
                 selected = false,
                 onClick = onOpenConnectors,
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                colors = itemColors,
+                modifier = itemModifier
             )
             NavigationDrawerItem(
                 label = { Text("Settings") },
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                 selected = false,
                 onClick = onOpenSettings,
-                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                colors = itemColors,
+                modifier = itemModifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -127,7 +178,7 @@ fun AppDrawerContent(
 
     sessionToDelete?.let { id ->
         val title = sessions.find { it.id == id }?.title ?: "this chat"
-        AlertDialog(
+        SkinAlertDialog(
             onDismissRequest = { sessionToDelete = null },
             title = { Text("Delete Chat?") },
             text = { Text("Are you sure you want to permanently delete \"$title\"? This action cannot be undone.") },
@@ -161,7 +212,7 @@ private fun formatContextUsage(tokens: Int, maxContextTokens: Int): String? {
     return if (maxContextTokens > 0) {
         val percent = (tokens.toFloat() / maxContextTokens * 100f)
             .coerceIn(0f, 100f).toInt()
-        "${grouped(tokens)} / ${grouped(maxContextTokens)} tokens ($percent%)"
+        "${grouped(tokens)} / ${grouped(maxContextTokens)} · $percent%"
     } else {
         "${grouped(tokens)} tokens"
     }

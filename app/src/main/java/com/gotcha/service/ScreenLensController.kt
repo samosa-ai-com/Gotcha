@@ -5,14 +5,19 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
+import com.gotcha.R
+import com.gotcha.ui.MaxHeightScrollView
 import com.gotcha.ui.ScreenCropOverlayView
+import com.gotcha.ui.applyOverlayCard
+import com.gotcha.ui.theme.OverlaySkin
+import com.gotcha.ui.theme.Skins
+import com.gotcha.ui.theme.overlaySkin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,20 +35,43 @@ class ScreenLensController(
     private val onCaptureChrome: (hide: Boolean) -> Unit = {}
 ) {
     private val appContext = context.applicationContext
+
+    /**
+     * The active skin, re-read on every build rather than cached, so a theme
+     * change in Settings reaches Lens without the window being torn down.
+     */
+    private fun currentColors(): OverlaySkin = overlaySkin(
+        appContext,
+        runCatching { com.gotcha.data.SettingsRepository(appContext).load().skinId }
+            .getOrDefault(Skins.DEFAULT_ID)
+    )
+
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Lens does not survive a rotation, and should not pretend to.
+     *
+     * Everything the session is holding — the crop rectangle, the accessibility
+     * bounds the annotations are drawn at, the chip bar's placement, the crop
+     * bitmap already taken — is in the pixels of the screen it started on. When
+     * the device rotates, the app underneath re-lays itself out, so those
+     * coordinates no longer point at the thing the user was selecting. Closing
+     * is the only honest answer; re-placing the chrome would leave a selection
+     * that looks right and means nothing.
+     */
+    private val rotationWatcher = com.gotcha.ui.OverlayRotationWatcher(context) { _, _ -> cancel() }
 
     private var cropOverlay: View? = null
     private var actionMenu: View? = null
     private var textChips: View? = null
+
+    /** Where the chip bar ended up, so the action menu can sit under it. */
+    private var chipBarBounds: Rect? = null
     private var pendingCrop: Bitmap? = null
 
     /** Begin a Lens capture: add the full-screen crop overlay and auto-annotate UI elements. */
     fun start() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            onError("Lens mode requires Android 11+")
-            return
-        }
         mainHandler.post {
             removeActionMenu()
             removeCropOverlay()
@@ -55,6 +83,7 @@ class ScreenLensController(
 
             val overlay = ScreenCropOverlayView(
                 appContext,
+                colors = currentColors(),
                 onSelection = { rect -> onRegionSelected(rect) },
                 onCancel = { cancel() },
                 onReselectStart = {
@@ -65,6 +94,18 @@ class ScreenLensController(
                 onAnnotatedEntitySelected = { prompt ->
                     cancel()
                     onContextualAction(prompt)
+                },
+                // A grouped chip opens its members instead of firing one of them.
+                // The Lens overlay stays up behind the menu: picking from a list
+                // of prices is a choice, and closing the thing they are listed on
+                // would leave nothing to choose against.
+                onAnnotatedGroupSelected = { group ->
+                    showActionMenu(
+                        group.members
+                            .mapNotNull { it.primaryAction }
+                            .distinctBy { it.prompt }
+                            .take(MAX_GROUP_MENU_ITEMS)
+                    )
                 }
             )
             overlay.setAnnotatedEntities(annotatedEntities)
@@ -83,6 +124,7 @@ class ScreenLensController(
             try {
                 windowManager.addView(overlay, params)
                 cropOverlay = overlay
+                rotationWatcher.start()
             } catch (_: Exception) {
                 cropOverlay = null
                 onError("Couldn't start Lens mode")
@@ -92,6 +134,7 @@ class ScreenLensController(
 
     fun cancel() {
         mainHandler.post {
+            rotationWatcher.stop()
             removeCropOverlay()
             removeActionMenu()
             removeTextChips()
@@ -122,7 +165,12 @@ class ScreenLensController(
             withContext(Dispatchers.Main) { overlay?.freezeSelection(finalRect) }
 
             val regionText = service.dumpTextInRegion(finalRect)
-            val contextualActions = regionText?.let { SmartActionDetector.detectContextual(it) } ?: emptyList()
+            val settings = runCatching { com.gotcha.data.SettingsRepository(appContext).load() }.getOrNull()
+            val preferredLang = settings?.preferredLanguage ?: "English"
+            val preferredCurr = settings?.preferredCurrency ?: "USD"
+            val contextualActions = regionText?.let {
+                SmartActionDetector.detectContextual(it, targetCurrency = preferredCurr, targetLanguage = preferredLang)
+            } ?: emptyList()
 
             withContext(Dispatchers.Main) {
                 overlay?.setCaptureMode(true)
@@ -192,30 +240,25 @@ class ScreenLensController(
     private fun showTextChips(finalRect: Rect, regionText: String?) {
         removeTextChips()
         val overlay = cropOverlay ?: return
-        val density = appContext.resources.displayMetrics.density
         val cleanText = regionText?.replace(Regex("\\s+"), " ")?.trim()
+        val colors = currentColors()
 
         val chipsLayout = android.widget.LinearLayout(appContext).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding((6 * density).toInt(), (4 * density).toInt(), (6 * density).toInt(), (4 * density).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 14f * density
-                setColor(android.graphics.Color.parseColor("#EE101018"))
-                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#44568CD8"))
-            }
+            applyOverlayCard(colors, horizontalDp = 6, verticalDp = 4)
         }
 
         if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
-                chipButton("📝 Select") {
+                chipButton("Select", colors, R.drawable.ic_lens_select) {
                     showSelectableTextCard(cleanText)
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("📋 Copy") {
+            chipButton("Copy", colors, R.drawable.ic_lens_copy) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -233,21 +276,17 @@ class ScreenLensController(
 
         if (!isAlreadyInPreferredLang) {
             chipsLayout.addView(
-                chipButton("🌐 Translate") {
-                    val crop = pendingCrop
-                    if (crop != null && !crop.isRecycled) {
-                        val base64 = bitmapToBase64(crop)
-                        val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
-                            "and display both original and translated text."
-                        onImagePrompt(base64, prompt)
-                    }
+                chipButton("Translate", colors, R.drawable.ic_lens_translate) {
+                    val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
+                        "and display both original and translated text."
+                    encodePendingCrop { base64 -> onImagePrompt(base64, prompt) }
                     cancel()
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("💾 Save") {
+            chipButton("Save", colors, R.drawable.ic_lens_save) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -260,33 +299,18 @@ class ScreenLensController(
         )
 
         chipsLayout.addView(
-            chipButton("❓ Ask") {
-                val crop = pendingCrop
-                if (crop != null && !crop.isRecycled) {
-                    val base64 = bitmapToBase64(crop)
-                    onAskAboutCrop(base64)
-                    cancel()
-                }
+            chipButton("Ask", colors, R.drawable.ic_lens_ask) {
+                encodePendingCrop { base64 -> onAskAboutCrop(base64) }
+                cancel()
             }
         )
 
-        val chipBarHeight = (42 * density).toInt()
-        val chipBarWidth = (300 * density).toInt()
-        val screenHeight = overlay.height
-        val screenWidth = overlay.width
-
-        val targetY = if (finalRect.bottom + chipBarHeight + (12 * density).toInt() <= screenHeight) {
-            finalRect.bottom + (12 * density).toInt()
-        } else if (finalRect.top - chipBarHeight - (12 * density).toInt() >= 0) {
-            finalRect.top - chipBarHeight - (12 * density).toInt()
-        } else {
-            (16 * density).toInt()
-        }
-
-        val targetX = (finalRect.centerX() - chipBarWidth / 2).coerceIn(
-            (12 * density).toInt(),
-            (screenWidth - chipBarWidth - (12 * density).toInt()).coerceAtLeast(0)
-        )
+        // Measured, not guessed. This used to assume 300dp × 42dp, which was
+        // already approximate and became more so once the bar grew icons and an
+        // OverlayCardDrawable gutter — a shadow lives outside the card, so the
+        // view is wider than the card you can see.
+        val (chipBarWidth, chipBarHeight) = measure(chipsLayout)
+        val placed = placeNear(finalRect, chipBarWidth, chipBarHeight, overlay.width, overlay.height)
 
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -296,24 +320,87 @@ class ScreenLensController(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = targetX
-            y = targetY
+            x = placed.left
+            y = placed.top
         }
 
         try {
             windowManager.addView(chipsLayout, params)
             textChips = chipsLayout
+            chipBarBounds = placed
         } catch (_: Exception) {
             textChips = null
+            chipBarBounds = null
         }
     }
 
-    private fun chipButton(label: String, onClick: () -> Unit): TextView {
+    /** [view]'s size when it is allowed to be exactly as big as it wants. */
+    private fun measure(view: View): Pair<Int, Int> {
+        val spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        view.measure(spec, spec)
+        return view.measuredWidth to view.measuredHeight
+    }
+
+    /**
+     * Put a [w]×[h] panel just below [anchor], or just above it when there is no
+     * room, or pinned to the top when there is room for neither. Horizontally
+     * centred on the anchor and kept on screen.
+     */
+    private fun placeNear(anchor: Rect, w: Int, h: Int, screenW: Int, screenH: Int): Rect {
         val density = appContext.resources.displayMetrics.density
+        val gap = (GAP_DP * density).toInt()
+        val margin = (EDGE_MARGIN_DP * density).toInt()
+
+        val y = when {
+            anchor.bottom + gap + h <= screenH -> anchor.bottom + gap
+            anchor.top - gap - h >= 0 -> anchor.top - gap - h
+            else -> margin
+        }
+        val x = (anchor.centerX() - w / 2).coerceIn(
+            margin,
+            (screenW - w - margin).coerceAtLeast(margin)
+        )
+        return Rect(x, y, x + w, y + h)
+    }
+
+    /**
+     * One chip on the Lens bar. The icon sits *above* the label rather than
+     * beside it, unlike the ball's menu rows: five of these have to fit across a
+     * phone, and side-by-side icons would push the bar wider than the screen.
+     *
+     * When [filled] is set the chip gets a [OverlaySkin.buttonBg] rounded
+     * background (the same treatment the contextual-action menu buttons use), so
+     * it stays legible on every skin instead of relying on `buttonText` against
+     * the card surface.
+     */
+    private fun chipButton(
+        label: String,
+        colors: OverlaySkin,
+        iconRes: Int? = null,
+        filled: Boolean = false,
+        onClick: () -> Unit
+    ): TextView {
+        val density = appContext.resources.displayMetrics.density
+        val iconPx = (CHIP_ICON_DP * density).toInt()
         return TextView(appContext).apply {
             text = label
-            textSize = 12f
-            setTextColor(android.graphics.Color.WHITE)
+            textSize = colors.labelSp
+            typeface = colors.sans
+            setTextColor(colors.buttonText)
+            gravity = Gravity.CENTER
+            if (filled) {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = colors.buttonRadiusDp * density
+                    setColor(colors.buttonBg)
+                }
+            }
+            if (iconRes != null) {
+                val icon = androidx.core.content.ContextCompat.getDrawable(appContext, iconRes)
+                icon?.setBounds(0, 0, iconPx, iconPx)
+                icon?.setTint(colors.buttonText)
+                setCompoundDrawablesRelative(null, icon, null, null)
+                compoundDrawablePadding = (CHIP_ICON_GAP_DP * density).toInt()
+            }
             setPadding((10 * density).toInt(), (6 * density).toInt(), (10 * density).toInt(), (6 * density).toInt())
             setOnClickListener { onClick() }
         }
@@ -322,38 +409,37 @@ class ScreenLensController(
     private fun showSelectableTextCard(text: String) {
         removeActionMenu()
         val density = appContext.resources.displayMetrics.density
+        val colors = currentColors()
 
         val cardLayout = android.widget.LinearLayout(appContext).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding((16 * density).toInt(), (14 * density).toInt(), (16 * density).toInt(), (14 * density).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 18f * density
-                setColor(android.graphics.Color.parseColor("#F51E293B"))
-                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#334155"))
-            }
+            applyOverlayCard(colors, horizontalDp = 16, verticalDp = 14)
         }
 
         val titleView = TextView(appContext).apply {
-            this.text = "📝 Extracted Text"
-            textSize = 14f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.WHITE)
+            this.text = "Extracted Text"
+            textSize = colors.titleSp
+            setTypeface(colors.sans, android.graphics.Typeface.BOLD)
+            setTextColor(colors.onSurface)
             setPadding(0, 0, 0, (8 * density).toInt())
         }
         cardLayout.addView(titleView)
 
         val textView = TextView(appContext).apply {
             this.text = text
-            textSize = 13f
-            setTextColor(android.graphics.Color.parseColor("#E2E8F0"))
+            textSize = colors.bodySp
+            typeface = colors.sans
+            setTextColor(colors.onSurfaceVariant)
             setTextIsSelectable(true)
         }
 
-        val scroll = android.widget.ScrollView(appContext).apply {
+        val maxLensH = (180 * density).toInt()
+        val scroll = MaxHeightScrollView(appContext).apply {
+            maxHeightPx = maxLensH
             addView(textView)
             layoutParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                (180 * density).toInt()
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
         cardLayout.addView(scroll)
@@ -364,28 +450,26 @@ class ScreenLensController(
         }
 
         btnRow.addView(
-            chipButton("📋 Copy All") {
-                val clipService = Context.CLIPBOARD_SERVICE
-                val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
-                clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", text))
-                android.widget.Toast.makeText(
-                    appContext,
-                    "Copied to clipboard",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                cancel()
+            chipButton("Copy Selected", colors, filled = true) {
+                copyTextSelection(textView, text)
             }
         )
 
         btnRow.addView(
-            chipButton("✕ Close") {
+            chipButton("Copy All", colors, R.drawable.ic_lens_copy, filled = true) {
+                copyTextToClipboard(text)
+            }
+        )
+
+        btnRow.addView(
+            chipButton("Close", colors, filled = true) {
                 cancel()
             }
         )
         cardLayout.addView(btnRow)
 
         val params = WindowManager.LayoutParams(
-            (300 * density).toInt(),
+            (TEXT_CARD_WIDTH_DP * density).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -402,30 +486,59 @@ class ScreenLensController(
         }
     }
 
+    /**
+     * Copy the user's highlighted range from [textView] to the clipboard. When
+     * nothing is selected (no handles dragged), fall back to a hint instead of
+     * silently copying everything.
+     */
+    private fun copyTextSelection(textView: TextView, fullText: String) {
+        val start = textView.selectionStart
+        val end = textView.selectionEnd
+        if (start >= 0 && start <= fullText.length && end > start && end <= fullText.length) {
+            copyTextToClipboard(fullText.substring(start, end))
+        } else {
+            android.widget.Toast.makeText(
+                appContext,
+                "Select some text first, then tap Copy Selected",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    /** Copy [content] to the clipboard and confirm with a toast. */
+    private fun copyTextToClipboard(content: String) {
+        val clipService = Context.CLIPBOARD_SERVICE
+        val clipManager = appContext.getSystemService(clipService) as? android.content.ClipboardManager
+        clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", content))
+        android.widget.Toast.makeText(
+            appContext,
+            "Copied to clipboard",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+        cancel()
+    }
+
     private fun showActionMenu(actions: List<SmartAction>) {
         removeActionMenu()
         if (actions.isEmpty()) return
 
         val density = appContext.resources.displayMetrics.density
+        val colors = currentColors()
         val menuLayout = android.widget.LinearLayout(appContext).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding((8 * density).toInt(), (8 * density).toInt(), (8 * density).toInt(), (8 * density).toInt())
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = 16f * density
-                setColor(android.graphics.Color.parseColor("#F51E293B"))
-                setStroke((1 * density).toInt(), android.graphics.Color.parseColor("#334155"))
-            }
+            applyOverlayCard(colors, horizontalDp = 8, verticalDp = 8)
         }
 
         for (action in actions) {
             val btn = TextView(appContext).apply {
                 text = action.label
-                textSize = 13f
-                setTextColor(android.graphics.Color.parseColor("#E2E8F0"))
+                textSize = colors.bodySp
+                typeface = colors.sans
+                setTextColor(colors.buttonText)
                 setPadding((14 * density).toInt(), (8 * density).toInt(), (14 * density).toInt(), (8 * density).toInt())
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = 10f * density
-                    setColor(android.graphics.Color.parseColor("#334155"))
+                    cornerRadius = colors.buttonRadiusDp * density
+                    setColor(colors.buttonBg)
                 }
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -440,14 +553,28 @@ class ScreenLensController(
             menuLayout.addView(btn)
         }
 
+        // Anchored under the chip bar rather than at Gravity.CENTER, which put
+        // the suggestions squarely on top of the region the user had just drawn
+        // a box around.
+        val menuWidth = (MENU_WIDTH_DP * density).toInt()
+        val overlay = cropOverlay
+        val anchor = chipBarBounds
         val params = WindowManager.LayoutParams(
-            (240 * density).toInt(),
+            menuWidth,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER
+            if (anchor != null && overlay != null) {
+                val (_, menuHeight) = measure(menuLayout)
+                val placed = placeNear(anchor, menuWidth, menuHeight, overlay.width, overlay.height)
+                gravity = Gravity.TOP or Gravity.START
+                x = placed.left
+                y = placed.top
+            } else {
+                gravity = Gravity.CENTER
+            }
         }
 
         try {
@@ -471,6 +598,7 @@ class ScreenLensController(
     private fun removeTextChips() {
         textChips?.let { safeRemove(it) }
         textChips = null
+        chipBarBounds = null
     }
 
     private fun recyclePendingCrop() {
@@ -513,21 +641,59 @@ class ScreenLensController(
         } catch (_: Exception) {}
     }
 
+    /**
+     * JPEG-encode the pending crop off the main thread and hand the result to
+     * [onEncoded] back on it.
+     *
+     * The caller is expected to `cancel()` immediately after calling this, which
+     * recycles [pendingCrop] — so this takes its own copy first rather than
+     * racing that. Encoding used to happen inline in the click listener, which
+     * meant compressing a screen-sized bitmap on the UI thread while the overlay
+     * was still up.
+     */
+    private fun encodePendingCrop(onEncoded: (String) -> Unit) {
+        val crop = pendingCrop
+        if (crop == null || crop.isRecycled) return
+        val copy = runCatching { crop.copy(crop.config, false) }.getOrNull() ?: return
+        scope.launch(Dispatchers.IO) {
+            val base64 = try {
+                bitmapToBase64(copy)
+            } catch (_: Exception) {
+                null
+            } finally {
+                if (!copy.isRecycled) copy.recycle()
+            }
+            if (base64 != null) {
+                withContext(Dispatchers.Main) { onEncoded(base64) }
+            } else {
+                withContext(Dispatchers.Main) { onError("Couldn't prepare the image") }
+            }
+        }
+    }
+
     private fun bitmapToBase64(bitmap: Bitmap): String {
         val baos = java.io.ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos)
         return android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
     }
 
-    private fun overlayType(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
+    private fun overlayType(): Int = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
     private companion object {
         const val MIN_SELECTION_DP = 24
+        const val CHIP_ICON_DP = 18
+        const val CHIP_ICON_GAP_DP = 3
+        const val MENU_WIDTH_DP = 240
+
+        /** Cap on a grouped chip's menu — past this it is a list, not a choice. */
+        const val MAX_GROUP_MENU_ITEMS = 8
+        const val GAP_DP = 12
+        const val EDGE_MARGIN_DP = 12
+
+        /**
+         * Width of the extracted-text card. Wide enough for the three-button
+         * row (Copy Selected / Copy All / Close) to fit without wrapping.
+         */
+        const val TEXT_CARD_WIDTH_DP = 340
     }
 }
