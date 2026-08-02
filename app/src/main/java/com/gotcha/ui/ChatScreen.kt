@@ -30,7 +30,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
@@ -224,10 +223,7 @@ fun ChatScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = onExportChat, enabled = !state.isBusy) {
-                            Icon(Icons.Default.Share, contentDescription = "Export chat")
-                        }
-                        ShareCardMenu(
+                        ChatShareMenu(
                             onExportChat = onExportChat,
                             onCreateShareCard = onCreateShareCard,
                             enabled = !state.isBusy
@@ -661,11 +657,12 @@ fun ChatScreen(
 }
 
 /**
- * Overflow menu in the chat top bar: chat export plus the "Create share card"
- * (whole-chat aggregation) entry point for the marketing poster.
+ * Share menu in the chat top bar, reached from a single share icon: the
+ * markdown chat export plus the "Create share card" (whole-chat aggregation)
+ * entry point for the marketing poster.
  */
 @Composable
-private fun ShareCardMenu(
+private fun ChatShareMenu(
     onExportChat: () -> Unit,
     onCreateShareCard: () -> Unit,
     enabled: Boolean
@@ -673,7 +670,7 @@ private fun ShareCardMenu(
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, enabled = enabled) {
-            Icon(Icons.Default.MoreVert, contentDescription = "More options")
+            Icon(Icons.Default.Share, contentDescription = "Share chat")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(

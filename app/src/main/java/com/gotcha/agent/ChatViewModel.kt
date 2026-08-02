@@ -1096,6 +1096,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /**
      * Best-effort screenshot for the poster thumbnail: the newest PNG in the
      * engine session's working dir, else a fresh screen capture, else null.
+     *
+     * Guarded so a huge or malformed PNG can't OOM the decode: files over
+     * [MAX_SHARE_SCREENSHOT_BYTES] are skipped, and anything larger than
+     * [MAX_SHARE_SCREENSHOT_DIM] on either side is downsampled before decoding
+     * (the poster draws the thumbnail at 460×345, so full-res is wasteful).
      */
     private fun loadShareScreenshot(): Bitmap? {
         val dir = com.gotcha.data.GotchaStorage.subdir(
@@ -1106,7 +1111,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ?.maxByOrNull { it.lastModified() }
         if (newest != null) {
             return try {
-                BitmapFactory.decodeFile(newest.absolutePath)
+                if (newest.length() > MAX_SHARE_SCREENSHOT_BYTES) return null
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(newest.absolutePath, bounds)
+                val w = bounds.outWidth
+                val h = bounds.outHeight
+                if (w <= 0 || h <= 0) return null
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = when {
+                        w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
+                        else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
+                    }
+                }
+                BitmapFactory.decodeFile(newest.absolutePath, options)
             } catch (_: Exception) {
                 null
             }
@@ -1153,5 +1170,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
+
+        /** Poster-thumbnail screenshot guards (see [loadShareScreenshot]). */
+        const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
+        const val MAX_SHARE_SCREENSHOT_DIM = 2048
     }
 }

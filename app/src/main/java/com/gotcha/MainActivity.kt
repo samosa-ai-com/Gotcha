@@ -41,7 +41,6 @@ import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.LEGAL_VERSION
-import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
@@ -60,6 +59,7 @@ import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
+import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -104,7 +104,7 @@ private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = wh
     TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
 }
 
-@Suppress("LargeClass", "TooManyFunctions")
+@Suppress("LargeClass")
 class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
@@ -124,12 +124,7 @@ class MainActivity : ComponentActivity() {
     private var appearance by mutableStateOf(Appearance())
 
     // ---- "Share your Gotcha moment" poster state ----
-    /** Runs the poster is being built from (null = sheet closed). */
-    private var shareRuns by mutableStateOf<List<RunSummary>?>(null)
-    private var shareLoading by mutableStateOf(false)
-    private var sharePreview by mutableStateOf<android.graphics.Bitmap?>(null)
-    private var shareError by mutableStateOf<String?>(null)
-    private var shareIncludeScreenshot by mutableStateOf(false)
+    private val sharePoster: SharePosterState by lazy { SharePosterState(this, chatViewModel) }
 
     /**
      * ETag-style version of the legal bundle the user has accepted. Empty until
@@ -769,11 +764,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onShareMessage = { message ->
                             chatViewModel.activeSessionRunSummaries().lastOrNull()?.let {
-                                openShareSheet(listOf(it))
+                                sharePoster.open(listOf(it))
                             }
                         },
                         onCreateShareCard = {
-                            openShareSheet(chatViewModel.activeSessionRunSummaries())
+                            sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         }
                     )
                 }
@@ -799,28 +794,17 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        shareRuns?.let { runs ->
+        sharePoster.runs?.let { runs ->
             SharePosterSheet(
                 runs = runs,
-                loading = shareLoading,
-                preview = sharePreview,
-                error = shareError,
-                onGenerate = { includeScreenshot ->
-                    shareIncludeScreenshot = includeScreenshot
-                    generateSharePoster(includeScreenshot)
-                },
-                onShare = { sharePreview?.let { sharePoster(it) } },
-                onSave = { sharePreview?.let { savePoster(it) } },
-                onRegenerate = { includeScreenshot ->
-                    shareIncludeScreenshot = includeScreenshot
-                    generateSharePoster(includeScreenshot)
-                },
-                onDismiss = {
-                    shareRuns = null
-                    shareLoading = false
-                    sharePreview = null
-                    shareError = null
-                }
+                loading = sharePoster.loading,
+                preview = sharePoster.preview,
+                error = sharePoster.error,
+                onGenerate = sharePoster::generate,
+                onShare = { sharePoster.preview?.let { sharePoster.share(it) } },
+                onSave = { sharePoster.preview?.let { sharePoster.save(it) } },
+                onRegenerate = sharePoster::generate,
+                onDismiss = sharePoster::dismiss
             )
         }
 
@@ -897,75 +881,5 @@ class MainActivity : ComponentActivity() {
             }
         }
         firstLaunchLauncher.launch(perms.toTypedArray())
-    }
-
-    // ---- "Share your Gotcha moment" poster flow ----
-
-    /** Opens the poster sheet for [runs] (single latest run or whole chat). */
-    private fun openShareSheet(runs: List<RunSummary>) {
-        if (runs.isEmpty()) {
-            Toast.makeText(this, "Nothing to share yet.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        shareRuns = runs
-        shareLoading = false
-        sharePreview = null
-        shareError = null
-    }
-
-    /** Generates the poster (one LLM call + render). */
-    private fun generateSharePoster(includeScreenshot: Boolean) {
-        val runs = shareRuns ?: return
-        shareLoading = true
-        sharePreview = null
-        shareError = null
-        lifecycleScope.launch {
-            val result = chatViewModel.generateShareCard(runs, includeScreenshot)
-            shareLoading = false
-            result.fold(
-                onSuccess = { sharePreview = it },
-                onFailure = { e ->
-                    shareError = e.message ?: "Could not generate the poster."
-                }
-            )
-        }
-    }
-
-    /** Shares the generated poster via the Android share sheet (FileProvider). */
-    private fun sharePoster(bitmap: android.graphics.Bitmap) {
-        try {
-            val dir = java.io.File(cacheDir, "poster")
-            dir.mkdirs()
-            val file = java.io.File(dir, "gotcha_moment_${System.currentTimeMillis()}.png")
-            file.outputStream().use { out -> bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out) }
-            val uri = androidx.core.content.FileProvider.getUriForFile(
-                this,
-                "$packageName.fileprovider",
-                file
-            )
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "image/png"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Gotcha just did this for me")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(Intent.createChooser(intent, "Share your Gotcha moment"))
-        } catch (e: Exception) {
-            Toast.makeText(this, "Could not share: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /** Saves the generated poster to the device gallery. */
-    private fun savePoster(bitmap: android.graphics.Bitmap) {
-        try {
-            val location = com.gotcha.data.GotchaStorage.saveScreenshot(
-                this,
-                "gotcha_moment_${System.currentTimeMillis()}.png",
-                bitmap
-            )
-            Toast.makeText(this, "Saved to $location", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "Could not save: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
     }
 }
