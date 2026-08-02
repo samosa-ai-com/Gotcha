@@ -61,7 +61,7 @@ From the project root:
 
 ### Continuous integration
 
-Every pull request and push to `master` or `development` runs the
+Every pull request and push to `master` runs the
 GitHub Actions workflow (`.github/workflows/ci.yml`): detekt → JVM unit tests →
 Android Lint → `assembleDebug`. Test and analysis reports are attached to each
 run as artifacts. The workflow can also be triggered manually from the Actions
