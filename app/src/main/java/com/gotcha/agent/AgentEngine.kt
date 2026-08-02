@@ -77,6 +77,14 @@ class AgentEngine(
     var tokenCount: Int = 0
 
     /**
+     * Stable key for the provider's server-side prompt KV cache
+     * (`prompt_cache_key` / `X-Session-Id`), independent of [sessionId] which
+     * also serves as per-session file identity. Defaults to [sessionId] when
+     * unset (chat mode keeps the chat id, which is already stable across turns).
+     */
+    var promptCacheKey: String? = null
+
+    /**
      * Structured records of completed runs in this session, newest last. Fed to
      * the marketing copy LLM call for the "Share your Gotcha moment" poster.
      * Bounded to [MAX_RUN_SUMMARIES]; restored from disk when the engine is
@@ -455,7 +463,7 @@ class AgentEngine(
                 llm.chat(
                     messages,
                     ToolRegistry.toolsForAgent(agent, hiddenTools()),
-                    sessionId = sessionId
+                    sessionId = promptCacheKey ?: sessionId
                 )
             } catch (e: CancellationException) {
                 throw e

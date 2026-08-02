@@ -74,6 +74,20 @@ class CallSessionController(
     private var currentTurnJob: Job? = null
     private var nextTranscriptId = 0L
 
+    /**
+     * Reused LLM client so the in-memory [com.gotcha.llm.LLMCache] survives
+     * across turns within a call (mirrors ChatViewModel's single `client`).
+     * Rebuilt only when the settings it depends on change; tracked by
+     * [cachedClientFingerprint] so [buildClient] can detect staleness.
+     * @Volatile because [buildClient] is reached from both the main thread
+     * (startCall) and the engine's coroutine (clientProvider).
+     */
+    @Volatile
+    private var cachedClient: LLMClient? = null
+
+    @Volatile
+    private var cachedClientFingerprint: String? = null
+
     /** Gate for [awaitQuestionAnswer]: completed when the user taps mic stop. */
     private var questionGate: CompletableDeferred<String>? = null
 
@@ -149,6 +163,11 @@ class CallSessionController(
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
         newEngine.callMode = true
+        // Stable server-side prompt-cache key shared by every call: the static
+        // system prompt + <env> prefix is byte-identical across calls, so the
+        // provider can reuse its cached KV instead of re-warming per call. The
+        // random sessionId above stays as the per-call file/working-dir identity.
+        newEngine.promptCacheKey = CALL_PROMPT_CACHE_KEY
         newEngine.setupWorkingDir()
         engine = newEngine
         _state.value = CallState.STARTING
@@ -550,16 +569,24 @@ class CallSessionController(
             AudioProvider.ANDROID -> null
         }
 
-    private fun buildClient(): LLMClient? {
+    internal fun buildClient(): LLMClient? {
         val s = settingsRepository.load()
         return if (s.isConfigured) {
-            LLMClient(
-                apiKey = s.effectiveApiKey,
-                baseUrl = s.effectiveBaseUrl,
-                model = s.model,
-                context = appContext,
-                apiTimeoutSeconds = s.apiTimeoutSeconds
-            )
+            val fingerprint = "${s.provider}|${s.effectiveApiKey}|${s.effectiveBaseUrl}|${s.model}|${s.apiTimeoutSeconds}"
+            if (cachedClient != null && cachedClientFingerprint == fingerprint) {
+                cachedClient
+            } else {
+                LLMClient(
+                    apiKey = s.effectiveApiKey,
+                    baseUrl = s.effectiveBaseUrl,
+                    model = s.model,
+                    context = appContext,
+                    apiTimeoutSeconds = s.apiTimeoutSeconds
+                ).also {
+                    cachedClient = it
+                    cachedClientFingerprint = fingerprint
+                }
+            }
         } else {
             null
         }
@@ -616,6 +643,15 @@ class CallSessionController(
         private const val NARRATION_THROTTLE_MS = 3_000L
         private const val CONFIRM_TIMEOUT_MS = 90_000L
         val CALLS_WORKING_ROOT: String get() = com.gotcha.data.GotchaStorage.callsRoot().absolutePath
+
+        /**
+         * Stable server-side prompt-cache key for every voice call. The static
+         * system-prompt prefix is identical across calls, so sharing one key lets
+         * the provider reuse the cached KV instead of re-warming it per call.
+         * Distinct from the per-call random [AgentEngine.sessionId] (file identity).
+         */
+        private const val CALL_PROMPT_CACHE_KEY = "gotcha_voice_call"
+
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
         private const val TOOL_TEXT_LIMIT = 300
