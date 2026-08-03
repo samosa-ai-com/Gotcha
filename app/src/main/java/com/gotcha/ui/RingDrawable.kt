@@ -129,6 +129,6 @@ class RingDrawable : Drawable() {
         auraPaint.colorFilter = colorFilter
     }
 
-    @Suppress("Deprecated")
+    @Deprecated("Deprecated in Java")
     override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }

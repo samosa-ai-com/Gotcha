@@ -25,12 +25,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
@@ -599,7 +599,7 @@ fun ChatScreen(
                                     enabled = state.isConfigured && !otherChatRunning &&
                                         (input.isNotBlank() || pendingImageBase64 != null)
                                 ) {
-                                    Icon(Icons.Default.Send, contentDescription = "Send")
+                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                                 }
                             }
                         }

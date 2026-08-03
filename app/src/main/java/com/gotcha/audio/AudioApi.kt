@@ -14,6 +14,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.File
 import java.io.IOException
@@ -162,10 +163,7 @@ class AudioApi(
             put("voice", voice)
             put("response_format", "wav")
         }
-        val requestBody = RequestBody.create(
-            "application/json".toMediaType(),
-            json.toString()
-        )
+        val requestBody = json.toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
             .url(url)
             .post(requestBody)
@@ -203,6 +201,6 @@ class AudioApi(
         bos.write("\r\n".toByteArray())
         bos.write(closing)
 
-        return RequestBody.create("multipart/form-data; boundary=$boundary".toMediaType(), bos.toByteArray())
+        return bos.toByteArray().toRequestBody("multipart/form-data; boundary=$boundary".toMediaType())
     }
 }

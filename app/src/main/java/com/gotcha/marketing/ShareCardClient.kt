@@ -6,6 +6,7 @@ import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
  * The stats (duration, tool counts) are computed by [PosterStatsBuilder],
  * never by the LLM, so the numbers on the poster can't be hallucinated.
  */
+@OptIn(ExperimentalSerializationApi::class)
 class ShareCardClient(
     context: Context,
     private val settings: Settings
