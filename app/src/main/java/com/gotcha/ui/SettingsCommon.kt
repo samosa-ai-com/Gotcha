@@ -63,12 +63,23 @@ import kotlinx.coroutines.delay
  * first — who it thinks you are, which model it runs, what it may touch — and
  * the page about how the app presents itself sits at the end.
  *
- * [LEGAL] is the one entry the home list does not show: it is reached from
- * inside [ABOUT], which is where a user looking for who made this app and what
- * they agreed to actually goes. It stays a full page here because it is still
- * routed to and deep-linked like any other. See `SettingsHome`.
+ * Most pages hang directly off the home list. The exceptions declare a [parent]:
+ * they are full pages, routed and titled like any other, but reached from inside
+ * that parent instead of from the home list. [ABOUT] is the only such hub today,
+ * collecting "who made this app and what did I agree to" into one row.
  */
-enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
+enum class SettingsPage(
+    val title: String,
+    val summary: String,
+    val testTag: String,
+    /**
+     * The page this one is reached from, or null for the home list. Doubles as
+     * the Back target, so a nested page returns to its hub rather than skipping
+     * out to the home list. Declared lazily because an enum entry cannot name a
+     * later one in its own constructor call.
+     */
+    val parentPage: () -> SettingsPage? = { null }
+) {
     PERSONAL_INFO(
         "Personal Info",
         "Who you are, language, currency, reply style",
@@ -119,11 +130,23 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Samosa AI, other products, legal, contact",
         "settings_about_row"
     ),
+    ABOUT_SAMOSA(
+        "About Samosa AI",
+        "Mission, products, pricing, developers",
+        "settings_about_samosa_row",
+        { ABOUT }
+    ),
     LEGAL(
         "Legal",
         "Terms, disclaimer, data retention",
-        "settings_legal_row"
-    )
+        "settings_legal_row",
+        { ABOUT }
+    );
+
+    /** Pages the home list shows: everything that isn't nested inside a hub. */
+    companion object {
+        val topLevel: List<SettingsPage> get() = entries.filter { it.parentPage() == null }
+    }
 }
 
 /**

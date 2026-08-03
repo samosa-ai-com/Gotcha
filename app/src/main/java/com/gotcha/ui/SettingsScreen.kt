@@ -100,9 +100,10 @@ fun SettingsScreen(
     page: SettingsPage? = null,
     onPageChange: (SettingsPage?) -> Unit = {}
 ) {
-    val backToHome = { onPageChange(null) }
+    // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
+    // the home list otherwise. Only the list itself exits Settings.
+    val backToHome = { onPageChange(page?.parentPage?.invoke()) }
 
-    // Back leaves the sub-page for the list; only the list itself exits Settings.
     if (page != null) BackHandler(onBack = backToHome)
 
     when (page) {
@@ -163,9 +164,12 @@ fun SettingsScreen(
             onSyncServerMessages = onSyncServerMessages
         )
         SettingsPage.ABOUT -> AboutScreen(
-            context = androidx.compose.ui.platform.LocalContext.current,
             onBack = backToHome,
             onOpenPage = onPageChange
+        )
+        SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
+            context = androidx.compose.ui.platform.LocalContext.current,
+            onBack = backToHome
         )
         SettingsPage.LEGAL -> LegalScreen(
             context = androidx.compose.ui.platform.LocalContext.current,
@@ -193,11 +197,7 @@ private fun SettingsHome(
     val overlay = rememberSettingsOverlayState()
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
-        SettingsPage.entries.forEach { entry ->
-            // Legal is reached from inside About Us rather than from here, so the
-            // top level keeps one row for "who made this and what did I agree to".
-            if (entry == SettingsPage.LEGAL) return@forEach
-
+        SettingsPage.topLevel.forEach { entry ->
             HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
                 page = entry,

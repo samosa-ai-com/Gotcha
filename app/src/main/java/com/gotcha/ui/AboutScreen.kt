@@ -23,8 +23,33 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.tools.CompanyInfoTool
 
 /**
- * The About Us page: who Samosa AI is, what else they make, how to reach them,
- * and the way through to the Legal documents.
+ * About Us: the hub for everything about who made this app and what using it
+ * commits you to. Shaped like the settings home list rather than a content page,
+ * so the two things underneath it — the company and the agreements — stay
+ * separate reads instead of one long scroll.
+ */
+@Composable
+fun AboutScreen(
+    onBack: () -> Unit,
+    onOpenPage: (SettingsPage) -> Unit
+) {
+    val overlay = rememberSettingsOverlayState()
+
+    SettingsScaffold(title = SettingsPage.ABOUT.title, onBack = onBack, overlay = overlay) {
+        listOf(SettingsPage.ABOUT_SAMOSA, SettingsPage.LEGAL).forEach { page ->
+            HorizontalDivider(thickness = 1.dp)
+            SettingsNavRow(
+                page = page,
+                onClick = { onOpenPage(page) },
+                modifier = Modifier.testTag(page.testTag)
+            )
+        }
+        HorizontalDivider(thickness = 1.dp)
+    }
+}
+
+/**
+ * The company page: who Samosa AI is, what else they make, and how to reach them.
  *
  * The body is the same bundled asset the `about_samosa_ai` tool reads
  * ([CompanyInfoTool.ABOUT_ASSET]), so what the agent says about the company and
@@ -32,10 +57,9 @@ import com.gotcha.tools.CompanyInfoTool
  * Markdown pass the Legal page uses.
  */
 @Composable
-fun AboutScreen(
+fun AboutSamosaScreen(
     context: Context,
-    onBack: () -> Unit,
-    onOpenPage: (SettingsPage) -> Unit
+    onBack: () -> Unit
 ) {
     val overlay = rememberSettingsOverlayState()
     val uriHandler = LocalUriHandler.current
@@ -46,7 +70,7 @@ fun AboutScreen(
         aboutText = readAsset(context, CompanyInfoTool.ABOUT_ASSET)
     }
 
-    SettingsScaffold(title = SettingsPage.ABOUT.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = SettingsPage.ABOUT_SAMOSA.title, onBack = onBack, overlay = overlay) {
         Text(
             text = renderLegalMarkdown(aboutText ?: "(loading…)"),
             style = MaterialTheme.typography.bodyMedium
@@ -63,14 +87,6 @@ fun AboutScreen(
                 LinkRow(label = label, url = url, onOpen = uriHandler::openUri)
             }
         }
-
-        HorizontalDivider(thickness = 1.dp)
-
-        SettingsNavRow(
-            page = SettingsPage.LEGAL,
-            onClick = { onOpenPage(SettingsPage.LEGAL) },
-            modifier = Modifier.testTag(SettingsPage.LEGAL.testTag)
-        )
     }
 }
 
