@@ -55,7 +55,10 @@ object PosterRenderer {
         val logo = runCatching {
             android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.gotcha_logo)
         }.getOrNull()
-        PosterPainter(typeface, brandColors, logo).draw(canvas, content, stats, screenshot)
+        val downloadQr = runCatching {
+            android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.gotcha_download_qr)
+        }.getOrNull()
+        PosterPainter(typeface, brandColors, logo, downloadQr).draw(canvas, content, stats, screenshot)
         return bitmap
     }
 
@@ -66,7 +69,8 @@ object PosterRenderer {
     internal class PosterPainter(
         private val typeface: Typeface?,
         private val colors: IntArray = brandColors,
-        private val logo: Bitmap? = null
+        private val logo: Bitmap? = null,
+        private val downloadQr: Bitmap? = null
     ) {
 
         /** Vertical geometry of a laid-out poster, for overflow assertions. */
@@ -81,6 +85,10 @@ object PosterRenderer {
             const val LOGO_TOP = 90f
             const val CTA_PILL_H = 104f
             const val STAT_CHIP_H = 88f
+
+            /** Download-QR size and placement, pinned in the footer band. */
+            const val QR_SIZE = 150f
+            const val QR_TOP_OFFSET = 82f
         }
 
         /**
@@ -91,20 +99,20 @@ object PosterRenderer {
         internal fun measureLayout(content: PosterContent): LayoutMetrics {
             val x0 = 72f
             val x1 = WIDTH_PX - 72f
-            var y = LOGO_TOP + LOGO_SIZE + 120f
+            var y = LOGO_TOP + LOGO_SIZE + 80f
 
             y += wrappedHeight(
                 content.headline.ifBlank { "I asked Gotcha to handle it." },
-                RectF(x0, y, x1, y + 240f),
-                textPaint(78f, Color.WHITE, bold = true)
+                RectF(x0, y, x1, y + 180f),
+                textPaint(70f, Color.WHITE, bold = true)
             )
-            y += 40f
+            y += 36f
             y += wrappedHeight(
                 content.subheadline,
-                RectF(x0, y, x1, y + 140f),
-                textPaint(50f, Color.WHITE)
+                RectF(x0, y, x1, y + 100f),
+                textPaint(44f, Color.WHITE)
             )
-            y += 46f
+            y += 40f
 
             val ctaBandTop = HEIGHT_PX - 320f - CTA_PILL_H - 120f
             when {
@@ -121,8 +129,9 @@ object PosterRenderer {
             }
             y += STAT_CHIP_H
 
-            val ctaTop = HEIGHT_PX - 320f
-            val footerBottom = ctaTop + CTA_PILL_H + 132f
+            // Footer is pinned to the bottom of the canvas.
+            val ctaTop = 900f
+            val footerBottom = 1140f + QR_SIZE + 30f
             return LayoutMetrics(
                 lastElementBottom = y,
                 ctaTop = ctaTop,
@@ -175,33 +184,33 @@ object PosterRenderer {
                 textPaint(64f, Color.WHITE, letterSpacing = 20f, bold = true, center = true)
             )
 
-            var y = logoTop + logoSize + 120f
+            var y = logoTop + logoSize + 80f
 
             // Headline.
             y += drawWrapped(
                 canvas,
                 content.headline.ifBlank { "I asked Gotcha to handle it." },
-                RectF(x0, y, x1, y + 240f),
-                textPaint(78f, Color.WHITE, bold = true),
+                RectF(x0, y, x1, y + 180f),
+                textPaint(70f, Color.WHITE, bold = true),
                 align = Layout.Alignment.ALIGN_CENTER
             )
-            y += 40f
+            y += 36f
 
             // Subheadline.
             y += drawWrapped(
                 canvas,
                 content.subheadline,
-                RectF(x0, y, x1, y + 140f),
-                textPaint(50f, Color.argb(235, 255, 255, 255)),
+                RectF(x0, y, x1, y + 100f),
+                textPaint(44f, Color.argb(235, 255, 255, 255)),
                 align = Layout.Alignment.ALIGN_CENTER
             )
-            y += 46f
+            y += 40f
 
-            // Body / screenshot / achievements. The CTA band starts 320px up
+            // Body / screenshot / achievements. The CTA band starts ~500px up
             // from the bottom, so content above it must stop before that. A
             // provided screenshot wins over everything else — the user opted
             // into embedding it, so it must never be silently dropped.
-            val ctaBandTop = HEIGHT_PX - 320f - CTA_PILL_H - 120f
+            val ctaBandTop = HEIGHT_PX - 500f - CTA_PILL_H - 120f
             when {
                 screenshot != null -> {
                     val sw = 460f
@@ -247,34 +256,59 @@ object PosterRenderer {
             // Stat chips.
             y += drawStatChips(canvas, stats, y)
 
-            // CTA + hashtags + footer pinned near the bottom.
+            // Footer pinned to the bottom of the canvas. The CTA pill, hashtags,
+            // QR caption, QR image, and brand line are stacked here with fixed
+            // positions so they always render within the 1350px canvas.
             val cta = content.callToAction.ifBlank { "Meet Gotcha." }
             val ctaPaint = textPaint(54f, Color.WHITE, bold = true, center = true)
             val ctaWidth = ctaPaint.measureText(cta)
             val pillW = (ctaWidth + 170f).coerceAtLeast(380f)
             val pillH = CTA_PILL_H
             val pillLeft = (WIDTH_PX - pillW) / 2f
-            val pillTop = HEIGHT_PX - 320f
+            val pillTop = 900f
             canvas.drawRoundRect(
                 RectF(pillLeft, pillTop, pillLeft + pillW, pillTop + pillH),
                 pillH / 2f,
                 pillH / 2f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(90, 255, 255, 255) }
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(180, 255, 255, 255) }
             )
             canvas.drawText(cta, WIDTH_PX / 2f, pillTop + pillH / 2f + 20f, ctaPaint)
 
-            val hashtagPaint = textPaint(42f, Color.argb(230, 255, 255, 255), center = true)
+            // Hashtags
+            val hashtagPaint = textPaint(38f, Color.argb(230, 255, 255, 255), center = true)
             canvas.drawText(
                 content.hashtags.joinToString(" "),
                 WIDTH_PX / 2f,
-                pillTop + pillH + 66f,
+                1040f,
                 hashtagPaint
             )
+
+            // QR caption above QR
+            canvas.drawText(
+                "Try Gotcha today",
+                WIDTH_PX / 2f,
+                1110f,
+                textPaint(42f, Color.WHITE, bold = true, center = true)
+            )
+
+            // QR centered
+            val qrLeft = (WIDTH_PX - QR_SIZE) / 2f
+            val qrTop = 1126f
+            if (downloadQr != null) {
+                canvas.drawBitmap(
+                    downloadQr,
+                    null,
+                    RectF(qrLeft, qrTop, qrLeft + QR_SIZE, qrTop + QR_SIZE),
+                    Paint(Paint.ANTI_ALIAS_FLAG)
+                )
+            }
+
+            // Brand line at the very bottom
             canvas.drawText(
                 "Built with Samosa AI · on Android",
                 WIDTH_PX / 2f,
-                pillTop + pillH + 132f,
-                textPaint(36f, Color.argb(180, 255, 255, 255), center = true)
+                qrTop + QR_SIZE + 24f,
+                textPaint(28f, Color.argb(200, 255, 255, 255), center = true)
             )
         }
 
@@ -346,7 +380,7 @@ object PosterRenderer {
             val chips = listOf(
                 "⚡ ${stats.durationDisplay}",
                 "🧰 ${stats.toolCount} tool" + if (stats.toolCount == 1) "" else "s",
-                "🤖 Samosa AI"
+                "🤖 ${stats.model.take(14)}"
             )
             val h = 88f
             val gap = 24f

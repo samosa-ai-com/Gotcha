@@ -68,6 +68,24 @@ class PosterStatsBuilderTest {
     }
 
     @Test
+    fun `model is taken from the most recent run`() {
+        val runs = listOf(
+            run(0, 1000, "gpt-4o", emptyList()),
+            run(1000, 2000, "deepseek-v4-flash", emptyList())
+        )
+        assertEquals("deepseek-v4-flash", PosterStatsBuilder.from(runs).model)
+    }
+
+    @Test
+    fun `model falls back to an earlier run when the last is blank`() {
+        val runs = listOf(
+            run(0, 1000, "gpt-4o", emptyList()),
+            run(1000, 2000, "", emptyList())
+        )
+        assertEquals("gpt-4o", PosterStatsBuilder.from(runs).model)
+    }
+
+    @Test
     fun `durationDisplay formats hours`() {
         val stats = PosterStatsBuilder.from(listOf(run(0, 3 * 3600 * 1000L + 5 * 60 * 1000, "m", emptyList())))
         assertTrue(stats.durationDisplay.startsWith("3h"))

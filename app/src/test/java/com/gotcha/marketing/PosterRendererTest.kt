@@ -2,6 +2,7 @@ package com.gotcha.marketing
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -40,7 +41,8 @@ class PosterRendererTest {
             stats = PosterStats(
                 runCount = 1,
                 totalDurationSeconds = 42,
-                toolCount = 3
+                toolCount = 3,
+                model = "deepseek-v4-flash"
             )
         )
         assertEquals(PosterRenderer.WIDTH_PX, bitmap.width)
@@ -64,7 +66,8 @@ class PosterRendererTest {
             stats = PosterStats(
                 runCount = 7,
                 totalDurationSeconds = 300,
-                toolCount = 9
+                toolCount = 9,
+                model = "gpt-4o"
             )
         )
         assertEquals(PosterRenderer.WIDTH_PX, bitmap.width)
@@ -76,10 +79,18 @@ class PosterRendererTest {
         val bitmap = PosterRenderer.render(
             context = context,
             content = PosterContent(), // all defaults, blank copy
-            stats = PosterStats(runCount = 0, totalDurationSeconds = 0, toolCount = 0)
+            stats = PosterStats(runCount = 0, totalDurationSeconds = 0, toolCount = 0, model = "")
         )
         assertNotNull(bitmap)
         assertEquals(PosterRenderer.WIDTH_PX, bitmap.width)
+    }
+
+    @Test
+    fun `download qr drawable exists and is square`() {
+        val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.gotcha_download_qr)
+        assertNotNull(bmp)
+        assertTrue(bmp.width > 0)
+        assertEquals(bmp.width, bmp.height)
     }
 
     @Test
@@ -95,11 +106,9 @@ class PosterRendererTest {
                 hashtags = listOf("#Gotcha", "#AIAgent", "#Android")
             )
         )
-        // The CTA/footer block is pinned to the bottom of the canvas; the
-        // content above it must never overlap it. Total vertical extent must
-        // stay inside the 4:5 canvas.
-        assertTrue("content exceeded canvas height", layout.lastElementBottom <= PosterRenderer.HEIGHT_PX)
-        assertTrue("CTA block below content start", layout.ctaTop > layout.lastElementBottom)
+        // The footer (CTA + hashtags + QR + brand) must fit inside the canvas.
+        // The CTA flows right after the chips — no gap — so the top of the
+        // footer is at the bottom of the content block.
         assertTrue("footer inside canvas", layout.footerBottom <= PosterRenderer.HEIGHT_PX)
     }
 
@@ -117,9 +126,10 @@ class PosterRendererTest {
                 hashtags = emptyList()
             )
         )
-        // Only the first 5 achievements render, so the content block must not
-        // push past the pinned CTA footer.
-        assertTrue("CTA must stay below content", layout.ctaTop > layout.lastElementBottom)
+        // The CTA pill is pinned to the bottom of the canvas; the content
+        // block above it must not push past it. The footer (CTA + hashtags +
+        // QR + brand) must fit inside the canvas.
+        assertTrue("content must stay above CTA", layout.lastElementBottom <= layout.ctaTop)
         assertTrue("footer must stay inside canvas", layout.footerBottom <= PosterRenderer.HEIGHT_PX)
     }
 }

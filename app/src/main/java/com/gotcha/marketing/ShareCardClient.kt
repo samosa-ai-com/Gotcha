@@ -167,7 +167,7 @@ class ShareCardClient(
               "subheadline": "one line completing the thought, e.g. "…and it nailed it in 42 seconds."",
               "body": "one short sentence of detail",
               "achievements": ["short positive line", "…"] (recap only; up to 5; empty for hero),
-              "callToAction": "≤4 words, e.g. "Meet your agent."",
+              "callToAction": "A short, varied, compelling call-to-action (3-5 words). Must differ from generic patterns like "Try Gotcha today" or "Try Gotcha now." — be creative and specific to what the user did. Examples: "Make it yours.", "Your turn next.", "See what Gotcha can do.", "One tap, one win.", "Built for moments like this.", "Yours in under a minute."",
               "hashtags": ["#Gotcha", "…"] (2-3 tags)
             }
             Use template "hero" for a single run, "recap" for multiple runs.
