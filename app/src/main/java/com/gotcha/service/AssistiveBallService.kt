@@ -213,6 +213,9 @@ class AssistiveBallService : Service() {
         overlay.isPanelOpen = true
         scope.launch {
             try {
+                // The ball has no activity to raise a consent dialog from, so this
+                // relies on the accessibility capture path. Without accessibility the
+                // capture returns null and the prompt is left to the chat flow.
                 val compressed = if (attachScreenshot) {
                     showingActivity(com.gotcha.ui.BallActivity.ACTING) {
                         com.gotcha.tools.ScreenPerception.compressScreenshot(
