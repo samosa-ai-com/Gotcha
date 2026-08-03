@@ -61,7 +61,12 @@ import kotlinx.coroutines.delay
  * Declaration order is the order of the home list; nothing reads the ordinal, so
  * this is the only place the menu is arranged. What the assistant *is* comes
  * first — who it thinks you are, which model it runs, what it may touch — and
- * the two pages about how the app presents itself sit at the end.
+ * the page about how the app presents itself sits at the end.
+ *
+ * [LEGAL] is the one entry the home list does not show: it is reached from
+ * inside [ABOUT], which is where a user looking for who made this app and what
+ * they agreed to actually goes. It stays a full page here because it is still
+ * routed to and deep-linked like any other. See `SettingsHome`.
  */
 enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
     PERSONAL_INFO(
@@ -108,6 +113,11 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "Notifications",
         "How you're alerted when a reply arrives",
         "settings_notifications_row"
+    ),
+    ABOUT(
+        "About Us",
+        "Samosa AI, other products, legal, contact",
+        "settings_about_row"
     ),
     LEGAL(
         "Legal",

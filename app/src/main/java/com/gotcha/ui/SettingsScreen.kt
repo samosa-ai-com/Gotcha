@@ -162,6 +162,11 @@ fun SettingsScreen(
             onBack = backToHome,
             onSyncServerMessages = onSyncServerMessages
         )
+        SettingsPage.ABOUT -> AboutScreen(
+            context = androidx.compose.ui.platform.LocalContext.current,
+            onBack = backToHome,
+            onOpenPage = onPageChange
+        )
         SettingsPage.LEGAL -> LegalScreen(
             context = androidx.compose.ui.platform.LocalContext.current,
             load = load,
@@ -189,6 +194,10 @@ private fun SettingsHome(
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
         SettingsPage.entries.forEach { entry ->
+            // Legal is reached from inside About Us rather than from here, so the
+            // top level keeps one row for "who made this and what did I agree to".
+            if (entry == SettingsPage.LEGAL) return@forEach
+
             HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
                 page = entry,
@@ -197,7 +206,7 @@ private fun SettingsHome(
                     .testTag(entry.testTag)
                     .then(entry.tourAnchorModifier())
             )
-            // Re-entry into the guided setup sits just above Legal, so the menu
+            // Re-entry into the guided setup sits just above About Us, so the menu
             // ends on the two rows a returning user is least likely to need.
             if (entry == SettingsPage.NOTIFICATIONS) {
                 HorizontalDivider(thickness = 1.dp)

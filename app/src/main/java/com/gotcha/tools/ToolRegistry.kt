@@ -51,7 +51,8 @@ object ToolRegistry {
         "read_screen", "read_notifications",
         "check_root", "search_skills",
         "get_health_summary", "get_health_records",
-        "get_now_playing"
+        "get_now_playing",
+        "about_samosa_ai"
     )
 
     val monitorTools: Set<String> = baseMonitorTools + ConnectorCatalog.monitorTools

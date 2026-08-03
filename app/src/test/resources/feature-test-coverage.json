@@ -7,6 +7,14 @@
       "manualSteps": "Ask the agent to 'open the dialer with +49123456789'; confirm the dialer opens pre-filled and does NOT place the call."
     },
     {
+      "tool": "about_samosa_ai",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.CompanyInfoToolTest"
+      ],
+      "notes": "the bundled asset ships and still contains the company, product and contact facts the tool promises"
+    },
+    {
       "tool": "get_storage_info",
       "tier": "ROBOLECTRIC",
       "tests": [
