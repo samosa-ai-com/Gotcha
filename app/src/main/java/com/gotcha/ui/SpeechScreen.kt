@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.VoiceInfo
@@ -242,7 +243,7 @@ fun SpeechScreen(
                     onValueChange = { ttsApiBaseUrl = it },
                     label = { Text("TTS API Base URL") },
                     singleLine = true,
-                    placeholder = { Text("http://10.0.2.2:8969/v1") },
+                    placeholder = { Text("http://${BuildConfig.DEV_LAN_HOST}:8969/v1") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -354,7 +355,7 @@ fun SpeechScreen(
                     onValueChange = { sttApiBaseUrl = it },
                     label = { Text("STT API Base URL") },
                     singleLine = true,
-                    placeholder = { Text("http://10.0.2.2:8969/v1") },
+                    placeholder = { Text("http://${BuildConfig.DEV_LAN_HOST}:8969/v1") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(

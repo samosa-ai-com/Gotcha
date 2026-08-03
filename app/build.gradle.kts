@@ -61,6 +61,14 @@ android {
                 "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
             )}\""
         )
+        // Developer LAN host for the local TTS/STT server. Overridable via the
+        // DEV_LAN_HOST environment variable or local.properties; defaults to the
+        // emulator->host loopback alias so a public checkout still works.
+        buildConfigField(
+            "String",
+            "DEV_LAN_HOST",
+            "\"${samosaConfig("DEV_LAN_HOST", "10.0.2.2")}\""
+        )
     }
 
     signingConfigs {
