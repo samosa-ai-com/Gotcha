@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
+import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.ui.tour.TourAnchor
@@ -86,6 +87,8 @@ fun SettingsScreen(
     onToggleAssistiveBall: (Boolean) -> Unit = {},
     /** Replays the guided setup from the beginning. */
     onStartTour: () -> Unit = {},
+    /** Opens the in-app feedback consent sheet (hidden when no form is configured). */
+    onSendFeedback: () -> Unit = {},
     /**
      * Which sub-page is open; null is the home list.
      *
@@ -168,7 +171,8 @@ fun SettingsScreen(
         null -> SettingsHome(
             onBack = onBack,
             onOpenPage = onPageChange,
-            onStartTour = onStartTour
+            onStartTour = onStartTour,
+            onSendFeedback = onSendFeedback
         )
     }
 }
@@ -178,7 +182,8 @@ fun SettingsScreen(
 private fun SettingsHome(
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
-    onStartTour: () -> Unit
+    onStartTour: () -> Unit,
+    onSendFeedback: () -> Unit
 ) {
     val overlay = rememberSettingsOverlayState()
 
@@ -197,6 +202,12 @@ private fun SettingsHome(
             if (entry == SettingsPage.NOTIFICATIONS) {
                 HorizontalDivider(thickness = 1.dp)
                 FeatureTourRow(onClick = onStartTour)
+                // Feedback is the same shape; only rendered when the form URL is
+                // configured at build time (gitignored FEEDBACK_* config).
+                if (FeedbackChannel.isConfigured()) {
+                    HorizontalDivider(thickness = 1.dp)
+                    FeedbackRow(onClick = onSendFeedback)
+                }
             }
         }
     }
@@ -230,6 +241,33 @@ private fun FeatureTourRow(onClick: () -> Unit) {
             )
             Text(
                 text = "Walk through setup again, one step at a time",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(text = "›", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+/** In-app feedback entry point, shaped like the rows around it. */
+@Composable
+private fun FeedbackRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
+            .testTag("settings_feedback_row"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Send Feedback",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "Tell us what to improve — nothing is sent until you submit",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

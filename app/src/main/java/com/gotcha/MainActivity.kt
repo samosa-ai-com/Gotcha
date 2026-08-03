@@ -40,9 +40,12 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
+import com.gotcha.data.FeedbackChannel
+import com.gotcha.data.FeedbackPrefill
 import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.computeFeedbackStats
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.notifications.NotificationDispatcher
@@ -55,6 +58,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
@@ -506,6 +510,7 @@ class MainActivity : ComponentActivity() {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
+        var showFeedbackSheet by remember { mutableStateOf(false) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
@@ -719,6 +724,7 @@ class MainActivity : ComponentActivity() {
                             assistiveBallOn = setAssistiveBall(enabled)
                         },
                         onStartTour = { startTour() },
+                        onSendFeedback = { showFeedbackSheet = true },
                         page = settingsPage,
                         onPageChange = { settingsPage = it }
                     )
@@ -804,6 +810,40 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        if (showFeedbackSheet) {
+            FeedbackSheet(
+                onDismiss = { showFeedbackSheet = false },
+                onSubmit = { includeAppInfo, includeUsageStats, includeChatLog, includeUserId ->
+                    showFeedbackSheet = false
+                    lifecycleScope.launch {
+                        val url = buildFeedbackPrefillUrl(
+                            includeAppInfo,
+                            includeUsageStats,
+                            includeChatLog,
+                            includeUserId
+                        )
+                        if (url.isBlank()) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Feedback form is not configured",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@launch
+                        }
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "No app can open the feedback form",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+            )
+        }
+
         // First-launch / re-acceptance gate. Non-dismissable while not accepted
         // — the only way out is tapping "I agree." Re-prompted whenever the
         // current LEGAL_VERSION doesn't match the stored acceptance, so a
@@ -836,6 +876,44 @@ class MainActivity : ComponentActivity() {
             temperature = 0f
         )
         response.choices.firstOrNull()?.message?.textContent?. take(60) ?: "empty response"
+    }
+
+    /**
+     * Gathers the consent-selected feedback pre-fill and builds the form URL.
+     * Called on the main dispatcher; the stats/excerpt/user-id work is suspend
+     * and offloaded by the underlying helpers. Never throws.
+     */
+    private suspend fun buildFeedbackPrefillUrl(
+        includeAppInfo: Boolean,
+        includeUsageStats: Boolean,
+        includeChatLog: Boolean,
+        includeUserId: Boolean
+    ): String {
+        val settings = settingsRepository.load()
+        val metadata = if (includeAppInfo) {
+            FeedbackChannel.deviceMetadata(this)
+        } else {
+            FeedbackPrefill()
+        }
+        val userId = if (includeUserId) {
+            FeedbackChannel.resolveSamosaUserId(settings.samosaSessionToken, settings.samosaEmail)
+                ?: settingsRepository.anonymousFeedbackId()
+        } else {
+            null
+        }
+        val stats = if (includeUsageStats) {
+            computeFeedbackStats(this).toPrefillText()
+        } else {
+            null
+        }
+        val chatLog = if (includeChatLog) {
+            FeedbackChannel.recentChatExcerpt(this)
+        } else {
+            null
+        }
+        return FeedbackChannel.buildFeedbackUrl(
+            metadata.copy(userId = userId, usageStats = stats, chatLog = chatLog)
+        )
     }
 
     companion object {

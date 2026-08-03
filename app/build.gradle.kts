@@ -69,6 +69,46 @@ android {
             "DEV_LAN_HOST",
             "\"${samosaConfig("DEV_LAN_HOST", "10.0.2.2")}\""
         )
+        // Google Form used for in-app feedback. The form URL and its pre-fill
+        // entry.* keys are sensitive (an attacker could spam the form), so they
+        // are injected via the FEEDBACK_* environment variables or local.properties
+        // (both gitignored) and never committed. A blank form URL disables the
+        // feedback row, keeping a public checkout inert.
+        buildConfigField(
+            "String",
+            "FEEDBACK_FORM_URL",
+            "\"${samosaConfig("FEEDBACK_FORM_URL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_USER_ID",
+            "\"${samosaConfig("FEEDBACK_ENTRY_USER_ID", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_APP_VERSION",
+            "\"${samosaConfig("FEEDBACK_ENTRY_APP_VERSION", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_DEVICE_MODEL",
+            "\"${samosaConfig("FEEDBACK_ENTRY_DEVICE_MODEL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_ANDROID_VERSION",
+            "\"${samosaConfig("FEEDBACK_ENTRY_ANDROID_VERSION", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_USAGE_STATS",
+            "\"${samosaConfig("FEEDBACK_ENTRY_USAGE_STATS", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_CHAT_LOG",
+            "\"${samosaConfig("FEEDBACK_ENTRY_CHAT_LOG", "")}\""
+        )
     }
 
     signingConfigs {

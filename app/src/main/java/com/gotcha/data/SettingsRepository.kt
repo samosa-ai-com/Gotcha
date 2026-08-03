@@ -460,6 +460,19 @@ class SettingsRepository(context: Context) {
             .apply()
     }
 
+    /**
+     * A per-install anonymous UUID for the feedback form, generated once and
+     * persisted so repeat feedback can be cross-checked without identifying the
+     * user. Independent of the Samosa account — used when not signed in.
+     */
+    fun anonymousFeedbackId(): String {
+        val existing = prefs.getString(KEY_FEEDBACK_ANONYMOUS_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        val id = java.util.UUID.randomUUID().toString()
+        prefs.edit().putString(KEY_FEEDBACK_ANONYMOUS_ID, id).apply()
+        return id
+    }
+
     private companion object {
         const val KEY_PROVIDER = "llm_provider"
         const val KEY_API_KEY = "api_key"
@@ -517,6 +530,7 @@ class SettingsRepository(context: Context) {
         const val KEY_ONBOARDING_DONE = "onboarding_completed"
         const val KEY_TOUR_STEP = "tour_step_id"
         const val KEY_ONBOARDING_VERSION = "onboarding_version"
+        const val KEY_FEEDBACK_ANONYMOUS_ID = "feedback_anonymous_id"
         val defaultCommunitySkillHosts: Set<String> = setOf(BuildConfig.SAMOSA_SKILL_HOST)
     }
 }
