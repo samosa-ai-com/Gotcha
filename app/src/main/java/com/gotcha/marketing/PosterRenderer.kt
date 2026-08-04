@@ -46,8 +46,7 @@ object PosterRenderer {
     fun render(
         context: Context,
         content: PosterContent,
-        stats: PosterStats,
-        screenshot: Bitmap? = null
+        stats: PosterStats
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH_PX, HEIGHT_PX, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -58,7 +57,7 @@ object PosterRenderer {
         val downloadQr = runCatching {
             android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.gotcha_download_qr)
         }.getOrNull()
-        PosterPainter(typeface, brandColors, logo, downloadQr).draw(canvas, content, stats, screenshot)
+        PosterPainter(typeface, brandColors, logo, downloadQr).draw(canvas, content, stats)
         return bitmap
     }
 
@@ -152,8 +151,7 @@ object PosterRenderer {
         fun draw(
             canvas: Canvas,
             content: PosterContent,
-            stats: PosterStats,
-            screenshot: Bitmap?
+            stats: PosterStats
         ) {
             drawBackground(canvas)
 
@@ -206,37 +204,10 @@ object PosterRenderer {
             )
             y += 40f
 
-            // Body / screenshot / achievements. The CTA band starts ~500px up
-            // from the bottom, so content above it must stop before that. A
-            // provided screenshot wins over everything else — the user opted
-            // into embedding it, so it must never be silently dropped.
+            // Body / achievements. The CTA band starts ~500px up from the
+            // bottom, so content above it must stop before that.
             val ctaBandTop = HEIGHT_PX - 500f - CTA_PILL_H - 120f
             when {
-                screenshot != null -> {
-                    val sw = 460f
-                    val sh = 345f
-                    val left = (WIDTH_PX - sw) / 2f
-                    canvas.drawRoundRect(
-                        RectF(left - 12f, y - 12f, left + sw + 12f, y + sh + 12f),
-                        40f,
-                        40f,
-                        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(120, 255, 255, 255) }
-                    )
-                    canvas.save()
-                    canvas.clipPath(
-                        android.graphics.Path().apply {
-                            addRoundRect(
-                                RectF(left, y, left + sw, y + sh),
-                                28f,
-                                28f,
-                                android.graphics.Path.Direction.CW
-                            )
-                        }
-                    )
-                    canvas.drawBitmap(screenshot, null, RectF(left, y, left + sw, y + sh), Paint(Paint.ANTI_ALIAS_FLAG))
-                    canvas.restore()
-                    y += sh + 40f
-                }
                 content.template == "recap" && content.achievements.isNotEmpty() -> {
                     y = drawAchievements(canvas, content.achievements, y, ctaBandTop)
                     y += 46f

@@ -1086,8 +1086,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * hops to the main thread internally.
      */
     suspend fun generateShareCard(
-        runs: List<RunSummary>,
-        includeScreenshot: Boolean = false
+        runs: List<RunSummary>
     ): Result<Bitmap> = runCatching {
         val client = ShareCardClient(getApplication(), settings)
         val content = client.generate(runs)
@@ -1095,54 +1094,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             error("Nothing accomplished in this run to showcase yet.")
         }
         val stats = PosterStatsBuilder.from(runs)
-        val screenshot = if (includeScreenshot) loadShareScreenshot() else null
         withContext(Dispatchers.Main) {
-            PosterRenderer.render(getApplication(), content, stats, screenshot)
-        }
-    }
-
-    /**
-     * Best-effort screenshot for the poster thumbnail: the newest image in the
-     * engine session's chat history (a user-attached photo or an agent screen
-     * capture), else null.
-     *
-     * Guarded so a huge or malformed image can't OOM the decode: files over
-     * [MAX_SHARE_SCREENSHOT_BYTES] are skipped, and anything larger than
-     * [MAX_SHARE_SCREENSHOT_DIM] on either side is downsampled before decoding
-     * (the poster draws the thumbnail at 460×345, so full-res is wasteful).
-     */
-    private fun loadShareScreenshot(): Bitmap? {
-        // Snapshot before scanning: the engine coroutine mutates history as it
-        // runs, and this is read from the UI thread. asReversed() alone is a
-        // live view, not a copy.
-        val dataUri = agentEngine.history.toList().asReversed()
-            .firstNotNullOfOrNull { it.imageUrl() }
-            ?: return null
-        // Early bound on the URI before allocating the Base64 byte array:
-        // Base64 inflates payload by 4/3, so even a 50 MB payload produces a
-        // ~67 MB string; reject anything that cannot possibly fit under the
-        // byte cap without decoding it.
-        if (dataUri.length > MAX_SHARE_SCREENSHOT_BYTES * 4 / 3 + SAFE_DATA_URI_PREFIX) {
-            return null
-        }
-        val base64 = dataUri.substringAfter("base64,")
-        return try {
-            val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-            if (bytes.size > MAX_SHARE_SCREENSHOT_BYTES) return null
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            val w = bounds.outWidth
-            val h = bounds.outHeight
-            if (w <= 0 || h <= 0) return null
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = when {
-                    w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
-                    else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
-                }
-            }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-        } catch (_: Exception) {
-            null
+            PosterRenderer.render(getApplication(), content, stats)
         }
     }
 
@@ -1165,18 +1118,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // as it runs, and this is read from the UI thread.
         val snapshot = agentEngine.history.toList()
         return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
-    }
-
-    /**
-     * True when the session currently bound to the engine has an image in its
-     * history. Drives whether the poster sheet offers "Include a screenshot":
-     * the option only makes sense when there is something to embed, and it must
-     * disappear once the image is culled from history.
-     */
-    fun activeSessionHasImage(): Boolean {
-        // Snapshot before reading: the engine coroutine mutates history as it
-        // runs, and this is read from the UI thread.
-        return agentEngine.history.toList().any { it.hasImage }
     }
 
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
@@ -1214,18 +1155,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
-
-        /** Poster-thumbnail screenshot guards (see [loadShareScreenshot]). */
-        const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
-        const val MAX_SHARE_SCREENSHOT_DIM = 2048
-
-        /**
-         * Slack added to the dataUri length ceiling to account for the
-         * `data:image/...;base64,` MIME prefix that Base64 decoding strips.
-         * 64 bytes is far more than any real MIME prefix and well below the
-         * 4/3 inflation ratio that motivates the guard.
-         */
-        const val SAFE_DATA_URI_PREFIX = 64L
     }
 }
 
