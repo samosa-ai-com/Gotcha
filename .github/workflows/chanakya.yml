@@ -20,7 +20,7 @@ jobs:
   review-pr:
     if: |
       contains(github.event.comment.body, '/chanakya review') &&
-      (github.event.issue.pull_request != null || github.event.pull_request != null) &&
+      (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request != null) &&
       (github.event.comment.author_association == 'OWNER' ||
        github.event.comment.author_association == 'MEMBER' ||
        contains(fromJSON(vars.CHANAKYA_USERS || '[]'), github.event.comment.user.login))
@@ -36,9 +36,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Chanakya PR review
-        run: /home/rishabh/.opencode/bin/opencode github run --print-logs
+        run: |
+          export HOME="${CHANAKYA_HOME:-$HOME}"
+          export OPENCODE_BIN="${CHANAKYA_OPENCODE_BIN:-$HOME/.opencode/bin/opencode}"
+          "$OPENCODE_BIN" github run --print-logs
         env:
-          HOME: /home/rishabh
+          CHANAKYA_HOME: ${{ vars.CHANAKYA_HOME || '' }}
+          CHANAKYA_OPENCODE_BIN: ${{ vars.CHANAKYA_OPENCODE_BIN || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           MODEL: opencode-go/deepseek-v4-flash
           MENTIONS: /chanakya
@@ -125,9 +129,9 @@ jobs:
   # ── /chanakya review — Issue deep-dive ────────────────────────────────────
   review-issue:
     if: |
-      contains(github.event.comment.body, '/chanakya review') &&
+      github.event_name == 'issue_comment' &&
       github.event.issue.pull_request == null &&
-      github.event.pull_request == null &&
+      contains(github.event.comment.body, '/chanakya review') &&
       (github.event.comment.author_association == 'OWNER' ||
        github.event.comment.author_association == 'MEMBER' ||
        contains(fromJSON(vars.CHANAKYA_USERS || '[]'), github.event.comment.user.login))
@@ -142,9 +146,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Chanakya issue analysis
-        run: /home/rishabh/.opencode/bin/opencode github run --print-logs
+        run: |
+          export HOME="${CHANAKYA_HOME:-$HOME}"
+          export OPENCODE_BIN="${CHANAKYA_OPENCODE_BIN:-$HOME/.opencode/bin/opencode}"
+          "$OPENCODE_BIN" github run --print-logs
         env:
-          HOME: /home/rishabh
+          CHANAKYA_HOME: ${{ vars.CHANAKYA_HOME || '' }}
+          CHANAKYA_OPENCODE_BIN: ${{ vars.CHANAKYA_OPENCODE_BIN || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           MODEL: opencode-go/deepseek-v4-flash
           MENTIONS: /chanakya
@@ -210,9 +218,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Chanakya triage
-        run: /home/rishabh/.opencode/bin/opencode github run --print-logs
+        run: |
+          export HOME="${CHANAKYA_HOME:-$HOME}"
+          export OPENCODE_BIN="${CHANAKYA_OPENCODE_BIN:-$HOME/.opencode/bin/opencode}"
+          "$OPENCODE_BIN" github run --print-logs
         env:
-          HOME: /home/rishabh
+          CHANAKYA_HOME: ${{ vars.CHANAKYA_HOME || '' }}
+          CHANAKYA_OPENCODE_BIN: ${{ vars.CHANAKYA_OPENCODE_BIN || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           MODEL: opencode-go/deepseek-v4-flash
           MENTIONS: /chanakya
@@ -252,9 +264,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Chanakya fix
-        run: /home/rishabh/.opencode/bin/opencode github run --print-logs
+        run: |
+          export HOME="${CHANAKYA_HOME:-$HOME}"
+          export OPENCODE_BIN="${CHANAKYA_OPENCODE_BIN:-$HOME/.opencode/bin/opencode}"
+          "$OPENCODE_BIN" github run --print-logs
         env:
-          HOME: /home/rishabh
+          CHANAKYA_HOME: ${{ vars.CHANAKYA_HOME || '' }}
+          CHANAKYA_OPENCODE_BIN: ${{ vars.CHANAKYA_OPENCODE_BIN || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           MODEL: opencode-go/deepseek-v4-flash
           MENTIONS: /chanakya
@@ -302,9 +318,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Chanakya
-        run: /home/rishabh/.opencode/bin/opencode github run --print-logs
+        run: |
+          export HOME="${CHANAKYA_HOME:-$HOME}"
+          export OPENCODE_BIN="${CHANAKYA_OPENCODE_BIN:-$HOME/.opencode/bin/opencode}"
+          "$OPENCODE_BIN" github run --print-logs
         env:
-          HOME: /home/rishabh
+          CHANAKYA_HOME: ${{ vars.CHANAKYA_HOME || '' }}
+          CHANAKYA_OPENCODE_BIN: ${{ vars.CHANAKYA_OPENCODE_BIN || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           MODEL: opencode-go/deepseek-v4-flash
           MENTIONS: /chanakya
