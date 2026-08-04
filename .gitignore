@@ -112,4 +112,5 @@ MARKETING_PLAYBOOK.md
 .commandcode
 .kotlin/
 .vscode/
-
+docs/benchmark
+docs/WAKE_WORD_PLAN.md
