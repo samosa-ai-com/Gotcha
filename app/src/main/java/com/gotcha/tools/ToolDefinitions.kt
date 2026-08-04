@@ -43,6 +43,17 @@ object ToolDefinitions {
         }
     )
 
+    val aboutSamosaAi = tool(
+        "about_samosa_ai",
+        "Get information about Samosa AI, the company that makes Gotcha: its mission and " +
+            "values, its other products (Chanakya, Personal Guru, Voice Typing and more), " +
+            "pricing, the developers and how to contact them, and a summary of Gotcha's terms, " +
+            "disclaimer and data-retention policy. Call this for ANY question about Samosa AI, " +
+            "its products, its terms or privacy policy, who built this app, or how to reach " +
+            "them — do not guess at these from memory.",
+        schema { putJsonObject("properties") {} }
+    )
+
     val getStorageInfo = tool(
         "get_storage_info",
         "Report total, used and free internal storage of the device.",
@@ -2184,6 +2195,7 @@ object ToolDefinitions {
     )
 
     val all: List<ToolDefinition> = listOf(
+        aboutSamosaAi,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,

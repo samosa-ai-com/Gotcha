@@ -231,16 +231,11 @@ class MainActivity : ComponentActivity() {
                 requestAllRuntimePermissions()
                 prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
             }
-            // Request MediaProjection consent for screenshot capture
-            // Always request if not granted in this process session (cleared on process kill)
-            if (ScreenPerception.mediaProjectionResultData == null &&
-                !prefs.getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
-            ) {
-                val mpManager = getSystemService(
-                    Context.MEDIA_PROJECTION_SERVICE
-                ) as android.media.projection.MediaProjectionManager
-                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-            }
+            // MediaProjection consent is deliberately NOT requested here. The token
+            // dies with the process and is single-use on API 34, so prompting at
+            // launch would re-fire the system dialog on every cold start for a
+            // capability the user hasn't asked for yet. It is requested on demand
+            // instead — see the "special:screenshot_consent" branch below.
         }
 
         appearance = settingsRepository.load().appearance()
@@ -329,10 +324,14 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_SHORT
             ).show()
             "special:screenshot_consent" -> {
-                val mpManager = getSystemService(
-                    Context.MEDIA_PROJECTION_SERVICE
-                ) as android.media.projection.MediaProjectionManager
-                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                val suppressed = settingsRepository.prefs
+                    .getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
+                if (!suppressed) {
+                    val mpManager = getSystemService(
+                        Context.MEDIA_PROJECTION_SERVICE
+                    ) as android.media.projection.MediaProjectionManager
+                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                }
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
@@ -926,7 +925,10 @@ class MainActivity : ComponentActivity() {
         /** SharedPreferences key to track first-launch permission setup. */
         const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"
 
-        /** SharedPreferences key: when true, skip the MediaProjection consent prompt (test-only). */
+        /**
+         * SharedPreferences key: when true, skip the on-demand MediaProjection consent
+         * prompt so instrumentation never faces the system dialog (test-only).
+         */
         const val KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT = "suppress_media_projection_prompt"
 
         /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */

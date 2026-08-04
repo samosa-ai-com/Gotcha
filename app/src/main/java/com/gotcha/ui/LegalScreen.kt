@@ -137,7 +137,8 @@ private fun ColumnScope.AcceptBlock(
     )
 }
 
-private fun readAsset(context: Context, path: String): String = try {
+/** Shared with [AboutScreen], which renders the bundled company copy the same way. */
+internal fun readAsset(context: Context, path: String): String = try {
     context.assets.open(path).use { it.readBytes().toString(Charsets.UTF_8) }
 } catch (t: Throwable) {
     "Failed to read asset $path: ${t.message ?: t::class.java.simpleName}"

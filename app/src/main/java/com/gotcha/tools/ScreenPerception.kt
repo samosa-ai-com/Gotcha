@@ -20,7 +20,14 @@ import java.io.FileOutputStream
 
 object ScreenPerception {
 
-    /** Set by MainActivity after the user grants MediaProjection consent. */
+    /**
+     * Set by MainActivity after the user grants MediaProjection consent.
+     *
+     * Single-use: on API 34+ a consent token backs exactly one capture session, so
+     * [captureRawBytes] clears this as it consumes it. A null value is what makes
+     * [com.gotcha.agent.AgentEngine.injectReadScreenObservation] ask for consent
+     * again; leaving a spent token here would silently break every later capture.
+     */
     @Volatile
     var mediaProjectionResultData: android.content.Intent? = null
 
@@ -341,6 +348,10 @@ object ScreenPerception {
             "Path2: projectionData=${projectionData != null}, ctx=${ctx != null}, appContext=${appContext != null}"
         )
         if (projectionData != null && ctx != null) {
+            // The token is spent by this attempt whether or not a frame comes back,
+            // so drop it here; the next capture asks for fresh consent instead of
+            // silently retrying with a dead token.
+            mediaProjectionResultData = null
             Log.d("ScreenCapture", "Path2: calling MediaProjectionService.capture()")
             val bytes = withContext(Dispatchers.IO) {
                 MediaProjectionService.capture(ctx, projectionData)

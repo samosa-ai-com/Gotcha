@@ -10,6 +10,7 @@ import com.gotcha.testsupport.FakeAndroidKeyStore
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
@@ -556,5 +557,45 @@ class AgentLoopTest {
 
         assertEquals(listOf(true, false), events.screenCaptureChrome)
         assertEquals(1, events.screenReadDoneCount)
+    }
+
+    // ---- MediaProjection consent is requested on demand, never at launch ----
+
+    /**
+     * Consent is no longer requested in `MainActivity.onCreate`, so a failed capture
+     * with no token held is the only thing that can ask for it. If this stops firing,
+     * `read_screen` loses its screenshot for good on devices without accessibility.
+     */
+    @Test
+    fun `a failed capture with no consent token asks for screenshot consent`() = runTest {
+        ScreenPerception.mediaProjectionResultData = null
+
+        engine.injectReadScreenObservation()
+
+        assertTrue(
+            "expected a consent request, got ${events.permissionRequests}",
+            events.permissionRequests.contains("special:screenshot_consent")
+        )
+    }
+
+    /**
+     * From API 34 a consent token backs exactly one capture session. Holding on to a
+     * spent token would keep the request above from ever firing again, so the token
+     * must be dropped as it is consumed. (The capture itself cannot succeed under
+     * Robolectric; only the token bookkeeping is under test.)
+     */
+    @Test
+    fun `a consumed MediaProjection token is not reused for the next capture`() = runTest {
+        val savedContext = ScreenPerception.appContext
+        ScreenPerception.appContext = context
+        ScreenPerception.mediaProjectionResultData = android.content.Intent()
+        try {
+            ScreenPerception.captureRawScreenshotBytes()
+
+            assertEquals(null, ScreenPerception.mediaProjectionResultData)
+        } finally {
+            ScreenPerception.appContext = savedContext
+            ScreenPerception.mediaProjectionResultData = null
+        }
     }
 }
