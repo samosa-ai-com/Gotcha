@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicReference
 
 object ScreenPerception {
 
@@ -27,9 +28,25 @@ object ScreenPerception {
      * [captureRawBytes] clears this as it consumes it. A null value is what makes
      * [com.gotcha.agent.AgentEngine.injectReadScreenObservation] ask for consent
      * again; leaving a spent token here would silently break every later capture.
+     *
+     * Backed by an [AtomicReference] so that concurrent callers of
+     * [compressScreenshot] cannot both claim the same token — see
+     * [consumeMediaProjectionResultData].
      */
-    @Volatile
-    var mediaProjectionResultData: android.content.Intent? = null
+    private val mediaProjectionToken = AtomicReference<android.content.Intent?>(null)
+
+    var mediaProjectionResultData: android.content.Intent?
+        get() = mediaProjectionToken.get()
+        set(value) {
+            mediaProjectionToken.set(value)
+        }
+
+    /**
+     * Atomically takes the single-use consent token. At most one caller gets a
+     * non-null result; everyone else sees null and falls through to the next path.
+     */
+    private fun consumeMediaProjectionResultData(): android.content.Intent? =
+        mediaProjectionToken.getAndSet(null)
 
     @Volatile
     private var lastElementsCache: List<UiElement>? = null
@@ -341,17 +358,17 @@ object ScreenPerception {
             Log.w("ScreenCapture", "Path1: both attempts failed")
         }
         // Path 2: MediaProjection — works on all devices if user granted consent.
-        val projectionData = mediaProjectionResultData
         val ctx = appContext ?: GotchaAccessibilityService.instance?.applicationContext
+        // The token is spent by this attempt whether or not a frame comes back, so
+        // take it and clear it in one atomic step: the next capture asks for fresh
+        // consent instead of silently retrying with a dead token, and a concurrent
+        // capture cannot claim the same single-use token.
+        val projectionData = if (ctx != null) consumeMediaProjectionResultData() else null
         Log.d(
             "ScreenCapture",
             "Path2: projectionData=${projectionData != null}, ctx=${ctx != null}, appContext=${appContext != null}"
         )
         if (projectionData != null && ctx != null) {
-            // The token is spent by this attempt whether or not a frame comes back,
-            // so drop it here; the next capture asks for fresh consent instead of
-            // silently retrying with a dead token.
-            mediaProjectionResultData = null
             Log.d("ScreenCapture", "Path2: calling MediaProjectionService.capture()")
             val bytes = withContext(Dispatchers.IO) {
                 MediaProjectionService.capture(ctx, projectionData)

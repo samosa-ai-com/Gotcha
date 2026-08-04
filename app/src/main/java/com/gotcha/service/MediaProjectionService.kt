@@ -56,7 +56,18 @@ class MediaProjectionService : Service() {
         var resultFilePath: String? = null
             private set
 
-        fun capture(context: Context, resultIntent: Intent, timeoutMs: Long = 5000): ByteArray? {
+        /**
+         * Serializes captures: [resultData], [resultReady] and [resultFilePath] are
+         * companion-level state, so a second concurrent call would overwrite the
+         * first call's latch and hand it a foreign (or missing) result.
+         */
+        private val captureLock = Any()
+
+        fun capture(
+            context: Context,
+            resultIntent: Intent,
+            timeoutMs: Long = 5000
+        ): ByteArray? = synchronized(captureLock) {
             Log.d("ScreenCapture", "MediaProjectionService.capture() called")
             resultData = resultIntent
             resultReady = CountDownLatch(1)

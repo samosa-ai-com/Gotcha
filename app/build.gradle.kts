@@ -126,8 +126,11 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
-            // Use the release signing config only if it was configured above.
+            // Use the release signing config when one was configured above; fall back
+            // to the debug key only so that a keyless checkout can still build a
+            // release APK locally.
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
