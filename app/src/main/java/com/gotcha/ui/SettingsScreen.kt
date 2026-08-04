@@ -153,6 +153,8 @@ fun SettingsScreen(
             onBack = backToHome
         )
         SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
+            load = load,
+            onSave = onSave,
             enabled = assistiveBallEnabled,
             onToggle = onToggleAssistiveBall,
             onBack = backToHome

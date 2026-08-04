@@ -3,6 +3,11 @@ package com.gotcha.ui
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.gotcha.data.Settings
 
 /**
  * The Assistive Ball page: one switch that starts or stops the floating overlay,
@@ -17,11 +22,15 @@ import androidx.compose.runtime.Composable
  */
 @Composable
 fun AssistiveBallScreen(
+    load: () -> Settings,
+    onSave: ((Settings) -> Settings) -> Unit,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val overlay = rememberSettingsOverlayState()
+    val initial = remember { load() }
+    var wakeWordEnabled by remember { mutableStateOf(initial.wakeWordEnabled) }
 
     SettingsScaffold(title = SettingsPage.ASSISTIVE_BALL.title, onBack = onBack, overlay = overlay) {
         SettingsToggleRow(
@@ -40,6 +49,26 @@ fun AssistiveBallScreen(
             "A draggable ball floating over other apps. Long-press it to start a " +
                 "hands-free voice call with the assistant; tap it for Start / Pause / " +
                 "End and to open the app. Drag it onto the ✕ to hide it again.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SettingsToggleRow(
+            label = "Wake word: Gotcha",
+            checked = wakeWordEnabled,
+            onCheckedChange = {
+                wakeWordEnabled = it
+                onSave { settings -> settings.copy(wakeWordEnabled = it) }
+            },
+            switchTestTag = "settings_wake_word",
+            switchContentDescription = if (wakeWordEnabled) {
+                "Turn off Gotcha wake word"
+            } else {
+                "Turn on Gotcha wake word"
+            }
+        )
+        Text(
+            "Uses the bundled Vosk model on-device while the assistive ball is on " +
+                "and no call is active. Keep microphone permission enabled.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

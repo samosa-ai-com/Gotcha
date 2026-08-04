@@ -232,6 +232,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".tools.WakeWordBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Tier 3: Device Admin — lock screen, password policy, disable camera. -->
         <receiver
             android:name=".service.GotchaDeviceAdminReceiver"

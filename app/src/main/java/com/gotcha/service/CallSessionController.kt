@@ -98,6 +98,9 @@ class CallSessionController(
     private var lastNarrationTimeMs = 0L
     private var lastNarratedCategory: Category? = null
 
+    /** Set only for a call started by the wake word. */
+    private var autoEndOnReply = false
+
     private val _state = MutableStateFlow(CallState.IDLE)
     val state: StateFlow<CallState> = _state.asStateFlow()
 
@@ -180,6 +183,13 @@ class CallSessionController(
         return true
     }
 
+    fun startWakeWordCall(): Boolean {
+        autoEndOnReply = true
+        if (startCall()) return true
+        autoEndOnReply = false
+        return false
+    }
+
     /**
      * Stop/interrupt the current turn. Cancels the agent, stops TTS/STT,
      * completes any pending question, and returns to [READY].
@@ -204,6 +214,7 @@ class CallSessionController(
 
     /** End the call and delete its chat session + working directory. */
     fun endCall() {
+        autoEndOnReply = false
         val endingEngine = engine ?: return
         _state.value = CallState.ENDING
         narrationJob?.cancel()
@@ -326,7 +337,7 @@ class CallSessionController(
                 reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
             }
             onActionRingColor(null)
-            _state.value = CallState.READY
+            if (autoEndOnReply) endCall() else _state.value = CallState.READY
         }
     }
 

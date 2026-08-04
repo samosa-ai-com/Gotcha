@@ -64,6 +64,7 @@ class AssistiveBallService : Service() {
     private lateinit var overlay: com.gotcha.ui.AssistiveBallOverlay
     private lateinit var chatWindow: CallChatWindow
     private lateinit var callController: CallSessionController
+    private lateinit var wakeWordDetector: WakeWordDetector
     private lateinit var screenCompanionController: ScreenCompanionController
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
     private lateinit var screenLensController: ScreenLensController
@@ -118,6 +119,20 @@ class AssistiveBallService : Service() {
             settingsRepository = settingsRepository,
             sttEngine = sttEngine,
             ttsEngine = ttsEngine
+        )
+        wakeWordDetector = WakeWordDetector(
+            context = applicationContext,
+            scope = scope,
+            onDetected = {
+                wakeWordDetector.stop()
+                val s = settingsRepository.load()
+                com.gotcha.audio.CompletionFeedback.replyArrived(
+                    this,
+                    vibrate = s.notifyVibrationEnabled,
+                    chime = false
+                )
+                callController.startWakeWordCall()
+            }
         )
 
         // Floating call buttons (shown during a call, hidden otherwise)
@@ -180,6 +195,11 @@ class AssistiveBallService : Service() {
         scope.launch {
             callController.state.collect { state ->
                 val active = state != CallState.IDLE && state != CallState.ENDING
+                if (active) {
+                    wakeWordDetector.stop()
+                } else if (state == CallState.IDLE) {
+                    maybeStartWakeWord()
+                }
                 if (active) {
                     chatWindow.show()
                 } else if (state == CallState.IDLE) {
@@ -796,6 +816,15 @@ class AssistiveBallService : Service() {
             android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
+    private fun maybeStartWakeWord() {
+        val settings = settingsRepository.load()
+        if (settings.wakeWordEnabled && settings.assistiveBallEnabled && hasMicPermission()) {
+            wakeWordDetector.start()
+        } else {
+            wakeWordDetector.stop()
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
@@ -806,6 +835,7 @@ class AssistiveBallService : Service() {
                 startAsForeground()
                 overlay.show()
                 _isRunning.value = true
+                maybeStartWakeWord()
             }
         }
         return START_STICKY
@@ -816,6 +846,7 @@ class AssistiveBallService : Service() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _isRunning.value = false
+        wakeWordDetector.stop()
         callController.endCall()
         chatWindow.hide()
         screenCompanionPanel.dismiss()
@@ -895,6 +926,7 @@ class AssistiveBallService : Service() {
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
+        wakeWordDetector.stop()
         callController.endCall()
         chatWindow.hide()
         screenCompanionPanel.dismiss()

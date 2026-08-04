@@ -367,6 +367,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
+    // Open-source, on-device speech recognition used for the optional wake word.
+    // The acoustic model is supplied in app/src/main/assets (see docs/wake-word.md).
+    implementation("com.alphacephei:vosk-android:0.3.47")
+
     // Static analysis
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
 
