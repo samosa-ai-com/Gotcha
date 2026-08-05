@@ -27,6 +27,8 @@ import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
+import com.gotcha.tools.ToolResult
+import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
@@ -134,6 +136,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         historyRepository = historyRepository,
         settingsProvider = { settings },
         clientProvider = { client },
+        onUpdateUserProfile = { update ->
+            // Reload so a manual Personal Info edit isn't clobbered by a stale snapshot,
+            // then persist and refresh the cached settings the engine reads next turn.
+            val merged = mergeProfileUpdate(settingsRepository.load(), update)
+                ?: return@AgentEngine ToolResult.ok("No material change — profile left as is.")
+            settingsRepository.save(merged.updated)
+            settings = merged.updated
+            ToolResult.ok(
+                "Updated " + merged.changedFields.joinToString(", ") + ". " +
+                    "The new value will be used from the next message."
+            )
+        },
         // Persist the ENGINE session's own data, never the viewed session's —
         // the user may be browsing another chat while this run continues.
         displayMessagesProvider = { engineTranscript },

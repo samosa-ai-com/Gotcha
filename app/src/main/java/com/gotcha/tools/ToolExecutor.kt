@@ -23,7 +23,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
-    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null
+    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null,
+    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null
 ) {
 
     private companion object {
@@ -376,6 +377,20 @@ class ToolExecutor(
                     val description = args.requireString("description") ?: return missing("description")
                     val prompt = args.requireString("prompt") ?: return missing("prompt")
                     handler(description, prompt)
+                }
+            }
+            "update_user_profile" -> {
+                val handler = onUpdateUserProfile
+                if (handler == null) {
+                    ToolResult.error("Profile updates are not configured.")
+                } else {
+                    handler(
+                        ProfileUpdate(
+                            occupation = args.requireString("occupation"),
+                            background = args.requireString("background"),
+                            replyStyle = args.requireString("reply_style")
+                        )
+                    )
                 }
             }
             "sleep" -> {

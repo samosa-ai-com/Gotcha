@@ -4,6 +4,25 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — `update_user_profile` agent tool (#18)
+
+- **The agent can now keep the user's profile fresh.** A new Operator-only
+  `update_user_profile` tool records durable facts the user reveals in
+  conversation — a new job/role (`occupation`), background details
+  (`background`) and reply preferences (`reply_style`) — straight into
+  Settings ▸ Personal Info, so the knowledge isn't lost next session.
+- **Modify-and-extend, never erase.** The model is instructed to pass the
+  complete merged value for each field it changes, preserving prior facts and
+  removing only what the user clearly outgrew; blank values are ignored so
+  stored information is never wiped wholesale.
+- **Stays compact.** `background` is capped at 250 words and `reply_style` at
+  50 words in-app, and a no-op guard skips writes when nothing material
+  changed (keeps updates infrequent and the system prompt cache mostly stable).
+- **Operator only.** Monitor keeps its read-only contract; the tool is also
+  withheld from sub-agents. Works in chat and voice calls.
+- A short maintenance directive in the Operator system prompt (next to
+  `<user_profile>`) tells the model when to call the tool and the caps.
+
 ### Added — Collapsible Connectors cards (#20)
 
 - **Connector cards collapse by default.** The Connectors screen now shows one

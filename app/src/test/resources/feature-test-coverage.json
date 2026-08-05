@@ -7,6 +7,14 @@
       "manualSteps": "Ask the agent to 'open the dialer with +49123456789'; confirm the dialer opens pre-filled and does NOT place the call."
     },
     {
+      "tool": "update_user_profile",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.UpdateUserProfileTest"
+      ],
+      "notes": "merge semantics (modify-and-extend, never erase), the no-op guard, and the 250/50-word caps"
+    },
+    {
       "tool": "about_samosa_ai",
       "tier": "ROBOLECTRIC",
       "tests": [

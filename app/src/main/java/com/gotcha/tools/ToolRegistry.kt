@@ -59,10 +59,12 @@ object ToolRegistry {
 
     /**
      * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
-     * further) and minus finish_task, which ends the *top-level* run — a sub-agent
-     * reports back with ask_final_answer instead.
+     * further), minus finish_task, which ends the *top-level* run — a sub-agent
+     * reports back with ask_final_answer instead — and minus update_user_profile,
+     * whose modify-and-extend directive lives only in the top-level Operator prompt.
      */
-    val subAgentTools: Set<String> = definitions.keys - setOf("task", "navigate_app", "finish_task")
+    val subAgentTools: Set<String> = definitions.keys -
+        setOf("task", "navigate_app", "finish_task", "update_user_profile")
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(

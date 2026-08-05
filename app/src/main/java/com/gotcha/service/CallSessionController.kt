@@ -23,6 +23,8 @@ import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.Category
 import com.gotcha.tools.ToolCategories
+import com.gotcha.tools.ToolResult
+import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.ui.ScreenReadFlashOverlay
 import kotlinx.coroutines.CancellationException
@@ -180,6 +182,15 @@ class CallSessionController(
             historyRepository = callsRepo,
             settingsProvider = { settingsRepository.load() },
             clientProvider = { buildClient() },
+            onUpdateUserProfile = { update ->
+                val merged = mergeProfileUpdate(settingsRepository.load(), update)
+                    ?: return@AgentEngine ToolResult.ok("No material change — profile left as is.")
+                settingsRepository.save(merged.updated)
+                ToolResult.ok(
+                    "Updated " + merged.changedFields.joinToString(", ") + ". " +
+                        "The new value will be used from the next message."
+                )
+            },
             workingDirRoot = CALLS_WORKING_ROOT
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()

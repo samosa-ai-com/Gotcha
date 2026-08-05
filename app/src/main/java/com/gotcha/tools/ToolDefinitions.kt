@@ -55,6 +55,42 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val updateUserProfile = tool(
+        "update_user_profile",
+        "Update the user's stored personal profile in Settings (occupation, background, " +
+            "reply style) with a durable fact they just revealed — a new job or role, a lasting " +
+            "background detail, or an explicit preference for how replies are written. " +
+            "Only call this for genuinely new, durable information, never for transient " +
+            "statements. For each field you change, pass the COMPLETE updated value, preserving " +
+            "everything already stored (modify and extend, never erase) and removing only facts " +
+            "the user has clearly outgrown or contradicted. Keep background under 250 words and " +
+            "reply style under 50 words. Omit any field you are not changing.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("occupation") {
+                    put("type", "string")
+                    put("description", "The user's current occupation or role, e.g. 'Backend engineer'.")
+                }
+                putJsonObject("background") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The complete background text — preserve prior facts, add the new ones, " +
+                            "and keep it under 250 words."
+                    )
+                }
+                putJsonObject("reply_style") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The complete reply-style preference — preserve prior preferences, add " +
+                            "the new one, and keep it under 50 words."
+                    )
+                }
+            }
+        }
+    )
+
     val getStorageInfo = tool(
         "get_storage_info",
         "Report total, used and free internal storage of the device.",
@@ -2276,6 +2312,7 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         aboutSamosaAi,
+        updateUserProfile,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,
