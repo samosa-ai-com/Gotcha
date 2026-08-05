@@ -26,13 +26,26 @@ data class SamosaUser(
     val email: String = "",
     @SerialName("display_name") val displayName: String = "",
     @SerialName("profile_picture") val profilePicture: String = "",
-    val role: String = ""
+    val role: String = "",
+    /**
+     * Remaining credit as a float, fetched live from the AIR gateway via the
+     * user's own `sk-air-*` key. Null when the user has no gateway key yet or
+     * the gateway is unreachable. Never rendered raw — only as the ×1000
+     * whole number (see `formatScaledCredits` in SettingsCommon.kt).
+     */
+    @SerialName("credits_remaining") val creditsRemaining: Double? = null
 )
 
 /** Response from POST /register — the session JWT plus the user profile. */
 @Serializable
 data class RegisterResponse(
     val token: String = "",
+    val user: SamosaUser = SamosaUser()
+)
+
+/** Response from GET /me — the user profile enveloped under `user`. */
+@Serializable
+data class MeResponse(
     val user: SamosaUser = SamosaUser()
 )
 
@@ -47,7 +60,7 @@ interface SamosaAuthApi {
     suspend fun register(@Body body: RegisterRequest): RegisterResponse
 
     @GET("me")
-    suspend fun me(@Header("Authorization") bearer: String): SamosaUser
+    suspend fun me(@Header("Authorization") bearer: String): MeResponse
 
     @POST("logout")
     suspend fun logout(@Header("Authorization") bearer: String)

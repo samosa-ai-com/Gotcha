@@ -62,6 +62,12 @@ fun SettingsScreen(
     /** Logs out of Samosa (clears JWT + Google state). */
     onSamosaSignOut: suspend () -> Unit = {},
     /**
+     * Fetches the user's remaining Samosa credit (raw float) or null when not
+     * signed in / the gateway is unreachable. Shown scaled by ×1000 in the
+     * auth section — never the raw value.
+     */
+    onFetchSamosaCredits: suspend () -> Double? = { null },
+    /**
      * Forces a fetch of the server-messages feed (notifications). Bypasses
      * the 6h gate. Returns the new last-fetched-at timestamp (ms), or null
      * if the sync failed. The screen uses this to refresh its "Last synced"
@@ -127,6 +133,7 @@ fun SettingsScreen(
             onRefreshChatModels = onRefreshChatModels,
             onSamosaSignIn = onSamosaSignIn,
             onSamosaSignOut = onSamosaSignOut,
+            onFetchSamosaCredits = onFetchSamosaCredits,
             onClearLlmCache = onClearLlmCache,
             onClearDebugScreenshots = onClearDebugScreenshots
         )
@@ -136,7 +143,8 @@ fun SettingsScreen(
             onBack = backToHome,
             onRefreshAudioModels = onRefreshAudioModels,
             onSamosaSignIn = onSamosaSignIn,
-            onSamosaSignOut = onSamosaSignOut
+            onSamosaSignOut = onSamosaSignOut,
+            onFetchSamosaCredits = onFetchSamosaCredits
         )
         SettingsPage.PERMISSIONS -> PermissionsScreen(
             packageName = packageName,

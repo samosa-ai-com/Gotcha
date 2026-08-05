@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import java.text.NumberFormat
+import kotlin.math.round
 
 /**
  * Building blocks shared by the settings pages (see [SettingsScreen]). Each page
@@ -308,6 +310,14 @@ private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modif
     }
 }
 
+/**
+ * The credit figure shown to the user: the raw float scaled by ×1000 and
+ * rounded to a whole number, with thousands separators. The raw value is never
+ * rendered anywhere — this is the only way the balance reaches the UI.
+ */
+internal fun formatScaledCredits(credits: Double): String =
+    NumberFormat.getIntegerInstance().format(round(credits * 1000).toLong())
+
 /** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
 @Composable
 fun SamosaAuthSection(
@@ -316,6 +326,8 @@ fun SamosaAuthSection(
     busy: Boolean,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    /** Raw remaining credit; scaled ×1000 for display. Null hides the line. */
+    creditsRemaining: Double? = null,
     /** Applied to the sign-in button only, so the tour can spotlight it. */
     signInModifier: Modifier = Modifier
 ) {
@@ -328,6 +340,12 @@ fun SamosaAuthSection(
         if (signedIn && email.isNotBlank()) {
             Text(
                 text = email,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        if (signedIn && creditsRemaining != null) {
+            Text(
+                text = "Credits remaining: ${formatScaledCredits(creditsRemaining)}",
                 style = MaterialTheme.typography.bodyMedium
             )
         }

@@ -4,6 +4,20 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — Scaled Samosa credit display (#19)
+
+- **Remaining credit shown, never the raw value.** The AI Config and Speech
+  pages now show a "Credits remaining:" line under the signed-in email,
+  scaled by ×1000 to a whole number (e.g. `2.0` credits → `2,000`). The raw
+  `credits_remaining` float is never rendered.
+- The balance is fetched live from the auth-manager `GET /me` on screen open
+  and on sign-in (no polling). When not signed in, or the gateway is
+  unreachable / the user has no gateway key (`credits_remaining` is null),
+  the line is hidden and the page is unaffected.
+- `GET /me` now parses the `{ user: … }` envelope correctly, so the feedback
+  form's user-id pre-fill uses the real account id instead of always falling
+  back to the stored email.
+
 ### Changed — PR #77 user-visible behavior
 
 - **Share poster is top-bar only.** The per-message "Share as poster" icon on

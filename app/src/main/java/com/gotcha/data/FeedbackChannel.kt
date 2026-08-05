@@ -187,7 +187,7 @@ object FeedbackChannel {
     ): String? {
         if (token.isBlank()) return null
         val id = try {
-            api.me("Bearer $token").id
+            api.me("Bearer $token").user.id
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

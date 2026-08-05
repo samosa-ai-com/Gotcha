@@ -697,6 +697,7 @@ class MainActivity : ComponentActivity() {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
                         },
+                        onFetchSamosaCredits = { samosaAuthManager.fetchCreditsRemaining() },
                         onSyncServerMessages = {
                             val s = settingsRepository.load()
                             if (!s.serverMessagesEnabled) return@SettingsScreen null

@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,8 @@ fun AiConfigScreen(
         Result.failure(Exception("Not available"))
     },
     onSamosaSignOut: suspend () -> Unit = {},
+    /** Fetches the user's remaining credit (raw float) or null when unavailable. */
+    onFetchSamosaCredits: suspend () -> Double? = { null },
     onClearLlmCache: () -> Unit = {},
     onClearDebugScreenshots: () -> Unit = {}
 ) {
@@ -63,6 +66,7 @@ fun AiConfigScreen(
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
+    var samosaCredits by remember { mutableStateOf<Double?>(null) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
@@ -85,6 +89,16 @@ fun AiConfigScreen(
 
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
+
+    // Fetch the credit balance when signed in, and whenever the token changes
+    // (sign-in sets it, sign-out clears it). Keep it light: no polling.
+    LaunchedEffect(samosaToken) {
+        samosaCredits = if (samosaToken.isBlank()) {
+            null
+        } else {
+            onFetchSamosaCredits()
+        }
+    }
 
     /**
      * This page's fields, copied onto [base].
@@ -173,6 +187,7 @@ fun AiConfigScreen(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
+                creditsRemaining = samosaCredits,
                 signInModifier = Modifier.tourAnchor(TourAnchor.AI_SAMOSA_SIGN_IN),
                 onSignIn = {
                     samosaBusy = true
@@ -196,6 +211,7 @@ fun AiConfigScreen(
                         onSamosaSignOut()
                         samosaToken = ""
                         samosaEmail = ""
+                        samosaCredits = null
                         availableChatModels = emptyList()
                         status = "Signed out of Samosa AI."
                         samosaBusy = false
