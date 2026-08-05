@@ -124,8 +124,8 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page fetch plus block-to-markdown rendering |
-| `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting |
+| `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering |
+| `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting, including database titles and title-column definitions with an object title |
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
 | `read_call_log` | `MANUAL_ONLY` | Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table. |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |

@@ -640,7 +640,7 @@
       "tests": [
         "com.gotcha.connectors.notion.NotionToolsTest"
       ],
-      "notes": "query routing and result formatting"
+      "notes": "query routing and result formatting, including database titles and title-column definitions with an object title"
     },
     {
       "tool": "notion_read_page",
@@ -649,7 +649,7 @@
         "com.gotcha.connectors.notion.NotionToolsTest",
         "com.gotcha.connectors.notion.NotionBlockRendererTest"
       ],
-      "notes": "page fetch plus block-to-markdown rendering"
+      "notes": "page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering"
     },
     {
       "tool": "notion_create_page",

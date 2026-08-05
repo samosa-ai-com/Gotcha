@@ -32,23 +32,28 @@ explicitly:
 Sharing a page also shares everything nested under it, so sharing one top-level page per area
 is usually enough.
 
-If `notion_search` returns nothing, or `notion_read_page` reports "could not find page", this
-is almost always why — not that the page is missing. Both tools say so in their output.
+If `notion_search` returns nothing, this is almost always why — not that the page is missing.
+
+**Todo lists are databases.** A Notion todo list is usually stored as a *database* rather than
+a page of to-do blocks. `notion_search` returns databases too, and `notion_read_page` reads a
+database id the same way as a page id: you get the title, each row, and the checkbox state
+(`- [x]`/`- [ ]`). An inline database inside a page is read and embedded the same way.
 
 ## What you get
 
 | Tool | Notes |
 |---|---|
-| `notion_search` | Finds pages by title. Start here — the other tools need an id from it. |
-| `notion_read_page` | Returns the page body as Markdown. |
+| `notion_search` | Finds pages and databases by title. Start here — the other tools need an id from it. |
+| `notion_read_page` | Returns the page — or database, e.g. a todo list — body as Markdown. |
 | `notion_create_page` | Requires a `parent_page_id`: Notion gives integrations no workspace root to write into. |
 | `notion_append_to_page` | Adds to the end of a page; never overwrites. |
 
 Supported block types round-trip between Notion and Markdown: paragraphs, headings 1–3,
 bulleted and numbered lists, to-dos (including checked state), quotes, code blocks and
-dividers. Anything else is read as a `[unsupported block: …]` placeholder rather than
-silently vanishing, and unrecognised Markdown is written as a plain paragraph so no content
-is lost.
+dividers. Reads paginate past 100 blocks and recurse into nested blocks; inline databases
+are queried for their rows. Anything else is read as a `[unsupported block: …]` placeholder
+rather than silently vanishing, and unrecognised Markdown is written as a plain paragraph so
+no content is lost.
 
 ## Disconnecting
 
@@ -63,5 +68,7 @@ delete the integration at [notion.so/my-integrations](https://www.notion.so/my-i
 3. `notion_search` **before** sharing any page → empty, with the sharing guidance.
 4. Share a page, then `notion_search` → the page appears with an id.
 5. `notion_read_page` on that id → title, URL and Markdown body.
-6. `notion_create_page` with that id as `parent_page_id` → the new page appears in Notion.
-7. `notion_append_to_page` → the content is added at the end, with earlier content intact.
+6. `notion_read_page` on a database id (e.g. a shared todo list) → `### Database: <title>` and
+   the rows with `- [x]`/`- [ ]` checkbox state.
+7. `notion_create_page` with that id as `parent_page_id` → the new page appears in Notion.
+8. `notion_append_to_page` → the content is added at the end, with earlier content intact.

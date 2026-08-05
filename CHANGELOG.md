@@ -35,6 +35,26 @@ All notable changes to Gotcha are documented here.
   50 entries) in addition to logcat, so post-mortem analysis is possible
   from a user report after the logcat buffer has rolled over.
 
+### Fixed — Notion databases unreadable (#8)
+
+- `notion_read_page` now reads **databases** as well as pages. A Notion todo
+  list is a database, and previously passing its id returned a 404 that wrongly
+  blamed page sharing — now it falls back to `GET /databases/{id}` +
+  `POST /databases/{id}/query` and renders each row with its checkbox state.
+- Inline `child_database` blocks inside a page are queried and embedded instead
+  of rendering as `[unsupported block: child_database]`, so a todo list dropped
+  onto a page is readable too.
+- `notion_search` shows a database's real title instead of `(untitled)`.
+- `notion_search` no longer crashes when a database appears in the results: a
+  database's title column definition carries `"title": {}` (an empty object,
+  not an array), and rendering now treats any non-array as empty text instead
+  of throwing "is not a JsonArray".
+- Reads paginate past 100 blocks via `start_cursor` and recurse into nested
+  blocks (bounded by a shared budget); if a cap is hit, the output says
+  `[truncated]` instead of silently dropping content.
+- A 404 that names a database steers to re-running `notion_search` rather than
+  to re-sharing the page.
+
 ### Added — HumanReadableError (PR #77 utility)
 
 - New `com.gotcha.util.HumanReadableError` centralizes HTTP status, STT/TTS

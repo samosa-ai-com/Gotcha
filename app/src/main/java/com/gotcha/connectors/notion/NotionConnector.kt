@@ -97,8 +97,13 @@ class NotionConnector(
 
     suspend fun page(pageId: String): JsonObject = api.page(token(), pageId)
 
-    suspend fun blockChildren(blockId: String, pageSize: Int): JsonArray =
-        api.blockChildren(token(), blockId, pageSize)
+    suspend fun database(databaseId: String): JsonObject = api.database(token(), databaseId)
+
+    suspend fun databaseQuery(databaseId: String, pageSize: Int, startCursor: String? = null): ListResult =
+        api.databaseQuery(token(), databaseId, pageSize, startCursor)
+
+    suspend fun blockChildren(blockId: String, pageSize: Int, startCursor: String? = null): ListResult =
+        api.blockChildren(token(), blockId, pageSize, startCursor)
 
     suspend fun createPage(payload: JsonObject): JsonObject = api.createPage(token(), payload)
 

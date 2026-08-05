@@ -2092,13 +2092,13 @@ object ToolDefinitions {
 
     val notionReadPage = tool(
         "notion_read_page",
-        "Read a Notion page's title and full text content as Markdown, using a page id from " +
-            "notion_search.",
+        "Read a Notion page's or database's title and full text content as Markdown, using a " +
+            "page or database id from notion_search.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("page_id") {
                     put("type", "string")
-                    put("description", "Page id from notion_search.")
+                    put("description", "Page or database id from notion_search.")
                 }
             }
             putJsonArray("required") { add("page_id") }
