@@ -484,7 +484,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         currentRunIsVoice = false
         lastInputWasVoice = false
         val viewedId = _uiState.value.activeSessionId
+        // Cancel any in-flight edit/run before overwriting the reference, so a
+        // rapid second tap can't leave two coroutines truncating the same history.
+        agentJob?.cancel()
         agentJob = viewModelScope.launch {
+            // Re-check the busy guard inside the coroutine: a second invocation can
+            // slip past the synchronous check above (isBusy only becomes true once
+            // executeRun runs), so refuse rather than interleave two truncations.
+            if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return@launch
             bindEngineToViewedSession(viewedId)
             val transcript = engineTranscript
             val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
@@ -528,7 +535,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun revertTo(targetId: Long) {
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         val viewedId = _uiState.value.activeSessionId
+        // Cancel any in-flight edit/run first so a revert can't interleave with a
+        // coroutine that is mid-truncation on the same engine history.
+        agentJob?.cancel()
         viewModelScope.launch {
+            // Re-check the busy guard inside the coroutine (mirrors editMessage):
+            // the synchronous check above can be raced by a second dispatch before
+            // isBusy is set, so refuse rather than truncate concurrently.
+            if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return@launch
             bindEngineToViewedSession(viewedId)
             val transcript = engineTranscript
             val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
