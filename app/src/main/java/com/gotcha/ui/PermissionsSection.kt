@@ -65,8 +65,11 @@ fun PermissionsSection(packageName: String) {
     )
 
     for (group in groups) {
+        // Rows for permissions another app declares disappear until that app is installed.
+        val items = remember(resumeSignal, group) { group.items.filter { it.isRelevant(context) } }
+        if (items.isEmpty()) continue
         val hasUngrantedPermission = remember(resumeSignal, group) {
-            group.items.any { !it.isGranted(context) }
+            items.any { !it.isGranted(context) }
         }
         val expanded = userToggledGroups[group.name] ?: hasUngrantedPermission
         Row(
@@ -89,7 +92,7 @@ fun PermissionsSection(packageName: String) {
 
         AnimatedVisibility(visible = expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (item in group.items) {
+                for (item in items) {
                     // Read live permission state from Android, re-checked on every resume
                     val granted = remember(resumeSignal) { item.isGranted(context) }
                     PermissionRow(
@@ -186,6 +189,10 @@ internal fun openSpecialAccess(context: android.content.Context, marker: String,
                 `package` = it.`package`
             }
         }
+        // Only the Termux half of the journey: this path has no Activity to request the runtime
+        // permission from, and the allow-external-apps property can only be set inside Termux.
+        // MainActivity.requestTermuxAccess handles both halves when the agent asks.
+        ToolResult.TERMUX_ACCESS -> context.packageManager.getLaunchIntentForPackage("com.termux")
         else -> null
     }
     if (intent != null) {

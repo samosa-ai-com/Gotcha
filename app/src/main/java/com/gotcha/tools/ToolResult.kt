@@ -49,6 +49,14 @@ data class ToolResult(
          */
         const val HEALTH_CONNECT = "special:health_connect"
 
+        /**
+         * Marker for Termux's `RUN_COMMAND` permission. Unusual in this list in that it *is* a
+         * real runtime permission — but one declared by another app, needing Termux's
+         * allow-external-apps property enabled alongside it, so the host handles both halves of
+         * the journey rather than firing a bare permission dialog.
+         */
+        const val TERMUX_ACCESS = "special:termux_access"
+
         fun ok(message: String) = ToolResult(true, message)
         fun error(message: String) = ToolResult(false, message)
         fun permissionNeeded(permission: String, message: String) =

@@ -64,6 +64,7 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
+    private val termuxTool = TermuxTool(appContext)
     private val healthTool = HealthTool(appContext)
     private val actionLog = ActionLog(appContext)
 
@@ -499,6 +500,11 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
+            "run_termux_command" -> termuxTool.runCommand(
+                command = args.requireString("command") ?: return missing("command"),
+                workingDir = args.requireString("working_dir"),
+                timeoutSeconds = args.requireInt("timeout_seconds")
+            )
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),
                 key = args.requireString("key") ?: return missing("key"),

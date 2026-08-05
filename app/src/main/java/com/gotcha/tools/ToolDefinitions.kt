@@ -1828,6 +1828,43 @@ object ToolDefinitions {
         }
     )
 
+    val runTermuxCommand = tool(
+        "run_termux_command",
+        "Run a shell command inside Termux, which has a real Linux user-space — `pkg install`/`apt`, " +
+            "python3, git, ssh, compilers. Use this for anything that needs a package installed or a " +
+            "non-trivial script; it runs headlessly, with no terminal opening in front of the user. " +
+            "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
+            "visible here — use run_command for those. Only offered when Termux is installed.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("command") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Shell command line to run in Termux, e.g. 'pkg install python -y' or " +
+                            "'python3 -c \"print(1+1)\"'. Pipes and multiple statements are fine."
+                    )
+                }
+                putJsonObject("working_dir") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute path inside Termux's filesystem. Defaults to Termux's home " +
+                            "(/data/data/com.termux/files/home)."
+                    )
+                }
+                putJsonObject("timeout_seconds") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Timeout in seconds (1-600). Default 60 — raise it for package installs and builds."
+                    )
+                }
+            }
+            putJsonArray("required") { add("command") }
+        }
+    )
+
     val writeSecureSettings = tool(
         "write_secure_settings",
         "Write an Android system/secure/global setting, e.g. secure/location_mode=3. " +
@@ -2234,7 +2271,7 @@ object ToolDefinitions {
         lockScreen, disableCamera, setPasswordPolicy,
 
         // Tier 4 additions: privileged / rooted execution
-        checkRoot, runRootCommand, writeSecureSettings,
+        checkRoot, runRootCommand, runTermuxCommand, writeSecureSettings,
 
         searchSkills,
 

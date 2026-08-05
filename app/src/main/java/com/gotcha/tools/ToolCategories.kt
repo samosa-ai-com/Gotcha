@@ -30,7 +30,7 @@ object ToolCategories {
         "take_photo",
         "start_audio_recording", "stop_audio_recording",
         "pause_audio_recording", "resume_audio_recording",
-        "run_command", "run_root_command",
+        "run_command", "run_root_command", "run_termux_command",
         "show_overlay", "hide_overlay",
         "lock_screen", "disable_camera", "set_password_policy",
         "dismiss_notifications", "media_control",

@@ -1144,6 +1144,7 @@ class AgentEngine(
         val accEnabled = DeviceCapabilities.accessibilityEnabled(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
+        val termux = com.gotcha.tools.TermuxTool(app).status()
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -1165,6 +1166,17 @@ class AgentEngine(
             appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
+            // run_termux_command is withheld unless Termux is installed, and refuses until its
+            // RUN_COMMAND permission is granted, so this line is how the model knows to say
+            // "install Termux" or "allow the permission" rather than just failing.
+            appendLine(
+                if (termux.installed) {
+                    "  Termux installed: yes (version ${termux.versionName ?: "unknown"}, " +
+                        "RUN_COMMAND granted: ${if (termux.permissionGranted) "yes" else "no"})"
+                } else {
+                    "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
+                }
+            )
             // Tools depending on a capability that is "no" here are withheld from
             // the tool list, so these lines are the model's only way to explain
             // what the user should enable.

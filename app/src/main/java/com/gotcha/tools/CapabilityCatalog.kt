@@ -47,6 +47,14 @@ enum class Capability(
         setOf("run_root_command", "write_secure_settings")
     ),
 
+    TERMUX(
+        // Reads as "it needs <label>, which is not available on this device right now."
+        "Termux (the Linux terminal app, installed from F-Droid)",
+        // Gated on Termux being installed, not on the RUN_COMMAND grant: gating on the grant
+        // would hide the only tool that can raise the prompt for it. See DeviceCapabilities.
+        setOf("run_termux_command")
+    ),
+
     HEALTH_CONNECT(
         "Health Connect",
         setOf("get_health_summary", "get_health_records")

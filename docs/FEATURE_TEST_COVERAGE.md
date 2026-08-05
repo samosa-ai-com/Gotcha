@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 20 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 18 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 19 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **102** | |
+| **Total** | **103** | |
 
-**38 of 102** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**39 of 103** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -71,6 +71,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `resume_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `run_command` | `UNIT` | `TerminalToolTest` — argument splitting, timeout, exit codes, output truncation |
 | `run_root_command` | `MANUAL_ONLY` | Requires a rooted device and an interactive superuser grant. |
+| `run_termux_command` | `ROBOLECTRIC` | `TermuxToolTest` — installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand |
 | `send_email` | `UNIT` | `EmailToolsTest`, `MimeMessageBuilderTest` — confirmation flow, recipient handling, MIME construction with attachments |
 | `send_sms` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `set_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
