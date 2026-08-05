@@ -44,9 +44,12 @@ database id the same way as a page id: you get the title, each row, and the chec
 | Tool | Notes |
 |---|---|
 | `notion_search` | Finds pages and databases by title. Start here — the other tools need an id from it. |
-| `notion_read_page` | Returns the page — or database, e.g. a todo list — body as Markdown. |
+| `notion_read_page` | Returns the page — or database, e.g. a todo list — body as Markdown. Every editable item is marked with an id (`[row-…]` for database rows, `[block-…]` for to-do blocks) and each database lists its `Columns:`. |
 | `notion_create_page` | Requires a `parent_page_id`: Notion gives integrations no workspace root to write into. |
 | `notion_append_to_page` | Adds to the end of a page; never overwrites. |
+| `notion_update_page` | Updates a page or database row's properties, e.g. `{"Done": true}` marks a todo done. Needs the integration's **Update content** capability. |
+| `notion_mark_todo` | Checks/unchecks a `to_do` block on a page (`checked: true`/`false`). |
+| `notion_delete_item` | `item_type: "page"` moves a page/row to the trash (recoverable); `item_type: "block"` permanently deletes a block. |
 
 Supported block types round-trip between Notion and Markdown: paragraphs, headings 1–3,
 bulleted and numbered lists, to-dos (including checked state), quotes, code blocks and
@@ -72,3 +75,6 @@ delete the integration at [notion.so/my-integrations](https://www.notion.so/my-i
    the rows with `- [x]`/`- [ ]` checkbox state.
 7. `notion_create_page` with that id as `parent_page_id` → the new page appears in Notion.
 8. `notion_append_to_page` → the content is added at the end, with earlier content intact.
+9. On a database row, `notion_update_page` with `{"<checkbox column>": true}` (e.g. `{"Done": true}`)
+   → the row is checked in Notion.
+10. `notion_delete_item` with `item_type: "page"` → the row moves to the Notion trash.

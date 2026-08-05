@@ -13,13 +13,13 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tier | Tools | What it means |
 |---|---:|---|
-| `UNIT` | 20 | Plain JVM unit test — no Android framework needed. |
+| `UNIT` | 23 | Plain JVM unit test — no Android framework needed. |
 | `ROBOLECTRIC` | 18 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **102** | |
+| **Total** | **105** | |
 
-**38 of 102** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**41 of 105** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -124,8 +124,11 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
+| `notion_delete_item` | `UNIT` | `NotionToolsMutationTest` — page trash patch vs block delete request shapes |
+| `notion_mark_todo` | `UNIT` | `NotionToolsMutationTest` — checked-state patch request shape and id-prefix stripping |
 | `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering |
 | `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting, including database titles and title-column definitions with an object title |
+| `notion_update_page` | `UNIT` | `NotionToolsMutationTest` — property-value payloads built from simple values (checkbox/select/status/title/number/multi_select), non-numeric and unsupported-type rejection, unknown-column rejection, id-prefix stripping |
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
 | `read_call_log` | `MANUAL_ONLY` | Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table. |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |

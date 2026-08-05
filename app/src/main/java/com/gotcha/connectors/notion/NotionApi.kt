@@ -34,6 +34,7 @@ data class ListResult(
  * integration token (no OAuth, no refresh), so every call simply carries the
  * secret as a Bearer token. JVM-testable via a MockWebServer [baseUrl].
  */
+@Suppress("TooManyFunctions") // one function per Notion endpoint; splitting by service would not help
 class NotionApi(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -109,11 +110,23 @@ class NotionApi(
     suspend fun createPage(token: String, payload: JsonObject): JsonObject =
         post("$baseUrl/pages", token, payload)
 
+    /** `PATCH /pages/{id}` — updates a page/row's properties, or trashes it (`in_trash`). */
+    suspend fun updatePage(token: String, pageId: String, payload: JsonObject): JsonObject =
+        patch("$baseUrl/pages/${pageId.trim()}", token, payload)
+
     /** `PATCH /blocks/{id}/children` — appends blocks to an existing page. */
     suspend fun appendBlocks(token: String, blockId: String, children: JsonArray): JsonObject {
         val body = buildJsonObject { put("children", children) }
         return patch("$baseUrl/blocks/${blockId.trim()}/children", token, body)
     }
+
+    /** `PATCH /blocks/{id}` — updates a block (e.g. a to-do's checked state). */
+    suspend fun updateBlock(token: String, blockId: String, payload: JsonObject): JsonObject =
+        patch("$baseUrl/blocks/${blockId.trim()}", token, payload)
+
+    /** `DELETE /blocks/{id}` — permanently deletes a block and its children. */
+    suspend fun deleteBlock(token: String, blockId: String): JsonObject =
+        delete("$baseUrl/blocks/${blockId.trim()}", token)
 
     private fun JsonObject.results(): JsonArray =
         this["results"] as? JsonArray ?: JsonArray(emptyList())
@@ -148,6 +161,15 @@ class NotionApi(
                 .url(url)
                 .notionHeaders(token)
                 .patch(body.toString().toRequestBody(jsonMediaType))
+                .build()
+        )
+
+    private suspend fun delete(url: String, token: String): JsonObject =
+        execute(
+            Request.Builder()
+                .url(url)
+                .notionHeaders(token)
+                .delete()
                 .build()
         )
 

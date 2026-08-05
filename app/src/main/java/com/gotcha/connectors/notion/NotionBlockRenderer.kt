@@ -67,7 +67,8 @@ object NotionBlockRenderer {
             "numbered_list_item" -> "1. $text"
             "to_do" -> {
                 val checked = payload?.get("checked")?.jsonPrimitive?.booleanOrNull ?: false
-                "- [${if (checked) "x" else " "}] $text"
+                val marker = elementId(block)?.let { "[block-$it] " }.orEmpty()
+                "- [${if (checked) "x" else " "}] $marker$text"
             }
             "quote" -> "> $text"
             "code" -> {
@@ -94,9 +95,13 @@ object NotionBlockRenderer {
      */
     fun databaseToMarkdown(database: JsonObject, rows: List<JsonObject>): String {
         val title = pageTitle(database).takeIf { it != "(untitled)" } ?: "Untitled database"
+        val columns = database["properties"]?.jsonObject?.keys
+            ?.filter { it.isNotBlank() }
+            ?.joinToString(", ")
         val body = rows.joinToString("\n") { rowToMarkdown(it) }
         return buildString {
             append("### Database: ").append(title)
+            if (!columns.isNullOrBlank()) append("\nColumns: ").append(columns)
             if (body.isNotBlank()) append("\n").append(body)
         }
     }
@@ -106,13 +111,18 @@ object NotionBlockRenderer {
         val properties = row["properties"]?.jsonObject ?: return "- (empty row)"
         val titleText = firstTitleText(properties) ?: "(untitled)"
         val checked = firstCheckbox(properties)
+        val marker = elementId(row)?.let { "[row-$it] " }.orEmpty()
         val extras = properties.entries
             .mapNotNull { (name, value) -> scalarProperty(name, value.jsonObject) }
             .take(MAX_ROW_PROPERTIES)
             .joinToString(" | ")
-        return "- [${if (checked) "x" else " "}] $titleText" +
+        return "- [${if (checked) "x" else " "}] $marker$titleText" +
             if (extras.isNotBlank()) " ($extras)" else ""
     }
+
+    /** The `id` of a block or page object, when present. */
+    private fun elementId(element: JsonObject): String? =
+        element["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 
     private fun firstTitleText(properties: JsonObject): String? {
         properties.values.forEach { property ->

@@ -55,6 +55,20 @@ All notable changes to Gotcha are documented here.
 - A 404 that names a database steers to re-running `notion_search` rather than
   to re-sharing the page.
 
+### Added — Notion update/delete tools
+
+- `notion_update_page` updates a page's or database row's properties — pass
+  column names mapped to simple values, e.g. `{"Done": true}` marks a todo row
+  done, `{"Status": "In progress"}` changes a status. The column type is looked
+  up from the page so the correct Notion payload is built.
+- `notion_mark_todo` checks or unchecks a `to_do` block on a page
+  (`checked: true`/`false`).
+- `notion_delete_item` moves a page/row to the Notion trash (`item_type:
+  "page"`, recoverable) or permanently deletes a block (`item_type: "block"`).
+- `notion_read_page` output now marks every editable item with an id —
+  `[row-<id>]` for database rows and `[block-<id>]` for to-do blocks — and lists
+  each database's `Columns:` so the model knows which values it can update.
+
 ### Added — HumanReadableError (PR #77 utility)
 
 - New `com.gotcha.util.HumanReadableError` centralizes HTTP status, STT/TTS

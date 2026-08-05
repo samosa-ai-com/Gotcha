@@ -250,6 +250,38 @@ class NotionBlockRendererTest {
     }
 
     @Test
+    fun `to_do block with an id renders a block marker for update tools`() {
+        assertEquals(
+            "- [ ] [block-b1] Buy milk",
+            markdownOf(
+                """{"id":"b1","type":"to_do","to_do":{"rich_text":[{"plain_text":"Buy milk"}],"checked":false}}"""
+            )
+        )
+    }
+
+    @Test
+    fun `rowToMarkdown includes the row id marker`() {
+        val row = block(
+            """{"id":"r1","object":"page","properties":{
+               "Item":{"type":"title","title":[{"plain_text":"Buy milk"}]}}}"""
+        )
+        assertEquals("- [ ] [row-r1] Buy milk", NotionBlockRenderer.rowToMarkdown(row))
+    }
+
+    @Test
+    fun `databaseToMarkdown lists the columns for update tools`() {
+        val database = block(
+            """{"object":"database","title":[{"plain_text":"Shopping"}],
+               "properties":{"Item":{"type":"title","name":"Item"},
+                             "Done":{"type":"checkbox","name":"Done"}}}"""
+        )
+        val markdown = NotionBlockRenderer.databaseToMarkdown(database, emptyList())
+
+        assertTrue(markdown.contains("### Database: Shopping"))
+        assertTrue(markdown.contains("Columns: Item, Done"))
+    }
+
+    @Test
     fun `rowToMarkdown drops non-scalar properties and untitled rows degrade`() {
         val row = block(
             """{"object":"page","properties":{

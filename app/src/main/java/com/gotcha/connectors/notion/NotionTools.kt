@@ -2,9 +2,12 @@ package com.gotcha.connectors.notion
 
 import com.gotcha.connectors.ToolRouter
 import com.gotcha.tools.ToolResult
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -17,6 +20,7 @@ import kotlinx.serialization.json.put
  * with the integration first, so empty/404 outcomes say that explicitly rather
  * than letting the model conclude the content does not exist.
  */
+@Suppress("TooManyFunctions") // one function per tool, plus shared JSON/arg helpers
 class NotionTools(
     private val backend: () -> NotionConnector?
 ) : ToolRouter {
@@ -35,13 +39,20 @@ class NotionTools(
         private const val SHARING_HINT =
             "If you expected results, the page is probably not shared with the integration yet: " +
                 "open it in Notion, use ⋯ → Connections, and add the integration."
+
+        /** Column types notion_update_page can build a payload for. */
+        private const val UPDATEABLE_TYPES =
+            "checkbox, select, status, title, rich_text, number, url, email, phone_number, multi_select"
     }
 
     override val toolNames: Set<String> = setOf(
         "notion_search",
         "notion_read_page",
         "notion_create_page",
-        "notion_append_to_page"
+        "notion_append_to_page",
+        "notion_update_page",
+        "notion_mark_todo",
+        "notion_delete_item"
     )
 
     override suspend fun execute(name: String, args: JsonObject): ToolResult = try {
@@ -50,6 +61,9 @@ class NotionTools(
             "notion_read_page" -> readPage(args)
             "notion_create_page" -> createPage(args)
             "notion_append_to_page" -> appendToPage(args)
+            "notion_update_page" -> updatePage(args)
+            "notion_mark_todo" -> markTodo(args)
+            "notion_delete_item" -> deleteItem(args)
             else -> ToolResult.error("Unknown Notion tool '$name'.")
         }
     } catch (e: Exception) {
@@ -267,12 +281,179 @@ class NotionTools(
         return ToolResult.ok("Appended ${content.lines().size} line(s) to Notion page $pageId.")
     }
 
+    /**
+     * Updates a page's — or a database row's — properties. `properties` maps column
+     * names to simple values (e.g. `{"Done": true}`, `{"Status": "Done"}`,
+     * `{"Name": "New title"}`); the column type is looked up from the page so the
+     * right Notion payload is built. `title` (as a reserved key) updates the
+     * page's title column whatever it is called.
+     */
+    private suspend fun updatePage(args: JsonObject): ToolResult {
+        val notion = connected() ?: return notConnected()
+        val pageId = args.optString("page_id")?.let { stripItemPrefix(it) }
+            ?: return ToolResult.error("notion_update_page needs a 'page_id' from notion_read_page.")
+        val requested = args["properties"]?.jsonObject
+            ?: return ToolResult.error(
+                "notion_update_page needs 'properties' — a JSON object of column name to value, " +
+                    "e.g. {\"Done\": true}."
+            )
+
+        val current = notion.page(pageId)
+        val schema = current["properties"]?.jsonObject
+            ?: return ToolResult.error(
+                "Cannot update $pageId — it has no properties. Pass a page or database-row id " +
+                    "from notion_read_page, not a database id."
+            )
+        val titleColumn = schema.entries
+            .firstOrNull { (_, v) -> v.jsonObject["type"]?.jsonPrimitive?.contentOrNull == "title" }
+            ?.key
+
+        val updates = buildJsonObject {
+            requested.forEach { (name, value) ->
+                val column = if (name == "title") titleColumn ?: name else name
+                val type = schema[column]?.jsonObject?.get("type")?.jsonPrimitive?.contentOrNull
+                if (type == null) {
+                    return@updatePage ToolResult.error(
+                        "No column named '$column' on page $pageId. Columns: " +
+                            "${schema.keys.joinToString(", ")}."
+                    )
+                }
+                val built = propertyValue(type, value)
+                if (built == null) {
+                    val reason = if (type == "number") {
+                        "'${value.asText()}' is not a number"
+                    } else {
+                        "updating a '$type' column is not supported"
+                    }
+                    return@updatePage ToolResult.error(
+                        "Cannot update column '$column': $reason. Updateable types: $UPDATEABLE_TYPES."
+                    )
+                }
+                put(column, built)
+            }
+        }
+        notion.updatePage(pageId, buildJsonObject { put("properties", updates) })
+        return ToolResult.ok("Updated Notion page $pageId.")
+    }
+
+    /** Marks a `to_do` block checked/unchecked. */
+    private suspend fun markTodo(args: JsonObject): ToolResult {
+        val notion = connected() ?: return notConnected()
+        val blockId = args.optString("block_id")?.let { stripItemPrefix(it) }
+            ?: return ToolResult.error("notion_mark_todo needs a 'block_id' from notion_read_page.")
+        val checked = args.optBoolean("checked")
+            ?: return ToolResult.error("notion_mark_todo needs 'checked' (true or false).")
+
+        notion.updateBlock(
+            blockId,
+            buildJsonObject { put("to_do", buildJsonObject { put("checked", JsonPrimitive(checked)) }) }
+        )
+        return ToolResult.ok("Marked Notion block $blockId as ${if (checked) "done" else "not done"}.")
+    }
+
+    /**
+     * Deletes an item. `item_type` is `page` — trashes a page or database row
+     * (recoverable in Notion) — or `block` — permanently deletes a block.
+     */
+    private suspend fun deleteItem(args: JsonObject): ToolResult {
+        val notion = connected() ?: return notConnected()
+        val itemId = args.optString("item_id")?.let { stripItemPrefix(it) }
+            ?: return ToolResult.error("notion_delete_item needs an 'item_id' from notion_read_page.")
+        val type = args.optString("item_type")
+            ?: return ToolResult.error(
+                "notion_delete_item needs 'item_type': 'page' (trashes a page or row) or 'block' " +
+                    "(permanently deletes a block)."
+            )
+        return when (type) {
+            "page" -> {
+                notion.updatePage(itemId, buildJsonObject { put("in_trash", JsonPrimitive(true)) })
+                ToolResult.ok("Moved Notion page $itemId to the trash.")
+            }
+            "block" -> {
+                notion.deleteBlock(itemId)
+                ToolResult.ok("Deleted Notion block $itemId.")
+            }
+            else -> ToolResult.error("notion_delete_item 'item_type' must be 'page' or 'block', got '$type'.")
+        }
+    }
+
+    /**
+     * Builds a Notion property value object for an update, given its column type.
+     * Returns null when the value cannot be expressed for that type (unsupported
+     * type, or a non-numeric string for a number column).
+     */
+    private fun propertyValue(type: String, value: JsonElement): JsonObject? = when (type) {
+        "checkbox" -> buildJsonObject { put("checkbox", JsonPrimitive(value.asBoolean())) }
+        "select", "status" ->
+            buildJsonObject { put(type, buildJsonObject { put("name", JsonPrimitive(value.asText())) }) }
+        "title", "rich_text" ->
+            buildJsonObject { put(type, buildJsonArray { add(textContent(value.asText())) }) }
+        "number" -> value.asDouble()?.let { number ->
+            buildJsonObject { put("number", JsonPrimitive(number)) }
+        }
+        "url", "email", "phone_number" ->
+            buildJsonObject { put(type, JsonPrimitive(value.asText())) }
+        "multi_select" ->
+            buildJsonObject {
+                put(
+                    "multi_select",
+                    buildJsonArray {
+                        value.asStringList().forEach { option ->
+                            add(buildJsonObject { put("name", JsonPrimitive(option)) })
+                        }
+                    }
+                )
+            }
+        else -> null
+    }
+
+    private fun textContent(content: String): JsonObject = buildJsonObject {
+        put("type", JsonPrimitive("text"))
+        put("text", buildJsonObject { put("content", JsonPrimitive(content)) })
+    }
+
+    /** The `row-`/`block-` prefix on ids in read output is cosmetic — strip it if present. */
+    private fun stripItemPrefix(id: String): String =
+        id.removePrefix("row-").removePrefix("block-")
+
+    private fun JsonElement.asBoolean(): Boolean {
+        jsonPrimitive.booleanOrNull?.let { return it }
+        return jsonPrimitive.contentOrNull?.toBooleanStrictOrNull() ?: false
+    }
+
+    private fun JsonElement.asText(): String = jsonPrimitive.contentOrNull.orEmpty()
+
+    private fun JsonElement.asDouble(): Double? = jsonPrimitive.contentOrNull?.toDoubleOrNull()
+
+    /**
+     * Multi-select values as a list of option names. Prefer a JSON array of
+     * strings; a comma-separated string is accepted as a fallback, so option
+     * names containing commas should be passed as an array.
+     */
+    private fun JsonElement.asStringList(): List<String> {
+        val names = when (this) {
+            is JsonArray -> mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+            else -> listOf(jsonPrimitive.contentOrNull.orEmpty())
+        }
+        return if (this is JsonArray) {
+            names.map { it.trim() }.filter { it.isNotBlank() }
+        } else {
+            names.flatMap { it.split(",") }.map { it.trim() }.filter { it.isNotBlank() }
+        }
+    }
+
     private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
     private fun JsonObject.optString(key: String): String? =
         this[key]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 
     private fun JsonObject.optInt(key: String): Int? = this[key]?.jsonPrimitive?.intOrNull
+
+    private fun JsonObject.optBoolean(key: String): Boolean? {
+        val primitive = this[key]?.jsonPrimitive ?: return null
+        primitive.booleanOrNull?.let { return it }
+        return primitive.contentOrNull?.toBooleanStrictOrNull()
+    }
 }
 
 /** Mutable fetch allowance shared across pagination, nesting and inline databases. */

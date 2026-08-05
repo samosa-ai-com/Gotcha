@@ -107,6 +107,14 @@ class NotionConnector(
 
     suspend fun createPage(payload: JsonObject): JsonObject = api.createPage(token(), payload)
 
+    suspend fun updatePage(pageId: String, payload: JsonObject): JsonObject =
+        api.updatePage(token(), pageId, payload)
+
     suspend fun appendBlocks(blockId: String, children: JsonArray): JsonObject =
         api.appendBlocks(token(), blockId, children)
+
+    suspend fun updateBlock(blockId: String, payload: JsonObject): JsonObject =
+        api.updateBlock(token(), blockId, payload)
+
+    suspend fun deleteBlock(blockId: String): JsonObject = api.deleteBlock(token(), blockId)
 }

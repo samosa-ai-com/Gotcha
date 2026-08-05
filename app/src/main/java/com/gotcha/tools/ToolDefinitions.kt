@@ -4,6 +4,7 @@ import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -2153,6 +2154,85 @@ object ToolDefinitions {
         }
     )
 
+    val notionUpdatePage = tool(
+        "notion_update_page",
+        "Update a Notion page's — or a database row's — properties. Use for todo lists: mark a " +
+            "row done, set its status, rename it, etc. Pass 'properties' as a JSON object of " +
+            "column name to a simple value, e.g. {\"Done\": true}, {\"Status\": \"In progress\"}, " +
+            "{\"Name\": \"New name\"}. Column names appear in the 'Columns:' line of " +
+            "notion_read_page. Use notion_mark_todo for a to_do block on a page instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("page_id") {
+                    put("type", "string")
+                    put("description", "Page or database-row id from notion_read_page (the id after [row-]).")
+                }
+                putJsonObject("properties") {
+                    put("type", "object")
+                    put("description", "JSON object mapping column names to new values, e.g. {\"Done\": true}.")
+                }
+            }
+            putJsonArray("required") {
+                add("page_id")
+                add("properties")
+            }
+        }
+    )
+
+    val notionMarkTodo = tool(
+        "notion_mark_todo",
+        "Mark a Notion to_do block as done or not done. Use the id shown after [block-] in " +
+            "notion_read_page output. For a todo item stored as a database row, use " +
+            "notion_update_page instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("block_id") {
+                    put("type", "string")
+                    put("description", "Block id from notion_read_page (the id after [block-]).")
+                }
+                putJsonObject("checked") {
+                    put("type", "boolean")
+                    put("description", "true to mark done, false to reopen.")
+                }
+            }
+            putJsonArray("required") {
+                add("block_id")
+                add("checked")
+            }
+        }
+    )
+
+    val notionDeleteItem = tool(
+        "notion_delete_item",
+        "Delete a Notion item. item_type 'page' moves a page or database row to the trash " +
+            "(recoverable; Notion auto-purges trash after ~30 days, permanent deletion is done " +
+            "in the Notion app); item_type 'block' permanently deletes a block and its children. " +
+            "Use the id after [row-] or [block-] in notion_read_page output.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("item_id") {
+                    put("type", "string")
+                    put("description", "Row or block id from notion_read_page (after [row-] or [block-]).")
+                }
+                putJsonObject("item_type") {
+                    put("type", "string")
+                    put(
+                        "enum",
+                        buildJsonArray {
+                            add("page")
+                            add("block")
+                        }
+                    )
+                    put("description", "'page' trashes a page/row; 'block' permanently deletes a block.")
+                }
+            }
+            putJsonArray("required") {
+                add("item_id")
+                add("item_type")
+            }
+        }
+    )
+
     // ---- Health Connect tools (on-device, read-only) ----
 
     val getHealthSummary = tool(
@@ -2246,6 +2326,7 @@ object ToolDefinitions {
 
         // Notion connector tools
         notionSearch, notionReadPage, notionCreatePage, notionAppendToPage,
+        notionUpdatePage, notionMarkTodo, notionDeleteItem,
 
         // Health Connect (on-device, read-only)
         getHealthSummary, getHealthRecords,

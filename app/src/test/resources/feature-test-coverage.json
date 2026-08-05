@@ -668,6 +668,30 @@
       "notes": "block append request shape"
     },
     {
+      "tool": "notion_update_page",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsMutationTest"
+      ],
+      "notes": "property-value payloads built from simple values (checkbox/select/status/title/number/multi_select), non-numeric and unsupported-type rejection, unknown-column rejection, id-prefix stripping"
+    },
+    {
+      "tool": "notion_mark_todo",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsMutationTest"
+      ],
+      "notes": "checked-state patch request shape and id-prefix stripping"
+    },
+    {
+      "tool": "notion_delete_item",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsMutationTest"
+      ],
+      "notes": "page trash patch vs block delete request shapes"
+    },
+    {
       "tool": "get_health_summary",
       "tier": "UNIT",
       "tests": [

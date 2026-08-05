@@ -76,7 +76,10 @@ object ConnectorCatalog {
             "notion_search",
             "notion_read_page",
             "notion_create_page",
-            "notion_append_to_page"
+            "notion_append_to_page",
+            "notion_update_page",
+            "notion_mark_todo",
+            "notion_delete_item"
         ),
         readOnlyToolNames = setOf("notion_search", "notion_read_page")
     )

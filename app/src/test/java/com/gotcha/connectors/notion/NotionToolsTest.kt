@@ -218,8 +218,8 @@ class NotionToolsTest {
 
         assertTrue(result.success)
         assertTrue(result.message.contains("### Database: Todo list"))
-        assertTrue(result.message.contains("- [ ] Buy milk"))
-        assertTrue(result.message.contains("- [x] Call bank"))
+        assertTrue(result.message.contains("- [ ] [row-r1] Buy milk"))
+        assertTrue(result.message.contains("- [x] [row-r2] Call bank"))
 
         assertEquals("/v1/pages/db1", server.takeRequest().path)
         assertEquals("/v1/databases/db1", server.takeRequest().path)
@@ -328,7 +328,7 @@ class NotionToolsTest {
 
         assertTrue(result.success)
         assertTrue(result.message.contains("### Database: Todos"))
-        assertTrue(result.message.contains("- [ ] Do the thing"))
+        assertTrue(result.message.contains("- [ ] [row-r1] Do the thing"))
         assertTrue(!result.message.contains("unsupported block"))
     }
 
