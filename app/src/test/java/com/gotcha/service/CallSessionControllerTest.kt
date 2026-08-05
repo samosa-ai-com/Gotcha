@@ -190,4 +190,42 @@ class CallSessionControllerTest {
         assertTrue(errorMessage != null)
         assertFalse("The call controller must stay idle on a failed wake-word start", controller.isActive())
     }
+
+    @Test
+    fun `screenContextNote asks the user to enable accessibility when capture is unavailable`() {
+        val note = controller.screenContextNote(
+            captureAvailable = false,
+            screenText = null,
+            blankScreen = false
+        )
+        assertTrue(
+            "the accessibility-off note must tell the user to enable the service",
+            note.contains("accessibility service is turned off") &&
+                note.contains("Accessibility → Gotcha")
+        )
+    }
+
+    @Test
+    fun `screenContextNote prefers screen text and the blank-screen note over the generic fallback`() {
+        val withText = controller.screenContextNote(
+            captureAvailable = false,
+            screenText = "Settings → About",
+            blankScreen = false
+        )
+        assertTrue(withText.contains("Current screen text:") && withText.contains("Settings → About"))
+
+        val blank = controller.screenContextNote(
+            captureAvailable = true,
+            screenText = null,
+            blankScreen = true
+        )
+        assertTrue(blank.contains("screen was blank or off"))
+
+        val failed = controller.screenContextNote(
+            captureAvailable = true,
+            screenText = null,
+            blankScreen = false
+        )
+        assertTrue(failed.contains("could not be captured"))
+    }
 }

@@ -458,7 +458,8 @@ class CallSessionController(
         var screenshot: String? = null
         var screenText: String? = null
         var blankScreen = false
-        if (ScreenSnapshot.isAvailable()) {
+        val captureAvailable = ScreenSnapshot.isAvailable()
+        if (captureAvailable) {
             onCaptureChrome(true)
             delay(CAPTURE_SETTLE_MS)
             screenshot = ScreenSnapshot.captureScreenBase64()
@@ -477,15 +478,7 @@ class CallSessionController(
             onScreenReadDone()
         }
         val userText = buildString {
-            when {
-                !screenText.isNullOrBlank() -> {
-                    append("Current screen text:\n")
-                    append(screenText)
-                    append("\n\n")
-                }
-                blankScreen -> append("(The screen was blank or off — no screenshot was sent.)\n\n")
-                else -> append("(The current screen could not be captured this turn.)\n\n")
-            }
+            append(screenContextNote(captureAvailable, screenText, blankScreen))
             append("User said (voice call — reply briefly, it will be read aloud): ")
             append(text)
         }
@@ -494,6 +487,26 @@ class CallSessionController(
         } else {
             ChatMessage(role = "user", content = JsonPrimitive(userText))
         }
+    }
+
+    /**
+     * The screen-context prefix for a voice-call user turn. When the Gotcha
+     * accessibility service is off there is nothing to capture, so the model is
+     * told to ask the user to enable it rather than guessing at the screen.
+     */
+    internal fun screenContextNote(
+        captureAvailable: Boolean,
+        screenText: String?,
+        blankScreen: Boolean
+    ): String = when {
+        !screenText.isNullOrBlank() -> "Current screen text:\n$screenText\n\n"
+        blankScreen -> "(The screen was blank or off — no screenshot was sent.)\n\n"
+        !captureAvailable -> {
+            "(I could not see your screen — the Gotcha accessibility " +
+                "service is turned off. Ask the user to enable it in Android Settings → " +
+                "Accessibility → Gotcha.)\n\n"
+        }
+        else -> "(The current screen could not be captured this turn.)\n\n"
     }
 
     // ---- AgentEvents (engine → call UI) ----
