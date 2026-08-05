@@ -385,13 +385,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        currentRunIsVoice = isVoiceInput || lastInputWasVoice
-        lastInputWasVoice = false
         val msg = if (imageBase64 != null) {
             visionUserMessage(trimmed, imageBase64, "jpeg")
         } else {
             ChatMessage(role = "user", content = JsonPrimitive(trimmed))
         }
+        launchUserRun(msg, imageBase64, isVoiceInput)
+    }
+
+    /**
+     * Appends [msg] to the viewed session's LLM history, shows the USER bubble,
+     * and starts an agent run. Shared by [sendMessage] and [editMessage], so both
+     * paths go through the same busy-marking, run, and NonCancellable cleanup.
+     */
+    private fun launchUserRun(msg: ChatMessage, imageBase64: String?, isVoiceInput: Boolean) {
+        currentRunIsVoice = isVoiceInput || lastInputWasVoice
+        lastInputWasVoice = false
         val viewedId = _uiState.value.activeSessionId
         agentJob = viewModelScope.launch {
             // Ensure the engine is bound to the session being viewed. After a
@@ -402,39 +411,144 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.history += msg
             appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, imageBase64)
 
-            val runningId = agentEngine.sessionId
-            val runningTitle = engineTranscript.firstOrNull { it.kind == MessageKind.USER }
-                ?.text?.take(30) ?: "New Chat"
+            val runningId = agentEngine.sessionId ?: return@launch
+            executeRun(engineAgent, runningId)
+        }
+    }
+
+    /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
+    private suspend fun executeRun(agent: AgentMode, runningId: String) {
+        val runningTitle = engineTranscript.firstOrNull { it.kind == MessageKind.USER }
+            ?.text?.take(30) ?: "New Chat"
+        _uiState.update {
+            it.copy(
+                isBusy = true,
+                runningSessionId = runningId,
+                runningSessionTitle = runningTitle
+            )
+        }
+        runHadError = false
+        try {
+            agentEngine.run(agent)
+        } catch (_: CancellationException) {
+            appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
+        } finally {
+            withContext(NonCancellable) {
+                currentRunIsVoice = false
+                lastInputWasVoice = false
+                agentEngine.saveCurrentSession()
+                _uiState.update {
+                    it.copy(
+                        isBusy = false,
+                        runningSessionId = null,
+                        runningSessionTitle = null,
+                        activity = if (viewingEngineSession()) null else it.activity,
+                        subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
+                        subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
+                    )
+                }
+                agentJob = null
+            }
+        }
+    }
+
+    /**
+     * Replaces the user message [targetId] with [newText], keeping the original
+     * image attachment unless a new one was picked. The target's whole turn and
+     * everything after it are dropped from both the LLM history and the on-screen
+     * transcript, then the agent re-runs immediately so a fresh reply is
+     * generated from the edited history.
+     */
+    fun editMessage(targetId: Long, newText: String, imageBase64: String?) {
+        val trimmed = newText.trim()
+        if (trimmed.isEmpty() && imageBase64 == null) return
+        if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
+        if (client == null) {
+            appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
+            return
+        }
+        currentRunIsVoice = false
+        lastInputWasVoice = false
+        val viewedId = _uiState.value.activeSessionId
+        agentJob = viewModelScope.launch {
+            bindEngineToViewedSession(viewedId)
+            val transcript = engineTranscript
+            val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
+                ?: return@launch
+            val k = transcript.takeWhile { it.id != targetId }.count { it.kind == MessageKind.USER }
+            // History/transcript desync guard (e.g. after compaction the transcript
+            // is reset), so a stale target id bails without partial truncation.
+            if (k >= userTurnStarts(agentEngine.history).size) return@launch
+            val kept = truncateHistoryAtTurn(agentEngine.history, k, dropTurn = true)
+            agentEngine.history.clear()
+            agentEngine.history.addAll(kept)
+            engineTranscript = transcript.take(transcript.indexOf(target))
             _uiState.update {
                 it.copy(
-                    isBusy = true,
-                    runningSessionId = runningId,
-                    runningSessionTitle = runningTitle
+                    messages = engineTranscript,
+                    activity = null,
+                    subAgentRunning = null,
+                    subAgentCurrentAction = null
                 )
             }
-            runHadError = false
-            try {
-                agentEngine.run(engineAgent)
-            } catch (_: CancellationException) {
-                appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
-            } finally {
-                withContext(NonCancellable) {
-                    currentRunIsVoice = false
-                    lastInputWasVoice = false
-                    agentEngine.saveCurrentSession()
-                    _uiState.update {
-                        it.copy(
-                            isBusy = false,
-                            runningSessionId = null,
-                            runningSessionTitle = null,
-                            activity = if (viewingEngineSession()) null else it.activity,
-                            subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
-                            subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
-                        )
-                    }
-                    agentJob = null
-                }
+            // Never promote undone work on the share card.
+            agentEngine.restoreRunSummaries(emptyList())
+            val editImage = imageBase64 ?: target.imageBase64
+            val msg = if (editImage != null) {
+                visionUserMessage(trimmed, editImage, "jpeg")
+            } else {
+                ChatMessage(role = "user", content = JsonPrimitive(trimmed))
             }
+            agentEngine.history += msg
+            appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, editImage)
+            executeRun(engineAgent, agentEngine.sessionId ?: return@launch)
+        }
+    }
+
+    /**
+     * Truncates the conversation so the user message [targetId] becomes the last
+     * message: its own replies and everything after are dropped from both the LLM
+     * history and the on-screen transcript, letting the user continue from a
+     * clean state. No LLM call, so it works even without a configured API key.
+     */
+    fun revertTo(targetId: Long) {
+        if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
+        val viewedId = _uiState.value.activeSessionId
+        viewModelScope.launch {
+            bindEngineToViewedSession(viewedId)
+            val transcript = engineTranscript
+            val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
+                ?: return@launch
+            val k = transcript.takeWhile { it.id != targetId }.count { it.kind == MessageKind.USER }
+            // History/transcript desync guard (e.g. after compaction the transcript
+            // is reset), so a stale target id bails without partial truncation.
+            if (k >= userTurnStarts(agentEngine.history).size) return@launch
+            val kept = truncateHistoryAtTurn(agentEngine.history, k, dropTurn = false)
+            agentEngine.history.clear()
+            agentEngine.history.addAll(kept)
+            engineTranscript = transcript.take(transcript.indexOf(target) + 1)
+            _uiState.update {
+                it.copy(
+                    messages = engineTranscript,
+                    activity = null,
+                    subAgentRunning = null,
+                    subAgentCurrentAction = null
+                )
+            }
+            // Re-derive the context readout from the truncated history, matching
+            // the engine's own estimate units so the meter doesn't lie after revert.
+            val tokens = kept.sumOf { it.textContent.length / 4 } + AgentEngine.PROMPT_OVERHEAD_TOKENS
+            agentEngine.tokenCount = tokens
+            applyContextUsage(tokens)
+            // Keep the drawer's live overlay in sync so the reverted session's
+            // row doesn't keep showing the pre-truncation count.
+            agentEngine.sessionId?.let { sid ->
+                _liveTokenBySession.update { it + (sid to tokens) }
+            }
+            // Never promote undone work on the share card.
+            agentEngine.restoreRunSummaries(emptyList())
+            agentEngine.saveCurrentSession()
+            refreshSessions()
         }
     }
 

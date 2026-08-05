@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Share
@@ -104,7 +105,9 @@ fun ChatScreen(
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
     onReturnToRunning: () -> Unit = {},
-    onCreateShareCard: () -> Unit = {}
+    onCreateShareCard: () -> Unit = {},
+    onEditMessage: (Long, String, String?) -> Unit = { _, _, _ -> },
+    onRevertMessage: (Long) -> Unit = { _ -> }
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -116,6 +119,10 @@ fun ChatScreen(
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
+    // Id of the user message being edited (composer pre-filled until sent/cancelled).
+    var editingMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Id of the user message pending a revert confirmation.
+    var pendingRevertId by remember { mutableStateOf<Long?>(null) }
     val listState = rememberLazyListState()
 
     // Everything already in the transcript when this chat opened is history, and
@@ -293,7 +300,17 @@ fun ChatScreen(
                                 message = message,
                                 onSpeak = onSpeak,
                                 isSpeaking = state.isSpeaking,
-                                onStopSpeaking = onStopSpeaking
+                                onStopSpeaking = onStopSpeaking,
+                                onEdit = { target ->
+                                    editingMessageId = target.id
+                                    // "(image attached)" is the display placeholder for an
+                                    // image-only prompt; leave the composer empty for those.
+                                    input = if (target.text == "(image attached)") "" else target.text
+                                    inputWasVoice = false
+                                    pendingImageUri = null
+                                    pendingImageBase64 = target.imageBase64
+                                },
+                                onRevert = { target -> pendingRevertId = target.id }
                             )
                         }
                     }
@@ -470,6 +487,49 @@ fun ChatScreen(
                 }
             }
 
+            // "Editing message" banner above the composer while an edit is armed.
+            val editingTarget = editingMessageId?.let { id -> state.messages.firstOrNull { it.id == id } }
+            if (editingTarget != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = RoundedCornerShape(skin.cornerSmall),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Editing message — sending will rewrite the conversation from here",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                editingMessageId = null
+                                pendingImageUri = null
+                                pendingImageBase64 = null
+                                input = ""
+                                inputWasVoice = false
+                            }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+
             // One pill rather than a docked row: it floats clear of the bottom
             // edge, and the send button is the only saturated fill on the screen.
             Surface(
@@ -577,7 +637,7 @@ fun ChatScreen(
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                                 }
                             }
-                            input.isBlank() && pendingImageBase64 == null -> {
+                            input.isBlank() && pendingImageBase64 == null && editingMessageId == null -> {
                                 IconButton(
                                     onClick = onStartListening,
                                     modifier = Modifier.size(40.dp),
@@ -589,7 +649,13 @@ fun ChatScreen(
                             else -> {
                                 IconButton(
                                     onClick = {
-                                        onSend(input, pendingImageBase64, inputWasVoice)
+                                        val editTarget = editingMessageId
+                                        if (editTarget != null) {
+                                            onEditMessage(editTarget, input, pendingImageBase64)
+                                        } else {
+                                            onSend(input, pendingImageBase64, inputWasVoice)
+                                        }
+                                        editingMessageId = null
                                         input = ""
                                         inputWasVoice = false
                                         pendingImageUri = null
@@ -657,6 +723,33 @@ fun ChatScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
+        )
+    }
+
+    val pendingRevert = pendingRevertId?.let { id -> state.messages.firstOrNull { it.id == id } }
+    if (pendingRevert != null) {
+        SkinAlertDialog(
+            onDismissRequest = { pendingRevertId = null },
+            title = { Text("Revert to this message?") },
+            text = {
+                Text(
+                    "This will delete all messages after this one, " +
+                        "then let you continue the conversation from here.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val id = pendingRevert.id
+                        pendingRevertId = null
+                        onRevertMessage(id)
+                    }
+                ) { Text("Revert") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRevertId = null }) { Text("Cancel") }
+            }
         )
     }
 }

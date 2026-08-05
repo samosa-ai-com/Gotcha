@@ -769,7 +769,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
-                        }
+                        },
+                        onEditMessage = { id, text, imageBase64 ->
+                            chatViewModel.editMessage(id, text, imageBase64)
+                        },
+                        onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )
                 }
             }
