@@ -15,6 +15,7 @@ import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
+import com.gotcha.llm.withValidToolCallArguments
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
@@ -514,7 +515,12 @@ class AgentEngine(
                 return
             }
 
-            history += message
+            // Persist a sanitized copy: a tool call whose arguments aren't valid
+            // JSON would otherwise be re-sent verbatim on every later turn and
+            // make the server 400 the whole chat (issue #13). executeToolCalls
+            // below still runs the ORIGINAL calls, so the model still sees the
+            // truthful "Malformed tool arguments" result and can fix itself.
+            history += message.withValidToolCallArguments()
             if (message.hasText || !message.reasoningContent.isNullOrBlank()) {
                 events.onUi(
                     MessageKind.ASSISTANT,

@@ -4,6 +4,19 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Fixed — Malformed tool call no longer bricks the chat (#13)
+
+- **A tool call with invalid `arguments` JSON can no longer poison a chat.** When
+  the model emits a tool call whose `arguments` aren't parseable (e.g. a cut-off
+  summary with stray `</summary>` tags), the app used to keep that raw message in
+  the history and re-send it on every later turn — and some servers 400 the whole
+  request when they see it, so every subsequent message failed too.
+- Malformed tool-call arguments are now neutralized to `{}` **before they are
+  stored or sent** (sanitized on append and again at the `LLMClient` send
+  boundary), so the chat keeps working. The model still receives the truthful
+  "Malformed tool arguments" tool result so it can retry. Sessions saved before
+  the fix self-heal on their next request.
+
 ### Added — `update_user_profile` agent tool (#18)
 
 - **The agent can now keep the user's profile fresh.** A new Operator-only
