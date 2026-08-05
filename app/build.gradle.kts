@@ -126,11 +126,18 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Use the release signing config when one was configured above; fall back
-            // to the debug key only so that a keyless checkout can still build a
-            // release APK locally.
+            // Use the release signing config when one was configured above. A keyless
+            // checkout may only fall back to the debug key when explicitly opted in via
+            // ALLOW_DEBUG_SIGNED_RELEASE=true (env or local.properties) — never silently,
+            // since a debug-signed "release" APK can masquerade as an official build but
+            // cannot update over the store version. Without either, the release build stays
+            // unsigned so a missing keystore fails loudly instead of silently producing a
+            // debug-signed release APK.
+            val allowDebugSignedRelease =
+                providers.environmentVariable("ALLOW_DEBUG_SIGNED_RELEASE").orNull == "true" ||
+                    keystoreProps.getProperty("ALLOW_DEBUG_SIGNED_RELEASE") == "true"
             signingConfig = signingConfigs.findByName("release")
-                ?: signingConfigs.getByName("debug")
+                ?: if (allowDebugSignedRelease) signingConfigs.getByName("debug") else null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
