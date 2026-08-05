@@ -64,7 +64,24 @@ internal class OnnxWakeWordPipeline(
     private var scoredFrames = 0
 
     init {
+        assertMelInputLengthDynamic()
         prefillFeatures()
+    }
+
+    /**
+     * The pipeline feeds the mel model a growing window (1280 → 1760 samples)
+     * until the ring buffer fills, so the model's length axis must be dynamic.
+     * Fails fast at construction if a bundled `.onnx` declares a static input
+     * length, instead of throwing on the second frame of every run.
+     */
+    private fun assertMelInputLengthDynamic() {
+        val input = melSession.inputInfo[melSession.inputNames.first()]?.info
+        val shape = (input as? ai.onnxruntime.TensorInfo)?.getShape() ?: return
+        val declaredLength = shape.getOrNull(1)
+        require(declaredLength == null || declaredLength == -1L) {
+            "melspectrogram.onnx declares a static input length of $declaredLength; " +
+                "the pipeline requires a dynamic length axis (up to $MEL_WINDOW samples)."
+        }
     }
 
     fun reset() {
