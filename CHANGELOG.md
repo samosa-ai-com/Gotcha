@@ -4,6 +4,20 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — Collapsible Connectors cards (#20)
+
+- **Connector cards collapse by default.** The Connectors screen now shows one
+  compact row per connector — title, live status line, and (once connected) the
+  enable switch — with the setup steps, credential fields and buttons hidden
+  until the row is tapped. Each card expands independently via a rotating
+  chevron on its header.
+- **Enable switch stays reachable.** Toggling a connector on/off no longer
+  requires expanding its card; the switch lives on the always-visible header
+  once connected. The expanded body keeps the explanatory copy and Disconnect.
+- **Connect affordance hint.** A disconnected connector's status reads
+  "Not connected — tap to set up" so it is clear the header opens the setup.
+  "Reconnect needed" OAuth states keep their fuller message.
+
 ### Added — Scaled Samosa credit display (#19)
 
 - **Remaining credit shown, never the raw value.** The AI Config and Speech

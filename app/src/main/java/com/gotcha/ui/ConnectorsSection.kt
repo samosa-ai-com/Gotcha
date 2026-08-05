@@ -81,6 +81,7 @@ private fun NotionCard(
         statusLine = notion::statusLine,
         isConnected = notion::isConnected,
         fields = listOf(token),
+        headerTestTag = "connector_header_notion",
         blurb = "Search, read and write Notion pages using an internal integration in your own " +
             "workspace — no OAuth app to register.",
         steps = listOf(
@@ -117,6 +118,7 @@ private fun ImapCard(
         statusLine = imap::statusLine,
         isConnected = imap::isConnected,
         fields = fields,
+        headerTestTag = "connector_header_imap",
         steps = listOf(
             "Needs an app password, not your regular password. Requires " +
                 "2-Step Verification to be enabled first.",
@@ -189,6 +191,7 @@ private fun GoogleCard(
         initialClientId = google.credentials()?.clientId ?: "",
         initialClientSecret = google.credentials()?.clientSecret ?: "",
         flow = flow,
+        headerTestTag = "connector_header_google",
         onDisconnect = google::disconnect,
         enabled = enabled,
         onEnabledChange = onEnabledChange,
@@ -250,6 +253,7 @@ private fun MicrosoftCard(
         // Public client — PKCE only, so there is no secret to paste.
         initialClientSecret = null,
         flow = flow,
+        headerTestTag = "connector_header_microsoft",
         onDisconnect = microsoft::disconnect,
         enabled = enabled,
         onEnabledChange = onEnabledChange,
