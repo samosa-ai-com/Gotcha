@@ -1,8 +1,11 @@
 package com.gotcha.audio
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.os.Handler
@@ -16,6 +19,7 @@ import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 /** Result of a single hands-free listening turn ([SttEngine.listenOnceAndroid]). */
@@ -50,6 +54,10 @@ class SttEngine(
     }
     private var currentRecorder: MediaRecorder? = null
     private var currentAudioFile: File? = null
+
+    /** Set by [cancelListening] to abort an in-flight VAD (hands-free) recording. */
+    @Volatile
+    private var vadStopRequested = false
 
     // Audio muting state
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
@@ -132,18 +140,127 @@ class SttEngine(
     suspend fun transcribeApi(
         audioFile: File,
         model: String,
-        language: String = ""
+        language: String = "",
+        contentType: String = "audio/m4a"
     ): Result<String> = withContext(Dispatchers.IO) {
         val api = audioApi ?: return@withContext Result.failure(Exception("API not configured"))
         try {
             api.transcribe(
                 audioFile = audioFile,
                 model = model,
-                language = language
+                language = language,
+                contentType = contentType
             )
         } finally {
             audioFile.delete()
         }
+    }
+
+    /**
+     * Listen for a single hands-free utterance and return its transcript.
+     *
+     * Unlike the push-to-talk path ([startListening] / [stopListeningAndTranscribe]),
+     * this ends on its own once the user has finished speaking:
+     *
+     * - Android provider: the platform's [SpeechRecognizer] endpoints on end of
+     *   speech (with a best-effort silence hint of [silenceTimeoutMs]).
+     * - API provider: raw PCM is captured via [AudioRecord] and a local
+     *   [SilenceDetector] stops the recording after [silenceTimeoutMs] of
+     *   trailing silence; the resulting WAV is transcribed through the API.
+     */
+    suspend fun listenForUtterance(
+        provider: AudioProvider,
+        model: String,
+        language: Language = Language.ENGLISH,
+        silenceTimeoutMs: Long
+    ): Result<String> = when {
+        provider == AudioProvider.ANDROID -> {
+            when (val outcome = listenOnceAndroid(language, silenceTimeoutMs)) {
+                is SttOutcome.Text ->
+                    if (outcome.text.isNotBlank()) {
+                        Result.success(outcome.text)
+                    } else {
+                        Result.failure(Exception("No speech detected"))
+                    }
+                is SttOutcome.Error -> Result.failure(Exception("Speech recognition failed: ${outcome.code}"))
+            }
+        }
+        provider.isApiBased() -> withContext(Dispatchers.IO) {
+            val wav = recordPcmWithVad(silenceTimeoutMs)
+            if (wav == null) {
+                Result.failure(Exception("No speech detected"))
+            } else {
+                transcribeApi(wav, model, language.iso639, contentType = "audio/wav")
+            }
+        }
+        else -> Result.failure(Exception("STT not configured"))
+    }
+
+    /**
+     * Records up to [silenceTimeoutMs] of trailing silence after speech using
+     * [AudioRecord] (16 kHz mono PCM-16) and returns a WAV file, or null when
+     * the user never spoke. Aborts when [cancelListening] is called.
+     */
+    @SuppressLint("MissingPermission")
+    private fun recordPcmWithVad(silenceTimeoutMs: Long): File? {
+        val sampleRate = 16_000
+        val windowShorts = 3_200 // 200 ms windows
+        val minBuffer = AudioRecord.getMinBufferSize(
+            sampleRate,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        )
+        val recorder = AudioRecord(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            sampleRate,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            maxOf(minBuffer, windowShorts * 2)
+        )
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) return null
+
+        vadStopRequested = false
+        val detector = SilenceDetector(silenceTimeoutMs)
+        val shortBuf = ShortArray(windowShorts)
+        val byteBuf = ByteArray(windowShorts * 2)
+        val pcm = ByteArrayOutputStream()
+        val startMs = System.currentTimeMillis()
+        var result: File? = null
+        try {
+            recorder.startRecording()
+            while (!vadStopRequested) {
+                val count = recorder.read(shortBuf, 0, shortBuf.size)
+                if (count < 0) break
+                if (count == 0) continue
+                for (i in 0 until count) {
+                    val sample = shortBuf[i].toInt()
+                    byteBuf[i * 2] = (sample and 0xFF).toByte()
+                    byteBuf[i * 2 + 1] = ((sample shr 8) and 0xFF).toByte()
+                }
+                pcm.write(byteBuf, 0, count * 2)
+                val now = System.currentTimeMillis()
+                val decision = detector.update(SilenceDetector.rmsDb(shortBuf, count), now)
+                if (decision != SilenceDetector.Decision.CONTINUE ||
+                    now - startMs > MAX_VAD_RECORDING_MS
+                ) {
+                    break
+                }
+            }
+            if (detector.speechDetected && pcm.size() > 0) {
+                result = writeWav(context.cacheDir, pcm.toByteArray(), sampleRate)
+            }
+        } catch (_: Exception) {
+            result = null
+        } finally {
+            try {
+                recorder.stop()
+            } catch (_: Exception) {
+                // Never started or already stopped.
+            }
+            recorder.release()
+            vadStopRequested = false
+        }
+        return result
     }
 
     // ---- Android STT (SpeechRecognizer) ----
@@ -322,7 +439,10 @@ class SttEngine(
      * its own (no stop call needed) and this returns the transcript or the
      * SpeechRecognizer error code. Used by the voice-call loop.
      */
-    suspend fun listenOnceAndroid(language: Language = Language.ENGLISH): SttOutcome {
+    suspend fun listenOnceAndroid(
+        language: Language = Language.ENGLISH,
+        silenceTimeoutMs: Long = 2000L
+    ): SttOutcome {
         if (currentRecognizer != null || onceGate != null) {
             return SttOutcome.Error(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
         }
@@ -361,6 +481,8 @@ class SttEngine(
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.bcp47)
+                    // Best-effort end-of-speech hint; the platform may ignore it.
+                    putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceTimeoutMs)
                 }
                 recognizer.startListening(intent)
             } catch (_: Exception) {
@@ -438,6 +560,7 @@ class SttEngine(
                 }
             }
             provider.isApiBased() -> {
+                vadStopRequested = true
                 try {
                     currentRecorder?.apply {
                         stop()
@@ -480,5 +603,60 @@ class SttEngine(
 
         /** Synthetic error code: listening was cancelled by pause/end, not by the recognizer. */
         const val ERROR_CANCELLED = -100
+
+        /** Hard cap on a single hands-free VAD recording (90 s). */
+        private const val MAX_VAD_RECORDING_MS = 90_000L
     }
+}
+
+private fun writeWav(cacheDir: File, pcm: ByteArray, sampleRate: Int): File {
+    // UUID suffix so two recordings created in the same millisecond never collide.
+    val file = File(
+        cacheDir,
+        "stt_hands_free_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}.wav"
+    )
+    file.outputStream().use { out ->
+        val dataSize = pcm.size
+        val header = ByteArray(44)
+        header[0] = 'R'.code.toByte()
+        header[1] = 'I'.code.toByte()
+        header[2] = 'F'.code.toByte()
+        header[3] = 'F'.code.toByte()
+        writeIntLittleEndian(header, 4, 36 + dataSize)
+        header[8] = 'W'.code.toByte()
+        header[9] = 'A'.code.toByte()
+        header[10] = 'V'.code.toByte()
+        header[11] = 'E'.code.toByte()
+        header[12] = 'f'.code.toByte()
+        header[13] = 'm'.code.toByte()
+        header[14] = 't'.code.toByte()
+        header[15] = ' '.code.toByte()
+        writeIntLittleEndian(header, 16, 16)
+        writeShortLittleEndian(header, 20, 1)
+        writeShortLittleEndian(header, 22, 1)
+        writeIntLittleEndian(header, 24, sampleRate)
+        writeIntLittleEndian(header, 28, sampleRate * 2)
+        writeShortLittleEndian(header, 32, 2)
+        writeShortLittleEndian(header, 34, 16)
+        header[36] = 'd'.code.toByte()
+        header[37] = 'a'.code.toByte()
+        header[38] = 't'.code.toByte()
+        header[39] = 'a'.code.toByte()
+        writeIntLittleEndian(header, 40, dataSize)
+        out.write(header)
+        out.write(pcm)
+    }
+    return file
+}
+
+private fun writeIntLittleEndian(bytes: ByteArray, offset: Int, value: Int) {
+    bytes[offset] = (value and 0xFF).toByte()
+    bytes[offset + 1] = ((value shr 8) and 0xFF).toByte()
+    bytes[offset + 2] = ((value shr 16) and 0xFF).toByte()
+    bytes[offset + 3] = ((value shr 24) and 0xFF).toByte()
+}
+
+private fun writeShortLittleEndian(bytes: ByteArray, offset: Int, value: Int) {
+    bytes[offset] = (value and 0xFF).toByte()
+    bytes[offset + 1] = ((value shr 8) and 0xFF).toByte()
 }
