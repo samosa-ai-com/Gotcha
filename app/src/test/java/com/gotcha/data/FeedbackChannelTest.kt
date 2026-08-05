@@ -64,6 +64,87 @@ class FeedbackChannelTest {
     }
 
     @Test
+    fun `short chat log is included verbatim`() {
+        val url = FeedbackChannel.buildFeedbackUrl(
+            FeedbackPrefill(chatLog = "hello world"),
+            formUrl,
+            entries
+        )
+
+        assertTrue(url, url.contains("entry.6=hello%20world"))
+    }
+
+    @Test
+    fun `oversized unicode chat log is fitted so the url stays under the cap`() {
+        // Devanagari + emoji expand 9-12x when percent-encoded; a 12k-char log
+        // would otherwise blow well past Google's prefilled-URL ceiling.
+        val log = buildString {
+            repeat(3000) {
+                append("यह एक परीक्षण संदेश है नोशन मेरी पेजें नहीं खुल रही हैं 😊🚀\n")
+            }
+        }
+        assertTrue(log.length > FeedbackChannel.DEFAULT_EXCERPT_CHARS)
+
+        val url = FeedbackChannel.buildFeedbackUrl(
+            FeedbackPrefill(
+                appVersion = "0.1.0",
+                deviceModel = "Pixel",
+                androidVersion = "Android 16",
+                userId = "user-123",
+                usageStats = "Runs: 13",
+                chatLog = log
+            ),
+            formUrl,
+            entries
+        )
+
+        assertTrue(url, url.length <= FeedbackChannel.MAX_PREFILL_URL_LEN)
+        assertTrue(url, url.contains("entry.6="))
+        // The head of the log must survive the encoded-length fit.
+        assertTrue(url, url.contains("%E0%A4%AF%E0%A4%B9"))
+    }
+
+    @Test
+    fun `chat log is dropped when it cannot fit even a snippet`() {
+        // A form URL already at the cap leaves no budget for the chat log.
+        val longBase = "https://forms.example.com/" + "x".repeat(8000)
+        val url = FeedbackChannel.buildFeedbackUrl(
+            FeedbackPrefill(chatLog = "should be dropped"),
+            longBase,
+            entries
+        )
+
+        assertFalse(url, url.contains("entry.6="))
+    }
+
+    @Test
+    fun `excerpt stays within maxChars even below the marker length`() {
+        // maxChars < marker length used to drive head/tail negative; the guard
+        // must fall back to a plain prefix instead of emitting a longer string.
+        val messages = (1..200).map { ChatMessage(role = "user", content = JsonPrimitive("message $it")) }
+        val excerpt = FeedbackChannel.chatLogExcerpt(messages, maxChars = 3)
+
+        assertTrue(excerpt, excerpt.length <= 3)
+        assertFalse(excerpt, excerpt.contains("truncated"))
+    }
+
+    @Test
+    fun `session header includes id start date and message count`() {
+        val session = ChatSession(
+            id = "abc123",
+            title = "Test",
+            lastModified = 1_700_000_000_000L,
+            messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("hi")))
+        )
+
+        val header = FeedbackChannel.sessionHeader(session)
+
+        assertTrue(header, header.contains("Session: abc123"))
+        assertTrue(header, header.contains("Started: "))
+        assertTrue(header, header.contains("Messages: 1"))
+    }
+
+    @Test
     fun `chat excerpt truncates from the middle within the char cap`() {
         val messages = (1..200).map { ChatMessage(role = "user", content = JsonPrimitive("message $it")) }
         val excerpt = FeedbackChannel.chatLogExcerpt(messages, maxChars = 200)

@@ -46,7 +46,7 @@ fun FeedbackSheet(
                 FeedbackToggle("App info (version, device, Android)", includeAppInfo) { includeAppInfo = it }
                 FeedbackToggle("Usage stats (chats, tool calls, runs)", includeUsageStats) { includeUsageStats = it }
                 FeedbackToggle(
-                    "Chat log excerpt (last ~3.5 KB of recent chat)",
+                    "Chat log excerpt (recent chat, sized to fit the form)",
                     includeChatLog
                 ) { includeChatLog = it }
                 FeedbackToggle("User ID (for cross-checking your feedback)", includeUserId) { includeUserId = it }
