@@ -550,4 +550,4 @@ class SettingsRepository(context: Context) {
  * constant, so non-material edits (typo fixes, formatting) should leave it
  * unchanged.
  */
-const val LEGAL_VERSION: String = "1"
+const val LEGAL_VERSION: String = "2"

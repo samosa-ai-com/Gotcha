@@ -1,142 +1,106 @@
 # Wake Word Handoff
 
 ## Goal
-Add an optional wake word ("Gotcha") to the existing Assistive Ball flow using
-Vosk instead of Porcupine, while reusing the current `CallSessionController`
-voice-call path.
+Add an optional wake word ("Hey Gotcha") to the existing Assistive Ball flow
+using [openWakeWord](https://github.com/dscripka/openWakeWord) ONNX models,
+while reusing the current `CallSessionController` voice-call path.
 
 ## Current status
 
-### Already in the current baseline
-- Vosk Android dependency in `app/build.gradle.kts`.
-- `Settings.wakeWordEnabled` and `Settings.wakeWordSensitivity`, with
-  persistence in `SettingsRepository`.
-- Initial `WakeWordDetector` integration in `AssistiveBallService`:
-  - listens only while the call controller is idle;
+### In production (merged)
+- **Engine:** direct Microsoft ONNX Runtime (`com.microsoft.onnxruntime:onnxruntime-android:1.26.0`).
+  The detector runs the melspectrogram → speech-embedding → classifier pipeline
+  directly, no third-party wrapper.
+- **Models:** three Apache-2.0 ONNX models in
+  `app/src/main/assets/openwakeword/` (see `docs/wake-word.md`). The
+  classifier (`hey_gotcha.onnx`) was trained by the Gotcha project on
+  synthetic Piper-TTS positives and OpenWakeWord's standard negatives.
+- **Settings:** `Settings.wakeWordEnabled` and `Settings.wakeWordSensitivity`,
+  persisted by `SettingsRepository`.
+- **Detection integration in `AssistiveBallService`:**
+  - listens only while the call controller is idle and both `wakeWordEnabled`
+    and `assistiveBallEnabled` are on;
   - stops for active call states, `stopBall()`, and `onDestroy()`;
   - on detection, vibrates and starts the existing call flow through
-    `callController.startWakeWordCall()`.
-- `CallSessionController.startWakeWordCall()` plus `autoEndOnReply`, so a
-  wake-word-triggered call ends after the spoken reply while ordinary calls
-  keep the existing stay-open behavior.
-- `WakeWordBootReceiver` and manifest registration for reboot restart.
-- Wake-word toggle in `AssistiveBallScreen`, with `SettingsScreen` passing
-  `load`/`onSave`.
-- `docs/wake-word.md` setup notes.
+    `callController.startWakeWordCall()`;
+  - pauses while `ttsEngine.isSpeaking` is true so a screen read-aloud that
+    contains "gotcha" cannot self-trigger a call;
+  - live settings: reacts to `wakeWordSensitivity` changes via
+    `settingsChangeNotifier` while idle;
+  - surfaces startup errors through the overlay.
+- **Auto-end after the task:** `CallSessionController.startWakeWordCall()`
+  plus the `autoEndOnReply` flag, so a wake-word-triggered call ends after
+  the spoken reply while ordinary calls keep the existing stay-open behavior.
+- **Boot restart:** `WakeWordBootReceiver` + manifest registration; only
+  fires when both `assistiveBallEnabled` and `wakeWordEnabled` are on.
+- **UI:** `AssistiveBallScreen` exposes a "Wake word: Hey Gotcha" toggle
+  and a sensitivity slider, plus a battery-optimization education row.
+- **Tests:** `WakeWordMatcherTest` covers sensitivity → threshold mapping
+  and patience; `SettingsTest` covers wake-word defaults; the
+  `CallSessionControllerTest` extension covers `startWakeWordCall` success
+  and failure paths.
+- **Legal:** `docs/privacy-data-retention.md` documents the wake-word data
+  flow (on-device only); `LEGAL_VERSION` bumped to 2 to force re-acceptance.
+- **License notice:** `app/src/main/assets/licenses/openwakeword-notice.txt`
+  lists the three bundled models and their Apache-2.0 provenance.
 
-### Added in the current uncommitted worktree
-- The official `vosk-model-small-en-us-0.15` model is now under
-  `app/src/main/assets/vosk-model-small-en-us-0.15/`.
-  - Source: `https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip`
-  - Upstream catalog lists it as Apache 2.0.
-  - Extracted size is about 71 MB; the source zip is about 40 MB.
-- New `service/WakeWordMatcher.kt`:
-  - exact-token phrase matching;
-  - maps sensitivity to 1/2/3 consecutive matching Vosk updates;
-  - intended to reduce false triggers from a single noisy partial result.
-- `service/WakeWordDetector.kt` is mid-refactor:
-  - model extraction/loading moved off the main thread;
-  - recognizer now uses the constrained grammar `["gotcha", "[unk]"]`;
-  - asset-tree copying was fixed for file leaves;
-  - cache extraction is versioned by `BuildConfig.VERSION_CODE`;
-  - callbacks were added for started/detected/error;
-  - a generation counter was started to avoid stale async initialization after
-    rapid stop/start, but that refactor is incomplete.
+### Architecture pieces intentionally kept engine-agnostic
+- `AssistiveBallService` idle-gating, `stopBall()`, `onDestroy()` cleanup.
+- `CallSessionController.startWakeWordCall()` + `autoEndOnReply`.
+- The `WakeWordBootReceiver` boot path.
+- The `Settings` data class and repository.
+- The `WakeWordDetector` public surface (`start()`/`stop()`/`isRunning()` +
+  `onStarted`/`onDetected`/`onError` callbacks + `sensitivityProvider`).
 
-## Current build state: intentionally paused while red
-The earlier synchronous implementation compiled successfully with:
+These are reusable if the underlying engine is swapped again (e.g. to a
+custom TFLite classifier).
 
-```powershell
-./gradlew.bat :app:compileDebugKotlin
-```
+## Manual device-verification checklist
 
-After the async/sensitivity refactor began, compilation is currently broken.
-Known issues:
-
-1. `AssistiveBallService.kt` still constructs `WakeWordDetector` without the
-   new required `sensitivityProvider` argument.
-2. `WakeWordDetector.start()` calls `initializeAndListen(startGeneration)`, but
-   `initializeAndListen()` has not yet been updated to accept a generation
-   parameter.
-3. The generation guard needs to be carried through initialization, listening,
-   and failure reporting so an old coroutine cannot install resources or report
-   an error after a newer start/stop cycle.
-
-Do not assume the worktree is green until the next compile succeeds.
-
-## Next implementation steps
-1. Finish the `WakeWordDetector` generation refactor:
-   - change `initializeAndListen()` to accept `generation: Int`;
-   - assign resources only when `running && generation == this.generation`;
-   - pass the generation into `listen()`;
-   - ignore stale listener failures from an old generation.
-2. Update `AssistiveBallService` construction:
-   - pass `sensitivityProvider = { settingsRepository.load().wakeWordSensitivity }`;
-   - pass `onStarted`, `onDetected`, and `onError` callbacks;
-   - surface detector startup failures through the existing overlay once, not
-     repeatedly.
-3. Add live settings handling in `AssistiveBallService` with
-   `settingsChangeNotifier`:
-   - track `(wakeWordEnabled, wakeWordSensitivity)`;
-   - stop when disabled;
-   - restart when sensitivity changes while idle;
-   - do not interrupt an active call.
-4. Add the sensitivity slider to `AssistiveBallScreen` and persist
-   `wakeWordSensitivity`.
-5. Decide whether to add the battery-optimization exemption request:
-   - manifest permission: `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`;
-   - contextual button/education from the Assistive Ball or Permissions page.
-6. Add/refresh legal copy:
-   - explain that wake-word listening uses the microphone while the ball is on
-     and idle;
-   - state that Vosk wake-word audio is processed on-device;
-   - state that only the post-trigger voice command uses the configured STT
-     provider;
-   - consider bumping `LEGAL_VERSION` because this is a material privacy change.
-7. Add an Apache 2.0 license/notice copy for the bundled Vosk model if the
-   project intends to commit and redistribute the model asset.
-8. Add tests:
-   - `WakeWordMatcher` exact-token and sensitivity-streak behavior;
-   - settings persistence for `wakeWordEnabled` / `wakeWordSensitivity`;
-   - `CallSessionController` wake-word auto-end behavior;
-   - optionally boot-receiver gating.
-9. Run:
-   - `./gradlew.bat :app:compileDebugKotlin`
-   - focused unit tests
-   - `:app:assembleDebug` to verify the 71 MB model packages correctly
-   - `:app:detekt` if time permits.
-10. Device-test the full loop:
-    - enable ball + microphone + wake word;
-    - say "Gotcha";
-    - confirm vibration, call start, mic turn, spoken reply, and auto-end;
-    - confirm ordinary long-press calls still stay open;
-    - test screen off, reboot, OEM battery behavior, and mic contention.
-
-## Files added or changed across the whole effort
-- `app/build.gradle.kts`
-- `app/src/main/AndroidManifest.xml`
-- `app/src/main/assets/vosk-model-small-en-us-0.15/**` (new, uncommitted)
-- `app/src/main/java/com/gotcha/data/SettingsRepository.kt`
-- `app/src/main/java/com/gotcha/service/AssistiveBallService.kt`
-- `app/src/main/java/com/gotcha/service/CallSessionController.kt`
-- `app/src/main/java/com/gotcha/service/WakeWordDetector.kt`
-- `app/src/main/java/com/gotcha/service/WakeWordMatcher.kt` (new, uncommitted)
-- `app/src/main/java/com/gotcha/tools/WakeWordBootReceiver.kt`
-- `app/src/main/java/com/gotcha/ui/AssistiveBallScreen.kt`
-- `app/src/main/java/com/gotcha/ui/SettingsScreen.kt`
-- `docs/wake-word.md`
-- `docs/wake-word-handoff.md`
+- [ ] Ball on, microphone granted, wake word on; say "Hey Gotcha" — call
+      starts, mic re-arms, agent replies, call auto-ends.
+- [ ] Say "Hey Gotcha" during an active call — ignored (idle gate).
+- [ ] Screen off — listener still detects (may require battery optimization
+      exemption on some OEMs).
+- [ ] Reboot — listener resumes via `WakeWordBootReceiver`.
+- [ ] TV / music playing near the phone — no false triggers at the balanced
+      threshold.
+- [ ] Slide sensitivity to "High precision" — stricter triggers, fewer
+      false activations.
 
 ## Risks / notes
-- Vosk avoids Porcupine's commercial APK licensing issue; the selected model is
-  listed upstream as Apache 2.0.
-- The model makes the APK substantially larger.
-- Vosk is being used with a constrained keyword grammar rather than unrestricted
-  transcription, but accuracy and false-positive behavior still require device
-  testing.
-- The current sensitivity model is app-defined (consecutive recognition hits),
-  not a native Vosk confidence threshold.
-- Mic contention is handled by the call-state idle gate, but this still needs
-  real-device validation.
-- The current worktree should be treated as an in-progress checkpoint, not as a
-  ready-to-run branch.
+
+- The custom classifier is Apache-2.0 because training data and architecture
+  are all Apache-2.0 (OpenWakeWord code + Google speech-embedding backbone
+  + Piper-TTS-generated positives + OpenWakeWord's standard negatives).
+- The detector runs three small ONNX models continuously; on a modern
+  Android device CPU usage is negligible compared to a full ASR engine.
+- Real-device false-accept rates must be validated before shipping the
+  always-on listener to users; the `Hey Gotcha` phrase is short and can
+  sound similar to casual speech in noisy environments. The sensitivity
+  slider and confuser-style pronunciation training give users a way to
+  trade off misses vs. false triggers.
+- Mic contention with the call STT is handled by the idle-gate, but
+  device-level validation is recommended.
+
+## Files in the wake-word effort
+
+- `app/build.gradle.kts` — adds ONNX Runtime dep.
+- `app/src/main/AndroidManifest.xml` — wake-word boot receiver,
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission.
+- `app/src/main/assets/openwakeword/{hey_gotcha.onnx,melspectrogram.onnx,embedding_model.onnx}`
+- `app/src/main/assets/licenses/openwakeword-notice.txt`
+- `app/src/main/assets/legal/privacy-data-retention.md` — wake-word section.
+- `app/src/main/java/com/gotcha/data/SettingsRepository.kt` — fields, persistence, `LEGAL_VERSION` bump.
+- `app/src/main/java/com/gotcha/audio/TtsEngine.kt` — `isSpeaking` tracking.
+- `app/src/main/java/com/gotcha/service/WakeWordDetector.kt` — detector.
+- `app/src/main/java/com/gotcha/service/OnnxWakeWordPipeline.kt` — ONNX pipeline.
+- `app/src/main/java/com/gotcha/service/WakeWordMatcher.kt` — threshold/patience.
+- `app/src/main/java/com/gotcha/service/CallSessionController.kt` — `autoEndOnReply`.
+- `app/src/main/java/com/gotcha/service/AssistiveBallService.kt` — idle-gate, TTS guard, live settings.
+- `app/src/main/java/com/gotcha/tools/WakeWordBootReceiver.kt` — boot restart.
+- `app/src/main/java/com/gotcha/ui/AssistiveBallScreen.kt` — toggle + slider + battery row.
+- `app/src/test/java/com/gotcha/service/WakeWordMatcherTest.kt` — unit tests.
+- `app/src/test/java/com/gotcha/data/SettingsTest.kt` — wake-word defaults.
+- `app/src/test/java/com/gotcha/service/CallSessionControllerTest.kt` — wake-word start paths.
+- `docs/wake-word.md`, `docs/wake-word-handoff.md`, `docs/MODEL_CARD.md`.
