@@ -17,6 +17,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /** Non-2xx Notion API response, with a user-actionable message. */
@@ -101,7 +102,9 @@ class NotionApi(
     ): ListResult {
         val url = buildString {
             append("$baseUrl/blocks/${blockId.trim()}/children?page_size=$pageSize")
-            startCursor?.let { append("&start_cursor=").append(it) }
+            startCursor?.let {
+                append("&start_cursor=").append(URLEncoder.encode(it, "UTF-8"))
+            }
         }
         return get(url, token).toListResult()
     }
