@@ -110,9 +110,11 @@ fun AssistiveBallScreen(
             }
             Slider(
                 value = wakeWordSensitivity,
-                onValueChange = {
-                    wakeWordSensitivity = it
-                    onSave { settings -> settings.copy(wakeWordSensitivity = it) }
+                // Update the local state on every drag tick but only persist once the
+                // user lifts their finger — avoids a SharedPreferences write per tick.
+                onValueChange = { wakeWordSensitivity = it },
+                onValueChangeFinished = {
+                    onSave { settings -> settings.copy(wakeWordSensitivity = wakeWordSensitivity) }
                 },
                 valueRange = 0f..1f,
                 modifier = Modifier
