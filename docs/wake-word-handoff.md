@@ -31,6 +31,20 @@ while reusing the current `CallSessionController` voice-call path.
 - **Auto-end after the task:** `CallSessionController.startWakeWordCall()`
   plus the `autoEndOnReply` flag, so a wake-word-triggered call ends after
   the spoken reply while ordinary calls keep the existing stay-open behavior.
+- **Hands-free wake-word calls:** after the "call started" announcement the
+  microphone opens itself; a voice-activity detector
+  (`audio/SilenceDetector.kt`) stops it after ~3 s of silence (API STT, via a
+  new `AudioRecord` + WAV path in `SttEngine.listenForUtterance`; ~2 s
+  platform end-of-speech hint for the Android provider). The transcript then
+  runs through the exact same `finishTurn` path as push-to-talk, so the two
+  flows behave identically downstream. The mic re-opens for agent questions,
+  and two silent listens end the call. Normal long-press calls are untouched
+  (`handsFree` is only set by `startWakeWordCall`; `startMic`/`stopMic` are
+  no-ops while it is set).
+- **Black/blank screen skip:** `ScreenSnapshot.isMostlyBlack()` drops
+  essentially-black screenshots (screen off/blank, common during wake-word
+  use) from every voice-call turn and substitutes a short explanatory note,
+  so the agent never reasons over a black frame.
 - **Boot restart:** `WakeWordBootReceiver` + manifest registration; only
   fires when both `assistiveBallEnabled` and `wakeWordEnabled` are on.
 - **UI:** `AssistiveBallScreen` exposes a "Wake word: Hey Gotcha" toggle
@@ -58,10 +72,18 @@ custom TFLite classifier).
 ## Manual device-verification checklist
 
 - [ ] Ball on, microphone granted, wake word on; say "Hey Gotcha" — call
-      starts, mic re-arms, agent replies, call auto-ends.
+      starts, "call started" announced, **mic opens by itself**, reply spoken,
+      call auto-ends.
+- [ ] Speak, pause >3 s (API STT) — mic stops on its own and the turn sends.
+- [ ] Keep speaking — mic stays open (no early cut-off).
+- [ ] Agent asks a question — mic re-opens itself and the spoken answer is
+      captured.
+- [ ] Say nothing — after two silent listens the call ends gracefully.
+- [ ] Wake word call with screen off — a black screenshot is NOT injected;
+      the LLM sees the "(screen was blank)" note.
+- [ ] Normal long-press call — still push-to-talk, mic/stop buttons work as
+      before, no auto-open.
 - [ ] Say "Hey Gotcha" during an active call — ignored (idle gate).
-- [ ] Screen off — listener still detects (may require battery optimization
-      exemption on some OEMs).
 - [ ] Reboot — listener resumes via `WakeWordBootReceiver`.
 - [ ] TV / music playing near the phone — no false triggers at the balanced
       threshold.
@@ -96,11 +118,17 @@ custom TFLite classifier).
 - `app/src/main/java/com/gotcha/service/WakeWordDetector.kt` — detector.
 - `app/src/main/java/com/gotcha/service/OnnxWakeWordPipeline.kt` — ONNX pipeline.
 - `app/src/main/java/com/gotcha/service/WakeWordMatcher.kt` — threshold/patience.
-- `app/src/main/java/com/gotcha/service/CallSessionController.kt` — `autoEndOnReply`.
+- `app/src/main/java/com/gotcha/service/CallSessionController.kt` — `autoEndOnReply`, hands-free auto-listen loop, black-screen skip.
 - `app/src/main/java/com/gotcha/service/AssistiveBallService.kt` — idle-gate, TTS guard, live settings.
+- `app/src/main/java/com/gotcha/audio/SttEngine.kt` — `listenForUtterance` (VAD hands-free listen + WAV path).
+- `app/src/main/java/com/gotcha/audio/SilenceDetector.kt` — noise-floor-adaptive voice-activity detector.
+- `app/src/main/java/com/gotcha/audio/AudioApi.kt` — transcribe content-type parameter.
+- `app/src/main/java/com/gotcha/agent/ScreenSnapshot.kt` — `isMostlyBlack()`.
 - `app/src/main/java/com/gotcha/tools/WakeWordBootReceiver.kt` — boot restart.
 - `app/src/main/java/com/gotcha/ui/AssistiveBallScreen.kt` — toggle + slider + battery row.
 - `app/src/test/java/com/gotcha/service/WakeWordMatcherTest.kt` — unit tests.
 - `app/src/test/java/com/gotcha/data/SettingsTest.kt` — wake-word defaults.
 - `app/src/test/java/com/gotcha/service/CallSessionControllerTest.kt` — wake-word start paths.
+- `app/src/test/java/com/gotcha/audio/SilenceDetectorTest.kt` — VAD decision tests.
+- `app/src/test/java/com/gotcha/agent/ScreenSnapshotTest.kt` — black-frame classification tests.
 - `docs/wake-word.md`, `docs/wake-word-handoff.md`, `docs/MODEL_CARD.md`.

@@ -45,6 +45,37 @@ corresponds to the model card's balanced threshold of 0.50.
 - The detector is paused while the App's own text-to-speech is playing, so
   the App reading "gotcha" aloud does not self-trigger a call.
 
+## Hands-free calls (wake word only)
+
+A wake-word-triggered call is **hands-free**, not push-to-talk:
+
+1. The wake word starts the call and the "call started" phrase is spoken.
+2. The microphone **opens automatically** once that announcement finishes.
+3. A voice-activity detector listens for the user's speech. When the user
+   stops talking for **~3 seconds** (API STT; the on-device Android recognizer
+   uses a ~2 s platform end-of-speech hint), the microphone **stops itself**.
+4. From that point the flow is identical to a normal call: the recording is
+   transcribed, cleaned, sent to the agent, and the reply is spoken.
+5. The call **ends itself** after the reply (the existing wake-word
+   auto-end behaviour), so it never stays open waiting for another tap.
+
+If the agent asks a clarifying question mid-call, the microphone re-opens by
+itself and the answer is captured the same way. After two silent listen
+attempts the call ends gracefully instead of listening forever.
+
+Normal long-press calls are unchanged: they stay push-to-talk, with the same
+mic/stop buttons and the same states.
+
+## Black / blank screen handling
+
+Every voice-call turn attaches a screenshot of the current screen. Before it
+is injected into the model, the screenshot is checked: a frame that is
+essentially solid black (the screen was off or blank — common during
+wake-word use) is **not sent**; instead the turn carries a short note
+"(The screen was blank or off — no screenshot was sent.)" so the agent does
+not reason over a meaningless black frame. Dark apps with visible content
+have enough bright pixels/variance to still be sent.
+
 ## Battery and reliability
 
 OEM battery managers may kill the always-on listener. The Assistive Ball
