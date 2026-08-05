@@ -65,7 +65,9 @@ fun MessageBubble(
     message: UiMessage,
     onSpeak: (String) -> Unit = {},
     isSpeaking: Boolean = false,
-    onStopSpeaking: () -> Unit = {}
+    onStopSpeaking: () -> Unit = {},
+    onEdit: (UiMessage) -> Unit = {},
+    onRevert: (UiMessage) -> Unit = {}
 ) {
     val context = LocalContext.current
     val isUser = message.kind == MessageKind.USER
@@ -268,6 +270,22 @@ fun MessageBubble(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
         ) {
+            if (isUser) {
+                DropdownMenuItem(
+                    text = { Text("Edit message") },
+                    onClick = {
+                        showMenu = false
+                        onEdit(message)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Revert to this message") },
+                    onClick = {
+                        showMenu = false
+                        onRevert(message)
+                    }
+                )
+            }
             DropdownMenuItem(
                 text = { Text("Copy as text") },
                 onClick = {

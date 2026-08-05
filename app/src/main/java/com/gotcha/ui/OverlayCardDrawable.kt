@@ -139,7 +139,7 @@ class OverlayCardDrawable(
         shadowPaint.colorFilter = colorFilter
     }
 
-    @Suppress("Deprecated")
+    @Deprecated("Deprecated in Java")
     override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 
     private companion object {

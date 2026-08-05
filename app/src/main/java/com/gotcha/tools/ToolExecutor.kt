@@ -23,7 +23,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
-    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null
+    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null,
+    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null
 ) {
 
     private companion object {
@@ -47,6 +48,7 @@ class ToolExecutor(
     private val appsTool = AppsTool(appContext)
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
+    private val companyInfoTool = CompanyInfoTool(appContext)
 
     // Tier 3 tools
     private val webSearchTool = WebSearchTool()
@@ -166,6 +168,7 @@ class ToolExecutor(
             "dial_number" -> phoneTool.dialNumber(args.requireString("number") ?: return missing("number"))
             "get_storage_info" -> storageTool.getStorageInfo()
             "get_battery_info" -> systemTool.getBatteryInfo()
+            "about_samosa_ai" -> companyInfoTool.aboutSamosaAi()
             "edit" -> editTool.edit(
                 path = args.requireString("path") ?: return missing("path"),
                 oldString = args.requireString("oldString") ?: return missing("oldString"),
@@ -374,6 +377,20 @@ class ToolExecutor(
                     val description = args.requireString("description") ?: return missing("description")
                     val prompt = args.requireString("prompt") ?: return missing("prompt")
                     handler(description, prompt)
+                }
+            }
+            "update_user_profile" -> {
+                val handler = onUpdateUserProfile
+                if (handler == null) {
+                    ToolResult.error("Profile updates are not configured.")
+                } else {
+                    handler(
+                        ProfileUpdate(
+                            occupation = args.requireString("occupation"),
+                            background = args.requireString("background"),
+                            replyStyle = args.requireString("reply_style")
+                        )
+                    )
                 }
             }
             "sleep" -> {

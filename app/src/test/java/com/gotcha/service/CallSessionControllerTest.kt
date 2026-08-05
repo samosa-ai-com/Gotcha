@@ -154,4 +154,99 @@ class CallSessionControllerTest {
 
         assertTrue("a changed API key must force a client rebuild", first !== second)
     }
+
+    @Test
+    fun `startWakeWordCall transitions out of idle when configuration is valid`() {
+        settingsRepository.save(
+            Settings(
+                provider = LlmProvider.SAMOSA_AI,
+                samosaSessionToken = "samosa-jwt-token",
+                sttProvider = AudioProvider.SAMOSA_AI,
+                sttApiModel = "whisper-1",
+                ttsProvider = AudioProvider.SAMOSA_AI,
+                ttsApiModel = "tts-1"
+            )
+        )
+
+        val started = controller.startWakeWordCall()
+
+        assertTrue("startWakeWordCall should reuse the valid startCall path", started)
+        assertTrue(
+            "A wake-word call must immediately leave the idle state",
+            controller.isActive()
+        )
+    }
+
+    @Test
+    fun `startWakeWordCall fails when configuration is invalid`() {
+        // No provider / API key configured — buildClient() returns null and
+        // the call reports an error, so startWakeWordCall must short-circuit.
+        var errorMessage: String? = null
+        controller.onError = { errorMessage = it }
+
+        val started = controller.startWakeWordCall()
+
+        assertFalse("startWakeWordCall must surface configuration errors", started)
+        assertTrue(errorMessage != null)
+        assertFalse("The call controller must stay idle on a failed wake-word start", controller.isActive())
+    }
+
+    @Test
+    fun `screenContextNote asks the user to enable accessibility when capture is unavailable`() {
+        val note = controller.screenContextNote(
+            captureAvailable = false,
+            screenText = null,
+            blankScreen = false
+        )
+        assertTrue(
+            "the accessibility-off note must tell the user to enable the service",
+            note.contains("accessibility service is turned off") &&
+                note.contains("Accessibility → Gotcha")
+        )
+    }
+
+    @Test
+    fun `screenContextNote prefers screen text and the blank-screen note over the generic fallback`() {
+        val withText = controller.screenContextNote(
+            captureAvailable = false,
+            screenText = "Settings → About",
+            blankScreen = false
+        )
+        assertTrue(withText.contains("Current screen text:") && withText.contains("Settings → About"))
+
+        val blank = controller.screenContextNote(
+            captureAvailable = true,
+            screenText = null,
+            blankScreen = true
+        )
+        assertTrue(blank.contains("screen was blank or off"))
+
+        val failed = controller.screenContextNote(
+            captureAvailable = true,
+            screenText = null,
+            blankScreen = false
+        )
+        assertTrue(failed.contains("could not be captured"))
+    }
+
+    @Test
+    fun `hands-free input waits for a pending question and never for a confirmation overlay`() {
+        // Call-started announcement done → READY means "awaiting spoken input".
+        assertTrue(controller.awaitingHandsFreeInput(CallState.READY, questionPending = false))
+        assertTrue(controller.awaitingHandsFreeInput(CallState.READY, questionPending = true))
+
+        // Agent question pending → the gate is held, so the mic opens.
+        assertTrue(controller.awaitingHandsFreeInput(CallState.WAITING_USER, questionPending = true))
+
+        // A destructive-action confirmation prompt also sets WAITING_USER, but
+        // holds no questionGate — the mic must NOT auto-open (opening it and
+        // letting finishTurn fall through to a fresh turn would run two agent
+        // turns concurrently while awaitConfirmation is still suspended).
+        assertFalse(controller.awaitingHandsFreeInput(CallState.WAITING_USER, questionPending = false))
+
+        // Agent is busy answering / speaking → not awaiting input.
+        assertFalse(controller.awaitingHandsFreeInput(CallState.THINKING, questionPending = false))
+        assertFalse(controller.awaitingHandsFreeInput(CallState.THINKING, questionPending = true))
+        assertFalse(controller.awaitingHandsFreeInput(CallState.SPEAKING, questionPending = true))
+    }
 }

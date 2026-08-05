@@ -7,6 +7,22 @@
       "manualSteps": "Ask the agent to 'open the dialer with +49123456789'; confirm the dialer opens pre-filled and does NOT place the call."
     },
     {
+      "tool": "update_user_profile",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.tools.UpdateUserProfileTest"
+      ],
+      "notes": "merge semantics (modify-and-extend, never erase), the no-op guard, and the 250/50-word caps"
+    },
+    {
+      "tool": "about_samosa_ai",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.CompanyInfoToolTest"
+      ],
+      "notes": "the bundled asset ships and still contains the company, product and contact facts the tool promises"
+    },
+    {
       "tool": "get_storage_info",
       "tier": "ROBOLECTRIC",
       "tests": [
@@ -632,7 +648,7 @@
       "tests": [
         "com.gotcha.connectors.notion.NotionToolsTest"
       ],
-      "notes": "query routing and result formatting"
+      "notes": "query routing and result formatting, including database titles and title-column definitions with an object title"
     },
     {
       "tool": "notion_read_page",
@@ -641,7 +657,7 @@
         "com.gotcha.connectors.notion.NotionToolsTest",
         "com.gotcha.connectors.notion.NotionBlockRendererTest"
       ],
-      "notes": "page fetch plus block-to-markdown rendering"
+      "notes": "page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering"
     },
     {
       "tool": "notion_create_page",
@@ -658,6 +674,30 @@
         "com.gotcha.connectors.notion.NotionToolsTest"
       ],
       "notes": "block append request shape"
+    },
+    {
+      "tool": "notion_update_page",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsMutationTest"
+      ],
+      "notes": "property-value payloads built from simple values (checkbox/select/status/title/number/multi_select), non-numeric and unsupported-type rejection, unknown-column rejection, id-prefix stripping"
+    },
+    {
+      "tool": "notion_mark_todo",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsMutationTest"
+      ],
+      "notes": "checked-state patch request shape and id-prefix stripping"
+    },
+    {
+      "tool": "notion_delete_item",
+      "tier": "UNIT",
+      "tests": [
+        "com.gotcha.connectors.notion.NotionToolsMutationTest"
+      ],
+      "notes": "page trash patch vs block delete request shapes"
     },
     {
       "tool": "get_health_summary",

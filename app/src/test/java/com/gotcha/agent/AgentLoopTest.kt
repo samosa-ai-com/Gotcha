@@ -5,13 +5,16 @@ import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
+import com.gotcha.llm.ChatRequest
 import com.gotcha.llm.LLMClient
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -163,6 +166,38 @@ class AgentLoopTest {
         server.takeRequest()
         val followUp = server.takeRequest().body.readUtf8()
         assertTrue("the error was not returned to the model:\n$followUp", followUp.contains("content"))
+    }
+
+    @Test
+    fun `a malformed tool call does not poison subsequent turns (issue 13)`() = runTest {
+        // The exact shape that bricked issue #13: the model emitted a tool call
+        // whose `arguments` are not valid JSON (a cut-off summary string).
+        enqueueToolCall("finish_task", """{"summary": "cut off at the end""")
+        enqueueTextReply("Got it.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        // The loop continues past the malformed call instead of aborting.
+        assertEquals("expected a follow-up turn after the malformed call", 2, server.requestCount)
+        server.takeRequest()
+        val followUpBody = server.takeRequest().body.readUtf8()
+        val sent = Json { ignoreUnknownKeys = true }.decodeFromString(ChatRequest.serializer(), followUpBody)
+
+        // The poisoned arguments were neutralized before they could be re-sent,
+        // so a strict server would not 400 the whole chat on this history.
+        val replayedArguments = sent.messages
+            .flatMap { it.toolCalls.orEmpty() }
+            .filter { it.id == "call_1" }
+            .map { it.function.arguments }
+        assertTrue("the tool call was not replayed", replayedArguments.isNotEmpty())
+        replayedArguments.forEach { assertEquals("{}", it) }
+
+        // The model still saw the truthful error text so it could recover.
+        assertTrue(
+            "the malformed-arguments error was not fed back to the model:\n$followUpBody",
+            sent.messages.any { it.role == "tool" && it.textContent.contains("Malformed tool arguments") }
+        )
+        assertEquals("Got it.", events.assistantReplies.lastOrNull())
     }
 
     @Test
@@ -556,5 +591,45 @@ class AgentLoopTest {
 
         assertEquals(listOf(true, false), events.screenCaptureChrome)
         assertEquals(1, events.screenReadDoneCount)
+    }
+
+    // ---- MediaProjection consent is requested on demand, never at launch ----
+
+    /**
+     * Consent is no longer requested in `MainActivity.onCreate`, so a failed capture
+     * with no token held is the only thing that can ask for it. If this stops firing,
+     * `read_screen` loses its screenshot for good on devices without accessibility.
+     */
+    @Test
+    fun `a failed capture with no consent token asks for screenshot consent`() = runTest {
+        ScreenPerception.mediaProjectionResultData = null
+
+        engine.injectReadScreenObservation()
+
+        assertTrue(
+            "expected a consent request, got ${events.permissionRequests}",
+            events.permissionRequests.contains("special:screenshot_consent")
+        )
+    }
+
+    /**
+     * From API 34 a consent token backs exactly one capture session. Holding on to a
+     * spent token would keep the request above from ever firing again, so the token
+     * must be dropped as it is consumed. (The capture itself cannot succeed under
+     * Robolectric; only the token bookkeeping is under test.)
+     */
+    @Test
+    fun `a consumed MediaProjection token is not reused for the next capture`() = runTest {
+        val savedContext = ScreenPerception.appContext
+        ScreenPerception.appContext = context
+        ScreenPerception.mediaProjectionResultData = android.content.Intent()
+        try {
+            ScreenPerception.captureRawScreenshotBytes()
+
+            assertEquals(null, ScreenPerception.mediaProjectionResultData)
+        } finally {
+            ScreenPerception.appContext = savedContext
+            ScreenPerception.mediaProjectionResultData = null
+        }
     }
 }

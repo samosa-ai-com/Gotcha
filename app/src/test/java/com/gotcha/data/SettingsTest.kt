@@ -305,4 +305,24 @@ class SettingsTest {
         )
         assertEquals(false, samosa.hasUsableModel)
     }
+
+    @Test
+    fun `wake word defaults match the model card balanced recommendation`() {
+        val defaults = Settings()
+        assertEquals(false, defaults.wakeWordEnabled)
+        // 0.75 sensitivity maps to threshold 0.50; we keep the slider in the
+        // upper-mid range by default so a first-time user gets the balanced
+        // behaviour the model card recommends.
+        assertEquals(0.75f, defaults.wakeWordSensitivity, 0.001f)
+    }
+
+    @Test
+    fun `wake word settings are independent fields on copy`() {
+        val defaults = Settings()
+        val enabled = defaults.copy(wakeWordEnabled = true, wakeWordSensitivity = 0.35f)
+        assertEquals(true, enabled.wakeWordEnabled)
+        assertEquals(0.35f, enabled.wakeWordSensitivity, 0.001f)
+        // Untouched fields stay at their defaults.
+        assertEquals(false, enabled.assistiveBallEnabled)
+    }
 }

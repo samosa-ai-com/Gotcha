@@ -39,6 +39,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Lets the user whitelist the always-on "Hey Gotcha" listener so OEM
+         battery managers don't kill it while the ball is running. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Tier 0–2: device control (normal / special-access) -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -226,6 +229,14 @@
              BOOT_COMPLETED is a protected broadcast only the system can send. -->
         <receiver
             android:name=".tools.AlarmBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".tools.WakeWordBootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

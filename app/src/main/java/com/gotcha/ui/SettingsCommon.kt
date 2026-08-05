@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import java.text.NumberFormat
+import kotlin.math.round
 
 /**
  * Building blocks shared by the settings pages (see [SettingsScreen]). Each page
@@ -61,9 +63,25 @@ import kotlinx.coroutines.delay
  * Declaration order is the order of the home list; nothing reads the ordinal, so
  * this is the only place the menu is arranged. What the assistant *is* comes
  * first — who it thinks you are, which model it runs, what it may touch — and
- * the two pages about how the app presents itself sit at the end.
+ * the page about how the app presents itself sits at the end.
+ *
+ * Most pages hang directly off the home list. The exceptions declare a [parent]:
+ * they are full pages, routed and titled like any other, but reached from inside
+ * that parent instead of from the home list. [ABOUT] is the only such hub today,
+ * collecting "who made this app and what did I agree to" into one row.
  */
-enum class SettingsPage(val title: String, val summary: String, val testTag: String) {
+enum class SettingsPage(
+    val title: String,
+    val summary: String,
+    val testTag: String,
+    /**
+     * The page this one is reached from, or null for the home list. Doubles as
+     * the Back target, so a nested page returns to its hub rather than skipping
+     * out to the home list. Declared lazily because an enum entry cannot name a
+     * later one in its own constructor call.
+     */
+    val parentPage: () -> SettingsPage? = { null }
+) {
     PERSONAL_INFO(
         "Personal Info",
         "Who you are, language, currency, reply style",
@@ -109,11 +127,28 @@ enum class SettingsPage(val title: String, val summary: String, val testTag: Str
         "How you're alerted when a reply arrives",
         "settings_notifications_row"
     ),
+    ABOUT(
+        "About Us",
+        "Samosa AI, other products, legal, contact",
+        "settings_about_row"
+    ),
+    ABOUT_SAMOSA(
+        "About Samosa AI",
+        "Mission, products, pricing, developers",
+        "settings_about_samosa_row",
+        { ABOUT }
+    ),
     LEGAL(
         "Legal",
         "Terms, disclaimer, data retention",
-        "settings_legal_row"
-    )
+        "settings_legal_row",
+        { ABOUT }
+    );
+
+    /** Pages the home list shows: everything that isn't nested inside a hub. */
+    companion object {
+        val topLevel: List<SettingsPage> get() = entries.filter { it.parentPage() == null }
+    }
 }
 
 /**
@@ -275,6 +310,14 @@ private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modif
     }
 }
 
+/**
+ * The credit figure shown to the user: the raw float scaled by ×1000 and
+ * rounded to a whole number, with thousands separators. The raw value is never
+ * rendered anywhere — this is the only way the balance reaches the UI.
+ */
+internal fun formatScaledCredits(credits: Double): String =
+    NumberFormat.getIntegerInstance().format(round(credits * 1000).toLong())
+
 /** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
 @Composable
 fun SamosaAuthSection(
@@ -283,6 +326,8 @@ fun SamosaAuthSection(
     busy: Boolean,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    /** Raw remaining credit; scaled ×1000 for display. Null hides the line. */
+    creditsRemaining: Double? = null,
     /** Applied to the sign-in button only, so the tour can spotlight it. */
     signInModifier: Modifier = Modifier
 ) {
@@ -295,6 +340,12 @@ fun SamosaAuthSection(
         if (signedIn && email.isNotBlank()) {
             Text(
                 text = email,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        if (signedIn && creditsRemaining != null) {
+            Text(
+                text = "Credits remaining: ${formatScaledCredits(creditsRemaining)}",
                 style = MaterialTheme.typography.bodyMedium
             )
         }

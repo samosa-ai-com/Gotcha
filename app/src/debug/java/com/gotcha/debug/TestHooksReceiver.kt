@@ -68,7 +68,12 @@ class TestHooksReceiver : BroadcastReceiver() {
 
         repository.prefs.edit()
             .putBoolean(MainActivity.KEY_FIRST_LAUNCH_DONE, true)
-            .putBoolean(MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, true)
+            // Suppressed by default so automated runs never meet the system dialog;
+            // pass --ez suppress_projection false to exercise the consent flow by hand.
+            .putBoolean(
+                MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT,
+                intent.getBooleanExtra(EXTRA_SUPPRESS_PROJECTION, true)
+            )
             .apply()
     }
 
@@ -81,6 +86,7 @@ class TestHooksReceiver : BroadcastReceiver() {
         const val EXTRA_API_KEY = "api_key"
         const val EXTRA_MODEL = "model"
         const val EXTRA_ASSISTIVE_BALL = "assistive_ball"
+        const val EXTRA_SUPPRESS_PROJECTION = "suppress_projection"
     }
 }
 

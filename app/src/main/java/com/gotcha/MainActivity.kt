@@ -40,9 +40,12 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
+import com.gotcha.data.FeedbackChannel
+import com.gotcha.data.FeedbackPrefill
 import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.computeFeedbackStats
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.notifications.NotificationDispatcher
@@ -55,6 +58,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
+import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
@@ -227,16 +231,11 @@ class MainActivity : ComponentActivity() {
                 requestAllRuntimePermissions()
                 prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
             }
-            // Request MediaProjection consent for screenshot capture
-            // Always request if not granted in this process session (cleared on process kill)
-            if (ScreenPerception.mediaProjectionResultData == null &&
-                !prefs.getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
-            ) {
-                val mpManager = getSystemService(
-                    Context.MEDIA_PROJECTION_SERVICE
-                ) as android.media.projection.MediaProjectionManager
-                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-            }
+            // MediaProjection consent is deliberately NOT requested here. The token
+            // dies with the process and is single-use on API 34, so prompting at
+            // launch would re-fire the system dialog on every cold start for a
+            // capability the user hasn't asked for yet. It is requested on demand
+            // instead — see the "special:screenshot_consent" branch below.
         }
 
         appearance = settingsRepository.load().appearance()
@@ -325,10 +324,14 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_SHORT
             ).show()
             "special:screenshot_consent" -> {
-                val mpManager = getSystemService(
-                    Context.MEDIA_PROJECTION_SERVICE
-                ) as android.media.projection.MediaProjectionManager
-                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                val suppressed = settingsRepository.prefs
+                    .getBoolean(KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, false)
+                if (!suppressed) {
+                    val mpManager = getSystemService(
+                        Context.MEDIA_PROJECTION_SERVICE
+                    ) as android.media.projection.MediaProjectionManager
+                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                }
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
@@ -506,6 +509,7 @@ class MainActivity : ComponentActivity() {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
+        var showFeedbackSheet by remember { mutableStateOf(false) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
@@ -693,6 +697,7 @@ class MainActivity : ComponentActivity() {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
                         },
+                        onFetchSamosaCredits = { samosaAuthManager.fetchCreditsRemaining() },
                         onSyncServerMessages = {
                             val s = settingsRepository.load()
                             if (!s.serverMessagesEnabled) return@SettingsScreen null
@@ -719,6 +724,7 @@ class MainActivity : ComponentActivity() {
                             assistiveBallOn = setAssistiveBall(enabled)
                         },
                         onStartTour = { startTour() },
+                        onSendFeedback = { showFeedbackSheet = true },
                         page = settingsPage,
                         onPageChange = { settingsPage = it }
                     )
@@ -764,7 +770,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
-                        }
+                        },
+                        onEditMessage = { id, text, imageBase64 ->
+                            chatViewModel.editMessage(id, text, imageBase64)
+                        },
+                        onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )
                 }
             }
@@ -795,12 +805,45 @@ class MainActivity : ComponentActivity() {
                 loading = sharePoster.loading,
                 preview = sharePoster.preview,
                 error = sharePoster.error,
-                hasImage = chatViewModel.activeSessionHasImage(),
                 onGenerate = sharePoster::generate,
                 onShare = { sharePoster.preview?.let { sharePoster.share(it) } },
                 onSave = { sharePoster.preview?.let { sharePoster.save(it) } },
                 onRegenerate = sharePoster::generate,
                 onDismiss = sharePoster::dismiss
+            )
+        }
+
+        if (showFeedbackSheet) {
+            FeedbackSheet(
+                onDismiss = { showFeedbackSheet = false },
+                onSubmit = { includeAppInfo, includeUsageStats, includeChatLog, includeUserId ->
+                    showFeedbackSheet = false
+                    lifecycleScope.launch {
+                        val url = buildFeedbackPrefillUrl(
+                            includeAppInfo,
+                            includeUsageStats,
+                            includeChatLog,
+                            includeUserId
+                        )
+                        if (url.isBlank()) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Feedback form is not configured",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@launch
+                        }
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "No app can open the feedback form",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
             )
         }
 
@@ -838,6 +881,44 @@ class MainActivity : ComponentActivity() {
         response.choices.firstOrNull()?.message?.textContent?. take(60) ?: "empty response"
     }
 
+    /**
+     * Gathers the consent-selected feedback pre-fill and builds the form URL.
+     * Called on the main dispatcher; the stats/excerpt/user-id work is suspend
+     * and offloaded by the underlying helpers. Never throws.
+     */
+    private suspend fun buildFeedbackPrefillUrl(
+        includeAppInfo: Boolean,
+        includeUsageStats: Boolean,
+        includeChatLog: Boolean,
+        includeUserId: Boolean
+    ): String {
+        val settings = settingsRepository.load()
+        val metadata = if (includeAppInfo) {
+            FeedbackChannel.deviceMetadata(this)
+        } else {
+            FeedbackPrefill()
+        }
+        val userId = if (includeUserId) {
+            FeedbackChannel.resolveSamosaUserId(settings.samosaSessionToken, settings.samosaEmail)
+                ?: settingsRepository.anonymousFeedbackId()
+        } else {
+            null
+        }
+        val stats = if (includeUsageStats) {
+            computeFeedbackStats(this).toPrefillText()
+        } else {
+            null
+        }
+        val chatLog = if (includeChatLog) {
+            FeedbackChannel.recentChatExcerpt(this)
+        } else {
+            null
+        }
+        return FeedbackChannel.buildFeedbackUrl(
+            metadata.copy(userId = userId, usageStats = stats, chatLog = chatLog)
+        )
+    }
+
     companion object {
         /** Intent extra: when true, launch straight into the chat screen. */
         const val EXTRA_OPEN_CHAT = "com.gotcha.OPEN_CHAT"
@@ -848,7 +929,10 @@ class MainActivity : ComponentActivity() {
         /** SharedPreferences key to track first-launch permission setup. */
         const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"
 
-        /** SharedPreferences key: when true, skip the MediaProjection consent prompt (test-only). */
+        /**
+         * SharedPreferences key: when true, skip the on-demand MediaProjection consent
+         * prompt so instrumentation never faces the system dialog (test-only).
+         */
         const val KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT = "suppress_media_projection_prompt"
 
         /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */

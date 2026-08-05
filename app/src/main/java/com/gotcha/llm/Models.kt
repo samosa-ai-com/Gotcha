@@ -4,6 +4,7 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -164,3 +165,33 @@ data class ModelInfo(
     @SerialName("provider_type")
     val providerType: String? = null
 )
+
+/**
+ * True when [arguments] parses as a JSON object — the shape a tool-call
+ * `arguments` string must take. Used to neutralize model-emitted tool calls
+ * whose arguments are invalid JSON: some OpenAI-compatible servers reject the
+ * whole request with HTTP 400 when history contains such a call, bricking the
+ * chat for every later message (issue #13).
+ */
+internal fun isParsableJsonObject(arguments: String): Boolean = try {
+    Json.parseToJsonElement(arguments) is JsonObject
+} catch (_: Exception) {
+    false
+}
+
+/**
+ * Copy of this message with any tool call whose `arguments` are not valid JSON
+ * replaced by `"{}"`; valid calls are left untouched. Callers persist or send
+ * this copy so a malformed call can never poison the request again.
+ */
+internal fun ChatMessage.withValidToolCallArguments(): ChatMessage {
+    val calls = toolCalls ?: return this
+    val sanitized = calls.map { call ->
+        if (isParsableJsonObject(call.function.arguments)) {
+            call
+        } else {
+            call.copy(function = call.function.copy(arguments = "{}"))
+        }
+    }
+    return copy(toolCalls = sanitized)
+}

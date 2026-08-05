@@ -9,8 +9,8 @@ import kotlinx.serialization.Serializable
  *
  * The LLM never writes the numbers — duration/counts are computed
  * deterministically by the app so they can't be hallucinated. The model
- * identity is intentionally hardcoded in the renderer's branding copy
- * ("Built with Samosa AI") and is not carried on [PosterStats].
+ * identity is shown in the stat chips (the actual model used); the footer's
+ * branding copy is hardcoded ("Built with Samosa AI").
  */
 @Serializable
 data class PosterContent(
@@ -34,6 +34,8 @@ data class PosterStats(
     val runCount: Int,
     val totalDurationSeconds: Long,
     val toolCount: Int,
+    /** The model that produced the runs, for the "🤖 model" stat chip. */
+    val model: String,
     val achievementCount: Int = 0
 ) {
     val durationDisplay: String
@@ -55,7 +57,9 @@ object PosterStatsBuilder {
         return PosterStats(
             runCount = runs.size,
             totalDurationSeconds = duration,
-            toolCount = tools
+            toolCount = tools,
+            model = runs.lastOrNull()?.model?.takeIf { it.isNotBlank() }
+                ?: runs.firstOrNull()?.model ?: ""
         )
     }
 }

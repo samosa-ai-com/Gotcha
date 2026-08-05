@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -16,6 +17,7 @@ import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
@@ -64,6 +66,33 @@ class AssistiveBallService : Service() {
     private lateinit var overlay: com.gotcha.ui.AssistiveBallOverlay
     private lateinit var chatWindow: CallChatWindow
     private lateinit var callController: CallSessionController
+    private lateinit var wakeWordDetector: WakeWordDetector
+
+    /**
+     * Raw SharedPreferences used to observe wake-word setting changes while the
+     * ball is running. Cached once so register/unregister hit the same instance
+     * — `SharedPreferences` matches listeners by identity for unregister.
+     */
+    private lateinit var settingsPrefs: SharedPreferences
+
+    /** Reacts to wake-word settings edits while the ball is running. */
+    private val wakeWordSettingsWatcher = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        val s = settingsRepository.load()
+        if (!s.wakeWordEnabled || !s.assistiveBallEnabled) {
+            wakeWordDetector.stop()
+            return@OnSharedPreferenceChangeListener
+        }
+        // The key arrives encrypted; compare the value read back instead (see
+        // settingsChangeNotifier's note). Restarting with a new threshold only
+        // makes sense while idle — the state collector stops the detector
+        // whenever a call becomes active anyway.
+        if (s.wakeWordSensitivity != appliedWakeWordSensitivity &&
+            callController.state.value == CallState.IDLE
+        ) {
+            maybeStartWakeWord()
+        }
+    }
+    private var appliedWakeWordSensitivity: Float? = null
     private lateinit var screenCompanionController: ScreenCompanionController
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
     private lateinit var screenLensController: ScreenLensController
@@ -119,6 +148,17 @@ class AssistiveBallService : Service() {
             sttEngine = sttEngine,
             ttsEngine = ttsEngine
         )
+        wakeWordDetector = WakeWordDetector(
+            context = applicationContext,
+            scope = scope,
+            sensitivityProvider = { settingsRepository.load().wakeWordSensitivity },
+            onStarted = { },
+            onDetected = ::onWakeWordDetected,
+            onError = { message -> overlay.showError(message) }
+        )
+
+        settingsPrefs = settingsChangeNotifier(applicationContext)
+        settingsPrefs.registerOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
 
         // Floating call buttons (shown during a call, hidden otherwise)
         chatWindow = CallChatWindow(this).apply {
@@ -181,12 +221,33 @@ class AssistiveBallService : Service() {
             callController.state.collect { state ->
                 val active = state != CallState.IDLE && state != CallState.ENDING
                 if (active) {
+                    wakeWordDetector.stop()
+                } else if (state == CallState.IDLE) {
+                    maybeStartWakeWord()
+                }
+                if (active) {
                     chatWindow.show()
                 } else if (state == CallState.IDLE) {
                     chatWindow.hide()
                 }
                 chatWindow.setState(state)
+                chatWindow.setHandsFree(callController.isHandsFree)
                 overlay.setCallActive(active)
+            }
+        }
+
+        // Proactively pause the wake-word listener while the app's own TTS is
+        // playing (e.g. a companion-panel read-aloud that says "gotcha"). The
+        // post-detection isSpeaking guard in onWakeWordDetected is a second
+        // line of defence against self-triggering, but stopping the listener
+        // here closes the race at the source — see privacy-data-retention.md §10.3.
+        scope.launch {
+            ttsEngine.isSpeaking.collect { speaking ->
+                if (speaking) {
+                    wakeWordDetector.stop()
+                } else if (callController.state.value == CallState.IDLE) {
+                    maybeStartWakeWord()
+                }
             }
         }
 
@@ -213,6 +274,9 @@ class AssistiveBallService : Service() {
         overlay.isPanelOpen = true
         scope.launch {
             try {
+                // The ball has no activity to raise a consent dialog from, so this
+                // relies on the accessibility capture path. Without accessibility the
+                // capture returns null and the prompt is left to the chat flow.
                 val compressed = if (attachScreenshot) {
                     showingActivity(com.gotcha.ui.BallActivity.ACTING) {
                         com.gotcha.tools.ScreenPerception.compressScreenshot(
@@ -793,6 +857,43 @@ class AssistiveBallService : Service() {
             android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
+    private fun onWakeWordDetected() {
+        wakeWordDetector.stop()
+        if (ttsEngine.isSpeaking.value) {
+            // The app was reading something aloud (e.g. a screen read-aloud that
+            // happened to contain "gotcha") — never start a call from our own
+            // voice. Resume listening instead.
+            maybeStartWakeWord()
+            return
+        }
+        val s = settingsRepository.load()
+        com.gotcha.audio.CompletionFeedback.replyArrived(
+            this,
+            vibrate = s.notifyVibrationEnabled,
+            chime = false
+        )
+        callController.startWakeWordCall()
+    }
+
+    private fun maybeStartWakeWord() {
+        val settings = settingsRepository.load()
+        if (settings.wakeWordEnabled && settings.assistiveBallEnabled && hasMicPermission()) {
+            // A running detector skips its own start() (see WakeWordDetector),
+            // so a live sensitivity change would otherwise never reach the
+            // matcher. Stop first to force a rebuild whenever the threshold
+            // needs to move, then re-arm with the fresh value.
+            if (appliedWakeWordSensitivity != settings.wakeWordSensitivity &&
+                wakeWordDetector.isRunning()
+            ) {
+                wakeWordDetector.stop()
+            }
+            appliedWakeWordSensitivity = settings.wakeWordSensitivity
+            wakeWordDetector.start()
+        } else {
+            wakeWordDetector.stop()
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
@@ -803,6 +904,7 @@ class AssistiveBallService : Service() {
                 startAsForeground()
                 overlay.show()
                 _isRunning.value = true
+                maybeStartWakeWord()
             }
         }
         return START_STICKY
@@ -813,6 +915,10 @@ class AssistiveBallService : Service() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _isRunning.value = false
+        wakeWordDetector.stop()
+        if (::settingsPrefs.isInitialized) {
+            settingsPrefs.unregisterOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
+        }
         callController.endCall()
         chatWindow.hide()
         screenCompanionPanel.dismiss()
@@ -892,6 +998,10 @@ class AssistiveBallService : Service() {
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
+        wakeWordDetector.stop()
+        if (::settingsPrefs.isInitialized) {
+            settingsPrefs.unregisterOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
+        }
         callController.endCall()
         chatWindow.hide()
         screenCompanionPanel.dismiss()

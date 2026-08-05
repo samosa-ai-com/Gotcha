@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.audio.AudioModel
+import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.ui.tour.TourAnchor
@@ -61,6 +62,12 @@ fun SettingsScreen(
     /** Logs out of Samosa (clears JWT + Google state). */
     onSamosaSignOut: suspend () -> Unit = {},
     /**
+     * Fetches the user's remaining Samosa credit (raw float) or null when not
+     * signed in / the gateway is unreachable. Shown scaled by ×1000 in the
+     * auth section — never the raw value.
+     */
+    onFetchSamosaCredits: suspend () -> Double? = { null },
+    /**
      * Forces a fetch of the server-messages feed (notifications). Bypasses
      * the 6h gate. Returns the new last-fetched-at timestamp (ms), or null
      * if the sync failed. The screen uses this to refresh its "Last synced"
@@ -86,6 +93,8 @@ fun SettingsScreen(
     onToggleAssistiveBall: (Boolean) -> Unit = {},
     /** Replays the guided setup from the beginning. */
     onStartTour: () -> Unit = {},
+    /** Opens the in-app feedback consent sheet (hidden when no form is configured). */
+    onSendFeedback: () -> Unit = {},
     /**
      * Which sub-page is open; null is the home list.
      *
@@ -97,9 +106,10 @@ fun SettingsScreen(
     page: SettingsPage? = null,
     onPageChange: (SettingsPage?) -> Unit = {}
 ) {
-    val backToHome = { onPageChange(null) }
+    // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
+    // the home list otherwise. Only the list itself exits Settings.
+    val backToHome = { onPageChange(page?.parentPage?.invoke()) }
 
-    // Back leaves the sub-page for the list; only the list itself exits Settings.
     if (page != null) BackHandler(onBack = backToHome)
 
     when (page) {
@@ -123,6 +133,7 @@ fun SettingsScreen(
             onRefreshChatModels = onRefreshChatModels,
             onSamosaSignIn = onSamosaSignIn,
             onSamosaSignOut = onSamosaSignOut,
+            onFetchSamosaCredits = onFetchSamosaCredits,
             onClearLlmCache = onClearLlmCache,
             onClearDebugScreenshots = onClearDebugScreenshots
         )
@@ -132,7 +143,8 @@ fun SettingsScreen(
             onBack = backToHome,
             onRefreshAudioModels = onRefreshAudioModels,
             onSamosaSignIn = onSamosaSignIn,
-            onSamosaSignOut = onSamosaSignOut
+            onSamosaSignOut = onSamosaSignOut,
+            onFetchSamosaCredits = onFetchSamosaCredits
         )
         SettingsPage.PERMISSIONS -> PermissionsScreen(
             packageName = packageName,
@@ -149,6 +161,8 @@ fun SettingsScreen(
             onBack = backToHome
         )
         SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
+            load = load,
+            onSave = onSave,
             enabled = assistiveBallEnabled,
             onToggle = onToggleAssistiveBall,
             onBack = backToHome
@@ -159,6 +173,14 @@ fun SettingsScreen(
             onBack = backToHome,
             onSyncServerMessages = onSyncServerMessages
         )
+        SettingsPage.ABOUT -> AboutScreen(
+            onBack = backToHome,
+            onOpenPage = onPageChange
+        )
+        SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
+            context = androidx.compose.ui.platform.LocalContext.current,
+            onBack = backToHome
+        )
         SettingsPage.LEGAL -> LegalScreen(
             context = androidx.compose.ui.platform.LocalContext.current,
             load = load,
@@ -168,7 +190,8 @@ fun SettingsScreen(
         null -> SettingsHome(
             onBack = onBack,
             onOpenPage = onPageChange,
-            onStartTour = onStartTour
+            onStartTour = onStartTour,
+            onSendFeedback = onSendFeedback
         )
     }
 }
@@ -178,12 +201,13 @@ fun SettingsScreen(
 private fun SettingsHome(
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
-    onStartTour: () -> Unit
+    onStartTour: () -> Unit,
+    onSendFeedback: () -> Unit
 ) {
     val overlay = rememberSettingsOverlayState()
 
     SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
-        SettingsPage.entries.forEach { entry ->
+        SettingsPage.topLevel.forEach { entry ->
             HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
                 page = entry,
@@ -192,11 +216,17 @@ private fun SettingsHome(
                     .testTag(entry.testTag)
                     .then(entry.tourAnchorModifier())
             )
-            // Re-entry into the guided setup sits just above Legal, so the menu
+            // Re-entry into the guided setup sits just above About Us, so the menu
             // ends on the two rows a returning user is least likely to need.
             if (entry == SettingsPage.NOTIFICATIONS) {
                 HorizontalDivider(thickness = 1.dp)
                 FeatureTourRow(onClick = onStartTour)
+                // Feedback is the same shape; only rendered when the form URL is
+                // configured at build time (gitignored FEEDBACK_* config).
+                if (FeedbackChannel.isConfigured()) {
+                    HorizontalDivider(thickness = 1.dp)
+                    FeedbackRow(onClick = onSendFeedback)
+                }
             }
         }
     }
@@ -230,6 +260,33 @@ private fun FeatureTourRow(onClick: () -> Unit) {
             )
             Text(
                 text = "Walk through setup again, one step at a time",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(text = "›", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+/** In-app feedback entry point, shaped like the rows around it. */
+@Composable
+private fun FeedbackRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
+            .testTag("settings_feedback_row"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Send Feedback",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "Tell us what to improve — nothing is sent until you submit",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

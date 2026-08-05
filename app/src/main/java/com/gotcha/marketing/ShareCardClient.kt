@@ -6,6 +6,7 @@ import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
  * The stats (duration, tool counts) are computed by [PosterStatsBuilder],
  * never by the LLM, so the numbers on the poster can't be hallucinated.
  */
+@OptIn(ExperimentalSerializationApi::class)
 class ShareCardClient(
     context: Context,
     private val settings: Settings
@@ -165,7 +167,7 @@ class ShareCardClient(
               "subheadline": "one line completing the thought, e.g. "…and it nailed it in 42 seconds."",
               "body": "one short sentence of detail",
               "achievements": ["short positive line", "…"] (recap only; up to 5; empty for hero),
-              "callToAction": "≤4 words, e.g. "Meet your agent."",
+              "callToAction": "A short, varied, compelling call-to-action (3-5 words). Must differ from generic patterns like "Try Gotcha today" or "Try Gotcha now." — be creative and specific to what the user did. Examples: "Make it yours.", "Your turn next.", "See what Gotcha can do.", "One tap, one win.", "Built for moments like this.", "Yours in under a minute."",
               "hashtags": ["#Gotcha", "…"] (2-3 tags)
             }
             Use template "hero" for a single run, "recap" for multiple runs.

@@ -2,6 +2,7 @@ package com.gotcha.llm
 
 import com.gotcha.i18n.Language
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -273,5 +274,53 @@ class LLMClientTest {
         val result = client.listModels().getOrThrow()
 
         assertEquals(listOf("my-private-llm"), result)
+    }
+
+    @Test
+    fun `malformed tool-call arguments are sanitized before they leave the client`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"""
+            ).setHeader("Content-Type", "application/json")
+        )
+
+        // The exact shape that bricked issue #13: the model cut the summary short
+        // and closed with `</summary>`/`</function>` tags inside the JSON string.
+        val poisoned = ChatMessage(
+            role = "assistant",
+            toolCalls = listOf(
+                ToolCall(
+                    id = "call_poisoned",
+                    function = FunctionCall(
+                        "finish_task",
+                        """{"summary": "रिशभ…कर सकते हैं:</summary>\n</function>\n</tool_call>"""
+                    )
+                ),
+                ToolCall(
+                    id = "call_fine",
+                    function = FunctionCall("websearch", """{"query":"hi","numResults":5}""")
+                )
+            )
+        )
+
+        client.chat(
+            messages = listOf(
+                ChatMessage(role = "user", content = JsonPrimitive("continue")),
+                poisoned
+            )
+        )
+
+        val body = server.takeRequest().body.readUtf8()
+        val sent = Json { ignoreUnknownKeys = true }.decodeFromString(ChatRequest.serializer(), body)
+
+        val calls = sent.messages.flatMap { it.toolCalls.orEmpty() }
+        assertEquals("call_poisoned", calls[0].id)
+        assertEquals("{}", calls[0].function.arguments)
+        assertEquals("call_fine", calls[1].id)
+        assertEquals("""{"query":"hi","numResults":5}""", calls[1].function.arguments)
+        assertTrue(
+            "the malformed fragment must never leave the client:\n$body",
+            !body.contains("</summary>")
+        )
     }
 }

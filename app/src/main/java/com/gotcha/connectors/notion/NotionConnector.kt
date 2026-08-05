@@ -97,11 +97,24 @@ class NotionConnector(
 
     suspend fun page(pageId: String): JsonObject = api.page(token(), pageId)
 
-    suspend fun blockChildren(blockId: String, pageSize: Int): JsonArray =
-        api.blockChildren(token(), blockId, pageSize)
+    suspend fun database(databaseId: String): JsonObject = api.database(token(), databaseId)
+
+    suspend fun databaseQuery(databaseId: String, pageSize: Int, startCursor: String? = null): ListResult =
+        api.databaseQuery(token(), databaseId, pageSize, startCursor)
+
+    suspend fun blockChildren(blockId: String, pageSize: Int, startCursor: String? = null): ListResult =
+        api.blockChildren(token(), blockId, pageSize, startCursor)
 
     suspend fun createPage(payload: JsonObject): JsonObject = api.createPage(token(), payload)
 
+    suspend fun updatePage(pageId: String, payload: JsonObject): JsonObject =
+        api.updatePage(token(), pageId, payload)
+
     suspend fun appendBlocks(blockId: String, children: JsonArray): JsonObject =
         api.appendBlocks(token(), blockId, children)
+
+    suspend fun updateBlock(blockId: String, payload: JsonObject): JsonObject =
+        api.updateBlock(token(), blockId, payload)
+
+    suspend fun deleteBlock(blockId: String): JsonObject = api.deleteBlock(token(), blockId)
 }

@@ -13,13 +13,13 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tier | Tools | What it means |
 |---|---:|---|
-| `UNIT` | 20 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 17 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
+| `ROBOLECTRIC` | 18 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **101** | |
+| **Total** | **106** | |
 
-**37 of 101** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**42 of 106** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -98,6 +98,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tool | Tier | Tests / reason |
 |---|---|---|
+| `about_samosa_ai` | `ROBOLECTRIC` | `CompanyInfoToolTest` — the bundled asset ships and still contains the company, product and contact facts the tool promises |
 | `ask_final_answer` | `MANUAL_ONLY` | Only reachable from inside a sub-agent loop with a live LLM connection. |
 | `check_availability` | `UNIT` | `CalendarWindowTest` — free/busy window arithmetic |
 | `check_root` | `MANUAL_ONLY` | Probes for a real `su` binary; the result is meaningless on a non-rooted test device. |
@@ -123,8 +124,11 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
-| `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page fetch plus block-to-markdown rendering |
-| `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting |
+| `notion_delete_item` | `UNIT` | `NotionToolsMutationTest` — page trash patch vs block delete request shapes |
+| `notion_mark_todo` | `UNIT` | `NotionToolsMutationTest` — checked-state patch request shape and id-prefix stripping |
+| `notion_read_page` | `UNIT` | `NotionToolsTest`, `NotionBlockRendererTest` — page and database reads, pagination, nested blocks, inline child_database, block-to-markdown rendering |
+| `notion_search` | `UNIT` | `NotionToolsTest` — query routing and result formatting, including database titles and title-column definitions with an object title |
+| `notion_update_page` | `UNIT` | `NotionToolsMutationTest` — property-value payloads built from simple values (checkbox/select/status/title/number/multi_select), non-numeric and unsupported-type rejection, unknown-column rejection, id-prefix stripping |
 | `question` | `MANUAL_ONLY` | Pure UI round-trip: the tool blocks until the user answers a prompt rendered in the chat surface. |
 | `read_call_log` | `MANUAL_ONLY` | Needs a populated CallLog ContentProvider; the emulator has no real call history and Robolectric's provider fakes are not wired for this table. |
 | `read_email` | `UNIT` | `EmailToolsTest`, `MailBodyExtractorTest` — id routing plus multipart/HTML body extraction |
@@ -134,6 +138,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `search_skills` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `sleep` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `todowrite` | `MANUAL_ONLY` | Pure UI round-trip: writes the visible todo list in the chat surface. |
+| `update_user_profile` | `UNIT` | `UpdateUserProfileTest` — merge semantics (modify-and-extend, never erase), the no-op guard, and the 250/50-word caps |
 | `webfetch` | `UNIT` | `WebFetchToolTest` — HTML-to-text extraction, truncation, error handling |
 | `websearch` | `MANUAL_ONLY` | Performs real network I/O against a search provider; exercising it in CI would make the suite non-hermetic. |
 

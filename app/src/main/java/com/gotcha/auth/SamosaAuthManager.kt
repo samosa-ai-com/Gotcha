@@ -11,6 +11,7 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.gotcha.BuildConfig
 import com.gotcha.data.SettingsRepository
+import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -127,6 +128,24 @@ class SamosaAuthManager(
     /** Called on a 401 from a Samosa API call: drop the stale token. */
     fun invalidateSession() {
         settingsRepository.clearSamosaSession()
+    }
+
+    /**
+     * Fetches the user's remaining credit from GET /me. Returns null when not
+     * signed in, when the user has no gateway key yet, or when the gateway is
+     * unreachable — never throws, so a hiccup cannot break the page.
+     */
+    suspend fun fetchCreditsRemaining(): Double? {
+        val token = settingsRepository.load().samosaSessionToken
+        if (token.isBlank()) return null
+        return try {
+            api.me("Bearer $token").user.creditsRemaining
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.d(TAG, "Could not fetch credit balance (ignored)", e)
+            null
+        }
     }
 
     companion object {

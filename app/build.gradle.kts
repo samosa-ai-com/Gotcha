@@ -61,6 +61,54 @@ android {
                 "YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com"
             )}\""
         )
+        // Developer LAN host for the local TTS/STT server. Overridable via the
+        // DEV_LAN_HOST environment variable or local.properties; defaults to the
+        // emulator->host loopback alias so a public checkout still works.
+        buildConfigField(
+            "String",
+            "DEV_LAN_HOST",
+            "\"${samosaConfig("DEV_LAN_HOST", "10.0.2.2")}\""
+        )
+        // Google Form used for in-app feedback. The form URL and its pre-fill
+        // entry.* keys are sensitive (an attacker could spam the form), so they
+        // are injected via the FEEDBACK_* environment variables or local.properties
+        // (both gitignored) and never committed. A blank form URL disables the
+        // feedback row, keeping a public checkout inert.
+        buildConfigField(
+            "String",
+            "FEEDBACK_FORM_URL",
+            "\"${samosaConfig("FEEDBACK_FORM_URL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_USER_ID",
+            "\"${samosaConfig("FEEDBACK_ENTRY_USER_ID", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_APP_VERSION",
+            "\"${samosaConfig("FEEDBACK_ENTRY_APP_VERSION", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_DEVICE_MODEL",
+            "\"${samosaConfig("FEEDBACK_ENTRY_DEVICE_MODEL", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_ANDROID_VERSION",
+            "\"${samosaConfig("FEEDBACK_ENTRY_ANDROID_VERSION", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_USAGE_STATS",
+            "\"${samosaConfig("FEEDBACK_ENTRY_USAGE_STATS", "")}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_ENTRY_CHAT_LOG",
+            "\"${samosaConfig("FEEDBACK_ENTRY_CHAT_LOG", "")}\""
+        )
     }
 
     signingConfigs {
@@ -78,8 +126,18 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Use the release signing config only if it was configured above.
+            // Use the release signing config when one was configured above. A keyless
+            // checkout may only fall back to the debug key when explicitly opted in via
+            // ALLOW_DEBUG_SIGNED_RELEASE=true (env or local.properties) — never silently,
+            // since a debug-signed "release" APK can masquerade as an official build but
+            // cannot update over the store version. Without either, the release build stays
+            // unsigned so a missing keystore fails loudly instead of silently producing a
+            // debug-signed release APK.
+            val allowDebugSignedRelease =
+                providers.environmentVariable("ALLOW_DEBUG_SIGNED_RELEASE").orNull == "true" ||
+                    keystoreProps.getProperty("ALLOW_DEBUG_SIGNED_RELEASE") == "true"
             signingConfig = signingConfigs.findByName("release")
+                ?: if (allowDebugSignedRelease) signingConfigs.getByName("debug") else null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -315,6 +373,11 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
+
+    // On-device wake word ("Hey Gotcha") via OpenWakeWord ONNX models run with
+    // Microsoft's official ONNX Runtime. The three models live in
+    // app/src/main/assets/openwakeword (see docs/wake-word.md + docs/MODEL_CARD.md).
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
 
     // Static analysis
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")

@@ -114,6 +114,29 @@ class NotionToolsTest {
     }
 
     @Test
+    fun `search renders a database result with a real title instead of crashing`() = runTest {
+        connect()
+        // A real database from /search: the title column definition has "title": {}.
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"db1","object":"database","last_edited_time":"2026-08-01T10:00:00Z",
+                    "title":[{"plain_text":"My Todos"}],
+                    "properties":{
+                      "Task":{"id":"title","type":"title","name":"Task","title":{}},
+                      "Done":{"id":"cXh","type":"checkbox","name":"Done","checkbox":{}}}}]}"""
+            )
+        )
+        val result = tools.execute("notion_search", args { put("query", "todo") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("[db1]"))
+        assertTrue(result.message.contains("My Todos"))
+        assertTrue(!result.message.contains("(untitled)"))
+        assertTrue(!result.message.contains("failed"))
+    }
+
+    @Test
     fun `an empty search explains the sharing requirement`() = runTest {
         connect()
         server.enqueue(MockResponse().setBody("""{"results":[]}"""))
@@ -162,10 +185,223 @@ class NotionToolsTest {
     fun `a 404 is explained as an unshared page`() = runTest {
         connect()
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"message":"Could not find page"}"""))
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"message":"Could not find database"}"""))
         val result = tools.execute("notion_read_page", args { put("page_id", "missing") })
 
         assertTrue(!result.success)
         assertTrue(result.message.contains("shared with the integration"))
+    }
+
+    @Test
+    fun `read_page falls back to a database read when the id is a database`() = runTest {
+        connect()
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"message":"Could not find page"}"""))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"db1","object":"database","title":[{"plain_text":"Todo list"}],
+                   "properties":{"Item":{"id":"title","type":"title","name":"Item"},
+                                 "Done":{"id":"done","type":"checkbox","name":"Done"}}}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"r1","object":"page","properties":{
+                     "Item":{"type":"title","title":[{"plain_text":"Buy milk"}]},
+                     "Done":{"type":"checkbox","checkbox":false}}},
+                   {"id":"r2","object":"page","properties":{
+                     "Item":{"type":"title","title":[{"plain_text":"Call bank"}]},
+                     "Done":{"type":"checkbox","checkbox":true}}}]}"""
+            )
+        )
+        val result = tools.execute("notion_read_page", args { put("page_id", "db1") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("### Database: Todo list"))
+        assertTrue(result.message.contains("- [ ] [row-r1] Buy milk"))
+        assertTrue(result.message.contains("- [x] [row-r2] Call bank"))
+
+        assertEquals("/v1/pages/db1", server.takeRequest().path)
+        assertEquals("/v1/databases/db1", server.takeRequest().path)
+        val query = server.takeRequest()
+        assertEquals("/v1/databases/db1/query", query.path)
+        assertEquals("POST", query.method)
+        assertTrue(query.body.readUtf8().contains("\"page_size\":100"))
+    }
+
+    @Test
+    fun `read_page paginates block children past one page`() = runTest {
+        connect()
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"p1","url":"https://notion.so/p1",
+                   "properties":{"Name":{"type":"title","title":[{"plain_text":"Roadmap"}]}}}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[{"type":"paragraph","paragraph":{"rich_text":[{"plain_text":"First block"}]}}],
+                   "has_more":true,"next_cursor":"cur2"}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[{"type":"paragraph","paragraph":{"rich_text":[{"plain_text":"Second block"}]}}],
+                   "has_more":false,"next_cursor":null}"""
+            )
+        )
+        val result = tools.execute("notion_read_page", args { put("page_id", "p1") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("First block"))
+        assertTrue(result.message.contains("Second block"))
+
+        server.takeRequest() // the /pages call
+        server.takeRequest() // first block page
+        assertEquals("/v1/blocks/p1/children?page_size=100&start_cursor=cur2", server.takeRequest().path)
+    }
+
+    @Test
+    fun `read_page recurses into nested blocks`() = runTest {
+        connect()
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"p1","url":"https://notion.so/p1",
+                   "properties":{"Name":{"type":"title","title":[{"plain_text":"Nested"}]}}}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"b1","type":"bulleted_list_item","has_children":true,
+                    "bulleted_list_item":{"rich_text":[{"plain_text":"Parent"}]}}]}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"b2","type":"bulleted_list_item",
+                    "bulleted_list_item":{"rich_text":[{"plain_text":"Nested child"}]}}]}"""
+            )
+        )
+        val result = tools.execute("notion_read_page", args { put("page_id", "p1") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("- Parent"))
+        assertTrue(result.message.contains("  - Nested child"))
+
+        server.takeRequest() // the /pages call
+        server.takeRequest() // the top-level blocks
+        assertEquals("/v1/blocks/b1/children?page_size=100", server.takeRequest().path)
+    }
+
+    @Test
+    fun `read_page embeds an inline child_database instead of a placeholder`() = runTest {
+        connect()
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"p1","url":"https://notion.so/p1",
+                   "properties":{"Name":{"type":"title","title":[{"plain_text":"Board"}]}}}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"cd1","type":"child_database",
+                    "child_database":{"title":[{"plain_text":"Todos"}]}}]}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"cd1","object":"database","title":[{"plain_text":"Todos"}],
+                   "properties":{"Item":{"id":"title","type":"title","name":"Item"}}}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"r1","object":"page","properties":{
+                     "Item":{"type":"title","title":[{"plain_text":"Do the thing"}]}}}]}"""
+            )
+        )
+        val result = tools.execute("notion_read_page", args { put("page_id", "p1") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("### Database: Todos"))
+        assertTrue(result.message.contains("- [ ] [row-r1] Do the thing"))
+        assertTrue(!result.message.contains("unsupported block"))
+    }
+
+    @Test
+    fun `read_page marks the output truncated when a database exceeds the row cap`() = runTest {
+        connect()
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"message":"Could not find page"}"""))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"db1","object":"database","title":[{"plain_text":"Big list"}],
+                   "properties":{"Item":{"id":"title","type":"title","name":"Item"}}}"""
+            )
+        )
+        fun queryPage(start: Int, cursor: String): String {
+            val rows = (start until start + 100).joinToString(",") { i ->
+                """{"id":"r$i","object":"page","properties":{
+                   "Item":{"type":"title","title":[{"plain_text":"Row $i"}]}}}"""
+            }
+            return """{"results":[$rows],"has_more":true,"next_cursor":"$cursor"}"""
+        }
+        server.enqueue(MockResponse().setBody(queryPage(0, "c2")))
+        server.enqueue(MockResponse().setBody(queryPage(100, "c3")))
+        server.enqueue(MockResponse().setBody(queryPage(200, "c4")))
+
+        val result = tools.execute("notion_read_page", args { put("page_id", "db1") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("Row 0"))
+        assertTrue(result.message.contains("Row 199"))
+        assertTrue(!result.message.contains("Row 200"))
+        assertTrue(result.message.contains("[truncated — too many rows to read]"))
+    }
+
+    @Test
+    fun `read_page notes when an inline database is not shared`() = runTest {
+        connect()
+        server.enqueue(
+            MockResponse().setBody(
+                """{"id":"p1","url":"https://notion.so/p1",
+                   "properties":{"Name":{"type":"title","title":[{"plain_text":"Board"}]}}}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   {"id":"cd1","type":"child_database",
+                    "child_database":{"title":[{"plain_text":"Todos"}]}}]}"""
+            )
+        )
+        server.enqueue(
+            MockResponse().setResponseCode(404).setBody("""{"message":"Could not find database"}""")
+        )
+        val result = tools.execute("notion_read_page", args { put("page_id", "p1") })
+
+        assertTrue(result.success)
+        assertTrue(result.message.contains("- (database) Todos"))
+        assertTrue(result.message.contains("rows not readable (not shared)"))
+    }
+
+    @Test
+    fun `a 404 naming a database steers to database ids rather than re-sharing`() = runTest {
+        connect()
+        server.enqueue(
+            MockResponse().setResponseCode(404).setBody("""{"message":"Could not find database with ID"}""")
+        )
+        val error = runCatching { connector.page("missing") }.exceptionOrNull()
+
+        assertTrue(error is NotionApiException)
+        val message = error!!.message!!
+        // A database 404 should name databases and steer to notion_search, not
+        // fall back on the generic "re-share the page" guidance.
+        assertTrue(message.contains("database", ignoreCase = true))
+        assertTrue(message.contains("notion_search"))
     }
 
     // ---- notion_create_page ----

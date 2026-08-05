@@ -226,4 +226,50 @@ class ModelsTest {
         assertNull(decoded.data[2].providerType)
         assertNull(decoded.data[2].task)
     }
+
+    // ---- malformed tool-call arguments (issue #13) ----
+
+    @Test
+    fun `isParsableJsonObject accepts objects and rejects everything else`() {
+        assertTrue(isParsableJsonObject("{}"))
+        assertTrue(isParsableJsonObject("""{"summary":"hi"}"""))
+        assertFalse(isParsableJsonObject(""))
+        assertFalse(isParsableJsonObject("not json"))
+        assertFalse(isParsableJsonObject("[1,2]"))
+        assertFalse(isParsableJsonObject("\"string\""))
+        assertFalse(isParsableJsonObject("""{"summary": "unterminated"""))
+    }
+
+    @Test
+    fun `malformed tool call arguments are replaced with an empty object`() {
+        val msg = ChatMessage(
+            role = "assistant",
+            toolCalls = listOf(
+                ToolCall(
+                    id = "call_bad",
+                    function = FunctionCall("finish_task", """{"summary": "unterminated""")
+                ),
+                ToolCall(
+                    id = "call_ok",
+                    function = FunctionCall("websearch", """{"query":"hi"}""")
+                )
+            )
+        )
+
+        val sanitized = msg.withValidToolCallArguments()
+
+        assertEquals("{}", sanitized.toolCalls!![0].function.arguments)
+        assertEquals("""{"query":"hi"}""", sanitized.toolCalls!![1].function.arguments)
+        assertEquals("call_bad", sanitized.toolCalls!![0].id)
+        // The original is untouched.
+        assertEquals("""{"summary": "unterminated""", msg.toolCalls!![0].function.arguments)
+    }
+
+    @Test
+    fun `messages without tool calls pass through unchanged`() {
+        val plain = ChatMessage(role = "user", content = JsonPrimitive("hello"))
+        val noCalls = ChatMessage(role = "assistant", content = JsonPrimitive("ok"))
+        assertEquals(plain, plain.withValidToolCallArguments())
+        assertEquals(noCalls, noCalls.withValidToolCallArguments())
+    }
 }

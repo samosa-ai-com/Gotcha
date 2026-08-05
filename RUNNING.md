@@ -8,8 +8,8 @@ A step-by-step guide to build, run, and configure the Gotcha Android app.
 
 | Requirement | Version / Notes |
 |-------------|-----------------|
-| Android Studio | Hedgehog (2023.1) or newer — this project uses AGP 8.2.2 / Gradle 8.4 |
-| JDK | 17 (bundled with recent Android Studio; the project targets Java 17) |
+| Android Studio | 2025.2 (Otter) or newer — this project uses AGP 9.3.1 / Gradle 9.5.0 / Kotlin 2.2.10 |
+| JDK | 17+ to run the build (Gradle 9.5 / AGP 9.3 require it; current Android Studio bundles JDK 21). The project compiles to Java 17 bytecode |
 | Android SDK | Platform 34 (Android 14) installed via SDK Manager |
 | A device | A physical phone **or** an emulator running **API 30 (Android 11) or higher** |
 
