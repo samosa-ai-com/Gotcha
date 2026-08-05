@@ -154,4 +154,40 @@ class CallSessionControllerTest {
 
         assertTrue("a changed API key must force a client rebuild", first !== second)
     }
+
+    @Test
+    fun `startWakeWordCall transitions out of idle when configuration is valid`() {
+        settingsRepository.save(
+            Settings(
+                provider = LlmProvider.SAMOSA_AI,
+                samosaSessionToken = "samosa-jwt-token",
+                sttProvider = AudioProvider.SAMOSA_AI,
+                sttApiModel = "whisper-1",
+                ttsProvider = AudioProvider.SAMOSA_AI,
+                ttsApiModel = "tts-1"
+            )
+        )
+
+        val started = controller.startWakeWordCall()
+
+        assertTrue("startWakeWordCall should reuse the valid startCall path", started)
+        assertTrue(
+            "A wake-word call must immediately leave the idle state",
+            controller.isActive()
+        )
+    }
+
+    @Test
+    fun `startWakeWordCall fails when configuration is invalid`() {
+        // No provider / API key configured — buildClient() returns null and
+        // the call reports an error, so startWakeWordCall must short-circuit.
+        var errorMessage: String? = null
+        controller.onError = { errorMessage = it }
+
+        val started = controller.startWakeWordCall()
+
+        assertFalse("startWakeWordCall must surface configuration errors", started)
+        assertTrue(errorMessage != null)
+        assertFalse("The call controller must stay idle on a failed wake-word start", controller.isActive())
+    }
 }
