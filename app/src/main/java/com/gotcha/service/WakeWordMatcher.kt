@@ -1,55 +1,54 @@
 package com.gotcha.service
 
 /**
- * Converts a stream of Vosk partial/final transcripts into one wake-word event.
+ * Converts the OpenWakeWord classifier score stream into one wake-word event.
  *
- * Vosk has no Porcupine-style sensitivity knob, so sensitivity controls how
- * many consecutive recognition updates must contain the phrase. The grammar is
- * already constrained to the wake word and `[unk]`; this streak check is the
- * second layer against a single noisy partial firing a call.
+ * The "Hey Gotcha" model card (docs/MODEL_CARD.md) recommends a threshold of
+ * 0.50 for balanced behavior, 0.65 for high precision and 0.35 for high
+ * sensitivity. The sensitivity slider is mapped onto that range:
+ *
+ *   threshold = 0.70 - 0.27 * sensitivity   (clamped to [0.10, 0.90])
+ *
+ * so the default sensitivity of 0.75 lands on 0.50. A single 80 ms frame above
+ * the threshold is not enough to trust — [PATIENCE] consecutive qualifying
+ * frames are required, which rejects the occasional one-frame spike without
+ * adding meaningful latency.
  */
 internal class WakeWordMatcher(
-    private val phrase: String,
     sensitivity: Float
 ) {
-    private val requiredConsecutiveMatches = when {
-        sensitivity >= HIGH_SENSITIVITY -> 1
-        sensitivity >= MEDIUM_SENSITIVITY -> 2
-        else -> 3
-    }
+    private val threshold: Float = (BASE_THRESHOLD - SENSITIVITY_RANGE * sensitivity.coerceIn(0f, 1f))
+        .coerceIn(MIN_THRESHOLD, MAX_THRESHOLD)
     private var consecutiveMatches = 0
 
-    fun onPartial(text: String): Boolean = accept(text)
+    fun threshold(): Float = threshold
 
-    fun onFinal(text: String): Boolean = accept(text)
+    fun onScore(score: Float): Boolean {
+        if (score < threshold) {
+            consecutiveMatches = 0
+            return false
+        }
+        consecutiveMatches++
+        if (consecutiveMatches < PATIENCE) return false
+        consecutiveMatches = 0
+        return true
+    }
 
     fun reset() {
         consecutiveMatches = 0
     }
 
-    private fun accept(text: String): Boolean {
-        if (!containsPhrase(text, phrase)) {
-            consecutiveMatches = 0
-            return false
-        }
-        consecutiveMatches++
-        if (consecutiveMatches < requiredConsecutiveMatches) return false
-        reset()
-        return true
-    }
-
     companion object {
-        private const val MEDIUM_SENSITIVITY = 0.40f
-        private const val HIGH_SENSITIVITY = 0.75f
-        private val NON_WORD = Regex("[^a-z0-9]+")
+        /** Balanced threshold from the model card at the default sensitivity. */
+        const val DEFAULT_SENSITIVITY = 0.75f
+        private const val BASE_THRESHOLD = 0.70f
+        private const val SENSITIVITY_RANGE = 0.27f
+        private const val MIN_THRESHOLD = 0.10f
+        private const val MAX_THRESHOLD = 0.90f
 
-        /** Exact-token match, so "gotcha" does not fire inside another word. */
-        fun containsPhrase(text: String, phrase: String): Boolean {
-            val wanted = phrase.lowercase().trim()
-            if (wanted.isEmpty()) return false
-            return text.lowercase()
-                .split(NON_WORD)
-                .any { it == wanted }
-        }
+        // 2 frames × 80 ms = 160 ms: enough to reject a one-frame audio spike,
+        // small enough to feel snappy. The Python reference also uses short
+        // patience when callers pass it explicitly.
+        private const val PATIENCE = 2
     }
 }
