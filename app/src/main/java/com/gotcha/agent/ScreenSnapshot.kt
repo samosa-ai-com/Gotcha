@@ -1,6 +1,7 @@
 package com.gotcha.agent
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.gotcha.service.GotchaAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -53,4 +54,62 @@ object ScreenSnapshot {
         val lines = service.dumpScreenText(limit)
         return if (lines.isEmpty()) null else lines.joinToString("\n") { "- $it" }
     }
+
+    /**
+     * True when the JPEG base64 is essentially a solid black frame — the usual
+     * result of capturing while the screen is off or blank. A black screenshot
+     * carries no information for the model (and can look like a "vision" input
+     * that never resolves), so callers should drop it. A dark app with content
+     * has enough bright pixels / variance to fail this check.
+     *
+     * The frame is decoded as a small thumbnail ([SAMPLE_SIZE]) rather than at
+     * full resolution — the luminance statistics are what matter, not the
+     * pixels — so an off-screen capture costs ~1/64 of the memory.
+     */
+    fun isMostlyBlack(jpegBase64: String, blackRatio: Float = 0.99f): Boolean {
+        val bytes = try {
+            android.util.Base64.decode(jpegBase64, android.util.Base64.DEFAULT)
+        } catch (_: Exception) {
+            return false
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = SAMPLE_SIZE }
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return false
+        try {
+            return classifyBlackness(bitmap, blackRatio)
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
+    /**
+     * Samples [bitmap] and reports whether it is essentially solid black. Kept
+     * separate from [isMostlyBlack] so the classification logic is testable on
+     * an in-memory bitmap without going through a JPEG decode.
+     */
+    internal fun classifyBlackness(bitmap: Bitmap, blackRatio: Float = 0.99f): Boolean {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= 0 || height <= 0) return false
+        var sampled = 0
+        var dark = 0
+        var sumLuma = 0.0
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val pixel = bitmap.getPixel(x, y)
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+                sumLuma += luma
+                if (luma < 8.0) dark++
+                sampled++
+            }
+        }
+        if (sampled == 0) return false
+        val meanLuma = sumLuma / sampled
+        val darkRatio = dark.toDouble() / sampled
+        return meanLuma < 10.0 && darkRatio >= blackRatio
+    }
+
+    private const val SAMPLE_SIZE = 8
 }

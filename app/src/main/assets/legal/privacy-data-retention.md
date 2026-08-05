@@ -144,4 +144,39 @@ backend that transmits data to a third-party AI provider.
 
    9.1 Questions about this policy can be sent to samosa.ai.com@gmail.com.
 
+10. OPTIONAL WAKE WORD ("Hey Gotcha")
+
+   10.1 The wake-word feature is opt-in. When turned on in Settings
+        (Settings → Assistive Ball → "Wake word: Hey Gotcha"), the App keeps a
+        microphone-type foreground service alive while the Assistive Ball is on
+        and no voice call is in progress.
+
+   10.2 The wake-word listener processes all microphone audio **on-device**
+        using the bundled OpenWakeWord models (Apache 2.0, see
+        `app/src/main/assets/licenses/openwakeword-notice.txt`). Audio frames
+        are fed to the OpenWakeWord pipeline to decide whether the phrase
+        "Hey Gotcha" was spoken. No wake-word audio leaves the device — it is
+        never sent to the App's servers, to the configured STT provider, or
+        to any third party.
+
+   10.3 The App's own text-to-speech (e.g. reading on-screen text aloud, or
+        narrating replies inside a call) can sound similar to the wake word.
+        To prevent the listener from triggering a call on the App's own
+        speech, the wake-word detector is paused automatically while the
+        App's text-to-speech is playing.
+
+   10.4 A wake-word-triggered call ends itself after the spoken reply
+        finishes (so the assistant can answer the wake-word command and
+        then go back to listening for the next activation). This
+        self-terminating behaviour is local; the App still does not stream
+        the wake-word audio anywhere.
+
+   10.5 For the wake-word listener to remain reliable while the screen is
+        off or the device is dozing, the App may ask you to exempt it from
+        Android battery optimization. That exemption is voluntary and can
+        be revoked at any time through Android Settings.
+
+   10.6 You can turn the wake-word feature off at any time; when off, the
+        App does not retain or process any audio for wake-word purposes.
+
 — END OF DATA RETENTION POLICY —

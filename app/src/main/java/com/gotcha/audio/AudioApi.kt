@@ -124,7 +124,12 @@ class AudioApi(
     }
 
     /** Speech-to-text: upload audio and return transcription. */
-    fun transcribe(audioFile: File, model: String, language: String? = null): Result<String> = runCatching {
+    fun transcribe(
+        audioFile: File,
+        model: String,
+        language: String? = null,
+        contentType: String = "audio/m4a"
+    ): Result<String> = runCatching {
         val url = "${baseUrl.trimEnd('/')}/audio/transcriptions"
         val boundary = "Boundary-${System.currentTimeMillis()}"
         val extraFields = mutableMapOf("model" to model)
@@ -135,7 +140,7 @@ class AudioApi(
             boundary,
             audioFile,
             "file",
-            "audio/m4a",
+            contentType,
             extraFields
         )
         val request = Request.Builder()

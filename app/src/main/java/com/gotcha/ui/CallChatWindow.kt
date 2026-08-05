@@ -81,6 +81,9 @@ class CallChatWindow(context: Context) {
 
     private var currentState: CallState = CallState.IDLE
 
+    /** When true, the mic action button is hidden (hands-free wake-word call). */
+    private var handsFreeMode = false
+
     // Drag state
     private var dragging = false
     private var startX = 0
@@ -151,6 +154,18 @@ class CallChatWindow(context: Context) {
         }
     }
 
+    /**
+     * Hands-free (wake-word) calls have no push-to-talk — the mic opens itself
+     * and startMic/stopMic are no-ops — so the mic button is suppressed and the
+     * chat window only shows the End control.
+     */
+    fun setHandsFree(enabled: Boolean) {
+        mainHandler.post {
+            handsFreeMode = enabled
+            renderButtons()
+        }
+    }
+
     // ---- Rendering ----
 
     /** (emoji, glass tint) for the action button in a given call state. */
@@ -164,7 +179,10 @@ class CallChatWindow(context: Context) {
     @Suppress("SetTextI18n")
     private fun renderButtons() {
         val s = currentState
-        val appearance = actionAppearance(s)
+        // During hands-free calls the mic is automatic — no push-to-talk — so
+        // the action button (mic/stop/interrupt) is suppressed entirely. Only
+        // the End control remains, which is rendered below.
+        val appearance = if (handsFreeMode) null else actionAppearance(s)
         val btn = actionBtn as? TextView
         if (appearance == null) {
             // Fade + shrink out, then hide.
@@ -678,6 +696,7 @@ class CallChatWindow(context: Context) {
         val count = root.childCount
         for (i in 0 until count) {
             val child = root.getChildAt(i)
+            if (child.visibility != View.VISIBLE) continue
             if (x >= child.left && x <= child.right &&
                 y >= child.top && y <= child.bottom
             ) {
@@ -689,6 +708,7 @@ class CallChatWindow(context: Context) {
 
     /** Fire the action bound to the mic button for the current call state. */
     private fun performMicAction() {
+        if (handsFreeMode) return // mic is automatic — no push-to-talk
         when (currentState) {
             CallState.READY, CallState.WAITING_USER -> onStartMic()
             CallState.LISTENING -> onStopMic()

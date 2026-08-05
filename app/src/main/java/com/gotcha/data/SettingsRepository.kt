@@ -52,6 +52,8 @@ data class Settings(
     /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
     val notifyChimeEnabled: Boolean = false,
     val assistiveBallEnabled: Boolean = false,
+    val wakeWordEnabled: Boolean = false,
+    val wakeWordSensitivity: Float = 0.75f,
     /** Server-driven notifications from `<SAMOSA_API_URL>/v1/gotcha/notifications`. */
     val serverMessagesEnabled: Boolean = true,
     /** Epoch millis of the last successful server-messages fetch. 0 = never. */
@@ -343,6 +345,8 @@ class SettingsRepository(context: Context) {
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
+        wakeWordEnabled = prefs.getBoolean(KEY_WAKE_WORD_ENABLED, false),
+        wakeWordSensitivity = prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, 0.75f),
         serverMessagesEnabled = prefs.getBoolean(KEY_SERVER_MESSAGES_ENABLED, true),
         serverMessagesLastFetchedAt = prefs.getLong(KEY_SERVER_MESSAGES_LAST_FETCHED, 0L),
         serverMessagesEtag = string(KEY_SERVER_MESSAGES_ETAG),
@@ -400,6 +404,8 @@ class SettingsRepository(context: Context) {
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
+            .putBoolean(KEY_WAKE_WORD_ENABLED, settings.wakeWordEnabled)
+            .putFloat(KEY_WAKE_WORD_SENSITIVITY, settings.wakeWordSensitivity)
             .putBoolean(KEY_SERVER_MESSAGES_ENABLED, settings.serverMessagesEnabled)
             .putLong(KEY_SERVER_MESSAGES_LAST_FETCHED, settings.serverMessagesLastFetchedAt)
             .putString(KEY_SERVER_MESSAGES_ETAG, settings.serverMessagesEtag)
@@ -502,6 +508,8 @@ class SettingsRepository(context: Context) {
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"
         const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
+        const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
+        const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
         const val KEY_SERVER_MESSAGES_ENABLED = "server_messages_enabled"
         const val KEY_SERVER_MESSAGES_LAST_FETCHED = "server_messages_last_fetched"
         const val KEY_SERVER_MESSAGES_ETAG = "server_messages_etag"
@@ -542,4 +550,4 @@ class SettingsRepository(context: Context) {
  * constant, so non-material edits (typo fixes, formatting) should leave it
  * unchanged.
  */
-const val LEGAL_VERSION: String = "1"
+const val LEGAL_VERSION: String = "2"
