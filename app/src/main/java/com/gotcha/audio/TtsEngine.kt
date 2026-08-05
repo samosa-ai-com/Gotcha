@@ -39,6 +39,12 @@ class TtsEngine(
     @Volatile
     private var playbackGate: CompletableDeferred<Unit>? = null
 
+    /** True while [speak] is playing audio — used to avoid the wake word hearing
+     *  the app's own speech and re-triggering itself. */
+    @Volatile
+    var isSpeaking: Boolean = false
+        private set
+
     /** The models available from the API (empty if provider is Android). */
     var apiTtsModels: List<AudioModel> = emptyList()
         private set
@@ -89,12 +95,17 @@ class TtsEngine(
         val sanitized = SpeechTextSanitizer.sanitize(text)
         if (sanitized.isBlank()) return@withContext true
         try {
+            isSpeaking = true
             when {
                 provider == AudioProvider.ANDROID -> speakAndroid(sanitized, language)
                 provider.isApiBased() -> speakApi(sanitized, apiModel, voice, language)
                 else -> false
             }
-        } catch (_: Exception) { false }
+        } catch (_: Exception) {
+            false
+        } finally {
+            isSpeaking = false
+        }
     }
 
     private suspend fun speakAndroid(text: String, language: Language): Boolean {
