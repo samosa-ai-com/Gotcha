@@ -22,9 +22,12 @@ import java.nio.FloatBuffer
  * The first [WARMUP_FRAMES] scored frames are ignored so the feature buffers
  * fill up before anything can be detected.
  *
- * All hot-path arrays are pre-allocated once and reused to keep this listener
- * allocation-free at steady state (an always-on service cannot tolerate
- * per-frame GC pressure).
+ * The hot path avoids per-frame GC pressure: the raw PCM ring buffer, the
+ * combined feed buffer, the frame buffer, and the mel window are all
+ * pre-allocated once and reused. The per-row mel arrays, `toList()` snapshots,
+ * and ONNX tensor inputs are still allocated each frame (~37.5/s), which is
+ * acceptable — keep this from drifting into the comment-free "zero allocation"
+ * territory that a profiler would disprove.
  */
 @Suppress("UNCHECKED_CAST")
 internal class OnnxWakeWordPipeline(
@@ -50,6 +53,9 @@ internal class OnnxWakeWordPipeline(
 
     /** Reused destination for each extracted 80 ms frame. */
     private val frame = ShortArray(FRAME_SIZE)
+
+    /** Reused mel window (raw PCM → floats); filled up to [rawCount] per frame. */
+    private val melWindow = FloatArray(MEL_WINDOW)
 
     private val melBuffer = ArrayDeque<FloatArray>()
     private val featureBuffer = ArrayDeque<FloatArray>()
@@ -129,20 +135,19 @@ internal class OnnxWakeWordPipeline(
         // rawCount <= MEL_WINDOW; the oldest sample lives at rawStart
         // (modulo the ring) once rawCount == MEL_WINDOW.
         val length = rawCount.coerceAtMost(MEL_WINDOW)
-        val window = FloatArray(length)
         val start = if (rawCount < MEL_WINDOW) {
             0
         } else {
             rawStart // when full, rawStart points at the oldest sample
         }
         for (i in 0 until length) {
-            window[i] = rawSamples[(start + i) % MEL_WINDOW].toFloat()
+            melWindow[i] = rawSamples[(start + i) % MEL_WINDOW].toFloat()
         }
 
         val tensor = OnnxTensor.createTensor(
             env,
-            FloatBuffer.wrap(window),
-            longArrayOf(1L, window.size.toLong())
+            FloatBuffer.wrap(melWindow, 0, length),
+            longArrayOf(1L, length.toLong())
         )
         val rows = try {
             melSession.run(mapOf(melSession.inputNames.first() to tensor)).use { result ->

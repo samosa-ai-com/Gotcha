@@ -146,7 +146,7 @@ jobs:
         run: |
           COMMENT_BODY="${{ github.event.comment.body }}"
           # Extract branch name after "wrt" keyword (supports alphanumeric, underscores, hyphens, slashes)
-          if [[ "$COMMENT_BODY" =~ wrt[[:space:]]+([a-zA-Z0-9_/-]+) ]]; then
+          if [[ "$COMMENT_BODY" =~ wrt[[:space:]]+([a-zA-Z0-9._/-]+) ]]; then
             echo "branch=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
           else
             echo "branch=" >> $GITHUB_OUTPUT

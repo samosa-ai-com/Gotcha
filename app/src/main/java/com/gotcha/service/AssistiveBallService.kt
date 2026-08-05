@@ -231,7 +231,23 @@ class AssistiveBallService : Service() {
                     chatWindow.hide()
                 }
                 chatWindow.setState(state)
+                chatWindow.setHandsFree(callController.isHandsFree)
                 overlay.setCallActive(active)
+            }
+        }
+
+        // Proactively pause the wake-word listener while the app's own TTS is
+        // playing (e.g. a companion-panel read-aloud that says "gotcha"). The
+        // post-detection isSpeaking guard in onWakeWordDetected is a second
+        // line of defence against self-triggering, but stopping the listener
+        // here closes the race at the source — see privacy-data-retention.md §10.3.
+        scope.launch {
+            ttsEngine.isSpeaking.collect { speaking ->
+                if (speaking) {
+                    wakeWordDetector.stop()
+                } else if (callController.state.value == CallState.IDLE) {
+                    maybeStartWakeWord()
+                }
             }
         }
 
@@ -843,7 +859,7 @@ class AssistiveBallService : Service() {
 
     private fun onWakeWordDetected() {
         wakeWordDetector.stop()
-        if (ttsEngine.isSpeaking) {
+        if (ttsEngine.isSpeaking.value) {
             // The app was reading something aloud (e.g. a screen read-aloud that
             // happened to contain "gotcha") — never start a call from our own
             // voice. Resume listening instead.
@@ -862,6 +878,15 @@ class AssistiveBallService : Service() {
     private fun maybeStartWakeWord() {
         val settings = settingsRepository.load()
         if (settings.wakeWordEnabled && settings.assistiveBallEnabled && hasMicPermission()) {
+            // A running detector skips its own start() (see WakeWordDetector),
+            // so a live sensitivity change would otherwise never reach the
+            // matcher. Stop first to force a rebuild whenever the threshold
+            // needs to move, then re-arm with the fresh value.
+            if (appliedWakeWordSensitivity != settings.wakeWordSensitivity &&
+                wakeWordDetector.isRunning()
+            ) {
+                wakeWordDetector.stop()
+            }
             appliedWakeWordSensitivity = settings.wakeWordSensitivity
             wakeWordDetector.start()
         } else {

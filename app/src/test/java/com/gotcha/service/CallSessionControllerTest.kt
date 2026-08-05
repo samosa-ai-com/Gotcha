@@ -228,4 +228,25 @@ class CallSessionControllerTest {
         )
         assertTrue(failed.contains("could not be captured"))
     }
+
+    @Test
+    fun `hands-free input waits for a pending question and never for a confirmation overlay`() {
+        // Call-started announcement done → READY means "awaiting spoken input".
+        assertTrue(controller.awaitingHandsFreeInput(CallState.READY, questionPending = false))
+        assertTrue(controller.awaitingHandsFreeInput(CallState.READY, questionPending = true))
+
+        // Agent question pending → the gate is held, so the mic opens.
+        assertTrue(controller.awaitingHandsFreeInput(CallState.WAITING_USER, questionPending = true))
+
+        // A destructive-action confirmation prompt also sets WAITING_USER, but
+        // holds no questionGate — the mic must NOT auto-open (opening it and
+        // letting finishTurn fall through to a fresh turn would run two agent
+        // turns concurrently while awaitConfirmation is still suspended).
+        assertFalse(controller.awaitingHandsFreeInput(CallState.WAITING_USER, questionPending = false))
+
+        // Agent is busy answering / speaking → not awaiting input.
+        assertFalse(controller.awaitingHandsFreeInput(CallState.THINKING, questionPending = false))
+        assertFalse(controller.awaitingHandsFreeInput(CallState.THINKING, questionPending = true))
+        assertFalse(controller.awaitingHandsFreeInput(CallState.SPEAKING, questionPending = true))
+    }
 }

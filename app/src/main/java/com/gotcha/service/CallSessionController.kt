@@ -113,6 +113,10 @@ class CallSessionController(
     @Volatile
     private var handsFree = false
 
+    /** True while the active call is hands-free (wake-word started). */
+    val isHandsFree: Boolean
+        get() = handsFree
+
     /** Drives hands-free listening; null when no hands-free call is active. */
     private var handsFreeAutoListen: Job? = null
 
@@ -272,13 +276,28 @@ class CallSessionController(
      */
     private suspend fun awaitHandsFreeInput(): Boolean {
         while (currentCoroutineContext().isActive && handsFree && this@CallSessionController.isActive()) {
-            val waitingForInput = _state.value == CallState.READY ||
-                _state.value == CallState.WAITING_USER
-            if (waitingForInput && !ttsEngine.isSpeaking) return true
+            // WAITING_USER only counts as "waiting for spoken input" when a
+            // question is actually pending. During a confirmation overlay the
+            // user answers by tapping Allow/Deny — opening the mic and falling
+            // through finishTurn's gate check would start a *second* agent turn
+            // while the first is still suspended in awaitConfirmation.
+            if (awaitingHandsFreeInput(_state.value, questionGate != null) &&
+                !ttsEngine.isSpeaking.value
+            ) {
+                return true
+            }
             delay(100)
         }
         return false
     }
+
+    /**
+     * Whether the hands-free loop should treat [state] as "awaiting spoken
+     * input". [questionPending] is true only while [awaitQuestionAnswer] holds
+     * its gate — a confirmation overlay is deliberately excluded.
+     */
+    internal fun awaitingHandsFreeInput(state: CallState, questionPending: Boolean): Boolean =
+        state == CallState.READY || (state == CallState.WAITING_USER && questionPending)
 
     /**
      * Stop/interrupt the current turn. Cancels the agent, stops TTS/STT,
@@ -439,7 +458,15 @@ class CallSessionController(
             pendingReply = msg
         }
 
-        val reply = pendingReply ?: return
+        val reply = pendingReply ?: run {
+            // The engine returned neither a reply nor an error. In PTT the user
+            // could simply talk again, but a hands-free call has no mic button —
+            // leaving the state in THINKING would hang it until manual End, so
+            // fall back to READY (which the hands-free loop reads as "re-open
+            // the mic").
+            _state.value = CallState.READY
+            return
+        }
         _state.value = CallState.SPEAKING
         if (speakText(reply, language)) {
             triggerEndVibration()

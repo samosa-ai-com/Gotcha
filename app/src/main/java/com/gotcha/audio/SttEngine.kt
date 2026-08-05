@@ -249,7 +249,10 @@ class SttEngine(
             if (detector.speechDetected && pcm.size() > 0) {
                 result = writeWav(context.cacheDir, pcm.toByteArray(), sampleRate)
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // A permissions/security failure, OOM, or recorder error must not
+            // look like "no speech" without a trace — log it for debugging.
+            Log.w(TAG, "VAD recording failed; treating as no speech", e)
             result = null
         } finally {
             try {

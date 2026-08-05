@@ -9,20 +9,45 @@ class SilenceDetectorTest {
 
     private val start = 1_000_000L
 
+    private fun primeFloor(detector: SilenceDetector, ambientDb: Float = -65f) {
+        var now = start
+        repeat(12) {
+            assertEquals(
+                SilenceDetector.Decision.CONTINUE,
+                detector.update(windowRmsDb = ambientDb, nowMs = now)
+            )
+            now += 200
+        }
+    }
+
     @Test
     fun `stops after the configured trailing silence once speech was heard`() {
         val detector = SilenceDetector(silenceTimeoutMs = 3_000L)
-        detector.update(windowRmsDb = -20f, nowMs = start)
+        primeFloor(detector)
+        detector.update(windowRmsDb = -20f, nowMs = start + 3_000)
+        detector.update(windowRmsDb = -20f, nowMs = start + 3_200)
+        assertFalse(detector.speechDetected) // acceptance needs 3 consecutive windows
+        detector.update(windowRmsDb = -20f, nowMs = start + 3_400)
         assertTrue(detector.speechDetected)
-        assertEquals(SilenceDetector.Decision.CONTINUE, detector.update(windowRmsDb = -65f, nowMs = start + 1_000))
-        assertEquals(SilenceDetector.Decision.CONTINUE, detector.update(windowRmsDb = -65f, nowMs = start + 2_000))
-        assertEquals(SilenceDetector.Decision.STOP, detector.update(windowRmsDb = -65f, nowMs = start + 3_000))
+        assertEquals(
+            SilenceDetector.Decision.CONTINUE,
+            detector.update(windowRmsDb = -65f, nowMs = start + 4_000)
+        )
+        assertEquals(
+            SilenceDetector.Decision.CONTINUE,
+            detector.update(windowRmsDb = -65f, nowMs = start + 5_000)
+        )
+        assertEquals(
+            SilenceDetector.Decision.STOP,
+            detector.update(windowRmsDb = -65f, nowMs = start + 6_400)
+        )
     }
 
     @Test
     fun `keeps listening while speech continues`() {
         val detector = SilenceDetector(silenceTimeoutMs = 3_000L)
-        var now = start
+        primeFloor(detector)
+        var now = start + 3_000
         repeat(10) {
             assertEquals(SilenceDetector.Decision.CONTINUE, detector.update(windowRmsDb = -20f, nowMs = now))
             now += 200
@@ -54,6 +79,62 @@ class SilenceDetectorTest {
             now += 200
         }
         assertFalse("a silently recording user must not trigger STOP", detector.speechDetected)
+    }
+
+    @Test
+    fun `single loud transient is rejected - the streak resets before acceptance`() {
+        val detector = SilenceDetector(silenceTimeoutMs = 3_000L)
+        primeFloor(detector)
+        detector.update(windowRmsDb = -20f, nowMs = start + 3_000)
+        detector.update(windowRmsDb = -65f, nowMs = start + 3_200)
+        assertFalse(detector.speechDetected)
+        detector.update(windowRmsDb = -20f, nowMs = start + 3_400)
+        detector.update(windowRmsDb = -20f, nowMs = start + 3_600)
+        assertFalse("the transient must break the streak", detector.speechDetected)
+    }
+
+    @Test
+    fun `loud room is adapted to - ambient is not treated as speech`() {
+        val detector = SilenceDetector(silenceTimeoutMs = 3_000L)
+        // Moderately loud room (~ -45 dBFS), well above the initial threshold
+        // of -50. The floor must rise above the ambient so it is never speech.
+        primeFloor(detector, ambientDb = -45f)
+        repeat(20) { i ->
+            assertEquals(
+                "ambient must never be accepted as speech",
+                SilenceDetector.Decision.CONTINUE,
+                detector.update(windowRmsDb = -45f, nowMs = start + 3_000 + i * 200)
+            )
+        }
+        assertFalse(detector.speechDetected)
+    }
+
+    @Test
+    fun `slow-starting user in a loud room is not cut off`() {
+        val detector = SilenceDetector(silenceTimeoutMs = 3_000L)
+        primeFloor(detector, ambientDb = -45f)
+        // The user pauses several seconds before speaking. The trailing-silence
+        // clock must not have started, so no STOP fires during the pause.
+        repeat(20) { i ->
+            assertEquals(
+                SilenceDetector.Decision.CONTINUE,
+                detector.update(windowRmsDb = -45f, nowMs = start + 3_000 + i * 200)
+            )
+        }
+        detector.update(windowRmsDb = -20f, nowMs = start + 7_000)
+        detector.update(windowRmsDb = -20f, nowMs = start + 7_200)
+        detector.update(windowRmsDb = -20f, nowMs = start + 7_400)
+        assertTrue(detector.speechDetected)
+        // Speech accepted at ~7_400; silence afterwards should not STOP before
+        // the 3 s trailing window has elapsed.
+        assertEquals(
+            SilenceDetector.Decision.CONTINUE,
+            detector.update(windowRmsDb = -45f, nowMs = start + 9_000)
+        )
+        assertEquals(
+            SilenceDetector.Decision.STOP,
+            detector.update(windowRmsDb = -45f, nowMs = start + 10_400)
+        )
     }
 
     @Test

@@ -35,6 +35,15 @@ class WakeWordMatcherTest {
     }
 
     @Test
+    fun `reachable threshold range matches the documented clamp bounds`() {
+        // The slider spans sensitivity 0..1, so the reachable threshold range
+        // is [0.43, 0.70] — the model card's 0.35 high-sensitivity endpoint is
+        // deliberately below the slider floor.
+        assertEquals(0.70f, WakeWordMatcher(0f).threshold(), 0.001f)
+        assertEquals(0.43f, WakeWordMatcher(1f).threshold(), 0.001f)
+    }
+
+    @Test
     fun `single frame above threshold does not fire`() {
         val matcher = WakeWordMatcher(WakeWordMatcher.DEFAULT_SENSITIVITY)
         assertFalse(matcher.onScore(matcher.threshold() + 0.1f))

@@ -142,13 +142,13 @@ fun AssistiveBallScreen(
 }
 
 // Labels mirror the model card's three recommended thresholds (0.65 / 0.50 /
-// 0.35). Split points on the slider are derived from the inverse of
+// 0.35). Split points on the slider are the inverse of
 // `threshold = 0.70 - 0.27 * sensitivity`:
 //   threshold 0.65 → sensitivity ~0.185 (high-precision end)
 //   threshold 0.50 → sensitivity ~0.741 (balanced, also the default)
 private fun sensitivityLabel(sensitivity: Float): String = when {
-    sensitivity < 0.30f -> "High precision"
-    sensitivity < 0.70f -> "Balanced"
+    sensitivity < 0.185f -> "High precision"
+    sensitivity < 0.741f -> "Balanced"
     else -> "High sensitivity"
 }
 
