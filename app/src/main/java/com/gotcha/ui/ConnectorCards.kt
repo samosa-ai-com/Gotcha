@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gotcha.connectors.oauth.OAuthConnectFlow
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -145,6 +146,34 @@ private fun EnabledRow(
 private fun disconnectedHint(status: String): String =
     if (status == "Not connected") "Not connected — tap to set up" else status
 
+/**
+ * Shared "Refresh tools" / "Refresh connection" button for a connected connector
+ * card: runs [onRefresh] on [scope] while toggling [busy], then hands the status
+ * message to [onResult].
+ */
+@Composable
+private fun ConnectorRefreshButton(
+    busy: Boolean,
+    setBusy: (Boolean) -> Unit,
+    idleLabel: String,
+    busyLabel: String,
+    scope: CoroutineScope,
+    onRefresh: suspend () -> String,
+    onResult: (String) -> Unit
+) {
+    Button(
+        onClick = {
+            setBusy(true)
+            scope.launch {
+                onResult(onRefresh())
+                setBusy(false)
+            }
+        },
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(if (busy) busyLabel else idleLabel) }
+}
+
 @Composable
 fun TokenConnectorCard(
     title: String,
@@ -163,6 +192,8 @@ fun TokenConnectorCard(
     canConnect: () -> Boolean = { fields.all { it.value.isNotBlank() } },
     /** Rendered between the fields and the Connect button (e.g. the Gmail preset shortcut). */
     belowFields: @Composable () -> Unit = {},
+    /** Optional refresh action shown when connected (e.g. Home Assistant dynamic tool sync). */
+    onRefresh: (suspend () -> String)? = null,
     /** Test tag for the always-visible header row. */
     headerTestTag: String = "connector_header_$title"
 ) {
@@ -230,6 +261,20 @@ fun TokenConnectorCard(
                     ) { Text(if (busy) "Connecting…" else "Connect") }
                 } else {
                     if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange, showSwitch = false)
+                    if (onRefresh != null) {
+                        ConnectorRefreshButton(
+                            busy = busy,
+                            setBusy = { busy = it },
+                            idleLabel = "Refresh tools",
+                            busyLabel = "Refreshing tools…",
+                            scope = scope,
+                            onRefresh = onRefresh,
+                            onResult = {
+                                status = it
+                                refreshTick++
+                            }
+                        )
+                    }
                     OutlinedButton(
                         onClick = {
                             onDisconnect()
@@ -263,6 +308,8 @@ fun OAuthConnectorCard(
     blurb: String? = null,
     steps: List<String> = emptyList(),
     extraFields: @Composable () -> Unit = {},
+    /** Optional refresh action shown when connected. */
+    onRefresh: (suspend () -> String)? = null,
     /** Test tag for the always-visible header row. */
     headerTestTag: String = "connector_header_$title"
 ) {
@@ -379,6 +426,20 @@ fun OAuthConnectorCard(
                     }
                 } else {
                     if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange, showSwitch = false)
+                    if (onRefresh != null) {
+                        ConnectorRefreshButton(
+                            busy = busy,
+                            setBusy = { busy = it },
+                            idleLabel = "Refresh connection",
+                            busyLabel = "Refreshing…",
+                            scope = scope,
+                            onRefresh = onRefresh,
+                            onResult = {
+                                status = it
+                                refreshTick++
+                            }
+                        )
+                    }
                     OutlinedButton(
                         onClick = {
                             onDisconnect()

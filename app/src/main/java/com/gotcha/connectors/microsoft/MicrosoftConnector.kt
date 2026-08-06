@@ -1,5 +1,6 @@
 package com.gotcha.connectors.microsoft
 
+import android.util.Log
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
 import com.gotcha.connectors.mail.EmailFull
@@ -119,6 +120,22 @@ class MicrosoftConnector(
         credentials?.needsReconnect == true ->
             "Reconnect needed — the saved sign-in expired or was revoked."
         else -> "Connected as ${credentials?.accountEmail}"
+    }
+
+    override suspend fun refreshTools(): String {
+        val creds = credentials ?: return "Not connected"
+        if (creds.needsReconnect) return statusLine()
+        return try {
+            val tok = token(forceRefresh = true)
+            val email = api.me(tok)
+            if (email != creds.accountEmail) {
+                persist(creds.copy(accountEmail = email))
+            }
+            statusLine()
+        } catch (e: Exception) {
+            Log.w("MicrosoftConnector", "refreshTools failed; keeping current credentials", e)
+            statusLine()
+        }
     }
 
     override fun disconnect() {

@@ -65,6 +65,24 @@ class NotionConnector(
         credentials = null
     }
 
+    override suspend fun refreshTools(): String {
+        val creds = credentials ?: return "Not connected"
+        return try {
+            val me = api.me(creds.token)
+            val name = me["name"]?.jsonPrimitive?.contentOrNull
+                ?: me["bot"]?.jsonObject?.get("workspace_name")?.jsonPrimitive?.contentOrNull
+                ?: creds.workspaceName
+            if (name != creds.workspaceName) {
+                val updated = creds.copy(workspaceName = name)
+                store.saveRaw(id, json.encodeToString(updated))
+                credentials = updated
+            }
+            "Connected to $name"
+        } catch (e: Exception) {
+            "Could not refresh Notion connection: ${e.message}"
+        }
+    }
+
     /**
      * Validates [token] against `GET /users/me` before storing it, so a typo is
      * caught on the Settings screen instead of on the first tool call. Returns a

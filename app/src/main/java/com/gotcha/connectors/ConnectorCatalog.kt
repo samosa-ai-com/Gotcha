@@ -27,6 +27,14 @@ data class ConnectorSpec(
     val ownedToolNames: Set<String>,
     /** Subset of [ownedToolNames] that only reads — the slice Monitor may call. */
     val readOnlyToolNames: Set<String> = emptySet(),
+    /**
+     * True when this connector's tool set is server-defined and only known at
+     * connect time (e.g. Home Assistant's MCP server advertises its tools
+     * dynamically). The connector registers those tools with
+     * [com.gotcha.tools.ToolRegistry.setDynamicTools], and the registry hides
+     * whatever is registered whenever the connector is inactive.
+     */
+    val hasDynamicTools: Boolean = false,
     /** Agents allowed to use this connector's tools. */
     val agents: Set<AgentMode> = setOf(AgentMode.MONITOR, AgentMode.OPERATOR)
 )
@@ -84,7 +92,20 @@ object ConnectorCatalog {
         readOnlyToolNames = setOf("notion_search", "notion_read_page")
     )
 
-    val all: List<ConnectorSpec> = listOf(IMAP, GOOGLE, MICROSOFT, NOTION)
+    /**
+     * Home Assistant. The tool set is server-defined and dynamic — the connector
+     * registers it with ToolRegistry on connect — so the catalog can only mark the
+     * connector as dynamic rather than enumerate names. The registry hides whatever
+     * is registered whenever this connector is inactive.
+     */
+    val HOME_ASSISTANT = ConnectorSpec(
+        id = "homeassistant",
+        displayName = "Home Assistant",
+        ownedToolNames = emptySet(),
+        hasDynamicTools = true
+    )
+
+    val all: List<ConnectorSpec> = listOf(IMAP, GOOGLE, MICROSOFT, NOTION, HOME_ASSISTANT)
 
     fun byId(id: String): ConnectorSpec? = all.firstOrNull { it.id == id }
 

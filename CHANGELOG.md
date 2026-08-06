@@ -4,6 +4,21 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — Home Assistant MCP connector (#21)
+
+- **Gotcha can now control and query your smart home through Home Assistant's
+  Model Context Protocol server** (Settings ▸ Devices & Services ▸ Model Context
+  Protocol Server). Connect with your Home Assistant URL plus a long-lived access
+  token (profile ▸ Security ▸ Long-lived access tokens).
+- **The tools come from your server, not a fixed list.** On connect, the app
+  calls the MCP `tools/list` endpoint and registers exactly the tools Home
+  Assistant exposes for the entities you share with Assist — e.g. `HassTurnOn`,
+  `HassGetState`, `GetLiveContext` — so the agent can toggle a light or read a
+  sensor state in the same way the built-in connectors work.
+- **Monitor/Operator split is preserved.** Read-only HA tools (state/context
+  reads) are offered to Monitor; everything else is Operator-only. Disconnect —
+  or switching the connector off — hides the tools again from the model.
+
 ### Changed — Wake word & call-mode feel (#25)
 
 - **The wake-word acknowledgment is now one short word.** Saying "Hey Gotcha"

@@ -1,5 +1,6 @@
 package com.gotcha.connectors.google
 
+import android.util.Log
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
 import com.gotcha.connectors.mail.EmailFull
@@ -108,6 +109,22 @@ class GoogleConnector(
             "Reconnect needed — the saved sign-in expired (consent screens in " +
                 "\"Testing\" status expire every 7 days; publish to production to stop this)."
         else -> "Connected as ${credentials?.accountEmail}"
+    }
+
+    override suspend fun refreshTools(): String {
+        val creds = credentials ?: return "Not connected"
+        if (creds.needsReconnect) return statusLine()
+        return try {
+            val tok = token(forceRefresh = true)
+            val email = api.profileEmail(tok)
+            if (email != creds.accountEmail) {
+                persist(creds.copy(accountEmail = email))
+            }
+            statusLine()
+        } catch (e: Exception) {
+            Log.w("GoogleConnector", "refreshTools failed; keeping current credentials", e)
+            statusLine()
+        }
     }
 
     override fun disconnect() {

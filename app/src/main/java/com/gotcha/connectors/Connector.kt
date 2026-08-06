@@ -41,6 +41,9 @@ interface Connector {
     /** Short status line for the Settings card (e.g. "Connected as a@b.com"). */
     fun statusLine(): String
 
+    /** Re-synchronizes tools, tokens, or status from the remote server. */
+    suspend fun refreshTools(): String = statusLine()
+
     /** Clear stored credentials and any cached clients/sessions. */
     fun disconnect()
 }
