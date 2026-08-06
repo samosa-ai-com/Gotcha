@@ -31,8 +31,8 @@ while reusing the current `CallSessionController` voice-call path.
 - **Auto-end after the task:** `CallSessionController.startWakeWordCall()`
   plus the `autoEndOnReply` flag, so a wake-word-triggered call ends after
   the spoken reply while ordinary calls keep the existing stay-open behavior.
-- **Hands-free wake-word calls:** after the "call started" announcement the
-  microphone opens itself; a voice-activity detector
+- **Hands-free wake-word calls:** after the short wake-word acknowledgment
+  ("Yes?") the microphone opens itself; a voice-activity detector
   (`audio/SilenceDetector.kt`) stops it after ~3 s of silence (API STT, via a
   new `AudioRecord` + WAV path in `SttEngine.listenForUtterance`; ~2 s
   platform end-of-speech hint for the Android provider). The transcript then
@@ -71,8 +71,8 @@ custom TFLite classifier).
 
 ## Manual device-verification checklist
 
-- [ ] Ball on, microphone granted, wake word on; say "Hey Gotcha" — call
-      starts, "call started" announced, **mic opens by itself**, reply spoken,
+- [ ] Ball on, microphone granted, wake word on; say "Hey Gotcha" — the ball
+      pulses, a short "Yes?" is spoken, **mic opens by itself**, reply spoken,
       call auto-ends.
 - [ ] Speak, pause >3 s (API STT) — mic stops on its own and the turn sends.
 - [ ] Keep speaking — mic stays open (no early cut-off).

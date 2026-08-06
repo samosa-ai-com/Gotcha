@@ -205,13 +205,29 @@ class CallSessionController(
         _state.value = CallState.STARTING
         scope.launch {
             val language = Language.fromLabel(s.preferredLanguage)
-            if (!speakText(SpokenPhrases.callStarted(language), language)) {
+            if (!speakText(startGreeting(handsFree, language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
         }
         return true
     }
+
+    /**
+     * The first thing the user hears when a call starts. A wake-word call gets
+     * the short single-word acknowledgment ([SpokenPhrases.wakeWordAcknowledged])
+     * — the user just said "Hey Gotcha", so a full "call started" sentence makes
+     * the wake word feel ignored and delays the mic opening. A normal long-press
+     * call gets [SpokenPhrases.callStarted], which tells them the PTT session is
+     * live. [handsFree] is already true by the time [startWakeWordCall] reaches
+     * [startCall].
+     */
+    internal fun startGreeting(handsFree: Boolean, language: Language): String =
+        if (handsFree) {
+            SpokenPhrases.wakeWordAcknowledged(language)
+        } else {
+            SpokenPhrases.callStarted(language)
+        }
 
     fun startWakeWordCall(): Boolean {
         handsFree = true

@@ -8,6 +8,8 @@ import com.gotcha.audio.TtsEngine
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -227,6 +229,28 @@ class CallSessionControllerTest {
             blankScreen = false
         )
         assertTrue(failed.contains("could not be captured"))
+    }
+
+    @Test
+    fun `wake-word calls speak the short acknowledgment instead of the call-started sentence`() {
+        val greeting = controller.startGreeting(handsFree = true, Language.ENGLISH)
+        assertTrue(
+            "A wake-word call must use the short acknowledgment, not the call-started sentence",
+            greeting == SpokenPhrases.wakeWordAcknowledged(Language.ENGLISH)
+        )
+        assertTrue(
+            "A wake-word call must not announce itself like a normal call",
+            greeting != SpokenPhrases.callStarted(Language.ENGLISH)
+        )
+    }
+
+    @Test
+    fun `normal calls speak the call-started sentence`() {
+        val greeting = controller.startGreeting(handsFree = false, Language.ENGLISH)
+        assertTrue(
+            "A normal call must speak the call-started sentence",
+            greeting == SpokenPhrases.callStarted(Language.ENGLISH)
+        )
     }
 
     @Test

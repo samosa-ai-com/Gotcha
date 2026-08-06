@@ -16,6 +16,10 @@ object SpokenPhrases {
 
     fun callStarted(lang: Language): String = callStartedPhrases[lang] ?: callStartedPhrases.getValue(Language.ENGLISH)
 
+    /** Short attention-getter spoken when a wake-word ("Hey Gotcha") call starts. */
+    fun wakeWordAcknowledged(lang: Language): String =
+        wakeWordAcknowledgedPhrases[lang] ?: wakeWordAcknowledgedPhrases.getValue(Language.ENGLISH)
+
     fun confirmationNeeded(lang: Language): String =
         confirmationNeededPhrases[lang] ?: confirmationNeededPhrases.getValue(Language.ENGLISH)
 
@@ -95,15 +99,32 @@ object SpokenPhrases {
     )
 
     private val callStartedPhrases: Map<Language, String> = mapOf(
-        Language.ENGLISH to "Call started. I'm ready when you are.",
-        Language.SPANISH to "Llamada iniciada. Estoy listo cuando quieras.",
-        Language.FRENCH to "Appel démarré. Je suis prêt quand vous voulez.",
-        Language.GERMAN to "Anruf gestartet. Ich bin bereit, wenn du es bist.",
-        Language.HINDI to "कॉल शुरू हो गई है। जब आप तैयार हों, बताइए।",
-        Language.JAPANESE to "通話を開始しました。準備ができたら教えてください。",
-        Language.CHINESE to "通话已开始,准备好后请告诉我。",
-        Language.ITALIAN to "Chiamata iniziata. Sono pronto quando vuoi.",
-        Language.PORTUGUESE to "Chamada iniciada. Estou pronto quando você quiser."
+        Language.ENGLISH to "Call started. Go ahead.",
+        Language.SPANISH to "Llamada iniciada. Puedes hablar.",
+        Language.FRENCH to "Appel démarré. À vous.",
+        Language.GERMAN to "Anruf gestartet. Los geht's.",
+        Language.HINDI to "कॉल शुरू हो गई है। बोलिए।",
+        Language.JAPANESE to "通話を開始しました。どうぞ。",
+        Language.CHINESE to "通话已开始,请说话。",
+        Language.ITALIAN to "Chiamata iniziata. Vai pure.",
+        Language.PORTUGUESE to "Chamada iniciada. Pode falar."
+    )
+
+    /**
+     * The user already announced themselves with the wake word, so the
+     * acknowledgment is a single word — anything longer makes the wake word
+     * feel like it was ignored and delays the mic opening.
+     */
+    private val wakeWordAcknowledgedPhrases: Map<Language, String> = mapOf(
+        Language.ENGLISH to "Yes?",
+        Language.SPANISH to "¿Dime?",
+        Language.FRENCH to "Oui ?",
+        Language.GERMAN to "Ja?",
+        Language.HINDI to "हाँ?",
+        Language.JAPANESE to "はい？",
+        Language.CHINESE to "嗯？",
+        Language.ITALIAN to "Sì?",
+        Language.PORTUGUESE to "Sim?"
     )
 
     private val confirmationNeededPhrases: Map<Language, String> = mapOf(

@@ -4,6 +4,21 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Changed — Wake word & call-mode feel (#25)
+
+- **The wake-word acknowledgment is now one short word.** Saying "Hey Gotcha"
+  used to reply with the full "Call started. I'm ready when you are." sentence,
+  which made the wake word feel ignored and delayed the mic opening. It now
+  answers with a single "Yes?" (translated per language) and the mic opens
+  sooner. Normal long-press calls get a tighter "Call started. Go ahead."
+- **The ball now visibly reacts when the wake word fires.** It gives a quick
+  scale bounce while an accent ring radiates from it on its own overlay window,
+  so the pulse still plays after the ball is hidden by the call window. Respects
+  the system "remove animations" preference.
+- **Long-press to start a call is 1 second instead of 2.** The hold-to-call
+  gesture on the floating ball was reduced from 2000 ms to 1000 ms; the
+  expanding ring that previews it stays in sync.
+
 ### Fixed — Malformed tool call no longer bricks the chat (#13)
 
 - **A tool call with invalid `arguments` JSON can no longer poison a chat.** When
