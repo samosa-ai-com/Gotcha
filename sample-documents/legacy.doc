@@ -1,0 +1,2 @@
+This is a legacy Word 97-2003 document placeholder.
+It is intentionally NOT a real .doc binary, so Gotcha should reject it with the "legacy .doc files are not supported" message.

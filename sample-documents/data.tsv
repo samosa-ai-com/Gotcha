@@ -1,0 +1,6 @@
+metric	value	unit	note
+active_users	1017	users	first time above 1k
+avg_session	6.4	minutes	up from 4.1
+attach_success	96.2	percent	of picks parsed OK
+attach_error	3.8	percent	mostly corrupt files
+tok_per_msg	812	tokens	within budget

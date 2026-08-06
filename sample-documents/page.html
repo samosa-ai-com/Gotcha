@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Falcon — Launch Report</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 44em; margin: 2em auto; line-height: 1.55; color: #222; }
+    h1 { color: #4472c4; }
+    h2 { border-bottom: 2px solid #ed7d31; padding-bottom: 0.2em; margin-top: 1.8em; }
+    table { border-collapse: collapse; margin: 1em 0; }
+    th, td { border: 1px solid #999; padding: 6px 12px; text-align: left; }
+    th { background: #eef; }
+    .callout { background: #fff7e6; border-left: 4px solid #ed7d31; padding: 8px 14px; }
+  </style>
+</head>
+<body>
+  <h1>Project Falcon — Launch Report</h1>
+  <p class="callout"><strong>Summary:</strong> Falcon reached 1,017 active users and a 96.2% document-attachment success rate during the Q3 beta.</p>
+
+  <h2>1. Adoption</h2>
+  <p>Weekly active users grew 34% week-over-week after the beta invite wave. The top three retention drivers were voice mode, document attachments, and custom agent modes.</p>
+
+  <h2>2. Document attachments</h2>
+  <p>Users attached PDFs, spreadsheets, presentations, and plain-text files directly in chat. The model answered questions over the extracted text, including page counts for PDFs and per-sheet rows for spreadsheets.</p>
+  <table>
+    <tr><th>Format</th><th>Share</th><th>Success rate</th></tr>
+    <tr><td>PDF</td><td>41%</td><td>95.8%</td></tr>
+    <tr><td>DOCX</td><td>24%</td><td>97.1%</td></tr>
+    <tr><td>XLSX</td><td>15%</td><td>98.0%</td></tr>
+    <tr><td>PPTX</td><td>8%</td><td>96.4%</td></tr>
+    <tr><td>Plain text</td><td>12%</td><td>99.2%</td></tr>
+  </table>
+  <p>The most common failures were legacy <code>.doc</code> / <code>.xls</code> files (rejected with a clear message) and a small number of corrupt PDFs.</p>
+
+  <h2>3. Known issues</h2>
+  <ul>
+    <li>Very large files (&gt;20 MB) are rejected with an explanatory error.</li>
+    <li>Extracted text over 40,000 characters is truncated with a visible note.</li>
+    <li>Only one attachment kind (image <em>or</em> document) is allowed per message.</li>
+  </ul>
+
+  <h2>4. Next steps</h2>
+  <p>Roll the share-sheet integration to production, add multi-attachment support, and instrument attachment success metrics per format.</p>
+</body>
+</html>

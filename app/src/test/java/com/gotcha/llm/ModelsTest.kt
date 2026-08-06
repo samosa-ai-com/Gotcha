@@ -95,6 +95,76 @@ class ModelsTest {
         assertNull(ChatMessage(role = "assistant", content = null).imageUrl())
     }
 
+    // ---- document attachments ----
+
+    @Test
+    fun `documentUserMessage puts header and body in the single first text part`() {
+        val msg = documentUserMessage("summarize this", "report.pdf", "application/pdf", "Page one body", pageCount = 3)
+
+        assertEquals("user", msg.role)
+        val parts = (msg.content as JsonArray)
+        assertEquals("one text part only — a second part would break token accounting", 1, parts.size)
+
+        val textPart = parts[0].jsonObject
+        assertEquals("text", textPart["type"]!!.jsonPrimitive.content)
+        val text = textPart["text"]!!.jsonPrimitive.content
+        assertTrue(text.startsWith("summarize this"))
+        assertTrue(text.contains("[Attached file: report.pdf (application/pdf, 3 pages)]"))
+        assertTrue(text.contains("Page one body"))
+    }
+
+    @Test
+    fun `documentUserMessage textContent returns header and body for token accounting`() {
+        val msg =
+            documentUserMessage(
+                "Q",
+                "doc.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "BODY"
+            )
+        // The critical contract: textContent must see the whole payload so token
+        // counts, trimmedHistory and compaction don't silently drop the document.
+        assertTrue(msg.textContent.contains("[Attached file: doc.docx"))
+        assertTrue(msg.textContent.contains("BODY"))
+    }
+
+    @Test
+    fun `documentUserMessage falls back to a default prompt for blank text`() {
+        val msg = documentUserMessage("  ", "x.pdf", "application/pdf", "body")
+        assertTrue(msg.textContent.contains("Answer questions about the attached file."))
+    }
+
+    @Test
+    fun `documentUserMessage uses a placeholder body when extraction is empty`() {
+        val msg = documentUserMessage("q", "x.pdf", "application/pdf", "")
+        assertTrue(msg.textContent.contains("could not be read"))
+    }
+
+    @Test
+    fun `documentUserMessage omits page count when null`() {
+        val msg = documentUserMessage("q", "x.txt", "text/plain", "body")
+        assertTrue(msg.textContent.contains("[Attached file: x.txt (text/plain)]"))
+        assertFalse(msg.textContent.contains("pages"))
+    }
+
+    @Test
+    fun `document message content survives a serialization round-trip`() {
+        val original =
+            documentUserMessage(
+                "q",
+                "x.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "A1 | 42",
+                pageCount = null
+            )
+        val decoded = json.decodeFromString(
+            ChatMessage.serializer(),
+            json.encodeToString(ChatMessage.serializer(), original)
+        )
+        assertEquals(original, decoded)
+        assertEquals(1, decoded.content!!.jsonArray.size)
+    }
+
     @Test
     fun `imageUrl returns null when the content array has no image part`() {
         val msg = ChatMessage(

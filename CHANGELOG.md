@@ -4,6 +4,25 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — Document attachments in chat (#24)
+
+- **Attach more than images.** The composer's "+" now opens a picker that accepts
+  documents as well as images: PDF, Word (`.docx`), Excel (`.xlsx`),
+  PowerPoint (`.pptx`) and plain text (TXT/CSV/MD/JSON/HTML). A new
+  `DocumentParser` (pure Kotlin, ZIP + XML for Office files, pdfbox-android for
+  PDF, jsoup for HTML) extracts the file's text; legacy `.doc`/`.xls` and
+  unsupported formats show a clear error instead of failing silently.
+- **The model reads the file.** Attaching a document sends an
+  `[Attached file: name (type, N pages)]` header plus the extracted text (capped
+  at ~40k chars, ~10k tokens) as the message's single text part, so token
+  accounting, history trimming and compaction all count it correctly. The bytes
+  are copied into the app cache at pick time so a revoked content grant can't
+  break a later send.
+- **Attachment UI.** Pending attachments show as a chip (name, type, size,
+  truncated flag) instead of a bitmap preview; sent messages render the same
+  chip. Attachment metadata persists with the session, so editing a sent
+  document message re-sends the extracted text without re-reading the file.
+
 ### Added — Home Assistant MCP connector (#21)
 
 - **Gotcha can now control and query your smart home through Home Assistant's

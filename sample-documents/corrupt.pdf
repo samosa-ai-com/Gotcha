@@ -1,0 +1,2 @@
+This is not a real PDF at all. It is plain text saved with a .pdf extension.
+Gotcha should surface a "Could not read this document" error instead of crashing.
