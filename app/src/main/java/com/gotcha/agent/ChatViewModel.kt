@@ -53,7 +53,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
-import java.io.File
 
 /**
  * A document the user picked from the system picker. The extracted [text] is what
@@ -748,51 +747,68 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
-     * Entry point for the composer's "+" button. Routes by content type: images
-     * reuse the image pipeline; anything else goes through [loadDocument]. Errors
-     * surface as an ERROR bubble so an oversized or unsupported file explains
-     * itself instead of silently doing nothing.
+     * Result of the composer's "+" pick, delivered asynchronously once the file
+     * has been read and parsed off the main thread. `null` means a failed pick
+     * (an ERROR bubble is appended first).
      */
-    fun pickContent(uri: Uri): PickedFile? {
-        val resolver = getApplication<Application>().contentResolver
-        val mime = resolver.getType(uri)
-        return if (mime?.startsWith("image/") == true) {
-            loadImageBase64(uri)?.let { PickedFile.Image(it) }
-        } else {
-            loadDocument(uri)?.let { PickedFile.Document(it) }
+    private val _pickResults = MutableSharedFlow<PickedFile?>(extraBufferCapacity = 1)
+    val pickResults: SharedFlow<PickedFile?> = _pickResults.asSharedFlow()
+
+    /**
+     * Entry point for the composer's "+" button. Routes by content type: images
+     * reuse the image pipeline; anything else goes through [loadDocument]. The
+     * read + parse runs on [Dispatchers.IO] so a large document never blocks the
+     * main thread; a failure surfaces as an ERROR bubble and the result (or
+     * null) is delivered on [pickResults].
+     */
+    fun pickContent(uri: Uri) {
+        viewModelScope.launch {
+            val (picked, error) = withContext(Dispatchers.IO) {
+                try {
+                    val resolver = getApplication<Application>().contentResolver
+                    val mime = resolver.getType(uri)
+                    if (mime?.startsWith("image/") == true) {
+                        loadImageBase64(uri)?.let { PickedFile.Image(it) }
+                    } else {
+                        loadDocument(uri)?.let { PickedFile.Document(it) }
+                    } to null
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: DocumentError) {
+                    null to (e.message ?: "Could not read that file.")
+                } catch (e: Exception) {
+                    null to "Could not read that file: ${HumanReadableError.format(e)}"
+                }
+            }
+            // Back on the main dispatcher: the error bubble lands before the pick
+            // result so a failed attachment explains itself in the transcript.
+            if (error != null) appendUi(MessageKind.ERROR, error)
+            _pickResults.tryEmit(picked)
         }
     }
 
     /**
-     * Load a document from a content:// URI: read the bytes, extract the text via
-     * [DocumentParser], and copy the bytes into the app cache immediately — the
-     * transient picker read grant must not be relied on at send time. Returns null
-     * (after surfacing a message) when the file is unreadable or unsupported.
+     * Load a document from a content:// URI: read the bytes and extract the text
+     * via [DocumentParser]. The extracted text is carried on the returned
+     * [Attachment], so the transient picker read grant is never needed again and
+     * nothing is copied into the app cache. Returns null only when the stream
+     * cannot be opened; unreadable/unsupported content throws [DocumentError],
+     * which [pickContent] surfaces as an ERROR bubble on the main thread.
      */
-    fun loadDocument(uri: Uri): Attachment? {
-        return try {
-            val app = getApplication<Application>()
-            val resolver = app.contentResolver
-            val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-            val name = queryDisplayName(resolver, uri)
-            val extracted = DocumentParser.extract(bytes, name, resolver.getType(uri))
-            val cached = File(app.cacheDir, "attach-${System.currentTimeMillis()}-${safeName(name)}")
-            cached.writeBytes(bytes)
-            Attachment(
-                name = name,
-                mimeType = extracted.mimeType,
-                size = bytes.size.toLong(),
-                text = extracted.text,
-                pageCount = extracted.pageCount,
-                truncated = extracted.truncated
-            )
-        } catch (e: DocumentError) {
-            appendUi(MessageKind.ERROR, e.message ?: "Could not read that file.")
-            null
-        } catch (e: Exception) {
-            appendUi(MessageKind.ERROR, "Could not read that file: ${HumanReadableError.format(e)}")
-            null
-        }
+    private fun loadDocument(uri: Uri): Attachment? {
+        val app = getApplication<Application>()
+        val resolver = app.contentResolver
+        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        val name = queryDisplayName(resolver, uri)
+        val extracted = DocumentParser.extract(bytes, name, resolver.getType(uri))
+        return Attachment(
+            name = name,
+            mimeType = extracted.mimeType,
+            size = bytes.size.toLong(),
+            text = extracted.text,
+            pageCount = extracted.pageCount,
+            truncated = extracted.truncated
+        )
     }
 
     private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String {
@@ -806,9 +822,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             null
         }?.takeIf { it.isNotBlank() } ?: "document"
     }
-
-    private fun safeName(name: String): String =
-        name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80).ifBlank { "doc" }
 
     fun stopAgent() {
         agentJob?.cancel()

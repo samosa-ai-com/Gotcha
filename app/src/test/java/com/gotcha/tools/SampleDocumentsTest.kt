@@ -15,9 +15,11 @@ import java.io.File
 
 /**
  * Runs [DocumentParser] against the real sample files committed under
- * `app/src/test/resources/sample-documents/` — the same kit users transfer to a
- * device to manually test chat attachments. PDF needs pdfbox-android, so this
- * lives under Robolectric like [DocumentParserPdfTest].
+ * `sample-documents/` at the repo root — the same kit users transfer to a device
+ * to manually test chat attachments. The directory is handed to the test via the
+ * `gotcha.sampleDocsDir` system property (see `app/build.gradle.kts`) so the files
+ * live in one place. PDF needs pdfbox-android, so this runs under Robolectric
+ * like [DocumentParserPdfTest].
  *
  * Each assertion mirrors what the README in `sample-documents/` promises, so a
  * regression in extraction (or a silent format change) fails here first.
@@ -31,10 +33,9 @@ class SampleDocumentsTest {
     @Before
     fun setUp() {
         DocumentParser.init(ApplicationProvider.getApplicationContext())
-        val anchor = checkNotNull(javaClass.getResource("/sample-documents/readme.txt")) {
-            "sample-document fixtures missing from test resources"
-        }
-        dir = File(anchor.toURI()).parentFile
+        val path = System.getProperty("gotcha.sampleDocsDir")
+        dir = File(checkNotNull(path) { "gotcha.sampleDocsDir system property missing" })
+        assertTrue("sample-documents must exist", dir.isDirectory)
     }
 
     private fun extract(name: String): ExtractedDocument {
@@ -93,8 +94,6 @@ class SampleDocumentsTest {
 
     @Test
     fun `plain text files extract their content`() {
-        // `.gitignore` and `Main.kt` exist only in the on-device transfer kit:
-        // Gradle's default resource excludes drop them, so they can't be fixtures.
         val expectations = mapOf(
             "readme.txt" to "Project Falcon",
             "notes.md" to "Acceptance criteria",
@@ -106,8 +105,10 @@ class SampleDocumentsTest {
             "config.ini" to "wakeWord",
             "app.properties" to "document.max.attachment.bytes",
             "sample.env" to "MAX_ATTACHMENT_BYTES",
+            ".gitignore" to "Build outputs",
             "app.log" to "Corrupt document",
             "server.py" to "SUPPORTED_EXTS",
+            "Main.kt" to "AttachmentDemo",
             "styles.css" to "attachment-chip",
             "queries.sql" to "CREATE TABLE"
         )

@@ -39,7 +39,6 @@ proguard/
 *.log
 
 # ...except the sample log fixture used by the document-attachment tests
-!app/src/test/resources/sample-documents/app.log
 !sample-documents/app.log
 
 # Android Studio Navigation editor temp files

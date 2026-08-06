@@ -62,6 +62,50 @@ class DocumentParserTest {
         assertEquals("Title Some bold text.", doc.text)
     }
 
+    // ---- RTF ----
+
+    @Test
+    fun `rtf control words are stripped to plain text`() {
+        val rtf = """{\rtf1\ansi\ansicpg1252\deff0
+{\pard \ql \f0 \sa180 \li0 \fi0 \b \fs36 Project Falcon\par}
+{\pard \f0 Hello \b world\par}}"""
+        val doc = DocumentParser.extract(rtf.toByteArray(), "doc.rtf", null)
+        assertTrue("control words must be dropped, got: '${doc.text}'", doc.text.contains("Project Falcon"))
+        assertTrue(doc.text.contains("Hello world"))
+    }
+
+    @Test
+    fun `rtf unicode and hex escapes decode`() {
+        val rtf = "{\\rtf1\\ansi\\uc1 Q3 \\u8212- \\u-57324? em dash caf\\'e9}"
+        val doc = DocumentParser.extract(rtf.toByteArray(), "doc.rtf", null)
+        assertTrue(
+            "escapes should decode, got: '${doc.text}'",
+            doc.text.contains("Q3 — — em dash café")
+        )
+    }
+
+    @Test
+    fun `rtf escaped braces and backslashes are kept`() {
+        val rtf = "{\\rtf1\\ansi {literal \\{brace\\}} \\\\ backslash}"
+        val doc = DocumentParser.extract(rtf.toByteArray(), "doc.rtf", null)
+        assertTrue(doc.text.contains("{brace}"))
+        assertTrue(doc.text.contains("\\ backslash"))
+    }
+
+    @Test
+    fun `rtf ignorable destinations are dropped`() {
+        val rtf = "{\\rtf1\\ansi {\\*\\fonttbl {\\f0 Arial;}} Hello}"
+        val doc = DocumentParser.extract(rtf.toByteArray(), "doc.rtf", null)
+        assertFalse("font table must not leak into the text", doc.text.contains("fonttbl"))
+        assertTrue(doc.text.contains("Hello"))
+    }
+
+    @Test
+    fun `rtf-named file without an rtf header falls back to plain text`() {
+        val doc = DocumentParser.extract("just some text".toByteArray(), "doc.rtf", null)
+        assertEquals("just some text", doc.text)
+    }
+
     // ---- .docx ----
 
     @Test

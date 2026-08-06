@@ -126,6 +126,7 @@ object DocumentParser {
         isXlsx(mime, ext) -> xlsxText(bytes)
         isPptx(mime, ext) -> pptxText(bytes)
         isHtml(mime, ext) -> Jsoup.parse(decodeText(bytes)).text()
+        isRtf(mime, ext, bytes) -> rtfText(bytes)
         isText(mime, ext) -> decodeText(bytes)
         else -> throw DocumentError.UnsupportedFormat(mime.ifBlank { ext })
     }
@@ -150,6 +151,17 @@ object DocumentParser {
     private fun isText(mime: String, ext: String): Boolean =
         mime.startsWith("text/") || mime == "application/json" || mime == "application/xml" ||
             mime == "application/javascript" || ext in TEXT_EXTS
+
+    /** True when the file claims to be RTF and actually looks like RTF (`{\rtf`). */
+    private fun isRtf(mime: String, ext: String, bytes: ByteArray): Boolean {
+        val claimsRtf = ext == "rtf" || mime == "application/rtf" || mime == "text/rtf"
+        return claimsRtf && looksLikeRtf(bytes)
+    }
+
+    private fun looksLikeRtf(bytes: ByteArray): Boolean {
+        val head = String(bytes, 0, minOf(64, bytes.size), Charsets.ISO_8859_1)
+        return "{\\rtf" in head.lowercase()
+    }
 
     private fun extensionMime(ext: String): String = when (ext) {
         "pdf" -> "application/pdf"
@@ -304,6 +316,124 @@ object DocumentParser {
         } catch (_: Exception) {
             // Unsupported by this parser — degrade gracefully.
         }
+    }
+
+    // ---- RTF (lightweight) ----
+
+    /**
+     * Reduces RTF markup to its readable text: control words and groups are
+     * dropped, `\uN` / `\'hh` escapes are decoded, and paragraph breaks become
+     * newlines. Not a full RTF parser (tables, embedded objects and `\'hh` bytes
+     * in encodings other than Windows-1252 are approximated), but it keeps the
+     * model input free of `{\rtf1\ansi...` noise. Safe on non-RTF input too —
+     * text without backslashes passes through unchanged.
+     */
+    private fun rtfText(bytes: ByteArray): String {
+        val src = decodeText(bytes)
+        val sb = StringBuilder()
+        var i = 0
+        while (i < src.length) {
+            when (val c = src[i]) {
+                '\\' -> i = if (i + 1 < src.length) consumeRtfControl(src, i, sb) else i + 1
+                '{' -> {
+                    // `{\*...}` marks an ignorable destination (font table, metadata, …).
+                    i = if (i + 2 < src.length && src[i + 1] == '\\' && src[i + 2] == '*') {
+                        skipRtfGroup(src, i)
+                    } else {
+                        i + 1
+                    }
+                }
+                '}' -> i++
+                else -> {
+                    sb.append(c)
+                    i++
+                }
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun consumeRtfControl(src: String, start: Int, sb: StringBuilder): Int {
+        val next = src[start + 1]
+        return when {
+            next == '\\' || next == '{' || next == '}' -> {
+                sb.append(next)
+                start + 2
+            }
+            next == '\'' && start + 4 <= src.length -> {
+                src.substring(start + 2, start + 4).toIntOrNull(16)?.let { sb.append(it.toChar()) }
+                start + 4
+            }
+            next.isLetter() -> consumeRtfWord(src, start, sb)
+            else -> start + 2 // lone control symbol (`\~`, `\-`, …)
+        }
+    }
+
+    /** Parses one control word (`\par`, `\fs36`, `\u8212-`, …) and returns the next index. */
+    private fun consumeRtfWord(src: String, start: Int, sb: StringBuilder): Int {
+        var j = start + 1
+        while (j < src.length && src[j].isLetter()) j++
+        val word = src.substring(start + 1, j)
+
+        // Optional signed integer parameter. A `-` only starts a parameter when
+        // digits follow, so `\ql-quick` keeps its hyphen as literal text.
+        var k = j
+        var negative = false
+        if (k + 1 < src.length && src[k] == '-' && src[k + 1].isDigit()) {
+            negative = true
+            k++
+        }
+        var hasParam = false
+        var param = 0
+        while (k < src.length && src[k].isDigit()) {
+            hasParam = true
+            param = param * 10 + (src[k] - '0')
+            k++
+        }
+        if (negative) param = -param
+
+        if (word == "u") {
+            // `\uN` carries the Unicode code point (signed 16-bit) followed by a
+            // single fallback character for non-unicode readers; we discard it.
+            if (hasParam && param != 0) {
+                val code = if (param < 0) 65536 + param else param
+                if (code in 1..0xFFFF) sb.append(Char(code))
+            }
+            return if (k < src.length) k + 1 else k
+        }
+
+        when (word) {
+            "par", "pard", "line", "row", "cell", "sect" -> sb.append('\n')
+            "tab" -> sb.append(' ')
+            "emdash" -> sb.append('\u2014')
+            "endash" -> sb.append('\u2013')
+            "enspace" -> sb.append(' ')
+            "bullet" -> sb.append('\u2022')
+        }
+        // A single space is the parameter delimiter and is not part of the text.
+        return if (k < src.length && src[k] == ' ') k + 1 else k
+    }
+
+    /** Returns the index just past the group that closes the group opened at [openIndex]. */
+    private fun skipRtfGroup(src: String, openIndex: Int): Int {
+        var depth = 0
+        var j = openIndex
+        while (j < src.length) {
+            val ch = src[j]
+            if (ch == '\\' && j + 1 < src.length && (src[j + 1] == '{' || src[j + 1] == '}')) {
+                j += 2
+            } else if (ch == '{') {
+                depth++
+                j++
+            } else if (ch == '}') {
+                depth--
+                j++
+                if (depth == 0) return j
+            } else {
+                j++
+            }
+        }
+        return j
     }
 
     // ---- plain text ----

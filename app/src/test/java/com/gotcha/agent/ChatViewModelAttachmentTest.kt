@@ -1,13 +1,20 @@
 package com.gotcha.agent
 
 import android.app.Application
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.testsupport.FakeAndroidKeyStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -101,6 +108,32 @@ class ChatViewModelAttachmentTest {
 
         assertEquals(before, viewModel.uiState.value.messages.size)
         assertTrue(engineHistory().isEmpty())
+    }
+
+    @Test
+    fun `pickContent parses off the caller thread and delivers on pickResults`() {
+        // A content URI with no provider behind it: the stream can't open, so the
+        // pick resolves to null. The point is the plumbing — nothing may happen on
+        // the calling thread, and the result arrives asynchronously via pickResults.
+        val uri = Uri.parse("content://com.gotcha.missing.provider/attachments/missing.pdf")
+
+        viewModel.pickContent(uri)
+
+        // No work ran synchronously on the calling thread.
+        assertEquals(0, viewModel.uiState.value.messages.size)
+
+        val deadline = System.currentTimeMillis() + 5_000
+        var result: PickedFile? = null
+        val collector = CoroutineScope(Dispatchers.Default).launch {
+            result = withTimeoutOrNull(5_000) { viewModel.pickResults.first() }
+        }
+        while (System.currentTimeMillis() < deadline && result == null) {
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(10)
+        }
+        collector.cancel()
+
+        assertNull("pick should resolve to null, got $result", result)
     }
 
     @Test

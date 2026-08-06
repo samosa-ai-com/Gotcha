@@ -88,6 +88,7 @@ import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.gotcha.ui.theme.motionSpec
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import androidx.compose.foundation.Image as ComposeImage
 
@@ -112,7 +113,8 @@ fun ChatScreen(
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     sessionTitle: String? = null,
-    onPickFile: (Uri) -> PickedFile?,
+    onPickFile: (Uri) -> Unit,
+    pickResults: Flow<PickedFile?>,
     onSwitchAgent: () -> Unit,
     onSetAgent: (AgentMode) -> Unit = {},
     onSpeak: (String) -> Unit = {},
@@ -133,7 +135,6 @@ fun ChatScreen(
         state.runningSessionId != state.activeSessionId
     var input by rememberSaveable { mutableStateOf("") }
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
-    var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingAttachment by rememberSaveable(stateSaver = AttachmentSaver) {
         mutableStateOf<Attachment?>(null)
@@ -155,15 +156,19 @@ fun ChatScreen(
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        if (uri != null) {
-            when (val picked = onPickFile(uri)) {
+        if (uri != null) onPickFile(uri)
+    }
+
+    // The picked file is read/parsed off the main thread (see ChatViewModel.pickContent);
+    // apply the result to the composer as soon as it arrives.
+    LaunchedEffect(Unit) {
+        pickResults.collect { picked ->
+            when (picked) {
                 is PickedFile.Image -> {
-                    pendingImageUri = uri
                     pendingImageBase64 = picked.base64
                     pendingAttachment = null
                 }
                 is PickedFile.Document -> {
-                    pendingImageUri = null
                     pendingImageBase64 = null
                     pendingAttachment = picked.attachment
                 }
@@ -342,7 +347,6 @@ fun ChatScreen(
                                         else -> target.text
                                     }
                                     inputWasVoice = false
-                                    pendingImageUri = null
                                     pendingImageBase64 = target.imageBase64
                                     pendingAttachment = target.attachment
                                 },
@@ -466,7 +470,6 @@ fun ChatScreen(
                     }
                     IconButton(
                         onClick = {
-                            pendingImageUri = null
                             pendingImageBase64 = null
                         },
                         modifier = Modifier.align(Alignment.TopEnd)
@@ -604,7 +607,6 @@ fun ChatScreen(
                         TextButton(
                             onClick = {
                                 editingMessageId = null
-                                pendingImageUri = null
                                 pendingImageBase64 = null
                                 pendingAttachment = null
                                 input = ""
@@ -746,7 +748,6 @@ fun ChatScreen(
                                         editingMessageId = null
                                         input = ""
                                         inputWasVoice = false
-                                        pendingImageUri = null
                                         pendingImageBase64 = null
                                         pendingAttachment = null
                                     },

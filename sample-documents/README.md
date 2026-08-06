@@ -13,7 +13,7 @@ below.
 | `budget.xlsx` | Two sheets: "Budget" rows (Item / Qty / Unit Price / Total) then "Forecast" rows (Category / Qty / Total) |
 | `deck.pptx` | Three slides: Quarterly Review → Document attachments → What's next |
 | `page.html` | Same launch report as text (HTML tags stripped) |
-| `document.rtf` | The proposal text (with RTF markup — it's parsed as plain text) |
+| `document.rtf` | The proposal text (RTF markup stripped — only the readable words reach the model) |
 | `readme.txt`, `notes.md`, `data.csv`, `data.tsv`, `config.json`, `data.xml`, `settings.yaml`, `config.ini`, `app.properties`, `sample.env`, `.gitignore`, `app.log`, `server.py`, `Main.kt`, `styles.css`, `queries.sql` | Each file's own content; nothing else |
 
 ## Error path — should NOT be sent, an ERROR bubble explains why
@@ -33,7 +33,6 @@ below.
   (it tests the *character* truncation, not the size cap).
 - All Office/PDF files were verified to open in LibreOffice and to parse with
   the app's own `DocumentParser` unit tests.
-- These same files are committed as automated test fixtures under
-  `app/src/test/resources/sample-documents/` and exercised by
-  `SampleDocumentsTest` (`.gitignore` and `Main.kt` are transfer-kit only, since
-  Gradle's resource processing drops them).
+- These same files are the single copy of the fixtures: `SampleDocumentsTest`
+  reads this folder directly (path passed via the `gotcha.sampleDocsDir` Gradle
+  property), so there is no duplicate set under `app/src/test/resources/`.
