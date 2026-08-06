@@ -541,6 +541,13 @@ class ToolExecutor(
             return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
                 "available on this device right now. Tell the user what to enable; do not retry."
         }
+        // Home Assistant's MCP tools are registered dynamically, so the compile-time
+        // catalog cannot know them; name the connector explicitly.
+        if (name in ToolRegistry.dynamicTools) {
+            return "Tool '$name' is unavailable: it needs Home Assistant, which is not " +
+                "connected or is switched off. Tell the user to set it up in the drawer " +
+                "menu ▸ Connectors; do not retry."
+        }
         val owners = com.gotcha.connectors.ConnectorCatalog.ownersOf(name)
             .joinToString(" or ") { it.displayName }
         val suffix = if (owners.isBlank()) {

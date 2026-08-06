@@ -4,12 +4,15 @@ import android.content.Context
 import com.gotcha.connectors.calendar.CalendarToolDevice
 import com.gotcha.connectors.calendar.CalendarTools
 import com.gotcha.connectors.google.GoogleConnector
+import com.gotcha.connectors.homeassistant.HomeAssistantConnector
+import com.gotcha.connectors.homeassistant.HomeAssistantTools
 import com.gotcha.connectors.imap.ImapConnector
 import com.gotcha.connectors.mail.EmailTools
 import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.microsoft.TaskTools
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.notion.NotionTools
+import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
 import kotlinx.serialization.json.JsonObject
 
@@ -42,7 +45,8 @@ object ConnectorRegistry {
             val google = GoogleConnector(store)
             val microsoft = MicrosoftConnector(store)
             val notion = NotionConnector(store)
-            connectors = listOf(imap, google, microsoft, notion)
+            val homeAssistant = HomeAssistantConnector(store)
+            connectors = listOf(imap, google, microsoft, notion, homeAssistant)
 
             val email = EmailTools(appContext, imap, google, microsoft)
             emailTools = email
@@ -56,7 +60,8 @@ object ConnectorRegistry {
                     google = { google },
                     microsoft = { microsoft }
                 ),
-                NotionTools { notion }
+                NotionTools { notion },
+                HomeAssistantTools { homeAssistant }
             )
             initialized = true
         }
@@ -78,10 +83,24 @@ object ConnectorRegistry {
      * Tool names to withhold from the model right now, because every connector
      * that could serve them is disconnected or disabled. Falls back to hiding
      * all connector-owned tools before [init] runs — nothing can serve them at
-     * that point either.
+     * that point either. Home Assistant's MCP tools are server-defined, so the
+     * compile-time catalog cannot enumerate them: whatever is currently
+     * registered is hidden whenever that connector is not usable.
      */
     fun hiddenToolNames(disabledConnectors: Set<String>): Set<String> =
-        ConnectorCatalog.hiddenTools(activeIds(disabledConnectors))
+        hiddenToolNamesFor(activeIds(disabledConnectors))
+
+    /**
+     * Pure half of [hiddenToolNames], split out so the dynamic-tool gating is
+     * testable without a Context. [activeIds] is the set of connected-and-enabled
+     * connector ids.
+     */
+    internal fun hiddenToolNamesFor(activeIds: Set<String>): Set<String> =
+        ConnectorCatalog.hiddenTools(activeIds).toMutableSet().also { hidden ->
+            if (ConnectorCatalog.HOME_ASSISTANT.id !in activeIds) {
+                hidden += ToolRegistry.dynamicTools
+            }
+        }
 
     /**
      * Connectors the user has never set up, for the one-line discovery hint in

@@ -8,6 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import java.util.concurrent.ConcurrentHashMap
 
 enum class AgentMode { MONITOR, OPERATOR }
 
@@ -15,6 +16,43 @@ object ToolRegistry {
 
     private val definitions: Map<String, ToolDefinition> =
         ToolDefinitions.all.associateBy { it.function.name }
+
+    // ---- dynamic tools (server-defined, e.g. Home Assistant MCP) ----
+
+    /**
+     * Tools whose schemas come from an external server rather than the compile-time
+     * catalog. A connector registers them after connecting and clears them on
+     * disconnect; [ToolRegistry] does not know their names ahead of time, so the
+     * compile-time [definitions] map never sees them. A [ConcurrentHashMap] keeps
+     * registration (from a connector's connect/refresh) race-free against reads
+     * (per-turn schema assembly) without a global lock.
+     */
+    private val dynamicDefinitions = ConcurrentHashMap<String, ToolDefinition>()
+
+    /** Read-only subset of [dynamicDefinitions] — the slice Monitor may call. */
+    private val dynamicReadOnlyTools = ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * Replaces the whole dynamic tool set with [tools]. Connectors call this after
+     * a successful connect (and again on refresh); names in [readOnlyNames] are the
+     * only dynamic tools offered to Monitor.
+     */
+    fun setDynamicTools(tools: Collection<ToolDefinition>, readOnlyNames: Set<String>) {
+        dynamicDefinitions.clear()
+        tools.forEach { dynamicDefinitions[it.function.name] = it }
+        dynamicReadOnlyTools.clear()
+        dynamicReadOnlyTools.addAll(readOnlyNames)
+    }
+
+    /** Unregisters every dynamic tool (used on connector disconnect). */
+    fun clearDynamicTools() {
+        dynamicDefinitions.clear()
+        dynamicReadOnlyTools.clear()
+    }
+
+    /** Names of the currently registered dynamic tools. */
+    val dynamicTools: Set<String>
+        get() = dynamicDefinitions.keys
 
     // Empty by design: AgentEngine.requestConfirmation() auto-approves, so an
     // entry here would imply a gate that does not exist. send_email has its own
@@ -55,16 +93,26 @@ object ToolRegistry {
         "about_samosa_ai"
     )
 
-    val monitorTools: Set<String> = baseMonitorTools + ConnectorCatalog.monitorTools
+    /**
+     * Read-only tools offered to Monitor: the base set, the connector read tools
+     * from [ConnectorCatalog], and the read-only slice of the currently registered
+     * dynamic tools. Computed on access because the dynamic slice changes when a
+     * connector connects or disconnects.
+     */
+    val monitorTools: Set<String>
+        get() = baseMonitorTools + ConnectorCatalog.monitorTools + dynamicReadOnlyTools
 
     /**
      * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
      * further), minus finish_task, which ends the *top-level* run — a sub-agent
      * reports back with ask_final_answer instead — and minus update_user_profile,
      * whose modify-and-extend directive lives only in the top-level Operator prompt.
+     * Dynamic tools are included while registered; they are hidden by the
+     * hidden-tools mechanism when their connector is not active.
      */
-    val subAgentTools: Set<String> = definitions.keys -
-        setOf("task", "navigate_app", "finish_task", "update_user_profile")
+    val subAgentTools: Set<String>
+        get() = definitions.keys + dynamicDefinitions.keys -
+            setOf("task", "navigate_app", "finish_task", "update_user_profile")
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
@@ -77,9 +125,12 @@ object ToolRegistry {
      * Everything except ask_final_answer, which is a sub-agent-to-parent control
      * signal: [SubAgentSession] and [AppNavigatorSession] treat it as "stop here",
      * while the top-level loop has no such handling and would silently keep going.
-     * The top-level equivalent is finish_task.
+     * The top-level equivalent is finish_task. Dynamic tools are included while
+     * registered; they are hidden by the hidden-tools mechanism when their
+     * connector is not active.
      */
-    private val operatorTools: Set<String> = definitions.keys - setOf("ask_final_answer")
+    private val operatorTools: Set<String>
+        get() = definitions.keys + dynamicDefinitions.keys - setOf("ask_final_answer")
 
     /**
      * Tools that hand the whole job to a sub-agent and return only a text report.
@@ -353,11 +404,13 @@ object ToolRegistry {
         )
     )
 
+    /** The compile-time catalog only; dynamic tools are served by [toolsForAgent]. */
     fun allDefinitions(): List<ToolDefinition> = definitions.values.toList()
 
-    fun definition(name: String): ToolDefinition? = definitions[name]
+    fun definition(name: String): ToolDefinition? =
+        definitions[name] ?: dynamicDefinitions[name]
 
-    fun contains(name: String): Boolean = name in definitions
+    fun contains(name: String): Boolean = name in definitions || dynamicDefinitions.containsKey(name)
 
     fun isSensitive(name: String): Boolean = name in sensitiveTools
 
@@ -382,7 +435,10 @@ object ToolRegistry {
      * Tool schemas to send for [agent], minus [hiddenTools] — connector-owned
      * tools nothing can currently serve. Withholding them is both a token saving
      * and a correctness fix: the model can no longer spend a round calling a tool
-     * whose only possible reply is "not connected".
+     * whose only possible reply is "not connected". Dynamic tools (Home Assistant
+     * MCP) join the compile-time catalog while registered; the connector-hiding
+     * logic in [ConnectorRegistry.hiddenToolNames] adds them to [hiddenTools]
+     * whenever their owning connector is not active.
      */
     fun toolsForAgent(
         agent: AgentMode,
@@ -392,11 +448,15 @@ object ToolRegistry {
             AgentMode.MONITOR -> monitorTools
             AgentMode.OPERATOR -> operatorTools
         }
-        return definitions.filterKeys { it in allowed && it !in hiddenTools }.values.toList()
+        return (definitions + dynamicDefinitions)
+            .filterKeys { it in allowed && it !in hiddenTools }
+            .values.toList()
     }
 
     fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> =
-        definitions.filterKeys { it in subAgentTools && it !in hiddenTools }.values.toList()
+        (definitions + dynamicDefinitions)
+            .filterKeys { it in subAgentTools && it !in hiddenTools }
+            .values.toList()
 
     fun toolsForNavigator(): List<ToolDefinition> =
         navigatorTools.mapNotNull { navigatorDefinitions[it] }

@@ -1,10 +1,13 @@
 package com.gotcha.tools
 
+import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,6 +56,23 @@ class ToolRegistryTest {
     @Test
     fun `unknown tools are rejected`() {
         assertTrue(!ToolRegistry.contains("install_apk"))
+    }
+
+    @Test
+    fun `dynamic tools are contained and resolvable while registered`() {
+        val schema = buildJsonObject { put("type", "object") }
+        val def = ToolDefinition(
+            function = FunctionDefinition("HassGetState", "Ask for the state of an entity", schema)
+        )
+        ToolRegistry.setDynamicTools(listOf(def), readOnlyNames = setOf("HassGetState"))
+        try {
+            assertTrue(ToolRegistry.contains("HassGetState"))
+            assertEquals(def, ToolRegistry.definition("HassGetState"))
+            // Tools that were never registered stay unknown.
+            assertTrue(!ToolRegistry.contains("HassTurnOn"))
+        } finally {
+            ToolRegistry.clearDynamicTools()
+        }
     }
 
     /**

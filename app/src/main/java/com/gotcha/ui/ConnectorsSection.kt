@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.connectors.google.GoogleConnector
+import com.gotcha.connectors.homeassistant.HomeAssistantConnector
 import com.gotcha.connectors.imap.ImapConnector
 import com.gotcha.connectors.imap.ImapCredentials
 import com.gotcha.connectors.microsoft.MicrosoftConnector
@@ -47,6 +48,7 @@ fun ConnectorsSection() {
     val google = remember(registry) { registry.byId("google") as GoogleConnector }
     val microsoft = remember(registry) { registry.byId("microsoft") as MicrosoftConnector }
     val notion = remember(registry) { registry.byId("notion") as NotionConnector }
+    val homeAssistant = remember(registry) { registry.byId("homeassistant") as HomeAssistantConnector }
 
     // The one piece of connector state that is *not* a credential, so it lives in
     // Settings rather than the connector's own encrypted blob.
@@ -65,7 +67,48 @@ fun ConnectorsSection() {
         MicrosoftCard(microsoft, "microsoft" !in disabled) { setEnabled("microsoft", it) }
         HorizontalDivider(thickness = 1.dp)
         NotionCard(notion, "notion" !in disabled) { setEnabled("notion", it) }
+        HorizontalDivider(thickness = 1.dp)
+        HomeAssistantCard(homeAssistant, "homeassistant" !in disabled) { setEnabled("homeassistant", it) }
     }
+}
+
+@Composable
+private fun HomeAssistantCard(
+    homeAssistant: HomeAssistantConnector,
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit
+) {
+    val saved = homeAssistant.credentials()
+    val url = rememberTokenField(
+        "Home Assistant URL",
+        saved?.baseUrl ?: "",
+        keyboard = KeyboardType.Uri
+    )
+    val token = rememberTokenField("Long-lived access token", "", secret = true)
+
+    TokenConnectorCard(
+        title = "Home Assistant",
+        statusLine = homeAssistant::statusLine,
+        isConnected = homeAssistant::isConnected,
+        fields = listOf(url, token),
+        headerTestTag = "connector_header_homeassistant",
+        blurb = "Control and query your smart home through Home Assistant's Model Context " +
+            "Protocol server. Its tools are defined by your server and scoped to the entities " +
+            "you expose to Assist.",
+        steps = listOf(
+            "1. In Home Assistant, add the \"Model Context Protocol Server\" integration " +
+                "(Settings ▸ Devices & services ▸ Add integration).",
+            "2. Create a long-lived access token: your profile ▸ Security ▸ Long-lived " +
+                "access tokens ▸ Create token.",
+            "3. Paste your Home Assistant URL (e.g. http://192.168.1.10:8123) and the token below.",
+            "4. Expose the devices you want the assistant to control: Settings ▸ Voice " +
+                "assistants ▸ Expose entities."
+        ),
+        onConnect = { homeAssistant.connect(url.value, token.value) },
+        onDisconnect = homeAssistant::disconnect,
+        enabled = enabled,
+        onEnabledChange = onEnabledChange
+    )
 }
 
 @Composable
