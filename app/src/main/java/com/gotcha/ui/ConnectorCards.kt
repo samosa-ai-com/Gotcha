@@ -279,6 +279,8 @@ fun OAuthConnectorCard(
     blurb: String? = null,
     steps: List<String> = emptyList(),
     extraFields: @Composable () -> Unit = {},
+    /** Optional refresh action shown when connected. */
+    onRefresh: (suspend () -> String)? = null,
     /** Test tag for the always-visible header row. */
     headerTestTag: String = "connector_header_$title"
 ) {
@@ -395,6 +397,20 @@ fun OAuthConnectorCard(
                     }
                 } else {
                     if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange, showSwitch = false)
+                    if (onRefresh != null) {
+                        Button(
+                            onClick = {
+                                busy = true
+                                scope.launch {
+                                    status = onRefresh()
+                                    busy = false
+                                    refreshTick++
+                                }
+                            },
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (busy) "Refreshing…" else "Refresh connection") }
+                    }
                     OutlinedButton(
                         onClick = {
                             onDisconnect()

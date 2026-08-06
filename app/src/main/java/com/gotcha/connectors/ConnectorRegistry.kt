@@ -14,6 +14,9 @@ import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.notion.NotionTools
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -78,6 +81,21 @@ object ConnectorRegistry {
     /** Ids of connectors that are connected and not switched off by the user. */
     fun activeIds(disabledConnectors: Set<String>): Set<String> =
         active(disabledConnectors).mapTo(mutableSetOf()) { it.id }
+
+    /**
+     * Executes [refreshTools] concurrently across all active connectors, returning a map
+     * of connector ID to refresh result status message.
+     */
+    suspend fun refreshAllActive(disabledConnectors: Set<String>): Map<String, String> =
+        coroutineScope {
+            active(disabledConnectors).map { conn ->
+                async {
+                    conn.id to runCatching { conn.refreshTools() }.getOrElse { e ->
+                        "Could not refresh ${conn.displayName}: ${e.message}"
+                    }
+                }
+            }.awaitAll().toMap()
+        }
 
     /**
      * Tool names to withhold from the model right now, because every connector

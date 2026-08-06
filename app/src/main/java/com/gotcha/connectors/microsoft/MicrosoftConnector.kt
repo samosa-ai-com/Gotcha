@@ -121,6 +121,21 @@ class MicrosoftConnector(
         else -> "Connected as ${credentials?.accountEmail}"
     }
 
+    override suspend fun refreshTools(): String {
+        val creds = credentials ?: return "Not connected"
+        if (creds.needsReconnect) return statusLine()
+        return try {
+            val tok = token(forceRefresh = true)
+            val email = api.me(tok)
+            if (email != creds.accountEmail) {
+                persist(creds.copy(accountEmail = email))
+            }
+            statusLine()
+        } catch (e: Exception) {
+            statusLine()
+        }
+    }
+
     override fun disconnect() {
         store.clear(id)
         credentials = null

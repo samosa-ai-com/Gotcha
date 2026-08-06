@@ -74,6 +74,10 @@ data class Settings(
      * stop being injected.
      */
     val disabledConnectors: Set<String> = emptySet(),
+    /** Interval in minutes for automatic background tool/connector refresh. 0 = Disabled (Manual only). Default: 30 minutes. */
+    val connectorAutoRefreshIntervalMinutes: Int = 30,
+    /** Epoch millis when connectors were last auto-refreshed or sync triggered. */
+    val connectorLastRefreshedAt: Long = 0L,
     // Proactive Assistance Settings
     val proactiveEnabled: Boolean = true,
     val proactiveScanScreen: Boolean = true,
@@ -353,6 +357,8 @@ class SettingsRepository(context: Context) {
         skinId = resolvedSkinId(),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
         disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
+        connectorAutoRefreshIntervalMinutes = prefs.getInt(KEY_CONNECTOR_AUTO_REFRESH_INTERVAL, 30),
+        connectorLastRefreshedAt = prefs.getLong(KEY_CONNECTOR_LAST_REFRESHED, 0L),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
         proactiveScanScreen = prefs.getBoolean(KEY_PROACTIVE_SCAN_SCREEN, true),
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
@@ -412,6 +418,8 @@ class SettingsRepository(context: Context) {
             .putString(KEY_SKIN_ID, settings.skinId)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
             .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
+            .putInt(KEY_CONNECTOR_AUTO_REFRESH_INTERVAL, settings.connectorAutoRefreshIntervalMinutes)
+            .putLong(KEY_CONNECTOR_LAST_REFRESHED, settings.connectorLastRefreshedAt)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
             .putBoolean(KEY_PROACTIVE_SCAN_SCREEN, settings.proactiveScanScreen)
             .putBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, settings.proactiveScanClipboard)
@@ -519,6 +527,8 @@ class SettingsRepository(context: Context) {
         const val KEY_LEGACY_THEME_MODE = "theme_mode"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
         const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
+        const val KEY_CONNECTOR_AUTO_REFRESH_INTERVAL = "connector_auto_refresh_interval"
+        const val KEY_CONNECTOR_LAST_REFRESHED = "connector_last_refreshed"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"
         const val KEY_PROACTIVE_SCAN_SCREEN = "proactive_scan_screen"
         const val KEY_PROACTIVE_SCAN_CLIPBOARD = "proactive_scan_clipboard"

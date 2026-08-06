@@ -110,6 +110,21 @@ class GoogleConnector(
         else -> "Connected as ${credentials?.accountEmail}"
     }
 
+    override suspend fun refreshTools(): String {
+        val creds = credentials ?: return "Not connected"
+        if (creds.needsReconnect) return statusLine()
+        return try {
+            val tok = token(forceRefresh = true)
+            val email = api.profileEmail(tok)
+            if (email != creds.accountEmail) {
+                persist(creds.copy(accountEmail = email))
+            }
+            statusLine()
+        } catch (e: Exception) {
+            statusLine()
+        }
+    }
+
     override fun disconnect() {
         // Best-effort revoke so the grant disappears from the user's Google account.
         credentials?.refreshToken?.let { revokeQuietly(it) }

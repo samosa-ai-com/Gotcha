@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -16,12 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gotcha.connectors.ConnectorRefreshScheduler
 import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.connectors.google.GoogleConnector
 import com.gotcha.connectors.homeassistant.HomeAssistantConnector
@@ -31,6 +35,7 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
+import kotlinx.coroutines.launch
 
 /**
  * The body of the Connectors screen: one card per connector, built from the two
@@ -53,13 +58,31 @@ fun ConnectorsSection() {
     // The one piece of connector state that is *not* a credential, so it lives in
     // Settings rather than the connector's own encrypted blob.
     val settingsRepo = remember(context) { SettingsRepository(context) }
-    var disabled by remember { mutableStateOf(settingsRepo.load().disabledConnectors) }
+    var settings by remember { mutableStateOf(settingsRepo.load()) }
+    var disabled by remember { mutableStateOf(settings.disabledConnectors) }
+    val scope = rememberCoroutineScope()
+    val refreshScheduler = remember(context) { ConnectorRefreshScheduler(context) }
+
     fun setEnabled(id: String, enabled: Boolean) {
         disabled = if (enabled) disabled - id else disabled + id
-        settingsRepo.save(settingsRepo.load().copy(disabledConnectors = disabled))
+        settings = settings.copy(disabledConnectors = disabled)
+        settingsRepo.save(settings)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        AutoRefreshHeader(
+            intervalMinutes = settings.connectorAutoRefreshIntervalMinutes,
+            lastRefreshedAt = settings.connectorLastRefreshedAt,
+            onIntervalChange = { newInterval ->
+                settings = settings.copy(connectorAutoRefreshIntervalMinutes = newInterval)
+                settingsRepo.save(settings)
+            },
+            onRefreshAll = {
+                val results = refreshScheduler.refreshIfNeeded(force = true)
+                settings = settingsRepo.load()
+            }
+        )
+        HorizontalDivider(thickness = 1.dp)
         ImapCard(imap, "imap" !in disabled) { setEnabled("imap", it) }
         HorizontalDivider(thickness = 1.dp)
         GoogleCard(google, "google" !in disabled) { setEnabled("google", it) }
@@ -69,6 +92,67 @@ fun ConnectorsSection() {
         NotionCard(notion, "notion" !in disabled) { setEnabled("notion", it) }
         HorizontalDivider(thickness = 1.dp)
         HomeAssistantCard(homeAssistant, "homeassistant" !in disabled) { setEnabled("homeassistant", it) }
+    }
+}
+
+@Composable
+private fun AutoRefreshHeader(
+    intervalMinutes: Int,
+    lastRefreshedAt: Long,
+    onIntervalChange: (Int) -> Unit,
+    onRefreshAll: suspend () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Auto Tool Sync", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    if (lastRefreshedAt > 0) {
+                        val minutesAgo = ((System.currentTimeMillis() - lastRefreshedAt) / 60_000L).coerceAtLeast(0)
+                        "Last sync: $minutesAgo min ago"
+                    } else "Last sync: Never",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            TextButton(
+                onClick = {
+                    if (!isRefreshing) {
+                        isRefreshing = true
+                        scope.launch {
+                            onRefreshAll()
+                            isRefreshing = false
+                        }
+                    }
+                },
+                enabled = !isRefreshing
+            ) {
+                Text(if (isRefreshing) "Syncing…" else "Refresh All")
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Interval:", style = MaterialTheme.typography.bodyMedium)
+            val intervals = listOf(0 to "Off", 15 to "15m", 30 to "30m", 60 to "1h", 120 to "2h")
+            intervals.forEach { (mins, label) ->
+                FilterChip(
+                    selected = intervalMinutes == mins,
+                    onClick = { onIntervalChange(mins) },
+                    label = { Text(label) }
+                )
+            }
+        }
     }
 }
 
@@ -137,6 +221,7 @@ private fun NotionCard(
         ),
         onConnect = { notion.connect(token.value) },
         onDisconnect = notion::disconnect,
+        onRefresh = notion::refreshTools,
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -192,6 +277,7 @@ private fun ImapCard(
             "Saved. Credentials are verified on first use."
         },
         onDisconnect = imap::disconnect,
+        onRefresh = imap::refreshTools,
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -237,6 +323,7 @@ private fun GoogleCard(
         flow = flow,
         headerTestTag = "connector_header_google",
         onDisconnect = google::disconnect,
+        onRefresh = google::refreshTools,
         enabled = enabled,
         onEnabledChange = onEnabledChange,
         blurb = "Full read/write Gmail and Google Calendar access using your own Google Cloud " +
@@ -299,6 +386,7 @@ private fun MicrosoftCard(
         flow = flow,
         headerTestTag = "connector_header_microsoft",
         onDisconnect = microsoft::disconnect,
+        onRefresh = microsoft::refreshTools,
         enabled = enabled,
         onEnabledChange = onEnabledChange,
         blurb = "Outlook mail, calendar and To Do using your own Entra app registration. " +

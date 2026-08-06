@@ -119,7 +119,7 @@ class HomeAssistantConnector(
     }
 
     /** Re-reads `tools/list` and updates the cached + registered tool set. */
-    suspend fun refreshTools(): String {
+    override suspend fun refreshTools(): String {
         val creds = credentials ?: return "Home Assistant is not connected."
         return try {
             val endpoint = HomeAssistantMcpClient.mcpEndpoint(creds.baseUrl)
