@@ -47,6 +47,18 @@ class HomeAssistantConnector(
         runCatching { json.decodeFromString<HomeAssistantCredentials>(blob) }.getOrNull()
     }
 
+    /**
+     * Bumped on every disconnect. connect()/refreshTools() capture it before their
+     * network calls and bail out if it changed by the time they commit, so an
+     * in-flight connect or refresh can never resurrect credentials (or register
+     * tools) after the user has disconnected. The commit itself runs under
+     * [stateLock], which disconnect() also takes, making the check + write atomic.
+     */
+    @Volatile
+    private var connectionGeneration = 0L
+
+    private val stateLock = Any()
+
     init {
         // After a restart the tools are re-registered from the cached snapshot so
         // they exist before any network call; connect() refreshes them live.
@@ -70,9 +82,14 @@ class HomeAssistantConnector(
         ?: "Not connected"
 
     override fun disconnect() {
+        // Invalidate any in-flight connect/refresh so it cannot re-establish the
+        // connection after the user disconnects (see [connectionGeneration]).
+        synchronized(stateLock) {
+            connectionGeneration++
+            store.clear(id)
+            credentials = null
+        }
         ToolRegistry.clearDynamicTools()
-        store.clear(id)
-        credentials = null
     }
 
     /**
@@ -81,6 +98,7 @@ class HomeAssistantConnector(
      * tool call. Returns a status message for the card.
      */
     suspend fun connect(baseUrl: String, token: String): String {
+        val generation = connectionGeneration
         var url = baseUrl.trim().trimEnd('/')
         if (url.isNotBlank() && !url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
             url = "http://$url"
@@ -93,9 +111,16 @@ class HomeAssistantConnector(
             client.initialize(endpoint, trimmedToken)
             val tools = client.listTools(endpoint, trimmedToken)
             val creds = HomeAssistantCredentials(url, trimmedToken, tools)
-            store.saveRaw(id, json.encodeToString(creds))
-            credentials = creds
-            registerTools(tools)
+            val committed = synchronized(stateLock) {
+                if (generation != connectionGeneration) {
+                    null
+                } else {
+                    store.saveRaw(id, json.encodeToString(creds))
+                    credentials = creds
+                    creds
+                }
+            } ?: return "Disconnected while connecting — the new connection was not saved."
+            registerTools(committed.tools)
             val hint = if (tools.isEmpty()) {
                 " Expose devices/entities to Assist to add tools."
             } else {
@@ -120,15 +145,23 @@ class HomeAssistantConnector(
 
     /** Re-reads `tools/list` and updates the cached + registered tool set. */
     override suspend fun refreshTools(): String {
+        val generation = connectionGeneration
         val creds = credentials ?: return "Home Assistant is not connected."
         return try {
             val endpoint = HomeAssistantMcpClient.mcpEndpoint(creds.baseUrl)
             val tools = client.listTools(endpoint, creds.token)
-            val updated = creds.copy(tools = tools)
-            store.saveRaw(id, json.encodeToString(updated))
-            credentials = updated
-            registerTools(tools)
-            "${tools.size} Home Assistant tool(s) are available."
+            val committed = synchronized(stateLock) {
+                if (generation != connectionGeneration) {
+                    null
+                } else {
+                    val updated = creds.copy(tools = tools)
+                    store.saveRaw(id, json.encodeToString(updated))
+                    credentials = updated
+                    updated
+                }
+            } ?: return "Home Assistant was disconnected while refreshing."
+            registerTools(committed.tools)
+            "${committed.tools.size} Home Assistant tool(s) are available."
         } catch (e: Exception) {
             "Could not refresh Home Assistant tools: ${e.message}"
         }

@@ -8,7 +8,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import java.util.concurrent.ConcurrentHashMap
 
 enum class AgentMode { MONITOR, OPERATOR }
 
@@ -23,14 +22,18 @@ object ToolRegistry {
      * Tools whose schemas come from an external server rather than the compile-time
      * catalog. A connector registers them after connecting and clears them on
      * disconnect; [ToolRegistry] does not know their names ahead of time, so the
-     * compile-time [definitions] map never sees them. A [ConcurrentHashMap] keeps
-     * registration (from a connector's connect/refresh) race-free against reads
-     * (per-turn schema assembly) without a global lock.
+     * compile-time [definitions] map never sees them. The whole set is held as one
+     * immutable snapshot and swapped atomically via [@Volatile], so a reader (per-turn
+     * schema assembly) always sees a consistent (definitions, read-only names) pair —
+     * never definitions from one registration with read-only names from the previous.
      */
-    private val dynamicDefinitions = ConcurrentHashMap<String, ToolDefinition>()
+    private data class DynamicToolSet(
+        val definitions: Map<String, ToolDefinition>,
+        val readOnlyNames: Set<String>
+    )
 
-    /** Read-only subset of [dynamicDefinitions] — the slice Monitor may call. */
-    private val dynamicReadOnlyTools = ConcurrentHashMap.newKeySet<String>()
+    @Volatile
+    private var dynamicSet = DynamicToolSet(emptyMap(), emptySet())
 
     /**
      * Replaces the whole dynamic tool set with [tools]. Connectors call this after
@@ -38,21 +41,20 @@ object ToolRegistry {
      * only dynamic tools offered to Monitor.
      */
     fun setDynamicTools(tools: Collection<ToolDefinition>, readOnlyNames: Set<String>) {
-        dynamicDefinitions.clear()
-        tools.forEach { dynamicDefinitions[it.function.name] = it }
-        dynamicReadOnlyTools.clear()
-        dynamicReadOnlyTools.addAll(readOnlyNames)
+        dynamicSet = DynamicToolSet(
+            tools.associateBy { it.function.name },
+            readOnlyNames.toSet()
+        )
     }
 
     /** Unregisters every dynamic tool (used on connector disconnect). */
     fun clearDynamicTools() {
-        dynamicDefinitions.clear()
-        dynamicReadOnlyTools.clear()
+        dynamicSet = DynamicToolSet(emptyMap(), emptySet())
     }
 
     /** Names of the currently registered dynamic tools. */
     val dynamicTools: Set<String>
-        get() = dynamicDefinitions.keys
+        get() = dynamicSet.definitions.keys
 
     // Empty by design: AgentEngine.requestConfirmation() auto-approves, so an
     // entry here would imply a gate that does not exist. send_email has its own
@@ -100,7 +102,7 @@ object ToolRegistry {
      * connector connects or disconnects.
      */
     val monitorTools: Set<String>
-        get() = baseMonitorTools + ConnectorCatalog.monitorTools + dynamicReadOnlyTools
+        get() = baseMonitorTools + ConnectorCatalog.monitorTools + dynamicSet.readOnlyNames
 
     /**
      * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
@@ -111,7 +113,7 @@ object ToolRegistry {
      * hidden-tools mechanism when their connector is not active.
      */
     val subAgentTools: Set<String>
-        get() = definitions.keys + dynamicDefinitions.keys -
+        get() = definitions.keys + dynamicSet.definitions.keys -
             setOf("task", "navigate_app", "finish_task", "update_user_profile")
 
     /** Tools available to the App Navigator sub-agent. */
@@ -130,7 +132,7 @@ object ToolRegistry {
      * connector is not active.
      */
     private val operatorTools: Set<String>
-        get() = definitions.keys + dynamicDefinitions.keys - setOf("ask_final_answer")
+        get() = definitions.keys + dynamicSet.definitions.keys - setOf("ask_final_answer")
 
     /**
      * Tools that hand the whole job to a sub-agent and return only a text report.
@@ -408,9 +410,9 @@ object ToolRegistry {
     fun allDefinitions(): List<ToolDefinition> = definitions.values.toList()
 
     fun definition(name: String): ToolDefinition? =
-        definitions[name] ?: dynamicDefinitions[name]
+        definitions[name] ?: dynamicSet.definitions[name]
 
-    fun contains(name: String): Boolean = name in definitions || dynamicDefinitions.containsKey(name)
+    fun contains(name: String): Boolean = name in definitions || name in dynamicSet.definitions
 
     fun isSensitive(name: String): Boolean = name in sensitiveTools
 
@@ -444,19 +446,24 @@ object ToolRegistry {
         agent: AgentMode,
         hiddenTools: Set<String> = emptySet()
     ): List<ToolDefinition> {
+        val dynamic = dynamicSet
         val allowed = when (agent) {
-            AgentMode.MONITOR -> monitorTools
-            AgentMode.OPERATOR -> operatorTools
+            AgentMode.MONITOR -> baseMonitorTools + ConnectorCatalog.monitorTools + dynamic.readOnlyNames
+            AgentMode.OPERATOR -> definitions.keys + dynamic.definitions.keys - setOf("ask_final_answer")
         }
-        return (definitions + dynamicDefinitions)
+        return (definitions + dynamic.definitions)
             .filterKeys { it in allowed && it !in hiddenTools }
             .values.toList()
     }
 
-    fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> =
-        (definitions + dynamicDefinitions)
-            .filterKeys { it in subAgentTools && it !in hiddenTools }
+    fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> {
+        val dynamic = dynamicSet
+        val allowed = definitions.keys + dynamic.definitions.keys -
+            setOf("task", "navigate_app", "finish_task", "update_user_profile")
+        return (definitions + dynamic.definitions)
+            .filterKeys { it in allowed && it !in hiddenTools }
             .values.toList()
+    }
 
     fun toolsForNavigator(): List<ToolDefinition> =
         navigatorTools.mapNotNull { navigatorDefinitions[it] }

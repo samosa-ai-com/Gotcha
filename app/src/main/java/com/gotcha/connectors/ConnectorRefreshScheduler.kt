@@ -12,19 +12,18 @@ import kotlinx.coroutines.withContext
  * active connectors.
  */
 class ConnectorRefreshScheduler(
-    private val context: Context? = null,
-    private val store: SettingsStore = context?.let { SettingsRepository(it) }
-        ?: throw IllegalArgumentException("Context or SettingsStore required"),
+    private val store: SettingsStore,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val refreshAction: (suspend (disabledConnectors: Set<String>) -> Map<String, String>)? = null
+    private val refreshAction: suspend (disabledConnectors: Set<String>) -> Map<String, String>
 ) {
 
-    /** Secondary constructor for standard Context-based instantiation. */
+    /** Context-backed scheduler: real [SettingsRepository] plus the connector registry. */
     constructor(context: Context) : this(
-        context = context,
         store = SettingsRepository(context),
-        clock = System::currentTimeMillis,
-        refreshAction = null
+        refreshAction = { disabled ->
+            ConnectorRegistry.init(context)
+            ConnectorRegistry.refreshAllActive(disabled)
+        }
     )
 
     /**
@@ -46,13 +45,7 @@ class ConnectorRefreshScheduler(
             return@withContext emptyMap()
         }
 
-        val results = if (refreshAction != null) {
-            refreshAction.invoke(settings.disabledConnectors)
-        } else {
-            val ctx = checkNotNull(context) { "Context required for default refresh action" }
-            ConnectorRegistry.init(ctx)
-            ConnectorRegistry.refreshAllActive(settings.disabledConnectors)
-        }
+        val results = refreshAction.invoke(settings.disabledConnectors)
 
         store.save(store.load().copy(connectorLastRefreshedAt = now))
         results

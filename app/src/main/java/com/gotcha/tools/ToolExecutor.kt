@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import android.util.Log
 import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorCatalog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -541,10 +542,10 @@ class ToolExecutor(
             return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
                 "available on this device right now. Tell the user what to enable; do not retry."
         }
-        // Home Assistant's MCP tools are registered dynamically, so the compile-time
-        // catalog cannot know them; name the connector explicitly.
+        // Dynamic tools (e.g. Home Assistant MCP) are registered at runtime, so the
+        // compile-time catalog cannot know them; name the owning connector explicitly.
         if (name in ToolRegistry.dynamicTools) {
-            return "Tool '$name' is unavailable: it needs Home Assistant, which is not " +
+            return "Tool '$name' is unavailable: it needs ${ConnectorCatalog.HOME_ASSISTANT.displayName}, which is not " +
                 "connected or is switched off. Tell the user to set it up in the drawer " +
                 "menu ▸ Connectors; do not retry."
         }

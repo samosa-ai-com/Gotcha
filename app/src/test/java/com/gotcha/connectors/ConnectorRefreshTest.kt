@@ -75,7 +75,6 @@ class ConnectorRefreshTest {
         var refreshExecuted = false
         val store = FakeSettingsStore(Settings(connectorAutoRefreshIntervalMinutes = 0, connectorLastRefreshedAt = 0))
         val scheduler = ConnectorRefreshScheduler(
-            context = null,
             store = store,
             clock = { 100_000L },
             refreshAction = {
@@ -101,7 +100,6 @@ class ConnectorRefreshTest {
             )
         )
         val scheduler = ConnectorRefreshScheduler(
-            context = null,
             store = store,
             clock = { currentTime },
             refreshAction = {
@@ -127,7 +125,6 @@ class ConnectorRefreshTest {
             )
         )
         val scheduler = ConnectorRefreshScheduler(
-            context = null,
             store = store,
             clock = { currentTime },
             refreshAction = {
@@ -147,7 +144,6 @@ class ConnectorRefreshTest {
         var refreshExecuted = false
         val store = FakeSettingsStore(Settings(connectorAutoRefreshIntervalMinutes = 0, connectorLastRefreshedAt = 0))
         val scheduler = ConnectorRefreshScheduler(
-            context = null,
             store = store,
             clock = { 500_000L },
             refreshAction = {
