@@ -81,7 +81,10 @@ class HomeAssistantConnector(
      * tool call. Returns a status message for the card.
      */
     suspend fun connect(baseUrl: String, token: String): String {
-        val url = baseUrl.trim().trimEnd('/')
+        var url = baseUrl.trim().trimEnd('/')
+        if (url.isNotBlank() && !url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+            url = "http://$url"
+        }
         val trimmedToken = token.trim()
         if (url.isBlank()) return "Enter your Home Assistant URL first."
         if (trimmedToken.isBlank()) return "Paste a long-lived access token first."
@@ -145,6 +148,39 @@ class HomeAssistantConnector(
 
     companion object {
         /**
+         * Action verbs indicating mutations/control. Checked first so a tool like
+         * `HassSetState` or `HassResetContext` is never incorrectly marked read-only.
+         */
+        private val MUTATION_MARKERS = listOf(
+            "set",
+            "turn",
+            "toggle",
+            "change",
+            "update",
+            "create",
+            "delete",
+            "remove",
+            "clear",
+            "reset",
+            "add",
+            "write",
+            "execute",
+            "run",
+            "trigger",
+            "press",
+            "activate",
+            "deactivate",
+            "open",
+            "close",
+            "lock",
+            "unlock",
+            "stop",
+            "start",
+            "pause",
+            "play"
+        )
+
+        /**
          * MCP does not mark tools read-only, so Monitor's strict read-only contract
          * has to be approximated from the tool name. HA's Assist intents follow a
          * stable naming scheme (`HassGetState`, `GetLiveContext`, `HassClimateGetTemperature`,
@@ -167,6 +203,7 @@ class HomeAssistantConnector(
 
         fun isReadOnlyTool(name: String): Boolean {
             val lower = name.lowercase()
+            if (MUTATION_MARKERS.any { lower.contains(it) }) return false
             return READ_ONLY_MARKERS.any { lower.contains(it) }
         }
     }

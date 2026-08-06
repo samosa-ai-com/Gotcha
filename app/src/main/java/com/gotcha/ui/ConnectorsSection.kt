@@ -106,6 +106,7 @@ private fun HomeAssistantCard(
         ),
         onConnect = { homeAssistant.connect(url.value, token.value) },
         onDisconnect = homeAssistant::disconnect,
+        onRefresh = homeAssistant::refreshTools,
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )

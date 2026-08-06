@@ -168,6 +168,22 @@ class HomeAssistantConnectorTest {
         assertFalse(HomeAssistantConnector.isReadOnlyTool("HassTurnOn"))
         assertFalse(HomeAssistantConnector.isReadOnlyTool("HassLightSet"))
         assertFalse(HomeAssistantConnector.isReadOnlyTool("HassMediaPause"))
+        assertFalse(HomeAssistantConnector.isReadOnlyTool("HassSetState"))
+        assertFalse(HomeAssistantConnector.isReadOnlyTool("HassToggleState"))
+        assertFalse(HomeAssistantConnector.isReadOnlyTool("HassResetContext"))
+    }
+
+    @Test
+    fun `connect auto-prefixes http scheme when missing`() = runTest {
+        server.enqueue(MockResponse().setBody(initJson))
+        server.enqueue(MockResponse().setBody(toolsJson))
+
+        // Host without http:// or https://
+        val rawHost = "${server.hostName}:${server.port}"
+        val status = connector.connect(rawHost, "llat-1")
+
+        assertTrue(status.contains("Connected to"))
+        assertTrue(connector.isConnected())
     }
 
     @Test

@@ -163,6 +163,8 @@ fun TokenConnectorCard(
     canConnect: () -> Boolean = { fields.all { it.value.isNotBlank() } },
     /** Rendered between the fields and the Connect button (e.g. the Gmail preset shortcut). */
     belowFields: @Composable () -> Unit = {},
+    /** Optional refresh action shown when connected (e.g. Home Assistant dynamic tool sync). */
+    onRefresh: (suspend () -> String)? = null,
     /** Test tag for the always-visible header row. */
     headerTestTag: String = "connector_header_$title"
 ) {
@@ -230,6 +232,20 @@ fun TokenConnectorCard(
                     ) { Text(if (busy) "Connecting…" else "Connect") }
                 } else {
                     if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange, showSwitch = false)
+                    if (onRefresh != null) {
+                        Button(
+                            onClick = {
+                                busy = true
+                                scope.launch {
+                                    status = onRefresh()
+                                    busy = false
+                                    refreshTick++
+                                }
+                            },
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(if (busy) "Refreshing tools…" else "Refresh tools") }
+                    }
                     OutlinedButton(
                         onClick = {
                             onDisconnect()
