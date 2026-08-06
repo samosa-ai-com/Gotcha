@@ -1870,8 +1870,14 @@ object ToolDefinitions {
         "Run a shell command inside Termux, which has a real Linux user-space — `pkg install`/`apt`, " +
             "python3, git, ssh, compilers. Use this for anything that needs a package installed or a " +
             "non-trivial script; it runs headlessly, with no terminal opening in front of the user. " +
+            "Only offered when Termux is installed.\n" +
+            "Each call is a SEPARATE shell: `cd`, `export`, and activated virtualenvs do NOT carry " +
+            "over to your next call, which starts again in Termux's home. Chain dependent steps in " +
+            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them.\n" +
             "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
-            "visible here — use run_command for those. Only offered when Termux is installed.",
+            "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
+            "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +
+            "rather than retrying.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {
@@ -1886,8 +1892,8 @@ object ToolDefinitions {
                     put("type", "string")
                     put(
                         "description",
-                        "Absolute path inside Termux's filesystem. Defaults to Termux's home " +
-                            "(/data/data/com.termux/files/home)."
+                        "Absolute path inside Termux's filesystem. Defaults to Termux's home. " +
+                            "Applies to this call only — it is not remembered for the next one."
                     )
                 }
                 putJsonObject("timeout_seconds") {
