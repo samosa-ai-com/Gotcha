@@ -46,6 +46,31 @@ class SpokenPhrasesTest {
     }
 
     @Test
+    fun `every language has a non-blank wakeWordAcknowledged phrase`() {
+        for (lang in Language.entries) {
+            assertTrue(SpokenPhrases.wakeWordAcknowledged(lang).isNotBlank())
+        }
+    }
+
+    @Test
+    fun `wakeWordAcknowledged is shorter than callStarted in every language`() {
+        for (lang in Language.entries) {
+            assertTrue(
+                "wakeWordAcknowledged(${lang.label}) should be the short ack, not the call-started sentence",
+                SpokenPhrases.wakeWordAcknowledged(lang).length <= SpokenPhrases.callStarted(lang).length
+            )
+        }
+    }
+
+    @Test
+    fun `no non-English language returns the English wakeWordAcknowledged phrase`() {
+        val english = SpokenPhrases.wakeWordAcknowledged(Language.ENGLISH)
+        for (lang in Language.entries - Language.ENGLISH) {
+            assertNotEquals(english, SpokenPhrases.wakeWordAcknowledged(lang))
+        }
+    }
+
+    @Test
     fun `every language has a non-blank confirmationNeeded phrase`() {
         for (lang in Language.entries) {
             assertTrue(SpokenPhrases.confirmationNeeded(lang).isNotBlank())

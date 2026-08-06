@@ -147,12 +147,16 @@ private fun AutoRefreshHeader(
                 // Accessing `tick` forces recomposition when time passes
                 val minutesAgo = if (lastRefreshedAt > 0 && tick >= 0) {
                     ((System.currentTimeMillis() - lastRefreshedAt) / 60_000L).coerceAtLeast(0)
-                } else null
+                } else {
+                    null
+                }
 
                 Text(
                     if (minutesAgo != null) {
                         if (minutesAgo == 0L) "Last sync: Just now" else "Last sync: $minutesAgo min ago"
-                    } else "Last sync: Never",
+                    } else {
+                        "Last sync: Never"
+                    },
                     style = MaterialTheme.typography.bodySmall
                 )
             }

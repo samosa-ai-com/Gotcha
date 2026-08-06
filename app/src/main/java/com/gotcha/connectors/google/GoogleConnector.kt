@@ -1,5 +1,6 @@
 package com.gotcha.connectors.google
 
+import android.util.Log
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
 import com.gotcha.connectors.mail.EmailFull
@@ -121,6 +122,7 @@ class GoogleConnector(
             }
             statusLine()
         } catch (e: Exception) {
+            Log.w("GoogleConnector", "refreshTools failed; keeping current credentials", e)
             statusLine()
         }
     }

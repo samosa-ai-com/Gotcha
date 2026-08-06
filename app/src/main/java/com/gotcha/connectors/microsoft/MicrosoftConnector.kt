@@ -1,5 +1,6 @@
 package com.gotcha.connectors.microsoft
 
+import android.util.Log
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
 import com.gotcha.connectors.mail.EmailFull
@@ -132,6 +133,7 @@ class MicrosoftConnector(
             }
             statusLine()
         } catch (e: Exception) {
+            Log.w("MicrosoftConnector", "refreshTools failed; keeping current credentials", e)
             statusLine()
         }
     }

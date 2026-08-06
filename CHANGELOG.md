@@ -19,6 +19,43 @@ All notable changes to Gotcha are documented here.
   reads) are offered to Monitor; everything else is Operator-only. Disconnect —
   or switching the connector off — hides the tools again from the model.
 
+### Changed — Wake word & call-mode feel (#25)
+
+- **The wake-word acknowledgment is now one short word.** Saying "Hey Gotcha"
+  used to reply with the full "Call started. I'm ready when you are." sentence,
+  which made the wake word feel ignored and delayed the mic opening. It now
+  answers with a single "Yes?" (translated per language) and the mic opens
+  sooner. Normal long-press calls get a tighter "Call started. Go ahead."
+- **The ball now visibly reacts when the wake word fires.** It gives a quick
+  scale bounce while an accent ring radiates from it on its own overlay window,
+  so the pulse still plays after the ball is hidden by the call window. Respects
+  the system "remove animations" preference.
+- **Long-press to start a call is 1 second instead of 2.** The hold-to-call
+  gesture on the floating ball was reduced from 2000 ms to 1000 ms; the
+  expanding ring that previews it stays in sync.
+
+### Fixed — Call mode no longer swallows STT/TTS failures (#23)
+
+- **A failed mic tap is now visible.** When `startMic` can't start the
+  recognizer (busy, MediaRecorder failure, provider unavailable), the call shows
+  "Couldn't start the microphone — tap again to retry." instead of silently doing
+  nothing; the mic stays ready for another tap.
+- **Hands-free STT failures are no longer mistaken for silence.** The wake-word
+  listen loop now tells a real recognition failure apart from "No speech
+  detected": genuine errors (network, permissions, recognizer busy, ...) are
+  surfaced with the existing error card + vibration and end the call with an
+  explanation, while silence keeps its quiet retry-and-auto-end behaviour. Only
+  silence counts toward the auto-end strikes.
+- **Tool-progress narration TTS failures surface too.** A failed narration shows
+  the shared "Couldn't play voice audio — check your Text-to-Speech settings."
+  card once per call (repeats are logged), instead of being fire-and-forget.
+- **In-call error line.** The two floating call buttons now show a transient
+  error line above them, so an in-call error is visible right where the user's
+  eyes are even when the overlay card is off-screen. The overlay card remains
+  the persistent mid-call surface.
+- Hands-free loop also hands control back to the pre-listen state after a blank
+  listen, so retry (and answering an agent question in place) works as intended.
+
 ### Fixed — Malformed tool call no longer bricks the chat (#13)
 
 - **A tool call with invalid `arguments` JSON can no longer poison a chat.** When
