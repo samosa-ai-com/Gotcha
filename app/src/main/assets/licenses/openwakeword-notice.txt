@@ -1,0 +1,30 @@
+OpenWakeWord Model Notices
+==========================
+
+This product includes wake-word detection models from the OpenWakeWord
+project (https://github.com/dscripka/openWakeWord).
+
+Models bundled in app/src/main/assets/openwakeword/
+---------------------------------------------
+
+  melspectrogram.onnx
+    Onnx export of the OpenWakeWord melspectrogram front-end.
+    Source: https://github.com/dscripka/openWakeWord (v0.5.1 release assets).
+    License: Apache License 2.0.
+
+  embedding_model.onnx
+    Re-implementation of Google's speech embedding model
+    (https://tfhub.dev/google/speech_embedding/1), as used by OpenWakeWord.
+    Source: https://github.com/dscripka/openWakeWord (v0.5.1 release assets).
+    License: Apache License 2.0.
+
+  hey_gotcha.onnx
+    Custom "Hey Gotcha" classifier head, trained by the Gotcha project on
+    synthetic positive clips (Piper TTS) and OpenWakeWord's standard
+    negative/background datasets (ACAV100M, AudioSet, MIT RIRs, FMA music).
+    Architecture: small fully-connected classifier on top of the frozen
+    speech embedding backbone.
+    License: Apache License 2.0. Trained by Gotcha contributors.
+
+The Apache 2.0 license text is available at:
+  https://www.apache.org/licenses/LICENSE-2.0

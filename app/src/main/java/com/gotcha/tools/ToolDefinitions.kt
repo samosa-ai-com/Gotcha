@@ -4,6 +4,7 @@ import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -52,6 +53,42 @@ object ToolDefinitions {
             "its products, its terms or privacy policy, who built this app, or how to reach " +
             "them — do not guess at these from memory.",
         schema { putJsonObject("properties") {} }
+    )
+
+    val updateUserProfile = tool(
+        "update_user_profile",
+        "Update the user's stored personal profile in Settings (occupation, background, " +
+            "reply style) with a durable fact they just revealed — a new job or role, a lasting " +
+            "background detail, or an explicit preference for how replies are written. " +
+            "Only call this for genuinely new, durable information, never for transient " +
+            "statements. For each field you change, pass the COMPLETE updated value, preserving " +
+            "everything already stored (modify and extend, never erase) and removing only facts " +
+            "the user has clearly outgrown or contradicted. Keep background under 250 words and " +
+            "reply style under 50 words. Omit any field you are not changing.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("occupation") {
+                    put("type", "string")
+                    put("description", "The user's current occupation or role, e.g. 'Backend engineer'.")
+                }
+                putJsonObject("background") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The complete background text — preserve prior facts, add the new ones, " +
+                            "and keep it under 250 words."
+                    )
+                }
+                putJsonObject("reply_style") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The complete reply-style preference — preserve prior preferences, add " +
+                            "the new one, and keep it under 50 words."
+                    )
+                }
+            }
+        }
     )
 
     val getStorageInfo = tool(
@@ -2129,13 +2166,13 @@ object ToolDefinitions {
 
     val notionReadPage = tool(
         "notion_read_page",
-        "Read a Notion page's title and full text content as Markdown, using a page id from " +
-            "notion_search.",
+        "Read a Notion page's or database's title and full text content as Markdown, using a " +
+            "page or database id from notion_search.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("page_id") {
                     put("type", "string")
-                    put("description", "Page id from notion_search.")
+                    put("description", "Page or database id from notion_search.")
                 }
             }
             putJsonArray("required") { add("page_id") }
@@ -2190,6 +2227,85 @@ object ToolDefinitions {
         }
     )
 
+    val notionUpdatePage = tool(
+        "notion_update_page",
+        "Update a Notion page's — or a database row's — properties. Use for todo lists: mark a " +
+            "row done, set its status, rename it, etc. Pass 'properties' as a JSON object of " +
+            "column name to a simple value, e.g. {\"Done\": true}, {\"Status\": \"In progress\"}, " +
+            "{\"Name\": \"New name\"}. Column names appear in the 'Columns:' line of " +
+            "notion_read_page. Use notion_mark_todo for a to_do block on a page instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("page_id") {
+                    put("type", "string")
+                    put("description", "Page or database-row id from notion_read_page (the id after [row-]).")
+                }
+                putJsonObject("properties") {
+                    put("type", "object")
+                    put("description", "JSON object mapping column names to new values, e.g. {\"Done\": true}.")
+                }
+            }
+            putJsonArray("required") {
+                add("page_id")
+                add("properties")
+            }
+        }
+    )
+
+    val notionMarkTodo = tool(
+        "notion_mark_todo",
+        "Mark a Notion to_do block as done or not done. Use the id shown after [block-] in " +
+            "notion_read_page output. For a todo item stored as a database row, use " +
+            "notion_update_page instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("block_id") {
+                    put("type", "string")
+                    put("description", "Block id from notion_read_page (the id after [block-]).")
+                }
+                putJsonObject("checked") {
+                    put("type", "boolean")
+                    put("description", "true to mark done, false to reopen.")
+                }
+            }
+            putJsonArray("required") {
+                add("block_id")
+                add("checked")
+            }
+        }
+    )
+
+    val notionDeleteItem = tool(
+        "notion_delete_item",
+        "Delete a Notion item. item_type 'page' moves a page or database row to the trash " +
+            "(recoverable; Notion auto-purges trash after ~30 days, permanent deletion is done " +
+            "in the Notion app); item_type 'block' permanently deletes a block and its children. " +
+            "Use the id after [row-] or [block-] in notion_read_page output.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("item_id") {
+                    put("type", "string")
+                    put("description", "Row or block id from notion_read_page (after [row-] or [block-]).")
+                }
+                putJsonObject("item_type") {
+                    put("type", "string")
+                    put(
+                        "enum",
+                        buildJsonArray {
+                            add("page")
+                            add("block")
+                        }
+                    )
+                    put("description", "'page' trashes a page/row; 'block' permanently deletes a block.")
+                }
+            }
+            putJsonArray("required") {
+                add("item_id")
+                add("item_type")
+            }
+        }
+    )
+
     // ---- Health Connect tools (on-device, read-only) ----
 
     val getHealthSummary = tool(
@@ -2233,6 +2349,7 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         aboutSamosaAi,
+        updateUserProfile,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,
@@ -2283,6 +2400,7 @@ object ToolDefinitions {
 
         // Notion connector tools
         notionSearch, notionReadPage, notionCreatePage, notionAppendToPage,
+        notionUpdatePage, notionMarkTodo, notionDeleteItem,
 
         // Health Connect (on-device, read-only)
         getHealthSummary, getHealthRecords,

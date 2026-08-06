@@ -1,7 +1,11 @@
 package com.gotcha.connectors
 
+import com.gotcha.llm.FunctionDefinition
+import com.gotcha.llm.ToolDefinition
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ToolRegistry
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -182,7 +186,7 @@ class ConnectorGatingTest {
     @Test
     fun `catalog ids match the connector ids the registry uses`() {
         assertEquals(
-            setOf("imap", "google", "microsoft", "notion"),
+            setOf("imap", "google", "microsoft", "notion", "homeassistant"),
             ConnectorCatalog.all.map { it.id }.toSet()
         )
     }
@@ -195,5 +199,102 @@ class ConnectorGatingTest {
         )
         assertEquals(listOf("notion"), ConnectorCatalog.ownersOf("notion_search").map { it.id })
         assertTrue(ConnectorCatalog.ownersOf("read_file").isEmpty())
+    }
+
+    // ---- Home Assistant: server-defined dynamic tools ----
+
+    private val dynamicTools: List<ToolDefinition> = listOf(
+        ToolDefinition(
+            function = FunctionDefinition(
+                "HassGetState",
+                "Ask for the state of an entity",
+                buildJsonObject { put("type", "object") }
+            )
+        ),
+        ToolDefinition(
+            function = FunctionDefinition(
+                "HassTurnOn",
+                "Turn on a device",
+                buildJsonObject { put("type", "object") }
+            )
+        )
+    )
+
+    @Test
+    fun `home assistant spec is dynamic with no compile-time owned tools`() {
+        assertEquals("homeassistant", ConnectorCatalog.HOME_ASSISTANT.id)
+        assertTrue(ConnectorCatalog.HOME_ASSISTANT.hasDynamicTools)
+        // The catalog cannot know the server-defined names ahead of time.
+        assertTrue(ConnectorCatalog.HOME_ASSISTANT.ownedToolNames.isEmpty())
+        assertFalse("homeassistant" in ConnectorCatalog.allOwnedTools)
+    }
+
+    @Test
+    fun `registered dynamic tools are hidden unless home assistant is active`() {
+        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        try {
+            // No active connector → nothing can serve the registered tools.
+            assertTrue("HassGetState" in ConnectorRegistry.hiddenToolNamesFor(emptySet()))
+            assertTrue("HassTurnOn" in ConnectorRegistry.hiddenToolNamesFor(emptySet()))
+            // Active Home Assistant → its tools stay exposed.
+            assertFalse("HassGetState" in ConnectorRegistry.hiddenToolNamesFor(setOf("homeassistant")))
+            assertFalse("HassTurnOn" in ConnectorRegistry.hiddenToolNamesFor(setOf("homeassistant")))
+            // Another connector being active does not expose HA's tools.
+            assertTrue("HassGetState" in ConnectorRegistry.hiddenToolNamesFor(setOf("imap")))
+        } finally {
+            ToolRegistry.clearDynamicTools()
+        }
+    }
+
+    @Test
+    fun `dynamic tools follow the monitor operator split`() {
+        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        try {
+            assertTrue("HassGetState" in ToolRegistry.monitorTools)
+            assertFalse("HassTurnOn" in ToolRegistry.monitorTools)
+
+            val monitor = ToolRegistry.toolsForAgent(AgentMode.MONITOR).map { it.function.name }
+            assertTrue(monitor.contains("HassGetState"))
+            assertFalse(monitor.contains("HassTurnOn"))
+
+            val operator = ToolRegistry.toolsForAgent(AgentMode.OPERATOR).map { it.function.name }
+            assertTrue(operator.containsAll(setOf("HassGetState", "HassTurnOn")))
+
+            // Sub-agents may use the full dynamic set while it is registered.
+            val subAgent = ToolRegistry.toolsForSubAgent().map { it.function.name }
+            assertTrue(subAgent.containsAll(setOf("HassGetState", "HassTurnOn")))
+        } finally {
+            ToolRegistry.clearDynamicTools()
+        }
+    }
+
+    @Test
+    fun `hidden dynamic tools are dropped from every agent surface`() {
+        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        try {
+            val hidden = ConnectorRegistry.hiddenToolNamesFor(emptySet())
+            assertTrue(
+                ToolRegistry.toolsForAgent(AgentMode.OPERATOR, hidden)
+                    .none { it.function.name in hidden }
+            )
+            assertTrue(
+                ToolRegistry.toolsForAgent(AgentMode.MONITOR, hidden)
+                    .none { it.function.name in hidden }
+            )
+            assertTrue(
+                ToolRegistry.toolsForSubAgent(hidden).none { it.function.name in hidden }
+            )
+        } finally {
+            ToolRegistry.clearDynamicTools()
+        }
+    }
+
+    @Test
+    fun `cleared dynamic tools are not exposed anywhere`() {
+        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.clearDynamicTools()
+        assertTrue(ToolRegistry.dynamicTools.isEmpty())
+        assertTrue(ToolRegistry.toolsForAgent(AgentMode.OPERATOR).none { it.function.name == "HassGetState" })
+        assertTrue(ToolRegistry.toolsForAgent(AgentMode.MONITOR).none { it.function.name == "HassGetState" })
     }
 }

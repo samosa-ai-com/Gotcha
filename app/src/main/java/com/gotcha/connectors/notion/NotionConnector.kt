@@ -65,6 +65,24 @@ class NotionConnector(
         credentials = null
     }
 
+    override suspend fun refreshTools(): String {
+        val creds = credentials ?: return "Not connected"
+        return try {
+            val me = api.me(creds.token)
+            val name = me["name"]?.jsonPrimitive?.contentOrNull
+                ?: me["bot"]?.jsonObject?.get("workspace_name")?.jsonPrimitive?.contentOrNull
+                ?: creds.workspaceName
+            if (name != creds.workspaceName) {
+                val updated = creds.copy(workspaceName = name)
+                store.saveRaw(id, json.encodeToString(updated))
+                credentials = updated
+            }
+            "Connected to $name"
+        } catch (e: Exception) {
+            "Could not refresh Notion connection: ${e.message}"
+        }
+    }
+
     /**
      * Validates [token] against `GET /users/me` before storing it, so a typo is
      * caught on the Settings screen instead of on the first tool call. Returns a
@@ -97,11 +115,24 @@ class NotionConnector(
 
     suspend fun page(pageId: String): JsonObject = api.page(token(), pageId)
 
-    suspend fun blockChildren(blockId: String, pageSize: Int): JsonArray =
-        api.blockChildren(token(), blockId, pageSize)
+    suspend fun database(databaseId: String): JsonObject = api.database(token(), databaseId)
+
+    suspend fun databaseQuery(databaseId: String, pageSize: Int, startCursor: String? = null): ListResult =
+        api.databaseQuery(token(), databaseId, pageSize, startCursor)
+
+    suspend fun blockChildren(blockId: String, pageSize: Int, startCursor: String? = null): ListResult =
+        api.blockChildren(token(), blockId, pageSize, startCursor)
 
     suspend fun createPage(payload: JsonObject): JsonObject = api.createPage(token(), payload)
 
+    suspend fun updatePage(pageId: String, payload: JsonObject): JsonObject =
+        api.updatePage(token(), pageId, payload)
+
     suspend fun appendBlocks(blockId: String, children: JsonArray): JsonObject =
         api.appendBlocks(token(), blockId, children)
+
+    suspend fun updateBlock(blockId: String, payload: JsonObject): JsonObject =
+        api.updateBlock(token(), blockId, payload)
+
+    suspend fun deleteBlock(blockId: String): JsonObject = api.deleteBlock(token(), blockId)
 }

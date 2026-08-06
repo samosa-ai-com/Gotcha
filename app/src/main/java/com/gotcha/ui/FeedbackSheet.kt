@@ -43,10 +43,17 @@ fun FeedbackSheet(
         title = { Text("Send feedback") },
         text = {
             Column {
+                Text(
+                    text = "If you provide successful feedback, after approval you may be eligible " +
+                        "for 2x the current free Samosa AI credits.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
                 FeedbackToggle("App info (version, device, Android)", includeAppInfo) { includeAppInfo = it }
                 FeedbackToggle("Usage stats (chats, tool calls, runs)", includeUsageStats) { includeUsageStats = it }
                 FeedbackToggle(
-                    "Chat log excerpt (last ~3.5 KB of recent chat)",
+                    "Chat log excerpt (recent chat, sized to fit the form)",
                     includeChatLog
                 ) { includeChatLog = it }
                 FeedbackToggle("User ID (for cross-checking your feedback)", includeUserId) { includeUserId = it }

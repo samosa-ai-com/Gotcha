@@ -9,6 +9,7 @@ import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.llm.withValidToolCallArguments
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -97,7 +98,7 @@ class SubAgentSession(
                 return SubAgentOutput(text, collectedSteps.toList())
             }
 
-            history.add(message)
+            history.add(message.withValidToolCallArguments())
 
             // Check for ask_final_answer
             val finalCall = toolCalls.firstOrNull { it.function.name == "ask_final_answer" }

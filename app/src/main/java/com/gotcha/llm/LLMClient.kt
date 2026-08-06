@@ -77,7 +77,13 @@ class LLMClient(
         modelOverride: String? = null
     ): ChatResponse {
         val targetModel = modelOverride ?: model
-        val cacheKey = buildCacheKey(targetModel, messages, tools)
+        // Safety net for histories that carried a malformed tool call before the
+        // append-time sanitization existed (or were restored from an old session):
+        // never transmit arguments that aren't valid JSON, or the server 400s the
+        // whole request and every later turn (issue #13). Runs before the cache
+        // key so identical (sanitized) histories share a key.
+        val sanitizedMessages = messages.map { it.withValidToolCallArguments() }
+        val cacheKey = buildCacheKey(targetModel, sanitizedMessages, tools)
 
         if (temperature == null || temperature == 0f) {
             cache.get(cacheKey)?.let { return it }
@@ -85,7 +91,7 @@ class LLMClient(
 
         val request = ChatRequest(
             model = targetModel,
-            messages = messages,
+            messages = sanitizedMessages,
             tools = tools.ifEmpty { null },
             temperature = temperature,
             promptCacheKey = sessionId

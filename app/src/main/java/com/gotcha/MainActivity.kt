@@ -749,6 +749,7 @@ class MainActivity : ComponentActivity() {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
                         },
+                        onFetchSamosaCredits = { samosaAuthManager.fetchCreditsRemaining() },
                         onSyncServerMessages = {
                             val s = settingsRepository.load()
                             if (!s.serverMessagesEnabled) return@SettingsScreen null
@@ -821,7 +822,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
-                        }
+                        },
+                        onEditMessage = { id, text, imageBase64 ->
+                            chatViewModel.editMessage(id, text, imageBase64)
+                        },
+                        onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )
                 }
             }
@@ -852,7 +857,6 @@ class MainActivity : ComponentActivity() {
                 loading = sharePoster.loading,
                 preview = sharePoster.preview,
                 error = sharePoster.error,
-                hasImage = chatViewModel.activeSessionHasImage(),
                 onGenerate = sharePoster::generate,
                 onShare = { sharePoster.preview?.let { sharePoster.share(it) } },
                 onSave = { sharePoster.preview?.let { sharePoster.save(it) } },

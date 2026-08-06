@@ -53,6 +53,13 @@ object FeedbackChannel {
      * Builds the pre-filled form URL. [formUrl] and [entries] default to the
      * build-time configuration but are parameterized so unit tests can exercise
      * the URL building without depending on local config.
+     *
+     * The chat log is the only unbounded field, and Google Forms rejects
+     * prefilled URLs past roughly 8.2k total characters with a 400. It is
+     * therefore budgeted by *encoded* length (Devanagari/emoji expand 9-12x when
+     * percent-encoded) into the remaining room under [MAX_PREFILL_URL_LEN], and
+     * dropped entirely when there is no room — the consent flow can never
+     * produce a 400.
      */
     fun buildFeedbackUrl(
         prefill: FeedbackPrefill,
@@ -73,10 +80,69 @@ object FeedbackChannel {
         put(entries.androidVersion, prefill.androidVersion)
         put(entries.userId, prefill.userId)
         put(entries.usageStats, prefill.usageStats)
-        put(entries.chatLog, prefill.chatLog)
+
+        val chatLog = prefill.chatLog
+        if (entries.chatLog.isNotBlank() && !chatLog.isNullOrBlank()) {
+            val overhead = base.length + "?usp=pp_url&".length +
+                params.joinToString("&").length +
+                (if (params.isNotEmpty()) "&".length else 0) +
+                entries.chatLog.length + "=".length
+            val budget = MAX_PREFILL_URL_LEN - overhead
+            if (budget > 0) {
+                val fitted = truncateToEncodedBudget(chatLog, budget)
+                if (fitted.isNotBlank()) {
+                    params += "${entries.chatLog}=${encodeQueryValue(fitted)}"
+                }
+            }
+        }
 
         return if (params.isEmpty()) base else "$base?usp=pp_url&${params.joinToString("&")}"
     }
+
+    /**
+     * The largest head+tail slice of [text] (via [truncateMiddle]) whose
+     * percent-encoded form is at most [maxEncodedChars]. Binary-searched because
+     * encoding expansion is non-linear across scripts. Returns the original text
+     * when it already fits; empty when not even a snippet fits.
+     */
+    private fun truncateToEncodedBudget(text: String, maxEncodedChars: Int): String {
+        if (text.isEmpty() || maxEncodedChars <= 0) return ""
+        if (encodedLength(text) <= maxEncodedChars) return text
+        var lo = 1
+        var hi = text.length
+        var best = ""
+        while (lo <= hi) {
+            val mid = (lo + hi) / 2
+            val candidate = truncateMiddle(text, mid)
+            if (encodedLength(candidate) <= maxEncodedChars) {
+                best = candidate
+                lo = mid + 1
+            } else {
+                hi = mid - 1
+            }
+        }
+        return best
+    }
+
+    /**
+     * Encoded query-string length of [value], matching [encodeQueryValue]
+     * without building the encoded string. Counting instead of allocating keeps
+     * the binary search in [truncateToEncodedBudget] allocation-free.
+     */
+    private fun encodedLength(value: String): Int {
+        var len = 0
+        for (b in value.toByteArray(Charsets.UTF_8)) {
+            len += if (isUnreserved(b.toInt() and 0xFF)) 1 else 3
+        }
+        return len
+    }
+
+    /** True when [c] is an RFC 3986 unreserved byte (kept verbatim when encoded). */
+    private fun isUnreserved(c: Int): Boolean =
+        c in 'a'.code..'z'.code ||
+            c in 'A'.code..'Z'.code ||
+            c in '0'.code..'9'.code ||
+            c == '-'.code || c == '.'.code || c == '_'.code || c == '~'.code
 
     /**
      * Percent-encodes a value for a query string, leaving only the RFC 3986
@@ -88,11 +154,7 @@ object FeedbackChannel {
         return buildString {
             for (b in value.toByteArray(Charsets.UTF_8)) {
                 val c = b.toInt() and 0xFF
-                val unreserved = c in 'a'.code..'z'.code ||
-                    c in 'A'.code..'Z'.code ||
-                    c in '0'.code..'9'.code ||
-                    c == '-'.code || c == '.'.code || c == '_'.code || c == '~'.code
-                if (unreserved) {
+                if (isUnreserved(c)) {
                     append(c.toChar())
                 } else {
                     append('%')
@@ -125,7 +187,7 @@ object FeedbackChannel {
     ): String? {
         if (token.isBlank()) return null
         val id = try {
-            api.me("Bearer $token").id
+            api.me("Bearer $token").user.id
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -149,18 +211,41 @@ object FeedbackChannel {
                 "$label: $text"
             }
         }.trim()
-        if (full.length <= maxChars) return full
+        return truncateMiddle(full, maxChars)
+    }
+
+    /** Head + `… truncated …` + tail of [text], totalling at most [maxChars] characters. */
+    private fun truncateMiddle(text: String, maxChars: Int): String {
+        if (text.length <= maxChars) return text
         val marker = "\n… truncated …\n"
+        if (maxChars <= marker.length) return text.take(maxChars)
         val head = (maxChars - marker.length) * 3 / 4
         val tail = maxChars - marker.length - head
-        return full.take(head) + marker + full.takeLast(tail)
+        return text.take(head) + marker + text.takeLast(tail)
     }
+
+    /** Session start date (last modified), local time, `yyyy-MM-dd HH:mm:ss`. */
+    private fun formatSessionDate(epochMillis: Long): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+            .format(java.util.Date(epochMillis))
+
+    /**
+     * One-line session context — session id, start date and message count —
+     * prepended to the chat excerpt so a bug report carries *when* the chat
+     * started and how much ground it covered, not just the tail.
+     */
+    internal fun sessionHeader(session: ChatSession): String =
+        "Session: ${session.id}\n" +
+            "Started: ${formatSessionDate(session.lastModified)}\n" +
+            "Messages: ${session.messages.size}\n\n"
 
     /** Excerpt from the most recently modified chat session, or null if none. */
     suspend fun recentChatExcerpt(context: Context, maxChars: Int = DEFAULT_EXCERPT_CHARS): String? =
         withContext(Dispatchers.IO) {
             val newest = ChatHistoryRepository(context).listSessions().firstOrNull()
-            newest?.let { chatLogExcerpt(it.messages, maxChars) }
+            newest?.let { session ->
+                sessionHeader(session) + chatLogExcerpt(session.messages, maxChars)
+            }
         }
 
     /** The form's `entry.<id>` query keys, one per pre-filled field. */
@@ -173,5 +258,13 @@ object FeedbackChannel {
         val chatLog: String
     )
 
-    const val DEFAULT_EXCERPT_CHARS = 3500
+    /**
+     * Hard ceiling for the whole prefilled URL, measured against Google's live
+     * edge: values that pushed the total past ~8.2k characters came back 400
+     * "Bad Request" before the form even loaded. 8000 leaves a safety margin.
+     */
+    const val MAX_PREFILL_URL_LEN = 8000
+
+    /** Character budget for the chat excerpt before encoded-length fitting. */
+    const val DEFAULT_EXCERPT_CHARS = 8000
 }

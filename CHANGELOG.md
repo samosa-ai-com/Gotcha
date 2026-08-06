@@ -4,6 +4,118 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Added — Home Assistant MCP connector (#21)
+
+- **Gotcha can now control and query your smart home through Home Assistant's
+  Model Context Protocol server** (Settings ▸ Devices & Services ▸ Model Context
+  Protocol Server). Connect with your Home Assistant URL plus a long-lived access
+  token (profile ▸ Security ▸ Long-lived access tokens).
+- **The tools come from your server, not a fixed list.** On connect, the app
+  calls the MCP `tools/list` endpoint and registers exactly the tools Home
+  Assistant exposes for the entities you share with Assist — e.g. `HassTurnOn`,
+  `HassGetState`, `GetLiveContext` — so the agent can toggle a light or read a
+  sensor state in the same way the built-in connectors work.
+- **Monitor/Operator split is preserved.** Read-only HA tools (state/context
+  reads) are offered to Monitor; everything else is Operator-only. Disconnect —
+  or switching the connector off — hides the tools again from the model.
+
+### Changed — Wake word & call-mode feel (#25)
+
+- **The wake-word acknowledgment is now one short word.** Saying "Hey Gotcha"
+  used to reply with the full "Call started. I'm ready when you are." sentence,
+  which made the wake word feel ignored and delayed the mic opening. It now
+  answers with a single "Yes?" (translated per language) and the mic opens
+  sooner. Normal long-press calls get a tighter "Call started. Go ahead."
+- **The ball now visibly reacts when the wake word fires.** It gives a quick
+  scale bounce while an accent ring radiates from it on its own overlay window,
+  so the pulse still plays after the ball is hidden by the call window. Respects
+  the system "remove animations" preference.
+- **Long-press to start a call is 1 second instead of 2.** The hold-to-call
+  gesture on the floating ball was reduced from 2000 ms to 1000 ms; the
+  expanding ring that previews it stays in sync.
+
+### Fixed — Call mode no longer swallows STT/TTS failures (#23)
+
+- **A failed mic tap is now visible.** When `startMic` can't start the
+  recognizer (busy, MediaRecorder failure, provider unavailable), the call shows
+  "Couldn't start the microphone — tap again to retry." instead of silently doing
+  nothing; the mic stays ready for another tap.
+- **Hands-free STT failures are no longer mistaken for silence.** The wake-word
+  listen loop now tells a real recognition failure apart from "No speech
+  detected": genuine errors (network, permissions, recognizer busy, ...) are
+  surfaced with the existing error card + vibration and end the call with an
+  explanation, while silence keeps its quiet retry-and-auto-end behaviour. Only
+  silence counts toward the auto-end strikes.
+- **Tool-progress narration TTS failures surface too.** A failed narration shows
+  the shared "Couldn't play voice audio — check your Text-to-Speech settings."
+  card once per call (repeats are logged), instead of being fire-and-forget.
+- **In-call error line.** The two floating call buttons now show a transient
+  error line above them, so an in-call error is visible right where the user's
+  eyes are even when the overlay card is off-screen. The overlay card remains
+  the persistent mid-call surface.
+- Hands-free loop also hands control back to the pre-listen state after a blank
+  listen, so retry (and answering an agent question in place) works as intended.
+
+### Fixed — Malformed tool call no longer bricks the chat (#13)
+
+- **A tool call with invalid `arguments` JSON can no longer poison a chat.** When
+  the model emits a tool call whose `arguments` aren't parseable (e.g. a cut-off
+  summary with stray `</summary>` tags), the app used to keep that raw message in
+  the history and re-send it on every later turn — and some servers 400 the whole
+  request when they see it, so every subsequent message failed too.
+- Malformed tool-call arguments are now neutralized to `{}` **before they are
+  stored or sent** (sanitized on append and again at the `LLMClient` send
+  boundary), so the chat keeps working. The model still receives the truthful
+  "Malformed tool arguments" tool result so it can retry. Sessions saved before
+  the fix self-heal on their next request.
+
+### Added — `update_user_profile` agent tool (#18)
+
+- **The agent can now keep the user's profile fresh.** A new Operator-only
+  `update_user_profile` tool records durable facts the user reveals in
+  conversation — a new job/role (`occupation`), background details
+  (`background`) and reply preferences (`reply_style`) — straight into
+  Settings ▸ Personal Info, so the knowledge isn't lost next session.
+- **Modify-and-extend, never erase.** The model is instructed to pass the
+  complete merged value for each field it changes, preserving prior facts and
+  removing only what the user clearly outgrew; blank values are ignored so
+  stored information is never wiped wholesale.
+- **Stays compact.** `background` is capped at 250 words and `reply_style` at
+  50 words in-app, and a no-op guard skips writes when nothing material
+  changed (keeps updates infrequent and the system prompt cache mostly stable).
+- **Operator only.** Monitor keeps its read-only contract; the tool is also
+  withheld from sub-agents. Works in chat and voice calls.
+- A short maintenance directive in the Operator system prompt (next to
+  `<user_profile>`) tells the model when to call the tool and the caps.
+
+### Added — Collapsible Connectors cards (#20)
+
+- **Connector cards collapse by default.** The Connectors screen now shows one
+  compact row per connector — title, live status line, and (once connected) the
+  enable switch — with the setup steps, credential fields and buttons hidden
+  until the row is tapped. Each card expands independently via a rotating
+  chevron on its header.
+- **Enable switch stays reachable.** Toggling a connector on/off no longer
+  requires expanding its card; the switch lives on the always-visible header
+  once connected. The expanded body keeps the explanatory copy and Disconnect.
+- **Connect affordance hint.** A disconnected connector's status reads
+  "Not connected — tap to set up" so it is clear the header opens the setup.
+  "Reconnect needed" OAuth states keep their fuller message.
+
+### Added — Scaled Samosa credit display (#19)
+
+- **Remaining credit shown, never the raw value.** The AI Config and Speech
+  pages now show a "Credits remaining:" line under the signed-in email,
+  scaled by ×1000 to a whole number (e.g. `2.0` credits → `2,000`). The raw
+  `credits_remaining` float is never rendered.
+- The balance is fetched live from the auth-manager `GET /me` on screen open
+  and on sign-in (no polling). When not signed in, or the gateway is
+  unreachable / the user has no gateway key (`credits_remaining` is null),
+  the line is hidden and the page is unaffected.
+- `GET /me` now parses the `{ user: … }` envelope correctly, so the feedback
+  form's user-id pre-fill uses the real account id instead of always falling
+  back to the stored email.
+
 ### Changed — PR #77 user-visible behavior
 
 - **Share poster is top-bar only.** The per-message "Share as poster" icon on
@@ -34,6 +146,40 @@ All notable changes to Gotcha are documented here.
 - `GotchaApp` writes uncaught exceptions to `filesDir/crash.log` (capped at
   50 entries) in addition to logcat, so post-mortem analysis is possible
   from a user report after the logcat buffer has rolled over.
+
+### Fixed — Notion databases unreadable (#8)
+
+- `notion_read_page` now reads **databases** as well as pages. A Notion todo
+  list is a database, and previously passing its id returned a 404 that wrongly
+  blamed page sharing — now it falls back to `GET /databases/{id}` +
+  `POST /databases/{id}/query` and renders each row with its checkbox state.
+- Inline `child_database` blocks inside a page are queried and embedded instead
+  of rendering as `[unsupported block: child_database]`, so a todo list dropped
+  onto a page is readable too.
+- `notion_search` shows a database's real title instead of `(untitled)`.
+- `notion_search` no longer crashes when a database appears in the results: a
+  database's title column definition carries `"title": {}` (an empty object,
+  not an array), and rendering now treats any non-array as empty text instead
+  of throwing "is not a JsonArray".
+- Reads paginate past 100 blocks via `start_cursor` and recurse into nested
+  blocks (bounded by a shared budget); if a cap is hit, the output says
+  `[truncated]` instead of silently dropping content.
+- A 404 that names a database steers to re-running `notion_search` rather than
+  to re-sharing the page.
+
+### Added — Notion update/delete tools
+
+- `notion_update_page` updates a page's or database row's properties — pass
+  column names mapped to simple values, e.g. `{"Done": true}` marks a todo row
+  done, `{"Status": "In progress"}` changes a status. The column type is looked
+  up from the page so the correct Notion payload is built.
+- `notion_mark_todo` checks or unchecks a `to_do` block on a page
+  (`checked: true`/`false`).
+- `notion_delete_item` moves a page/row to the Notion trash (`item_type:
+  "page"`, recoverable) or permanently deletes a block (`item_type: "block"`).
+- `notion_read_page` output now marks every editable item with an id —
+  `[row-<id>]` for database rows and `[block-<id>]` for to-do blocks — and lists
+  each database's `Columns:` so the model knows which values it can update.
 
 ### Added — HumanReadableError (PR #77 utility)
 

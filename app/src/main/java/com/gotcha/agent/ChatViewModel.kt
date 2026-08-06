@@ -27,6 +27,8 @@ import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
+import com.gotcha.tools.ToolResult
+import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
@@ -134,6 +136,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         historyRepository = historyRepository,
         settingsProvider = { settings },
         clientProvider = { client },
+        onUpdateUserProfile = { update ->
+            // Reload so a manual Personal Info edit isn't clobbered by a stale snapshot,
+            // then persist and refresh the cached settings the engine reads next turn.
+            val merged = mergeProfileUpdate(settingsRepository.load(), update)
+                ?: return@AgentEngine ToolResult.ok("No material change — profile left as is.")
+            settingsRepository.save(merged.updated)
+            settings = merged.updated
+            // Surface the change to the user: the profile is silently re-injected into every
+            // future prompt, so a prompt-injected update_user_profile call must not go
+            // unnoticed. A TOOL bubble in the transcript gives the user a chance to catch
+            // and revert a poisoned update. Dispatched to Main because this handler runs
+            // inside the tool executor's IO context while appendEngineUi touches UI state.
+            withContext(Dispatchers.Main) {
+                appendEngineUi(
+                    MessageKind.TOOL,
+                    "Assistant updated your profile: " +
+                        merged.changedFields.joinToString(", ") + "."
+                )
+            }
+            ToolResult.ok(
+                "Updated " + merged.changedFields.joinToString(", ") + ". " +
+                    "The new value will be used from the next message."
+            )
+        },
         // Persist the ENGINE session's own data, never the viewed session's —
         // the user may be browsing another chat while this run continues.
         displayMessagesProvider = { engineTranscript },
@@ -385,13 +411,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        currentRunIsVoice = isVoiceInput || lastInputWasVoice
-        lastInputWasVoice = false
         val msg = if (imageBase64 != null) {
             visionUserMessage(trimmed, imageBase64, "jpeg")
         } else {
             ChatMessage(role = "user", content = JsonPrimitive(trimmed))
         }
+        launchUserRun(msg, imageBase64, isVoiceInput)
+    }
+
+    /**
+     * Appends [msg] to the viewed session's LLM history, shows the USER bubble,
+     * and starts an agent run. Shared by [sendMessage] and [editMessage], so both
+     * paths go through the same busy-marking, run, and NonCancellable cleanup.
+     */
+    private fun launchUserRun(msg: ChatMessage, imageBase64: String?, isVoiceInput: Boolean) {
+        currentRunIsVoice = isVoiceInput || lastInputWasVoice
+        lastInputWasVoice = false
         val viewedId = _uiState.value.activeSessionId
         agentJob = viewModelScope.launch {
             // Ensure the engine is bound to the session being viewed. After a
@@ -402,39 +437,158 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.history += msg
             appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, imageBase64)
 
-            val runningId = agentEngine.sessionId
-            val runningTitle = engineTranscript.firstOrNull { it.kind == MessageKind.USER }
-                ?.text?.take(30) ?: "New Chat"
+            val runningId = agentEngine.sessionId ?: return@launch
+            executeRun(engineAgent, runningId)
+        }
+    }
+
+    /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
+    private suspend fun executeRun(agent: AgentMode, runningId: String) {
+        val runningTitle = engineTranscript.firstOrNull { it.kind == MessageKind.USER }
+            ?.text?.take(30) ?: "New Chat"
+        _uiState.update {
+            it.copy(
+                isBusy = true,
+                runningSessionId = runningId,
+                runningSessionTitle = runningTitle
+            )
+        }
+        runHadError = false
+        try {
+            agentEngine.run(agent)
+        } catch (_: CancellationException) {
+            appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
+        } finally {
+            withContext(NonCancellable) {
+                currentRunIsVoice = false
+                lastInputWasVoice = false
+                agentEngine.saveCurrentSession()
+                _uiState.update {
+                    it.copy(
+                        isBusy = false,
+                        runningSessionId = null,
+                        runningSessionTitle = null,
+                        activity = if (viewingEngineSession()) null else it.activity,
+                        subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
+                        subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
+                    )
+                }
+                agentJob = null
+            }
+        }
+    }
+
+    /**
+     * Replaces the user message [targetId] with [newText], keeping the original
+     * image attachment unless a new one was picked. The target's whole turn and
+     * everything after it are dropped from both the LLM history and the on-screen
+     * transcript, then the agent re-runs immediately so a fresh reply is
+     * generated from the edited history.
+     */
+    fun editMessage(targetId: Long, newText: String, imageBase64: String?) {
+        val trimmed = newText.trim()
+        if (trimmed.isEmpty() && imageBase64 == null) return
+        if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
+        if (client == null) {
+            appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
+            return
+        }
+        currentRunIsVoice = false
+        lastInputWasVoice = false
+        val viewedId = _uiState.value.activeSessionId
+        // Cancel any in-flight edit/run before overwriting the reference, so a
+        // rapid second tap can't leave two coroutines truncating the same history.
+        agentJob?.cancel()
+        agentJob = viewModelScope.launch {
+            // Re-check the busy guard inside the coroutine: a second invocation can
+            // slip past the synchronous check above (isBusy only becomes true once
+            // executeRun runs), so refuse rather than interleave two truncations.
+            if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return@launch
+            bindEngineToViewedSession(viewedId)
+            val transcript = engineTranscript
+            val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
+                ?: return@launch
+            val k = transcript.takeWhile { it.id != targetId }.count { it.kind == MessageKind.USER }
+            // History/transcript desync guard (e.g. after compaction the transcript
+            // is reset), so a stale target id bails without partial truncation.
+            if (k >= userTurnStarts(agentEngine.history).size) return@launch
+            val kept = truncateHistoryAtTurn(agentEngine.history, k, dropTurn = true)
+            agentEngine.history.clear()
+            agentEngine.history.addAll(kept)
+            engineTranscript = transcript.take(transcript.indexOf(target))
             _uiState.update {
                 it.copy(
-                    isBusy = true,
-                    runningSessionId = runningId,
-                    runningSessionTitle = runningTitle
+                    messages = engineTranscript,
+                    activity = null,
+                    subAgentRunning = null,
+                    subAgentCurrentAction = null
                 )
             }
-            runHadError = false
-            try {
-                agentEngine.run(engineAgent)
-            } catch (_: CancellationException) {
-                appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
-            } finally {
-                withContext(NonCancellable) {
-                    currentRunIsVoice = false
-                    lastInputWasVoice = false
-                    agentEngine.saveCurrentSession()
-                    _uiState.update {
-                        it.copy(
-                            isBusy = false,
-                            runningSessionId = null,
-                            runningSessionTitle = null,
-                            activity = if (viewingEngineSession()) null else it.activity,
-                            subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
-                            subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
-                        )
-                    }
-                    agentJob = null
-                }
+            // Never promote undone work on the share card.
+            agentEngine.restoreRunSummaries(emptyList())
+            val editImage = imageBase64 ?: target.imageBase64
+            val msg = if (editImage != null) {
+                visionUserMessage(trimmed, editImage, "jpeg")
+            } else {
+                ChatMessage(role = "user", content = JsonPrimitive(trimmed))
             }
+            agentEngine.history += msg
+            appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, editImage)
+            executeRun(engineAgent, agentEngine.sessionId ?: return@launch)
+        }
+    }
+
+    /**
+     * Truncates the conversation so the user message [targetId] becomes the last
+     * message: its own replies and everything after are dropped from both the LLM
+     * history and the on-screen transcript, letting the user continue from a
+     * clean state. No LLM call, so it works even without a configured API key.
+     */
+    fun revertTo(targetId: Long) {
+        if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
+        val viewedId = _uiState.value.activeSessionId
+        // Cancel any in-flight edit/run first so a revert can't interleave with a
+        // coroutine that is mid-truncation on the same engine history.
+        agentJob?.cancel()
+        viewModelScope.launch {
+            // Re-check the busy guard inside the coroutine (mirrors editMessage):
+            // the synchronous check above can be raced by a second dispatch before
+            // isBusy is set, so refuse rather than truncate concurrently.
+            if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return@launch
+            bindEngineToViewedSession(viewedId)
+            val transcript = engineTranscript
+            val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
+                ?: return@launch
+            val k = transcript.takeWhile { it.id != targetId }.count { it.kind == MessageKind.USER }
+            // History/transcript desync guard (e.g. after compaction the transcript
+            // is reset), so a stale target id bails without partial truncation.
+            if (k >= userTurnStarts(agentEngine.history).size) return@launch
+            val kept = truncateHistoryAtTurn(agentEngine.history, k, dropTurn = false)
+            agentEngine.history.clear()
+            agentEngine.history.addAll(kept)
+            engineTranscript = transcript.take(transcript.indexOf(target) + 1)
+            _uiState.update {
+                it.copy(
+                    messages = engineTranscript,
+                    activity = null,
+                    subAgentRunning = null,
+                    subAgentCurrentAction = null
+                )
+            }
+            // Re-derive the context readout from the truncated history, matching
+            // the engine's own estimate units so the meter doesn't lie after revert.
+            val tokens = kept.sumOf { it.textContent.length / 4 } + AgentEngine.PROMPT_OVERHEAD_TOKENS
+            agentEngine.tokenCount = tokens
+            applyContextUsage(tokens)
+            // Keep the drawer's live overlay in sync so the reverted session's
+            // row doesn't keep showing the pre-truncation count.
+            agentEngine.sessionId?.let { sid ->
+                _liveTokenBySession.update { it + (sid to tokens) }
+            }
+            // Never promote undone work on the share card.
+            agentEngine.restoreRunSummaries(emptyList())
+            agentEngine.saveCurrentSession()
+            refreshSessions()
         }
     }
 
@@ -1086,8 +1240,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * hops to the main thread internally.
      */
     suspend fun generateShareCard(
-        runs: List<RunSummary>,
-        includeScreenshot: Boolean = false
+        runs: List<RunSummary>
     ): Result<Bitmap> = runCatching {
         val client = ShareCardClient(getApplication(), settings)
         val content = client.generate(runs)
@@ -1095,54 +1248,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             error("Nothing accomplished in this run to showcase yet.")
         }
         val stats = PosterStatsBuilder.from(runs)
-        val screenshot = if (includeScreenshot) loadShareScreenshot() else null
         withContext(Dispatchers.Main) {
-            PosterRenderer.render(getApplication(), content, stats, screenshot)
-        }
-    }
-
-    /**
-     * Best-effort screenshot for the poster thumbnail: the newest image in the
-     * engine session's chat history (a user-attached photo or an agent screen
-     * capture), else null.
-     *
-     * Guarded so a huge or malformed image can't OOM the decode: files over
-     * [MAX_SHARE_SCREENSHOT_BYTES] are skipped, and anything larger than
-     * [MAX_SHARE_SCREENSHOT_DIM] on either side is downsampled before decoding
-     * (the poster draws the thumbnail at 460×345, so full-res is wasteful).
-     */
-    private fun loadShareScreenshot(): Bitmap? {
-        // Snapshot before scanning: the engine coroutine mutates history as it
-        // runs, and this is read from the UI thread. asReversed() alone is a
-        // live view, not a copy.
-        val dataUri = agentEngine.history.toList().asReversed()
-            .firstNotNullOfOrNull { it.imageUrl() }
-            ?: return null
-        // Early bound on the URI before allocating the Base64 byte array:
-        // Base64 inflates payload by 4/3, so even a 50 MB payload produces a
-        // ~67 MB string; reject anything that cannot possibly fit under the
-        // byte cap without decoding it.
-        if (dataUri.length > MAX_SHARE_SCREENSHOT_BYTES * 4 / 3 + SAFE_DATA_URI_PREFIX) {
-            return null
-        }
-        val base64 = dataUri.substringAfter("base64,")
-        return try {
-            val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-            if (bytes.size > MAX_SHARE_SCREENSHOT_BYTES) return null
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            val w = bounds.outWidth
-            val h = bounds.outHeight
-            if (w <= 0 || h <= 0) return null
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = when {
-                    w <= MAX_SHARE_SCREENSHOT_DIM && h <= MAX_SHARE_SCREENSHOT_DIM -> 1
-                    else -> maxOf(w, h) / MAX_SHARE_SCREENSHOT_DIM
-                }
-            }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-        } catch (_: Exception) {
-            null
+            PosterRenderer.render(getApplication(), content, stats)
         }
     }
 
@@ -1165,18 +1272,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // as it runs, and this is read from the UI thread.
         val snapshot = agentEngine.history.toList()
         return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
-    }
-
-    /**
-     * True when the session currently bound to the engine has an image in its
-     * history. Drives whether the poster sheet offers "Include a screenshot":
-     * the option only makes sense when there is something to embed, and it must
-     * disappear once the image is culled from history.
-     */
-    fun activeSessionHasImage(): Boolean {
-        // Snapshot before reading: the engine coroutine mutates history as it
-        // runs, and this is read from the UI thread.
-        return agentEngine.history.toList().any { it.hasImage }
     }
 
     /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
@@ -1214,18 +1309,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
-
-        /** Poster-thumbnail screenshot guards (see [loadShareScreenshot]). */
-        const val MAX_SHARE_SCREENSHOT_BYTES = 50L * 1024 * 1024
-        const val MAX_SHARE_SCREENSHOT_DIM = 2048
-
-        /**
-         * Slack added to the dataUri length ceiling to account for the
-         * `data:image/...;base64,` MIME prefix that Base64 decoding strips.
-         * 64 bytes is far more than any real MIME prefix and well below the
-         * 4/3 inflation ratio that motivates the guard.
-         */
-        const val SAFE_DATA_URI_PREFIX = 64L
     }
 }
 

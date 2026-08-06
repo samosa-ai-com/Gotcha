@@ -6,6 +6,7 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
@@ -14,8 +15,10 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewPropertyAnimator
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -57,6 +60,28 @@ class CallChatWindow(context: Context) {
     private var actionBtn: View? = null
     private var endBtn: View? = null
     private var endWrapper: View? = null
+    private var statusPill: View? = null
+
+    /** The horizontal button row (action + end), kept so touch hit-tests don't
+     *  have to walk the root's children (the error label lives above it). */
+    private var buttonsRow: LinearLayout? = null
+
+    /** Transient error line shown above the buttons while an in-call error is fresh. */
+    private var errorLabel: TextView? = null
+    private var errorAnimator: ViewPropertyAnimator? = null
+    private val errorLabelHideRunnable = Runnable {
+        val label = errorLabel ?: return@Runnable
+        errorAnimator?.cancel()
+        errorAnimator = label.animate()
+            .alpha(0f)
+            .translationY(label.translationY - dp(6f))
+            .setDuration(200L)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                label.visibility = View.GONE
+            }
+        errorAnimator?.start()
+    }
 
     // Ring as a separate overlay window (not inside the layout)
     private var ringOverlayView: View? = null
@@ -80,6 +105,9 @@ class CallChatWindow(context: Context) {
     private var entranceAnimating: Boolean = false
 
     private var currentState: CallState = CallState.IDLE
+
+    /** When true, the mic action button is hidden (hands-free wake-word call). */
+    private var handsFreeMode = false
 
     // Drag state
     private var dragging = false
@@ -117,6 +145,9 @@ class CallChatWindow(context: Context) {
     fun hide() {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
+            mainHandler.removeCallbacks(errorLabelHideRunnable)
+            errorAnimator?.cancel()
+            errorAnimator = null
             rotationWatcher.stop()
             stopBreathe()
             swapAnimator?.cancel()
@@ -131,6 +162,9 @@ class CallChatWindow(context: Context) {
             actionBtn = null
             endBtn = null
             endWrapper = null
+            statusPill = null
+            buttonsRow = null
+            errorLabel = null
         }
     }
 
@@ -151,6 +185,72 @@ class CallChatWindow(context: Context) {
         }
     }
 
+    /**
+     * Hands-free (wake-word) calls have no push-to-talk — the mic opens itself
+     * and startMic/stopMic are no-ops — so the mic button is suppressed and the
+     * chat window only shows the End control.
+     */
+    fun setHandsFree(enabled: Boolean) {
+        mainHandler.post {
+            handsFreeMode = enabled
+            renderButtons()
+        }
+    }
+
+    /**
+     * Minimal in-call text error surface: a transient glass card floating above the
+     * buttons so a failure stays visible even if the user isn't looking at the
+     * overlay card. Auto-hides after [ERROR_LABEL_SHOW_MS]. No-op when the window
+     * isn't showing (e.g. start-call failures that fire before the buttons appear).
+     */
+    fun showError(message: String) {
+        mainHandler.post {
+            if (rootView == null) return@post
+            val label = errorLabel ?: return@post
+            val row = buttonsRow ?: return@post
+
+            mainHandler.removeCallbacks(errorLabelHideRunnable)
+            errorAnimator?.cancel()
+
+            val formatted = if (message.startsWith("⚠️") || message.startsWith("❌")) message else "⚠️  $message"
+            label.text = formatted
+
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(dp(240f), View.MeasureSpec.AT_MOST)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            label.measure(widthSpec, heightSpec)
+
+            val labelWidth = label.measuredWidth
+            val labelHeight = label.measuredHeight
+            val rowWidth = if (row.width > 0) row.width else dp(BTN_SIZE_DP * 2f + 22f)
+
+            // The row no longer sits at the window origin: the status pill above
+            // it shifts it down, and horizontal centering in the container shifts
+            // it right. Anchor the label to the row's real position (the container
+            // itself is at (0,0)), so it floats just above the buttons, clear of
+            // the pill.
+            val targetX = row.left + (rowWidth - labelWidth) / 2f
+            val targetY = -(row.top + labelHeight.toFloat() + dp(8f))
+
+            label.translationX = targetX
+
+            val isAlreadyVisible = label.visibility == View.VISIBLE && label.alpha > 0f
+            if (!isAlreadyVisible) {
+                label.alpha = 0f
+                label.translationY = targetY + dp(6f)
+                label.visibility = View.VISIBLE
+            }
+
+            errorAnimator = label.animate()
+                .alpha(1f)
+                .translationY(targetY)
+                .setDuration(220L)
+                .setInterpolator(DecelerateInterpolator())
+            errorAnimator?.start()
+
+            mainHandler.postDelayed(errorLabelHideRunnable, ERROR_LABEL_SHOW_MS)
+        }
+    }
+
     // ---- Rendering ----
 
     /** (emoji, glass tint) for the action button in a given call state. */
@@ -161,10 +261,47 @@ class CallChatWindow(context: Context) {
         else -> null
     }
 
+    private fun updateStatusPillAndRing(s: CallState) {
+        val pill = statusPill as? TextView ?: return
+        val (text, ringColor) = when (s) {
+            CallState.STARTING -> "✨ Connecting…" to Color.parseColor("#00E5FF")
+            CallState.LISTENING -> "🎙️ Listening…" to Color.parseColor("#00E5FF")
+            CallState.THINKING -> "🧠 Processing…" to Color.parseColor("#7C4DFF")
+            CallState.SPEAKING -> "🔊 Replying…" to Color.parseColor("#00E676")
+            CallState.WAITING_USER -> "❓ Awaiting input…" to Color.parseColor("#FFD600")
+            else -> null to null
+        }
+        if (text != null) {
+            pill.text = text
+            if (pill.visibility != View.VISIBLE) {
+                pill.alpha = 0f
+                pill.visibility = View.VISIBLE
+                pill.animate().alpha(1f).setDuration(200L).start()
+            }
+        } else {
+            if (pill.visibility == View.VISIBLE) {
+                pill.animate().alpha(0f).setDuration(160L).withEndAction {
+                    pill.visibility = View.INVISIBLE
+                }.start()
+            }
+        }
+        if (ringColor != null && actionBtn?.visibility == View.VISIBLE) {
+            setActionRingColor(ringColor)
+            mainHandler.post { followRootWithActionRing() }
+        } else if (currentRingColor != 0 && (s == CallState.READY || s == CallState.IDLE)) {
+            setActionRingColor(null)
+        }
+    }
+
     @Suppress("SetTextI18n")
     private fun renderButtons() {
         val s = currentState
-        val appearance = actionAppearance(s)
+        updateStatusPillAndRing(s)
+        val appearance = if (handsFreeMode && (s == CallState.READY || s == CallState.WAITING_USER)) {
+            null
+        } else {
+            actionAppearance(s)
+        }
         val btn = actionBtn as? TextView
         if (appearance == null) {
             // Fade + shrink out, then hide.
@@ -330,13 +467,79 @@ class CallChatWindow(context: Context) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
-            setOnTouchListener(containerTouchListener())
         }
         actionBtn?.let { row.addView(it) }
         (actionBtn?.layoutParams as? LinearLayout.LayoutParams)?.setMargins(0, 0, (6 * density).toInt(), 0)
         row.addView(wrapper)
+        buttonsRow = row
 
-        return row
+        val pill = TextView(appContext).apply {
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding((12 * density).toInt(), (5 * density).toInt(), (12 * density).toInt(), (5 * density).toInt())
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 16f * density
+                setColor(ColorUtils.setAlphaComponent(Color.BLACK, 175))
+                setStroke((1 * density).toInt(), ColorUtils.setAlphaComponent(Color.WHITE, 45))
+            }
+            visibility = View.INVISIBLE
+        }
+        statusPill = pill
+
+        val container = LinearLayout(appContext).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setOnTouchListener(containerTouchListener())
+            addView(pill)
+            (pill.layoutParams as? LinearLayout.LayoutParams)?.setMargins(0, 0, 0, (6 * density).toInt())
+            addView(row)
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                followRootWithActionRing()
+            }
+        }
+
+        errorLabel = TextView(appContext).apply {
+            visibility = View.GONE
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            maxWidth = dp(240f)
+            setPadding(dp(12f), dp(7f), dp(12f), dp(7f))
+            setShadowLayer(4f * density, 0f, 1f * density, Color.parseColor("#80000000"))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 14f * density
+                setColor(Color.parseColor("#E6181820"))
+                setStroke((1f * density).toInt(), Color.parseColor("#40E5544B"))
+            }
+        }
+
+        // FrameLayout wrapper: the pill + buttons stay in a vertical container at
+        // origin (0,0), while errorLabel floats above the buttons via negative
+        // translationY. clipChildren = false allows errorLabel to draw cleanly
+        // outside the window bounds without shifting hit-test coordinates or
+        // dragging the control.
+        return FrameLayout(appContext).apply {
+            clipChildren = false
+            clipToPadding = false
+            addView(
+                container,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+            addView(
+                errorLabel,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
     }
 
     private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
@@ -384,14 +587,7 @@ class CallChatWindow(context: Context) {
         val drawable = RingDrawable()
         val view = View(appContext).apply { background = drawable }
 
-        // Compute the end button's center from the root overlay position.
-        // Avoid getLocationOnScreen() which can be unreliable under
-        // FLAG_LAYOUT_NO_LIMITS and with nested overlay windows.
-        val paddingPx = (8 * density).toInt()
-        val marginPx = (6 * density).toInt()
-        val btnPx = (BTN_SIZE_DP * density).toInt()
-        val cx = (rootParams?.x ?: 0) + paddingPx + btnPx + marginPx + btnPx / 2
-        val cy = (rootParams?.y ?: 0) + btnPx / 2
+        val (cx, cy) = buttonCenterOnScreen(endWrapper, isEndButton = true)
 
         val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         val params = WindowManager.LayoutParams(
@@ -450,11 +646,9 @@ class CallChatWindow(context: Context) {
                 return@post
             }
             currentRingColor = color
+            val (cx, cy) = buttonCenterOnScreen(actionBtn, isEndButton = false)
             val density = appContext.resources.displayMetrics.density
-            val paddingPx = (8 * density).toInt()
             val btnPx = (BTN_SIZE_DP * density).toInt()
-            val cx = (rootParams?.x ?: 0) + paddingPx + btnPx / 2
-            val cy = (rootParams?.y ?: 0) + btnPx / 2
 
             if (actionRingOverlayView != null) {
                 actionRingDrawable?.strokeColor = color
@@ -670,27 +864,31 @@ class CallChatWindow(context: Context) {
 
     private fun isTouchOnEndWrapper(x: Float, y: Float): Boolean {
         val w = endWrapper ?: return false
-        return x >= w.left && x <= w.right && y >= w.top && y <= w.bottom
+        val row = w.parent as? View ?: return false
+        val left = row.left + w.left
+        val right = row.left + w.right
+        val top = row.top + w.top
+        val bottom = row.top + w.bottom
+        return x >= left && x <= right && y >= top && y <= bottom
     }
 
     private fun handleActionUp(x: Float, y: Float) {
-        val root = rootView as? LinearLayout ?: return
-        val count = root.childCount
-        for (i in 0 until count) {
-            val child = root.getChildAt(i)
-            if (x >= child.left && x <= child.right &&
-                y >= child.top && y <= child.bottom
-            ) {
-                if (child == actionBtn) performMicAction()
-                break
-            }
+        val btn = actionBtn ?: return
+        if (btn.visibility != View.VISIBLE) return
+        val row = btn.parent as? View ?: return
+        val left = row.left + btn.left
+        val right = row.left + btn.right
+        val top = row.top + btn.top
+        val bottom = row.top + btn.bottom
+        if (x >= left && x <= right && y >= top && y <= bottom) {
+            performMicAction()
         }
     }
 
     /** Fire the action bound to the mic button for the current call state. */
     private fun performMicAction() {
         when (currentState) {
-            CallState.READY, CallState.WAITING_USER -> onStartMic()
+            CallState.READY, CallState.WAITING_USER -> if (!handsFreeMode) onStartMic()
             CallState.LISTENING -> onStopMic()
             CallState.THINKING, CallState.SPEAKING -> onInterrupt()
             else -> { /* no-op when hidden */ }
@@ -818,14 +1016,38 @@ class CallChatWindow(context: Context) {
     private fun followRootWithActionRing() {
         val view = actionRingOverlayView ?: return
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-        val density = appContext.resources.displayMetrics.density
-        val paddingPx = (8 * density).toInt()
-        val btnPx = (BTN_SIZE_DP * density).toInt()
-        params.x = (rootParams?.x ?: 0) + paddingPx + btnPx / 2 - params.width / 2
-        params.y = (rootParams?.y ?: 0) + btnPx / 2 - params.height / 2
+        val (cx, cy) = buttonCenterOnScreen(actionBtn, isEndButton = false)
+        params.x = cx - params.width / 2
+        params.y = cy - params.height / 2
         try {
             windowManager.updateViewLayout(view, params)
         } catch (_: Exception) { }
+    }
+
+    private fun buttonCenterOnScreen(targetView: View?, isEndButton: Boolean = false): Pair<Int, Int> {
+        val density = appContext.resources.displayMetrics.density
+        val paddingPx = (8 * density).toInt()
+        val marginPx = (6 * density).toInt()
+        val btnPx = (BTN_SIZE_DP * density).toInt()
+        val rootX = rootParams?.x ?: 0
+        val rootY = rootParams?.y ?: 0
+
+        val v = targetView ?: return if (isEndButton) {
+            (rootX + paddingPx + btnPx + marginPx + btnPx / 2) to (rootY + btnPx / 2)
+        } else {
+            (rootX + paddingPx + btnPx / 2) to (rootY + btnPx / 2)
+        }
+
+        val row = v.parent as? View
+        val rowLeft = row?.left ?: paddingPx
+        val rowTop = row?.top ?: 0
+
+        val vWidth = if (v.width > 0) v.width else btnPx
+        val vHeight = if (v.height > 0) v.height else btnPx
+
+        val cx = rootX + rowLeft + v.left + vWidth / 2
+        val cy = rootY + rowTop + v.top + vHeight / 2
+        return cx to cy
     }
 
     private fun layoutParams(): WindowManager.LayoutParams {
@@ -858,6 +1080,9 @@ class CallChatWindow(context: Context) {
     private companion object {
         const val BTN_SIZE_DP = 44
         const val END_LONG_PRESS_MS = 2000L
+
+        /** How long the transient in-call error line stays above the buttons. */
+        const val ERROR_LABEL_SHOW_MS = 4000L
 
         // Glass tints per action state. Three of these are semantic and stay
         // fixed: amber, coral and red have to keep meaning the same thing in

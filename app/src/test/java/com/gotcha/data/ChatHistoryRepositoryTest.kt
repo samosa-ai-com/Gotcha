@@ -1,6 +1,9 @@
 package com.gotcha.data
 
+import com.gotcha.agent.truncateHistoryAtTurn
+import com.gotcha.llm.ChatMessage
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -61,5 +64,28 @@ class ChatHistoryRepositoryTest {
 
         assertFalse(File(dir, "gone.json").exists())
         assertTrue(repo.listSessions().isEmpty())
+    }
+
+    /**
+     * Round-trip for the Edit / Revert truncation path: save a multi-turn
+     * session, truncate its history with [com.gotcha.agent.truncateHistoryAtTurn],
+     * save again, and assert only the kept messages survive a reload.
+     */
+    @Test
+    fun `truncated history round-trips through save and load`() = runBlocking {
+        val repo = ChatHistoryRepository(tmp.newFolder("chats"))
+        val messages = listOf(
+            ChatMessage(role = "user", content = JsonPrimitive("A")),
+            ChatMessage(role = "assistant", content = JsonPrimitive("reply A")),
+            ChatMessage(role = "user", content = JsonPrimitive("B")),
+            ChatMessage(role = "assistant", content = JsonPrimitive("reply B"))
+        )
+        repo.saveSession(session("trunc").copy(messages = messages))
+
+        val kept = truncateHistoryAtTurn(messages, 0, dropTurn = false)
+        repo.saveSession(session("trunc").copy(messages = kept))
+
+        val loaded = repo.loadSession("trunc")
+        assertEquals(listOf("A"), loaded!!.messages.map { it.textContent })
     }
 }

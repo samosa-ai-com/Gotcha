@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import android.util.Log
 import com.gotcha.agent.skills.SkillRegistry
+import com.gotcha.connectors.ConnectorCatalog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -23,7 +24,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
-    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null
+    val onNavigateApp: (suspend (task: String) -> ToolResult)? = null,
+    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null
 ) {
 
     private companion object {
@@ -379,6 +381,20 @@ class ToolExecutor(
                     handler(description, prompt)
                 }
             }
+            "update_user_profile" -> {
+                val handler = onUpdateUserProfile
+                if (handler == null) {
+                    ToolResult.error("Profile updates are not configured.")
+                } else {
+                    handler(
+                        ProfileUpdate(
+                            occupation = args.requireString("occupation"),
+                            background = args.requireString("background"),
+                            replyStyle = args.requireString("reply_style")
+                        )
+                    )
+                }
+            }
             "sleep" -> {
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                     ?: return missing("duration_seconds")
@@ -531,6 +547,13 @@ class ToolExecutor(
         CapabilityCatalog.ownerOf(name)?.let { capability ->
             return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
                 "available on this device right now. Tell the user what to enable; do not retry."
+        }
+        // Dynamic tools (e.g. Home Assistant MCP) are registered at runtime, so the
+        // compile-time catalog cannot know them; name the owning connector explicitly.
+        if (name in ToolRegistry.dynamicTools) {
+            return "Tool '$name' is unavailable: it needs ${ConnectorCatalog.HOME_ASSISTANT.displayName}, which is not " +
+                "connected or is switched off. Tell the user to set it up in the drawer " +
+                "menu ▸ Connectors; do not retry."
         }
         val owners = com.gotcha.connectors.ConnectorCatalog.ownersOf(name)
             .joinToString(" or ") { it.displayName }

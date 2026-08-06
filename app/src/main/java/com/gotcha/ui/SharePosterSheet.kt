@@ -15,14 +15,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -35,7 +30,7 @@ import com.gotcha.ui.theme.SkinAlertDialog
 /**
  * Share flow for the "Share your Gotcha moment" feature.
  *
- * Phase 1 (config): an include-screenshot toggle + Generate button.
+ * Phase 1 (config): a Generate button.
  * Phase 2 (preview): the rendered poster bitmap with Share / Save / Regenerate.
  *
  * [runs] are the raw run summaries this card is built from; the caller supplies
@@ -47,15 +42,12 @@ fun SharePosterSheet(
     loading: Boolean,
     preview: Bitmap?,
     error: String?,
-    hasImage: Boolean,
-    onGenerate: (includeScreenshot: Boolean) -> Unit,
+    onGenerate: () -> Unit,
     onShare: () -> Unit,
     onSave: () -> Unit,
-    onRegenerate: (includeScreenshot: Boolean) -> Unit,
+    onRegenerate: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    var includeScreenshot by remember { mutableStateOf(false) }
-
     SkinAlertDialog(
         onDismissRequest = { if (!loading) onDismiss() },
         title = {
@@ -74,24 +66,6 @@ fun SharePosterSheet(
                     "Turn what Gotcha just did into a shareable Instagram poster.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-
-                // The screenshot toggle only makes sense when the chat history
-                // actually holds an image the poster can embed; hide it otherwise
-                // (e.g. the image was culled from the session).
-                if (hasImage) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Include a screenshot", style = MaterialTheme.typography.bodyMedium)
-                        Switch(
-                            checked = includeScreenshot,
-                            onCheckedChange = { includeScreenshot = it },
-                            enabled = !loading
-                        )
-                    }
-                }
 
                 when {
                     loading -> Box(
@@ -138,7 +112,7 @@ fun SharePosterSheet(
                             }
                         }
                         TextButton(
-                            onClick = { onRegenerate(includeScreenshot) },
+                            onClick = onRegenerate,
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                             enabled = !loading
                         ) {
@@ -154,7 +128,7 @@ fun SharePosterSheet(
                             )
                         }
                         Button(
-                            onClick = { onGenerate(includeScreenshot) },
+                            onClick = onGenerate,
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         ) {
                             Text("Generate poster")

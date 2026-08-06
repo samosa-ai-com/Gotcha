@@ -48,7 +48,9 @@ fun SpeechScreen(
     onSamosaSignIn: suspend () -> Result<Pair<String, String>> = {
         Result.failure(Exception("Not available"))
     },
-    onSamosaSignOut: suspend () -> Unit = {}
+    onSamosaSignOut: suspend () -> Unit = {},
+    /** Fetches the user's remaining credit (raw float) or null when unavailable. */
+    onFetchSamosaCredits: suspend () -> Double? = { null }
 ) {
     val initial = remember { load() }
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
@@ -66,6 +68,7 @@ fun SpeechScreen(
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
+    var samosaCredits by remember { mutableStateOf<Double?>(null) }
 
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -83,6 +86,16 @@ fun SpeechScreen(
 
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
+
+    // Fetch the credit balance when signed in, and whenever the token changes
+    // (sign-in sets it, sign-out clears it). Keep it light: no polling.
+    LaunchedEffect(samosaToken) {
+        samosaCredits = if (samosaToken.isBlank()) {
+            null
+        } else {
+            onFetchSamosaCredits()
+        }
+    }
 
     /** This page's fields, copied onto [base]. */
     fun applySpeech(base: Settings) = base.copy(
@@ -151,6 +164,7 @@ fun SpeechScreen(
                 email = samosaEmail,
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
+                creditsRemaining = samosaCredits,
                 onSignIn = {
                     samosaBusy = true
                     status = "Signing in with Google…"
@@ -173,6 +187,7 @@ fun SpeechScreen(
                         onSamosaSignOut()
                         samosaToken = ""
                         samosaEmail = ""
+                        samosaCredits = null
                         status = "Signed out of Samosa AI."
                         samosaBusy = false
                     }

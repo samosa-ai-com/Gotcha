@@ -15,6 +15,7 @@ import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
+import com.gotcha.llm.withValidToolCallArguments
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
@@ -57,6 +58,8 @@ class AgentEngine(
     private val historyRepository: ChatHistoryRepository,
     private val settingsProvider: () -> Settings,
     private val clientProvider: () -> LLMClient?,
+    /** Persists agent-initiated profile changes; null disables the update_user_profile tool. */
+    private val onUpdateUserProfile: (suspend (com.gotcha.tools.ProfileUpdate) -> com.gotcha.tools.ToolResult)? = null,
     private val workingDirRoot: String = GotchaStorage.chatsRoot().absolutePath,
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
@@ -141,6 +144,7 @@ class AgentEngine(
                     ToolResult.ok("TASK_RESULT:$description:$stepsEncoded\n|||\n${output.finalAnswer}")
                 }
             },
+            onUpdateUserProfile = onUpdateUserProfile,
             onNavigateApp = { task ->
                 events.onSubAgentUpdate("App Navigation", "starting…")
                 val steps = mutableListOf<SubAgentStepUi>()
@@ -511,7 +515,12 @@ class AgentEngine(
                 return
             }
 
-            history += message
+            // Persist a sanitized copy: a tool call whose arguments aren't valid
+            // JSON would otherwise be re-sent verbatim on every later turn and
+            // make the server 400 the whole chat (issue #13). executeToolCalls
+            // below still runs the ORIGINAL calls, so the model still sees the
+            // truthful "Malformed tool arguments" result and can fix itself.
+            history += message.withValidToolCallArguments()
             if (message.hasText || !message.reasoningContent.isNullOrBlank()) {
                 events.onUi(
                     MessageKind.ASSISTANT,
@@ -1219,6 +1228,25 @@ class AgentEngine(
             append("</env>")
             append("\n\n")
             append(buildUserProfileString())
+            // Operator-only: tells the model it may record durable personal facts. Gated here
+            // (not in buildUserProfileString) so Monitor, whose contract is read-only, never
+            // sees a directive to mutate settings — and the tool is withheld from it anyway.
+            if (agent == AgentMode.OPERATOR) {
+                append(
+                    "\n\nThe user profile above is maintained automatically. Whenever the user " +
+                        "reveals a genuinely new, durable fact about themselves — a new job or " +
+                        "role, a lasting background detail, or an explicit preference for how " +
+                        "replies are written — call update_user_profile to record it. Do not call " +
+                        "it for transient, one-off, or hypothetical statements, and do not call it " +
+                        "more than once per new fact.\n" +
+                        "For every field you change, pass the COMPLETE updated value. Modify and " +
+                        "extend what is already stored — preserve all still-true information, add " +
+                        "the new facts, and remove only what the user has clearly outgrown or " +
+                        "contradicted. Never erase prior information wholesale, and never pass a " +
+                        "blank value.\n" +
+                        "Keep the Background under 250 words and the Reply style under 50 words."
+                )
+            }
         }
     }
 

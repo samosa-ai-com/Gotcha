@@ -126,11 +126,18 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Use the release signing config when one was configured above; fall back
-            // to the debug key only so that a keyless checkout can still build a
-            // release APK locally.
+            // Use the release signing config when one was configured above. A keyless
+            // checkout may only fall back to the debug key when explicitly opted in via
+            // ALLOW_DEBUG_SIGNED_RELEASE=true (env or local.properties) — never silently,
+            // since a debug-signed "release" APK can masquerade as an official build but
+            // cannot update over the store version. Without either, the release build stays
+            // unsigned so a missing keystore fails loudly instead of silently producing a
+            // debug-signed release APK.
+            val allowDebugSignedRelease =
+                providers.environmentVariable("ALLOW_DEBUG_SIGNED_RELEASE").orNull == "true" ||
+                    keystoreProps.getProperty("ALLOW_DEBUG_SIGNED_RELEASE") == "true"
             signingConfig = signingConfigs.findByName("release")
-                ?: signingConfigs.getByName("debug")
+                ?: if (allowDebugSignedRelease) signingConfigs.getByName("debug") else null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -366,6 +373,11 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
+
+    // On-device wake word ("Hey Gotcha") via OpenWakeWord ONNX models run with
+    // Microsoft's official ONNX Runtime. The three models live in
+    // app/src/main/assets/openwakeword (see docs/wake-word.md + docs/MODEL_CARD.md).
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
 
     // Static analysis
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")

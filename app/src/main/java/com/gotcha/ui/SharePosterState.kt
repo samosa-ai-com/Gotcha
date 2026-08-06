@@ -49,13 +49,13 @@ class SharePosterState(
     }
 
     /** Generates the poster (one LLM call + render) for the sheet's [runs]. */
-    fun generate(includeScreenshot: Boolean) {
+    fun generate() {
         val runs = this.runs ?: return
         loading = true
         preview = null
         error = null
         viewModel.viewModelScope.launch {
-            val result = viewModel.generateShareCard(runs, includeScreenshot)
+            val result = viewModel.generateShareCard(runs)
             loading = false
             result.fold(
                 onSuccess = { preview = it },

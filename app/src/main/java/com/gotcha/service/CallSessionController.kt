@@ -2,6 +2,7 @@ package com.gotcha.service
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
@@ -23,6 +24,8 @@ import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.Category
 import com.gotcha.tools.ToolCategories
+import com.gotcha.tools.ToolResult
+import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.ui.ScreenReadFlashOverlay
 import kotlinx.coroutines.CancellationException
@@ -31,10 +34,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -98,6 +103,33 @@ class CallSessionController(
     private var lastNarrationTimeMs = 0L
     private var lastNarratedCategory: Category? = null
 
+    /** Set only for a call started by the wake word. */
+    private var autoEndOnReply = false
+
+    /**
+     * True once a narration TTS failure has been surfaced in the current call,
+     * so a broken Text-to-Speech setup shows one error card instead of a fresh
+     * one for every narrated tool step (repeats are only logged).
+     */
+    private var narrationErrorReported = false
+
+    /**
+     * Hands-free mode for wake-word calls: the mic opens by itself once the
+     * call-started announcement is done and a VAD stops it after ~3 s of
+     * silence. Normal (long-press) calls leave this false and keep PTT.
+     * Written on the main thread, read by the [handsFreeAutoListen] loop on a
+     * background dispatcher — volatile so both observe the same value.
+     */
+    @Volatile
+    private var handsFree = false
+
+    /** True while the active call is hands-free (wake-word started). */
+    val isHandsFree: Boolean
+        get() = handsFree
+
+    /** Drives hands-free listening; null when no hands-free call is active. */
+    private var handsFreeAutoListen: Job? = null
+
     private val _state = MutableStateFlow(CallState.IDLE)
     val state: StateFlow<CallState> = _state.asStateFlow()
 
@@ -158,6 +190,15 @@ class CallSessionController(
             historyRepository = callsRepo,
             settingsProvider = { settingsRepository.load() },
             clientProvider = { buildClient() },
+            onUpdateUserProfile = { update ->
+                val merged = mergeProfileUpdate(settingsRepository.load(), update)
+                    ?: return@AgentEngine ToolResult.ok("No material change — profile left as is.")
+                settingsRepository.save(merged.updated)
+                ToolResult.ok(
+                    "Updated " + merged.changedFields.joinToString(", ") + ". " +
+                        "The new value will be used from the next message."
+                )
+            },
             workingDirRoot = CALLS_WORKING_ROOT
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
@@ -169,16 +210,144 @@ class CallSessionController(
         newEngine.promptCacheKey = CALL_PROMPT_CACHE_KEY
         newEngine.setupWorkingDir()
         engine = newEngine
+        narrationErrorReported = false
         _state.value = CallState.STARTING
         scope.launch {
             val language = Language.fromLabel(s.preferredLanguage)
-            if (!speakText(SpokenPhrases.callStarted(language), language)) {
+            if (!speakText(startGreeting(handsFree, language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
+            if (!handsFree) {
+                startMic()
+            }
         }
         return true
     }
+
+    /**
+     * The first thing the user hears when a call starts. A wake-word call gets
+     * the short single-word acknowledgment ([SpokenPhrases.wakeWordAcknowledged])
+     * — the user just said "Hey Gotcha", so a full "call started" sentence makes
+     * the wake word feel ignored and delays the mic opening. A normal long-press
+     * call gets [SpokenPhrases.callStarted], which tells them the PTT session is
+     * live. [handsFree] is already true by the time [startWakeWordCall] reaches
+     * [startCall].
+     */
+    internal fun startGreeting(handsFree: Boolean, language: Language): String =
+        if (handsFree) {
+            SpokenPhrases.wakeWordAcknowledged(language)
+        } else {
+            SpokenPhrases.callStarted(language)
+        }
+
+    fun startWakeWordCall(): Boolean {
+        handsFree = true
+        autoEndOnReply = true
+        if (!startCall()) {
+            handsFree = false
+            autoEndOnReply = false
+            return false
+        }
+        startHandsFreeAutoListen()
+        return true
+    }
+
+    /**
+     * Auto-opens the mic whenever the agent is waiting for input (after the
+     * call-started announcement, or when it asks a question) and stops it once
+     * the user has finished speaking. Every decision past the mic stop reuses
+     * the exact same downstream as push-to-talk ([finishTurn]).
+     */
+    private fun startHandsFreeAutoListen() {
+        handsFreeAutoListen?.cancel()
+        handsFreeAutoListen = scope.launch {
+            var silentStrikes = 0
+            while (isActive && handsFree && this@CallSessionController.isActive() && awaitHandsFreeInput()) {
+                // Remember why the mic opened so a blank listen can hand
+                // control back to the same place (fresh turn vs. a pending
+                // agent question) and the loop can listen again.
+                val listeningFrom = _state.value
+                _state.value = CallState.LISTENING
+                val s = settingsRepository.load()
+                val outcome = sttEngine.listenForUtterance(
+                    provider = s.sttProvider,
+                    model = s.sttApiModel,
+                    language = currentLanguage(),
+                    silenceTimeoutMs = if (s.sttProvider == AudioProvider.ANDROID) {
+                        ANDROID_SILENCE_MS
+                    } else {
+                        HANDS_FREE_SILENCE_MS
+                    }
+                )
+                val text = outcome.getOrNull().orEmpty()
+                if (text.isNotBlank()) {
+                    silentStrikes = 0
+                    if (listeningFrom == CallState.WAITING_USER) {
+                        // The agent is awaiting an answer: complete its gate in
+                        // place without touching the running turn job.
+                        finishTurn(text)
+                    } else {
+                        // Fresh turn: run it in its own job so this loop stays
+                        // free to re-listen if the agent asks a question.
+                        questionGate = null // drop any stale gate from a timed-out question
+                        currentTurnJob?.cancel()
+                        currentTurnJob = scope.launch { finishTurn(text) }
+                    }
+                } else {
+                    // Distinguish a real STT failure from plain silence. Only
+                    // silence counts toward the auto-end strikes and stays
+                    // quiet; genuine failures are surfaced and end the call
+                    // with an explanation instead of looking like the user
+                    // never spoke.
+                    val error = outcome.exceptionOrNull()
+                    if (error != null && !SttEngine.isBenignSttError(error)) {
+                        reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                        endCall()
+                        break
+                    }
+                    silentStrikes++
+                    _state.value = listeningFrom
+                    if (silentStrikes >= HANDS_FREE_SILENT_STRIKES) {
+                        endCall()
+                        break
+                    }
+                    continue
+                }
+            }
+            handsFreeAutoListen = null
+        }
+    }
+
+    /**
+     * Suspends until the agent is waiting for spoken input (call-started
+     * announcement done, or a question pending) and the app's own TTS has
+     * stopped. Returns false when the hands-free call has ended.
+     */
+    private suspend fun awaitHandsFreeInput(): Boolean {
+        while (currentCoroutineContext().isActive && handsFree && this@CallSessionController.isActive()) {
+            // WAITING_USER only counts as "waiting for spoken input" when a
+            // question is actually pending. During a confirmation overlay the
+            // user answers by tapping Allow/Deny — opening the mic and falling
+            // through finishTurn's gate check would start a *second* agent turn
+            // while the first is still suspended in awaitConfirmation.
+            if (awaitingHandsFreeInput(_state.value, questionGate != null) &&
+                !ttsEngine.isSpeaking.value
+            ) {
+                return true
+            }
+            delay(100)
+        }
+        return false
+    }
+
+    /**
+     * Whether the hands-free loop should treat [state] as "awaiting spoken
+     * input". [questionPending] is true only while [awaitQuestionAnswer] holds
+     * its gate — a confirmation overlay is deliberately excluded.
+     */
+    internal fun awaitingHandsFreeInput(state: CallState, questionPending: Boolean): Boolean =
+        state == CallState.READY || (state == CallState.WAITING_USER && questionPending)
 
     /**
      * Stop/interrupt the current turn. Cancels the agent, stops TTS/STT,
@@ -204,6 +373,10 @@ class CallSessionController(
 
     /** End the call and delete its chat session + working directory. */
     fun endCall() {
+        handsFree = false
+        handsFreeAutoListen?.cancel()
+        handsFreeAutoListen = null
+        autoEndOnReply = false
         val endingEngine = engine ?: return
         _state.value = CallState.ENDING
         narrationJob?.cancel()
@@ -241,8 +414,10 @@ class CallSessionController(
     /**
      * Start the mic. User must tap [stopMic] to stop recording and send.
      * Works from [READY] (normal turn) or [WAITING_USER] (answering a question).
+     * No-op during a hands-free wake-word call, which owns the mic.
      */
     fun startMic() {
+        if (handsFree) return
         val current = _state.value
         if (current != CallState.READY && current != CallState.WAITING_USER) return
         val s = settingsRepository.load()
@@ -253,11 +428,25 @@ class CallSessionController(
         )
         if (started) {
             _state.value = CallState.LISTENING
+        } else {
+            // The recognizer refused to start (busy, MediaRecorder failure,
+            // provider unavailable). Tell the user instead of swallowing the
+            // tap; the state stays put so another tap can retry.
+            onMicStartFailed()
         }
+    }
+
+    /**
+     * Failure path for a mic tap: surface a short message and leave the state
+     * untouched (still [READY] / [WAITING_USER]) so the user can tap again.
+     */
+    internal fun onMicStartFailed() {
+        reportError("Couldn't start the microphone — tap again to retry.")
     }
 
     /** Stop the mic and send the recording for transcription + agent processing. */
     fun stopMic() {
+        if (handsFree) return
         if (_state.value != CallState.LISTENING) return
         currentTurnJob?.cancel()
         currentTurnJob = scope.launch {
@@ -279,55 +468,76 @@ class CallSessionController(
                 _state.value = CallState.READY
                 return@launch
             }
-
-            // API STT (Whisper-class) output is already punctuated and cased —
-            // cleanText is redundant there and would cost an extra LLM round-trip.
-            val cleanedText = if (s.sttProvider == AudioProvider.ANDROID) {
-                val llmClient = buildClient()
-                val navModel = s.navigatorModel.ifEmpty { s.model }
-                llmClient?.cleanText(text, navModel, language) ?: text
-            } else {
-                text
-            }
-
-            addTranscript(MessageKind.USER, cleanedText)
-
-            // Answering an agent question?
-            questionGate?.let { gate ->
-                questionGate = null
-                gate.complete(cleanedText)
-                return@launch
-            }
-
-            // Normal turn
-            val eng = engine ?: return@launch
-            eng.history += buildTurnMessage(cleanedText)
-            pendingReply = null
-
-            // Narrate start-of-turn to give the user immediate feedback
-            narrate(pickTurnStartPhrase(language), language)
-            onActionRingColor(Category.FOREGROUND.ringColorArgb)
-
-            try {
-                eng.run(AgentMode.OPERATOR)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val msg = friendlyAgentError(e)
-                reportError(msg)
-                pendingReply = msg
-            }
-
-            val reply = pendingReply ?: return@launch
-            _state.value = CallState.SPEAKING
-            if (speakText(reply, language)) {
-                triggerEndVibration()
-            } else {
-                reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
-            }
-            onActionRingColor(null)
-            _state.value = CallState.READY
+            finishTurn(text)
         }
+    }
+
+    /**
+     * The shared turn body: clean the transcript, record it, answer an
+     * in-flight agent question or run a full agent turn, speak the reply, and
+     * apply the auto-end rule. Used by both push-to-talk ([stopMic]) and the
+     * hands-free loop so the two flows behave identically after transcription.
+     */
+    private suspend fun finishTurn(text: String) {
+        val s = settingsRepository.load()
+        val language = Language.fromLabel(s.preferredLanguage)
+        _state.value = CallState.THINKING
+
+        // API STT (Whisper-class) output is already punctuated and cased —
+        // cleanText is redundant there and would cost an extra LLM round-trip.
+        val cleanedText = if (s.sttProvider == AudioProvider.ANDROID) {
+            val llmClient = buildClient()
+            val navModel = s.navigatorModel.ifEmpty { s.model }
+            llmClient?.cleanText(text, navModel, language) ?: text
+        } else {
+            text
+        }
+
+        addTranscript(MessageKind.USER, cleanedText)
+
+        // Answering an agent question?
+        questionGate?.let { gate ->
+            questionGate = null
+            gate.complete(cleanedText)
+            return
+        }
+
+        // Normal turn
+        val eng = engine ?: return
+        eng.history += buildTurnMessage(cleanedText)
+        pendingReply = null
+
+        // Narrate start-of-turn to give the user immediate feedback
+        narrate(pickTurnStartPhrase(language), language)
+        onActionRingColor(Category.FOREGROUND.ringColorArgb)
+
+        try {
+            eng.run(AgentMode.OPERATOR)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val msg = friendlyAgentError(e)
+            reportError(msg)
+            pendingReply = msg
+        }
+
+        val reply = pendingReply ?: run {
+            // The engine returned neither a reply nor an error. In PTT the user
+            // could simply talk again, but a hands-free call has no mic button —
+            // leaving the state in THINKING would hang it until manual End, so
+            // fall back to READY (which the hands-free loop reads as "re-open
+            // the mic").
+            _state.value = CallState.READY
+            return
+        }
+        _state.value = CallState.SPEAKING
+        if (speakText(reply, language)) {
+            triggerEndVibration()
+        } else {
+            reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
+        }
+        onActionRingColor(null)
+        if (autoEndOnReply) endCall() else _state.value = CallState.READY
     }
 
     /**
@@ -337,10 +547,18 @@ class CallSessionController(
     private suspend fun buildTurnMessage(text: String): ChatMessage {
         var screenshot: String? = null
         var screenText: String? = null
-        if (ScreenSnapshot.isAvailable()) {
+        var blankScreen = false
+        val captureAvailable = ScreenSnapshot.isAvailable()
+        if (captureAvailable) {
             onCaptureChrome(true)
             delay(CAPTURE_SETTLE_MS)
             screenshot = ScreenSnapshot.captureScreenBase64()
+            if (screenshot != null && ScreenSnapshot.isMostlyBlack(screenshot)) {
+                // A blank/off screen (common during wake-word calls) is pure
+                // noise for the model — never inject a black frame.
+                screenshot = null
+                blankScreen = true
+            }
             screenText = ScreenSnapshot.captureScreenText()
             onCaptureChrome(false)
             // The model reads the screen from this per-turn capture on every
@@ -350,13 +568,7 @@ class CallSessionController(
             onScreenReadDone()
         }
         val userText = buildString {
-            if (!screenText.isNullOrBlank()) {
-                append("Current screen text:\n")
-                append(screenText)
-                append("\n\n")
-            } else {
-                append("(The current screen could not be captured this turn.)\n\n")
-            }
+            append(screenContextNote(captureAvailable, screenText, blankScreen))
             append("User said (voice call — reply briefly, it will be read aloud): ")
             append(text)
         }
@@ -365,6 +577,26 @@ class CallSessionController(
         } else {
             ChatMessage(role = "user", content = JsonPrimitive(userText))
         }
+    }
+
+    /**
+     * The screen-context prefix for a voice-call user turn. When the Gotcha
+     * accessibility service is off there is nothing to capture, so the model is
+     * told to ask the user to enable it rather than guessing at the screen.
+     */
+    internal fun screenContextNote(
+        captureAvailable: Boolean,
+        screenText: String?,
+        blankScreen: Boolean
+    ): String = when {
+        !screenText.isNullOrBlank() -> "Current screen text:\n$screenText\n\n"
+        blankScreen -> "(The screen was blank or off — no screenshot was sent.)\n\n"
+        !captureAvailable -> {
+            "(I could not see your screen — the Gotcha accessibility " +
+                "service is turned off. Ask the user to enable it in Android Settings → " +
+                "Accessibility → Gotcha.)\n\n"
+        }
+        else -> "(The current screen could not be captured this turn.)\n\n"
     }
 
     // ---- AgentEvents (engine → call UI) ----
@@ -469,7 +701,10 @@ class CallSessionController(
         questionGate = gate
         val answer = withTimeoutOrNull(QUESTION_TIMEOUT_MS) { gate.await() } ?: ""
         if (answer.isNotBlank()) addTranscript(MessageKind.USER, answer)
-        _state.value = CallState.READY
+        // The agent is still processing the answer — stay in THINKING rather
+        // than READY so the hands-free loop doesn't mistake the post-question
+        // processing window for "waiting for input".
+        _state.value = CallState.THINKING
         return answer
     }
 
@@ -606,7 +841,22 @@ class CallSessionController(
             } else {
                 ""
             }
-            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
+            val spoke = ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
+            if (!spoke) onNarrationTtsFailed()
+        }
+    }
+
+    /**
+     * Narration is auxiliary, so a broken TTS setup must not spam the user: the
+     * first failure in a call is surfaced like every other TTS failure and any
+     * repeats are logged only.
+     */
+    internal fun onNarrationTtsFailed() {
+        if (!narrationErrorReported) {
+            narrationErrorReported = true
+            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+        } else {
+            Log.w(TAG, "TTS narration failed during a call (already reported once)")
         }
     }
 
@@ -639,6 +889,7 @@ class CallSessionController(
     private fun triggerErrorVibration() = CompletionFeedback.error(appContext)
 
     companion object {
+        private const val TAG = "CallSessionController"
         private const val NARRATION_THROTTLE_MS = 3_000L
         private const val CONFIRM_TIMEOUT_MS = 90_000L
         val CALLS_WORKING_ROOT: String get() = com.gotcha.data.GotchaStorage.callsRoot().absolutePath
@@ -654,5 +905,14 @@ class CallSessionController(
         private const val CAPTURE_SETTLE_MS = 350L
         private const val QUESTION_TIMEOUT_MS = 30_000L
         private const val TOOL_TEXT_LIMIT = 300
+
+        /** Trailing silence (API STT) before the hands-free mic auto-stops. */
+        private const val HANDS_FREE_SILENCE_MS = 3_000L
+
+        /** Trailing silence hint for the Android recognizer (best effort). */
+        private const val ANDROID_SILENCE_MS = 2_000L
+
+        /** Blank-listens before a hands-free call ends on its own. */
+        private const val HANDS_FREE_SILENT_STRIKES = 2
     }
 }
