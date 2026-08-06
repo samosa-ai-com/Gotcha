@@ -1897,6 +1897,16 @@ object ToolDefinitions {
                         "Timeout in seconds (1-600). Default 60 — raise it for package installs and builds."
                     )
                 }
+                putJsonObject("stdin") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Text piped to the command's standard input. Supply this for anything that would " +
+                            "otherwise wait for typed input — there is no terminal to type into, so an " +
+                            "unanswered prompt just runs until the timeout. Prefer non-interactive flags " +
+                            "(e.g. 'pkg install -y') where they exist."
+                    )
+                }
             }
             putJsonArray("required") { add("command") }
         }

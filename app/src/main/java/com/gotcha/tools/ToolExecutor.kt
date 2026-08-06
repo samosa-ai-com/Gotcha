@@ -519,7 +519,8 @@ class ToolExecutor(
             "run_termux_command" -> termuxTool.runCommand(
                 command = args.requireString("command") ?: return missing("command"),
                 workingDir = args.requireString("working_dir"),
-                timeoutSeconds = args.requireInt("timeout_seconds")
+                timeoutSeconds = args.requireInt("timeout_seconds"),
+                stdin = args.requireString("stdin")
             )
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),

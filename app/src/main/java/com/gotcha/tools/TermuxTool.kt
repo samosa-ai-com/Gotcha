@@ -118,10 +118,11 @@ class TermuxTool(
     suspend fun runCommand(
         command: String,
         workingDir: String? = null,
-        timeoutSeconds: Int? = null
+        timeoutSeconds: Int? = null,
+        stdin: String? = null
     ): ToolResult {
         val trimmed = command.trim()
-        validate(trimmed)?.let { return it }
+        validate(trimmed, stdin)?.let { return it }
 
         val status = status()
         if (!status.installed) return notInstalled()
@@ -139,12 +140,12 @@ class TermuxTool(
                 TermuxResultReceiver.resultIntent(context, requestCode),
                 pendingIntentFlags()
             )
-            runCatching { context.startService(commandIntent(trimmed, workingDir, pendingIntent)) }
+            runCatching { context.startService(commandIntent(trimmed, workingDir, stdin, pendingIntent)) }
                 .exceptionOrNull()
                 ?.let { return startFailed(it) }
 
             val bundle = withTimeoutOrNull(timeout * 1000L) { deferred.await() }
-                ?: return timedOut(trimmed, timeout)
+                ?: return timedOut(trimmed, timeout, hadStdin = stdin != null)
             return formatResult(bundle)
         } finally {
             pendingResults.remove(requestCode)
@@ -188,16 +189,18 @@ class TermuxTool(
     }
 
     /** Cheap checks that need neither Termux nor a permission, so they report the real problem first. */
-    private fun validate(trimmed: String): ToolResult? {
+    private fun validate(trimmed: String, stdin: String? = null): ToolResult? {
         if (trimmed.isEmpty()) {
             return ToolResult.error(
                 "Empty command. Provide a shell command to run in Termux (e.g. 'pkg install python -y')."
             )
         }
-        if (trimmed.length > MAX_COMMAND_CHARS) {
+        // Command and stdin ride in the same binder transaction, so they share the budget.
+        val total = trimmed.length + (stdin?.length ?: 0)
+        if (total > MAX_COMMAND_CHARS) {
             return ToolResult.error(
-                "Command is ${trimmed.length} characters, over Termux's ~${MAX_COMMAND_CHARS / 1024}KB limit for a " +
-                    "single command. You may write the script to a file with write_file and run that file instead."
+                "Command plus stdin is $total characters, over Termux's ~${MAX_COMMAND_CHARS / 1024}KB limit for a " +
+                    "single request. You may write the script to a file with write_file and run that file instead."
             )
         }
         denyPatterns.firstOrNull { it.containsMatchIn(trimmed) }?.let {
@@ -209,7 +212,16 @@ class TermuxTool(
         return null
     }
 
-    private fun commandIntent(command: String, workingDir: String?, result: PendingIntent): Intent =
+    /** Builds the intent without sending it, so the extras can be asserted without Termux. */
+    internal fun buildCommandIntentForTest(command: String, workingDir: String?, stdin: String?): Intent =
+        commandIntent(command, workingDir, stdin, result = null)
+
+    private fun commandIntent(
+        command: String,
+        workingDir: String?,
+        stdin: String?,
+        result: PendingIntent?
+    ): Intent =
         Intent(ACTION_RUN_COMMAND).apply {
             setClassName(TERMUX_PACKAGE, RUN_COMMAND_SERVICE)
             putExtra(EXTRA_COMMAND_PATH, "${termuxFiles()}/usr/bin/sh")
@@ -217,7 +229,10 @@ class TermuxTool(
             putExtra(EXTRA_WORKDIR, workingDir?.trim()?.takeIf { it.isNotEmpty() } ?: termuxHome())
             // Headless: run without opening a terminal session in front of the user.
             putExtra(EXTRA_BACKGROUND, true)
-            putExtra(EXTRA_PENDING_INTENT, result)
+            // Without this, anything that reads stdin blocks until our timeout and reports a
+            // hang rather than the prompt it is actually stuck on. Termux 0.109+.
+            if (stdin != null) putExtra(EXTRA_STDIN, stdin)
+            if (result != null) putExtra(EXTRA_PENDING_INTENT, result)
         }
 
     /**
@@ -263,11 +278,22 @@ class TermuxTool(
             "by the system. You may open Termux once and ask again, or use run_command for the app's own sandbox."
     )
 
-    private fun timedOut(command: String, timeout: Int) = ToolResult.error(
-        "No result from Termux after ${timeout}s for: $command. Two things cause this and I cannot tell them " +
-            "apart: the command may still be running in Termux (I cannot kill another app's process, so check " +
-            "Termux itself), or `allow-external-apps=true` is missing from `~/.termux/termux.properties`, in which " +
-            "case Termux silently ignored the request. You may retry with a larger timeout_seconds."
+    /**
+     * The causes are indistinguishable from here — Termux gives us nothing until the command
+     * finishes — so the message lists them rather than guessing at one.
+     */
+    private fun timedOut(command: String, timeout: Int, hadStdin: Boolean) = ToolResult.error(
+        buildString {
+            append("No result from Termux after ${timeout}s for: $command. I cannot tell these apart:")
+            if (!hadStdin) {
+                append("\n- the command may be waiting for typed input that will never come — there is no ")
+                append("terminal here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
+            }
+            append("\n- it may simply still be running. I cannot kill another app's process, so it keeps going; ")
+            append("check Termux itself, and retry with a larger timeout_seconds if it was just slow.")
+            append("\n- `allow-external-apps=true` may be missing from `~/.termux/termux.properties`, in which ")
+            append("case Termux silently ignored the request and no command ever ran.")
+        }
     )
 
     private fun cap(text: String): String =
@@ -298,10 +324,11 @@ class TermuxTool(
 
         private const val RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService"
         private const val ACTION_RUN_COMMAND = "com.termux.RUN_COMMAND"
-        private const val EXTRA_COMMAND_PATH = "com.termux.RUN_COMMAND_PATH"
-        private const val EXTRA_ARGUMENTS = "com.termux.RUN_COMMAND_ARGUMENTS"
-        private const val EXTRA_WORKDIR = "com.termux.RUN_COMMAND_WORKDIR"
-        private const val EXTRA_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND"
+        internal const val EXTRA_COMMAND_PATH = "com.termux.RUN_COMMAND_PATH"
+        internal const val EXTRA_ARGUMENTS = "com.termux.RUN_COMMAND_ARGUMENTS"
+        internal const val EXTRA_WORKDIR = "com.termux.RUN_COMMAND_WORKDIR"
+        internal const val EXTRA_STDIN = "com.termux.RUN_COMMAND_STDIN"
+        internal const val EXTRA_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND"
         private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
 
         /**

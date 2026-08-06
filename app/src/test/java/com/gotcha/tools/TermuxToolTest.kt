@@ -7,6 +7,7 @@ import android.content.pm.PackageInfo
 import android.os.Bundle
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -151,6 +152,34 @@ class TermuxToolTest {
         assertNull(result.needsPermission)
         assertTrue(result.message.contains("still be running"))
         assertTrue(result.message.contains("allow-external-apps"))
+        assertTrue("must name the interactive-prompt cause too", result.message.contains("waiting for typed input"))
+    }
+
+    @Test
+    fun `the interactive-prompt cause is dropped once stdin was supplied`() = runTest {
+        installTermux()
+        grantRunCommand()
+
+        val result = tool.runCommand("cat", timeoutSeconds = 1, stdin = "hello")
+
+        assertFalse(result.success)
+        assertFalse(
+            "stdin was given, so a missing prompt answer cannot be the cause",
+            result.message.contains("waiting for typed input")
+        )
+        assertTrue(result.message.contains("still be running"))
+    }
+
+    @Test
+    fun `command and stdin share the size budget`() = runTest {
+        installTermux()
+        grantRunCommand()
+
+        val result = tool.runCommand("cat", stdin = "x".repeat(200 * 1024))
+
+        assertFalse(result.success)
+        assertTrue("must name the combined total: ${result.message}", result.message.contains("plus stdin"))
+        assertTrue(result.message.contains("write_file"))
     }
 
     @Test
@@ -209,6 +238,40 @@ class TermuxToolTest {
         assertFalse(result.success)
         assertTrue(result.message.contains("over Termux's"))
         assertTrue(result.message.contains("write_file"))
+    }
+
+    @Test
+    fun `stdin is only attached when supplied`() {
+        // A null stdin must not become the string "null" or an empty pipe that makes `read`
+        // return EOF when the caller never asked for that.
+        installTermux()
+
+        assertFalse(tool.buildCommandIntentForTest("cat", null, null).hasExtra(TermuxTool.EXTRA_STDIN))
+        assertEquals(
+            "hello",
+            tool.buildCommandIntentForTest("cat", null, "hello").getStringExtra(TermuxTool.EXTRA_STDIN)
+        )
+    }
+
+    @Test
+    fun `the command intent targets termux's shell with -c and runs headless`() {
+        installTermux()
+
+        val intent = tool.buildCommandIntentForTest("echo hi", null, null)
+
+        assertEquals("${tool.termuxFiles()}/usr/bin/sh", intent.getStringExtra(TermuxTool.EXTRA_COMMAND_PATH))
+        assertArrayEquals(arrayOf("-c", "echo hi"), intent.getStringArrayExtra(TermuxTool.EXTRA_ARGUMENTS))
+        assertEquals(tool.termuxHome(), intent.getStringExtra(TermuxTool.EXTRA_WORKDIR))
+        assertTrue("must stay headless", intent.getBooleanExtra(TermuxTool.EXTRA_BACKGROUND, false))
+    }
+
+    @Test
+    fun `an explicit working_dir overrides termux home`() {
+        installTermux()
+
+        val intent = tool.buildCommandIntentForTest("ls", "/data/data/com.termux/files/usr", null)
+
+        assertEquals("/data/data/com.termux/files/usr", intent.getStringExtra(TermuxTool.EXTRA_WORKDIR))
     }
 
     // ---- result-bundle parsing ----
