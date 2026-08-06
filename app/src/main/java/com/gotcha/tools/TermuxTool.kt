@@ -89,6 +89,24 @@ class TermuxTool(
         )
     }
 
+    /**
+     * Termux's rootfs, taken from the installed package rather than assumed.
+     *
+     * `/data/data/com.termux` is only the primary user's path; under a secondary user or a work
+     * profile the same package lives at `/data/user/<id>/com.termux`, where the hardcoded path
+     * names a `sh` that does not exist and every command would fail with an error pointing
+     * nowhere useful.
+     */
+    internal fun termuxFiles(): String {
+        val dataDir = runCatching {
+            context.packageManager.getApplicationInfo(TERMUX_PACKAGE, 0).dataDir
+        }.getOrNull()
+        return if (dataDir.isNullOrBlank()) DEFAULT_TERMUX_FILES else "$dataDir/files"
+    }
+
+    /** Termux's `$HOME`, the default working directory for a command. */
+    internal fun termuxHome(): String = "${termuxFiles()}/home"
+
     /** Whether `com.termux.RUN_COMMAND` resolves to a service — false on the Play build. */
     private fun runCommandServiceExists(): Boolean =
         context.packageManager.resolveService(
@@ -194,9 +212,9 @@ class TermuxTool(
     private fun commandIntent(command: String, workingDir: String?, result: PendingIntent): Intent =
         Intent(ACTION_RUN_COMMAND).apply {
             setClassName(TERMUX_PACKAGE, RUN_COMMAND_SERVICE)
-            putExtra(EXTRA_COMMAND_PATH, "$TERMUX_BIN_PREFIX/sh")
+            putExtra(EXTRA_COMMAND_PATH, "${termuxFiles()}/usr/bin/sh")
             putExtra(EXTRA_ARGUMENTS, arrayOf("-c", command))
-            putExtra(EXTRA_WORKDIR, workingDir?.trim()?.takeIf { it.isNotEmpty() } ?: TERMUX_HOME)
+            putExtra(EXTRA_WORKDIR, workingDir?.trim()?.takeIf { it.isNotEmpty() } ?: termuxHome())
             // Headless: run without opening a terminal session in front of the user.
             putExtra(EXTRA_BACKGROUND, true)
             putExtra(EXTRA_PENDING_INTENT, result)
@@ -286,9 +304,12 @@ class TermuxTool(
         private const val EXTRA_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND"
         private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
 
-        private const val TERMUX_FILES = "/data/data/com.termux/files"
-        private const val TERMUX_BIN_PREFIX = "$TERMUX_FILES/usr/bin"
-        const val TERMUX_HOME = "$TERMUX_FILES/home"
+        /**
+         * Only correct for the primary Android user. A secondary user or work profile puts the
+         * same package at `/data/user/<id>/com.termux`, so this is a last-resort fallback —
+         * [termuxFiles] asks the package manager for the real path.
+         */
+        private const val DEFAULT_TERMUX_FILES = "/data/data/com.termux/files"
 
         // Result-bundle keys, from termux-shared's TermuxConstants.
         internal const val RESULT_BUNDLE = "result"

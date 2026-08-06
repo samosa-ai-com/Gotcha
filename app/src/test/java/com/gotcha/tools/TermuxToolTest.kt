@@ -153,6 +153,23 @@ class TermuxToolTest {
         assertTrue(result.message.contains("allow-external-apps"))
     }
 
+    @Test
+    fun `termux paths come from the installed package, not a hardcoded primary-user path`() {
+        // /data/data/com.termux is only the primary user's path; a secondary user or work
+        // profile lives at /data/user/<id>/com.termux, where the hardcoded path names a `sh`
+        // that does not exist.
+        installTermux()
+
+        assertTrue("should end at Termux's files dir: ${tool.termuxFiles()}", tool.termuxFiles().endsWith("/files"))
+        assertTrue(tool.termuxFiles().contains(TermuxTool.TERMUX_PACKAGE))
+        assertEquals("${tool.termuxFiles()}/home", tool.termuxHome())
+    }
+
+    @Test
+    fun `termux paths fall back to the primary-user path when the package cannot be read`() {
+        assertEquals("/data/data/com.termux/files", tool.termuxFiles())
+    }
+
     // ---- validation guards (checked before availability, so they report the real problem) ----
 
     @Test
