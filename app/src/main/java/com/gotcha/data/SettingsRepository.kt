@@ -289,8 +289,13 @@ internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
 internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
 private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
 
+interface SettingsStore {
+    fun load(): Settings
+    fun save(settings: Settings)
+}
+
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
-class SettingsRepository(context: Context) {
+class SettingsRepository(context: Context) : SettingsStore {
 
     val prefs: SharedPreferences by lazy {
         SafeEncryptedSharedPreferences.create(context, SETTINGS_PREFS_FILE)
@@ -316,7 +321,7 @@ class SettingsRepository(context: Context) {
         return migrated
     }
 
-    fun load(): Settings = Settings(
+    override fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = string(KEY_API_KEY),
         baseUrl = string(KEY_BASE_URL, Settings.DEFAULT_BASE_URL),
@@ -380,7 +385,7 @@ class SettingsRepository(context: Context) {
         onboardingVersion = prefs.getInt(KEY_ONBOARDING_VERSION, 0)
     )
 
-    fun save(settings: Settings) {
+    override fun save(settings: Settings) {
         prefs.edit()
             .putString(KEY_PROVIDER, settings.provider.name)
             .putString(KEY_API_KEY, settings.apiKey)

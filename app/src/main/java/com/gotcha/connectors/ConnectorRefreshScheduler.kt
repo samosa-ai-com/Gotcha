@@ -1,7 +1,9 @@
 package com.gotcha.connectors
 
 import android.content.Context
+import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -10,19 +12,29 @@ import kotlinx.coroutines.withContext
  * active connectors.
  */
 class ConnectorRefreshScheduler(
-    private val context: Context,
-    private val repository: SettingsRepository = SettingsRepository(context),
-    private val clock: () -> Long = System::currentTimeMillis
+    private val context: Context? = null,
+    private val store: SettingsStore = context?.let { SettingsRepository(it) }
+        ?: throw IllegalArgumentException("Context or SettingsStore required"),
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val refreshAction: (suspend (disabledConnectors: Set<String>) -> Map<String, String>)? = null
 ) {
+
+    /** Secondary constructor for standard Context-based instantiation. */
+    constructor(context: Context) : this(
+        context = context,
+        store = SettingsRepository(context),
+        clock = System::currentTimeMillis,
+        refreshAction = null
+    )
 
     /**
      * Checks whether a refresh is due based on [Settings.connectorAutoRefreshIntervalMinutes]
-     * and executes [ConnectorRegistry.refreshAllActive] if due (or if [force] is true).
+     * and executes connector refreshes if due (or if [force] is true).
      *
      * Returns a map of connector ID -> status message, or an empty map if refresh was skipped.
      */
     suspend fun refreshIfNeeded(force: Boolean = false): Map<String, String> = withContext(Dispatchers.IO) {
-        val settings = repository.load()
+        val settings = store.load()
         val intervalMinutes = settings.connectorAutoRefreshIntervalMinutes
         if (!force && intervalMinutes <= 0) return@withContext emptyMap()
 
@@ -34,9 +46,15 @@ class ConnectorRefreshScheduler(
             return@withContext emptyMap()
         }
 
-        ConnectorRegistry.init(context)
-        val results = ConnectorRegistry.refreshAllActive(settings.disabledConnectors)
-        repository.save(settings.copy(connectorLastRefreshedAt = now))
+        val results = if (refreshAction != null) {
+            refreshAction.invoke(settings.disabledConnectors)
+        } else {
+            val ctx = checkNotNull(context) { "Context required for default refresh action" }
+            ConnectorRegistry.init(ctx)
+            ConnectorRegistry.refreshAllActive(settings.disabledConnectors)
+        }
+
+        store.save(store.load().copy(connectorLastRefreshedAt = now))
         results
     }
 }

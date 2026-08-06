@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +36,8 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -63,9 +66,25 @@ fun ConnectorsSection() {
     val scope = rememberCoroutineScope()
     val refreshScheduler = remember(context) { ConnectorRefreshScheduler(context) }
 
+    // Automatic background scheduler loop while screen is open
+    LaunchedEffect(settings.connectorAutoRefreshIntervalMinutes) {
+        refreshScheduler.refreshIfNeeded()
+        settings = settingsRepo.load()
+        if (settings.connectorAutoRefreshIntervalMinutes > 0) {
+            while (isActive) {
+                delay(60_000L)
+                val refreshed = refreshScheduler.refreshIfNeeded()
+                if (refreshed.isNotEmpty()) {
+                    settings = settingsRepo.load()
+                }
+            }
+        }
+    }
+
     fun setEnabled(id: String, enabled: Boolean) {
         disabled = if (enabled) disabled - id else disabled + id
-        settings = settings.copy(disabledConnectors = disabled)
+        val current = settingsRepo.load()
+        settings = current.copy(disabledConnectors = disabled)
         settingsRepo.save(settings)
     }
 
@@ -74,12 +93,14 @@ fun ConnectorsSection() {
             intervalMinutes = settings.connectorAutoRefreshIntervalMinutes,
             lastRefreshedAt = settings.connectorLastRefreshedAt,
             onIntervalChange = { newInterval ->
-                settings = settings.copy(connectorAutoRefreshIntervalMinutes = newInterval)
+                val current = settingsRepo.load()
+                settings = current.copy(connectorAutoRefreshIntervalMinutes = newInterval)
                 settingsRepo.save(settings)
             },
             onRefreshAll = {
                 val results = refreshScheduler.refreshIfNeeded(force = true)
                 settings = settingsRepo.load()
+                results
             }
         )
         HorizontalDivider(thickness = 1.dp)
@@ -100,10 +121,20 @@ private fun AutoRefreshHeader(
     intervalMinutes: Int,
     lastRefreshedAt: Long,
     onIntervalChange: (Int) -> Unit,
-    onRefreshAll: suspend () -> Unit
+    onRefreshAll: suspend () -> Map<String, String>
 ) {
     val scope = rememberCoroutineScope()
     var isRefreshing by remember { mutableStateOf(false) }
+    var syncFeedback by remember { mutableStateOf("") }
+    var tick by remember { mutableStateOf(0) }
+
+    // Live recomposition ticker for "X min ago" display
+    LaunchedEffect(lastRefreshedAt) {
+        while (isActive) {
+            delay(10_000L)
+            tick++
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -113,10 +144,14 @@ private fun AutoRefreshHeader(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Auto Tool Sync", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                // Accessing `tick` forces recomposition when time passes
+                val minutesAgo = if (lastRefreshedAt > 0 && tick >= 0) {
+                    ((System.currentTimeMillis() - lastRefreshedAt) / 60_000L).coerceAtLeast(0)
+                } else null
+
                 Text(
-                    if (lastRefreshedAt > 0) {
-                        val minutesAgo = ((System.currentTimeMillis() - lastRefreshedAt) / 60_000L).coerceAtLeast(0)
-                        "Last sync: $minutesAgo min ago"
+                    if (minutesAgo != null) {
+                        if (minutesAgo == 0L) "Last sync: Just now" else "Last sync: $minutesAgo min ago"
                     } else "Last sync: Never",
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -127,8 +162,13 @@ private fun AutoRefreshHeader(
                     if (!isRefreshing) {
                         isRefreshing = true
                         scope.launch {
-                            onRefreshAll()
+                            val results = onRefreshAll()
                             isRefreshing = false
+                            syncFeedback = if (results.isEmpty()) {
+                                "All active connectors are up to date."
+                            } else {
+                                "Refreshed ${results.size} connector(s): ${results.keys.joinToString(", ")}"
+                            }
                         }
                     }
                 },
@@ -138,13 +178,17 @@ private fun AutoRefreshHeader(
             }
         }
 
+        if (syncFeedback.isNotBlank()) {
+            Text(syncFeedback, style = MaterialTheme.typography.bodySmall)
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Interval:", style = MaterialTheme.typography.bodyMedium)
-            val intervals = listOf(0 to "Off", 15 to "15m", 30 to "30m", 60 to "1h", 120 to "2h")
+            val intervals = listOf(0 to "Off", 15 to "15m", 30 to "30m", 120 to "2h")
             intervals.forEach { (mins, label) ->
                 FilterChip(
                     selected = intervalMinutes == mins,

@@ -1,12 +1,11 @@
 package com.gotcha.connectors
 
 import com.gotcha.data.Settings
-import com.gotcha.data.SettingsRepository
+import com.gotcha.data.SettingsStore
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -27,6 +26,18 @@ private class MockTestConnector(
     override suspend fun refreshTools(): String {
         refreshCount.incrementAndGet()
         return refreshOutcome
+    }
+}
+
+private class FakeSettingsStore(
+    initialSettings: Settings = Settings()
+) : SettingsStore {
+    private var currentSettings = initialSettings
+
+    override fun load(): Settings = currentSettings
+
+    override fun save(settings: Settings) {
+        currentSettings = settings
     }
 }
 
@@ -57,5 +68,87 @@ class ConnectorRefreshTest {
         assertEquals(1, active1.refreshCount.get())
         assertEquals(1, active2.refreshCount.get())
         assertEquals(0, inactive.refreshCount.get())
+    }
+
+    @Test
+    fun `scheduler skips refresh when interval is 0 and force is false`() = runTest {
+        var refreshExecuted = false
+        val store = FakeSettingsStore(Settings(connectorAutoRefreshIntervalMinutes = 0, connectorLastRefreshedAt = 0))
+        val scheduler = ConnectorRefreshScheduler(
+            context = null,
+            store = store,
+            clock = { 100_000L },
+            refreshAction = {
+                refreshExecuted = true
+                mapOf("ha" to "ok")
+            }
+        )
+
+        val results = scheduler.refreshIfNeeded(force = false)
+        assertTrue(results.isEmpty())
+        assertFalse(refreshExecuted)
+    }
+
+    @Test
+    fun `scheduler skips refresh when elapsed time is less than interval`() = runTest {
+        var refreshExecuted = false
+        val lastRefreshed = 100_000L
+        val currentTime = lastRefreshed + (10 * 60_000L) // 10 minutes elapsed (interval = 30 min)
+        val store = FakeSettingsStore(Settings(connectorAutoRefreshIntervalMinutes = 30, connectorLastRefreshedAt = lastRefreshed))
+        val scheduler = ConnectorRefreshScheduler(
+            context = null,
+            store = store,
+            clock = { currentTime },
+            refreshAction = {
+                refreshExecuted = true
+                mapOf("ha" to "ok")
+            }
+        )
+
+        val results = scheduler.refreshIfNeeded(force = false)
+        assertTrue(results.isEmpty())
+        assertFalse(refreshExecuted)
+    }
+
+    @Test
+    fun `scheduler executes refresh when elapsed time equals or exceeds interval`() = runTest {
+        var refreshExecuted = false
+        val lastRefreshed = 100_000L
+        val currentTime = lastRefreshed + (35 * 60_000L) // 35 minutes elapsed (interval = 30 min)
+        val store = FakeSettingsStore(Settings(connectorAutoRefreshIntervalMinutes = 30, connectorLastRefreshedAt = lastRefreshed))
+        val scheduler = ConnectorRefreshScheduler(
+            context = null,
+            store = store,
+            clock = { currentTime },
+            refreshAction = {
+                refreshExecuted = true
+                mapOf("homeassistant" to "3 tools available")
+            }
+        )
+
+        val results = scheduler.refreshIfNeeded(force = false)
+        assertEquals(1, results.size)
+        assertTrue(refreshExecuted)
+        assertEquals(currentTime, store.load().connectorLastRefreshedAt)
+    }
+
+    @Test
+    fun `scheduler executes refresh when force is true even if interval is disabled`() = runTest {
+        var refreshExecuted = false
+        val store = FakeSettingsStore(Settings(connectorAutoRefreshIntervalMinutes = 0, connectorLastRefreshedAt = 0))
+        val scheduler = ConnectorRefreshScheduler(
+            context = null,
+            store = store,
+            clock = { 500_000L },
+            refreshAction = {
+                refreshExecuted = true
+                mapOf("notion" to "Connected")
+            }
+        )
+
+        val results = scheduler.refreshIfNeeded(force = true)
+        assertEquals(1, results.size)
+        assertTrue(refreshExecuted)
+        assertEquals(500_000L, store.load().connectorLastRefreshedAt)
     }
 }
