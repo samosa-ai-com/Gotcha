@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "Gotcha",
+    "version": "3.2.0",
+    "beta": true,
+    "maxAttachmentBytes": 20971520,
+    "maxExtractedChars": 40000
+  },
+  "llm": {
+    "provider": "openrouter",
+    "model": "default",
+    "temperature": 0.4,
+    "maxTokens": 2048
+  },
+  "documentParser": {
+    "supported": [
+      "pdf",
+      "docx",
+      "xlsx",
+      "pptx",
+      "html",
+      "txt",
+      "csv",
+      "md",
+      "json",
+      "yaml",
+      "xml",
+      "rtf"
+    ],
+    "unsupported": ["doc", "xls"]
+  },
+  "features": {
+    "voiceMode": true,
+    "documentAttachments": true,
+    "imageAttachments": true
+  }
+}
