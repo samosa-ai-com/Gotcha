@@ -767,11 +767,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 try {
                     val resolver = getApplication<Application>().contentResolver
                     val mime = resolver.getType(uri)
-                    if (mime?.startsWith("image/") == true) {
+                    val picked = if (mime?.startsWith("image/") == true) {
                         loadImageBase64(uri)?.let { PickedFile.Image(it) }
                     } else {
                         loadDocument(uri)?.let { PickedFile.Document(it) }
-                    } to null
+                    }
+                    // Both loaders return null when the stream cannot be opened;
+                    // treat that like any other failed pick so the user gets a
+                    // visible error instead of a silent no-op.
+                    if (picked != null) picked to null else null to "Could not read that file."
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: DocumentError) {

@@ -113,8 +113,9 @@ class ChatViewModelAttachmentTest {
     @Test
     fun `pickContent parses off the caller thread and delivers on pickResults`() {
         // A content URI with no provider behind it: the stream can't open, so the
-        // pick resolves to null. The point is the plumbing — nothing may happen on
-        // the calling thread, and the result arrives asynchronously via pickResults.
+        // pick resolves to null and a visible error bubble is appended. The point
+        // is the plumbing — no work may run on the calling thread, and the result
+        // arrives asynchronously via pickResults.
         val uri = Uri.parse("content://com.gotcha.missing.provider/attachments/missing.pdf")
 
         viewModel.pickContent(uri)
@@ -134,6 +135,10 @@ class ChatViewModelAttachmentTest {
         collector.cancel()
 
         assertNull("pick should resolve to null, got $result", result)
+        // The failed pick is never silent: an error bubble explains it in the chat.
+        val error = viewModel.uiState.value.messages.lastOrNull()
+        assertEquals(MessageKind.ERROR, error?.kind)
+        assertTrue(error?.text?.contains("Could not read that file") == true)
     }
 
     @Test
