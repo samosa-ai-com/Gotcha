@@ -146,13 +146,15 @@ class TermuxToolTest {
 
         val result = tool.runCommand("echo hello", timeoutSeconds = 1)
 
-        // No Termux exists to answer the PendingIntent, so this is the timeout path — and it has
-        // to name both indistinguishable causes.
+        // No Termux exists to answer the PendingIntent, so this is the timeout path.
         assertFalse(result.success)
         assertNull(result.needsPermission)
-        assertTrue(result.message.contains("still be running"))
-        assertTrue(result.message.contains("allow-external-apps"))
+        assertTrue(result.message.contains("genuinely slow"))
         assertTrue("must name the interactive-prompt cause too", result.message.contains("waiting for typed input"))
+        assertFalse(
+            "allow-external-apps comes back as an errno, not a timeout — verified on-device",
+            result.message.contains("allow-external-apps")
+        )
     }
 
     @Test
@@ -167,7 +169,7 @@ class TermuxToolTest {
             "stdin was given, so a missing prompt answer cannot be the cause",
             result.message.contains("waiting for typed input")
         )
-        assertTrue(result.message.contains("still be running"))
+        assertTrue(result.message.contains("genuinely slow"))
     }
 
     @Test
@@ -378,6 +380,29 @@ class TermuxToolTest {
 
         assertFalse(result.success)
         assertTrue(result.message.contains("cancelled"))
+    }
+
+    @Test
+    fun `allow-external-apps being unset comes back as a readable error, not a hang`() {
+        // The exact bundle Termux 0.118.3 sent on a Nothing Phone 3a with the property removed.
+        // The plugin docs imply the request is dropped silently; it is not, and the message it
+        // returns already tells the user precisely what to fix — so it must be passed through
+        // rather than flattened into a generic failure.
+        val bundle = Bundle().apply {
+            putInt(TermuxTool.RESULT_ERR, 2)
+            putString(
+                TermuxTool.RESULT_ERRMSG,
+                "Error Code: `2`\nError Message:\n```\nRunCommandService requires `allow-external-apps` " +
+                    "property to be set to `true` in `~/.termux/termux.properties` file.\n```"
+            )
+        }
+
+        val result = tool.formatResult(bundle)
+
+        assertFalse(result.success)
+        assertTrue(result.message.contains("failed"))
+        assertTrue("the actionable part must survive", result.message.contains("allow-external-apps"))
+        assertTrue(result.message.contains("termux.properties"))
     }
 
     @Test

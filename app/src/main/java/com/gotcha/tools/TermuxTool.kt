@@ -23,16 +23,17 @@ import java.util.concurrent.atomic.AtomicInteger
  * `com.termux.app.RunCommandService`: we send it a command, it runs it in the background (no
  * terminal pop-up) and returns stdout/stderr/exit code through a [PendingIntent].
  *
- * Two things must be true before that works, and only the first is detectable:
+ * Two things must be true before that works:
  *  1. `com.termux.permission.RUN_COMMAND` is granted. It is a **`dangerous`** permission that
  *     Termux itself declares, so listing it in the manifest is not enough — it needs a runtime
  *     grant, raised through [ToolResult.TERMUX_ACCESS]. A caveat worth knowing: a custom
  *     dangerous permission whose defining app was installed *after* Gotcha may not be
  *     grantable until Gotcha is updated or reinstalled.
- *  2. `allow-external-apps=true` is set in Termux's `~/.termux/termux.properties`. That file
- *     lives in Termux's private storage, so we cannot read it. When it is false Termux drops
- *     the intent silently and no result ever arrives — indistinguishable from here from a slow
- *     command, which is why the timeout message names both causes.
+ *  2. `allow-external-apps=true` is set in Termux's `~/.termux/termux.properties`. That file is
+ *     in Termux's private storage so we cannot read it ahead of time, but we do not need to:
+ *     verified on-device against Termux 0.118.3, running with it unset comes back promptly as
+ *     `err = ERRNO_FAILED` with an `errmsg` naming the property, which [formatResult] passes
+ *     through verbatim. It is a clear failure, not the silent hang the API docs imply.
  *
  * Availability is gated on the Termux package being *installed* ([Capability.TERMUX]), not on
  * the grant — gating on the grant would hide the only tool that can raise the prompt. The

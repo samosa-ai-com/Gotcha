@@ -37,9 +37,18 @@ internal object TermuxMessages {
             "Termux was installed after Gotcha — reinstall or update Gotcha so Android can grant it.)"
     )
 
+    /**
+     * Seen on-device as `Not allowed to start service … app is in background`: from Android 12,
+     * an app in the background cannot start another app's foreground service, and Termux's
+     * RunCommandService is one. Gotcha's assistive ball normally holds a foreground service that
+     * exempts us, so this shows up when it is switched off and the chat UI has been backgrounded.
+     */
     fun startFailed(cause: Throwable) = ToolResult.error(
-        "Could not reach Termux's RUN_COMMAND service: ${cause.message}. Termux may have been disabled or stopped " +
-            "by the system. You may open Termux once and ask again, or use run_command for the app's own sandbox."
+        "Could not reach Termux's RUN_COMMAND service: ${cause.message}. If that says Gotcha is in the " +
+            "background, Android is refusing the start — from Android 12 a backgrounded app cannot launch " +
+            "another app's foreground service. Ask the user to bring Gotcha to the foreground (or switch the " +
+            "assistive ball on, which keeps it exempt) and try again. Otherwise Termux may have been disabled " +
+            "or force-stopped; use run_command for the app's own sandbox meanwhile."
     )
 
     fun tooManyInFlight(limit: Int) = ToolResult.error(
@@ -49,20 +58,22 @@ internal object TermuxMessages {
     )
 
     /**
-     * The causes are indistinguishable from here — Termux sends nothing until a command finishes
-     * — so this lists them rather than picking one and sounding certain.
+     * A timeout means the command was accepted and is simply taking too long — a *rejected*
+     * command comes back promptly with an errno instead. Notably `allow-external-apps` being
+     * unset is **not** a cause here, despite what the plugin docs imply: on-device it returns
+     * ERRNO_FAILED with an explanatory message within a second. Listing it would send the model
+     * off fixing the one thing that is already known not to be wrong.
      */
     fun timedOut(command: String, timeout: Int, hadStdin: Boolean) = ToolResult.error(
         buildString {
-            append("No result from Termux after ${timeout}s for: $command. I cannot tell these apart:")
+            append("No result from Termux after ${timeout}s for: $command. Termux accepted the command, ")
+            append("so it is running — it is just not finished. Either:")
             if (!hadStdin) {
-                append("\n- the command may be waiting for typed input that will never come — there is no ")
-                append("terminal here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
+                append("\n- it is waiting for typed input that will never come, since there is no terminal ")
+                append("here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
             }
-            append("\n- it may simply still be running. I cannot kill another app's process, so it keeps going; ")
-            append("check Termux itself, and retry with a larger timeout_seconds if it was just slow.")
-            append("\n- `allow-external-apps=true` may be missing from `~/.termux/termux.properties`, in which ")
-            append("case Termux silently ignored the request and no command ever ran.")
+            append("\n- or it is genuinely slow. Retry with a larger timeout_seconds. Note it keeps running ")
+            append("either way — I cannot kill another app's process — so check Termux before starting again.")
         }
     )
 
