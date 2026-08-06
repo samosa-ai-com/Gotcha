@@ -98,6 +98,10 @@ class AssistiveBallOverlay(context: Context) {
     private var statusRingAnimator: ValueAnimator? = null
     private var activity: BallActivity = BallActivity.IDLE
 
+    /** One-shot wake-word pulse: an expanding ring that survives the ball hiding. */
+    private var wakePulseView: View? = null
+    private var wakePulseAnimator: ValueAnimator? = null
+
     /** What the card is showing, so a theme change can rebuild it as it was. */
     private var cardMessage: String? = null
     private var cardShowClose: Boolean = true
@@ -288,6 +292,7 @@ class AssistiveBallOverlay(context: Context) {
             dockAnimator = null
             removeLongPressRing()
             removeStatusRing()
+            removeWakePulseRing()
             removeMenu()
             removeCard()
             removeDismissTarget()
@@ -828,6 +833,89 @@ class AssistiveBallOverlay(context: Context) {
         statusRingDrawable = null
     }
 
+    /**
+     * Flash the ball when the wake word fires.
+     *
+     * A wake-word call hides the ball almost immediately (the call window takes
+     * its place), so the feedback has to outlive that: the ball gives a quick
+     * scale bounce, and an expanding accent ring — its own window, not a child
+     * of the ball — radiates from where the ball was and keeps playing even
+     * after the ball is hidden. No-op under the "remove animations" preference.
+     */
+    fun playWakeAnimation() {
+        mainHandler.post {
+            val view = ballView ?: return@post
+            if (!animationsEnabled(appContext)) return@post
+            ValueAnimator.ofFloat(1f, WAKE_BALL_PULSE_SCALE, 1f).apply {
+                duration = WAKE_BALL_PULSE_MS
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val scale = anim.animatedValue as Float
+                    view.scaleX = scale
+                    view.scaleY = scale
+                }
+                start()
+            }
+            showWakePulseRing()
+        }
+    }
+
+    private fun showWakePulseRing() {
+        removeWakePulseRing()
+        val density = appContext.resources.displayMetrics.density
+        val ballPx = dp(BALL_SIZE_DP)
+        val viewSize = dp(WAKE_PULSE_WINDOW_DP)
+        val accent = accentColor()
+        val drawable = RingDrawable().apply {
+            fillColor = Color.TRANSPARENT
+            strokeColor = accent
+            strokeWidth = WAKE_PULSE_STROKE_DP * density
+        }
+        val view = View(appContext).apply { background = drawable }
+        val params = WindowManager.LayoutParams(
+            viewSize,
+            viewSize,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = ballParams.x + ballPx / 2 - viewSize / 2
+            y = ballParams.y + ballPx / 2 - viewSize / 2
+        }
+        try {
+            windowManager.addView(view, params)
+            wakePulseView = view
+        } catch (_: Exception) {
+            wakePulseView = null
+            return
+        }
+        wakePulseAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = WAKE_PULSE_MS
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                drawable.ringRadius = ballPx * (WAKE_PULSE_START_RADIUS + p * WAKE_PULSE_RADIUS_GROWTH)
+                drawable.strokeColor = ColorUtils.setAlphaComponent(accent, ((1f - p) * 255).toInt())
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator, isReverse: Boolean) {
+                    removeWakePulseRing()
+                }
+            })
+            start()
+        }
+    }
+
+    private fun removeWakePulseRing() {
+        wakePulseAnimator?.cancel()
+        wakePulseAnimator = null
+        wakePulseView?.let { safeRemove(it) }
+        wakePulseView = null
+    }
+
     private fun showLongPressRing() {
         removeLongPressRing()
         val density = appContext.resources.displayMetrics.density
@@ -1214,7 +1302,20 @@ class AssistiveBallOverlay(context: Context) {
         /** Room for the aura to fade out as a circle inside a square window. */
         const val STATUS_RING_WINDOW_SCALE = 2.6f
 
-        const val LONG_PRESS_START_MS = 2000L
+        // Wake-word visual feedback. The ball bounces in place while an accent
+        // ring radiates from it on its own window (so the pulse survives the
+        // ball being hidden the moment the call starts).
+        const val WAKE_BALL_PULSE_MS = 320L
+        const val WAKE_BALL_PULSE_SCALE = 1.22f
+        const val WAKE_PULSE_MS = 520L
+        const val WAKE_PULSE_START_RADIUS = 0.5f
+        const val WAKE_PULSE_RADIUS_GROWTH = 1.15f
+        const val WAKE_PULSE_STROKE_DP = 3f
+
+        /** Big enough for the ring's largest radius without clipping. */
+        const val WAKE_PULSE_WINDOW_DP = 200
+
+        const val LONG_PRESS_START_MS = 1000L
         const val LONG_PRESS_END_MS = 2000L
         const val DISMISS_TARGET_SIZE_DP = 64
         const val DISMISS_TARGET_MARGIN_DP = 32

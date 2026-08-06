@@ -214,13 +214,32 @@ class CallSessionController(
         _state.value = CallState.STARTING
         scope.launch {
             val language = Language.fromLabel(s.preferredLanguage)
-            if (!speakText(SpokenPhrases.callStarted(language), language)) {
+            if (!speakText(startGreeting(handsFree, language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
+            if (!handsFree) {
+                startMic()
+            }
         }
         return true
     }
+
+    /**
+     * The first thing the user hears when a call starts. A wake-word call gets
+     * the short single-word acknowledgment ([SpokenPhrases.wakeWordAcknowledged])
+     * — the user just said "Hey Gotcha", so a full "call started" sentence makes
+     * the wake word feel ignored and delays the mic opening. A normal long-press
+     * call gets [SpokenPhrases.callStarted], which tells them the PTT session is
+     * live. [handsFree] is already true by the time [startWakeWordCall] reaches
+     * [startCall].
+     */
+    internal fun startGreeting(handsFree: Boolean, language: Language): String =
+        if (handsFree) {
+            SpokenPhrases.wakeWordAcknowledged(language)
+        } else {
+            SpokenPhrases.callStarted(language)
+        }
 
     fun startWakeWordCall(): Boolean {
         handsFree = true
@@ -244,60 +263,56 @@ class CallSessionController(
         handsFreeAutoListen?.cancel()
         handsFreeAutoListen = scope.launch {
             var silentStrikes = 0
-            while (isActive && handsFree && this@CallSessionController.isActive()) {
-                if (awaitHandsFreeInput()) {
-                    // Remember why the mic opened so a blank listen can hand
-                    // control back to the same place (fresh turn vs. a pending
-                    // agent question) and the loop can listen again.
-                    val listeningFrom = _state.value
-                    _state.value = CallState.LISTENING
-                    val s = settingsRepository.load()
-                    val outcome = sttEngine.listenForUtterance(
-                        provider = s.sttProvider,
-                        model = s.sttApiModel,
-                        language = currentLanguage(),
-                        silenceTimeoutMs = if (s.sttProvider == AudioProvider.ANDROID) {
-                            ANDROID_SILENCE_MS
-                        } else {
-                            HANDS_FREE_SILENCE_MS
-                        }
-                    )
-                    val text = outcome.getOrNull().orEmpty()
-                    if (text.isNotBlank()) {
-                        silentStrikes = 0
-                        if (listeningFrom == CallState.WAITING_USER) {
-                            // The agent is awaiting an answer: complete its gate in
-                            // place without touching the running turn job.
-                            finishTurn(text)
-                        } else {
-                            // Fresh turn: run it in its own job so this loop stays
-                            // free to re-listen if the agent asks a question.
-                            questionGate = null // drop any stale gate from a timed-out question
-                            currentTurnJob?.cancel()
-                            currentTurnJob = scope.launch { finishTurn(text) }
-                        }
+            while (isActive && handsFree && this@CallSessionController.isActive() && awaitHandsFreeInput()) {
+                // Remember why the mic opened so a blank listen can hand
+                // control back to the same place (fresh turn vs. a pending
+                // agent question) and the loop can listen again.
+                val listeningFrom = _state.value
+                _state.value = CallState.LISTENING
+                val s = settingsRepository.load()
+                val outcome = sttEngine.listenForUtterance(
+                    provider = s.sttProvider,
+                    model = s.sttApiModel,
+                    language = currentLanguage(),
+                    silenceTimeoutMs = if (s.sttProvider == AudioProvider.ANDROID) {
+                        ANDROID_SILENCE_MS
                     } else {
-                        // Distinguish a real STT failure from plain silence. Only
-                        // silence counts toward the auto-end strikes and stays
-                        // quiet; genuine failures are surfaced and end the call
-                        // with an explanation instead of looking like the user
-                        // never spoke.
-                        val error = outcome.exceptionOrNull()
-                        if (error != null && !SttEngine.isBenignSttError(error)) {
-                            reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
-                            endCall()
-                            break
-                        }
-                        silentStrikes++
-                        _state.value = listeningFrom
-                        if (silentStrikes >= HANDS_FREE_SILENT_STRIKES) {
-                            endCall()
-                            break
-                        }
-                        continue
+                        HANDS_FREE_SILENCE_MS
+                    }
+                )
+                val text = outcome.getOrNull().orEmpty()
+                if (text.isNotBlank()) {
+                    silentStrikes = 0
+                    if (listeningFrom == CallState.WAITING_USER) {
+                        // The agent is awaiting an answer: complete its gate in
+                        // place without touching the running turn job.
+                        finishTurn(text)
+                    } else {
+                        // Fresh turn: run it in its own job so this loop stays
+                        // free to re-listen if the agent asks a question.
+                        questionGate = null // drop any stale gate from a timed-out question
+                        currentTurnJob?.cancel()
+                        currentTurnJob = scope.launch { finishTurn(text) }
                     }
                 } else {
-                    break
+                    // Distinguish a real STT failure from plain silence. Only
+                    // silence counts toward the auto-end strikes and stays
+                    // quiet; genuine failures are surfaced and end the call
+                    // with an explanation instead of looking like the user
+                    // never spoke.
+                    val error = outcome.exceptionOrNull()
+                    if (error != null && !SttEngine.isBenignSttError(error)) {
+                        reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                        endCall()
+                        break
+                    }
+                    silentStrikes++
+                    _state.value = listeningFrom
+                    if (silentStrikes >= HANDS_FREE_SILENT_STRIKES) {
+                        endCall()
+                        break
+                    }
+                    continue
                 }
             }
             handsFreeAutoListen = null

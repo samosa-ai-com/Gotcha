@@ -37,7 +37,7 @@ import java.io.File
 /**
  * Foreground service that hosts the floating assistive ball over other apps.
  *
- * When idle, the ball is shown. Long-press the ball (3s) to start a voice call.
+ * When idle, the ball is shown. Long-press the ball (1s) to start a voice call.
  * During a call, the ball is hidden and replaced by three floating draggable
  * glass buttons (Mic, Stop, End). The buttons let the user push-to-talk,
  * interrupt the agent, or end the call. It owns its own STT/TTS engines
@@ -878,6 +878,9 @@ class AssistiveBallService : Service() {
             vibrate = s.notifyVibrationEnabled,
             chime = false
         )
+        // The call hides the ball almost immediately, so the visual ack has to
+        // be kicked off before it starts — see AssistiveBallOverlay.playWakeAnimation.
+        overlay.playWakeAnimation()
         callController.startWakeWordCall()
     }
 
