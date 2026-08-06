@@ -67,11 +67,21 @@ class TermuxTool(
      * Irreversible, device-destroying operations we refuse even here. Deliberately
      * [RootTool]'s narrow list rather than [TerminalTool]'s: `rm -r` inside Termux's own
      * `$HOME` is ordinary housekeeping, and `pkg` needs it.
+     *
+     * **This is a guardrail, not a security boundary.** It matches text, so anything indirect
+     * walks straight through it — a variable, an escape, a here-doc, `base64 -d | sh`. It exists
+     * to stop a plausible-looking mistake from wiping a device, not to contain an attacker who
+     * already controls what the model asks for. The real boundary is the user granting Termux
+     * access at all. Do not add checks here that only make sense against a determined evader:
+     * they would suggest a guarantee this cannot make.
      */
     private val denyPatterns = listOf(
         Regex("""\bmkfs\b"""), // reformat a filesystem
         Regex("""\bdd\b[^\n]*\bof=/dev/"""), // raw write to a block device
-        Regex("""\brm\s+-[a-z]*r[a-z]*f?\s+/(\s|$)"""), // rm -rf /  (wipe the root tree)
+        // `rm` whose target is the root tree itself: `rm -rf /`, `rm -rf /*`, `rm -r -f /`.
+        Regex("""\brm\s+(?:-\S+\s+)*/\s*\*?\s*$"""),
+        // Defeats coreutils' own refusal to remove `/`, so its presence is intent enough.
+        Regex("""--no-preserve-root"""),
         Regex("""\bfastboot\b"""),
         Regex("""\brecovery\b[^\n]*--wipe""")
     )
@@ -192,7 +202,9 @@ class TermuxTool(
         // Command and stdin ride in the same binder transaction, so they share the budget.
         val total = trimmed.length + (stdin?.length ?: 0)
         if (total > MAX_COMMAND_CHARS) return TermuxMessages.tooLarge(total, MAX_COMMAND_CHARS)
-        denyPatterns.firstOrNull { it.containsMatchIn(trimmed) }?.let {
+        // Collapse whitespace first, so `rm  -rf   /` is not a way around the patterns.
+        val normalised = trimmed.replace(Regex("""\s+"""), " ")
+        denyPatterns.firstOrNull { it.containsMatchIn(normalised) }?.let {
             return TermuxMessages.blocked(trimmed)
         }
         return null

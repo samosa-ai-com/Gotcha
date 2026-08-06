@@ -247,11 +247,30 @@ class TermuxToolTest {
     fun `device-destroying commands are blocked by the deny-list`() = runTest {
         installTermux()
         grantRunCommand()
-        listOf("mkfs.ext4 /dev/block/sda", "dd if=/dev/zero of=/dev/block/sda", "rm -rf / ", "fastboot oem unlock")
+        listOf(
+            "mkfs.ext4 /dev/block/sda",
+            "dd if=/dev/zero of=/dev/block/sda",
+            "rm -rf /",
+            "rm -rf /*",
+            "rm -r -f /",
+            "rm  -rf    /", // extra whitespace must not slip past
+            "rm -rf --no-preserve-root /home",
+            "fastboot oem unlock"
+        ).forEach { command ->
+            val result = tool.runCommand(command)
+            assertFalse("expected '$command' to be blocked", result.success)
+            assertTrue("'$command' should cite the policy: ${result.message}", result.message.contains("safety policy"))
+        }
+    }
+
+    @Test
+    fun `ordinary destructive-looking commands are not blocked`() = runTest {
+        // The deny-list guards the root tree, not the user's own files — `pkg` and everyday
+        // housekeeping both need recursive deletes to work.
+        listOf("rm -rf ~/build", "rm -rf /data/data/com.termux/files/home/tmp", "dd if=in.img of=out.img")
             .forEach { command ->
                 val result = tool.runCommand(command)
-                assertFalse("expected '$command' to be blocked", result.success)
-                assertTrue(result.message.contains("safety policy"))
+                assertFalse("'$command' must not be refused as unsafe", result.message.contains("safety policy"))
             }
     }
 
