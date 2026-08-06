@@ -49,7 +49,7 @@ corresponds to the model card's balanced threshold of 0.50.
 
 A wake-word-triggered call is **hands-free**, not push-to-talk:
 
-1. The wake word starts the call and the "call started" phrase is spoken.
+1. The wake word starts the call and a short acknowledgment ("Yes?") is spoken.
 2. The microphone **opens automatically** once that announcement finishes.
 3. A voice-activity detector listens for the user's speech. When the user
    stops talking for **~3 seconds** (API STT; the on-device Android recognizer

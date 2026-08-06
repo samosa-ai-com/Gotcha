@@ -2,16 +2,20 @@ package com.gotcha.service
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.agent.MessageKind
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -230,6 +234,32 @@ class CallSessionControllerTest {
     }
 
     @Test
+    fun `wake-word calls speak the short acknowledgment instead of the call-started sentence`() {
+        val greeting = controller.startGreeting(handsFree = true, Language.ENGLISH)
+        assertTrue(
+            "A wake-word call must use the short acknowledgment, not the call-started sentence",
+            greeting == SpokenPhrases.wakeWordAcknowledged(Language.ENGLISH)
+        )
+        assertTrue(
+            "A wake-word call must not announce itself like a normal call",
+            greeting != SpokenPhrases.callStarted(Language.ENGLISH)
+        )
+    }
+
+    @Test
+    fun `normal calls speak the conversational call-started sentence`() {
+        val greeting = controller.startGreeting(handsFree = false, Language.ENGLISH)
+        assertTrue(
+            "A normal call must speak the conversational call-started greeting",
+            greeting == SpokenPhrases.callStarted(Language.ENGLISH)
+        )
+        assertTrue(
+            "The English call greeting should be natural and conversational",
+            greeting == "Hello! What's up?"
+        )
+    }
+
+    @Test
     fun `hands-free input waits for a pending question and never for a confirmation overlay`() {
         // Call-started announcement done → READY means "awaiting spoken input".
         assertTrue(controller.awaitingHandsFreeInput(CallState.READY, questionPending = false))
@@ -248,5 +278,44 @@ class CallSessionControllerTest {
         assertFalse(controller.awaitingHandsFreeInput(CallState.THINKING, questionPending = false))
         assertFalse(controller.awaitingHandsFreeInput(CallState.THINKING, questionPending = true))
         assertFalse(controller.awaitingHandsFreeInput(CallState.SPEAKING, questionPending = true))
+    }
+
+    @Test
+    fun `mic start failure surfaces an error and records it in the transcript`() {
+        val errors = mutableListOf<String>()
+        controller.onError = { errors.add(it) }
+
+        controller.onMicStartFailed()
+
+        assertEquals(1, errors.size)
+        assertTrue(
+            "expected a mic-start message but got: ${errors.firstOrNull()}",
+            errors.firstOrNull()?.contains("Couldn't start the microphone") == true
+        )
+        assertTrue(
+            "mic-start failure must be recorded as an error transcript entry",
+            controller.transcript.value.any {
+                it.kind == MessageKind.ERROR && it.text.contains("Couldn't start the microphone")
+            }
+        )
+    }
+
+    @Test
+    fun `narration tts failure is reported once per call, repeats are not surfaced`() {
+        val errors = mutableListOf<String>()
+        controller.onError = { errors.add(it) }
+
+        controller.onNarrationTtsFailed()
+        controller.onNarrationTtsFailed()
+
+        assertEquals(
+            "a broken narration TTS must not spam the user with repeated cards",
+            1,
+            errors.size
+        )
+        assertTrue(
+            "expected the shared TTS wording but got: ${errors.firstOrNull()}",
+            errors.firstOrNull()?.contains("check your Text-to-Speech settings") == true
+        )
     }
 }

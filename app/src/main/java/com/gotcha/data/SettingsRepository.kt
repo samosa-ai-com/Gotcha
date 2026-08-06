@@ -74,6 +74,10 @@ data class Settings(
      * stop being injected.
      */
     val disabledConnectors: Set<String> = emptySet(),
+    /** Interval in minutes for automatic background tool/connector refresh. 0 = Disabled (Manual only). Default: 30 minutes. */
+    val connectorAutoRefreshIntervalMinutes: Int = 30,
+    /** Epoch millis when connectors were last auto-refreshed or sync triggered. */
+    val connectorLastRefreshedAt: Long = 0L,
     // Proactive Assistance Settings
     val proactiveEnabled: Boolean = true,
     val proactiveScanScreen: Boolean = true,
@@ -285,8 +289,13 @@ internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
 internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
 private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
 
+interface SettingsStore {
+    fun load(): Settings
+    fun save(settings: Settings)
+}
+
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
-class SettingsRepository(context: Context) {
+class SettingsRepository(context: Context) : SettingsStore {
 
     val prefs: SharedPreferences by lazy {
         SafeEncryptedSharedPreferences.create(context, SETTINGS_PREFS_FILE)
@@ -312,7 +321,7 @@ class SettingsRepository(context: Context) {
         return migrated
     }
 
-    fun load(): Settings = Settings(
+    override fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = string(KEY_API_KEY),
         baseUrl = string(KEY_BASE_URL, Settings.DEFAULT_BASE_URL),
@@ -353,6 +362,8 @@ class SettingsRepository(context: Context) {
         skinId = resolvedSkinId(),
         disabledSkills = stringSet(KEY_DISABLED_SKILLS),
         disabledConnectors = stringSet(KEY_DISABLED_CONNECTORS),
+        connectorAutoRefreshIntervalMinutes = prefs.getInt(KEY_CONNECTOR_AUTO_REFRESH_INTERVAL, 30),
+        connectorLastRefreshedAt = prefs.getLong(KEY_CONNECTOR_LAST_REFRESHED, 0L),
         proactiveEnabled = prefs.getBoolean(KEY_PROACTIVE_ENABLED, true),
         proactiveScanScreen = prefs.getBoolean(KEY_PROACTIVE_SCAN_SCREEN, true),
         proactiveScanClipboard = prefs.getBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, true),
@@ -374,7 +385,7 @@ class SettingsRepository(context: Context) {
         onboardingVersion = prefs.getInt(KEY_ONBOARDING_VERSION, 0)
     )
 
-    fun save(settings: Settings) {
+    override fun save(settings: Settings) {
         prefs.edit()
             .putString(KEY_PROVIDER, settings.provider.name)
             .putString(KEY_API_KEY, settings.apiKey)
@@ -412,6 +423,8 @@ class SettingsRepository(context: Context) {
             .putString(KEY_SKIN_ID, settings.skinId)
             .putStringSet(KEY_DISABLED_SKILLS, settings.disabledSkills)
             .putStringSet(KEY_DISABLED_CONNECTORS, settings.disabledConnectors)
+            .putInt(KEY_CONNECTOR_AUTO_REFRESH_INTERVAL, settings.connectorAutoRefreshIntervalMinutes)
+            .putLong(KEY_CONNECTOR_LAST_REFRESHED, settings.connectorLastRefreshedAt)
             .putBoolean(KEY_PROACTIVE_ENABLED, settings.proactiveEnabled)
             .putBoolean(KEY_PROACTIVE_SCAN_SCREEN, settings.proactiveScanScreen)
             .putBoolean(KEY_PROACTIVE_SCAN_CLIPBOARD, settings.proactiveScanClipboard)
@@ -519,6 +532,8 @@ class SettingsRepository(context: Context) {
         const val KEY_LEGACY_THEME_MODE = "theme_mode"
         const val KEY_DISABLED_SKILLS = "disabled_skills"
         const val KEY_DISABLED_CONNECTORS = "disabled_connectors"
+        const val KEY_CONNECTOR_AUTO_REFRESH_INTERVAL = "connector_auto_refresh_interval"
+        const val KEY_CONNECTOR_LAST_REFRESHED = "connector_last_refreshed"
         const val KEY_PROACTIVE_ENABLED = "proactive_enabled"
         const val KEY_PROACTIVE_SCAN_SCREEN = "proactive_scan_screen"
         const val KEY_PROACTIVE_SCAN_CLIPBOARD = "proactive_scan_clipboard"
