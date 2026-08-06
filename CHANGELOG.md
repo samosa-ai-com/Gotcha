@@ -4,6 +4,28 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Fixed — Call mode no longer swallows STT/TTS failures (#23)
+
+- **A failed mic tap is now visible.** When `startMic` can't start the
+  recognizer (busy, MediaRecorder failure, provider unavailable), the call shows
+  "Couldn't start the microphone — tap again to retry." instead of silently doing
+  nothing; the mic stays ready for another tap.
+- **Hands-free STT failures are no longer mistaken for silence.** The wake-word
+  listen loop now tells a real recognition failure apart from "No speech
+  detected": genuine errors (network, permissions, recognizer busy, ...) are
+  surfaced with the existing error card + vibration and end the call with an
+  explanation, while silence keeps its quiet retry-and-auto-end behaviour. Only
+  silence counts toward the auto-end strikes.
+- **Tool-progress narration TTS failures surface too.** A failed narration shows
+  the shared "Couldn't play voice audio — check your Text-to-Speech settings."
+  card once per call (repeats are logged), instead of being fire-and-forget.
+- **In-call error line.** The two floating call buttons now show a transient
+  error line above them, so an in-call error is visible right where the user's
+  eyes are even when the overlay card is off-screen. The overlay card remains
+  the persistent mid-call surface.
+- Hands-free loop also hands control back to the pre-listen state after a blank
+  listen, so retry (and answering an agent question in place) works as intended.
+
 ### Fixed — Malformed tool call no longer bricks the chat (#13)
 
 - **A tool call with invalid `arguments` JSON can no longer poison a chat.** When

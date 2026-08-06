@@ -58,6 +58,16 @@ class CallChatWindow(context: Context) {
     private var endBtn: View? = null
     private var endWrapper: View? = null
 
+    /** The horizontal button row (action + end), kept so touch hit-tests don't
+     *  have to walk the root's children (the error label lives above it). */
+    private var buttonsRow: LinearLayout? = null
+
+    /** Transient error line shown above the buttons while an in-call error is fresh. */
+    private var errorLabel: TextView? = null
+    private val errorLabelHideRunnable = Runnable {
+        errorLabel?.visibility = View.GONE
+    }
+
     // Ring as a separate overlay window (not inside the layout)
     private var ringOverlayView: View? = null
     private var ringOverlayAnimator: ValueAnimator? = null
@@ -120,6 +130,7 @@ class CallChatWindow(context: Context) {
     fun hide() {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
+            mainHandler.removeCallbacks(errorLabelHideRunnable)
             rotationWatcher.stop()
             stopBreathe()
             swapAnimator?.cancel()
@@ -134,6 +145,8 @@ class CallChatWindow(context: Context) {
             actionBtn = null
             endBtn = null
             endWrapper = null
+            buttonsRow = null
+            errorLabel = null
         }
     }
 
@@ -163,6 +176,23 @@ class CallChatWindow(context: Context) {
         mainHandler.post {
             handsFreeMode = enabled
             renderButtons()
+        }
+    }
+
+    /**
+     * Minimal in-call text error surface: a transient line above the buttons so
+     * a failure stays visible even if the user isn't looking at the overlay
+     * card. Auto-hides after [ERROR_LABEL_SHOW_MS]. No-op when the window isn't
+     * showing (e.g. start-call failures that fire before the buttons appear).
+     */
+    fun showError(message: String) {
+        mainHandler.post {
+            if (rootView == null) return@post
+            val label = errorLabel ?: return@post
+            mainHandler.removeCallbacks(errorLabelHideRunnable)
+            label.text = message
+            label.visibility = View.VISIBLE
+            mainHandler.postDelayed(errorLabelHideRunnable, ERROR_LABEL_SHOW_MS)
         }
     }
 
@@ -353,8 +383,30 @@ class CallChatWindow(context: Context) {
         actionBtn?.let { row.addView(it) }
         (actionBtn?.layoutParams as? LinearLayout.LayoutParams)?.setMargins(0, 0, (6 * density).toInt(), 0)
         row.addView(wrapper)
+        buttonsRow = row
 
-        return row
+        errorLabel = TextView(appContext).apply {
+            visibility = View.GONE
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            maxWidth = dp(240f)
+            setPadding(dp(12f), dp(6f), dp(12f), dp(6f))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 8f * density
+                setColor(Color.parseColor("#CC1F1F1F"))
+            }
+        }
+
+        // Vertical wrapper: the transient error label above the button row. The
+        // touch listener stays on [row] so hit-testing and drag co-ordinates are
+        // unchanged — the label is purely informational and never interactive.
+        return LinearLayout(appContext).apply {
+            orientation = LinearLayout.VERTICAL
+            errorLabel?.let { addView(it) }
+            addView(row)
+        }
     }
 
     private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
@@ -692,10 +744,9 @@ class CallChatWindow(context: Context) {
     }
 
     private fun handleActionUp(x: Float, y: Float) {
-        val root = rootView as? LinearLayout ?: return
-        val count = root.childCount
-        for (i in 0 until count) {
-            val child = root.getChildAt(i)
+        val row = buttonsRow ?: return
+        for (i in 0 until row.childCount) {
+            val child = row.getChildAt(i)
             if (child.visibility != View.VISIBLE) continue
             if (x >= child.left && x <= child.right &&
                 y >= child.top && y <= child.bottom
@@ -878,6 +929,9 @@ class CallChatWindow(context: Context) {
     private companion object {
         const val BTN_SIZE_DP = 44
         const val END_LONG_PRESS_MS = 2000L
+
+        /** How long the transient in-call error line stays above the buttons. */
+        const val ERROR_LABEL_SHOW_MS = 4000L
 
         // Glass tints per action state. Three of these are semantic and stay
         // fixed: amber, coral and red have to keep meaning the same thing in
