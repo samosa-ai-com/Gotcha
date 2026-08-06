@@ -1,6 +1,8 @@
 package com.gotcha.tools
 
+import android.content.ComponentName
 import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageInfo
 import android.os.Bundle
 import androidx.test.core.app.ApplicationProvider
@@ -31,7 +33,25 @@ class TermuxToolTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val tool = TermuxTool(context)
 
+    /**
+     * The F-Droid/GitHub build: the package plus a resolvable RunCommandService.
+     *
+     * [playStoreTermux] is the other real-world shape — verified on a Nothing Phone 3a running
+     * the Play build, which registers no services at all.
+     */
     private fun installTermux() {
+        playStoreTermux()
+        shadowOf(context.packageManager).addServiceIfNotPresent(
+            ComponentName(TermuxTool.TERMUX_PACKAGE, "com.termux.app.RunCommandService")
+        )
+        shadowOf(context.packageManager).addIntentFilterForService(
+            ComponentName(TermuxTool.TERMUX_PACKAGE, "com.termux.app.RunCommandService"),
+            IntentFilter("com.termux.RUN_COMMAND")
+        )
+    }
+
+    /** Termux installed, but the plugin API stripped — the Google Play build. */
+    private fun playStoreTermux() {
         shadowOf(context.packageManager).installPackage(
             PackageInfo().apply {
                 packageName = TermuxTool.TERMUX_PACKAGE
@@ -51,6 +71,7 @@ class TermuxToolTest {
     fun `status reports termux absent on a clean device`() {
         val status = tool.status()
         assertFalse(status.installed)
+        assertFalse(status.usable)
         assertNull(status.versionName)
     }
 
@@ -61,8 +82,36 @@ class TermuxToolTest {
 
         val status = tool.status()
         assertTrue(status.installed)
+        assertTrue(status.pluginApiAvailable)
+        assertTrue(status.usable)
         assertTrue(status.permissionGranted)
         assertEquals("0.118.0", status.versionName)
+    }
+
+    @Test
+    fun `the play store build is installed but not usable`() {
+        playStoreTermux()
+
+        val status = tool.status()
+        assertTrue(status.installed)
+        assertFalse("Play build registers no RunCommandService", status.pluginApiAvailable)
+        assertFalse("must not be gated in as usable", status.usable)
+    }
+
+    @Test
+    fun `the play store build is called out rather than asking for a permission that cannot exist`() = runTest {
+        // Verified against a real device: the Play build declares no RUN_COMMAND permission at
+        // all, so `pm grant` fails with "Unknown permission". Prompting would be a dead end.
+        playStoreTermux()
+        grantRunCommand()
+
+        val result = tool.runCommand("echo hello")
+
+        assertFalse(result.success)
+        assertNull("a permission prompt could never be satisfied here", result.needsPermission)
+        assertTrue(result.message.contains("Google Play build"))
+        assertTrue(result.message.contains("F-Droid"))
+        assertTrue(result.message.contains("Do not retry"))
     }
 
     @Test
@@ -172,16 +221,42 @@ class TermuxToolTest {
     }
 
     @Test
-    fun `a termux-side error surfaces its message and fails`() {
+    fun `errno -1 is success, not an error`() {
+        // Regression test for a real inversion. Termux's Errno is built on Activity's result
+        // constants: RESULT_OK is -1, so ERRNO_SUCCESS is -1 and 0 means *cancelled* — the
+        // opposite of the shell convention. Reading `err != 0` as failure discarded every
+        // successful run. Caught on a Nothing Phone 3a: `uname -a` returned err = -1 and its
+        // output was thrown away as "Termux refused or could not run the command".
+        val bundle = resultBundle(exitCode = 0, stdout = "Linux localhost 5.15.0 aarch64 Android\n")
+            .apply { putInt(TermuxTool.RESULT_ERR, TermuxTool.ERRNO_SUCCESS) }
+
+        val result = tool.formatResult(bundle)
+
+        assertTrue("errno -1 means success: ${result.message}", result.success)
+        assertTrue(result.message.contains("aarch64"))
+    }
+
+    @Test
+    fun `errno 0 is cancelled, not success`() {
+        val bundle = resultBundle(exitCode = 0).apply { putInt(TermuxTool.RESULT_ERR, 0) }
+
+        val result = tool.formatResult(bundle)
+
+        assertFalse(result.success)
+        assertTrue(result.message.contains("cancelled"))
+    }
+
+    @Test
+    fun `a termux-side failure surfaces its message and fails`() {
         val bundle = resultBundle(exitCode = 0).apply {
-            putInt(TermuxTool.RESULT_ERR, -101)
+            putInt(TermuxTool.RESULT_ERR, 2) // ERRNO_FAILED
             putString(TermuxTool.RESULT_ERRMSG, "allow-external-apps is false")
         }
 
         val result = tool.formatResult(bundle)
 
         assertFalse(result.success)
-        assertTrue(result.message.contains("error code -101"))
+        assertTrue(result.message.contains("failed"))
         assertTrue(result.message.contains("allow-external-apps is false"))
     }
 

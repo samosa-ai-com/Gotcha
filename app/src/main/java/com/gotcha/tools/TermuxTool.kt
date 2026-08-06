@@ -47,9 +47,20 @@ class TermuxTool(
     /** What the model needs to know about Termux, rendered into the `<env>` block each turn. */
     data class TermuxStatus(
         val installed: Boolean,
+        /**
+         * Whether this Termux build actually exposes `RunCommandService`. The Google Play build
+         * strips the whole plugin API — Play policy forbids arbitrary command execution — so it
+         * declares no `RUN_COMMAND` permission and registers no services at all. Without this
+         * check we would ask for a permission the device cannot define, and the user would face
+         * a dialog that never appears.
+         */
+        val pluginApiAvailable: Boolean,
         val permissionGranted: Boolean,
         val versionName: String?
-    )
+    ) {
+        /** Termux can actually run something for us (modulo the grant). */
+        val usable: Boolean get() = installed && pluginApiAvailable
+    }
 
     /**
      * Irreversible, device-destroying operations we refuse even here. Deliberately
@@ -70,8 +81,20 @@ class TermuxTool(
             ContextCompat.checkSelfPermission(context, PERMISSION_RUN_COMMAND) ==
                 PackageManager.PERMISSION_GRANTED
         }.getOrDefault(false)
-        return TermuxStatus(installed = info != null, permissionGranted = granted, versionName = info?.versionName)
+        return TermuxStatus(
+            installed = info != null,
+            pluginApiAvailable = info != null && runCatching { runCommandServiceExists() }.getOrDefault(false),
+            permissionGranted = granted,
+            versionName = info?.versionName
+        )
     }
+
+    /** Whether `com.termux.RUN_COMMAND` resolves to a service — false on the Play build. */
+    private fun runCommandServiceExists(): Boolean =
+        context.packageManager.resolveService(
+            Intent(ACTION_RUN_COMMAND).setPackage(TERMUX_PACKAGE),
+            0
+        ) != null
 
     /** Run [command] through Termux's `sh`, returning stdout/stderr/exit code. */
     suspend fun runCommand(
@@ -84,6 +107,7 @@ class TermuxTool(
 
         val status = status()
         if (!status.installed) return notInstalled()
+        if (!status.pluginApiAvailable) return pluginApiMissing(status.versionName)
         if (!status.permissionGranted) return permissionNeeded()
 
         val timeout = (timeoutSeconds ?: defaultTimeoutSeconds).coerceIn(1, MAX_TIMEOUT_SECONDS)
@@ -111,11 +135,11 @@ class TermuxTool(
 
     /** Turn Termux's result bundle into a [ToolResult]. Split out so it is testable without Termux. */
     internal fun formatResult(bundle: Bundle): ToolResult {
-        val err = bundle.numeric(RESULT_ERR) ?: 0
+        val err = bundle.numeric(RESULT_ERR) ?: ERRNO_SUCCESS
         val errmsg = bundle.getString(RESULT_ERRMSG)?.trim().orEmpty()
-        if (err != 0) {
+        if (err != ERRNO_SUCCESS) {
             return ToolResult.error(
-                "Termux refused or could not run the command (error code $err)" +
+                "Termux refused or could not run the command (${errnoLabel(err)})" +
                     if (errmsg.isEmpty()) "." else ": ${cap(errmsg)}"
             )
         }
@@ -135,6 +159,14 @@ class TermuxTool(
             if (errmsg.isNotEmpty()) append("\nTermux note: ${cap(errmsg)}")
         }
         return ToolResult(success = exit == 0, message = message)
+    }
+
+    /** Human-readable form of Termux's errno, which is not a plain "0 means fine" code. */
+    private fun errnoLabel(err: Int): String = when (err) {
+        ERRNO_CANCELLED -> "cancelled"
+        ERRNO_MINOR_FAILURES -> "completed with minor failures"
+        ERRNO_FAILED -> "failed"
+        else -> "error code $err"
     }
 
     /** Cheap checks that need neither Termux nor a permission, so they report the real problem first. */
@@ -187,6 +219,19 @@ class TermuxTool(
             "unprivileged shell available inside Gotcha's own sandbox."
     )
 
+    /**
+     * Termux is installed but has no RunCommandService. In practice this means the Google Play
+     * build, which removes the plugin API wholesale to satisfy Play policy — no amount of
+     * permission granting or property setting will make it work.
+     */
+    private fun pluginApiMissing(versionName: String?) = ToolResult.error(
+        "Termux is installed (version ${versionName ?: "unknown"}) but this build has no RUN_COMMAND " +
+            "service, so it cannot run commands for other apps. The Google Play build of Termux removes " +
+            "that API. Tell the user to replace it with the F-Droid or GitHub build of Termux if they want " +
+            "this; nothing can be granted to fix the Play build. Meanwhile use run_command for the plain " +
+            "unprivileged shell. Do not retry."
+    )
+
     private fun permissionNeeded() = ToolResult.permissionNeeded(
         ToolResult.TERMUX_ACCESS,
         "Running commands in Termux needs Termux's \"Run commands\" permission, which has not been granted. " +
@@ -213,11 +258,20 @@ class TermuxTool(
     private fun wasTruncatedByTermux(bundle: Bundle, lengthKey: String, received: String): Boolean =
         (bundle.numeric(lengthKey) ?: received.length) > received.length
 
-    /** Termux sends lengths as strings and codes as ints; tolerate either for every numeric field. */
-    private fun Bundle.numeric(key: String): Int? {
-        if (!containsKey(key)) return null
-        runCatching { getString(key) }.getOrNull()?.let { return it.trim().toIntOrNull() }
-        return runCatching { getInt(key) }.getOrNull()
+    /**
+     * Termux sends lengths as strings and codes as ints; tolerate either for every numeric field.
+     *
+     * Reads the raw value rather than probing with `getString`/`getInt`, because a typed getter
+     * on the wrong type logs a `ClassCastException` stack trace to logcat on every single call —
+     * noise that made a real bug harder to see. `get` is deprecated precisely because it is
+     * untyped, which is exactly what is wanted here.
+     */
+    @Suppress("DEPRECATION")
+    private fun Bundle.numeric(key: String): Int? = when (val value = get(key)) {
+        is Int -> value
+        is Long -> value.toInt()
+        is String -> value.trim().toIntOrNull()
+        else -> null
     }
 
     companion object {
@@ -245,6 +299,17 @@ class TermuxTool(
         internal const val RESULT_EXIT_CODE = "exitCode"
         internal const val RESULT_ERR = "err"
         internal const val RESULT_ERRMSG = "errmsg"
+
+        /**
+         * Termux's `Errno` codes are built on `android.app.Activity`'s result constants, so
+         * success is **-1** (`RESULT_OK`) and zero means *cancelled* — the opposite of the usual
+         * "0 is fine" shell convention. Verified on-device: a successful `uname -a` comes back
+         * with `err = -1`. Reading these as ordinary error codes silently inverts every result.
+         */
+        internal const val ERRNO_SUCCESS = -1 // Activity.RESULT_OK
+        private const val ERRNO_CANCELLED = 0 // Activity.RESULT_CANCELED
+        private const val ERRNO_MINOR_FAILURES = 1 // Activity.RESULT_FIRST_USER
+        private const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
 
         /** Termux caps a single command near 128KB; leave headroom for the rest of the intent. */
         private const val MAX_COMMAND_CHARS = 100 * 1024

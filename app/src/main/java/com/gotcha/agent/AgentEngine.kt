@@ -1170,11 +1170,17 @@ class AgentEngine(
             // RUN_COMMAND permission is granted, so this line is how the model knows to say
             // "install Termux" or "allow the permission" rather than just failing.
             appendLine(
-                if (termux.installed) {
-                    "  Termux installed: yes (version ${termux.versionName ?: "unknown"}, " +
-                        "RUN_COMMAND granted: ${if (termux.permissionGranted) "yes" else "no"})"
-                } else {
-                    "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
+                when {
+                    !termux.installed ->
+                        "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
+                    !termux.pluginApiAvailable ->
+                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}) but this build " +
+                            "has no RUN_COMMAND service — it is the Google Play build, which removes the API. " +
+                            "run_termux_command is unavailable and no permission can fix it; only replacing " +
+                            "Termux with the F-Droid or GitHub build would."
+                    else ->
+                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}, " +
+                            "RUN_COMMAND granted: ${if (termux.permissionGranted) "yes" else "no"})"
                 }
             )
             // Tools depending on a capability that is "no" here are withheld from

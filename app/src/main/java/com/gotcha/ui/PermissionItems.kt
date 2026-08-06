@@ -210,7 +210,7 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND,
                 null,
                 { c -> checkPerm(c, com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND) },
-                isRelevant = { c -> com.gotcha.tools.DeviceCapabilities.termuxInstalled(c) }
+                isRelevant = { c -> com.gotcha.tools.DeviceCapabilities.termuxUsable(c) }
             ),
             PermissionItem(
                 "Device Admin (Optional)",
