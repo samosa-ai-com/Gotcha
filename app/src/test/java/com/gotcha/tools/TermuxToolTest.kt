@@ -183,6 +183,41 @@ class TermuxToolTest {
     }
 
     @Test
+    fun `commands are refused once the concurrency cap is saturated`() = runTest {
+        installTermux()
+        grantRunCommand()
+        repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) {
+            assertTrue("slot $it should be free", TermuxTool.acquireSlotForTest())
+        }
+        try {
+            val refused = tool.runCommand("echo hello", timeoutSeconds = 1)
+
+            assertFalse(refused.success)
+            assertTrue(
+                "should refuse rather than queue: ${refused.message}",
+                refused.message.contains("already running")
+            )
+            assertTrue("must explain why waiting is the fix", refused.message.contains("cannot kill"))
+        } finally {
+            repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) { TermuxTool.releaseSlotForTest() }
+        }
+    }
+
+    @Test
+    fun `a finished command hands its slot back`() = runTest {
+        // Without the release, four timeouts would disable the tool for the rest of the session.
+        installTermux()
+        grantRunCommand()
+
+        tool.runCommand("echo hello", timeoutSeconds = 1)
+
+        repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) {
+            assertTrue("slot $it should have been returned", TermuxTool.acquireSlotForTest())
+        }
+        repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) { TermuxTool.releaseSlotForTest() }
+    }
+
+    @Test
     fun `termux paths come from the installed package, not a hardcoded primary-user path`() {
         // /data/data/com.termux is only the primary user's path; a secondary user or work
         // profile lives at /data/user/<id>/com.termux, where the hardcoded path names a `sh`

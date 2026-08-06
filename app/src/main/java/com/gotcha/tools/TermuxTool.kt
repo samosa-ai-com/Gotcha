@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -125,11 +126,15 @@ class TermuxTool(
         validate(trimmed, stdin)?.let { return it }
 
         val status = status()
-        if (!status.installed) return notInstalled()
-        if (!status.pluginApiAvailable) return pluginApiMissing(status.versionName)
-        if (!status.permissionGranted) return permissionNeeded()
+        if (!status.installed) return TermuxMessages.notInstalled()
+        if (!status.pluginApiAvailable) return TermuxMessages.pluginApiMissing(status.versionName)
+        if (!status.permissionGranted) return TermuxMessages.permissionNeeded()
 
         val timeout = (timeoutSeconds ?: defaultTimeoutSeconds).coerceIn(1, MAX_TIMEOUT_SECONDS)
+        // A timed-out command is not cancelled — it keeps running under Termux's uid, out of our
+        // reach. Without a ceiling, a model that retries a slow `pkg` a few times would leave a
+        // growing pile of live processes behind it, each still holding Termux's package lock.
+        if (!inFlight.tryAcquire()) return TermuxMessages.tooManyInFlight(MAX_CONCURRENT_COMMANDS)
         val requestCode = nextRequestCode.getAndIncrement()
         val deferred = CompletableDeferred<Bundle>()
         pendingResults[requestCode] = deferred
@@ -142,13 +147,14 @@ class TermuxTool(
             )
             runCatching { context.startService(commandIntent(trimmed, workingDir, stdin, pendingIntent)) }
                 .exceptionOrNull()
-                ?.let { return startFailed(it) }
+                ?.let { return TermuxMessages.startFailed(it) }
 
             val bundle = withTimeoutOrNull(timeout * 1000L) { deferred.await() }
-                ?: return timedOut(trimmed, timeout, hadStdin = stdin != null)
+                ?: return TermuxMessages.timedOut(trimmed, timeout, hadStdin = stdin != null)
             return formatResult(bundle)
         } finally {
             pendingResults.remove(requestCode)
+            inFlight.release()
         }
     }
 
@@ -158,7 +164,7 @@ class TermuxTool(
         val errmsg = bundle.getString(RESULT_ERRMSG)?.trim().orEmpty()
         if (err != ERRNO_SUCCESS) {
             return ToolResult.error(
-                "Termux refused or could not run the command (${errnoLabel(err)})" +
+                "Termux refused or could not run the command (${TermuxMessages.errnoLabel(err)})" +
                     if (errmsg.isEmpty()) "." else ": ${cap(errmsg)}"
             )
         }
@@ -180,34 +186,14 @@ class TermuxTool(
         return ToolResult(success = exit == 0, message = message)
     }
 
-    /** Human-readable form of Termux's errno, which is not a plain "0 means fine" code. */
-    private fun errnoLabel(err: Int): String = when (err) {
-        ERRNO_CANCELLED -> "cancelled"
-        ERRNO_MINOR_FAILURES -> "completed with minor failures"
-        ERRNO_FAILED -> "failed"
-        else -> "error code $err"
-    }
-
     /** Cheap checks that need neither Termux nor a permission, so they report the real problem first. */
     private fun validate(trimmed: String, stdin: String? = null): ToolResult? {
-        if (trimmed.isEmpty()) {
-            return ToolResult.error(
-                "Empty command. Provide a shell command to run in Termux (e.g. 'pkg install python -y')."
-            )
-        }
+        if (trimmed.isEmpty()) return TermuxMessages.emptyCommand()
         // Command and stdin ride in the same binder transaction, so they share the budget.
         val total = trimmed.length + (stdin?.length ?: 0)
-        if (total > MAX_COMMAND_CHARS) {
-            return ToolResult.error(
-                "Command plus stdin is $total characters, over Termux's ~${MAX_COMMAND_CHARS / 1024}KB limit for a " +
-                    "single request. You may write the script to a file with write_file and run that file instead."
-            )
-        }
+        if (total > MAX_COMMAND_CHARS) return TermuxMessages.tooLarge(total, MAX_COMMAND_CHARS)
         denyPatterns.firstOrNull { it.containsMatchIn(trimmed) }?.let {
-            return ToolResult.error(
-                "Command blocked by safety policy (irreversible/device-destroying): $trimmed. You may use available " +
-                    "tools (list_files, read_file, grep) instead for safer operations."
-            )
+            return TermuxMessages.blocked(trimmed)
         }
         return null
     }
@@ -273,29 +259,6 @@ class TermuxTool(
             "Termux was installed after Gotcha — reinstall or update Gotcha so Android can grant it.)"
     )
 
-    private fun startFailed(cause: Throwable) = ToolResult.error(
-        "Could not reach Termux's RUN_COMMAND service: ${cause.message}. Termux may have been disabled or stopped " +
-            "by the system. You may open Termux once and ask again, or use run_command for the app's own sandbox."
-    )
-
-    /**
-     * The causes are indistinguishable from here — Termux gives us nothing until the command
-     * finishes — so the message lists them rather than guessing at one.
-     */
-    private fun timedOut(command: String, timeout: Int, hadStdin: Boolean) = ToolResult.error(
-        buildString {
-            append("No result from Termux after ${timeout}s for: $command. I cannot tell these apart:")
-            if (!hadStdin) {
-                append("\n- the command may be waiting for typed input that will never come — there is no ")
-                append("terminal here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
-            }
-            append("\n- it may simply still be running. I cannot kill another app's process, so it keeps going; ")
-            append("check Termux itself, and retry with a larger timeout_seconds if it was just slow.")
-            append("\n- `allow-external-apps=true` may be missing from `~/.termux/termux.properties`, in which ")
-            append("case Termux silently ignored the request and no command ever ran.")
-        }
-    )
-
     private fun cap(text: String): String =
         if (text.length <= maxOutputBytes) text else text.take(maxOutputBytes) + "\n…(output capped)"
 
@@ -355,15 +318,36 @@ class TermuxTool(
          * with `err = -1`. Reading these as ordinary error codes silently inverts every result.
          */
         internal const val ERRNO_SUCCESS = -1 // Activity.RESULT_OK
-        private const val ERRNO_CANCELLED = 0 // Activity.RESULT_CANCELED
-        private const val ERRNO_MINOR_FAILURES = 1 // Activity.RESULT_FIRST_USER
-        private const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
+        internal const val ERRNO_CANCELLED = 0 // Activity.RESULT_CANCELED
+        internal const val ERRNO_MINOR_FAILURES = 1 // Activity.RESULT_FIRST_USER
+        internal const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
 
         /** Termux caps a single command near 128KB; leave headroom for the rest of the intent. */
         private const val MAX_COMMAND_CHARS = 100 * 1024
 
         /** `pkg install` is slow, so this is far above [TerminalTool]'s 120s ceiling. */
         private const val MAX_TIMEOUT_SECONDS = 600
+
+        /**
+         * Ceiling on commands running at once. Deliberately process-wide rather than per
+         * instance: sub-agents build their own [ToolExecutor], and Termux is a single shared
+         * resource regardless of who asked.
+         */
+        private const val MAX_CONCURRENT_COMMANDS = 4
+
+        /** Test seam: lets the cap be saturated without hardcoding the number twice. */
+        internal const val MAX_CONCURRENT_FOR_TEST = MAX_CONCURRENT_COMMANDS
+
+        /**
+         * Test seams for the concurrency cap. Occupying slots directly beats racing real
+         * commands: `runTest` runs on virtual time, so a command that "blocks" for its timeout
+         * actually returns instantly and hands its slot straight back.
+         */
+        internal fun acquireSlotForTest(): Boolean = inFlight.tryAcquire()
+
+        internal fun releaseSlotForTest() = inFlight.release()
+
+        private val inFlight = Semaphore(MAX_CONCURRENT_COMMANDS)
 
         private val nextRequestCode = AtomicInteger(1)
 
