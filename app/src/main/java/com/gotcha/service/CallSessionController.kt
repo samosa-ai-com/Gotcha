@@ -209,6 +209,9 @@ class CallSessionController(
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
             _state.value = CallState.READY
+            if (!handsFree) {
+                startMic()
+            }
         }
         return true
     }

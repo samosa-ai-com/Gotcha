@@ -99,15 +99,15 @@ object SpokenPhrases {
     )
 
     private val callStartedPhrases: Map<Language, String> = mapOf(
-        Language.ENGLISH to "Call started. Go ahead.",
-        Language.SPANISH to "Llamada iniciada. Puedes hablar.",
-        Language.FRENCH to "Appel démarré. À vous.",
-        Language.GERMAN to "Anruf gestartet. Los geht's.",
-        Language.HINDI to "कॉल शुरू हो गई है। बोलिए।",
-        Language.JAPANESE to "通話を開始しました。どうぞ。",
-        Language.CHINESE to "通话已开始,请说话。",
-        Language.ITALIAN to "Chiamata iniziata. Vai pure.",
-        Language.PORTUGUESE to "Chamada iniciada. Pode falar."
+        Language.ENGLISH to "Hello! What's up?",
+        Language.SPANISH to "¡Hola! ¿Qué tal?",
+        Language.FRENCH to "Allô ! Comment puis-je vous aider ?",
+        Language.GERMAN to "Hallo! Wie kann ich helfen?",
+        Language.HINDI to "हेलो, कहिए?",
+        Language.JAPANESE to "もしもし、どうしましたか？",
+        Language.CHINESE to "喂，你好！",
+        Language.ITALIAN to "Pronto! Come posso aiutarti?",
+        Language.PORTUGUESE to "Alô! Como posso ajudar?"
     )
 
     /**

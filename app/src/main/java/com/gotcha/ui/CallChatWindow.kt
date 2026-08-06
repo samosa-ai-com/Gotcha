@@ -6,6 +6,7 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
@@ -57,6 +58,7 @@ class CallChatWindow(context: Context) {
     private var actionBtn: View? = null
     private var endBtn: View? = null
     private var endWrapper: View? = null
+    private var statusPill: View? = null
 
     // Ring as a separate overlay window (not inside the layout)
     private var ringOverlayView: View? = null
@@ -134,6 +136,7 @@ class CallChatWindow(context: Context) {
             actionBtn = null
             endBtn = null
             endWrapper = null
+            statusPill = null
         }
     }
 
@@ -176,13 +179,47 @@ class CallChatWindow(context: Context) {
         else -> null
     }
 
+    private fun updateStatusPillAndRing(s: CallState) {
+        val pill = statusPill as? TextView ?: return
+        val (text, ringColor) = when (s) {
+            CallState.STARTING -> "✨ Connecting…" to Color.parseColor("#00E5FF")
+            CallState.LISTENING -> "🎙️ Listening…" to Color.parseColor("#00E5FF")
+            CallState.THINKING -> "🧠 Processing…" to Color.parseColor("#7C4DFF")
+            CallState.SPEAKING -> "🔊 Replying…" to Color.parseColor("#00E676")
+            CallState.WAITING_USER -> "❓ Awaiting input…" to Color.parseColor("#FFD600")
+            else -> null to null
+        }
+        if (text != null) {
+            pill.text = text
+            if (pill.visibility != View.VISIBLE) {
+                pill.alpha = 0f
+                pill.visibility = View.VISIBLE
+                pill.animate().alpha(1f).setDuration(200L).start()
+            }
+        } else {
+            if (pill.visibility == View.VISIBLE) {
+                pill.animate().alpha(0f).setDuration(160L).withEndAction {
+                    pill.visibility = View.INVISIBLE
+                }.start()
+            }
+        }
+        if (ringColor != null && actionBtn?.visibility == View.VISIBLE) {
+            setActionRingColor(ringColor)
+            mainHandler.post { followRootWithActionRing() }
+        } else if (currentRingColor != 0 && (s == CallState.READY || s == CallState.IDLE)) {
+            setActionRingColor(null)
+        }
+    }
+
     @Suppress("SetTextI18n")
     private fun renderButtons() {
         val s = currentState
-        // During hands-free calls the mic is automatic — no push-to-talk — so
-        // the action button (mic/stop/interrupt) is suppressed entirely. Only
-        // the End control remains, which is rendered below.
-        val appearance = if (handsFreeMode) null else actionAppearance(s)
+        updateStatusPillAndRing(s)
+        val appearance = if (handsFreeMode && (s == CallState.READY || s == CallState.WAITING_USER)) {
+            null
+        } else {
+            actionAppearance(s)
+        }
         val btn = actionBtn as? TextView
         if (appearance == null) {
             // Fade + shrink out, then hide.
@@ -348,13 +385,40 @@ class CallChatWindow(context: Context) {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding((8 * density).toInt(), 0, (8 * density).toInt(), 0)
-            setOnTouchListener(containerTouchListener())
         }
         actionBtn?.let { row.addView(it) }
         (actionBtn?.layoutParams as? LinearLayout.LayoutParams)?.setMargins(0, 0, (6 * density).toInt(), 0)
         row.addView(wrapper)
 
-        return row
+        val pill = TextView(appContext).apply {
+            textSize = 12f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding((12 * density).toInt(), (5 * density).toInt(), (12 * density).toInt(), (5 * density).toInt())
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 16f * density
+                setColor(ColorUtils.setAlphaComponent(Color.BLACK, 175))
+                setStroke((1 * density).toInt(), ColorUtils.setAlphaComponent(Color.WHITE, 45))
+            }
+            visibility = View.INVISIBLE
+        }
+        statusPill = pill
+
+        val container = LinearLayout(appContext).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setOnTouchListener(containerTouchListener())
+            addView(pill)
+            (pill.layoutParams as? LinearLayout.LayoutParams)?.setMargins(0, 0, 0, (6 * density).toInt())
+            addView(row)
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                followRootWithActionRing()
+            }
+        }
+
+        return container
     }
 
     private fun glassButton(emoji: String, size: Int, isEnd: Boolean): View {
@@ -402,14 +466,7 @@ class CallChatWindow(context: Context) {
         val drawable = RingDrawable()
         val view = View(appContext).apply { background = drawable }
 
-        // Compute the end button's center from the root overlay position.
-        // Avoid getLocationOnScreen() which can be unreliable under
-        // FLAG_LAYOUT_NO_LIMITS and with nested overlay windows.
-        val paddingPx = (8 * density).toInt()
-        val marginPx = (6 * density).toInt()
-        val btnPx = (BTN_SIZE_DP * density).toInt()
-        val cx = (rootParams?.x ?: 0) + paddingPx + btnPx + marginPx + btnPx / 2
-        val cy = (rootParams?.y ?: 0) + btnPx / 2
+        val (cx, cy) = buttonCenterOnScreen(endWrapper, isEndButton = true)
 
         val type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         val params = WindowManager.LayoutParams(
@@ -468,11 +525,9 @@ class CallChatWindow(context: Context) {
                 return@post
             }
             currentRingColor = color
+            val (cx, cy) = buttonCenterOnScreen(actionBtn, isEndButton = false)
             val density = appContext.resources.displayMetrics.density
-            val paddingPx = (8 * density).toInt()
             val btnPx = (BTN_SIZE_DP * density).toInt()
-            val cx = (rootParams?.x ?: 0) + paddingPx + btnPx / 2
-            val cy = (rootParams?.y ?: 0) + btnPx / 2
 
             if (actionRingOverlayView != null) {
                 actionRingDrawable?.strokeColor = color
@@ -688,29 +743,31 @@ class CallChatWindow(context: Context) {
 
     private fun isTouchOnEndWrapper(x: Float, y: Float): Boolean {
         val w = endWrapper ?: return false
-        return x >= w.left && x <= w.right && y >= w.top && y <= w.bottom
+        val row = w.parent as? View ?: return false
+        val left = row.left + w.left
+        val right = row.left + w.right
+        val top = row.top + w.top
+        val bottom = row.top + w.bottom
+        return x >= left && x <= right && y >= top && y <= bottom
     }
 
     private fun handleActionUp(x: Float, y: Float) {
-        val root = rootView as? LinearLayout ?: return
-        val count = root.childCount
-        for (i in 0 until count) {
-            val child = root.getChildAt(i)
-            if (child.visibility != View.VISIBLE) continue
-            if (x >= child.left && x <= child.right &&
-                y >= child.top && y <= child.bottom
-            ) {
-                if (child == actionBtn) performMicAction()
-                break
-            }
+        val btn = actionBtn ?: return
+        if (btn.visibility != View.VISIBLE) return
+        val row = btn.parent as? View ?: return
+        val left = row.left + btn.left
+        val right = row.left + btn.right
+        val top = row.top + btn.top
+        val bottom = row.top + btn.bottom
+        if (x >= left && x <= right && y >= top && y <= bottom) {
+            performMicAction()
         }
     }
 
     /** Fire the action bound to the mic button for the current call state. */
     private fun performMicAction() {
-        if (handsFreeMode) return // mic is automatic — no push-to-talk
         when (currentState) {
-            CallState.READY, CallState.WAITING_USER -> onStartMic()
+            CallState.READY, CallState.WAITING_USER -> if (!handsFreeMode) onStartMic()
             CallState.LISTENING -> onStopMic()
             CallState.THINKING, CallState.SPEAKING -> onInterrupt()
             else -> { /* no-op when hidden */ }
@@ -838,14 +895,38 @@ class CallChatWindow(context: Context) {
     private fun followRootWithActionRing() {
         val view = actionRingOverlayView ?: return
         val params = view.layoutParams as? WindowManager.LayoutParams ?: return
-        val density = appContext.resources.displayMetrics.density
-        val paddingPx = (8 * density).toInt()
-        val btnPx = (BTN_SIZE_DP * density).toInt()
-        params.x = (rootParams?.x ?: 0) + paddingPx + btnPx / 2 - params.width / 2
-        params.y = (rootParams?.y ?: 0) + btnPx / 2 - params.height / 2
+        val (cx, cy) = buttonCenterOnScreen(actionBtn, isEndButton = false)
+        params.x = cx - params.width / 2
+        params.y = cy - params.height / 2
         try {
             windowManager.updateViewLayout(view, params)
         } catch (_: Exception) { }
+    }
+
+    private fun buttonCenterOnScreen(targetView: View?, isEndButton: Boolean = false): Pair<Int, Int> {
+        val density = appContext.resources.displayMetrics.density
+        val paddingPx = (8 * density).toInt()
+        val marginPx = (6 * density).toInt()
+        val btnPx = (BTN_SIZE_DP * density).toInt()
+        val rootX = rootParams?.x ?: 0
+        val rootY = rootParams?.y ?: 0
+
+        val v = targetView ?: return if (isEndButton) {
+            (rootX + paddingPx + btnPx + marginPx + btnPx / 2) to (rootY + btnPx / 2)
+        } else {
+            (rootX + paddingPx + btnPx / 2) to (rootY + btnPx / 2)
+        }
+
+        val row = v.parent as? View
+        val rowLeft = row?.left ?: paddingPx
+        val rowTop = row?.top ?: 0
+
+        val vWidth = if (v.width > 0) v.width else btnPx
+        val vHeight = if (v.height > 0) v.height else btnPx
+
+        val cx = rootX + rowLeft + v.left + vWidth / 2
+        val cy = rootY + rowTop + v.top + vHeight / 2
+        return cx to cy
     }
 
     private fun layoutParams(): WindowManager.LayoutParams {

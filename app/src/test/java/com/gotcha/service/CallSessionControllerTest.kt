@@ -245,11 +245,15 @@ class CallSessionControllerTest {
     }
 
     @Test
-    fun `normal calls speak the call-started sentence`() {
+    fun `normal calls speak the conversational call-started sentence`() {
         val greeting = controller.startGreeting(handsFree = false, Language.ENGLISH)
         assertTrue(
-            "A normal call must speak the call-started sentence",
+            "A normal call must speak the conversational call-started greeting",
             greeting == SpokenPhrases.callStarted(Language.ENGLISH)
+        )
+        assertTrue(
+            "The English call greeting should be natural and conversational",
+            greeting == "Hello! What's up?"
         )
     }
 
