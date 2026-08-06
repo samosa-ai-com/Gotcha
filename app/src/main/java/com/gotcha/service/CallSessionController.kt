@@ -2,6 +2,7 @@ package com.gotcha.service
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
@@ -106,6 +107,13 @@ class CallSessionController(
     private var autoEndOnReply = false
 
     /**
+     * True once a narration TTS failure has been surfaced in the current call,
+     * so a broken Text-to-Speech setup shows one error card instead of a fresh
+     * one for every narrated tool step (repeats are only logged).
+     */
+    private var narrationErrorReported = false
+
+    /**
      * Hands-free mode for wake-word calls: the mic opens by itself once the
      * call-started announcement is done and a VAD stops it after ~3 s of
      * silence. Normal (long-press) calls leave this false and keep PTT.
@@ -202,6 +210,7 @@ class CallSessionController(
         newEngine.promptCacheKey = CALL_PROMPT_CACHE_KEY
         newEngine.setupWorkingDir()
         engine = newEngine
+        narrationErrorReported = false
         _state.value = CallState.STARTING
         scope.launch {
             val language = Language.fromLabel(s.preferredLanguage)
@@ -237,6 +246,10 @@ class CallSessionController(
             var silentStrikes = 0
             while (isActive && handsFree && this@CallSessionController.isActive()) {
                 if (awaitHandsFreeInput()) {
+                    // Remember why the mic opened so a blank listen can hand
+                    // control back to the same place (fresh turn vs. a pending
+                    // agent question) and the loop can listen again.
+                    val listeningFrom = _state.value
                     _state.value = CallState.LISTENING
                     val s = settingsRepository.load()
                     val outcome = sttEngine.listenForUtterance(
@@ -250,27 +263,38 @@ class CallSessionController(
                         }
                     )
                     val text = outcome.getOrNull().orEmpty()
-                    if (text.isBlank()) {
-                        // Silence or a transient STT error is normal while the
-                        // user is quiet; retry a couple of times, then end.
+                    if (text.isNotBlank()) {
+                        silentStrikes = 0
+                        if (listeningFrom == CallState.WAITING_USER) {
+                            // The agent is awaiting an answer: complete its gate in
+                            // place without touching the running turn job.
+                            finishTurn(text)
+                        } else {
+                            // Fresh turn: run it in its own job so this loop stays
+                            // free to re-listen if the agent asks a question.
+                            questionGate = null // drop any stale gate from a timed-out question
+                            currentTurnJob?.cancel()
+                            currentTurnJob = scope.launch { finishTurn(text) }
+                        }
+                    } else {
+                        // Distinguish a real STT failure from plain silence. Only
+                        // silence counts toward the auto-end strikes and stays
+                        // quiet; genuine failures are surfaced and end the call
+                        // with an explanation instead of looking like the user
+                        // never spoke.
+                        val error = outcome.exceptionOrNull()
+                        if (error != null && !SttEngine.isBenignSttError(error)) {
+                            reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                            endCall()
+                            break
+                        }
                         silentStrikes++
+                        _state.value = listeningFrom
                         if (silentStrikes >= HANDS_FREE_SILENT_STRIKES) {
                             endCall()
                             break
                         }
                         continue
-                    }
-                    silentStrikes = 0
-                    if (_state.value == CallState.WAITING_USER) {
-                        // The agent is awaiting an answer: complete its gate in
-                        // place without touching the running turn job.
-                        finishTurn(text)
-                    } else {
-                        // Fresh turn: run it in its own job so this loop stays
-                        // free to re-listen if the agent asks a question.
-                        questionGate = null // drop any stale gate from a timed-out question
-                        currentTurnJob?.cancel()
-                        currentTurnJob = scope.launch { finishTurn(text) }
                     }
                 } else {
                     break
@@ -389,7 +413,20 @@ class CallSessionController(
         )
         if (started) {
             _state.value = CallState.LISTENING
+        } else {
+            // The recognizer refused to start (busy, MediaRecorder failure,
+            // provider unavailable). Tell the user instead of swallowing the
+            // tap; the state stays put so another tap can retry.
+            onMicStartFailed()
         }
+    }
+
+    /**
+     * Failure path for a mic tap: surface a short message and leave the state
+     * untouched (still [READY] / [WAITING_USER]) so the user can tap again.
+     */
+    internal fun onMicStartFailed() {
+        reportError("Couldn't start the microphone — tap again to retry.")
     }
 
     /** Stop the mic and send the recording for transcription + agent processing. */
@@ -789,7 +826,22 @@ class CallSessionController(
             } else {
                 ""
             }
-            ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
+            val spoke = ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
+            if (!spoke) onNarrationTtsFailed()
+        }
+    }
+
+    /**
+     * Narration is auxiliary, so a broken TTS setup must not spam the user: the
+     * first failure in a call is surfaced like every other TTS failure and any
+     * repeats are logged only.
+     */
+    internal fun onNarrationTtsFailed() {
+        if (!narrationErrorReported) {
+            narrationErrorReported = true
+            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+        } else {
+            Log.w(TAG, "TTS narration failed during a call (already reported once)")
         }
     }
 
@@ -822,6 +874,7 @@ class CallSessionController(
     private fun triggerErrorVibration() = CompletionFeedback.error(appContext)
 
     companion object {
+        private const val TAG = "CallSessionController"
         private const val NARRATION_THROTTLE_MS = 3_000L
         private const val CONFIRM_TIMEOUT_MS = 90_000L
         val CALLS_WORKING_ROOT: String get() = com.gotcha.data.GotchaStorage.callsRoot().absolutePath
