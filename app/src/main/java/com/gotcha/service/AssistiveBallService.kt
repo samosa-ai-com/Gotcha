@@ -204,7 +204,13 @@ class AssistiveBallService : Service() {
             isCallActive = { callController.isActive() }
         }
 
-        callController.onError = { overlay.showError(it) }
+        callController.onError = { message ->
+            // The overlay card is the persistent mid-call surface; the call
+            // window also shows a transient line so the error is visible right
+            // where the user's eyes are, even if the card is off-screen.
+            overlay.showError(message)
+            chatWindow.showError(message)
+        }
         callController.onActionRingColor = { color -> chatWindow.setActionRingColor(color) }
         callController.onCaptureChrome = { hide ->
             if (hide) {

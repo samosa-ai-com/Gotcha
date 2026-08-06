@@ -609,6 +609,23 @@ class SttEngine(
 
         /** Hard cap on a single hands-free VAD recording (90 s). */
         private const val MAX_VAD_RECORDING_MS = 90_000L
+
+        /**
+         * True when [error] is the benign "the user stayed quiet" outcome rather
+         * than a real STT failure (network, permissions, recognizer busy, ...).
+         * A hands-free listen loop must treat silence as a quiet retry signal and
+         * surface genuine failures to the user instead of silently dying.
+         */
+        fun isBenignSttError(error: Throwable?): Boolean {
+            if (error == null) return true
+            val message = error.message ?: return false
+            if (message == NO_SPEECH_DETECTED) return true
+            val code = message.removePrefix(SPEECH_FAILED_PREFIX).toIntOrNull()
+            return code != null && SttOutcome.Error(code).isBenign
+        }
+
+        private const val NO_SPEECH_DETECTED = "No speech detected"
+        private const val SPEECH_FAILED_PREFIX = "Speech recognition failed: "
     }
 }
 
