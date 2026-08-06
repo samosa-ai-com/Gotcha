@@ -14,8 +14,10 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewPropertyAnimator
 import android.view.WindowManager
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -64,8 +66,19 @@ class CallChatWindow(context: Context) {
 
     /** Transient error line shown above the buttons while an in-call error is fresh. */
     private var errorLabel: TextView? = null
+    private var errorAnimator: ViewPropertyAnimator? = null
     private val errorLabelHideRunnable = Runnable {
-        errorLabel?.visibility = View.GONE
+        val label = errorLabel ?: return@Runnable
+        errorAnimator?.cancel()
+        errorAnimator = label.animate()
+            .alpha(0f)
+            .translationY(label.translationY - dp(6f))
+            .setDuration(200L)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                label.visibility = View.GONE
+            }
+        errorAnimator?.start()
     }
 
     // Ring as a separate overlay window (not inside the layout)
@@ -131,6 +144,8 @@ class CallChatWindow(context: Context) {
         mainHandler.post {
             mainHandler.removeCallbacks(endLongPressRunnable)
             mainHandler.removeCallbacks(errorLabelHideRunnable)
+            errorAnimator?.cancel()
+            errorAnimator = null
             rotationWatcher.stop()
             stopBreathe()
             swapAnimator?.cancel()
@@ -180,18 +195,50 @@ class CallChatWindow(context: Context) {
     }
 
     /**
-     * Minimal in-call text error surface: a transient line above the buttons so
-     * a failure stays visible even if the user isn't looking at the overlay
-     * card. Auto-hides after [ERROR_LABEL_SHOW_MS]. No-op when the window isn't
-     * showing (e.g. start-call failures that fire before the buttons appear).
+     * Minimal in-call text error surface: a transient glass card floating above the
+     * buttons so a failure stays visible even if the user isn't looking at the
+     * overlay card. Auto-hides after [ERROR_LABEL_SHOW_MS]. No-op when the window
+     * isn't showing (e.g. start-call failures that fire before the buttons appear).
      */
     fun showError(message: String) {
         mainHandler.post {
             if (rootView == null) return@post
             val label = errorLabel ?: return@post
+            val row = buttonsRow ?: return@post
+
             mainHandler.removeCallbacks(errorLabelHideRunnable)
-            label.text = message
-            label.visibility = View.VISIBLE
+            errorAnimator?.cancel()
+
+            val formatted = if (message.startsWith("⚠️") || message.startsWith("❌")) message else "⚠️  $message"
+            label.text = formatted
+
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(dp(240f), View.MeasureSpec.AT_MOST)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            label.measure(widthSpec, heightSpec)
+
+            val labelWidth = label.measuredWidth
+            val labelHeight = label.measuredHeight
+            val rowWidth = if (row.width > 0) row.width else dp(BTN_SIZE_DP * 2f + 22f)
+
+            val targetX = (rowWidth - labelWidth) / 2f
+            val targetY = -labelHeight.toFloat() - dp(8f)
+
+            label.translationX = targetX
+
+            val isAlreadyVisible = label.visibility == View.VISIBLE && label.alpha > 0f
+            if (!isAlreadyVisible) {
+                label.alpha = 0f
+                label.translationY = targetY + dp(6f)
+                label.visibility = View.VISIBLE
+            }
+
+            errorAnimator = label.animate()
+                .alpha(1f)
+                .translationY(targetY)
+                .setDuration(220L)
+                .setInterpolator(DecelerateInterpolator())
+            errorAnimator?.start()
+
             mainHandler.postDelayed(errorLabelHideRunnable, ERROR_LABEL_SHOW_MS)
         }
     }
@@ -391,21 +438,31 @@ class CallChatWindow(context: Context) {
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             maxWidth = dp(240f)
-            setPadding(dp(12f), dp(6f), dp(12f), dp(6f))
+            setPadding(dp(12f), dp(7f), dp(12f), dp(7f))
+            setShadowLayer(4f * density, 0f, 1f * density, Color.parseColor("#80000000"))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = 8f * density
-                setColor(Color.parseColor("#CC1F1F1F"))
+                cornerRadius = 14f * density
+                setColor(Color.parseColor("#E6181820"))
+                setStroke((1f * density).toInt(), Color.parseColor("#40E5544B"))
             }
         }
 
-        // Vertical wrapper: the transient error label above the button row. The
-        // touch listener stays on [row] so hit-testing and drag co-ordinates are
-        // unchanged — the label is purely informational and never interactive.
-        return LinearLayout(appContext).apply {
-            orientation = LinearLayout.VERTICAL
-            errorLabel?.let { addView(it) }
-            addView(row)
+        // FrameLayout wrapper: buttons row stays fixed at origin (0,0), while
+        // errorLabel floats above it via negative translationY. clipChildren = false
+        // allows errorLabel to draw cleanly outside the window bounds without
+        // shifting hit-test coordinates or dragging the buttons.
+        return FrameLayout(appContext).apply {
+            clipChildren = false
+            clipToPadding = false
+            addView(row, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ))
+            addView(errorLabel, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ))
         }
     }
 
