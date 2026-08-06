@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Share
@@ -57,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,28 +77,42 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
+import com.gotcha.agent.Attachment
 import com.gotcha.agent.ChatUiState
+import com.gotcha.agent.PickedFile
 import com.gotcha.tools.AgentMode
+import com.gotcha.tools.FileResolver
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.gotcha.ui.theme.motionSpec
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.Json
 import androidx.compose.foundation.Image as ComposeImage
+
+/** rememberSaveable saver for [Attachment]: JSON-encoded so rotation and process death keep it. */
+private val AttachmentSaver = Saver<Attachment?, String>(
+    save = { attachment -> attachment?.let { Json.encodeToString(Attachment.serializer(), it) } },
+    restore = { encoded ->
+        encoded?.let {
+            runCatching { Json.decodeFromString(Attachment.serializer(), it) }.getOrNull()
+        }
+    }
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     state: ChatUiState,
-    onSend: (String, String?, Boolean) -> Unit,
+    onSend: (String, String?, Attachment?, Boolean) -> Unit,
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
     onAnswer: (String?) -> Unit,
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     sessionTitle: String? = null,
-    onPickImage: (Uri) -> String?,
+    onPickFile: (Uri) -> PickedFile?,
     onSwitchAgent: () -> Unit,
     onSetAgent: (AgentMode) -> Unit = {},
     onSpeak: (String) -> Unit = {},
@@ -106,7 +122,7 @@ fun ChatScreen(
     onExportChat: () -> Unit = {},
     onReturnToRunning: () -> Unit = {},
     onCreateShareCard: () -> Unit = {},
-    onEditMessage: (Long, String, String?) -> Unit = { _, _, _ -> },
+    onEditMessage: (Long, String, String?, Attachment?) -> Unit = { _, _, _, _ -> },
     onRevertMessage: (Long) -> Unit = { _ -> }
 ) {
     val skin = LocalSkin.current
@@ -119,6 +135,9 @@ fun ChatScreen(
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     var pendingImageUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var pendingImageBase64 by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingAttachment by rememberSaveable(stateSaver = AttachmentSaver) {
+        mutableStateOf<Attachment?>(null)
+    }
     // Id of the user message being edited (composer pre-filled until sent/cancelled).
     var editingMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Id of the user message pending a revert confirmation.
@@ -133,12 +152,24 @@ fun ChatScreen(
     }
     val animatedIds = remember(state.activeSessionId) { mutableSetOf<Long>() }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(
+    val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            pendingImageUri = uri
-            pendingImageBase64 = onPickImage(uri)
+            when (val picked = onPickFile(uri)) {
+                is PickedFile.Image -> {
+                    pendingImageUri = uri
+                    pendingImageBase64 = picked.base64
+                    pendingAttachment = null
+                }
+                is PickedFile.Document -> {
+                    pendingImageUri = null
+                    pendingImageBase64 = null
+                    pendingAttachment = picked.attachment
+                }
+                // A failed pick already surfaced its own error bubble.
+                null -> {}
+            }
         }
     }
 
@@ -303,12 +334,17 @@ fun ChatScreen(
                                 onStopSpeaking = onStopSpeaking,
                                 onEdit = { target ->
                                     editingMessageId = target.id
-                                    // "(image attached)" is the display placeholder for an
-                                    // image-only prompt; leave the composer empty for those.
-                                    input = if (target.text == "(image attached)") "" else target.text
+                                    // "(image attached)"/"(document attached)" are the display
+                                    // placeholders for attachment-only prompts; leave the
+                                    // composer empty for those.
+                                    input = when (target.text) {
+                                        "(image attached)", "(document attached)" -> ""
+                                        else -> target.text
+                                    }
                                     inputWasVoice = false
                                     pendingImageUri = null
                                     pendingImageBase64 = target.imageBase64
+                                    pendingAttachment = target.attachment
                                 },
                                 onRevert = { target -> pendingRevertId = target.id }
                             )
@@ -440,6 +476,56 @@ fun ChatScreen(
                 }
             }
 
+            // Document attachment preview chip
+            pendingAttachment?.let { attachment ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(skin.cornerSmall))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.InsertDriveFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            attachment.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            buildString {
+                                append(attachment.mimeType.ifBlank { "document" })
+                                append(" · ")
+                                append(FileResolver.formatSizeStatic(attachment.size))
+                                if (attachment.truncated) append(" · truncated")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(onClick = { pendingAttachment = null }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove attachment",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
             if (state.isSpeaking) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
@@ -520,6 +606,7 @@ fun ChatScreen(
                                 editingMessageId = null
                                 pendingImageUri = null
                                 pendingImageBase64 = null
+                                pendingAttachment = null
                                 input = ""
                                 inputWasVoice = false
                             }
@@ -545,7 +632,7 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
-                        onClick = { imagePickerLauncher.launch("image/*") },
+                        onClick = { filePickerLauncher.launch("*/*") },
                         enabled = !state.isBusy && state.isConfigured && !otherChatRunning
                     ) {
                         Text("+", style = MaterialTheme.typography.titleLarge)
@@ -637,7 +724,8 @@ fun ChatScreen(
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                                 }
                             }
-                            input.isBlank() && pendingImageBase64 == null && editingMessageId == null -> {
+                            input.isBlank() && pendingImageBase64 == null && pendingAttachment == null &&
+                                editingMessageId == null -> {
                                 IconButton(
                                     onClick = onStartListening,
                                     modifier = Modifier.size(40.dp),
@@ -651,19 +739,20 @@ fun ChatScreen(
                                     onClick = {
                                         val editTarget = editingMessageId
                                         if (editTarget != null) {
-                                            onEditMessage(editTarget, input, pendingImageBase64)
+                                            onEditMessage(editTarget, input, pendingImageBase64, pendingAttachment)
                                         } else {
-                                            onSend(input, pendingImageBase64, inputWasVoice)
+                                            onSend(input, pendingImageBase64, pendingAttachment, inputWasVoice)
                                         }
                                         editingMessageId = null
                                         input = ""
                                         inputWasVoice = false
                                         pendingImageUri = null
                                         pendingImageBase64 = null
+                                        pendingAttachment = null
                                     },
                                     modifier = Modifier.size(40.dp).testTag("send_button"),
                                     enabled = state.isConfigured && !otherChatRunning &&
-                                        (input.isNotBlank() || pendingImageBase64 != null)
+                                        (input.isNotBlank() || pendingImageBase64 != null || pendingAttachment != null)
                                 ) {
                                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                                 }

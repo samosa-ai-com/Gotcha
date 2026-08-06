@@ -23,6 +23,9 @@ class GotchaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // pdfbox ships its glyph tables as Android assets; the resource loader
+        // needs a Context before the first PDF text extraction (DocumentParser).
+        com.gotcha.tools.DocumentParser.init(this)
         setupUncaughtExceptionHandler()
     }
 

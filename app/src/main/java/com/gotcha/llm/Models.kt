@@ -86,6 +86,49 @@ fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "
     )
 }
 
+/**
+ * Build a document-content ChatMessage: a single text part carrying the user's
+ * question, an `[Attached file: …]` header, and the extracted document text.
+ *
+ * The header + body deliberately live in the FIRST (and only) text part: token
+ * accounting, history trimming and compaction all read [ChatMessage.textContent],
+ * which returns the first text part — a second part would silently disappear
+ * from token counts and compaction summaries.
+ */
+fun documentUserMessage(
+    userText: String,
+    fileName: String,
+    mimeType: String,
+    extractedText: String,
+    pageCount: Int? = null
+): ChatMessage {
+    val header = buildString {
+        append("[Attached file: $fileName")
+        append(if (mimeType.isNotBlank()) " ($mimeType" else " (document")
+        pageCount?.let { append(", $it pages") }
+        append(")]")
+    }
+    val body = extractedText.ifBlank {
+        "(The document could not be read — ask the user for the details.)"
+    }
+    val text = listOf(
+        userText.ifBlank { "Answer questions about the attached file." },
+        header,
+        body
+    ).joinToString("\n\n")
+    return ChatMessage(
+        role = "user",
+        content = buildJsonArray {
+            add(
+                buildJsonObject {
+                    put("type", "text")
+                    put("text", text)
+                }
+            )
+        }
+    )
+}
+
 @Serializable
 data class ToolCall(
     val id: String,

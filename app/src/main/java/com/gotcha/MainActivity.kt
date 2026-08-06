@@ -748,8 +748,8 @@ class MainActivity : ComponentActivity() {
                     }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64, isVoiceInput ->
-                            chatViewModel.sendMessage(text, imageBase64, isVoiceInput)
+                        onSend = { text, imageBase64, attachment, isVoiceInput ->
+                            chatViewModel.sendMessage(text, imageBase64, attachment, isVoiceInput)
                         },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
@@ -757,7 +757,7 @@ class MainActivity : ComponentActivity() {
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
+                        onPickFile = { uri -> chatViewModel.pickContent(uri) },
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSpeak = chatViewModel::speak,
@@ -771,8 +771,8 @@ class MainActivity : ComponentActivity() {
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         },
-                        onEditMessage = { id, text, imageBase64 ->
-                            chatViewModel.editMessage(id, text, imageBase64)
+                        onEditMessage = { id, text, imageBase64, attachment ->
+                            chatViewModel.editMessage(id, text, imageBase64, attachment)
                         },
                         onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )
