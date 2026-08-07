@@ -148,8 +148,10 @@ fun SettingsScreen(
         )
         SettingsPage.PERMISSIONS -> PermissionsScreen(
             packageName = packageName,
-            onBack = backToHome
+            onBack = backToHome,
+            onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
         )
+        SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
         SettingsPage.SKILLS -> SkillsScreen(
             load = load,
             onSave = onSave,

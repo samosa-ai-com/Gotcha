@@ -478,6 +478,72 @@ class TermuxToolTest {
         assertTrue(result.message.contains("exit code: -1"))
     }
 
+    // ---- allow-external-apps probe ----
+
+    @Test
+    fun `a success classifies the probe as configured`() {
+        val result = tool.formatResult(
+            resultBundle(exitCode = 0).apply { putInt(TermuxTool.RESULT_ERR, TermuxTool.ERRNO_SUCCESS) }
+        )
+
+        assertEquals(TermuxTool.TermuxConfigProbe.CONFIGURED, tool.classifyProbe(result))
+    }
+
+    @Test
+    fun `an errno naming allow-external-apps classifies as not configured`() {
+        // The bundle Termux sends when the property is unset; the message must survive into
+        // the probe decision, exactly as it survives formatResult.
+        val result = tool.formatResult(
+            Bundle().apply {
+                putInt(TermuxTool.RESULT_ERR, 2)
+                putString(
+                    TermuxTool.RESULT_ERRMSG,
+                    "RunCommandService requires `allow-external-apps` property to be set to `true`"
+                )
+            }
+        )
+
+        assertEquals(TermuxTool.TermuxConfigProbe.NOT_CONFIGURED, tool.classifyProbe(result))
+    }
+
+    @Test
+    fun `a missing permission is unknown, not not-configured`() {
+        // TermuxMessages.permissionNeeded mentions allow-external-apps too, but it is a guard
+        // path — we never got a real answer — so it must read as UNKNOWN, not NOT_CONFIGURED.
+        assertEquals(
+            TermuxTool.TermuxConfigProbe.UNKNOWN,
+            tool.classifyProbe(TermuxMessages.permissionNeeded())
+        )
+    }
+
+    @Test
+    fun `a generic failure is unknown`() {
+        assertEquals(
+            TermuxTool.TermuxConfigProbe.UNKNOWN,
+            tool.classifyProbe(ToolResult.error("some unrelated failure"))
+        )
+    }
+
+    @Test
+    fun `probe reports unknown when termux is absent`() = runTest {
+        assertEquals(TermuxTool.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
+    }
+
+    @Test
+    fun `probe reports unknown before the permission is granted`() = runTest {
+        installTermux()
+
+        assertEquals(TermuxTool.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
+    }
+
+    @Test
+    fun `probe reports unknown when termux never answers`() = runTest {
+        installTermux()
+        grantRunCommand()
+        // No real Termux answers the PendingIntent, so the probe hits its timeout.
+        assertEquals(TermuxTool.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
+    }
+
     // ---- receiver hand-off ----
 
     @Test

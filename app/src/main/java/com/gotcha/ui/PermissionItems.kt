@@ -202,11 +202,13 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
             ),
             // A runtime permission rather than a special marker, so the standard toggle can
             // request it. Termux declares it, so it only exists once Termux is installed — hence
-            // isRelevant. The allow-external-apps half has to be done inside Termux either way.
+            // isRelevant. The allow-external-apps half has to be done inside Termux either way;
+            // the Guided setup link (PermissionsScreen → PermissionsSection) walks through it.
             PermissionItem(
                 "Termux Commands (Optional)",
                 "Run shell commands and install packages in Termux. Also needs " +
-                    "`allow-external-apps=true` in Termux's ~/.termux/termux.properties.",
+                    "`allow-external-apps=true` in Termux's ~/.termux/termux.properties — use the " +
+                    "Guided setup link for step-by-step help.",
                 com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND,
                 null,
                 { c -> checkPerm(c, com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND) },

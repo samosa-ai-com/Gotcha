@@ -12,12 +12,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +44,11 @@ import com.gotcha.tools.ToolResult
 import android.provider.Settings as AndroidSettings
 
 @Composable
-fun PermissionsSection(packageName: String) {
+fun PermissionsSection(
+    packageName: String,
+    /** Offered on the Termux row as a shortcut to its guided setup page. */
+    onOpenTermuxSetup: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val groups = remember { allPermissionGroups() }
     var userToggledGroups by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -124,6 +130,11 @@ fun PermissionsSection(packageName: String) {
                         packageName = packageName,
                         onRequestRuntime = { perms ->
                             runtimeLauncher.launch(perms)
+                        },
+                        onOpenDetails = if (item.specialMarker == ToolResult.TERMUX_ACCESS) {
+                            onOpenTermuxSetup
+                        } else {
+                            null
                         }
                     )
                 }
@@ -137,7 +148,9 @@ private fun PermissionRow(
     item: PermissionItem,
     granted: Boolean,
     packageName: String,
-    onRequestRuntime: (Array<String>) -> Unit
+    onRequestRuntime: (Array<String>) -> Unit,
+    /** Rendered as a secondary "Guided setup" link under the row's description. */
+    onOpenDetails: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -155,6 +168,17 @@ private fun PermissionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (onOpenDetails != null) {
+                TextButton(
+                    onClick = onOpenDetails,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(
+                        "Guided setup ›",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
         }
         Switch(
             checked = granted,
