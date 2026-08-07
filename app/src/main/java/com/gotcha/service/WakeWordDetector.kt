@@ -117,11 +117,15 @@ class WakeWordDetector(
             createdMel = loadSession(env, "$modelAssetDir/melspectrogram.onnx")
             createdEmbedding = loadSession(env, "$modelAssetDir/embedding_model.onnx")
             createdClassifier = loadSession(env, "$modelAssetDir/$classifierModel")
+            // Bytes, not samples: 16-bit mono. A minimum-size buffer forces a
+            // wakeup every 80 ms and leaves no room to absorb the burst of work
+            // that re-arming the gate can cost, so ask for ~1.3 s instead. The
+            // memory is irrelevant (~40 KB); the wakeup rate is not.
             val bufferSize = AudioRecord.getMinBufferSize(
                 OnnxWakeWordPipeline.SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
-            ).coerceAtLeast(OnnxWakeWordPipeline.FRAME_SIZE * 2)
+            ).coerceAtLeast(OnnxWakeWordPipeline.FRAME_SIZE * 2 * BUFFER_FRAMES)
             createdRecorder = AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 OnnxWakeWordPipeline.SAMPLE_RATE,
@@ -173,7 +177,10 @@ class WakeWordDetector(
         localEmbedding: OrtSession,
         localClassifier: OrtSession
     ) {
-        val frame = ShortArray(OnnxWakeWordPipeline.FRAME_SIZE)
+        // Read several 80 ms frames per wakeup rather than one. The pipeline
+        // splits whatever it is handed back into frames, so this changes only
+        // how often the CPU is woken: 3.1 times a second instead of 12.5.
+        val block = ShortArray(OnnxWakeWordPipeline.FRAME_SIZE * READ_FRAMES)
         val pipeline = OnnxWakeWordPipeline(
             env = env,
             melSession = localMel,
@@ -184,19 +191,25 @@ class WakeWordDetector(
         try {
             localRecorder.startRecording()
             while (running.get()) {
-                val count = localRecorder.read(frame, 0, frame.size)
+                val count = localRecorder.read(block, 0, block.size)
                 if (count < 0) {
                     if (running.get()) throw IOException("AudioRecord read failed: $count")
                     return
                 }
-                if (count == 0) continue
+                // A blocking read should never come back empty, but returning
+                // to the top on 0 would spin the loop at full tilt if one ever
+                // did. Wait out a frame instead.
+                if (count == 0) {
+                    Thread.sleep(FRAME_DURATION_MS)
+                    continue
+                }
 
                 var detected = false
                 synchronized(stateLock) {
                     if (!running.get() || recorder !== localRecorder || generation != this.generation) {
                         return
                     }
-                    if (pipeline.feed(frame, count)) {
+                    if (pipeline.feed(block, count)) {
                         detected = true
                         running.set(false)
                     }
@@ -238,5 +251,17 @@ class WakeWordDetector(
         const val MODEL_ASSET_DIR = "openwakeword"
         const val CLASSIFIER_MODEL = "hey_gotcha.onnx"
         private const val TAG = "WakeWordDetector"
+
+        /**
+         * 80 ms frames drained per `AudioRecord.read`. Four cuts the wakeup
+         * rate by 4× and costs up to 320 ms of extra trigger latency, on top of
+         * the matcher's existing 160 ms patience.
+         */
+        private const val READ_FRAMES = 4
+
+        /** ~1.3 s of audio: enough headroom that a slow frame cannot overrun the buffer. */
+        private const val BUFFER_FRAMES = 16
+
+        private const val FRAME_DURATION_MS = 80L
     }
 }
