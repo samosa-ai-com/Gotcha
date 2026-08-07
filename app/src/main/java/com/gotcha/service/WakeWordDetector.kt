@@ -164,9 +164,41 @@ class WakeWordDetector(
         }
     }
 
+    /**
+     * Loads one model with a thread configuration suited to a 12.5 Hz duty
+     * cycle (issue #37). ONNX Runtime's defaults are tuned for throughput on a
+     * busy server, and both of them are wrong here:
+     *
+     * - The intra-op thread count defaults to the core count, so three sessions
+     *   spin up three pools and each 80 ms tick wakes several cores for a few
+     *   milliseconds of work that fits comfortably on one.
+     * - The pools busy-spin waiting for the next `run()`. At this duty cycle
+     *   that is mostly burning CPU doing nothing, and it stops the SoC dropping
+     *   to a low-power state between frames.
+     *
+     * Measured wall time barely moves (4.14 ms → 4.41 ms per frame at the
+     * median), while p95 on the embedding stage improves a lot (11.35 ms →
+     * 4.21 ms). That is expected — wall time is not core time, and this trades
+     * a little median latency for far less total core time and no spinning.
+     * The battery half of the claim needs batterystats, not the benchmark.
+     *
+     * Deliberately not set: `setOptimizationLevel(ORT_ENABLE_ALL)`, which is
+     * already the default and would be a no-op. XNNPACK remains an untested
+     * lever — contrary to a common claim it is *not* the default CPU EP in the
+     * Android AAR (the shipped 1.26.0 exposes `addXnnpack` as explicit opt-in
+     * and defaults to MLAS), so it is worth trying, but as its own measured
+     * experiment.
+     */
     private fun loadSession(env: OrtEnvironment, assetPath: String): OrtSession {
         val bytes = appContext.assets.open(assetPath).use { it.readBytes() }
-        return env.createSession(bytes)
+        return OrtSession.SessionOptions().use { options ->
+            options.setIntraOpNumThreads(1)
+            options.setInterOpNumThreads(1)
+            options.setExecutionMode(OrtSession.SessionOptions.ExecutionMode.SEQUENTIAL)
+            options.addConfigEntry("session.intra_op.allow_spinning", "0")
+            options.addConfigEntry("session.inter_op.allow_spinning", "0")
+            env.createSession(bytes, options)
+        }
     }
 
     private fun listen(
