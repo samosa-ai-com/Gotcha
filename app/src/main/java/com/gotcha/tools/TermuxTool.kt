@@ -156,9 +156,15 @@ class TermuxTool(
                 TermuxResultReceiver.resultIntent(context, requestCode),
                 pendingIntentFlags()
             )
-            runCatching { context.startService(commandIntent(trimmed, workingDir, stdin, pendingIntent)) }
-                .exceptionOrNull()
-                ?.let { return TermuxMessages.startFailed(it) }
+            val started = runCatching {
+                context.startService(commandIntent(trimmed, workingDir, stdin, pendingIntent))
+            }
+            started.exceptionOrNull()?.let { return TermuxMessages.startFailed(it) }
+            // startService reports "no such service" by returning null, not by throwing. Android
+            // also excludes force-stopped packages from intent resolution, so a Termux the user
+            // (or an OEM battery manager) has stopped lands here. Waiting on the deferred would
+            // burn the whole timeout and then claim the command was accepted and still running.
+            if (started.getOrNull() == null) return TermuxMessages.serviceDidNotStart()
 
             val bundle = withTimeoutOrNull(timeout * 1000L) { deferred.await() }
                 ?: return TermuxMessages.timedOut(trimmed, timeout, hadStdin = stdin != null)

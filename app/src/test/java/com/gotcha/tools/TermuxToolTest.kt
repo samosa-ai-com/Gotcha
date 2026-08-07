@@ -173,6 +173,25 @@ class TermuxToolTest {
     }
 
     @Test
+    fun `a service that does not start is reported at once, not as a timeout`() = runTest {
+        // startService signals "no such service" by returning null rather than throwing, which
+        // is what a force-stopped Termux produces: Android excludes stopped packages from intent
+        // resolution, while the package and its service still resolve for the availability
+        // probe. Robolectric always returns a component, so the null is injected here.
+        installTermux()
+        grantRunCommand()
+        val nullStartingContext = object : android.content.ContextWrapper(context) {
+            override fun startService(service: android.content.Intent?): android.content.ComponentName? = null
+        }
+
+        val result = TermuxTool(nullStartingContext).runCommand("echo hello", timeoutSeconds = 600)
+
+        assertFalse(result.success)
+        assertTrue("must not be reported as still running: ${result.message}", result.message.contains("force-stopped"))
+        assertTrue("must say nothing is pending", result.message.contains("nothing is pending"))
+    }
+
+    @Test
     fun `command and stdin share the size budget`() = runTest {
         installTermux()
         grantRunCommand()

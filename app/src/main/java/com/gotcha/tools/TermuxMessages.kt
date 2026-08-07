@@ -51,6 +51,18 @@ internal object TermuxMessages {
             "or force-stopped; use run_command for the app's own sandbox meanwhile."
     )
 
+    /**
+     * `startService` returning null rather than throwing. Distinct from [startFailed]: nothing
+     * refused us, the service simply was not there to start — usually Termux force-stopped, or
+     * uninstalled between the availability probe and the call.
+     */
+    fun serviceDidNotStart() = ToolResult.error(
+        "Termux did not start the command: its RUN_COMMAND service could not be reached. Termux has most " +
+            "likely been force-stopped (by the user or a battery manager), or was uninstalled just now. Ask " +
+            "the user to open Termux once so it is running again, then retry. No command was started, so " +
+            "nothing is pending."
+    )
+
     fun tooManyInFlight(limit: Int) = ToolResult.error(
         "$limit Termux commands are already running and none has finished yet. Earlier commands keep running " +
             "even after they time out — I cannot kill them. Wait for them to finish (use the sleep tool), or " +
