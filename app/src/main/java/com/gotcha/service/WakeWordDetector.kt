@@ -79,7 +79,21 @@ class WakeWordDetector(
         val embedding: OrtSession,
         val classifier: OrtSession
     ) {
+        private val closed = AtomicBoolean(false)
+
+        /**
+         * Idempotent. The reference count should make a second close
+         * unreachable — but ORT throws on one, and an ownership mistake here
+         * should not be the thing that takes down a user's assistant. In debug
+         * builds it complains loudly so the mistake still gets found.
+         */
         fun close() {
+            if (!closed.compareAndSet(false, true)) {
+                if (BuildConfig.DEBUG) {
+                    Log.w(TAG, "Sessions closed twice", Throwable("second close from"))
+                }
+                return
+            }
             mel.close()
             embedding.close()
             classifier.close()
@@ -188,13 +202,37 @@ class WakeWordDetector(
     @SuppressLint("MissingPermission")
     private suspend fun initializeAndListen(generation: Int) {
         val env = OrtEnvironment.getEnvironment()
-        var loadedSessions: Sessions? = null
+        /** Sessions this run holds a use-claim on; released in the finally. */
+        var claimed: Sessions? = null
         var createdRecorder: AudioRecord? = null
         try {
-            // Reuse the sessions from a previous run when this is a resume
-            // after pause(); only a cold start pays the ~2.6 MB model load.
-            val cached = synchronized(stateLock) { sessions }
-            val active = cached ?: loadSessions(env).also { loadedSessions = it }
+            // Claim cached sessions under the very lock that reads them. Reading
+            // first and claiming later leaves a window where sessionUsers is 0,
+            // and a release() landing in that window frees the models this run
+            // is about to adopt — which is exactly how it went wrong.
+            synchronized(stateLock) {
+                if (!running.get() || generation != this.generation) return
+                sessions?.let {
+                    claimed = it
+                    sessionUsers++
+                }
+            }
+            if (claimed == null) {
+                // Cold start. The load is slow, so it happens off the lock; the
+                // result is unpublished until the block below, so nothing else
+                // can see it and no claim is needed yet.
+                val loaded = loadSessions(env)
+                synchronized(stateLock) {
+                    if (!running.get() || generation != this.generation) {
+                        loaded.close()
+                        return
+                    }
+                    sessions = loaded
+                    claimed = loaded
+                    sessionUsers++
+                }
+            }
+            val active = claimed ?: return
             // Bytes, not samples: 16-bit mono. A minimum-size buffer forces a
             // wakeup every 80 ms and leaves no room to absorb the burst of work
             // that re-arming the gate can cost, so ask for ~1.3 s instead. The
@@ -217,34 +255,29 @@ class WakeWordDetector(
 
             synchronized(stateLock) {
                 if (!running.get() || generation != this.generation) {
-                    // Stopped while loading. Only discard sessions this run
-                    // created — a cached set belongs to whoever comes next.
-                    loadedSessions?.close()
+                    // Stopped while starting up. The claim is dropped by the
+                    // finally below, which closes the models if a release()
+                    // was waiting on this run to let go of them.
                     createdRecorder.release()
                     return
                 }
-                sessions = active
                 recorder = createdRecorder
-                // Claim the models for as long as this loop runs, so a
-                // concurrent release() defers closing them rather than pulling
-                // them out from under an in-flight inference.
-                sessionUsers++
             }
             scope.launch(Dispatchers.Main) { onStarted() }
-            try {
-                listen(
-                    generation = generation,
-                    env = env,
-                    localRecorder = createdRecorder,
-                    localSessions = active
-                )
-            } finally {
-                releaseSessionUse()
-            }
+            listen(
+                generation = generation,
+                env = env,
+                localRecorder = createdRecorder,
+                localSessions = active
+            )
         } catch (e: Exception) {
-            loadedSessions?.close()
+            // Deliberately does not close the sessions: once published they are
+            // owned by the reference count, and closing them here raced with a
+            // concurrent run that had legitimately adopted them.
             createdRecorder?.release()
             fail(startupError(e), e, generation)
+        } finally {
+            if (claimed != null) releaseSessionUse()
         }
     }
 
