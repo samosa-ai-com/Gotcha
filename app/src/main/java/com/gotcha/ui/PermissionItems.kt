@@ -25,7 +25,14 @@ data class PermissionItem(
     val isGranted: (Context) -> Boolean,
     /** Additional runtime permissions requested together with [androidPermission] (e.g. the
      *  matching WRITE permission for a read/write pair). Requested in the same system dialog. */
-    val extraPermissions: List<String> = emptyList()
+    val extraPermissions: List<String> = emptyList(),
+    /**
+     * Whether to show the row at all. Defaults to always. Needed for permissions another app
+     * declares: until that app is installed the permission does not exist, so Android denies the
+     * request without a dialog — a dead toggle, and one that would keep its group flagged as
+     * "has something ungranted" forever.
+     */
+    val isRelevant: (Context) -> Boolean = { true }
 )
 
 // Declarative catalog of every permission the app can request; length is inherent.
@@ -192,6 +199,20 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                         android.os.Process.myUid(), c.packageName
                     ) == AppOpsManager.MODE_ALLOWED
                 }
+            ),
+            // A runtime permission rather than a special marker, so the standard toggle can
+            // request it. Termux declares it, so it only exists once Termux is installed — hence
+            // isRelevant. The allow-external-apps half has to be done inside Termux either way;
+            // the Guided setup link (PermissionsScreen → PermissionsSection) walks through it.
+            PermissionItem(
+                "Termux Commands (Optional)",
+                "Run shell commands and install packages in Termux. Also needs " +
+                    "`allow-external-apps=true` in Termux's ~/.termux/termux.properties — use the " +
+                    "Guided setup link for step-by-step help.",
+                com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND,
+                null,
+                { c -> checkPerm(c, com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND) },
+                isRelevant = { c -> com.gotcha.tools.DeviceCapabilities.termuxUsable(c) }
             ),
             PermissionItem(
                 "Device Admin (Optional)",

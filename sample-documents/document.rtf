@@ -1,0 +1,70 @@
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 Project Falcon \u8212- Q3 Proposal\par}
+{\pard \ql \f0 \sa180 \li720 \fi0 {\b Status:} Draft v2.1 \u8212- for review by the whole team.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Summary\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Project Falcon is a voice-first assistant that runs locally on Android. This quarter we are adding {\b document attachments to chat mode} so users can ask questions about PDFs, spreadsheets and presentations.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Feature highlights\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Attach PDF, DOCX, XLSX, PPTX and plain-text files from the system picker.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Extracted text is fed to the model inside the user message.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab A truncated document shows an explicit note so the user knows.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Legacy {\f1 .doc} / {\f1 .xls} files are rejected with a clear error.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Acceptance criteria\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Selecting a PDF shows its extracted text and page count.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab A spreadsheet with multiple sheets returns each sheet\u8217's rows.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab A corrupt file surfaces an ERROR bubble instead of crashing.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Rollout plan\par}
+{
+\trowd \trgaph120
+\clbrdrb\brdrs\cellx2880\clbrdrb\brdrs\cellx5760\clbrdrb\brdrs\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Phase\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Milestone\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Date\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Alpha\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Internal dogfood\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Aug 6\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Beta\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 1,000 invited users\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Aug 15\par}
+\cell}
+}
+\intbl\row}
+{
+\trowd \trgaph120
+\cellx2880\cellx5760\cellx8640
+\trkeep\intbl
+{
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 GA\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Play Store release\par}
+\cell}
+{{\pard\intbl \ql \f0 \sa0 \li0 \fi0 Sep 30\par}
+\cell}
+}
+\intbl\row}
+{\pard \ql \f0 \sa180 \li0 \fi0 \par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Open questions\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab Should we support images inside DOCX (e.g.\u160 ?embedded screenshots)?\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab What is the cap for a single attachment in the free tier?\sa180\par}

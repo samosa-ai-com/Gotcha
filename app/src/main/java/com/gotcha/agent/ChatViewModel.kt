@@ -1,9 +1,11 @@
 package com.gotcha.agent
 
 import android.app.Application
+import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioModel
@@ -21,11 +23,14 @@ import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.llm.documentUserMessage
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
 import com.gotcha.tools.AgentMode
+import com.gotcha.tools.DocumentError
+import com.gotcha.tools.DocumentParser
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
@@ -49,6 +54,27 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 
+/**
+ * A document the user picked from the system picker. The extracted [text] is what
+ * gets sent to the model; it is also kept on the [com.gotcha.agent.UiMessage] so
+ * re-editing a sent message can rebuild the request without re-reading the file.
+ */
+@kotlinx.serialization.Serializable
+data class Attachment(
+    val name: String,
+    val mimeType: String,
+    val size: Long,
+    val text: String,
+    val pageCount: Int? = null,
+    val truncated: Boolean = false
+)
+
+/** Result of the composer's picker: routed to either the image or the document pipeline. */
+sealed class PickedFile {
+    data class Image(val base64: String) : PickedFile()
+    data class Document(val attachment: Attachment) : PickedFile()
+}
+
 @kotlinx.serialization.Serializable
 data class UiMessage(
     val id: Long,
@@ -57,7 +83,8 @@ data class UiMessage(
     val imageBase64: String? = null,
     val subAgentSteps: List<String> = emptyList(),
     val subAgentCollapsed: Boolean = true,
-    val reasoningContent: String? = null
+    val reasoningContent: String? = null,
+    val attachment: Attachment? = null
 )
 
 data class SubAgentStepUi(
@@ -258,7 +285,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         subAgentSteps: List<String>,
         reasoningContent: String?
     ) {
-        appendEngineUi(kind, text, imageBase64, subAgentSteps, reasoningContent)
+        appendEngineUi(
+            kind = kind,
+            text = text,
+            imageBase64 = imageBase64,
+            subAgentSteps = subAgentSteps,
+            reasoningContent = reasoningContent
+        )
     }
 
     override fun onActivity(activity: String?) {
@@ -401,9 +434,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return client.listModels()
     }
 
-    fun sendMessage(text: String, imageBase64: String? = null, isVoiceInput: Boolean = false) {
+    fun sendMessage(
+        text: String,
+        imageBase64: String? = null,
+        attachment: Attachment? = null,
+        isVoiceInput: Boolean = false
+    ) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty() && imageBase64 == null) return
+        if (trimmed.isEmpty() && imageBase64 == null && attachment == null) return
         // One agent runs at a time. Block sending while any run is in flight —
         // the user can browse other chats but must let the current run finish.
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
@@ -411,12 +449,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        val msg = if (imageBase64 != null) {
-            visionUserMessage(trimmed, imageBase64, "jpeg")
-        } else {
-            ChatMessage(role = "user", content = JsonPrimitive(trimmed))
-        }
-        launchUserRun(msg, imageBase64, isVoiceInput)
+        val msg = buildUserMessage(trimmed, imageBase64, attachment)
+        launchUserRun(msg, imageBase64, attachment, trimmed, isVoiceInput)
+    }
+
+    /**
+     * Builds the LLM user message for the given prompt and optional attachments.
+     * A document takes precedence over an image (v1 limitation: an attachment is
+     * one kind per message).
+     */
+    private fun buildUserMessage(text: String, imageBase64: String?, attachment: Attachment?): ChatMessage = when {
+        attachment != null -> documentUserMessage(
+            userText = text,
+            fileName = attachment.name,
+            mimeType = attachment.mimeType,
+            extractedText = attachment.text,
+            pageCount = attachment.pageCount
+        )
+        imageBase64 != null -> visionUserMessage(text, imageBase64, "jpeg")
+        else -> ChatMessage(role = "user", content = JsonPrimitive(text))
     }
 
     /**
@@ -424,7 +475,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * and starts an agent run. Shared by [sendMessage] and [editMessage], so both
      * paths go through the same busy-marking, run, and NonCancellable cleanup.
      */
-    private fun launchUserRun(msg: ChatMessage, imageBase64: String?, isVoiceInput: Boolean) {
+    private fun launchUserRun(
+        msg: ChatMessage,
+        imageBase64: String?,
+        attachment: Attachment?,
+        userText: String,
+        isVoiceInput: Boolean
+    ) {
         currentRunIsVoice = isVoiceInput || lastInputWasVoice
         lastInputWasVoice = false
         val viewedId = _uiState.value.activeSessionId
@@ -435,11 +492,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             bindEngineToViewedSession(viewedId)
 
             agentEngine.history += msg
-            appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, imageBase64)
+            appendEngineUi(
+                MessageKind.USER,
+                userDisplayText(userText, msg, attachment),
+                imageBase64,
+                attachment = attachment
+            )
 
             val runningId = agentEngine.sessionId ?: return@launch
             executeRun(engineAgent, runningId)
         }
+    }
+
+    /**
+     * The transcript label for a sent message: the prompt text, or a placeholder
+     * when the message is attachment-only. Document messages show the prompt
+     * rather than the extracted body; images keep their historical behavior
+     * (the message's text part, default prompt when blank).
+     */
+    private fun userDisplayText(userText: String, msg: ChatMessage, attachment: Attachment?): String = when {
+        attachment != null -> userText.ifEmpty { "(document attached)" }
+        else -> msg.textContent
+    }
+
+    /**
+     * The user's prompt portion of a document message's text part, or null when
+     * [content] is not a document message. Document messages put
+     * `[Attached file: …]` on its own line, so everything before that marker is
+     * the user's own words.
+     */
+    private fun documentPromptText(content: String): String? {
+        val marker = "\n[Attached file:"
+        val index = content.indexOf(marker)
+        return if (index >= 0) content.substring(0, index).trim() else null
     }
 
     /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
@@ -485,9 +570,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * transcript, then the agent re-runs immediately so a fresh reply is
      * generated from the edited history.
      */
-    fun editMessage(targetId: Long, newText: String, imageBase64: String?) {
+    fun editMessage(targetId: Long, newText: String, imageBase64: String?, attachment: Attachment? = null) {
         val trimmed = newText.trim()
-        if (trimmed.isEmpty() && imageBase64 == null) return
+        if (trimmed.isEmpty() && imageBase64 == null && attachment == null) return
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         if (client == null) {
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
@@ -527,13 +612,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             // Never promote undone work on the share card.
             agentEngine.restoreRunSummaries(emptyList())
             val editImage = imageBase64 ?: target.imageBase64
-            val msg = if (editImage != null) {
-                visionUserMessage(trimmed, editImage, "jpeg")
-            } else {
-                ChatMessage(role = "user", content = JsonPrimitive(trimmed))
-            }
+            // A previously-sent document keeps its extracted text (the file grant is
+            // long gone); a newly-picked one carries its own.
+            val editAttachment = attachment ?: target.attachment
+            val msg = buildUserMessage(trimmed, editImage, editAttachment)
             agentEngine.history += msg
-            appendEngineUi(MessageKind.USER, msg.textContent.ifEmpty { "(image attached)" }, editImage)
+            appendEngineUi(
+                MessageKind.USER,
+                userDisplayText(trimmed, msg, editAttachment),
+                editImage,
+                attachment = editAttachment
+            )
             executeRun(engineAgent, agentEngine.sessionId ?: return@launch)
         }
     }
@@ -655,6 +744,87 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         } catch (_: Exception) {
             null
         }
+    }
+
+    /**
+     * Result of the composer's "+" pick, delivered asynchronously once the file
+     * has been read and parsed off the main thread. `null` means a failed pick
+     * (an ERROR bubble is appended first).
+     */
+    private val _pickResults = MutableSharedFlow<PickedFile?>(extraBufferCapacity = 1)
+    val pickResults: SharedFlow<PickedFile?> = _pickResults.asSharedFlow()
+
+    /**
+     * Entry point for the composer's "+" button. Routes by content type: images
+     * reuse the image pipeline; anything else goes through [loadDocument]. The
+     * read + parse runs on [Dispatchers.IO] so a large document never blocks the
+     * main thread; a failure surfaces as an ERROR bubble and the result (or
+     * null) is delivered on [pickResults].
+     */
+    fun pickContent(uri: Uri) {
+        viewModelScope.launch {
+            val (picked, error) = withContext(Dispatchers.IO) {
+                try {
+                    val resolver = getApplication<Application>().contentResolver
+                    val mime = resolver.getType(uri)
+                    val picked = if (mime?.startsWith("image/") == true) {
+                        loadImageBase64(uri)?.let { PickedFile.Image(it) }
+                    } else {
+                        loadDocument(uri)?.let { PickedFile.Document(it) }
+                    }
+                    // Both loaders return null when the stream cannot be opened;
+                    // treat that like any other failed pick so the user gets a
+                    // visible error instead of a silent no-op.
+                    if (picked != null) picked to null else null to "Could not read that file."
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: DocumentError) {
+                    null to (e.message ?: "Could not read that file.")
+                } catch (e: Exception) {
+                    null to "Could not read that file: ${HumanReadableError.format(e)}"
+                }
+            }
+            // Back on the main dispatcher: the error bubble lands before the pick
+            // result so a failed attachment explains itself in the transcript.
+            if (error != null) appendUi(MessageKind.ERROR, error)
+            _pickResults.tryEmit(picked)
+        }
+    }
+
+    /**
+     * Load a document from a content:// URI: read the bytes and extract the text
+     * via [DocumentParser]. The extracted text is carried on the returned
+     * [Attachment], so the transient picker read grant is never needed again and
+     * nothing is copied into the app cache. Returns null only when the stream
+     * cannot be opened; unreadable/unsupported content throws [DocumentError],
+     * which [pickContent] surfaces as an ERROR bubble on the main thread.
+     */
+    private fun loadDocument(uri: Uri): Attachment? {
+        val app = getApplication<Application>()
+        val resolver = app.contentResolver
+        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        val name = queryDisplayName(resolver, uri)
+        val extracted = DocumentParser.extract(bytes, name, resolver.getType(uri))
+        return Attachment(
+            name = name,
+            mimeType = extracted.mimeType,
+            size = bytes.size.toLong(),
+            text = extracted.text,
+            pageCount = extracted.pageCount,
+            truncated = extracted.truncated
+        )
+    }
+
+    private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String {
+        return try {
+            resolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index) else null
+            }
+        } catch (_: Exception) {
+            null
+        }?.takeIf { it.isNotBlank() } ?: "document"
     }
 
     fun stopAgent() {
@@ -1099,13 +1269,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         kind: MessageKind,
         text: String,
         imageBase64: String? = null,
+        attachment: Attachment? = null,
         subAgentSteps: List<String> = emptyList(),
         reasoningContent: String? = null
     ) {
         val viewing = viewingEngineSession()
         val id = if (viewing) nextId++ else engineNextId++
         if (kind == MessageKind.ERROR) runHadError = true
-        val message = UiMessage(id, kind, text, imageBase64, subAgentSteps, subAgentCollapsed = true, reasoningContent)
+        val message = UiMessage(
+            id = id,
+            kind = kind,
+            text = text,
+            imageBase64 = imageBase64,
+            subAgentSteps = subAgentSteps,
+            subAgentCollapsed = true,
+            reasoningContent = reasoningContent,
+            attachment = attachment
+        )
         engineTranscript = engineTranscript + message
         if (viewing) {
             _uiState.update { it.copy(messages = it.messages + message) }
@@ -1125,7 +1305,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     }
                     UiMessage(nextId++, MessageKind.ASSISTANT, msgText)
                 }
-                msg.role == "user" -> UiMessage(nextId++, MessageKind.USER, text.ifEmpty { "(image attached)" })
+                msg.role == "user" -> {
+                    val text = msg.textContent
+                    val docPrompt = documentPromptText(text)
+                    UiMessage(
+                        nextId++,
+                        MessageKind.USER,
+                        if (docPrompt != null) {
+                            docPrompt.ifEmpty { "(document attached)" }
+                        } else {
+                            text.ifEmpty { "(image attached)" }
+                        }
+                    )
+                }
                 msg.role == "assistant" && text.isNotBlank() ->
                     UiMessage(nextId++, MessageKind.ASSISTANT, text, reasoningContent = msg.reasoningContent)
                 msg.role == "assistant" && !msg.reasoningContent.isNullOrBlank() ->
@@ -1194,10 +1386,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
             when (role) {
                 "user" -> {
-                    val isVision = msg.content is JsonArray
+                    val docPrompt = documentPromptText(text)
                     sb.appendLine("### User")
-                    if (text.isNotBlank()) sb.appendLine(text)
-                    if (isVision) sb.appendLine("*(Image attached)*")
+                    if (docPrompt != null) {
+                        if (docPrompt.isNotBlank()) sb.appendLine(docPrompt)
+                        sb.appendLine("*(Document attached)*")
+                    } else {
+                        if (text.isNotBlank()) sb.appendLine(text)
+                        if (msg.content is JsonArray) sb.appendLine("*(Image attached)*")
+                    }
                     sb.appendLine()
                 }
                 "assistant" -> {

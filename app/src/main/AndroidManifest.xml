@@ -71,6 +71,10 @@
          regardless of grant). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Tier 4: run_termux_command. Declared by Termux with protectionLevel="dangerous", so it
+         still needs a runtime grant; Termux additionally requires allow-external-apps=true. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
     <!-- Needed on API 30+ so open_app can see other launchable apps. -->
     <!-- Health Connect (read-only). Granted through Health Connect's own permission
          screen, not the standard runtime dialog. -->
@@ -86,6 +90,9 @@
     <queries>
         <!-- Health Connect provider app (Android 13 and below). -->
         <package android:name="com.google.android.apps.healthdata" />
+        <!-- Termux RUN_COMMAND: without this, targetSdk 30+ package visibility hides Termux and
+             the capability probe reports "not installed" on a device that has it. -->
+        <package android:name="com.termux" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -223,6 +230,12 @@
         <!-- Alarm and timer firing receiver -->
         <receiver
             android:name=".tools.AlarmReceiver"
+            android:exported="false" />
+
+        <!-- Termux RUN_COMMAND results. Not exported: Termux fires our own PendingIntent, which
+             the system delivers under Gotcha's identity. -->
+        <receiver
+            android:name=".tools.TermuxResultReceiver"
             android:exported="false" />
 
         <!-- Re-registers alarms/timers after reboot (AlarmManager state doesn't survive one).

@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
@@ -54,6 +55,7 @@ import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.ScreenPerception
+import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
@@ -184,6 +186,25 @@ class MainActivity : ComponentActivity() {
         }
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
+
+    /**
+     * Termux's RUN_COMMAND permission. It is a runtime permission (Termux declares it
+     * `dangerous`), but granting it is only half the journey — Termux also needs
+     * `allow-external-apps=true` — so it gets its own launcher rather than the Settings row's
+     * generic path, and lands the user in Termux afterwards.
+     */
+    private val termuxPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                openTermuxForExternalApps()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Termux command permission denied — the assistant can't run Termux commands.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
 
     /** Requests all runtime permissions at once on first launch. */
     private val firstLaunchLauncher =
@@ -334,8 +355,39 @@ class MainActivity : ComponentActivity() {
                 }
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
+            ToolResult.TERMUX_ACCESS -> requestTermuxAccess()
             // Runtime permissions are mapped in Settings → Permissions; skip here.
         }
+    }
+
+    /**
+     * Grants Termux command access. Two steps, and only the first is ours: the runtime
+     * permission, then Termux's own `allow-external-apps` property, which lives in Termux's
+     * private storage and can only be set inside Termux.
+     */
+    private fun requestTermuxAccess() {
+        val granted = ContextCompat.checkSelfPermission(this, TermuxTool.PERMISSION_RUN_COMMAND) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            openTermuxForExternalApps()
+        } else {
+            termuxPermissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
+        }
+    }
+
+    /** Opens Termux with the one manual step spelled out; no-op if Termux is not installed. */
+    private fun openTermuxForExternalApps() {
+        val launch = packageManager.getLaunchIntentForPackage(TermuxTool.TERMUX_PACKAGE)
+        if (launch == null) {
+            Toast.makeText(this, "Termux is not installed — install it from F-Droid.", Toast.LENGTH_LONG).show()
+            return
+        }
+        Toast.makeText(
+            this,
+            "In Termux, add `allow-external-apps=true` to ~/.termux/termux.properties, then restart Termux.",
+            Toast.LENGTH_LONG
+        ).show()
+        startActivity(launch)
     }
 
     /**
@@ -748,8 +800,8 @@ class MainActivity : ComponentActivity() {
                     }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64, isVoiceInput ->
-                            chatViewModel.sendMessage(text, imageBase64, isVoiceInput)
+                        onSend = { text, imageBase64, attachment, isVoiceInput ->
+                            chatViewModel.sendMessage(text, imageBase64, attachment, isVoiceInput)
                         },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
@@ -757,7 +809,8 @@ class MainActivity : ComponentActivity() {
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        onPickImage = { uri -> chatViewModel.loadImageBase64(uri) },
+                        onPickFile = chatViewModel::pickContent,
+                        pickResults = chatViewModel.pickResults,
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSpeak = chatViewModel::speak,
@@ -771,8 +824,8 @@ class MainActivity : ComponentActivity() {
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         },
-                        onEditMessage = { id, text, imageBase64 ->
-                            chatViewModel.editMessage(id, text, imageBase64)
+                        onEditMessage = { id, text, imageBase64, attachment ->
+                            chatViewModel.editMessage(id, text, imageBase64, attachment)
                         },
                         onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )

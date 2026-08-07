@@ -102,6 +102,11 @@ enum class SettingsPage(
         "What the assistant is allowed to do",
         "settings_permissions_row"
     ),
+    TERMUX(
+        "Termux (Linux shell)",
+        "Run commands in a real Linux shell",
+        "settings_termux_row"
+    ),
     SKILLS(
         "Skills / Plugins",
         "Built-in and community skills",

@@ -1865,6 +1865,59 @@ object ToolDefinitions {
         }
     )
 
+    val runTermuxCommand = tool(
+        "run_termux_command",
+        "Run a shell command inside Termux, which has a real Linux user-space — `pkg install`/`apt`, " +
+            "python3, git, ssh, compilers. Use this for anything that needs a package installed or a " +
+            "non-trivial script; it runs headlessly, with no terminal opening in front of the user. " +
+            "Only offered when Termux is installed.\n" +
+            "Each call is a SEPARATE shell: `cd`, `export`, and activated virtualenvs do NOT carry " +
+            "over to your next call, which starts again in Termux's home. Chain dependent steps in " +
+            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them.\n" +
+            "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
+            "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
+            "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +
+            "rather than retrying.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("command") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Shell command line to run in Termux, e.g. 'pkg install python -y' or " +
+                            "'python3 -c \"print(1+1)\"'. Pipes and multiple statements are fine."
+                    )
+                }
+                putJsonObject("working_dir") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute path inside Termux's filesystem. Defaults to Termux's home. " +
+                            "Applies to this call only — it is not remembered for the next one."
+                    )
+                }
+                putJsonObject("timeout_seconds") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Timeout in seconds (1-600). Default 60 — raise it for package installs and builds."
+                    )
+                }
+                putJsonObject("stdin") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Text piped to the command's standard input. Supply this for anything that would " +
+                            "otherwise wait for typed input — there is no terminal to type into, so an " +
+                            "unanswered prompt just runs until the timeout. Prefer non-interactive flags " +
+                            "(e.g. 'pkg install -y') where they exist."
+                    )
+                }
+            }
+            putJsonArray("required") { add("command") }
+        }
+    )
+
     val writeSecureSettings = tool(
         "write_secure_settings",
         "Write an Android system/secure/global setting, e.g. secure/location_mode=3. " +
@@ -2351,7 +2404,7 @@ object ToolDefinitions {
         lockScreen, disableCamera, setPasswordPolicy,
 
         // Tier 4 additions: privileged / rooted execution
-        checkRoot, runRootCommand, writeSecureSettings,
+        checkRoot, runRootCommand, runTermuxCommand, writeSecureSettings,
 
         searchSkills,
 

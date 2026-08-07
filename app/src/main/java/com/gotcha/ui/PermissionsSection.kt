@@ -12,14 +12,17 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,14 +33,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.HealthPermissionState
+import com.gotcha.tools.HealthTool
+import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import android.provider.Settings as AndroidSettings
 
 @Composable
-fun PermissionsSection(packageName: String) {
+fun PermissionsSection(
+    packageName: String,
+    /** Offered on the Termux row as a shortcut to its guided setup page. */
+    onOpenTermuxSetup: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val groups = remember { allPermissionGroups() }
     var userToggledGroups by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
@@ -57,6 +69,15 @@ fun PermissionsSection(packageName: String) {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { /* permission state is re-read on next ON_RESUME via resumeSignal */ }
 
+    // Health Connect only reports granted permissions through a suspend call, so its row
+    // cannot re-read live state like the others — it reads this value instead, refreshed
+    // whenever the screen resumes (covers grants made in Health Connect's own screen or
+    // manually in system settings).
+    var healthConnectGranted by remember { mutableStateOf(HealthPermissionState.isGranted()) }
+    LaunchedEffect(resumeSignal) {
+        healthConnectGranted = HealthPermissionState.refresh(context)
+    }
+
     // No "Permissions" heading: PermissionsScreen's top bar already says it.
     Text(
         "Configure permissions that the assistant needs. Runtime permissions show a system dialog " +
@@ -65,8 +86,11 @@ fun PermissionsSection(packageName: String) {
     )
 
     for (group in groups) {
+        // Rows for permissions another app declares disappear until that app is installed.
+        val items = remember(resumeSignal, group) { group.items.filter { it.isRelevant(context) } }
+        if (items.isEmpty()) continue
         val hasUngrantedPermission = remember(resumeSignal, group) {
-            group.items.any { !it.isGranted(context) }
+            items.any { !it.isGranted(context) }
         }
         val expanded = userToggledGroups[group.name] ?: hasUngrantedPermission
         Row(
@@ -89,15 +113,29 @@ fun PermissionsSection(packageName: String) {
 
         AnimatedVisibility(visible = expanded) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (item in group.items) {
-                    // Read live permission state from Android, re-checked on every resume
-                    val granted = remember(resumeSignal) { item.isGranted(context) }
+                for (item in items) {
+                    // Read live permission state from Android, re-checked on every resume.
+                    // Health Connect is the exception: its grants come from a suspend call, so
+                    // its row is driven by healthConnectGranted (refreshed above). Read directly
+                    // rather than via remember — the refresh lands asynchronously after the
+                    // resume-triggered recomposition, and reading the state subscribes the row
+                    // to it.
+                    val granted = if (item.specialMarker == ToolResult.HEALTH_CONNECT) {
+                        healthConnectGranted
+                    } else {
+                        remember(resumeSignal) { item.isGranted(context) }
+                    }
                     PermissionRow(
                         item = item,
                         granted = granted,
                         packageName = packageName,
                         onRequestRuntime = { perms ->
                             runtimeLauncher.launch(perms)
+                        },
+                        onOpenDetails = if (item.androidPermission == TermuxTool.PERMISSION_RUN_COMMAND) {
+                            onOpenTermuxSetup
+                        } else {
+                            null
                         }
                     )
                 }
@@ -111,7 +149,9 @@ private fun PermissionRow(
     item: PermissionItem,
     granted: Boolean,
     packageName: String,
-    onRequestRuntime: (Array<String>) -> Unit
+    onRequestRuntime: (Array<String>) -> Unit,
+    /** Rendered as a secondary "Guided setup" link under the row's description. */
+    onOpenDetails: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -129,6 +169,17 @@ private fun PermissionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (onOpenDetails != null) {
+                TextButton(
+                    onClick = onOpenDetails,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(
+                        "Guided setup ›",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
         }
         Switch(
             checked = granted,
@@ -156,8 +207,15 @@ private fun PermissionRow(
  * whose permission steps offer the same journey from their coach card — two
  * copies of this intent table would be two places for an OEM quirk to be fixed
  * in only one.
+ *
+ * Returns the intent that was fired (or null when [marker] has nothing to open),
+ * so tests can assert on the routing table itself; callers ignore the return.
  */
-internal fun openSpecialAccess(context: android.content.Context, marker: String, packageName: String) {
+internal fun openSpecialAccess(
+    context: android.content.Context,
+    marker: String,
+    packageName: String
+): Intent? {
     val intent: Intent? = when (marker) {
         ToolResult.WRITE_SETTINGS -> Intent(
             AndroidSettings.ACTION_MANAGE_WRITE_SETTINGS,
@@ -186,10 +244,29 @@ internal fun openSpecialAccess(context: android.content.Context, marker: String,
                 `package` = it.`package`
             }
         }
+        ToolResult.HEALTH_CONNECT -> {
+            if (HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE) {
+                PermissionController.createRequestPermissionResultContract()
+                    .createIntent(context, HealthTool.PERMISSIONS)
+            } else {
+                // No provider (or one that is out of date): steer to the Play listing instead of
+                // crash-launching a screen nothing can handle — same journey as the agent path in
+                // MainActivity.requestHealthConnect.
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("market://details?id=com.google.android.apps.healthdata")
+                )
+            }
+        }
+        // Only the Termux half of the journey: this path has no Activity to request the runtime
+        // permission from, and the allow-external-apps property can only be set inside Termux.
+        // MainActivity.requestTermuxAccess handles both halves when the agent asks.
+        ToolResult.TERMUX_ACCESS -> context.packageManager.getLaunchIntentForPackage("com.termux")
         else -> null
     }
     if (intent != null) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }
+    return intent
 }

@@ -1,0 +1,18 @@
+# Build outputs
+*.apk
+*.aab
+*.jar
+*.class
+bin/
+build/
+out/
+dist/
+
+# Local config
+local.properties
+.env
+
+# Secrets — never commit
+*.keystore
+*.jks
+secrets/

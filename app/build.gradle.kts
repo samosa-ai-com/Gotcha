@@ -183,6 +183,10 @@ android {
         unitTests.all { test ->
             val updatingCoverageDocs = providers.gradleProperty("updateCoverageDocs").getOrElse("false")
             test.systemProperty("gotcha.coverage.update", updatingCoverageDocs)
+            // sample-documents/ doubles as the fixtures for SampleDocumentsTest; pass the
+            // absolute path so the test reads the single committed copy instead of keeping
+            // a second one under src/test/resources.
+            test.systemProperty("gotcha.sampleDocsDir", rootProject.file("sample-documents").absolutePath)
             // The generated doc is an *input* to the drift assertion, so hand-editing it has to
             // invalidate the task — otherwise Gradle reports UP-TO-DATE and the gate never runs.
             // Skipped while regenerating, when the task writes that same file.
@@ -337,6 +341,13 @@ dependencies {
 
     // HTML parsing for webfetch tool
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // PDF text extraction for document attachments (DocumentParser). bouncycastle
+    // is pulled in only for encrypted/signed PDFs, which are out of scope; the
+    // text path never touches it, so exclude it to keep the dependency lean.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0") {
+        exclude(group = "org.bouncycastle")
+    }
 
     // Connectors: Custom Tabs for the BYO-OAuth consent flow
     implementation("androidx.browser:browser:1.8.0")

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="falcon">
+  <metadata>
+    <author>Rishabh Bajpai</author>
+    <created>2026-08-06</created>
+    <status>in-progress</status>
+  </metadata>
+  <modules>
+    <module id="app">
+      <name>Android client</name>
+      <language>kotlin</language>
+      <tests>184</tests>
+    </module>
+    <module id="api">
+      <name>Backend API</name>
+      <language>python</language>
+      <tests>96</tests>
+    </module>
+  </modules>
+  <notes>
+    <note priority="high">Wire document attachments to the share sheet.</note>
+    <note priority="medium">Add a usage dashboard.</note>
+  </notes>
+</project>
