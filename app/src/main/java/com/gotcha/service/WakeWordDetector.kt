@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Process
 import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
@@ -285,6 +286,12 @@ class WakeWordDetector(
             classifierSession = localSessions.classifier,
             matcher = matcher
         )
+        // An audio capture loop should be scheduled like one. At the default
+        // priority of a Dispatchers.IO thread this loop competes with ordinary
+        // background work, and a preempted read is a dropped frame. Restored
+        // afterwards because the thread goes back to the shared IO pool.
+        val callerPriority = Process.getThreadPriority(Process.myTid())
+        Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
         try {
             localRecorder.startRecording()
             while (running.get()) {
@@ -318,6 +325,8 @@ class WakeWordDetector(
             }
         } catch (e: Exception) {
             if (running.get()) fail("Wake word listening stopped unexpectedly.", e, generation)
+        } finally {
+            Process.setThreadPriority(callerPriority)
         }
     }
 

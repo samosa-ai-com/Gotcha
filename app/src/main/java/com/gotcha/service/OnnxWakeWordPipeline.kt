@@ -41,12 +41,18 @@ import java.nio.FloatBuffer
  * longer than ~1.3 s. `WakeWordGate`'s hangover is what keeps gaps that short
  * from re-arming at all.
  *
- * The hot path avoids per-frame GC pressure: the raw PCM ring buffer, the
- * combined feed buffer, the frame buffer, and the mel window are all
- * pre-allocated once and reused. The per-row mel arrays, `toList()` snapshots,
- * and ONNX tensor inputs are still allocated each frame (~37.5/s), which is
- * acceptable — keep this from drifting into the comment-free "zero allocation"
- * territory that a profiler would disprove.
+ * ## Allocation
+ *
+ * The hot path is close to allocation-free, which matters on a path that runs
+ * for as long as the phone is on. Pre-allocated and reused: the raw PCM ring,
+ * the combined feed buffer, the frame buffer, the mel window, the embedding
+ * input (`[1][76][32][1]` — this one was 2432 one-element arrays per frame),
+ * and the classifier input. The mel rows and embeddings are recycled through
+ * [melRowPool] and [featurePool] as they fall out of their bounded buffers.
+ *
+ * What still allocates per frame: the `OnnxTensor` wrappers and whatever ORT
+ * hands back from `run()`. Both are ORT's to own. This is not "zero
+ * allocation" — keep the claim honest, a profiler is the arbiter.
  */
 @Suppress("UNCHECKED_CAST")
 internal class OnnxWakeWordPipeline(
@@ -104,6 +110,32 @@ internal class OnnxWakeWordPipeline(
     private val featureBuffer = ArrayDeque<FloatArray>()
 
     /**
+     * Mel rows that fell out of [melBuffer], kept for reuse. The buffer is
+     * bounded, so in the steady state every row appended can take the storage
+     * of one that was just evicted and the hot path stops allocating.
+     */
+    private val melRowPool = ArrayDeque<FloatArray>()
+
+    /** The same idea as [melRowPool], for the 96-dim embeddings. */
+    private val featurePool = ArrayDeque<FloatArray>()
+
+    /**
+     * Reused embedding input, `[1][76][32][1]`. Allocating this per frame meant
+     * 2432 one-element FloatArrays every 80 ms — by a wide margin the largest
+     * source of garbage on a path that runs forever. Every element is written
+     * before the tensor is built, and the tensor is closed before the next fill.
+     */
+    private val embeddingInput =
+        Array(1) { Array(MEL_EMBEDDING_WINDOW) { Array(MEL_BINS) { FloatArray(1) } } }
+
+    /**
+     * Reused classifier input, `[1][16][96]`. The rows are references into
+     * [featureBuffer], replaced wholesale each call, so the placeholder they
+     * start out pointing at is never read.
+     */
+    private val classifierInput = Array(1) { Array(CLASSIFIER_FRAMES) { EMPTY_FEATURE } }
+
+    /**
      * Rows appended to [melBuffer] by each of the last [CLASSIFIER_FRAMES]
      * frames. Re-arming after the gate closes has to rebuild the embeddings for
      * a run of earlier frames, and that means knowing where each of those
@@ -152,6 +184,8 @@ internal class OnnxWakeWordPipeline(
         gatedFrames = 0
         melBuffer.clear()
         featureBuffer.clear()
+        melRowPool.clear()
+        featurePool.clear()
         matcher.reset()
         gate.reset()
         prefillFeatures()
@@ -258,9 +292,11 @@ internal class OnnxWakeWordPipeline(
         if (rows.isEmpty()) return false
         probe?.onMelRows(rows.size)
         for (row in rows) {
-            melBuffer.addLast(FloatArray(MEL_BINS) { row[it] / 10f + 2f })
+            val stored = melRowPool.removeLastOrNull() ?: FloatArray(MEL_BINS)
+            for (bin in 0 until MEL_BINS) stored[bin] = row[bin] / 10f + 2f
+            melBuffer.addLast(stored)
         }
-        while (melBuffer.size > MEL_BUFFER_MAX) melBuffer.removeFirst()
+        while (melBuffer.size > MEL_BUFFER_MAX) melRowPool.addLast(melBuffer.removeFirst())
         recordRowCount(rows.size)
         return true
     }
@@ -290,28 +326,35 @@ internal class OnnxWakeWordPipeline(
         val end = melBuffer.size - rowsBack
         val base = end - MEL_EMBEDDING_WINDOW
         if (base < 0) return false
-        val x = Array(1) { Array(MEL_EMBEDDING_WINDOW) { Array(MEL_BINS) { FloatArray(1) } } }
+        val x = embeddingInput
         for (k in 0 until MEL_EMBEDDING_WINDOW) {
             val row = melBuffer[base + k]
-            for (w in 0 until MEL_BINS) x[0][k][w][0] = row[w]
+            val slot = x[0][k]
+            for (w in 0 until MEL_BINS) slot[w][0] = row[w]
         }
 
         val tensor = OnnxTensor.createTensor(env, x)
         val embedding = try {
             embeddingSession.run(mapOf(embeddingSession.inputNames.first() to tensor)).use { result ->
-                (result.get(0).value as Array<Array<Array<FloatArray>>>)[0][0][0].copyOf()
+                val out = (result.get(0).value as Array<Array<Array<FloatArray>>>)[0][0][0]
+                // Recycled rather than copyOf()'d. Safe because classify()
+                // refills every slot of classifierInput before it reads them,
+                // so no evicted row is ever read after being handed back.
+                val stored = featurePool.removeLastOrNull() ?: FloatArray(FEATURE_DIM)
+                out.copyInto(stored)
+                stored
             }
         } finally {
             tensor.close()
         }
         featureBuffer.addLast(embedding)
-        while (featureBuffer.size > FEATURE_BUFFER_MAX) featureBuffer.removeFirst()
+        while (featureBuffer.size > FEATURE_BUFFER_MAX) featurePool.addLast(featureBuffer.removeFirst())
         return true
     }
 
     private fun classify(): Float? {
         if (featureBuffer.size < CLASSIFIER_FRAMES) return null
-        val x = Array(1) { Array(CLASSIFIER_FRAMES) { FloatArray(FEATURE_DIM) } }
+        val x = classifierInput
         val base = featureBuffer.size - CLASSIFIER_FRAMES
         for (k in 0 until CLASSIFIER_FRAMES) x[0][k] = featureBuffer[base + k]
 
@@ -374,5 +417,8 @@ internal class OnnxWakeWordPipeline(
          */
         private const val MEL_BUFFER_MAX = 240
         private const val FEATURE_BUFFER_MAX = 32
+
+        /** Placeholder for [classifierInput]'s rows; overwritten before every read. */
+        private val EMPTY_FEATURE = FloatArray(FEATURE_DIM)
     }
 }
