@@ -45,13 +45,26 @@ internal class WakeWordGate(
     private val alwaysOpen: Boolean = false
 ) {
     private val recentRms = FloatArray(FLOOR_WINDOW)
+
+    /** Reused scratch for the percentile sort, so the floor costs no allocation. */
+    private val floorScratch = FloatArray(FLOOR_WINDOW)
     private var recentCount = 0
     private var recentStart = 0
     private var framesSinceEnergy = 0
+    private var framesSinceFloorRefresh = 0
 
-    /** The level a frame must exceed to open the gate, in dBFS. */
-    val thresholdDb: Float
-        get() = maxOf(minThresholdDb, noiseFloorEstimate + marginDb)
+    /**
+     * The level a frame must exceed to open the gate, in dBFS.
+     *
+     * Cached rather than recomputed per frame. The floor is a percentile over
+     * four seconds of history — it moves slowly by construction, so refreshing
+     * it every [FLOOR_REFRESH_FRAMES] tracks it just as well while keeping the
+     * sort off a path that runs 12.5 times a second for as long as the phone is
+     * on. Recomputing it per frame made the gate the only remaining per-frame
+     * allocation in the listener.
+     */
+    var thresholdDb: Float = maxOf(minThresholdDb, INITIAL_NOISE_FLOOR_DB + marginDb)
+        private set
 
     /** True while the floor window is still filling; the gate is forced open. */
     val priming: Boolean
@@ -67,7 +80,17 @@ internal class WakeWordGate(
 
         recentRms[recentStart] = frameRmsDb
         recentStart = (recentStart + 1) % FLOOR_WINDOW
-        if (recentCount < FLOOR_WINDOW) recentCount++
+        val wasPriming = recentCount < FLOOR_WINDOW
+        if (wasPriming) recentCount++
+
+        // Refresh on the frame that completes priming — the first real floor is
+        // worth having immediately — and periodically after that.
+        framesSinceFloorRefresh++
+        if ((wasPriming && recentCount == FLOOR_WINDOW) ||
+            framesSinceFloorRefresh >= FLOOR_REFRESH_FRAMES
+        ) {
+            refreshThreshold()
+        }
 
         if (open) {
             framesSinceEnergy = 0
@@ -83,15 +106,24 @@ internal class WakeWordGate(
         recentCount = 0
         recentStart = 0
         framesSinceEnergy = 0
+        framesSinceFloorRefresh = 0
+        recentRms.fill(0f)
+        thresholdDb = maxOf(minThresholdDb, INITIAL_NOISE_FLOOR_DB + marginDb)
     }
 
-    private val noiseFloorEstimate: Float
-        get() {
-            if (recentCount < FLOOR_WINDOW) return INITIAL_NOISE_FLOOR_DB
-            val sorted = recentRms.copyOf(FLOOR_WINDOW).apply { sort() }
-            val index = (sorted.size * FLOOR_QUANTILE).toInt().coerceIn(0, sorted.lastIndex)
-            return sorted[index]
-        }
+    private fun refreshThreshold() {
+        framesSinceFloorRefresh = 0
+        thresholdDb = maxOf(minThresholdDb, noiseFloorEstimate() + marginDb)
+    }
+
+    private fun noiseFloorEstimate(): Float {
+        if (recentCount < FLOOR_WINDOW) return INITIAL_NOISE_FLOOR_DB
+        recentRms.copyInto(floorScratch)
+        floorScratch.sort()
+        val index = (floorScratch.size * FLOOR_QUANTILE).toInt()
+            .coerceIn(0, floorScratch.lastIndex)
+        return floorScratch[index]
+    }
 
     companion object {
         /**
@@ -126,6 +158,9 @@ internal class WakeWordGate(
         private const val FLOOR_WINDOW = 50
 
         private const val FLOOR_QUANTILE = 0.2f
+
+        /** ~1 s. The floor spans 4 s of history, so this loses nothing. */
+        private const val FLOOR_REFRESH_FRAMES = 12
 
         /** Level reported for digital silence, where the log is undefined. */
         const val SILENT_DB = -120f

@@ -170,10 +170,15 @@ class WakeWordDetectionDiagnosticTest {
             override fun onError(utteranceId: String?) = done.countDown()
         })
         tts.synthesizeToFile(text, null, out, "wake-probe")
-        assertTrue("TTS never produced a file", done.await(30, TimeUnit.SECONDS))
-        tts.shutdown()
-
-        return resampleTo16k(readWav(out))
+        try {
+            assertTrue("TTS never produced a file", done.await(30, TimeUnit.SECONDS))
+            tts.shutdown()
+            return resampleTo16k(readWav(out))
+        } finally {
+            // A rendering of the wake phrase is not something to leave sitting
+            // in the app's cache after the test.
+            out.delete()
+        }
     }
 
     /** Minimal PCM-16 WAV reader: walks the chunk list for `fmt ` and `data`. */

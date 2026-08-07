@@ -130,6 +130,30 @@ class WakeWordGateTest {
     }
 
     @Test
+    fun theThresholdKeepsTrackingTheRoomAfterPriming() {
+        val gate = WakeWordGate()
+        gate.prime(levelDb = -70f)
+        val quietThreshold = gate.thresholdDb
+
+        // The floor is cached and refreshed periodically rather than recomputed
+        // per frame. A cache that never refreshed would leave the gate judging
+        // a loud room against a silent one's threshold forever, so pin that it
+        // still moves — one refresh window is well inside 60 frames.
+        repeat(60) { gate.onLevel(-30f) }
+        assertTrue(
+            "threshold froze at $quietThreshold after the room got louder (now ${gate.thresholdDb})",
+            gate.thresholdDb > quietThreshold
+        )
+
+        // And back down again when the room goes quiet.
+        repeat(60) { gate.onLevel(-70f) }
+        assertTrue(
+            "threshold stayed high (${gate.thresholdDb}) after the room went quiet",
+            gate.thresholdDb < -50f
+        )
+    }
+
+    @Test
     fun rmsDb_isUnclampedAndTracksLevel() {
         val fullScale = ShortArray(160) { Short.MAX_VALUE }
         assertEquals(0f, WakeWordGate.rmsDb(fullScale, fullScale.size), 0.1f)

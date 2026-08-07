@@ -50,6 +50,9 @@ import java.nio.FloatBuffer
  * and the classifier input. The mel rows and embeddings are recycled through
  * [melRowPool] and [featurePool] as they fall out of their bounded buffers.
  *
+ * [WakeWordGate] holds the same line: its noise floor is a sorted percentile,
+ * but over reused scratch and refreshed on a schedule rather than per frame.
+ *
  * What still allocates per frame: the `OnnxTensor` wrappers and whatever ORT
  * hands back from `run()`. Both are ORT's to own. This is not "zero
  * allocation" — keep the claim honest, a profiler is the arbiter.
@@ -251,7 +254,9 @@ internal class OnnxWakeWordPipeline(
         if (!timed(PipelineProbe.Stage.MEL) { computeMel() }) return false
 
         if (!open) {
-            if (gatedFrames < CLASSIFIER_FRAMES) gatedFrames++
+            // Capped at what a replay can actually use; anything older has
+            // already fallen out of the classifier's window.
+            if (gatedFrames < CLASSIFIER_FRAMES - 1) gatedFrames++
             probe?.onGated()
             return false
         }

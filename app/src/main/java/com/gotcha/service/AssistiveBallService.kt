@@ -874,8 +874,13 @@ class AssistiveBallService : Service() {
         if (ttsEngine.isSpeaking.value) {
             // The app was reading something aloud (e.g. a screen read-aloud that
             // happened to contain "gotcha") — never start a call from our own
-            // voice. Resume listening instead.
-            maybeStartWakeWord()
+            // voice.
+            //
+            // Deliberately does not re-arm here. Doing so put the listener back
+            // on the mic *while the app was still talking*, so the rest of the
+            // utterance could trigger this path again and again. The isSpeaking
+            // collector re-arms as soon as the app goes quiet, which is the
+            // moment listening should resume.
             return
         }
         val s = settingsRepository.load()

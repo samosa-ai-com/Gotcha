@@ -424,12 +424,15 @@ class WakeWordDetector(
             if (rmsDb > peakRms) peakRms = rmsDb
             if (rmsDb < quietestRms) quietestRms = rmsDb
             if (reads % REPORT_EVERY_READS != 0) return
+            // Locale.ROOT, not the default: on a decimal-comma device these
+            // become "-70,5" and stop being greppable, which is the whole point
+            // of the line.
             Log.d(
                 TAG,
-                "heard: rms ${"%.1f".format(quietestRms)}..${"%.1f".format(peakRms)} dBFS, " +
-                    "frames=$frames scored=$scored gated=$gated peakScore=${"%.3f".format(peakScore)} " +
-                    "mel[${"%.2f".format(melMin)}..${"%.2f".format(melMax)} avg ${"%.2f".format(melMean)}] " +
-                    "emb[${"%.2f".format(embMin)}..${"%.2f".format(embMax)} avg ${"%.2f".format(embMean)}]"
+                "heard: rms ${fmt(quietestRms, 1)}..${fmt(peakRms, 1)} dBFS, " +
+                    "frames=$frames scored=$scored gated=$gated peakScore=${fmt(peakScore, 3)} " +
+                    "mel[${fmt(melMin, 2)}..${fmt(melMax, 2)} avg ${fmt(melMean, 2)}] " +
+                    "emb[${fmt(embMin, 2)}..${fmt(embMax, 2)} avg ${fmt(embMean, 2)}]"
             )
             melMin = Float.MAX_VALUE
             melMax = -Float.MAX_VALUE
@@ -455,6 +458,9 @@ class WakeWordDetector(
             scored++
             if (score > peakScore) peakScore = score
         }
+
+        private fun fmt(value: Float, decimals: Int): String =
+            String.format(java.util.Locale.ROOT, "%.${decimals}f", value)
 
         private companion object {
             /** ~3 s at 4 frames per read. */
