@@ -54,6 +54,23 @@ class WakeWordDetector(
      * [release] closes them — see [pause] for why.
      */
     private var sessions: Sessions? = null
+
+    /**
+     * How many listen loops are currently running inference against [sessions].
+     * Normally 0 or 1; briefly 2 when a stale loop has not yet noticed it was
+     * superseded. Guarded by [stateLock].
+     *
+     * This exists so the inference itself does not have to hold [stateLock].
+     * A `run()` on the embedding model, plus the burst a gate re-arm can
+     * trigger, is tens of milliseconds — long enough that holding the lock
+     * across it would stall any main-thread `pause()`/`release()` behind it.
+     * Instead the lock is held only for the state checks, and the models are
+     * kept alive by whoever is using them.
+     */
+    private var sessionUsers = 0
+
+    /** Sessions a [release] wanted to close while a listen loop still held them. */
+    private var pendingClose: Sessions? = null
     private var matcher = WakeWordMatcher(WakeWordMatcher.DEFAULT_SENSITIVITY)
     private var generation = 0
 
@@ -128,7 +145,7 @@ class WakeWordDetector(
             Log.d(TAG, if (closeSessions) "release()" else "pause()", Throwable("called from"))
         }
         val oldRecorder: AudioRecord?
-        val oldSessions: Sessions?
+        var oldSessions: Sessions? = null
         val oldJob: Job?
         synchronized(stateLock) {
             running.set(false)
@@ -136,10 +153,23 @@ class WakeWordDetector(
             matcher.reset()
             oldRecorder = recorder
             oldJob = job
-            oldSessions = if (closeSessions) sessions else null
             recorder = null
             job = null
-            if (closeSessions) sessions = null
+            if (closeSessions) {
+                val doomed = sessions
+                sessions = null
+                if (doomed != null) {
+                    if (sessionUsers > 0) {
+                        // A listen loop is mid-inference against these. Closing
+                        // them here would free models out from under a running
+                        // OrtSession.run() — hand the close to whoever finishes
+                        // last instead.
+                        pendingClose = doomed
+                    } else {
+                        oldSessions = doomed
+                    }
+                }
+            }
         }
         oldRecorder?.let {
             try {
@@ -195,14 +225,22 @@ class WakeWordDetector(
                 }
                 sessions = active
                 recorder = createdRecorder
+                // Claim the models for as long as this loop runs, so a
+                // concurrent release() defers closing them rather than pulling
+                // them out from under an in-flight inference.
+                sessionUsers++
             }
             scope.launch(Dispatchers.Main) { onStarted() }
-            listen(
-                generation = generation,
-                env = env,
-                localRecorder = createdRecorder,
-                localSessions = active
-            )
+            try {
+                listen(
+                    generation = generation,
+                    env = env,
+                    localRecorder = createdRecorder,
+                    localSessions = active
+                )
+            } finally {
+                releaseSessionUse()
+            }
         } catch (e: Exception) {
             loadedSessions?.close()
             createdRecorder?.release()
@@ -219,6 +257,19 @@ class WakeWordDetector(
     @Volatile
     internal var sessionLoadCount = 0
         private set
+
+    /**
+     * Drops this loop's claim on the models, closing them if a [release]
+     * asked for that while the loop was still running.
+     */
+    private fun releaseSessionUse() {
+        val toClose: Sessions?
+        synchronized(stateLock) {
+            sessionUsers--
+            toClose = if (sessionUsers == 0) pendingClose.also { pendingClose = null } else null
+        }
+        toClose?.close()
+    }
 
     /** Loads all three models, closing any that succeeded if a later one fails. */
     private fun loadSessions(env: OrtEnvironment): Sessions {
@@ -346,20 +397,29 @@ class WakeWordDetector(
                     telemetry.onRead(WakeWordGate.rmsDb(block, count))
                 }
 
-                var detected = false
-                synchronized(stateLock) {
-                    if (!running.get() || recorder !== localRecorder || generation != this.generation) {
-                        return
-                    }
-                    if (pipeline.feed(block, count)) {
-                        detected = true
+                // The state check is under the lock; the inference is not. A
+                // batch of four frames, plus the replay a gate re-arm can
+                // trigger, is tens of milliseconds of ONNX — long enough that
+                // running it under the lock would stall a main-thread pause()
+                // or release() behind it. The models cannot be closed while
+                // this loop runs (see sessionUsers), so dropping the lock here
+                // is safe.
+                if (isStale(localRecorder, generation)) return
+                if (!pipeline.feed(block, count)) continue
+
+                // Re-check before acting: the listener may have been paused
+                // while that batch was being processed, in which case this
+                // detection belongs to a listener that no longer exists.
+                val fire = synchronized(stateLock) {
+                    if (isStaleLocked(localRecorder, generation)) {
+                        false
+                    } else {
                         running.set(false)
+                        true
                     }
                 }
-                if (detected) {
-                    scope.launch(Dispatchers.Main) { onDetected() }
-                    return
-                }
+                if (fire) scope.launch(Dispatchers.Main) { onDetected() }
+                return
             }
         } catch (e: Exception) {
             if (running.get()) fail("Wake word listening stopped unexpectedly.", e, generation)
@@ -467,6 +527,13 @@ class WakeWordDetector(
             const val REPORT_EVERY_READS = 10
         }
     }
+
+    private fun isStale(localRecorder: AudioRecord, generation: Int): Boolean =
+        synchronized(stateLock) { isStaleLocked(localRecorder, generation) }
+
+    /** Caller must hold [stateLock]. */
+    private fun isStaleLocked(localRecorder: AudioRecord, generation: Int): Boolean =
+        !running.get() || recorder !== localRecorder || generation != this.generation
 
     private fun fail(message: String, cause: Exception? = null, generation: Int) {
         synchronized(stateLock) {
