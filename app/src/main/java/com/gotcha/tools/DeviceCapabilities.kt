@@ -34,6 +34,7 @@ object DeviceCapabilities {
         if (notificationListenerEnabled(context)) add(Capability.NOTIFICATION_LISTENER)
         if (deviceAdminActive(context)) add(Capability.DEVICE_ADMIN)
         if (rootAvailable()) add(Capability.ROOT)
+        if (termuxUsable(context)) add(Capability.TERMUX)
         if (healthConnectPresent(context)) add(Capability.HEALTH_CONNECT)
         if (overlayAllowed(context)) add(Capability.OVERLAY)
     }
@@ -80,6 +81,18 @@ object DeviceCapabilities {
         androidx.health.connect.client.HealthConnectClient.getSdkStatus(context) ==
             androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE
     }.getOrDefault(false)
+
+    /**
+     * Whether Termux is installed *and* exposes the RUN_COMMAND plugin API — deliberately not
+     * whether the permission is granted, for the same reason [healthConnectPresent] ignores its
+     * grants: the permission is requested on demand by [TermuxTool], so gating on it would hide
+     * the only tool that can ever raise the prompt. The plugin API has no such cycle; it is a
+     * fixed property of which Termux build is installed, and the Google Play build ships without
+     * it, so gating on it keeps the tool out of the model's hands on devices where no grant could
+     * ever make it work. Needs `<package android:name="com.termux"/>` in the manifest's
+     * `<queries>` block to see past targetSdk 30+ package visibility.
+     */
+    fun termuxUsable(context: Context): Boolean = TermuxTool(context).status().usable
 
     /**
      * Presence of a `su` binary, cached for the process.

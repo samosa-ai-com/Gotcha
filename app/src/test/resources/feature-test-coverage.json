@@ -573,6 +573,15 @@
       "manualSteps": "On a rooted device, ask the agent to run `id`; confirm the superuser prompt appears and the output shows uid=0."
     },
     {
+      "tool": "run_termux_command",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.TermuxToolTest",
+        "com.gotcha.tools.ActionLogRedactionTest"
+      ],
+      "notes": "installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand"
+    },
+    {
       "tool": "write_secure_settings",
       "tier": "MANUAL_ONLY",
       "reason": "Requires WRITE_SECURE_SETTINGS, granted only via adb — and it mutates global device state.",

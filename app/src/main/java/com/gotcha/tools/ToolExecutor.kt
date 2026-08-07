@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -30,6 +31,9 @@ class ToolExecutor(
 
     private companion object {
         const val TAG = "Gotcha"
+
+        /** Argument names never written verbatim to the audit log. See [redactedForAudit]. */
+        val REDACTED_AUDIT_KEYS = setOf("stdin")
     }
 
     private val appContext = context.applicationContext
@@ -66,6 +70,7 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
+    private val termuxTool = TermuxTool(appContext)
     private val healthTool = HealthTool(appContext)
     private val actionLog = ActionLog(appContext)
 
@@ -119,9 +124,29 @@ class ToolExecutor(
             TAG,
             "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
         )
-        actionLog.record(name, args.toString(), result)
+        actionLog.record(name, args.redactedForAudit(), result)
         return result
     }
+
+    /**
+     * Arguments as they may be written to the on-disk audit log.
+     *
+     * The log is plaintext in the app sandbox and deliberately records what each tool was asked
+     * to do, but some arguments are secrets by their nature rather than by their content:
+     * `stdin` exists precisely so the model can answer a prompt, and the prompts worth answering
+     * are passwords, passphrases and tokens. Logging the argument name still leaves the audit
+     * trail intact — what ran, and that something was piped to it.
+     */
+    private fun JsonObject.redactedForAudit(): String =
+        if (keys.none { it in REDACTED_AUDIT_KEYS }) {
+            toString()
+        } else {
+            JsonObject(
+                mapValues { (key, value) ->
+                    if (key in REDACTED_AUDIT_KEYS) JsonPrimitive("(redacted)") else value
+                }
+            ).toString()
+        }
 
     /**
      * Execute an uninstall that was already confirmed by the user.
@@ -515,6 +540,12 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
+            "run_termux_command" -> termuxTool.runCommand(
+                command = args.requireString("command") ?: return missing("command"),
+                workingDir = args.requireString("working_dir"),
+                timeoutSeconds = args.requireInt("timeout_seconds"),
+                stdin = args.requireString("stdin")
+            )
             "write_secure_settings" -> rootTool.writeSecureSetting(
                 namespace = args.requireString("namespace") ?: return missing("namespace"),
                 key = args.requireString("key") ?: return missing("key"),
