@@ -31,7 +31,8 @@ tool and letting it open the screen. Users can grant any subset — metrics with
 
 The Settings row reflects the **last known** grant state. Health Connect only reports grants
 from a suspend call, which the synchronous permission list cannot make, so the row is
-refreshed whenever a health tool runs or the permission screen returns.
+re-read whenever the Permissions screen resumes (covering grants made in Health Connect's
+own screen and grants made manually in system settings) and whenever a health tool runs.
 
 ## Tools
 
@@ -53,10 +54,17 @@ prerequisite — worth knowing before planning a Play listing.
 
 1. On a device **without** Health Connect: run `get_health_summary` and confirm it steers to
    installing it rather than crashing.
-2. Grant permissions, then `get_health_summary` → figures match what the Health Connect app
+2. On a device **without** Health Connect: Settings → Permissions → Health → toggle Health
+   Connect on → the Play listing opens instead of the toggle silently doing nothing.
+3. On a device **with** Health Connect: Settings → Permissions → Health → toggle Health
+   Connect on → Health Connect's permission screen opens; grant a few data types → the
+   Settings toggle is on after returning.
+4. Grant/revoke a data type manually in system Settings (Health Connect → App permissions →
+   Gotcha) → the Settings toggle reflects it on the next resume, without running a health tool.
+5. Grant permissions, then `get_health_summary` → figures match what the Health Connect app
    itself reports for the same window.
-3. Revoke one data type in Health Connect → that metric disappears from the summary instead
+6. Revoke one data type in Health Connect → that metric disappears from the summary instead
    of showing zero.
-4. Revoke everything → the tool reports that permissions are needed and reopens the screen.
-5. `get_health_records("sleep", 7)` → individual sessions with start, end and duration.
-6. `get_health_records("nonsense")` → a clear error listing the valid types.
+7. Revoke everything → the tool reports that permissions are needed and reopens the screen.
+8. `get_health_records("sleep", 7)` → individual sessions with start, end and duration.
+9. `get_health_records("nonsense")` → a clear error listing the valid types.
