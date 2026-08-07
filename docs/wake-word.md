@@ -31,6 +31,9 @@ Per 80 ms (1280-sample) frame @ 16 kHz mono PCM-16, the
 3. **Classification** — the last 16 embeddings → `hey_gotcha.onnx` → a score
    in [0, 1].
 
+Step 1 runs on every frame. Steps 2 and 3 run only when `WakeWordGate` hears
+something — see [Battery](#battery-and-reliability) below.
+
 A `WakeWordMatcher` then maps the user-facing sensitivity slider to the
 score threshold (`threshold = 0.70 − 0.27 × sensitivity`) and requires two
 consecutive qualifying frames before firing. The default sensitivity of 0.75
@@ -81,6 +84,40 @@ have enough bright pixels/variance to still be sent.
 OEM battery managers may kill the always-on listener. The Assistive Ball
 settings page offers a one-tap link to Android's battery-optimization
 exemption request when the wake word is on.
+
+### What the listener does to stay cheap
+
+Measured on a physical device, one 80 ms frame through the full chain costs
+~4.4 ms, of which the embedding backbone is ~85% and the mel front-end ~8%.
+Five things follow from that (issue #37):
+
+- **The embedding stage is gated on energy.** `WakeWordGate` tracks the room's
+  noise floor from the frame RMS and lets the expensive stages run only when
+  something rises above it, with a ~3 s hangover so a pause mid-sentence does
+  not re-arm the pipeline. In a quiet room the listener is doing a mel run and
+  an RMS, nothing more.
+- **Gating cannot cost a detection.** The mel front-end keeps running while the
+  gate is shut, so the embeddings that were skipped are rebuilt from the mel
+  rows that produced them. The classifier sees exactly the window it would have
+  seen ungated — asserted, not assumed, by `OnnxWakeWordPipelineGateTest`.
+- **The ONNX sessions are single-threaded and do not spin** between runs. ORT's
+  defaults size a thread pool per session to the core count and busy-wait,
+  which suits a busy server and not a 12.5 Hz duty cycle.
+- **The sessions stay loaded across pauses.** The listener is paused on every
+  call transition and every TTS utterance; reloading ~2.6 MB of models each
+  time the app spoke a sentence was pure waste. `pause()` keeps the models and
+  still releases the microphone in full — see §10.3 of the privacy doc.
+- **The microphone is read in 320 ms batches** into a ~1.3 s buffer, waking the
+  CPU 3.1×/s instead of 12.5×/s, at the cost of up to 320 ms of extra trigger
+  latency.
+
+Two things are deliberately still open: the idle-hour `batterystats` figure
+that would quantify all of the above, and `SoundTrigger`/DSP hotword offload,
+which is the only way for the application processor to sleep at all while
+listening.
+
+`WakeWordPipelineBenchmarkTest` regenerates the per-stage numbers on a
+connected device; see its KDoc for the command.
 
 ## Play Store disclosure
 
