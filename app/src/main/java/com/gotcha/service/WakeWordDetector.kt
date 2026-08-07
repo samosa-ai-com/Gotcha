@@ -12,6 +12,7 @@ import android.media.MediaRecorder
 import android.os.Process
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.gotcha.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -87,6 +88,7 @@ class WakeWordDetector(
             matcher = WakeWordMatcher(sensitivityProvider().coerceIn(0f, 1f))
             running.set(true)
             val startGeneration = generation
+            if (BuildConfig.DEBUG) Log.d(TAG, "start(): generation=$startGeneration")
             job = scope.launch(Dispatchers.IO) { initializeAndListen(startGeneration) }
         }
         return true
@@ -122,6 +124,9 @@ class WakeWordDetector(
     }
 
     private fun teardown(closeSessions: Boolean) {
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, if (closeSessions) "release()" else "pause()", Throwable("called from"))
+        }
         val oldRecorder: AudioRecord?
         val oldSessions: Sessions?
         val oldJob: Job?
@@ -279,13 +284,37 @@ class WakeWordDetector(
         // splits whatever it is handed back into frames, so this changes only
         // how often the CPU is woken: 3.1 times a second instead of 12.5.
         val block = ShortArray(OnnxWakeWordPipeline.FRAME_SIZE * READ_FRAMES)
+        // Debug builds get a running account of what the listener is hearing.
+        // "The wake word stopped working" is otherwise unfalsifiable from the
+        // outside: a listener that holds the mic and scores nothing looks
+        // exactly like one that is reading silence.
+        val telemetry = if (BuildConfig.DEBUG) ListenTelemetry() else null
         val pipeline = OnnxWakeWordPipeline(
             env = env,
             melSession = localSessions.mel,
             embeddingSession = localSessions.embedding,
             classifierSession = localSessions.classifier,
-            matcher = matcher
+            matcher = matcher,
+            probe = telemetry
         )
+        telemetry?.let {
+            // The listener can be running, holding the mic and reading
+            // plausible levels while still being fed the wrong thing — a
+            // different physical mic, or a stream mangled by voice-comm
+            // processing left behind by a call. Record what we actually got.
+            val audio = appContext.getSystemService(android.content.Context.AUDIO_SERVICE)
+                as android.media.AudioManager
+            Log.d(
+                TAG,
+                "listening: threshold=${matcher.threshold()} readFrames=$READ_FRAMES " +
+                    "rate=${localRecorder.sampleRate} ch=${localRecorder.channelCount} " +
+                    "session=${localRecorder.audioSessionId} " +
+                    "route=${describeRoute(localRecorder)} " +
+                    "audioMode=${audio.mode} " +
+                    "micMute=${audio.isMicrophoneMute} " +
+                    "bufFrames=${localRecorder.bufferSizeInFrames}"
+            )
+        }
         // An audio capture loop should be scheduled like one. At the default
         // priority of a Dispatchers.IO thread this loop competes with ordinary
         // background work, and a preempted read is a dropped frame. Restored
@@ -308,6 +337,8 @@ class WakeWordDetector(
                     continue
                 }
 
+                telemetry?.onRead(WakeWordGate.rmsDb(block, count))
+
                 var detected = false
                 synchronized(stateLock) {
                     if (!running.get() || recorder !== localRecorder || generation != this.generation) {
@@ -327,6 +358,100 @@ class WakeWordDetector(
             if (running.get()) fail("Wake word listening stopped unexpectedly.", e, generation)
         } finally {
             Process.setThreadPriority(callerPriority)
+        }
+    }
+
+    private fun describeRoute(recorder: AudioRecord): String {
+        val device = recorder.routedDevice ?: return "none"
+        val effects = buildList {
+            if (android.media.audiofx.AcousticEchoCanceler.isAvailable()) add("aec-avail")
+            if (android.media.audiofx.NoiseSuppressor.isAvailable()) add("ns-avail")
+            if (android.media.audiofx.AutomaticGainControl.isAvailable()) add("agc-avail")
+        }
+        return "type=${device.type} product=${device.productName} address=${device.address} " +
+            "effects=${effects.joinToString("|")}"
+    }
+
+    /**
+     * Debug-only running summary of what the listener hears. Reports levels and
+     * scores, never audio — nothing here could reconstruct what was said.
+     */
+    private class ListenTelemetry : OnnxWakeWordPipeline.PipelineProbe {
+        private var reads = 0
+        private var frames = 0
+        private var gated = 0
+        private var scored = 0
+        private var peakScore = 0f
+        private var peakRms = -200f
+        private var quietestRms = 200f
+        private var melMin = Float.MAX_VALUE
+        private var melMax = -Float.MAX_VALUE
+        private var melMean = 0f
+        private var embMin = Float.MAX_VALUE
+        private var embMax = -Float.MAX_VALUE
+        private var embMean = 0f
+
+        override fun onStageStats(
+            stage: OnnxWakeWordPipeline.PipelineProbe.Stage,
+            min: Float,
+            mean: Float,
+            max: Float
+        ) {
+            when (stage) {
+                OnnxWakeWordPipeline.PipelineProbe.Stage.MEL -> {
+                    if (min < melMin) melMin = min
+                    if (max > melMax) melMax = max
+                    melMean = mean
+                }
+                OnnxWakeWordPipeline.PipelineProbe.Stage.EMBEDDING -> {
+                    if (min < embMin) embMin = min
+                    if (max > embMax) embMax = max
+                    embMean = mean
+                }
+                else -> Unit
+            }
+        }
+
+        fun onRead(rmsDb: Float) {
+            reads++
+            if (rmsDb > peakRms) peakRms = rmsDb
+            if (rmsDb < quietestRms) quietestRms = rmsDb
+            if (reads % REPORT_EVERY_READS != 0) return
+            Log.d(
+                TAG,
+                "heard: rms ${"%.1f".format(quietestRms)}..${"%.1f".format(peakRms)} dBFS, " +
+                    "frames=$frames scored=$scored gated=$gated peakScore=${"%.3f".format(peakScore)} " +
+                    "mel[${"%.2f".format(melMin)}..${"%.2f".format(melMax)} avg ${"%.2f".format(melMean)}] " +
+                    "emb[${"%.2f".format(embMin)}..${"%.2f".format(embMax)} avg ${"%.2f".format(embMean)}]"
+            )
+            melMin = Float.MAX_VALUE
+            melMax = -Float.MAX_VALUE
+            embMin = Float.MAX_VALUE
+            embMax = -Float.MAX_VALUE
+            peakRms = -200f
+            quietestRms = 200f
+            peakScore = 0f
+            frames = 0
+            scored = 0
+            gated = 0
+        }
+
+        override fun onMelRows(rows: Int) {
+            frames++
+        }
+
+        override fun onGated() {
+            gated++
+        }
+
+        override fun onScore(score: Float) {
+            scored++
+            if (score > peakScore) peakScore = score
+        }
+
+        private companion object {
+            /** ~3 s at 4 frames per read. */
+            const val REPORT_EVERY_READS = 10
         }
     }
 

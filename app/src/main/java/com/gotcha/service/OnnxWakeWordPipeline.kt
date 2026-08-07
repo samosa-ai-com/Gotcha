@@ -81,6 +81,14 @@ internal class OnnxWakeWordPipeline(
         /** The classifier's output for a frame that made it past the gate. */
         fun onScore(score: Float) {}
 
+        /**
+         * Summary statistics of one stage's output. Used to bisect where a
+         * detection failure lives — if the mel values match a working run but
+         * the embeddings do not, the audio is fine and the model is not, and
+         * vice versa. Statistics only: these could not reconstruct speech.
+         */
+        fun onStageStats(stage: Stage, min: Float, mean: Float, max: Float) {}
+
         enum class Stage { MEL, EMBEDDING, CLASSIFY }
     }
 
@@ -291,6 +299,24 @@ internal class OnnxWakeWordPipeline(
         }
         if (rows.isEmpty()) return false
         probe?.onMelRows(rows.size)
+        probe?.let { active ->
+            var min = Float.MAX_VALUE
+            var max = -Float.MAX_VALUE
+            var sum = 0.0
+            for (row in rows) {
+                for (value in row) {
+                    if (value < min) min = value
+                    if (value > max) max = value
+                    sum += value
+                }
+            }
+            active.onStageStats(
+                PipelineProbe.Stage.MEL,
+                min,
+                (sum / (rows.size * MEL_BINS)).toFloat(),
+                max
+            )
+        }
         for (row in rows) {
             val stored = melRowPool.removeLastOrNull() ?: FloatArray(MEL_BINS)
             for (bin in 0 until MEL_BINS) stored[bin] = row[bin] / 10f + 2f
@@ -346,6 +372,22 @@ internal class OnnxWakeWordPipeline(
             }
         } finally {
             tensor.close()
+        }
+        probe?.let { active ->
+            var min = Float.MAX_VALUE
+            var max = -Float.MAX_VALUE
+            var sum = 0.0
+            for (value in embedding) {
+                if (value < min) min = value
+                if (value > max) max = value
+                sum += value
+            }
+            active.onStageStats(
+                PipelineProbe.Stage.EMBEDDING,
+                min,
+                (sum / embedding.size).toFloat(),
+                max
+            )
         }
         featureBuffer.addLast(embedding)
         while (featureBuffer.size > FEATURE_BUFFER_MAX) featurePool.addLast(featureBuffer.removeFirst())
