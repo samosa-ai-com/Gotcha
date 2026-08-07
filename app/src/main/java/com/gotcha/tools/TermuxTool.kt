@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 
 /**
  * Tier 4 — arbitrary shell inside Termux, via Termux's official RUN_COMMAND plugin API.
@@ -146,7 +147,7 @@ class TermuxTool(
         // reach. Without a ceiling, a model that retries a slow `pkg` a few times would leave a
         // growing pile of live processes behind it, each still holding Termux's package lock.
         if (!inFlight.tryAcquire()) return TermuxMessages.tooManyInFlight(MAX_CONCURRENT_COMMANDS)
-        val requestCode = nextRequestCode.getAndIncrement()
+        val requestCode = nextRequestCode()
         val deferred = CompletableDeferred<Bundle>()
         pendingResults[requestCode] = deferred
         try {
@@ -376,7 +377,20 @@ class TermuxTool(
 
         private val inFlight = Semaphore(MAX_CONCURRENT_COMMANDS)
 
-        private val nextRequestCode = AtomicInteger(1)
+        /**
+         * Seeded per process, not from 1.
+         *
+         * A PendingIntent outlives us: if Gotcha dies while Termux still holds an unfired one,
+         * the next process starting from 1 would ask for the same request code, and
+         * `getBroadcast` matches on request code and intent — extras are not part of the
+         * identity — so it would hand back the *stale* PendingIntent. Termux would then fire the
+         * old command's result into the new command's deferred, and the agent would act on
+         * output belonging to a command it never ran. A random start makes the two code spaces
+         * disjoint in practice. Masked to stay non-negative, which the receiver relies on.
+         */
+        private val nextRequestCode = AtomicInteger(Random.nextInt(1, 1 shl 20))
+
+        private fun nextRequestCode(): Int = nextRequestCode.getAndIncrement() and Int.MAX_VALUE
 
         /**
          * In-flight commands, keyed by PendingIntent request code so concurrent calls cannot
