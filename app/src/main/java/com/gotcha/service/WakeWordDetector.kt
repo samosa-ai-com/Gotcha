@@ -25,6 +25,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * The three ONNX models are read from assets and loaded on an IO coroutine —
  * model load takes tens of milliseconds, so doing it on the service's main
  * thread would show up as a ball-service freeze right after start.
+ *
+ * There are two ways to stop it, and the difference is the point:
+ * [pause] gives up the microphone but keeps the loaded models, for the
+ * constant interruptions of ordinary use; [release] gives up everything, for
+ * when the feature is switched off or the service is going away.
  */
 class WakeWordDetector(
     context: Context,
@@ -41,11 +46,26 @@ class WakeWordDetector(
     private val running = AtomicBoolean(false)
     private var job: Job? = null
     private var recorder: AudioRecord? = null
-    private var melSession: OrtSession? = null
-    private var embeddingSession: OrtSession? = null
-    private var classifierSession: OrtSession? = null
+
+    /**
+     * The three ORT sessions, cached across [pause]/[start] cycles. Only
+     * [release] closes them — see [pause] for why.
+     */
+    private var sessions: Sessions? = null
     private var matcher = WakeWordMatcher(WakeWordMatcher.DEFAULT_SENSITIVITY)
     private var generation = 0
+
+    private class Sessions(
+        val mel: OrtSession,
+        val embedding: OrtSession,
+        val classifier: OrtSession
+    ) {
+        fun close() {
+            mel.close()
+            embedding.close()
+            classifier.close()
+        }
+    }
 
     @Volatile
     var lastError: String? = null
@@ -71,26 +91,49 @@ class WakeWordDetector(
         return true
     }
 
-    fun stop() {
+    /**
+     * Stops listening and **fully releases the microphone**, but keeps the ONNX
+     * sessions loaded for the next [start].
+     *
+     * This is the right call for every transient interruption — a call starting
+     * or ending, the app's own TTS speaking. Those happen constantly: the
+     * service pauses the listener on every single TTS utterance, and before
+     * this split that meant re-reading ~2.6 MB of model bytes out of assets and
+     * rebuilding three ORT sessions each time the app said one sentence.
+     *
+     * The mic is still released here, not merely stopped. That matters beyond
+     * battery: pausing while TTS speaks is a privacy guarantee, not an
+     * optimisation (privacy-data-retention.md §10.3), and "we kept the mic open
+     * but promise we ignored it" is not the same guarantee. Keeping sessions is
+     * safe because a loaded model holds no audio.
+     */
+    fun pause() {
+        teardown(closeSessions = false)
+    }
+
+    /**
+     * Stops listening and frees everything, sessions included. For when the
+     * wake word is switched off or the service is going away — not for the
+     * pause/resume churn of ordinary use.
+     */
+    fun release() {
+        teardown(closeSessions = true)
+    }
+
+    private fun teardown(closeSessions: Boolean) {
         val oldRecorder: AudioRecord?
-        val oldMel: OrtSession?
-        val oldEmbedding: OrtSession?
-        val oldClassifier: OrtSession?
+        val oldSessions: Sessions?
         val oldJob: Job?
         synchronized(stateLock) {
             running.set(false)
             generation++
             matcher.reset()
             oldRecorder = recorder
-            oldMel = melSession
-            oldEmbedding = embeddingSession
-            oldClassifier = classifierSession
             oldJob = job
+            oldSessions = if (closeSessions) sessions else null
             recorder = null
-            melSession = null
-            embeddingSession = null
-            classifierSession = null
             job = null
+            if (closeSessions) sessions = null
         }
         oldRecorder?.let {
             try {
@@ -100,7 +143,7 @@ class WakeWordDetector(
             }
             it.release()
         }
-        closeSessions(oldMel, oldEmbedding, oldClassifier)
+        oldSessions?.close()
         oldJob?.cancel()
     }
 
@@ -109,14 +152,13 @@ class WakeWordDetector(
     @SuppressLint("MissingPermission")
     private suspend fun initializeAndListen(generation: Int) {
         val env = OrtEnvironment.getEnvironment()
-        var createdMel: OrtSession? = null
-        var createdEmbedding: OrtSession? = null
-        var createdClassifier: OrtSession? = null
+        var loadedSessions: Sessions? = null
         var createdRecorder: AudioRecord? = null
         try {
-            createdMel = loadSession(env, "$modelAssetDir/melspectrogram.onnx")
-            createdEmbedding = loadSession(env, "$modelAssetDir/embedding_model.onnx")
-            createdClassifier = loadSession(env, "$modelAssetDir/$classifierModel")
+            // Reuse the sessions from a previous run when this is a resume
+            // after pause(); only a cold start pays the ~2.6 MB model load.
+            val cached = synchronized(stateLock) { sessions }
+            val active = cached ?: loadSessions(env).also { loadedSessions = it }
             // Bytes, not samples: 16-bit mono. A minimum-size buffer forces a
             // wakeup every 80 ms and leaves no room to absorb the burst of work
             // that re-arming the gate can cost, so ask for ~1.3 s instead. The
@@ -139,13 +181,13 @@ class WakeWordDetector(
 
             synchronized(stateLock) {
                 if (!running.get() || generation != this.generation) {
-                    closeSessions(createdMel, createdEmbedding, createdClassifier)
+                    // Stopped while loading. Only discard sessions this run
+                    // created — a cached set belongs to whoever comes next.
+                    loadedSessions?.close()
                     createdRecorder.release()
                     return
                 }
-                melSession = createdMel
-                embeddingSession = createdEmbedding
-                classifierSession = createdClassifier
+                sessions = active
                 recorder = createdRecorder
             }
             scope.launch(Dispatchers.Main) { onStarted() }
@@ -153,14 +195,39 @@ class WakeWordDetector(
                 generation = generation,
                 env = env,
                 localRecorder = createdRecorder,
-                localMel = createdMel,
-                localEmbedding = createdEmbedding,
-                localClassifier = createdClassifier
+                localSessions = active
             )
         } catch (e: Exception) {
-            closeSessions(createdMel, createdEmbedding, createdClassifier)
+            loadedSessions?.close()
             createdRecorder?.release()
             fail(startupError(e), e, generation)
+        }
+    }
+
+    /**
+     * How many times all three models have been read out of assets and turned
+     * into ORT sessions. The whole point of [pause] is that this does not climb
+     * with ordinary use, and a count is the only way to assert that from a test
+     * — the alternative is timing a resume, which is inherently flaky.
+     */
+    @Volatile
+    internal var sessionLoadCount = 0
+        private set
+
+    /** Loads all three models, closing any that succeeded if a later one fails. */
+    private fun loadSessions(env: OrtEnvironment): Sessions {
+        var mel: OrtSession? = null
+        var embedding: OrtSession? = null
+        try {
+            mel = loadSession(env, "$modelAssetDir/melspectrogram.onnx")
+            embedding = loadSession(env, "$modelAssetDir/embedding_model.onnx")
+            val loaded = Sessions(mel, embedding, loadSession(env, "$modelAssetDir/$classifierModel"))
+            sessionLoadCount++
+            return loaded
+        } catch (e: Exception) {
+            mel?.close()
+            embedding?.close()
+            throw e
         }
     }
 
@@ -205,9 +272,7 @@ class WakeWordDetector(
         generation: Int,
         env: OrtEnvironment,
         localRecorder: AudioRecord,
-        localMel: OrtSession,
-        localEmbedding: OrtSession,
-        localClassifier: OrtSession
+        localSessions: Sessions
     ) {
         // Read several 80 ms frames per wakeup rather than one. The pipeline
         // splits whatever it is handed back into frames, so this changes only
@@ -215,9 +280,9 @@ class WakeWordDetector(
         val block = ShortArray(OnnxWakeWordPipeline.FRAME_SIZE * READ_FRAMES)
         val pipeline = OnnxWakeWordPipeline(
             env = env,
-            melSession = localMel,
-            embeddingSession = localEmbedding,
-            classifierSession = localClassifier,
+            melSession = localSessions.mel,
+            embeddingSession = localSessions.embedding,
+            classifierSession = localSessions.classifier,
             matcher = matcher
         )
         try {
@@ -262,7 +327,9 @@ class WakeWordDetector(
         }
         lastError = message
         if (cause != null) Log.w(TAG, message, cause)
-        stop()
+        // Full release, not pause: a failure here can mean a session that never
+        // loaded or one that broke mid-run, so nothing cached is worth keeping.
+        release()
         scope.launch(Dispatchers.Main) { onError(message) }
     }
 
@@ -270,12 +337,6 @@ class WakeWordDetector(
         is SecurityException -> "Microphone permission is not available."
         is IOException -> "The bundled wake-word model could not be loaded."
         else -> "Wake word could not start."
-    }
-
-    private fun closeSessions(mel: OrtSession?, embedding: OrtSession?, classifier: OrtSession?) {
-        mel?.close()
-        embedding?.close()
-        classifier?.close()
     }
 
     companion object {

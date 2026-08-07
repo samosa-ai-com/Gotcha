@@ -79,7 +79,7 @@ class AssistiveBallService : Service() {
     private val wakeWordSettingsWatcher = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         val s = settingsRepository.load()
         if (!s.wakeWordEnabled || !s.assistiveBallEnabled) {
-            wakeWordDetector.stop()
+            wakeWordDetector.release()
             return@OnSharedPreferenceChangeListener
         }
         // The key arrives encrypted; compare the value read back instead (see
@@ -227,7 +227,9 @@ class AssistiveBallService : Service() {
             callController.state.collect { state ->
                 val active = state != CallState.IDLE && state != CallState.ENDING
                 if (active) {
-                    wakeWordDetector.stop()
+                    // Pause, not release: a call ends and we re-arm within
+                    // seconds, so keep the models loaded across it.
+                    wakeWordDetector.pause()
                 } else if (state == CallState.IDLE) {
                     maybeStartWakeWord()
                 }
@@ -247,10 +249,14 @@ class AssistiveBallService : Service() {
         // post-detection isSpeaking guard in onWakeWordDetected is a second
         // line of defence against self-triggering, but stopping the listener
         // here closes the race at the source — see privacy-data-retention.md §10.3.
+        // pause() still hands the microphone back in full; it keeps only the
+        // loaded ONNX models, which hold no audio. The privacy guarantee is
+        // unchanged — what goes away is reloading 2.6 MB of models every time
+        // the app speaks a sentence.
         scope.launch {
             ttsEngine.isSpeaking.collect { speaking ->
                 if (speaking) {
-                    wakeWordDetector.stop()
+                    wakeWordDetector.pause()
                 } else if (callController.state.value == CallState.IDLE) {
                     maybeStartWakeWord()
                 }
@@ -864,7 +870,7 @@ class AssistiveBallService : Service() {
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     private fun onWakeWordDetected() {
-        wakeWordDetector.stop()
+        wakeWordDetector.pause()
         if (ttsEngine.isSpeaking.value) {
             // The app was reading something aloud (e.g. a screen read-aloud that
             // happened to contain "gotcha") — never start a call from our own
@@ -894,12 +900,13 @@ class AssistiveBallService : Service() {
             if (appliedWakeWordSensitivity != settings.wakeWordSensitivity &&
                 wakeWordDetector.isRunning()
             ) {
-                wakeWordDetector.stop()
+                wakeWordDetector.pause()
             }
             appliedWakeWordSensitivity = settings.wakeWordSensitivity
             wakeWordDetector.start()
         } else {
-            wakeWordDetector.stop()
+            // Switched off, or no mic grant: give the models back.
+            wakeWordDetector.release()
         }
     }
 
@@ -924,7 +931,7 @@ class AssistiveBallService : Service() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _isRunning.value = false
-        wakeWordDetector.stop()
+        wakeWordDetector.release()
         if (::settingsPrefs.isInitialized) {
             settingsPrefs.unregisterOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
         }
@@ -1007,7 +1014,7 @@ class AssistiveBallService : Service() {
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
-        wakeWordDetector.stop()
+        wakeWordDetector.release()
         if (::settingsPrefs.isInitialized) {
             settingsPrefs.unregisterOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
         }
