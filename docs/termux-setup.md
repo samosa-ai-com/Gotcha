@@ -33,17 +33,21 @@ action button.
 ## Guided setup (Settings → Termux)
 
 Open **Settings → Termux (Linux shell)**. It re-reads the first three checks on
-every resume and offers:
+every resume and offers, one step at a time:
 
 - **Install Termux from F-Droid** when Termux is missing.
-- **Grant permission** when the RUN_COMMAND grant is missing.
-- **Open Termux** plus copy-paste lines when `allow-external-apps` is not confirmed:
+- **Grant permission** when the RUN_COMMAND grant is missing — the button only
+  appears once Termux is installed and the build is usable.
+- **Open Termux** plus the two copy-paste lines when `allow-external-apps` is
+  not confirmed. A **Copy commands** button puts both lines on the clipboard:
   ```
   echo 'allow-external-apps=true' >> ~/.termux/termux.properties
   termux-reload-settings
   ```
-- **Check configuration** re-runs the probe and reports configured / not-configured /
-  unknown.
+- **Check configuration** re-runs the probe and reports configured /
+  not-configured / unknown. It (and the copy box) only appears once the
+  RUN_COMMAND permission is granted, so a probe is never run before it can
+  answer.
 
 The Settings → Permissions → *Termux Commands (Optional)* row links to the same page.
 
@@ -63,9 +67,10 @@ The Settings → Permissions → *Termux Commands (Optional)* row links to the s
    permission button appears.
 4. **Grant the permission**: the step ticks off; if no dialog appears, Termux was
    installed after Gotcha (reinstall Gotcha).
-5. **Open Termux**, run the two copy-paste lines, restart Termux, tap **Check
-   configuration** → "Termux answered — allow-external-apps is enabled."
+5. **Open Termux**, use **Copy commands** (the paste box reads correctly), paste and
+   run the two lines, restart Termux, tap **Check configuration** → "Termux answered —
+   allow-external-apps is enabled."
 6. All four steps are checked and the "Termux is set up" banner shows. Ask the
    assistant to run something: `pkg install python -y` and `python3 --version`.
 7. Revoke the permission in system Settings → the page's permission step unchecks on
-   the next resume.
+   the next resume, and the copy box / Check button disappear until it is granted again.

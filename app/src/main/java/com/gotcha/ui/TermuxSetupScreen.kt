@@ -1,5 +1,8 @@
 package com.gotcha.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +40,11 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.launch
 
+/** The two lines the user runs in Termux to enable external apps; also what the Copy button shares. */
+private const val TERMUX_SETUP_COMMANDS =
+    "echo 'allow-external-apps=true' >> ~/.termux/termux.properties\n" +
+        "termux-reload-settings"
+
 /**
  * Guided Termux setup: a live checklist of the four things that must be true for
  * `run_termux_command` to work, each with the action to fix it. The cheap checks
@@ -49,6 +57,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
     val tool = remember(context) { TermuxTool(context) }
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
     var state by remember { mutableStateOf(TermuxTool.TermuxSetupState.from(tool.status())) }
     var probing by remember { mutableStateOf(false) }
@@ -126,6 +135,8 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                             Intent(Intent.ACTION_VIEW, Uri.parse(TermuxTool.TERMUX_FDROID_URL))
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
+                    }.onFailure {
+                        overlay.show("Could not open the F-Droid page.")
                     }
                 }
             }
@@ -153,12 +164,13 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                     "Termux must let Gotcha run commands. If no permission dialog appears, " +
                         "Termux was installed after Gotcha — update or reinstall Gotcha."
             },
-            action = if (state.permissionGranted) {
-                null
-            } else {
-                SetupAction("Grant permission") {
-                    permissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
-                }
+            action = when {
+                state.permissionGranted -> null
+                state.installed && state.pluginApiAvailable ->
+                    SetupAction("Grant permission") {
+                        permissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
+                    }
+                else -> null
             }
         )
 
@@ -183,24 +195,34 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
             }
         )
 
-        if (state.installed && state.pluginApiAvailable && !state.ready) {
+        if (state.installed && state.pluginApiAvailable && state.permissionGranted && !state.ready) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "echo 'allow-external-apps=true' >> ~/.termux/termux.properties\n" +
-                        "termux-reload-settings",
+                    TERMUX_SETUP_COMMANDS,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = GotchaMono),
                     modifier = Modifier.padding(12.dp)
                 )
             }
-            OutlinedButton(
-                onClick = { checkConfiguration() },
-                enabled = !probing,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (probing) "Checking…" else "Check configuration") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        clipboard?.setPrimaryClip(
+                            ClipData.newPlainText("Termux setup", TERMUX_SETUP_COMMANDS)
+                        )
+                        overlay.show("Copied to clipboard.")
+                    },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Copy commands") }
+                OutlinedButton(
+                    onClick = { checkConfiguration() },
+                    enabled = !probing,
+                    modifier = Modifier.weight(1f)
+                ) { Text(if (probing) "Checking…" else "Check configuration") }
+            }
         }
 
         probeFeedback?.let { feedback ->
@@ -225,7 +247,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
 }
 
 /** A named action for a setup step, kept small so the checklist reads top-down. */
-private data class SetupAction(val label: String, val onClick: () -> Unit)
+private class SetupAction(val label: String, val onClick: () -> Unit)
 
 /**
  * One row of the checklist: a ✓/○ status marker, title, detail line, and an
