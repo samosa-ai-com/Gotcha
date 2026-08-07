@@ -887,7 +887,19 @@ class AssistiveBallService : Service() {
         // The call hides the ball almost immediately, so the visual ack has to
         // be kicked off before it starts — see AssistiveBallOverlay.playWakeAnimation.
         overlay.playWakeAnimation()
-        callController.startWakeWordCall()
+        if (!callController.startWakeWordCall()) {
+            // The call was refused before it began — no provider configured, no
+            // API key, the mic grant gone. startCall() reports that through
+            // onError() and leaves the state machine in IDLE, so the collector
+            // that normally re-arms the listener never fires: a StateFlow that
+            // does not change does not emit.
+            //
+            // Without this the wake word is dead until the ball is restarted,
+            // and the failure looks permanent to the user — they fix the thing
+            // the error told them to fix, say "Hey Gotcha" again, and nothing
+            // happens. Re-arm here so the next attempt reaches the new config.
+            maybeStartWakeWord()
+        }
     }
 
     private fun maybeStartWakeWord() {
