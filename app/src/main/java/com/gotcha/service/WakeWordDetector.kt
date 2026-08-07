@@ -337,7 +337,14 @@ class WakeWordDetector(
                     continue
                 }
 
-                telemetry?.onRead(WakeWordGate.rmsDb(block, count))
+                // Spelled out rather than `telemetry?.onRead(rmsDb(...))`. Both
+                // skip the RMS scan in release — a safe call does not evaluate
+                // its arguments when the receiver is null — but that is a
+                // subtlety one refactor away from being lost, and this is a
+                // per-frame path in an always-on listener.
+                if (telemetry != null) {
+                    telemetry.onRead(WakeWordGate.rmsDb(block, count))
+                }
 
                 var detected = false
                 synchronized(stateLock) {
