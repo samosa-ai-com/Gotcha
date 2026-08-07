@@ -35,8 +35,23 @@ internal class OnnxWakeWordPipeline(
     private val melSession: OrtSession,
     private val embeddingSession: OrtSession,
     private val classifierSession: OrtSession,
-    private val matcher: WakeWordMatcher
+    private val matcher: WakeWordMatcher,
+    private val probe: PipelineProbe? = null
 ) {
+    /**
+     * Optional measurement hook. Off (null) in production; the instrumented
+     * benchmark passes one in to get the per-stage cost split that decides how
+     * much of the wake-word CPU budget each ONNX model actually owns.
+     */
+    internal interface PipelineProbe {
+        fun onStage(stage: Stage, nanos: Long) {}
+
+        /** Number of mel rows one `melspectrogram.onnx` run emitted. */
+        fun onMelRows(rows: Int) {}
+
+        enum class Stage { MEL, EMBEDDING, CLASSIFY }
+    }
+
     /** Ring buffer of the most recent raw PCM samples. Size caps at [MEL_WINDOW]. */
     private val rawSamples = ShortArray(MEL_WINDOW)
     private var rawStart = 0
@@ -136,9 +151,9 @@ internal class OnnxWakeWordPipeline(
             if (rawCount < MEL_WINDOW) rawCount++
         }
 
-        if (!computeMel()) return false
-        if (!computeEmbedding()) return false
-        val score = classify() ?: return false
+        if (!timed(PipelineProbe.Stage.MEL) { computeMel() }) return false
+        if (!timed(PipelineProbe.Stage.EMBEDDING) { computeEmbedding() }) return false
+        val score = timed(PipelineProbe.Stage.CLASSIFY) { classify() } ?: return false
 
         scoredFrames++
         if (scoredFrames <= WARMUP_FRAMES) return false
@@ -174,6 +189,7 @@ internal class OnnxWakeWordPipeline(
             tensor.close()
         }
         if (rows.isEmpty()) return false
+        probe?.onMelRows(rows.size)
         for (row in rows) {
             melBuffer.addLast(FloatArray(MEL_BINS) { row[it] / 10f + 2f })
         }
@@ -218,6 +234,17 @@ internal class OnnxWakeWordPipeline(
             }
         } finally {
             tensor.close()
+        }
+    }
+
+    /** Times [body] only when a [probe] is attached, so production stays free of the clock reads. */
+    private inline fun <T> timed(stage: PipelineProbe.Stage, body: () -> T): T {
+        val active = probe ?: return body()
+        val startedAt = System.nanoTime()
+        try {
+            return body()
+        } finally {
+            active.onStage(stage, System.nanoTime() - startedAt)
         }
     }
 
