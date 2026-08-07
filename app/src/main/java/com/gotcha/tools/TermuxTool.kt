@@ -65,6 +65,62 @@ class TermuxTool(
         val usable: Boolean get() = installed && pluginApiAvailable
     }
 
+    /** How far Termux's `allow-external-apps` setup has been verified. */
+    enum class TermuxConfigProbe {
+        CONFIGURED,
+        NOT_CONFIGURED,
+        UNKNOWN
+    }
+
+    /** The guided-setup view of Termux: everything the Settings page needs to show. */
+    data class TermuxSetupState(
+        val installed: Boolean,
+        val pluginApiAvailable: Boolean,
+        val permissionGranted: Boolean,
+        val versionName: String?,
+        val externalAppsEnabled: TermuxConfigProbe = TermuxConfigProbe.UNKNOWN
+    ) {
+        /** Every step of the setup is done. */
+        val ready: Boolean
+            get() = installed && pluginApiAvailable && permissionGranted &&
+                externalAppsEnabled == TermuxConfigProbe.CONFIGURED
+
+        companion object {
+            fun from(status: TermuxStatus): TermuxSetupState = TermuxSetupState(
+                installed = status.installed,
+                pluginApiAvailable = status.pluginApiAvailable,
+                permissionGranted = status.permissionGranted,
+                versionName = status.versionName
+            )
+        }
+    }
+
+    /**
+     * Probes whether Termux accepts external commands — i.e. `allow-external-apps=true`.
+     *
+     * That property lives in Termux's private storage, so it cannot be read from here. It can
+     * only be discovered by running a command: with the property unset, Termux answers
+     * immediately with an errno whose message names the property; with it set, the command
+     * succeeds. Anything that prevents probing at all (Termux absent, Play build, permission
+     * not granted, Termux stopped, timeout) is [TermuxConfigProbe.UNKNOWN] rather than a guess.
+     */
+    suspend fun probeExternalApps(): TermuxConfigProbe =
+        classifyProbe(runCommand(PROBE_COMMAND, timeoutSeconds = PROBE_TIMEOUT_SECONDS))
+
+    /**
+     * The decision half of [probeExternalApps], split out so it is testable without Termux.
+     *
+     * The `needsPermission` guard matters: [TermuxMessages.permissionNeeded] also mentions
+     * `allow-external-apps`, but it is a guard path — we never got a real answer — so it must
+     * read as [TermuxConfigProbe.UNKNOWN], not [TermuxConfigProbe.NOT_CONFIGURED].
+     */
+    internal fun classifyProbe(result: ToolResult): TermuxConfigProbe = when {
+        result.success -> TermuxConfigProbe.CONFIGURED
+        result.needsPermission == null && result.message.contains("allow-external-apps") ->
+            TermuxConfigProbe.NOT_CONFIGURED
+        else -> TermuxConfigProbe.UNKNOWN
+    }
+
     /**
      * Irreversible, device-destroying operations we refuse even here. Deliberately
      * [RootTool]'s narrow list rather than [TerminalTool]'s: `rm -r` inside Termux's own
@@ -309,6 +365,18 @@ class TermuxTool(
     companion object {
         const val TERMUX_PACKAGE = "com.termux"
         const val PERMISSION_RUN_COMMAND = "com.termux.permission.RUN_COMMAND"
+
+        /**
+         * Play-store-free source for Termux. The Play build is unmaintained and strips the
+         * RUN_COMMAND plugin API wholesale, so it can never be made to work with Gotcha.
+         */
+        const val TERMUX_FDROID_URL = "https://f-droid.org/en/packages/com.termux/"
+
+        /** An `allow-external-apps` failure returns within a second; this is a generous ceiling. */
+        private const val PROBE_TIMEOUT_SECONDS = 5
+
+        /** Trivial command used to probe whether Termux accepts external commands. */
+        private const val PROBE_COMMAND = "echo gotcha-probe"
 
         private const val RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService"
         private const val ACTION_RUN_COMMAND = "com.termux.RUN_COMMAND"
