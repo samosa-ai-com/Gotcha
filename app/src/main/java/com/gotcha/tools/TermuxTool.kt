@@ -211,7 +211,12 @@ class TermuxTool(
         if (total > MAX_COMMAND_CHARS) return TermuxMessages.tooLarge(total, MAX_COMMAND_CHARS)
         // Collapse whitespace first, so `rm  -rf   /` is not a way around the patterns.
         val normalised = trimmed.replace(Regex("""\s+"""), " ")
-        denyPatterns.firstOrNull { it.containsMatchIn(normalised) }?.let {
+        // Check each shell segment as well as the whole line. The root-tree `rm` pattern is
+        // end-anchored — it has to be, or `rm -rf /home/x` would match — and the schema tells
+        // the model to chain steps with `&&`, so `rm -rf / && echo done` is the single most
+        // likely shape for this mistake to arrive in. Whole-line matching alone would miss it.
+        val candidates = normalised.split(SEGMENT_SEPARATORS) + normalised
+        if (candidates.any { segment -> denyPatterns.any { it.containsMatchIn(segment.trim()) } }) {
             return TermuxMessages.blocked(trimmed)
         }
         return null
@@ -340,6 +345,9 @@ class TermuxTool(
         internal const val ERRNO_CANCELLED = 0 // Activity.RESULT_CANCELED
         internal const val ERRNO_MINOR_FAILURES = 1 // Activity.RESULT_FIRST_USER
         internal const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
+
+        /** Shell separators the deny-list splits on before matching each part. */
+        private val SEGMENT_SEPARATORS = Regex("""[;&|\n]+""")
 
         /** Termux caps a single command near 128KB; leave headroom for the rest of the intent. */
         private const val MAX_COMMAND_CHARS = 100 * 1024

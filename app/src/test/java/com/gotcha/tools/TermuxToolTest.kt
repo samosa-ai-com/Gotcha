@@ -276,7 +276,14 @@ class TermuxToolTest {
             "rm -r -f /",
             "rm  -rf    /", // extra whitespace must not slip past
             "rm -rf --no-preserve-root /home",
-            "fastboot oem unlock"
+            "fastboot oem unlock",
+            // Chained forms. The schema tells the model to chain with '&&', so these are the
+            // most likely shape for this mistake — an end-anchored pattern alone misses them.
+            "rm -rf / && echo done",
+            "pkg update && rm -rf /*",
+            "rm -rf /; pkg install python",
+            "rm -rf /*| sh",
+            "cd /tmp && mkfs.ext4 /dev/block/sda"
         ).forEach { command ->
             val result = tool.runCommand(command)
             assertFalse("expected '$command' to be blocked", result.success)
@@ -288,11 +295,18 @@ class TermuxToolTest {
     fun `ordinary destructive-looking commands are not blocked`() = runTest {
         // The deny-list guards the root tree, not the user's own files — `pkg` and everyday
         // housekeeping both need recursive deletes to work.
-        listOf("rm -rf ~/build", "rm -rf /data/data/com.termux/files/home/tmp", "dd if=in.img of=out.img")
-            .forEach { command ->
-                val result = tool.runCommand(command)
-                assertFalse("'$command' must not be refused as unsafe", result.message.contains("safety policy"))
-            }
+        listOf(
+            "rm -rf ~/build",
+            "rm -rf /data/data/com.termux/files/home/tmp",
+            "dd if=in.img of=out.img",
+            // Splitting on separators must not turn ordinary chains into false positives.
+            "cd ~/proj && rm -rf build && ./configure",
+            "pkg install python -y && python3 -c 'print(1)'",
+            "grep -r \"rm -rf /\" notes.txt"
+        ).forEach { command ->
+            val result = tool.runCommand(command)
+            assertFalse("'$command' must not be refused as unsafe", result.message.contains("safety policy"))
+        }
     }
 
     @Test
