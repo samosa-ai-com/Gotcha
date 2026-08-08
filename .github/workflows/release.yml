@@ -180,12 +180,23 @@ jobs:
 
           CERTS=$("$APKSIGNER" verify --print-certs "$APK")
           echo "$CERTS"
-          ACTUAL=$(printf '%s\n' "$CERTS" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          # apksigner labels this line differently across build-tools versions
+          # ("Signer #1 certificate ..." vs "V2 Signer: certificate ..."), so match on
+          # the digest itself rather than on either prefix.
+          ACTUAL=$(printf '%s\n' "$CERTS" \
+            | sed -n 's/.*certificate SHA-256 digest: *\([0-9a-fA-F]\{64\}\).*/\1/p' \
+            | head -n1 | tr 'A-Z' 'a-z')
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::Could not parse a certificate SHA-256 out of apksigner output (see above)"
+            exit 1
+          fi
 
           # A signing-identity change makes the APK un-installable over any existing
           # install (INSTALL_FAILED_UPDATE_INCOMPATIBLE) — catch it here, not on users' phones.
-          if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::APK signed with the wrong key. Expected $EXPECTED_CERT_SHA256, got $ACTUAL"
+          # Tolerate a fingerprint pasted with colons or in upper case (keytool's format).
+          EXPECTED=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr 'A-Z' 'a-z')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::APK signed with the wrong key. Expected $EXPECTED, got $ACTUAL"
             exit 1
           fi
           if printf '%s\n' "$CERTS" | grep -q "CN=Android Debug"; then
