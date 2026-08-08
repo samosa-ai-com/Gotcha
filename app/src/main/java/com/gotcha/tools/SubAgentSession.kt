@@ -10,6 +10,7 @@ import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.withValidToolCallArguments
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -41,7 +42,7 @@ class SubAgentSession(
 
     suspend fun run(): SubAgentOutput {
         val model = settings.subAgentModel.ifBlank { settings.model }
-        Log.d(TAG, "Starting sub-agent with model=$model: $description")
+        GotchaLog.d(TAG) { "Starting sub-agent with model=$model: $description" }
 
         val subLlm = LLMClient(
             apiKey = settings.effectiveApiKey,
@@ -58,7 +59,7 @@ class SubAgentSession(
         val subAgentTools = ToolRegistry.toolsForSubAgent(hiddenTools)
 
         for (round in 0 until maxRounds) {
-            Log.d(TAG, "Sub-agent round ${round + 1}/$maxRounds")
+            GotchaLog.d(TAG) { "Sub-agent round ${round + 1}/$maxRounds" }
 
             val messages = buildList {
                 addAll(history)
@@ -94,7 +95,7 @@ class SubAgentSession(
             if (toolCalls.isEmpty()) {
                 history.add(message)
                 val text = message.textContent.ifEmpty { "(no output)" }
-                Log.d(TAG, "Sub-agent finished (text response): ${text.take(100)}")
+                GotchaLog.d(TAG) { "Sub-agent finished (text response): ${text.take(100)}" }
                 return SubAgentOutput(text, collectedSteps.toList())
             }
 
@@ -109,7 +110,7 @@ class SubAgentSession(
                 } catch (e: Exception) {
                     "(failed to parse ask_final_answer: ${e.message})"
                 }
-                Log.d(TAG, "Sub-agent finished (ask_final_answer)")
+                GotchaLog.d(TAG) { "Sub-agent finished (ask_final_answer)" }
                 return SubAgentOutput(answer, collectedSteps.toList())
             }
 

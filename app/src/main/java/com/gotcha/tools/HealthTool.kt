@@ -1,7 +1,10 @@
 package com.gotcha.tools
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.aggregate.AggregateMetric
 import androidx.health.connect.client.aggregate.AggregationResult
 import androidx.health.connect.client.permission.HealthPermission
@@ -90,6 +93,14 @@ class HealthTool(private val context: Context) {
         )
 
         val RECORD_TYPE_NAMES: List<String> = RECORD_TYPES.keys.toList()
+
+        /** Android 14+ platform action for Health Connect's per-app permission manager. */
+        const val ACTION_MANAGE_HEALTH_PERMISSIONS =
+            "android.health.connect.action.MANAGE_HEALTH_PERMISSIONS"
+
+        internal const val PLAY_LISTING_URI = "market://details?id=com.google.android.apps.healthdata"
+        internal const val CONTROLLER_PACKAGE = "com.google.android.healthconnect.controller"
+        internal const val LEGACY_PROVIDER_PACKAGE = "com.google.android.apps.healthdata"
     }
 
     private fun clientOrNull(): HealthConnectClient? =
@@ -242,3 +253,54 @@ class HealthTool(private val context: Context) {
         else -> record.javaClass.simpleName
     }
 }
+
+/**
+ * The Health Connect permission intent to fire, or the best fallback that can
+ * actually be resolved on this device. Never null when the Play Store is
+ * reachable and never throws.
+ *
+ * On API 34+ the SDK's `PermissionController` contract builds its intent from
+ * `ActivityResultContracts.RequestMultiplePermissions`, which stock Android
+ * routes to the Health Connect screen but some OEM builds do not resolve at
+ * all — firing it blind throws `ActivityNotFoundException` (the crash this
+ * guards against). Each candidate is therefore only used when it has a
+ * resolver, and the chain degrades to the Health Connect app itself rather
+ * than a crash. Shared by the Settings permission row and the agent path.
+ */
+fun healthConnectPermissionIntent(context: Context): Intent? {
+    if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) {
+        // No provider (or one that is out of date): steer to the Play listing
+        // instead of crash-launching a screen nothing can handle.
+        return Intent(Intent.ACTION_VIEW, Uri.parse(HealthTool.PLAY_LISTING_URI))
+    }
+    val pm = context.packageManager
+    // Preferred: the SDK's permission-request screen (parses the granted set on
+    // the way back). Only used when something actually resolves it.
+    runCatching {
+        PermissionController.createRequestPermissionResultContract()
+            .createIntent(context, HealthTool.PERMISSIONS)
+    }.getOrNull()?.let { intent ->
+        if (intent.resolveActivity(pm) != null) return intent
+    }
+    // Fallback: the Health Connect home screen. This is the reliable opener on
+    // OEM builds whose per-app permission page refuses to show (launches and
+    // immediately finishes) for an app with no grants yet — the home always
+    // opens, and the user reaches App permissions from there.
+    Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
+        .takeIf { it.resolveActivity(pm) != null }
+        ?.let { return it }
+    // Fallback: Health Connect's per-app permission manager (Android 14+), for
+    // devices where it does show the target app directly.
+    healthConnectManagePermissionsIntent(context)
+        .takeIf { it.resolveActivity(pm) != null }
+        ?.let { return it }
+    // Last resort: open the Health Connect app so the user can grant from there.
+    pm.getLaunchIntentForPackage(HealthTool.CONTROLLER_PACKAGE)?.let { return it }
+    pm.getLaunchIntentForPackage(HealthTool.LEGACY_PROVIDER_PACKAGE)?.let { return it }
+    return null
+}
+
+/** The per-app Health Connect permission manager intent (Android 14+ platform action). */
+internal fun healthConnectManagePermissionsIntent(context: Context): Intent =
+    Intent(HealthTool.ACTION_MANAGE_HEALTH_PERMISSIONS)
+        .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)

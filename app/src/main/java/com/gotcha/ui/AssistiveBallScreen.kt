@@ -10,21 +10,29 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
+import com.gotcha.data.WakeWordListeningMode
 import android.provider.Settings as AndroidSettings
 
 /**
@@ -48,8 +56,22 @@ fun AssistiveBallScreen(
 ) {
     val overlay = rememberSettingsOverlayState()
     val initial = remember { load() }
+    val ballEnabled = enabled
     var wakeWordEnabled by remember { mutableStateOf(initial.wakeWordEnabled) }
     var wakeWordSensitivity by remember { mutableStateOf(initial.wakeWordSensitivity) }
+    var wakeWordListeningMode by remember { mutableStateOf(initial.wakeWordListeningMode) }
+
+    // The wake word runs inside the ball service, so it cannot be on while the
+    // ball is off. When the ball is switched off here (or this screen is opened
+    // with the ball already off and a leftover ON), reset the wake word to off
+    // in both the local state and the saved setting — not merely disable the
+    // toggle, which would leave it visually on but inert.
+    LaunchedEffect(ballEnabled) {
+        if (!ballEnabled && wakeWordEnabled) {
+            wakeWordEnabled = false
+            onSave { settings -> settings.copy(wakeWordEnabled = false) }
+        }
+    }
 
     SettingsScaffold(title = SettingsPage.ASSISTIVE_BALL.title, onBack = onBack, overlay = overlay) {
         SettingsToggleRow(
@@ -74,6 +96,11 @@ fun AssistiveBallScreen(
         SettingsToggleRow(
             label = "Wake word: Hey Gotcha",
             checked = wakeWordEnabled,
+            // The listener runs inside the Assistive Ball service, so the wake
+            // word cannot be turned on while the ball is off. Turning the ball
+            // off also switches the wake word off (see LaunchedEffect above),
+            // so this toggle is simply locked to the ball state.
+            enabled = ballEnabled,
             onCheckedChange = {
                 wakeWordEnabled = it
                 onSave { settings -> settings.copy(wakeWordEnabled = it) }
@@ -85,6 +112,14 @@ fun AssistiveBallScreen(
                 "Turn on Hey Gotcha wake word"
             }
         )
+        if (!ballEnabled) {
+            Text(
+                "The wake word requires the Assistive Ball to be on — turn on " +
+                    "\"Show Assistive Ball\" to use it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Text(
             "Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device while " +
                 "the assistive ball is on and no call is active. Keep microphone " +
@@ -93,6 +128,35 @@ fun AssistiveBallScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (wakeWordEnabled) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "When to listen",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .testTag("settings_wake_word_mode")
+            ) {
+                WakeWordListeningMode.entries.forEach { mode ->
+                    WakeWordModeRow(
+                        mode = mode,
+                        selected = wakeWordListeningMode == mode,
+                        onSelect = {
+                            wakeWordListeningMode = mode
+                            onSave { settings -> settings.copy(wakeWordListeningMode = mode) }
+                        }
+                    )
+                }
+            }
+            Text(
+                "The listener is only active while the screen matches the chosen " +
+                    "state, so the microphone and its indicator are off the rest of " +
+                    "the time.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth()
@@ -152,6 +216,52 @@ private fun sensitivityLabel(sensitivity: Float): String = when {
     sensitivity < 0.185f -> "High precision"
     sensitivity < 0.741f -> "Balanced"
     else -> "High sensitivity"
+}
+
+/** One selectable row of the "When to listen" wake-word mode group. */
+@Composable
+private fun WakeWordModeRow(
+    mode: WakeWordListeningMode,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    val label: String
+    val summary: String
+    when (mode) {
+        WakeWordListeningMode.ALWAYS -> {
+            label = "Always"
+            summary = "Listen with the screen on or off. Full hands-free, highest battery use."
+        }
+        WakeWordListeningMode.SCREEN_ON -> {
+            label = "Only while the screen is on"
+            summary = "Saves battery — the microphone and its indicator are off while the screen is off."
+        }
+        WakeWordListeningMode.SCREEN_OFF -> {
+            label = "Only while the screen is off"
+            summary = "Hands-free when you are not already looking at the phone; the screen being on means the mic is off."
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onSelect
+            )
+            .testTag("settings_wake_word_mode_${mode.name.lowercase()}")
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = selected, onClick = null)
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            summary,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 40.dp, bottom = 4.dp)
+        )
+    }
 }
 
 @Composable

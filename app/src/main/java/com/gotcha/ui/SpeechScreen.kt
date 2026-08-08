@@ -157,6 +157,14 @@ fun SpeechScreen(
     }
 
     SettingsScaffold(title = SettingsPage.SPEECH.title, onBack = onBack, overlay = overlay) {
+        // ---- Voice / speech recommendations ----
+        Text(
+            "For high-quality single-language speech (e.g. English primarily), " +
+                "SAMOSA AI's TTS is the recommendation. SAMOSA AI's STT is the " +
+                "recommended transcription engine.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         val samosaAudioSelected = ttsProvider == AudioProvider.SAMOSA_AI ||
             sttProvider == AudioProvider.SAMOSA_AI
         if (samosaAudioSelected) {

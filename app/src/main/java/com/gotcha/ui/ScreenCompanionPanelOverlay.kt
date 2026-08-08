@@ -71,7 +71,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
     private fun skin(): OverlaySkin = overlaySkin(
         appContext,
         runCatching { SettingsRepository(appContext).load().skinId }
-            .getOrDefault(Skins.DEFAULT_ID)
+            .getOrDefault(Skins.OVERLAY_FALLBACK_ID)
     )
 
     fun setVisibleForCapture(visible: Boolean) {

@@ -1,6 +1,7 @@
 package com.gotcha.llm
 
 import android.content.Context
+import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
 import com.gotcha.i18n.Language
@@ -38,7 +39,12 @@ class LLMClient(
 
     init {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // BODY tracing writes full prompts/replies to logcat — never in release.
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
             redactHeader("Authorization")
         }
 

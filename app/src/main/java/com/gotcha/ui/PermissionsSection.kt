@@ -33,15 +33,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.HealthPermissionState
-import com.gotcha.tools.HealthTool
 import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
+import com.gotcha.tools.healthConnectPermissionIntent
+import com.gotcha.ui.theme.SkinAlertDialog
 import android.provider.Settings as AndroidSettings
 
 @Composable
@@ -154,6 +153,8 @@ private fun PermissionRow(
     onOpenDetails: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val isHealthConnect = item.specialMarker == ToolResult.HEALTH_CONNECT
+    var showHealthConnectDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -188,7 +189,15 @@ private fun PermissionRow(
                     if (item.androidPermission != null) {
                         onRequestRuntime((listOf(item.androidPermission) + item.extraPermissions).toTypedArray())
                     } else if (item.specialMarker != null) {
-                        openSpecialAccess(context, item.specialMarker, packageName)
+                        // Health Connect cannot be granted from the standard
+                        // runtime flow, and on some OEM builds the permission
+                        // screen opens and closes with no visible result — so
+                        // the toggle first explains where to go, then opens it.
+                        if (isHealthConnect) {
+                            showHealthConnectDialog = true
+                        } else {
+                            openSpecialAccess(context, item.specialMarker, packageName)
+                        }
                     }
                 } else {
                     Toast.makeText(
@@ -197,6 +206,31 @@ private fun PermissionRow(
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            }
+        )
+    }
+
+    if (showHealthConnectDialog) {
+        SkinAlertDialog(
+            onDismissRequest = { showHealthConnectDialog = false },
+            title = { Text("Health Connect permission needed") },
+            text = {
+                Text(
+                    "Gotcha can't read your health data yet. Open Health Connect, " +
+                        "find Gotcha under App permissions, and allow the data types " +
+                        "you're comfortable sharing, then return here."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showHealthConnectDialog = false
+                        openSpecialAccess(context, ToolResult.HEALTH_CONNECT, packageName)
+                    }
+                ) { Text("Open Health Connect") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showHealthConnectDialog = false }) { Text("Not now") }
             }
         )
     }
@@ -244,20 +278,10 @@ internal fun openSpecialAccess(
                 `package` = it.`package`
             }
         }
-        ToolResult.HEALTH_CONNECT -> {
-            if (HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE) {
-                PermissionController.createRequestPermissionResultContract()
-                    .createIntent(context, HealthTool.PERMISSIONS)
-            } else {
-                // No provider (or one that is out of date): steer to the Play listing instead of
-                // crash-launching a screen nothing can handle — same journey as the agent path in
-                // MainActivity.requestHealthConnect.
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("market://details?id=com.google.android.apps.healthdata")
-                )
-            }
-        }
+        // Resolves the SDK's permission screen, or a fallback that actually
+        // exists on this device, so the toggle can never crash the app with an
+        // ActivityNotFoundException (see healthConnectPermissionIntent).
+        ToolResult.HEALTH_CONNECT -> healthConnectPermissionIntent(context)
         // Only the Termux half of the journey: this path has no Activity to request the runtime
         // permission from, and the allow-external-apps property can only be set inside Termux.
         // MainActivity.requestTermuxAccess handles both halves when the agent asks.
@@ -266,7 +290,9 @@ internal fun openSpecialAccess(
     }
     if (intent != null) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        // A routing mistake or an OEM quirk must surface as a silent no-op, never
+        // a crash — the settings toggle should degrade, not take the app down.
+        runCatching { context.startActivity(intent) }
     }
     return intent
 }

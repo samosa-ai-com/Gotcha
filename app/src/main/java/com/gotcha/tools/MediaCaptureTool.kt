@@ -11,6 +11,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -44,7 +45,7 @@ class MediaCaptureTool(private val context: Context) {
     private var lastSavedDurationSeconds: Long = 0L
 
     suspend fun takePhoto(camera: String?): ToolResult {
-        Log.d(TAG, "takePhoto: camera=$camera")
+        GotchaLog.d(TAG) { "takePhoto: camera=$camera" }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -76,20 +77,20 @@ class MediaCaptureTool(private val context: Context) {
             val outputOptions = ImageCapture.OutputFileOptions.Builder(file).build()
 
             val result = withContext(Dispatchers.Main) {
-                Log.d(TAG, "takePhoto: on main thread, acquiring provider…")
+                GotchaLog.d(TAG) { "takePhoto: on main thread, acquiring provider…" }
                 val cameraProvider = ProcessCameraProvider.getInstance(context).get(5, TimeUnit.SECONDS)
-                Log.d(TAG, "takePhoto: provider acquired, binding…")
+                GotchaLog.d(TAG) { "takePhoto: provider acquired, binding…" }
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, imageCapture)
 
                 val res = suspendCancellableCoroutine<ToolResult> { cont ->
-                    Log.d(TAG, "takePhoto: calling takePicture…")
+                    GotchaLog.d(TAG) { "takePhoto: calling takePicture…" }
                     imageCapture.takePicture(
                         outputOptions,
                         ContextCompat.getMainExecutor(context),
                         object : ImageCapture.OnImageSavedCallback {
                             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                Log.d(TAG, "takePhoto: image saved to ${file.absolutePath}")
+                                GotchaLog.d(TAG) { "takePhoto: image saved to ${file.absolutePath}" }
                                 com.gotcha.data.GotchaStorage.publishToGallery(context, file)
                                 cont.resume(ToolResult.ok("Photo saved to ${file.absolutePath}."))
                             }

@@ -11,6 +11,7 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.gotcha.BuildConfig
 import com.gotcha.data.SettingsRepository
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 import java.io.IOException
@@ -49,10 +50,10 @@ class SamosaAuthManager(
         val idToken = try {
             requestGoogleIdToken(activityContext)
         } catch (e: GetCredentialCancellationException) {
-            Log.d(TAG, "Sign-in cancelled by user", e)
+            GotchaLog.d(TAG, e) { "Sign-in cancelled by user" }
             return SamosaSignInResult.Cancelled
         } catch (e: NoCredentialException) {
-            Log.d(TAG, "No Google credential available", e)
+            GotchaLog.d(TAG, e) { "No Google credential available" }
             return SamosaSignInResult.Error(
                 "No Google account available. Add a Google account to this device and try again."
             )
@@ -95,7 +96,7 @@ class SamosaAuthManager(
     } catch (e: HttpException) {
         SamosaSignInResult.Error(mapRegisterError(e.code()))
     } catch (e: IOException) {
-        Log.d(TAG, "Network error during register", e)
+        GotchaLog.d(TAG, e) { "Network error during register" }
         SamosaSignInResult.Error("Network error. Check your connection and try again.")
     }
 
@@ -115,7 +116,7 @@ class SamosaAuthManager(
         val token = settingsRepository.load().samosaSessionToken
         if (token.isNotBlank()) {
             runCatching { api.logout("Bearer $token") }
-                .onFailure { Log.d(TAG, "Server logout failed (ignored): ${it.message}") }
+                .onFailure { GotchaLog.d(TAG) { "Server logout failed (ignored): ${it.message}" } }
         }
         settingsRepository.clearSamosaSession()
         runCatching {
@@ -143,7 +144,7 @@ class SamosaAuthManager(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.d(TAG, "Could not fetch credit balance (ignored)", e)
+            GotchaLog.d(TAG, e) { "Could not fetch credit balance (ignored)" }
             null
         }
     }

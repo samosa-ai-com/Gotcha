@@ -5,22 +5,28 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import com.gotcha.MainActivity
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
+import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,20 +85,43 @@ class AssistiveBallService : Service() {
     private val wakeWordSettingsWatcher = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         val s = settingsRepository.load()
         if (!s.wakeWordEnabled || !s.assistiveBallEnabled) {
-            wakeWordDetector.stop()
+            wakeWordDetector.release()
             return@OnSharedPreferenceChangeListener
         }
         // The key arrives encrypted; compare the value read back instead (see
-        // settingsChangeNotifier's note). Restarting with a new threshold only
-        // makes sense while idle — the state collector stops the detector
-        // whenever a call becomes active anyway.
-        if (s.wakeWordSensitivity != appliedWakeWordSensitivity &&
-            callController.state.value == CallState.IDLE
-        ) {
+        // settingsChangeNotifier's note). Restarting with a new threshold or a
+        // new listening mode only makes sense while idle — the state collector
+        // stops the detector whenever a call becomes active anyway.
+        val settingsChanged = s.wakeWordSensitivity != appliedWakeWordSensitivity ||
+            s.wakeWordListeningMode != appliedWakeWordMode
+        if (settingsChanged && callController.state.value == CallState.IDLE) {
             maybeStartWakeWord()
         }
     }
     private var appliedWakeWordSensitivity: Float? = null
+    private var appliedWakeWordMode: WakeWordListeningMode? = null
+
+    /**
+     * Re-evaluates the listener when the screen toggles, so the SCREEN_ON /
+     * SCREEN_OFF listening modes track the display instead of waiting for a
+     * settings edit or a call transition to re-arm.
+     *
+     * Guarded like the call-state and TTS collectors: a screen toggle must
+     * never re-arm the listener while a call is active or the app is speaking
+     * — those pauses are deliberate, and an unconditional re-arm here would
+     * grab the microphone out from under the call's STT or from the app's own
+     * voice.
+     */
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_ON, Intent.ACTION_SCREEN_OFF ->
+                    if (callController.state.value == CallState.IDLE && !ttsEngine.isSpeaking.value) {
+                        maybeStartWakeWord()
+                    }
+            }
+        }
+    }
     private lateinit var screenCompanionController: ScreenCompanionController
     private lateinit var screenCompanionPanel: com.gotcha.ui.ScreenCompanionPanelOverlay
     private lateinit var screenLensController: ScreenLensController
@@ -159,6 +188,7 @@ class AssistiveBallService : Service() {
 
         settingsPrefs = settingsChangeNotifier(applicationContext)
         settingsPrefs.registerOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
+        registerScreenStateReceiver()
 
         // Floating call buttons (shown during a call, hidden otherwise)
         chatWindow = CallChatWindow(this).apply {
@@ -227,7 +257,9 @@ class AssistiveBallService : Service() {
             callController.state.collect { state ->
                 val active = state != CallState.IDLE && state != CallState.ENDING
                 if (active) {
-                    wakeWordDetector.stop()
+                    // Pause, not release: a call ends and we re-arm within
+                    // seconds, so keep the models loaded across it.
+                    wakeWordDetector.pause()
                 } else if (state == CallState.IDLE) {
                     maybeStartWakeWord()
                 }
@@ -247,10 +279,14 @@ class AssistiveBallService : Service() {
         // post-detection isSpeaking guard in onWakeWordDetected is a second
         // line of defence against self-triggering, but stopping the listener
         // here closes the race at the source — see privacy-data-retention.md §10.3.
+        // pause() still hands the microphone back in full; it keeps only the
+        // loaded ONNX models, which hold no audio. The privacy guarantee is
+        // unchanged — what goes away is reloading 2.6 MB of models every time
+        // the app speaks a sentence.
         scope.launch {
             ttsEngine.isSpeaking.collect { speaking ->
                 if (speaking) {
-                    wakeWordDetector.stop()
+                    wakeWordDetector.pause()
                 } else if (callController.state.value == CallState.IDLE) {
                     maybeStartWakeWord()
                 }
@@ -425,22 +461,21 @@ class AssistiveBallService : Service() {
 
     /** Read the clipboard (via a focus-stealing activity) and offer a smart action. */
     private fun handleClipboardRead() {
-        android.util.Log.d("AssistiveBallService", "onReadClipboardRequest called")
+        GotchaLog.d("AssistiveBallService") { "onReadClipboardRequest called" }
         overlay.readClipboardWithFocus { clip ->
-            android.util.Log.d(
-                "AssistiveBallService",
+            GotchaLog.d("AssistiveBallService") {
                 "readClipboardWithFocus: null=${clip == null}, count=${clip?.itemCount ?: 0}"
-            )
+            }
             com.gotcha.service.GotchaAccessibilityService.lastClipboardData = clip
             val clipText = clip?.getItemAt(0)?.text?.toString()
-            android.util.Log.d("AssistiveBallService", "clip length=${clipText?.length ?: 0}")
+            GotchaLog.d("AssistiveBallService") { "clip length=${clipText?.length ?: 0}" }
             if (clipText.isNullOrBlank()) {
-                android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
+                GotchaLog.d("AssistiveBallService") { "clipText is null or blank, not setting smart action" }
                 return@readClipboardWithFocus
             }
             val url = SmartActionDetector.extractUrl(clipText)
             if (url != null) {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: Summarize link ($url)")
+                GotchaLog.d("AssistiveBallService") { "Setting smart action: Summarize link ($url)" }
                 val fetch = SmartActionDetector.fetchAction(url)
                 overlay.setSmartActionAvailable(fetch.label, fetch.prompt)
                 return@readClipboardWithFocus
@@ -864,12 +899,17 @@ class AssistiveBallService : Service() {
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
     private fun onWakeWordDetected() {
-        wakeWordDetector.stop()
+        wakeWordDetector.pause()
         if (ttsEngine.isSpeaking.value) {
             // The app was reading something aloud (e.g. a screen read-aloud that
             // happened to contain "gotcha") — never start a call from our own
-            // voice. Resume listening instead.
-            maybeStartWakeWord()
+            // voice.
+            //
+            // Deliberately does not re-arm here. Doing so put the listener back
+            // on the mic *while the app was still talking*, so the rest of the
+            // utterance could trigger this path again and again. The isSpeaking
+            // collector re-arms as soon as the app goes quiet, which is the
+            // moment listening should resume.
             return
         }
         val s = settingsRepository.load()
@@ -881,12 +921,26 @@ class AssistiveBallService : Service() {
         // The call hides the ball almost immediately, so the visual ack has to
         // be kicked off before it starts — see AssistiveBallOverlay.playWakeAnimation.
         overlay.playWakeAnimation()
-        callController.startWakeWordCall()
+        if (!callController.startWakeWordCall()) {
+            // The call was refused before it began — no provider configured, no
+            // API key, the mic grant gone. startCall() reports that through
+            // onError() and leaves the state machine in IDLE, so the collector
+            // that normally re-arms the listener never fires: a StateFlow that
+            // does not change does not emit.
+            //
+            // Without this the wake word is dead until the ball is restarted,
+            // and the failure looks permanent to the user — they fix the thing
+            // the error told them to fix, say "Hey Gotcha" again, and nothing
+            // happens. Re-arm here so the next attempt reaches the new config.
+            maybeStartWakeWord()
+        }
     }
 
     private fun maybeStartWakeWord() {
         val settings = settingsRepository.load()
-        if (settings.wakeWordEnabled && settings.assistiveBallEnabled && hasMicPermission()) {
+        if (settings.wakeWordEnabled && settings.assistiveBallEnabled && hasMicPermission() &&
+            settings.wakeWordListeningMode.allows(isScreenInteractive())
+        ) {
             // A running detector skips its own start() (see WakeWordDetector),
             // so a live sensitivity change would otherwise never reach the
             // matcher. Stop first to force a rebuild whenever the threshold
@@ -894,13 +948,39 @@ class AssistiveBallService : Service() {
             if (appliedWakeWordSensitivity != settings.wakeWordSensitivity &&
                 wakeWordDetector.isRunning()
             ) {
-                wakeWordDetector.stop()
+                wakeWordDetector.pause()
             }
             appliedWakeWordSensitivity = settings.wakeWordSensitivity
+            appliedWakeWordMode = settings.wakeWordListeningMode
             wakeWordDetector.start()
         } else {
-            wakeWordDetector.stop()
+            // Switched off, no mic grant, or the listening mode does not allow
+            // the current screen state: give the models back.
+            wakeWordDetector.release()
         }
+    }
+
+    /** Whether the display is on and usable. Defaults to true when unknown. */
+    private fun isScreenInteractive(): Boolean {
+        val powerManager = getSystemService(PowerManager::class.java) ?: return true
+        return powerManager.isInteractive
+    }
+
+    /**
+     * Screen on/off re-arm for the SCREEN_ON / SCREEN_OFF listening modes.
+     * Registered once in [onCreate] and unregistered alongside the settings
+     * watcher in [stopBall] and [onDestroy].
+     */
+    private fun registerScreenStateReceiver() {
+        ContextCompat.registerReceiver(
+            this,
+            screenStateReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -924,10 +1004,11 @@ class AssistiveBallService : Service() {
     override fun onDestroy() {
         if (instance === this) instance = null
         _isRunning.value = false
-        wakeWordDetector.stop()
+        wakeWordDetector.release()
         if (::settingsPrefs.isInitialized) {
             settingsPrefs.unregisterOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
         }
+        runCatching { unregisterReceiver(screenStateReceiver) }
         callController.endCall()
         chatWindow.hide()
         screenCompanionPanel.dismiss()
@@ -1007,14 +1088,17 @@ class AssistiveBallService : Service() {
     // ---- Lifecycle helpers ----
 
     private fun stopBall() {
-        wakeWordDetector.stop()
+        wakeWordDetector.release()
         if (::settingsPrefs.isInitialized) {
             settingsPrefs.unregisterOnSharedPreferenceChangeListener(wakeWordSettingsWatcher)
         }
+        runCatching { unregisterReceiver(screenStateReceiver) }
         callController.endCall()
         chatWindow.hide()
         screenCompanionPanel.dismiss()
-        settingsRepository.save(settingsRepository.load().copy(assistiveBallEnabled = false))
+        settingsRepository.save(
+            settingsRepository.load().copy(assistiveBallEnabled = false, wakeWordEnabled = false)
+        )
         _isRunning.value = false
         overlay.dismiss()
         stopForeground(STOP_FOREGROUND_REMOVE)

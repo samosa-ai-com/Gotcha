@@ -21,21 +21,30 @@ class SkinMigrationTest {
     }
 
     /**
-     * SYSTEM was the default, and the overwhelming majority of installs are on
-     * it. Dark is the honest landing place: it is what the app looked like for
-     * most of them, and it is the skin the picker calls the original.
+     * SYSTEM was the stored default, so it is the theme the app actually showed
+     * for most installs. Flipping that population from dark to light silently
+     * would be a regression — it stays on Deep Space Dark.
      */
     @Test
-    fun `someone who never changed it lands on the original`() {
+    fun `someone on SYSTEM keeps the dark Deep Space original`() {
         assertEquals(SKIN_DEEP_SPACE_DARK, migrateSkinId("SYSTEM"))
-        assertEquals(SKIN_DEEP_SPACE_DARK, migrateSkinId(null))
+    }
+
+    /**
+     * A fresh install never writes `theme_mode` (the new skin system replaced
+     * it entirely), so null is the only true "never chose" population. That is
+     * who lands on the Vellum default.
+     */
+    @Test
+    fun `a fresh install that never chose a theme lands on the Vellum default`() {
+        assertEquals(SKIN_VELLUM, migrateSkinId(null))
     }
 
     /** A value from a build that no longer exists must not throw. */
     @Test
-    fun `an unrecognised legacy value falls back rather than failing`() {
-        assertEquals(SKIN_DEEP_SPACE_DARK, migrateSkinId("AUTO_BATTERY"))
-        assertEquals(SKIN_DEEP_SPACE_DARK, migrateSkinId(""))
+    fun `an unrecognised legacy value falls back to Vellum rather than failing`() {
+        assertEquals(SKIN_VELLUM, migrateSkinId("AUTO_BATTERY"))
+        assertEquals(SKIN_VELLUM, migrateSkinId(""))
     }
 
     /** The ids it produces have to be ids the picker actually knows. */

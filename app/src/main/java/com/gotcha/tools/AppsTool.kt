@@ -10,6 +10,7 @@ import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Process
 import android.util.Log
+import com.gotcha.util.GotchaLog
 
 class AppsTool(private val context: Context) {
 
@@ -126,7 +127,7 @@ class AppsTool(private val context: Context) {
      * the app is gone via list_installed_apps after tapping OK.
      */
     fun doUninstall(packageName: String): ToolResult {
-        Log.d(TAG, "doUninstall: $packageName")
+        GotchaLog.d(TAG) { "doUninstall: $packageName" }
         return try {
             val pm = context.packageManager
             val installed = try {
@@ -150,7 +151,7 @@ class AppsTool(private val context: Context) {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
 
-            Log.d(TAG, "doUninstall: dialog opened for $label")
+            GotchaLog.d(TAG) { "doUninstall: dialog opened for $label" }
             ToolResult.ok(
                 "System dialog opened to uninstall $label. After you tap OK in the dialog, ask the assistant to verify the app is gone."
             )
