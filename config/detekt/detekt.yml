@@ -61,6 +61,13 @@ exceptions:
   TooGenericExceptionCaught:
     active: false
 
+gotcha:
+  NoRawDebugLog:
+    active: true
+    # GotchaLog.kt is the one sanctioned place raw Log.d/Log.v appears (behind
+    # BuildConfig.DEBUG). Everything else must route through the facade.
+    excludes: ["**/GotchaLog.kt"]
+
 formatting:
   MaximumLineLength:
     maxLineLength: 140

@@ -39,7 +39,12 @@ open class NotificationApi(
 
     init {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
+            // The request URL is the configured endpoint — not for release logcat.
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BASIC
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
         client = OkHttpClient.Builder()
             .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)

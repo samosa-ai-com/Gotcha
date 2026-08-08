@@ -392,6 +392,7 @@ dependencies {
 
     // Static analysis
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
+    detektPlugins(project(":detekt-rules"))
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -75,6 +75,7 @@ import com.gotcha.ui.tour.TourNavigation
 import com.gotcha.ui.tour.TourOverlay
 import com.gotcha.ui.tour.TourPlace
 import com.gotcha.ui.tour.rememberTourHost
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -158,14 +159,13 @@ class MainActivity : ComponentActivity() {
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            android.util.Log.d(
-                "ScreenCapture",
+            GotchaLog.d("ScreenCapture") {
                 "mediaProjectionLauncher: resultCode=${result.resultCode}, data=${result.data != null}"
-            )
+            }
             if (result.resultCode == RESULT_OK && result.data != null) {
                 ScreenPerception.mediaProjectionResultData = result.data
                 Toast.makeText(this, "Screenshot permission granted.", Toast.LENGTH_SHORT).show()
-                android.util.Log.d("ScreenCapture", "mediaProjectionLauncher: consent stored successfully")
+                GotchaLog.d("ScreenCapture") { "mediaProjectionLauncher: consent stored successfully" }
             } else {
                 android.util.Log.w("ScreenCapture", "mediaProjectionLauncher: consent denied or data null")
             }

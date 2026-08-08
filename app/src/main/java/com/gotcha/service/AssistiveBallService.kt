@@ -26,6 +26,7 @@ import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
+import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -460,22 +461,21 @@ class AssistiveBallService : Service() {
 
     /** Read the clipboard (via a focus-stealing activity) and offer a smart action. */
     private fun handleClipboardRead() {
-        android.util.Log.d("AssistiveBallService", "onReadClipboardRequest called")
+        GotchaLog.d("AssistiveBallService") { "onReadClipboardRequest called" }
         overlay.readClipboardWithFocus { clip ->
-            android.util.Log.d(
-                "AssistiveBallService",
+            GotchaLog.d("AssistiveBallService") {
                 "readClipboardWithFocus: null=${clip == null}, count=${clip?.itemCount ?: 0}"
-            )
+            }
             com.gotcha.service.GotchaAccessibilityService.lastClipboardData = clip
             val clipText = clip?.getItemAt(0)?.text?.toString()
-            android.util.Log.d("AssistiveBallService", "clip length=${clipText?.length ?: 0}")
+            GotchaLog.d("AssistiveBallService") { "clip length=${clipText?.length ?: 0}" }
             if (clipText.isNullOrBlank()) {
-                android.util.Log.d("AssistiveBallService", "clipText is null or blank, not setting smart action")
+                GotchaLog.d("AssistiveBallService") { "clipText is null or blank, not setting smart action" }
                 return@readClipboardWithFocus
             }
             val url = SmartActionDetector.extractUrl(clipText)
             if (url != null) {
-                android.util.Log.d("AssistiveBallService", "Setting smart action: Summarize link ($url)")
+                GotchaLog.d("AssistiveBallService") { "Setting smart action: Summarize link ($url)" }
                 val fetch = SmartActionDetector.fetchAction(url)
                 overlay.setSmartActionAvailable(fetch.label, fetch.prompt)
                 return@readClipboardWithFocus

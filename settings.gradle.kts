@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "gotcha"
 include(":app")
+include(":detekt-rules")

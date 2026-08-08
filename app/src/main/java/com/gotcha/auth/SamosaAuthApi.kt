@@ -77,7 +77,12 @@ interface SamosaAuthApi {
                 encodeDefaults = false
             }
             val logging = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BASIC
+                // The request URL is the configured endpoint — not for release logcat.
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BASIC
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
                 redactHeader("Authorization")
             }
             val client = OkHttpClient.Builder()

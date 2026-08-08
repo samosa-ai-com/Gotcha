@@ -3,6 +3,7 @@ package com.gotcha.agent.skills
 import android.content.Context
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
@@ -90,7 +91,7 @@ object SkillRegistry {
                     val text = assetManager.open(fullPath).bufferedReader().use { it.readText() }
                     val skill = json.decodeFromString<Skill>(text)
                     bundledSkills.add(skill)
-                    Log.d(TAG, "Loaded bundled skill: ${skill.id}")
+                    GotchaLog.d(TAG) { "Loaded bundled skill: ${skill.id}" }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error parsing $fullPath", e)
                 }

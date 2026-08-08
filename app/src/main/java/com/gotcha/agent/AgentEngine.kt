@@ -1,7 +1,6 @@
 package com.gotcha.agent
 
 import android.content.Context
-import android.util.Log
 import com.gotcha.agent.skills.SkillPromptBuilder
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.connectors.ConnectorRegistry
@@ -25,6 +24,7 @@ import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -219,7 +219,7 @@ class AgentEngine(
     fun setupWorkingDir(create: Boolean = true) {
         val dir = resolveWorkingDir(create)
         FileResolver.WORKING_DIR_BASE = dir.absolutePath
-        Log.d(TAG, "setupWorkingDir: ${dir.absolutePath}")
+        GotchaLog.d(TAG) { "setupWorkingDir: ${dir.absolutePath}" }
     }
 
     /** LLM-generated short title, once available; set once per session. */
@@ -833,7 +833,7 @@ class AgentEngine(
         }
         val label = parts[0]
         val pkg = parts[1]
-        Log.d(TAG, "handleUninstallConfirm: label=$label pkg=$pkg")
+        GotchaLog.d(TAG) { "handleUninstallConfirm: label=$label pkg=$pkg" }
         val description = "Request to uninstall \"$label\". After you approve, a system dialog will " +
             "open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
         val approved = events.awaitConfirmation(listOf("uninstall_app"), description)
@@ -1355,10 +1355,7 @@ class AgentEngine(
      * can "see" the screen alongside structured element data.
      */
     internal suspend fun injectReadScreenObservation() {
-        android.util.Log.d(
-            "ScreenCapture",
-            "read_screen auto-injection: calling captureCompressedScreenshot()"
-        )
+        GotchaLog.d("ScreenCapture") { "read_screen auto-injection: calling captureCompressedScreenshot()" }
         val uiTree = ScreenPerception.buildUiHierarchyText()
         val screenshot = try {
             events.onScreenCaptureChrome(true)
@@ -1367,10 +1364,7 @@ class AgentEngine(
         } finally {
             events.onScreenCaptureChrome(false)
         }
-        android.util.Log.d(
-            "ScreenCapture",
-            "read_screen auto-injection: screenshot=${screenshot != null}"
-        )
+        GotchaLog.d("ScreenCapture") { "read_screen auto-injection: screenshot=${screenshot != null}" }
         // The accessibility text read happened regardless of screenshot success —
         // signal the host so it can flash the "screen was read" feedback.
         events.onScreenReadDone()
@@ -1379,10 +1373,9 @@ class AgentEngine(
             val visionMsg = visionUserMessage(observationText, screenshot.base64, "jpeg")
             history.add(visionMsg)
             events.onUi(MessageKind.ASSISTANT, "[Screenshot captured for visual context]")
-            android.util.Log.d(
-                "ScreenCapture",
+            GotchaLog.d("ScreenCapture") {
                 "read_screen auto-injection: vision message added, base64 length=${screenshot.base64.length}"
-            )
+            }
         } else {
             android.util.Log.e(
                 "ScreenCapture",

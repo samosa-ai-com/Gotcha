@@ -10,6 +10,7 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -57,10 +58,7 @@ class GotchaAccessibilityService : AccessibilityService() {
                 val desc = source.contentDescription?.toString() ?: ""
                 val viewId = source.viewIdResourceName ?: ""
                 if (isCopyString(text) || isCopyString(desc) || viewId.lowercase().contains("copy")) {
-                    android.util.Log.d(
-                        "GotchaAccessibilityService",
-                        "Copy click detected: id=$viewId"
-                    )
+                    GotchaLog.d("GotchaAccessibilityService") { "Copy click detected: id=$viewId" }
                     triggerClipboardBroadcast()
                 }
                 source.recycle()
@@ -69,7 +67,7 @@ class GotchaAccessibilityService : AccessibilityService() {
             for (t in eventTexts) {
                 val textStr = t?.toString() ?: ""
                 if (isCopyString(textStr)) {
-                    android.util.Log.d("GotchaAccessibilityService", "Copy event text detected")
+                    GotchaLog.d("GotchaAccessibilityService") { "Copy event text detected" }
                     triggerClipboardBroadcast()
                     break
                 }
@@ -79,10 +77,7 @@ class GotchaAccessibilityService : AccessibilityService() {
             for (t in eventTexts) {
                 val textStr = t?.toString() ?: ""
                 if (isClipboardToast(textStr)) {
-                    android.util.Log.d(
-                        "GotchaAccessibilityService",
-                        "Clipboard toast detected"
-                    )
+                    GotchaLog.d("GotchaAccessibilityService") { "Clipboard toast detected" }
                     triggerClipboardBroadcast()
                     break
                 }
@@ -123,10 +118,7 @@ class GotchaAccessibilityService : AccessibilityService() {
                 setPackage(packageName)
             }
             sendBroadcast(intent)
-            android.util.Log.d(
-                "GotchaAccessibilityService",
-                "Sent CLIPBOARD_CHANGED broadcast"
-            )
+            GotchaLog.d("GotchaAccessibilityService") { "Sent CLIPBOARD_CHANGED broadcast" }
         } catch (e: Exception) {
             android.util.Log.e(
                 "GotchaAccessibilityService",
@@ -658,9 +650,6 @@ class GotchaAccessibilityService : AccessibilityService() {
 
     /** Register a clipboard listener to cache clipboard content. */
     internal fun initClipboardListener() {
-        android.util.Log.d(
-            "GotchaAccessibilityService",
-            "initClipboardListener: using event-based detection"
-        )
+        GotchaLog.d("GotchaAccessibilityService") { "initClipboardListener: using event-based detection" }
     }
 }
