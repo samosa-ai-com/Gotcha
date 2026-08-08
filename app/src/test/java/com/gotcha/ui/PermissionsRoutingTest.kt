@@ -1,11 +1,14 @@
 package com.gotcha.ui
 
 import android.content.Context
+import android.content.Intent
 import androidx.health.connect.client.PermissionController
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.tools.HealthPermissionState
 import com.gotcha.tools.HealthTool
 import com.gotcha.tools.ToolResult
+import com.gotcha.tools.healthConnectManagePermissionsIntent
+import com.gotcha.tools.healthConnectPermissionIntent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,5 +84,30 @@ class PermissionsRoutingTest {
         // Health Connect is not installed under Robolectric; the resume-refresh
         // path added to PermissionsSection must not throw on such devices.
         assertFalse(HealthPermissionState.refresh(context))
+    }
+
+    @Test
+    fun healthConnectManagePermissionsIntentTargetsThisApp() {
+        // The Android 14+ per-app permission manager, which OEM controllers
+        // register even when the SDK's RequestMultiplePermissions screen is not
+        // resolvable. Must name the app whose permissions are being managed.
+        val intent = healthConnectManagePermissionsIntent(context)
+        assertEquals(
+            "android.health.connect.action.MANAGE_HEALTH_PERMISSIONS",
+            intent.action
+        )
+        assertEquals(context.packageName, intent.getStringExtra(Intent.EXTRA_PACKAGE_NAME))
+    }
+
+    @Test
+    fun healthConnectPermissionIntentSteersToPlayListingWhenProviderAbsent() {
+        // No Health Connect provider under Robolectric: the helper must pick the
+        // Play listing, not crash or fire an intent nothing can handle.
+        val intent = healthConnectPermissionIntent(context)
+        assertNotNull("there must always be a steer, never a crash", intent)
+        assertEquals(
+            "market://details?id=com.google.android.apps.healthdata",
+            intent?.getData()?.toString()
+        )
     }
 }
