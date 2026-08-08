@@ -1,13 +1,17 @@
 name: Release
 
-# Fires when update.json changes on main. A version bump there is the trigger
-# for a build+release; anything else touching the file (e.g. releaseNotes
-# text) is a no-op because the "already tagged?" check below short-circuits.
+# Fully automates what used to be a manual build-APK / upload-to-GitHub / edit-update.json
+# process. A developer bumps versionCode + versionName in app/build.gradle.kts and adds
+# the release's notes under the "## [Unreleased]" heading in CHANGELOG.md, then pushes to
+# main. This workflow builds the signed APK, tags the release, publishes it on GitHub,
+# rolls the changelog's Unreleased section into a versioned one, and regenerates
+# update.json (versionCode, versionName, downloadUrl, sha256, releaseNotes) — which is
+# what devices actually read (via raw.githubusercontent.com) to detect the update.
 on:
   push:
     branches: [main]
     paths:
-      - update.json
+      - app/build.gradle.kts
 
 concurrency:
   group: release-${{ github.ref }}
@@ -24,20 +28,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Read version from update.json
+      - name: Read version from app/build.gradle.kts
         id: version
         run: |
-          VERSION_NAME=$(jq -r '.versionName' update.json)
-          VERSION_CODE=$(jq -r '.versionCode' update.json)
-          DOWNLOAD_URL=$(jq -r '.downloadUrl' update.json)
-          if [ -z "$VERSION_NAME" ] || [ "$VERSION_NAME" = "null" ]; then
-            echo "::error::update.json is missing versionName"
+          NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          if [ -z "$NAME" ] || [ -z "$CODE" ]; then
+            echo "::error::couldn't read versionName/versionCode from app/build.gradle.kts"
             exit 1
           fi
-          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
-          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          echo "download_url=$DOWNLOAD_URL" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Skip if this version was already released
         id: check
@@ -49,27 +51,37 @@ jobs:
             echo "should_release=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify app/build.gradle.kts matches update.json
+      - name: Roll CHANGELOG.md Unreleased section into this version
         if: steps.check.outputs.should_release == 'true'
+        id: changelog
         run: |
-          GRADLE_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
-          GRADLE_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
-          if [ "$GRADLE_NAME" != "${{ steps.version.outputs.name }}" ] || [ "$GRADLE_CODE" != "${{ steps.version.outputs.code }}" ]; then
-            echo "::error::app/build.gradle.kts (versionName=$GRADLE_NAME, versionCode=$GRADLE_CODE) doesn't match update.json (versionName=${{ steps.version.outputs.name }}, versionCode=${{ steps.version.outputs.code }}). Bump both together."
-            exit 1
-          fi
+          python3 - "${{ steps.version.outputs.name }}" <<'PYEOF'
+          import re, sys
 
-      - name: Verify downloadUrl points at this release
-        if: steps.check.outputs.should_release == 'true'
-        run: |
-          EXPECTED_SUFFIX="/releases/download/${{ steps.version.outputs.tag }}/app-release.apk"
-          case "${{ steps.version.outputs.download_url }}" in
-            *"$EXPECTED_SUFFIX") ;;
-            *)
-              echo "::error::update.json downloadUrl (${{ steps.version.outputs.download_url }}) doesn't end with $EXPECTED_SUFFIX. Update it alongside versionName."
-              exit 1
-              ;;
-          esac
+          version_name = sys.argv[1]
+          path = "CHANGELOG.md"
+          text = open(path, encoding="utf-8").read()
+
+          heading_re = re.compile(r'^## \[.+?\]\s*$', re.MULTILINE)
+          headings = list(heading_re.finditer(text))
+          unreleased = next((m for m in headings if m.group().strip() == "## [Unreleased]"), None)
+          if unreleased is None:
+              sys.exit("::error::CHANGELOG.md has no '## [Unreleased]' section")
+
+          later = [m for m in headings if m.start() > unreleased.start()]
+          section_end = later[0].start() if later else len(text)
+          body = text[unreleased.end():section_end].strip("\n")
+
+          if not body.strip():
+              sys.exit("::error::CHANGELOG.md's Unreleased section is empty — add release notes before bumping the version")
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write(body + "\n")
+
+          new_section_header = f"## [Unreleased]\n\n## [{version_name}]"
+          new_text = text[:unreleased.start()] + new_section_header + text[unreleased.end():]
+          open(path, "w", encoding="utf-8").write(new_text)
+          PYEOF
 
       - uses: actions/setup-java@v4
         if: steps.check.outputs.should_release == 'true'
@@ -118,8 +130,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES=$(jq -r '.releaseNotes // ""' update.json)
           gh release create "${{ steps.version.outputs.tag }}" \
             app/build/outputs/apk/release/app-release.apk \
             --title "${{ steps.version.outputs.tag }}" \
-            --notes "$NOTES"
+            --notes-file release_notes.md
+
+      - name: Regenerate update.json
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          APK_SHA256=$(sha256sum app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
+          DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download/${{ steps.version.outputs.tag }}/app-release.apk"
+          jq -n \
+            --argjson versionCode "${{ steps.version.outputs.code }}" \
+            --arg versionName "${{ steps.version.outputs.name }}" \
+            --arg downloadUrl "$DOWNLOAD_URL" \
+            --arg sha256 "$APK_SHA256" \
+            --arg releaseNotes "$(cat release_notes.md)" \
+            '{versionCode: $versionCode, versionName: $versionName, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, sha256: $sha256}' \
+            > update.json
+
+      - name: Commit update.json and CHANGELOG.md
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          rm -f release_notes.md
+          git add update.json CHANGELOG.md
+          git commit -m "chore: update.json for ${{ steps.version.outputs.tag }}"
+          git push origin HEAD:main
