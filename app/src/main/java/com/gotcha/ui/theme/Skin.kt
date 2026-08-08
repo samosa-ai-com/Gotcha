@@ -379,7 +379,27 @@ object Skins {
 
     val all = listOf(Aura, Vellum, Orchid, Nocturne, DeepSpaceDark, DeepSpaceLight)
 
+    /**
+     * The skin id a fresh install lands on, and the value the theme uses when
+     * nothing is otherwise chosen.
+     *
+     * This is the *product* default, not the safety fallback. [byId] still
+     * degrades unknown ids to [DeepSpaceDark], and overlays fall back to
+     * [OVERLAY_FALLBACK_ID] when the stored skin cannot be read — the safe
+     * opaque original, so an error path never pops a light panel over an
+     * arbitrary screen.
+     */
     const val DEFAULT_ID = "vellum"
+
+    /**
+     * The skin id an overlay paints when the stored skin cannot be read.
+     *
+     * Deliberately the opaque Deep Space original, not [DEFAULT_ID]: an overlay
+     * floats over somebody else's app, and a light frosted panel appearing over
+     * an arbitrary screen in an error path is worse than the safe opaque dark
+     * one the app has always used.
+     */
+    val OVERLAY_FALLBACK_ID: String get() = DeepSpaceDark.id
 
     fun byId(id: String): Skin = all.firstOrNull { it.id == id } ?: DeepSpaceDark
 }

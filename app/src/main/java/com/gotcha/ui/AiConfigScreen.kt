@@ -150,11 +150,10 @@ fun AiConfigScreen(
         // ---- Provider / model guidance ----
         Text(
             "Recommended setup:\n" +
-                "• Use the SAMOSA AI provider for the best LLM performance — it " +
-                "includes a built-in TTS that handles mixed-language text.\n" +
-                "• For high-quality single-language speech (e.g. English primarily), " +
-                "SAMOSA AI's TTS is the recommendation.\n" +
-                "• SAMOSA AI's STT is the recommended speech-to-text engine.",
+                "• Use the SAMOSA AI provider for the best LLM performance.\n" +
+                "• For speech, pick SAMOSA AI's TTS and STT on the Speech screen — " +
+                "its TTS handles mixed-language text, and its STT is the recommended " +
+                "transcription engine.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

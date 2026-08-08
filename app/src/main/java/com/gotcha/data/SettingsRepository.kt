@@ -92,6 +92,9 @@ data class Settings(
      * Which skin is painted. Stored as the id string rather than an enum so a
      * build that drops a skin degrades to the default instead of throwing on a
      * value it no longer knows.
+     *
+     * Keep this default in sync with [com.gotcha.ui.theme.Skins.DEFAULT_ID] — a
+     * fresh install that never runs the migration reads it straight from here.
      */
     val skinId: String = "vellum",
     val disabledSkills: Set<String> = emptySet(),
@@ -282,15 +285,18 @@ data class Settings(
  * whole reason this exists. It runs once: [SettingsRepository] writes the
  * result, and every later load reads that instead.
  *
- * A legacy light/dark choice keeps the matching Deep Space skin; an install
- * that never chose a theme lands on the Vellum default.
+ * A legacy light/dark choice keeps the matching Deep Space skin. SYSTEM was the
+ * stored default, so it was the theme the app actually showed for most installs
+ * — it stays on Deep Space Dark rather than silently flipping those users from
+ * dark to light. Only an install that never wrote the field (a fresh install,
+ * where the new skin system replaced `theme_mode` entirely) lands on Vellum.
  *
  * @param legacyThemeMode the old `theme_mode` value, or null if never set.
  */
 internal fun migrateSkinId(legacyThemeMode: String?): String =
     when (legacyThemeMode) {
         LEGACY_THEME_MODE_LIGHT -> SKIN_DEEP_SPACE_LIGHT
-        LEGACY_THEME_MODE_DARK -> SKIN_DEEP_SPACE_DARK
+        LEGACY_THEME_MODE_DARK, LEGACY_THEME_MODE_SYSTEM -> SKIN_DEEP_SPACE_DARK
         else -> SKIN_VELLUM
     }
 
@@ -320,6 +326,7 @@ internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
 internal const val SKIN_VELLUM = "vellum"
 private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
 private const val LEGACY_THEME_MODE_DARK = "DARK"
+private const val LEGACY_THEME_MODE_SYSTEM = "SYSTEM"
 
 interface SettingsStore {
     fun load(): Settings

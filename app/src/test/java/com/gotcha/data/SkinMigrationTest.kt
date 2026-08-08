@@ -21,12 +21,22 @@ class SkinMigrationTest {
     }
 
     /**
-     * SYSTEM was the default, so the overwhelming majority of installs are on
-     * it and never chose a theme. Vellum is the new default landing place.
+     * SYSTEM was the stored default, so it is the theme the app actually showed
+     * for most installs. Flipping that population from dark to light silently
+     * would be a regression — it stays on Deep Space Dark.
      */
     @Test
-    fun `someone who never chose a theme lands on the Vellum default`() {
-        assertEquals(SKIN_VELLUM, migrateSkinId("SYSTEM"))
+    fun `someone on SYSTEM keeps the dark Deep Space original`() {
+        assertEquals(SKIN_DEEP_SPACE_DARK, migrateSkinId("SYSTEM"))
+    }
+
+    /**
+     * A fresh install never writes `theme_mode` (the new skin system replaced
+     * it entirely), so null is the only true "never chose" population. That is
+     * who lands on the Vellum default.
+     */
+    @Test
+    fun `a fresh install that never chose a theme lands on the Vellum default`() {
         assertEquals(SKIN_VELLUM, migrateSkinId(null))
     }
 

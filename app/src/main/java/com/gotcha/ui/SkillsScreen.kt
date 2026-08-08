@@ -55,10 +55,16 @@ fun SkillsScreen(
 ) {
     val initial = remember { load() }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
-    // The Samosa AI host is built in and cannot be removed; re-add it in case an
-    // older version let it slip out of the saved set.
+    val pinnedHost = BuildConfig.SAMOSA_SKILL_HOST
+    // The Samosa AI host is built in and cannot be removed. Normalize its casing
+    // (an older version may have persisted a case-variant) and re-add it, so it
+    // always renders as exactly one "Built-in" row with no orphan duplicate.
     var communitySkillHosts by remember {
-        mutableStateOf(initial.communitySkillHosts + BuildConfig.SAMOSA_SKILL_HOST)
+        mutableStateOf(
+            initial.communitySkillHosts
+                .filterNot { it.equals(pinnedHost, ignoreCase = true) }
+                .toSet() + pinnedHost
+        )
     }
     var communitySkillUrl by remember { mutableStateOf("") }
     var communitySkillPasteJson by remember { mutableStateOf("") }
@@ -78,8 +84,11 @@ fun SkillsScreen(
     /** This page's fields, copied onto [base]. */
     fun applySkills(base: Settings) = base.copy(
         disabledSkills = disabledSkills,
-        // The Samosa AI host is pinned; saving always keeps it in the allowlist.
-        communitySkillHosts = communitySkillHosts + BuildConfig.SAMOSA_SKILL_HOST
+        // The Samosa AI host is pinned; saving always keeps exactly one
+        // canonical-cased entry in the allowlist.
+        communitySkillHosts = communitySkillHosts
+            .filterNot { it.equals(pinnedHost, ignoreCase = true) }
+            .toSet() + pinnedHost
     )
 
     SettingsScaffold(title = SettingsPage.SKILLS.title, onBack = onBack, overlay = overlay) {
@@ -345,7 +354,6 @@ fun SkillsScreen(
                 "Default: ${BuildConfig.SAMOSA_SKILL_HOST}.",
             style = MaterialTheme.typography.bodySmall
         )
-        val pinnedHost = BuildConfig.SAMOSA_SKILL_HOST
         communitySkillHosts.forEach { host ->
             Row(
                 modifier = Modifier.fillMaxWidth(),

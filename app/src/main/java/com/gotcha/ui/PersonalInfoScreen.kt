@@ -98,8 +98,8 @@ fun PersonalInfoScreen(
         )
         Text(
             "For more personalized results, keep this profile up to date — or just " +
-                "ask Gotcha to add things like your personal website, GitHub link, " +
-                "or CV (PDF), and it will record them here for you.",
+                "ask Gotcha to record things like your personal website, GitHub link, " +
+                "or CV (PDF) in your profile for you.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -74,6 +74,24 @@ class OverlaySkinTest {
     }
 
     /**
+     * When the stored skin cannot be read (e.g. encrypted-prefs corruption), the
+     * overlays paint the safe opaque Deep Space original — not the light Vellum
+     * product default. A light frosted panel popping up over an arbitrary screen
+     * in an error path would be a regression, so the split is pinned here.
+     */
+    @Test
+    fun `the overlay load-failure fallback is the opaque Deep Space original, not the light default`() {
+        assertEquals(Skins.DeepSpaceDark.id, Skins.OVERLAY_FALLBACK_ID)
+        assertTrue(
+            "the load-failure fallback must not drift onto the light ${Skins.DEFAULT_ID} default",
+            Skins.OVERLAY_FALLBACK_ID != Skins.DEFAULT_ID
+        )
+        val fallback = overlaySkin(context, Skins.OVERLAY_FALLBACK_ID)
+        assertEquals(255, Color.alpha(fallback.surface))
+        assertEquals(overlaySkin(context, Skins.DeepSpaceDark.id).surface, fallback.surface)
+    }
+
+    /**
      * Depth over another app's screen comes from the edge, not from blur — so
      * the edge has to actually be visible against the surface it sits on. Which
      * direction that is depends on the skin: a white hairline on Vellum's

@@ -70,7 +70,7 @@ class ConfirmationOverlay(context: Context) {
         val colors = overlaySkin(
             appContext,
             runCatching { SettingsRepository(appContext).load().skinId }
-                .getOrDefault(Skins.DEFAULT_ID)
+                .getOrDefault(Skins.OVERLAY_FALLBACK_ID)
         )
         val container = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
