@@ -1,6 +1,7 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.0",
-  "downloadUrl": "https://github.com/samosa-ai-com/Gotcha/releases/download/v1.0.0/app-release.apk",
-  "releaseNotes": ""
+  "versionCode": 2,
+  "versionName": "1.0.1",
+  "downloadUrl": "https://github.com/samosa-ai-com/Gotcha/releases/download/v1.0.1/app-release.apk",
+  "releaseNotes": "### Changed\n- Simplified the setup-recommendation copy on the AI Configuration and Speech\n  settings screens; the Speech screen now recommends the Android built-in\n  engine for mixed-language text (e.g. Hinglish) and Samosa AI for\n  single-language speech.\n\n### Fixed\n- Corrected the About screen's GitHub link and contact email (and the matching\n  legal/company docs) to point at the real repository and address.",
+  "sha256": "d2379bc0c0500b7f5cb837326d3fbe3776b771b234902021fc34c72fbe0cbd46"
 }

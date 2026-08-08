@@ -4,6 +4,7 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+## [1.0.1]
 ### Changed
 - Simplified the setup-recommendation copy on the AI Configuration and Speech
   settings screens; the Speech screen now recommends the Android built-in
