@@ -202,7 +202,7 @@ class WakeWordDetector(
     @SuppressLint("MissingPermission")
     private suspend fun initializeAndListen(generation: Int) {
         val env = OrtEnvironment.getEnvironment()
-        /** Sessions this run holds a use-claim on; released in the finally. */
+        // Sessions this run holds a use-claim on; released in the finally.
         var claimed: Sessions? = null
         var createdRecorder: AudioRecord? = null
         try {

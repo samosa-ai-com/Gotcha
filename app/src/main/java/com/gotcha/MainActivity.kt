@@ -518,7 +518,16 @@ class MainActivity : ComponentActivity() {
 
     private fun persistAssistiveBall(enabled: Boolean) {
         val current = settingsRepository.load()
-        settingsRepository.save(current.copy(assistiveBallEnabled = enabled))
+        // The wake word runs inside the ball service, so switching the ball off
+        // must also switch the wake word off — otherwise the wake-word setting
+        // stays on and silently inert while the ball is off.
+        settingsRepository.save(
+            if (enabled) {
+                current.copy(assistiveBallEnabled = true)
+            } else {
+                current.copy(assistiveBallEnabled = false, wakeWordEnabled = false)
+            }
+        )
     }
 
     /** Any Samosa 401 (LLM or audio) clears the session and refreshes the

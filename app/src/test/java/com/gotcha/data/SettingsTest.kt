@@ -2,6 +2,8 @@ package com.gotcha.data
 
 import com.gotcha.audio.AudioProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsTest {
@@ -324,5 +326,36 @@ class SettingsTest {
         assertEquals(0.35f, enabled.wakeWordSensitivity, 0.001f)
         // Untouched fields stay at their defaults.
         assertEquals(false, enabled.assistiveBallEnabled)
+    }
+
+    @Test
+    fun `wake word listening mode defaults to always`() {
+        val defaults = Settings()
+        assertEquals(WakeWordListeningMode.ALWAYS, defaults.wakeWordListeningMode)
+    }
+
+    @Test
+    fun `wake word listening mode is an independent field on copy`() {
+        val defaults = Settings()
+        val screenOn = defaults.copy(wakeWordListeningMode = WakeWordListeningMode.SCREEN_ON)
+        assertEquals(WakeWordListeningMode.SCREEN_ON, screenOn.wakeWordListeningMode)
+        // Untouched fields stay at their defaults.
+        assertEquals(false, screenOn.wakeWordEnabled)
+        assertEquals(0.75f, screenOn.wakeWordSensitivity, 0.001f)
+    }
+
+    @Test
+    fun `wake word listening mode gates on screen interactivity`() {
+        val always = WakeWordListeningMode.ALWAYS
+        assertTrue(always.allows(screenInteractive = true))
+        assertTrue(always.allows(screenInteractive = false))
+
+        val screenOn = WakeWordListeningMode.SCREEN_ON
+        assertTrue(screenOn.allows(screenInteractive = true))
+        assertFalse(screenOn.allows(screenInteractive = false))
+
+        val screenOff = WakeWordListeningMode.SCREEN_OFF
+        assertFalse(screenOff.allows(screenInteractive = true))
+        assertTrue(screenOff.allows(screenInteractive = false))
     }
 }
