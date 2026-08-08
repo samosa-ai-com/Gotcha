@@ -43,7 +43,7 @@ class ScreenLensController(
     private fun currentColors(): OverlaySkin = overlaySkin(
         appContext,
         runCatching { com.gotcha.data.SettingsRepository(appContext).load().skinId }
-            .getOrDefault(Skins.DEFAULT_ID)
+            .getOrDefault(Skins.OVERLAY_FALLBACK_ID)
     )
 
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager

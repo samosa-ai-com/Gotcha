@@ -188,7 +188,7 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun currentSkinId(): String =
-        runCatching { settingsRepository.load().skinId }.getOrDefault(Skins.DEFAULT_ID)
+        runCatching { settingsRepository.load().skinId }.getOrDefault(Skins.OVERLAY_FALLBACK_ID)
 
     /** The active skin, translated for View code. */
     private fun palette(): OverlaySkin = overlaySkin(appContext, currentSkinId())
