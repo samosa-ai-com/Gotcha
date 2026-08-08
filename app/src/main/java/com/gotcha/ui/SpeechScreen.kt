@@ -159,9 +159,8 @@ fun SpeechScreen(
     SettingsScaffold(title = SettingsPage.SPEECH.title, onBack = onBack, overlay = overlay) {
         // ---- Voice / speech recommendations ----
         Text(
-            "For high-quality single-language speech (e.g. English primarily), " +
-                "SAMOSA AI's TTS is the recommendation. SAMOSA AI's STT is the " +
-                "recommended transcription engine.",
+            "For mixed-language text (like Hinglish), Android built-in is the recommended choice. " +
+                "For single-language speech (like Hindi or English), SAMOSA AI is the recommended choice.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
