@@ -1,6 +1,8 @@
 package com.gotcha.audio
 
 import android.util.Log
+import com.gotcha.BuildConfig
+import com.gotcha.util.GotchaLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -40,7 +42,13 @@ class AudioApi(
 
     init {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
+            // The request URL (the configured provider endpoint) is not user
+            // content we should ship to release logcat; keep tracing debug-only.
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BASIC
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
             redactHeader("Authorization")
         }
         client = OkHttpClient.Builder()
@@ -67,7 +75,7 @@ class AudioApi(
     fun listAudioModels(): List<AudioModel> {
         return try {
             val url = "${baseUrl.trimEnd('/')}/models"
-            try { Log.d("AudioApi", "Fetching models from: $url") } catch (_: Throwable) {}
+            try { GotchaLog.d("AudioApi") { "Fetching models from: $url" } } catch (_: Throwable) {}
             val request = Request.Builder().url(url).get().build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
@@ -75,7 +83,9 @@ class AudioApi(
                     return@use emptyList()
                 }
                 val body = response.body?.string() ?: return@use emptyList()
-                try { Log.d("AudioApi", "Models response (first 200 chars): ${body.take(200)}") } catch (_: Throwable) {
+                try {
+                    GotchaLog.d("AudioApi") { "Models response (first 200 chars): ${body.take(200)}" }
+                } catch (_: Throwable) {
                 }
                 val jsonObj = jsonParser.parseToJsonElement(body).jsonObject
                 val dataArr = jsonObj["data"]?.jsonArray ?: return@use emptyList()

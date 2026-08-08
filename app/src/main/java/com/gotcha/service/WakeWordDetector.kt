@@ -13,6 +13,7 @@ import android.os.Process
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.gotcha.BuildConfig
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -119,7 +120,7 @@ class WakeWordDetector(
             matcher = WakeWordMatcher(sensitivityProvider().coerceIn(0f, 1f))
             running.set(true)
             val startGeneration = generation
-            if (BuildConfig.DEBUG) Log.d(TAG, "start(): generation=$startGeneration")
+            GotchaLog.d(TAG) { "start(): generation=$startGeneration" }
             job = scope.launch(Dispatchers.IO) { initializeAndListen(startGeneration) }
         }
         return true
@@ -155,8 +156,11 @@ class WakeWordDetector(
     }
 
     private fun teardown(closeSessions: Boolean) {
+        // The Throwable snapshots the call stack for debug diagnostics; constructing
+        // it unconditionally would do that work on every pause()/release() in
+        // release builds too, so keep it behind the debug guard.
         if (BuildConfig.DEBUG) {
-            Log.d(TAG, if (closeSessions) "release()" else "pause()", Throwable("called from"))
+            GotchaLog.d(TAG, Throwable("called from")) { if (closeSessions) "release()" else "pause()" }
         }
         val oldRecorder: AudioRecord?
         var oldSessions: Sessions? = null
@@ -388,8 +392,7 @@ class WakeWordDetector(
             // processing left behind by a call. Record what we actually got.
             val audio = appContext.getSystemService(android.content.Context.AUDIO_SERVICE)
                 as android.media.AudioManager
-            Log.d(
-                TAG,
+            GotchaLog.d(TAG) {
                 "listening: threshold=${matcher.threshold()} readFrames=$READ_FRAMES " +
                     "rate=${localRecorder.sampleRate} ch=${localRecorder.channelCount} " +
                     "session=${localRecorder.audioSessionId} " +
@@ -397,7 +400,7 @@ class WakeWordDetector(
                     "audioMode=${audio.mode} " +
                     "micMute=${audio.isMicrophoneMute} " +
                     "bufFrames=${localRecorder.bufferSizeInFrames}"
-            )
+            }
         }
         // An audio capture loop should be scheduled like one. At the default
         // priority of a Dispatchers.IO thread this loop competes with ordinary
@@ -520,13 +523,12 @@ class WakeWordDetector(
             // Locale.ROOT, not the default: on a decimal-comma device these
             // become "-70,5" and stop being greppable, which is the whole point
             // of the line.
-            Log.d(
-                TAG,
+            GotchaLog.d(TAG) {
                 "heard: rms ${fmt(quietestRms, 1)}..${fmt(peakRms, 1)} dBFS, " +
                     "frames=$frames scored=$scored gated=$gated peakScore=${fmt(peakScore, 3)} " +
                     "mel[${fmt(melMin, 2)}..${fmt(melMax, 2)} avg ${fmt(melMean, 2)}] " +
                     "emb[${fmt(embMin, 2)}..${fmt(embMax, 2)} avg ${fmt(embMean, 2)}]"
-            )
+            }
             melMin = Float.MAX_VALUE
             melMax = -Float.MAX_VALUE
             embMin = Float.MAX_VALUE

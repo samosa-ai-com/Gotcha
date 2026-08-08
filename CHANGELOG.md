@@ -4,6 +4,23 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 
+### Changed — Release builds ship none of the debug logging (#38)
+
+- **Debug log calls are compile-time no-ops in release.** A new `GotchaLog`
+  facade gates every `Log.d`/`Log.v` call behind `BuildConfig.DEBUG`, and all
+  83 call sites route through it. Clipboard text and the copied URL, the first
+  100 chars of a sub-agent's response, and the audio-provider endpoint/reply
+  previews no longer reach logcat in release — and their message strings are
+  never built there.
+- **OkHttp request/response tracing is off in release.** The
+  `HttpLoggingInterceptor` in `LLMClient`, `AudioApi`, `SamosaAuthApi` and
+  `NotificationApi` is gated on `BuildConfig.DEBUG`, so no full prompts, LLM
+  replies or request URLs are written to logcat (`LLMClient` ran at
+  `Level.BODY` before).
+- **A `NoRawDebugLog` detekt rule** fails the build on any new raw
+  `Log.d`/`Log.v` call outside `GotchaLog` itself, so the migration cannot
+  silently regress.
+
 ### Added — Document attachments in chat (#24)
 
 - **Attach more than images.** The composer's "+" now opens a picker that accepts

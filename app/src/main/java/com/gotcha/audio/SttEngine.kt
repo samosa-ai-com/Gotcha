@@ -15,6 +15,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import com.gotcha.i18n.Language
+import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -296,15 +297,15 @@ class SttEngine(
             recognizer = newRec
             newRec.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d(TAG, "onReadyForSpeech")
+                    GotchaLog.d(TAG) { "onReadyForSpeech" }
                 }
-                override fun onBeginningOfSpeech() { Log.d(TAG, "onBeginningOfSpeech") }
+                override fun onBeginningOfSpeech() { GotchaLog.d(TAG) { "onBeginningOfSpeech" } }
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() { Log.d(TAG, "onEndOfSpeech") }
+                override fun onEndOfSpeech() { GotchaLog.d(TAG) { "onEndOfSpeech" } }
                 override fun onError(error: Int) {
                     val humanMsg = HumanReadableError.fromSpeechRecognizerCode(error)
-                    Log.d(TAG, "onError: $error ($humanMsg)")
+                    GotchaLog.d(TAG) { "onError: $error ($humanMsg)" }
                     if (error == SpeechRecognizer.ERROR_CLIENT ||
                         error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                         error == SpeechRecognizer.ERROR_SERVER
@@ -322,7 +323,7 @@ class SttEngine(
                     }
                 }
                 override fun onResults(results: Bundle?) {
-                    Log.d(TAG, "onResults")
+                    GotchaLog.d(TAG) { "onResults" }
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val text = matches?.firstOrNull() ?: ""
                     if (text.isNotBlank()) {
@@ -338,17 +339,17 @@ class SttEngine(
                     }
                 }
                 override fun onPartialResults(partialResults: Bundle?) {
-                    Log.d(TAG, "onPartialResults")
+                    GotchaLog.d(TAG) { "onPartialResults" }
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val text = matches?.firstOrNull() ?: ""
                     if (text.isNotBlank()) {
                         currentPartialResult = text
                     }
                 }
-                override fun onEvent(eventType: Int, params: Bundle?) { Log.d(TAG, "onEvent: $eventType") }
+                override fun onEvent(eventType: Int, params: Bundle?) { GotchaLog.d(TAG) { "onEvent: $eventType" } }
 
                 override fun onSegmentResults(segmentResults: Bundle) {
-                    Log.d(TAG, "onSegmentResults")
+                    GotchaLog.d(TAG) { "onSegmentResults" }
                     val matches = segmentResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val text = matches?.firstOrNull() ?: ""
                     if (text.isNotBlank()) {
@@ -359,7 +360,7 @@ class SttEngine(
                 }
 
                 override fun onEndOfSegmentedSession() {
-                    Log.d(TAG, "onEndOfSegmentedSession")
+                    GotchaLog.d(TAG) { "onEndOfSegmentedSession" }
                     if (isContinuousListening) {
                         mainHandler.post { startContinuousListeningCycle() }
                     } else {

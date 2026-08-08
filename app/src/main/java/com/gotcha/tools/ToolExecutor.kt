@@ -1,9 +1,9 @@
 package com.gotcha.tools
 
 import android.content.Context
-import android.util.Log
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.connectors.ConnectorCatalog
+import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -120,10 +120,9 @@ class ToolExecutor(
         }
         // Do not log result.message — tool payloads can contain sensitive user data
         // (SMS bodies, clipboard text, file contents, location, etc.).
-        Log.d(
-            TAG,
+        GotchaLog.d(TAG) {
             "execute: $name -> success=${result.success}, msgLen=${result.message.length}, perm=${result.needsPermission}"
-        )
+        }
         actionLog.record(name, args.redactedForAudit(), result)
         return result
     }
@@ -153,7 +152,7 @@ class ToolExecutor(
      * Bypasses the destructive-action confirmation flow.
      */
     suspend fun executeUninstall(packageName: String): ToolResult {
-        Log.d(TAG, "executeUninstall: $packageName")
+        GotchaLog.d(TAG) { "executeUninstall: $packageName" }
         val result = withContext(Dispatchers.IO) { appsTool.doUninstall(packageName) }
         actionLog.record("uninstall_app", packageName, result)
         return result
@@ -423,7 +422,7 @@ class ToolExecutor(
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                     ?: return missing("duration_seconds")
                 for (remaining in secs downTo 1) {
-                    Log.d(TAG, "sleep: ${remaining}s remaining")
+                    GotchaLog.d(TAG) { "sleep: ${remaining}s remaining" }
                     delay(1000L)
                 }
                 ToolResult.ok("Slept for $secs seconds.")

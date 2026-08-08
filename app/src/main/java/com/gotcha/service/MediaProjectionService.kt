@@ -21,6 +21,7 @@ import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
+import com.gotcha.util.GotchaLog
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -68,7 +69,7 @@ class MediaProjectionService : Service() {
             resultIntent: Intent,
             timeoutMs: Long = 5000
         ): ByteArray? = synchronized(captureLock) {
-            Log.d("ScreenCapture", "MediaProjectionService.capture() called")
+            GotchaLog.d("ScreenCapture") { "MediaProjectionService.capture() called" }
             resultData = resultIntent
             resultReady = CountDownLatch(1)
             resultFilePath = null
@@ -76,14 +77,16 @@ class MediaProjectionService : Service() {
             val serviceIntent = Intent(context, MediaProjectionService::class.java)
             try {
                 context.startForegroundService(serviceIntent)
-                Log.d("ScreenCapture", "MediaProjectionService started")
+                GotchaLog.d("ScreenCapture") { "MediaProjectionService started" }
             } catch (e: Exception) {
                 Log.e("ScreenCapture", "Failed to start MediaProjectionService: ${e.message}")
                 return null
             }
 
             val completed = resultReady.await(timeoutMs, TimeUnit.MILLISECONDS)
-            Log.d("ScreenCapture", "MediaProjectionService latch completed=$completed, resultFilePath=$resultFilePath")
+            GotchaLog.d("ScreenCapture") {
+                "MediaProjectionService latch completed=$completed, resultFilePath=$resultFilePath"
+            }
 
             val path = resultFilePath ?: return null
             val file = File(path)
@@ -93,7 +96,7 @@ class MediaProjectionService : Service() {
             }
             val bytes = file.readBytes()
             file.delete()
-            Log.d("ScreenCapture", "MediaProjectionService returning ${bytes.size} bytes")
+            GotchaLog.d("ScreenCapture") { "MediaProjectionService returning ${bytes.size} bytes" }
             return bytes
         }
     }
@@ -112,7 +115,7 @@ class MediaProjectionService : Service() {
     /** API 34 requires a registered callback before createVirtualDisplay(). */
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
-            Log.d("ScreenCapture", "MediaProjection.onStop()")
+            GotchaLog.d("ScreenCapture") { "MediaProjection.onStop()" }
             finish(null)
         }
     }
@@ -134,7 +137,7 @@ class MediaProjectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val data = resultData
         val handler = captureHandler
-        Log.d("ScreenCapture", "MediaProjectionService.onStartCommand: data=${data != null}")
+        GotchaLog.d("ScreenCapture") { "MediaProjectionService.onStartCommand: data=${data != null}" }
         if (data == null || handler == null) {
             finish(null)
             return START_NOT_STICKY
@@ -157,7 +160,7 @@ class MediaProjectionService : Service() {
      * asynchronously on [captureHandler] via the ImageReader listener.
      */
     private fun startCapture(data: Intent) {
-        Log.d("ScreenCapture", "startCapture: starting")
+        GotchaLog.d("ScreenCapture") { "startCapture: starting" }
         val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         // A spent or stale token throws here rather than returning null on API 34+.
         val mp = try {
@@ -182,7 +185,7 @@ class MediaProjectionService : Service() {
         val screenWidth = metrics.widthPixels
         val screenHeight = metrics.heightPixels
         val screenDpi = metrics.densityDpi
-        Log.d("ScreenCapture", "startCapture: screen ${screenWidth}x$screenHeight dpi=$screenDpi")
+        GotchaLog.d("ScreenCapture") { "startCapture: screen ${screenWidth}x$screenHeight dpi=$screenDpi" }
 
         val reader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2)
         imageReader = reader
@@ -210,7 +213,7 @@ class MediaProjectionService : Service() {
             reader.surface,
             null, null
         )
-        Log.d("ScreenCapture", "startCapture: virtualDisplay=${virtualDisplay != null}")
+        GotchaLog.d("ScreenCapture") { "startCapture: virtualDisplay=${virtualDisplay != null}" }
 
         // Never leave the caller (and the service) hanging if no frame is produced.
         captureHandler?.postDelayed({
@@ -233,7 +236,7 @@ class MediaProjectionService : Service() {
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
         bitmap.recycle()
         val pngBytes = stream.toByteArray()
-        Log.d("ScreenCapture", "onFrame: PNG compressed ${pngBytes.size} bytes")
+        GotchaLog.d("ScreenCapture") { "onFrame: PNG compressed ${pngBytes.size} bytes" }
         if (pngBytes.isEmpty()) {
             Log.e("ScreenCapture", "onFrame: PNG compression produced 0 bytes")
             finish(null)
@@ -241,7 +244,7 @@ class MediaProjectionService : Service() {
         }
         val outPath = File(cacheDir, RESULT_FILE).absolutePath
         File(outPath).writeBytes(pngBytes)
-        Log.d("ScreenCapture", "onFrame: saved to $outPath")
+        GotchaLog.d("ScreenCapture") { "onFrame: saved to $outPath" }
         finish(outPath)
     }
 
@@ -270,7 +273,9 @@ class MediaProjectionService : Service() {
         }
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         bmp.copyPixelsFromBuffer(java.nio.ByteBuffer.wrap(packedBytes))
-        Log.d("ScreenCapture", "toBitmap: ${bmp.width}x${bmp.height} (stride=$rowStride, pxStride=$pixelStride)")
+        GotchaLog.d("ScreenCapture") {
+            "toBitmap: ${bmp.width}x${bmp.height} (stride=$rowStride, pxStride=$pixelStride)"
+        }
         bmp
     } catch (t: Throwable) {
         Log.e("ScreenCapture", "toBitmap failed: ${t.message}", t)
