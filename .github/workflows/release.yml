@@ -115,7 +115,70 @@ jobs:
 
       - name: Assemble release APK
         if: steps.check.outputs.should_release == 'true'
-        run: ./gradlew :app:assembleRelease --stacktrace
+        env:
+          SAMOSA_API_URL: ${{ secrets.SAMOSA_API_URL }}
+          SAMOSA_SKILL_HOST: ${{ secrets.SAMOSA_SKILL_HOST }}
+          SAMOSA_WEB_CLIENT_ID: ${{ secrets.SAMOSA_WEB_CLIENT_ID }}
+          FEEDBACK_FORM_URL: ${{ secrets.FEEDBACK_FORM_URL }}
+          FEEDBACK_ENTRY_USER_ID: ${{ secrets.FEEDBACK_ENTRY_USER_ID }}
+          FEEDBACK_ENTRY_APP_VERSION: ${{ secrets.FEEDBACK_ENTRY_APP_VERSION }}
+          FEEDBACK_ENTRY_DEVICE_MODEL: ${{ secrets.FEEDBACK_ENTRY_DEVICE_MODEL }}
+          FEEDBACK_ENTRY_ANDROID_VERSION: ${{ secrets.FEEDBACK_ENTRY_ANDROID_VERSION }}
+          FEEDBACK_ENTRY_USAGE_STATS: ${{ secrets.FEEDBACK_ENTRY_USAGE_STATS }}
+          FEEDBACK_ENTRY_CHAT_LOG: ${{ secrets.FEEDBACK_ENTRY_CHAT_LOG }}
+        run: |
+          # samosaConfig() in app/build.gradle.kts silently falls back to inert
+          # *.example placeholders when a value is missing, which produces an APK
+          # that installs fine but can never reach the backend. Fail loudly instead.
+          for name in SAMOSA_API_URL SAMOSA_SKILL_HOST SAMOSA_WEB_CLIENT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set in repo secrets — the release would ship placeholder config"
+              exit 1
+            fi
+          done
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Verify release APK is correctly signed and configured
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          EXPECTED_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n1)
+
+          if [ -z "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::RELEASE_CERT_SHA256 repo variable is not set. Get it with: apksigner verify --print-certs <apk>"
+            exit 1
+          fi
+
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+          echo "$CERTS"
+          ACTUAL=$(printf '%s\n' "$CERTS" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+
+          # A signing-identity change makes the APK un-installable over any existing
+          # install (INSTALL_FAILED_UPDATE_INCOMPATIBLE) — catch it here, not on users' phones.
+          if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::APK signed with the wrong key. Expected $EXPECTED_CERT_SHA256, got $ACTUAL"
+            exit 1
+          fi
+          if printf '%s\n' "$CERTS" | grep -q "CN=Android Debug"; then
+            echo "::error::APK is debug-signed"
+            exit 1
+          fi
+          if "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q 'debuggable.*=true'; then
+            echo "::error::APK is marked debuggable"
+            exit 1
+          fi
+
+          # Guard against an ABI-narrowed build (Android Studio's deploy-to-device
+          # optimisation) reaching a release: real phones are arm64.
+          for abi in arm64-v8a armeabi-v7a; do
+            if ! unzip -l "$APK" | grep -q "lib/$abi/"; then
+              echo "::error::APK has no lib/$abi native libraries"
+              exit 1
+            fi
+          done
 
       - name: Create tag
         if: steps.check.outputs.should_release == 'true'
@@ -137,10 +200,12 @@ jobs:
 
       - name: Regenerate update.json
         if: steps.check.outputs.should_release == 'true'
+        id: manifest
         env:
           GH_REPO: ${{ github.repository }}
         run: |
           APK_SHA256=$(sha256sum app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
+          echo "sha256=$APK_SHA256" >> "$GITHUB_OUTPUT"
           DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download/${{ steps.version.outputs.tag }}/app-release.apk"
           jq -n \
             --argjson versionCode "${{ steps.version.outputs.code }}" \
@@ -150,6 +215,24 @@ jobs:
             --arg releaseNotes "$(cat release_notes.md)" \
             '{versionCode: $versionCode, versionName: $versionName, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, sha256: $sha256}' \
             > update.json
+
+      - name: Verify the published asset matches update.json
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Devices refuse any APK whose bytes don't match update.json's sha256, so a
+          # truncated or re-uploaded asset would silently break every update. Re-download
+          # what users will actually get and compare before update.json is committed.
+          URL=$(jq -r .downloadUrl update.json)
+          curl -fsSL -o published.apk "$URL"
+          PUBLISHED=$(sha256sum published.apk | cut -d' ' -f1)
+          if [ "$PUBLISHED" != "${{ steps.manifest.outputs.sha256 }}" ]; then
+            echo "::error::Published asset sha256 ($PUBLISHED) != update.json (${{ steps.manifest.outputs.sha256 }})"
+            exit 1
+          fi
+          echo "Published asset verified: $PUBLISHED"
+          rm -f published.apk
 
       - name: Commit update.json and CHANGELOG.md
         if: steps.check.outputs.should_release == 'true'
