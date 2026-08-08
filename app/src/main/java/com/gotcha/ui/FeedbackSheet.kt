@@ -44,8 +44,8 @@ fun FeedbackSheet(
         text = {
             Column {
                 Text(
-                    text = "If you provide successful feedback, after approval you may be eligible " +
-                        "for 2x the current free Samosa AI credits.",
+                    text = "If you provide successful feedback, after validation you may be " +
+                        "eligible for 100 credits per feedback, up to 500 credits per day.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 8.dp)

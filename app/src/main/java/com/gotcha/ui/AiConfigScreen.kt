@@ -147,6 +147,18 @@ fun AiConfigScreen(
     }
 
     SettingsScaffold(title = SettingsPage.AI_CONFIG.title, onBack = onBack, overlay = overlay) {
+        // ---- Provider / model guidance ----
+        Text(
+            "Recommended setup:\n" +
+                "• Use the SAMOSA AI provider for the best LLM performance — it " +
+                "includes a built-in TTS that handles mixed-language text.\n" +
+                "• For high-quality single-language speech (e.g. English primarily), " +
+                "SAMOSA AI's TTS is the recommendation.\n" +
+                "• SAMOSA AI's STT is the recommended speech-to-text engine.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
         // ---- LLM provider selector ----
         ExposedDropdownMenuBox(
             expanded = providerExpanded,

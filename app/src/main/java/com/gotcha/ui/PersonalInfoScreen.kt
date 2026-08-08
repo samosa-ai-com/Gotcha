@@ -96,6 +96,13 @@ fun PersonalInfoScreen(
                 "assistant at the start of every conversation so it doesn't have to ask.",
             style = MaterialTheme.typography.bodySmall
         )
+        Text(
+            "For more personalized results, keep this profile up to date — or just " +
+                "ask Gotcha to add things like your personal website, GitHub link, " +
+                "or CV (PDF), and it will record them here for you.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         OutlinedTextField(
             value = userName,
             onValueChange = { userName = it },

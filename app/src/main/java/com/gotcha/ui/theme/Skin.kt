@@ -379,7 +379,7 @@ object Skins {
 
     val all = listOf(Aura, Vellum, Orchid, Nocturne, DeepSpaceDark, DeepSpaceLight)
 
-    const val DEFAULT_ID = "deepspace"
+    const val DEFAULT_ID = "vellum"
 
     fun byId(id: String): Skin = all.firstOrNull { it.id == id } ?: DeepSpaceDark
 }

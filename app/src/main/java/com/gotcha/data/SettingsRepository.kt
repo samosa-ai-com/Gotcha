@@ -93,7 +93,7 @@ data class Settings(
      * build that drops a skin degrades to the default instead of throwing on a
      * value it no longer knows.
      */
-    val skinId: String = "deepspace",
+    val skinId: String = "vellum",
     val disabledSkills: Set<String> = emptySet(),
     /**
      * Ids of connectors the user switched off. Credentials survive (re-enabling
@@ -282,13 +282,16 @@ data class Settings(
  * whole reason this exists. It runs once: [SettingsRepository] writes the
  * result, and every later load reads that instead.
  *
+ * A legacy light/dark choice keeps the matching Deep Space skin; an install
+ * that never chose a theme lands on the Vellum default.
+ *
  * @param legacyThemeMode the old `theme_mode` value, or null if never set.
  */
 internal fun migrateSkinId(legacyThemeMode: String?): String =
-    if (legacyThemeMode == LEGACY_THEME_MODE_LIGHT) {
-        SKIN_DEEP_SPACE_LIGHT
-    } else {
-        SKIN_DEEP_SPACE_DARK
+    when (legacyThemeMode) {
+        LEGACY_THEME_MODE_LIGHT -> SKIN_DEEP_SPACE_LIGHT
+        LEGACY_THEME_MODE_DARK -> SKIN_DEEP_SPACE_DARK
+        else -> SKIN_VELLUM
     }
 
 /** The preference file [SettingsRepository] encrypts into. */
@@ -314,7 +317,9 @@ fun settingsChangeNotifier(context: Context): SharedPreferences =
 
 internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
 internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
+internal const val SKIN_VELLUM = "vellum"
 private const val LEGACY_THEME_MODE_LIGHT = "LIGHT"
+private const val LEGACY_THEME_MODE_DARK = "DARK"
 
 interface SettingsStore {
     fun load(): Settings

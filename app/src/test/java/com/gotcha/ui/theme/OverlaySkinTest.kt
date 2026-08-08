@@ -68,8 +68,9 @@ class OverlaySkinTest {
 
     @Test
     fun `an unknown skin falls back rather than throwing`() {
+        // byId degrades unknown ids to the original opaque Deep Space skin.
         val fallback = overlaySkin(context, "a-skin-from-a-future-build")
-        assertEquals(overlaySkin(context, Skins.DEFAULT_ID).accent, fallback.accent)
+        assertEquals(overlaySkin(context, Skins.DeepSpaceDark.id).accent, fallback.accent)
     }
 
     /**

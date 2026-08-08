@@ -55,7 +55,11 @@ fun SkillsScreen(
 ) {
     val initial = remember { load() }
     var disabledSkills by remember { mutableStateOf(initial.disabledSkills) }
-    var communitySkillHosts by remember { mutableStateOf(initial.communitySkillHosts) }
+    // The Samosa AI host is built in and cannot be removed; re-add it in case an
+    // older version let it slip out of the saved set.
+    var communitySkillHosts by remember {
+        mutableStateOf(initial.communitySkillHosts + BuildConfig.SAMOSA_SKILL_HOST)
+    }
     var communitySkillUrl by remember { mutableStateOf("") }
     var communitySkillPasteJson by remember { mutableStateOf("") }
     var communityImportBusy by remember { mutableStateOf(false) }
@@ -74,7 +78,8 @@ fun SkillsScreen(
     /** This page's fields, copied onto [base]. */
     fun applySkills(base: Settings) = base.copy(
         disabledSkills = disabledSkills,
-        communitySkillHosts = communitySkillHosts
+        // The Samosa AI host is pinned; saving always keeps it in the allowlist.
+        communitySkillHosts = communitySkillHosts + BuildConfig.SAMOSA_SKILL_HOST
     )
 
     SettingsScaffold(title = SettingsPage.SKILLS.title, onBack = onBack, overlay = overlay) {
@@ -340,6 +345,7 @@ fun SkillsScreen(
                 "Default: ${BuildConfig.SAMOSA_SKILL_HOST}.",
             style = MaterialTheme.typography.bodySmall
         )
+        val pinnedHost = BuildConfig.SAMOSA_SKILL_HOST
         communitySkillHosts.forEach { host ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -347,10 +353,18 @@ fun SkillsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(host, modifier = Modifier.weight(1f))
-                TextButton(onClick = {
-                    communitySkillHosts = communitySkillHosts - host
-                    onSave { applySkills(it) }
-                }) { Text("Remove") }
+                if (host.equals(pinnedHost, ignoreCase = true)) {
+                    Text(
+                        "Built-in",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    TextButton(onClick = {
+                        communitySkillHosts = communitySkillHosts - host
+                        onSave { applySkills(it) }
+                    }) { Text("Remove") }
+                }
             }
         }
         var newHost by remember { mutableStateOf("") }
