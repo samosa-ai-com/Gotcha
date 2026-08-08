@@ -5,6 +5,32 @@ import android.content.SharedPreferences
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
 
+/**
+ * When the wake-word listener is allowed to run, relative to the screen state.
+ *
+ * The listener's idle cost (issue #37, `docs/benchmark/wake-word-idle.md`) is
+ * dominated by holding the microphone — the `AudioIn` wake lock, not the
+ * inference. These modes trade how much of the day that happens for where the
+ * user is most likely to want a hands-free trigger.
+ */
+enum class WakeWordListeningMode {
+    /** Listen regardless of screen state — the original always-on behaviour. */
+    ALWAYS,
+
+    /** Listen only while the screen is on, so the mic LED is off when it is not. */
+    SCREEN_ON,
+
+    /** Listen only while the screen is off, for hands-free use away from the app. */
+    SCREEN_OFF;
+
+    /** Whether the listener should run given the current screen interactivity. */
+    fun allows(screenInteractive: Boolean): Boolean = when (this) {
+        ALWAYS -> true
+        SCREEN_ON -> screenInteractive
+        SCREEN_OFF -> !screenInteractive
+    }
+}
+
 data class Settings(
     // Which LLM backend is active. Defaults to the Samosa AI flow.
     val provider: LlmProvider = LlmProvider.SAMOSA_AI,
@@ -54,6 +80,7 @@ data class Settings(
     val assistiveBallEnabled: Boolean = false,
     val wakeWordEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.75f,
+    val wakeWordListeningMode: WakeWordListeningMode = WakeWordListeningMode.ALWAYS,
     /** Server-driven notifications from `<SAMOSA_API_URL>/v1/gotcha/notifications`. */
     val serverMessagesEnabled: Boolean = true,
     /** Epoch millis of the last successful server-messages fetch. 0 = never. */
@@ -356,6 +383,9 @@ class SettingsRepository(context: Context) : SettingsStore {
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         wakeWordEnabled = prefs.getBoolean(KEY_WAKE_WORD_ENABLED, false),
         wakeWordSensitivity = prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, 0.75f),
+        wakeWordListeningMode = runCatching {
+            WakeWordListeningMode.valueOf(string(KEY_WAKE_WORD_LISTENING_MODE, "ALWAYS"))
+        }.getOrDefault(WakeWordListeningMode.ALWAYS),
         serverMessagesEnabled = prefs.getBoolean(KEY_SERVER_MESSAGES_ENABLED, true),
         serverMessagesLastFetchedAt = prefs.getLong(KEY_SERVER_MESSAGES_LAST_FETCHED, 0L),
         serverMessagesEtag = string(KEY_SERVER_MESSAGES_ETAG),
@@ -417,6 +447,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putBoolean(KEY_WAKE_WORD_ENABLED, settings.wakeWordEnabled)
             .putFloat(KEY_WAKE_WORD_SENSITIVITY, settings.wakeWordSensitivity)
+            .putString(KEY_WAKE_WORD_LISTENING_MODE, settings.wakeWordListeningMode.name)
             .putBoolean(KEY_SERVER_MESSAGES_ENABLED, settings.serverMessagesEnabled)
             .putLong(KEY_SERVER_MESSAGES_LAST_FETCHED, settings.serverMessagesLastFetchedAt)
             .putString(KEY_SERVER_MESSAGES_ETAG, settings.serverMessagesEtag)
@@ -523,6 +554,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
+        const val KEY_WAKE_WORD_LISTENING_MODE = "wake_word_listening_mode"
         const val KEY_SERVER_MESSAGES_ENABLED = "server_messages_enabled"
         const val KEY_SERVER_MESSAGES_LAST_FETCHED = "server_messages_last_fetched"
         const val KEY_SERVER_MESSAGES_ETAG = "server_messages_etag"

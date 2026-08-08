@@ -387,6 +387,10 @@ fun SamosaAuthSection(
  * toggleable and no-op silently. [switchContentDescription] names the `Switch`
  * for the same reason — it is what a UiAutomator/Maestro flow, which cannot see
  * test tags, has to aim at.
+ *
+ * [enabled] disables the `Switch` (greyed out, no tap effect) for a row whose
+ * action depends on a prerequisite the user has not met yet; the caller should
+ * also explain the prerequisite nearby.
  */
 @Composable
 fun SettingsToggleRow(
@@ -394,6 +398,7 @@ fun SettingsToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     isLarge: Boolean = false,
+    enabled: Boolean = true,
     switchTestTag: String? = null,
     switchContentDescription: String? = null,
     modifier: Modifier = Modifier
@@ -405,11 +410,17 @@ fun SettingsToggleRow(
     ) {
         Text(
             label,
-            style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium
+            style = if (isLarge) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         )
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
             modifier = Modifier
                 .then(if (switchTestTag != null) Modifier.testTag(switchTestTag) else Modifier)
                 .then(

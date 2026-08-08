@@ -118,3 +118,4 @@ MARKETING_PLAYBOOK.md
 docs/benchmark
 docs/WAKE_WORD_PLAN.md
 .freebuff
+scripts/wake_battery_idle.sh
