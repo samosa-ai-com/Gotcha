@@ -129,8 +129,8 @@ private val LINKS = listOf(
     "Gotcha documentation" to "https://samosa-ai.com/gotcha/docs",
     "Pricing" to "https://samosa-ai.com/pricing",
     "Blog" to "https://blog.samosa-ai.com",
-    "GitHub" to "https://github.com/Rishabh-Bajpai",
-    "Email samosa.ai.com@gmail.com" to "mailto:samosa.ai.com@gmail.com"
+    "GitHub" to "https://github.com/samosa-ai-com/Gotcha",
+    "Email contact@samosa-ai.com" to "mailto:contact@samosa-ai.com"
 )
 
 @Composable

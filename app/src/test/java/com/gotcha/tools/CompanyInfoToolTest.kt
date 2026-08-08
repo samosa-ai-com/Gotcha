@@ -42,8 +42,8 @@ class CompanyInfoToolTest {
             "Personal Guru",
             "Voice Typing",
             "samosa-ai.com",
-            "samosa.ai.com@gmail.com",
-            "github.com/Rishabh-Bajpai"
+            "contact@samosa-ai.com",
+            "github.com/samosa-ai-com/Gotcha"
         ).forEach {
             assertTrue("bundled about copy no longer mentions '$it'", text.contains(it))
         }

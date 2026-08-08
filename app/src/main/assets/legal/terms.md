@@ -225,6 +225,6 @@ do not install or use the App.
 
 17. CONTACT
 
-    17.1 Questions about these Terms can be sent to samosa.ai.com@gmail.com.
+    17.1 Questions about these Terms can be sent to contact@samosa-ai.com.
 
 — END OF TERMS —
