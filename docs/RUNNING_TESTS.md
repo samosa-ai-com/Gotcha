@@ -5,6 +5,19 @@ gotcha hit while getting Android 11–16 (API 30–36) coverage working on this
 machine (Windows, SDK at `%LOCALAPPDATA%\Android\Sdk`). For what the suite
 covers, see [`FEATURE_TEST_COVERAGE.md`](FEATURE_TEST_COVERAGE.md).
 
+> ⚠️ **Never run the instrumented suites (`:app:connectedDebugAndroidTest`,
+> `:app:apiNNDebugAndroidTest`, `:app:*GroupDebugAndroidTest`) against a
+> physical phone with real data.** The connected-test task **uninstalls the app
+> under test when it finishes**, which deletes the app's internal storage
+> (`/data/data/<pkg>`) *and* the Android Keystore key that
+> `EncryptedSharedPreferences` uses. Settings (LLM keys, Samosa session,
+> connector credentials, personal info) are **permanently unrecoverable** — even
+> Auto Backup cannot restore them, because the destroyed Keystore key cannot be
+> recreated. This already happened once on this project's test device and wiped
+> the configured settings. Use Gradle Managed Devices or an emulator (throwaway
+> state) for anything instrumented, and only ever `installDebug` (an upgrade,
+> which preserves data) on a real device.
+
 ## 1. One-time environment setup
 
 1. **JDK**: use Android Studio's bundled JBR, not a standalone JDK.
@@ -87,6 +100,13 @@ devices are headless by design. For a visible run, use §4 instead.
 GMD can't do this (see above). Instead, boot a *normal* AVD without the
 `-no-window` flag, then point the plain `connectedDebugAndroidTest` task at
 it (this drives whatever's attached via `adb`, not a GMD ephemeral device).
+
+> ⚠️ `connectedDebugAndroidTest` runs against **every device attached via
+> `adb`** and uninstalls the app under test when the run ends. Point it only at
+> an emulator — running it while a physical phone is connected (USB or wireless
+> adb) wipes that phone's app data and its encrypted settings (see the warning
+> at the top of this doc). Unplug the phone or filter with
+> `ANDROID_SERIAL`/`adb -s` before using this task.
 
 **Using the AVD that's already set up (`Pixel_7`, Android 13):**
 ```bash
