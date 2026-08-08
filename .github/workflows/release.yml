@@ -12,6 +12,14 @@ on:
     branches: [main]
     paths:
       - app/build.gradle.kts
+  # Manual trigger for exercising the build + verification steps without cutting a
+  # release. Leave dry_run on (the default) to stop before tagging/publishing.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and verify only — no tag, no release, no commit"
+        type: boolean
+        default: true
 
 concurrency:
   group: release-${{ github.ref }}
@@ -44,7 +52,16 @@ jobs:
       - name: Skip if this version was already released
         id: check
         run: |
-          if git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null; then
+          DRY_RUN=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN=true
+          fi
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run — building and verifying ${{ steps.version.outputs.tag }} without publishing."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          elif git rev-parse -q --verify "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null; then
             echo "Tag ${{ steps.version.outputs.tag }} already exists — versionName wasn't bumped, nothing to do."
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           else
@@ -54,9 +71,13 @@ jobs:
       - name: Roll CHANGELOG.md Unreleased section into this version
         if: steps.check.outputs.should_release == 'true'
         id: changelog
+        env:
+          DRY_RUN: ${{ steps.check.outputs.dry_run }}
         run: |
           python3 - "${{ steps.version.outputs.name }}" <<'PYEOF'
-          import re, sys
+          import os, re, sys
+
+          dry_run = os.environ.get("DRY_RUN") == "true"
 
           version_name = sys.argv[1]
           path = "CHANGELOG.md"
@@ -73,14 +94,19 @@ jobs:
           body = text[unreleased.end():section_end].strip("\n")
 
           if not body.strip():
-              sys.exit("::error::CHANGELOG.md's Unreleased section is empty — add release notes before bumping the version")
+              if not dry_run:
+                  sys.exit("::error::CHANGELOG.md's Unreleased section is empty — add release notes before bumping the version")
+              body = "_(dry run — Unreleased section is empty)_"
 
           with open("release_notes.md", "w", encoding="utf-8") as f:
               f.write(body + "\n")
 
-          new_section_header = f"## [Unreleased]\n\n## [{version_name}]"
-          new_text = text[:unreleased.start()] + new_section_header + text[unreleased.end():]
-          open(path, "w", encoding="utf-8").write(new_text)
+          # A dry run must not rewrite CHANGELOG.md: nothing is being released, and the
+          # file is never committed, but leaving it untouched keeps the diff honest.
+          if not dry_run:
+              new_section_header = f"## [Unreleased]\n\n## [{version_name}]"
+              new_text = text[:unreleased.start()] + new_section_header + text[unreleased.end():]
+              open(path, "w", encoding="utf-8").write(new_text)
           PYEOF
 
       - uses: actions/setup-java@v4
@@ -180,8 +206,22 @@ jobs:
             fi
           done
 
+          # Prove the SAMOSA_* secrets actually reached BuildConfig. Without this an
+          # APK built from missing secrets installs and runs fine, but every backend
+          # call goes to the inert *.example placeholder host.
+          DEXDIR=$(mktemp -d)
+          unzip -o -q "$APK" 'classes*.dex' -d "$DEXDIR"
+          for placeholder in "samosa-ai.example" "YOUR_GOOGLE_WEB_CLIENT_ID"; do
+            if grep -qa "$placeholder" "$DEXDIR"/classes*.dex; then
+              echo "::error::APK still contains the placeholder '$placeholder' — a SAMOSA_* secret did not reach the build"
+              exit 1
+            fi
+          done
+          rm -rf "$DEXDIR"
+          echo "Signature, ABI and config checks passed."
+
       - name: Create tag
-        if: steps.check.outputs.should_release == 'true'
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -189,7 +229,7 @@ jobs:
           git push origin "${{ steps.version.outputs.tag }}"
 
       - name: Create GitHub release
-        if: steps.check.outputs.should_release == 'true'
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -217,7 +257,7 @@ jobs:
             > update.json
 
       - name: Verify the published asset matches update.json
-        if: steps.check.outputs.should_release == 'true'
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -235,7 +275,7 @@ jobs:
           rm -f published.apk
 
       - name: Commit update.json and CHANGELOG.md
-        if: steps.check.outputs.should_release == 'true'
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
         run: |
           rm -f release_notes.md
           git add update.json CHANGELOG.md
