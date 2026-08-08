@@ -10,19 +10,22 @@ import com.gotcha.BuildConfig
  * the field.
  */
 object GotchaLog {
-    fun d(tag: String, message: () -> String) {
+    // inline: in release BuildConfig.DEBUG folds to false, so the whole call
+    // (lambda allocation included) is removed at the call site rather than
+    // paying for a Function0 instance that never runs.
+    inline fun d(tag: String, message: () -> String) {
         if (BuildConfig.DEBUG) Log.d(tag, message())
     }
 
-    fun d(tag: String, throwable: Throwable?, message: () -> String) {
+    inline fun d(tag: String, throwable: Throwable?, message: () -> String) {
         if (BuildConfig.DEBUG) Log.d(tag, message(), throwable)
     }
 
-    fun v(tag: String, message: () -> String) {
+    inline fun v(tag: String, message: () -> String) {
         if (BuildConfig.DEBUG) Log.v(tag, message())
     }
 
-    fun v(tag: String, throwable: Throwable?, message: () -> String) {
+    inline fun v(tag: String, throwable: Throwable?, message: () -> String) {
         if (BuildConfig.DEBUG) Log.v(tag, message(), throwable)
     }
 }

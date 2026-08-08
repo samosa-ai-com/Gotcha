@@ -156,7 +156,12 @@ class WakeWordDetector(
     }
 
     private fun teardown(closeSessions: Boolean) {
-        GotchaLog.d(TAG, Throwable("called from")) { if (closeSessions) "release()" else "pause()" }
+        // The Throwable snapshots the call stack for debug diagnostics; constructing
+        // it unconditionally would do that work on every pause()/release() in
+        // release builds too, so keep it behind the debug guard.
+        if (BuildConfig.DEBUG) {
+            GotchaLog.d(TAG, Throwable("called from")) { if (closeSessions) "release()" else "pause()" }
+        }
         val oldRecorder: AudioRecord?
         var oldSessions: Sessions? = null
         val oldJob: Job?
