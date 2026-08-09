@@ -14,13 +14,13 @@ import java.io.File
 
 /**
  * Runs [DocumentParser] against the real sample files committed under
- * `sample-documents/` at the repo root — the same kit users transfer to a device
+ * `testing/sample-documents/` — the same kit users transfer to a device
  * to manually test chat attachments. The directory is handed to the test via the
  * `gotcha.sampleDocsDir` system property (see `app/build.gradle.kts`) so the files
  * live in one place. PDF needs pdfbox-android, so this runs under Robolectric
  * like [DocumentParserPdfTest].
  *
- * Each assertion mirrors what the README in `sample-documents/` promises, so a
+ * Each assertion mirrors what the README in `testing/sample-documents/` promises, so a
  * regression in extraction (or a silent format change) fails here first.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -34,7 +34,7 @@ class SampleDocumentsTest {
         DocumentParser.init(ApplicationProvider.getApplicationContext())
         val path = System.getProperty("gotcha.sampleDocsDir")
         dir = File(checkNotNull(path) { "gotcha.sampleDocsDir system property missing" })
-        assertTrue("sample-documents must exist", dir.isDirectory)
+        assertTrue("testing/sample-documents must exist", dir.isDirectory)
     }
 
     private fun extract(name: String): ExtractedDocument {

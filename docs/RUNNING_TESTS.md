@@ -154,14 +154,19 @@ making a visible AVD from it):
 
 ## 6. Other test-suite paths (less exercised — verify before relying on them)
 
-- **`scripts/test_matrix.sh`** — the local full-matrix script (Phase 5).
+- **`testing/scripts/test_matrix.sh`** — the local full-matrix script (Phase 5).
   Boots real AVDs serially via `adb`/`emulator` directly. GMD covers the
   whole supported range (API 30+) now that `minSdk` is 30, so this is a
   convenience path rather than a required one. Not run end-to-end
   in this session — check it works before depending on it.
-- **`scripts/maestro_run.sh`** + **`.maestro/flows/*.yaml`** — the Maestro
+- **`testing/scripts/maestro_run.sh`** + **`.maestro/flows/*.yaml`** — the Maestro
   smoke layer. Requires Maestro installed separately. Not exercised in this
   session either.
+- **[`testing/sample-documents/`](../testing/sample-documents/README.md)** — the
+  document-attachment fixture kit. `SampleDocumentsTest` parses these files
+  directly (the directory is passed in via the `gotcha.sampleDocsDir` system
+  property), and the same folder is what you transfer to a device to test chat
+  attachments by hand. Its README lists the expected extraction for every file.
 - **CI** (`.github/workflows/ci.yml`) — **disabled by default** to conserve GitHub Actions
   budget: automatic triggers (push, PRs, the nightly full-matrix schedule) are removed. The
   workflow still runs on manual `workflow_dispatch` (Actions → **Run workflow**, opt-in and

@@ -6,7 +6,7 @@ exercises, so androidTest (MockWebServer, in-process) and Maestro (this server,
 reached via `adb reverse tcp:8080 tcp:8080`) assert against the same reply text.
 
 Usage:
-    python3 scripts/mock_llm_server.py [port]
+    python3 testing/scripts/mock_llm_server.py [port]
 """
 import json
 import sys
