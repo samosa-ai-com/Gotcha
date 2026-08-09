@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing to Gotcha! We welcome contributions from the community. 🙏
 
-Gotcha is an on-device Android agent that drives real devices through the accessibility service, so contributions carry a little more weight than usual — please read the [Safety-sensitive changes](#safety-sensitive-changes) section before touching the tool layer.
+Gotcha is an on-device Android copilot that drives real devices through the accessibility service, so contributions carry a little more weight than usual — please read the [Safety-sensitive changes](#safety-sensitive-changes) section before touching the tool layer.
 
 ## Quick Start
 
@@ -73,14 +73,14 @@ If you want the full CI matrix on a branch, trigger it manually from **Actions �
 
 - **Target the `development` branch.**
 - Link the related issue (e.g. `Closes #123`).
-- Describe what changed and how you verified it. Screenshots or a screen recording help a lot for UI and agent-behaviour changes.
+- Describe what changed and how you verified it. Screenshots or a screen recording help a lot for UI and copilot-behaviour changes.
 
 ## Adding or changing a tool
 
 Tools are the app's feature surface, and they're tracked by a generated manifest.
 
 1. Implement the tool under [`app/src/main/java/com/gotcha/tools/`](app/src/main/java/com/gotcha/tools/).
-2. Register it in the capability catalog with the correct **capability tier** and **agent mode** — read-only tools must be available to Monitor; anything that writes, sends, deletes, or automates the screen is Operator-only.
+2. Register it in the capability catalog with the correct **capability tier** and **copilot mode** — read-only tools must be available to Monitor; anything that writes, sends, deletes, or automates the screen is Operator-only.
 3. Regenerate the coverage table:
 
    ```bash
@@ -96,7 +96,7 @@ Tools are the app's feature surface, and they're tracked by a generated manifest
 Extra scrutiny applies to anything that:
 
 - adds a tool at **Tier 2+** (calls, SMS, calendar, location, camera, screen automation, device admin, root),
-- widens what the **Monitor** agent can do,
+- widens what the **Monitor** copilot can do,
 - changes the **confirmation gate**, the command **deny-list**, or the **audit log**,
 - touches credential storage or how data leaves the device.
 
@@ -114,7 +114,7 @@ These need an explicit design discussion in the issue first. Changes that weaken
 ```
 Gotcha/
 ├── app/src/main/java/com/gotcha/
-│   ├── agent/          # Agent engine, chat view model, skills
+│   ├── agent/          # Copilot engine, chat view model, skills
 │   ├── tools/          # The tool catalog — one file per capability area
 │   ├── llm/            # OpenAI-compatible client, tool-call plumbing
 │   ├── service/        # Accessibility service, assistive ball, foreground services
@@ -130,7 +130,7 @@ Gotcha/
 
 ## Help & documentation
 
-- **Docs**: [samosa-ai.com/gotcha/docs](https://samosa-ai.com/gotcha/docs) — [Architecture](https://samosa-ai.com/gotcha/docs/architecture), [Agent Modes](https://samosa-ai.com/gotcha/docs/agent-modes), [Tool Catalog](https://samosa-ai.com/gotcha/docs/tool-catalog).
+- **Docs**: [samosa-ai.com/gotcha/docs](https://samosa-ai.com/gotcha/docs) — [Architecture](https://samosa-ai.com/gotcha/docs/architecture), [Copilot Modes](https://samosa-ai.com/gotcha/docs/agent-modes), [Tool Catalog](https://samosa-ai.com/gotcha/docs/tool-catalog).
 - **Get help**: [open an issue](https://github.com/samosa-ai-com/Gotcha/issues) describing what you're stuck on.
 - **Security bugs**: don't open an issue — see [`SECURITY.md`](SECURITY.md).
 

@@ -21,7 +21,7 @@ We take security seriously. If you discover a security vulnerability in Gotcha, 
 ### What to include
 
 - Description of the vulnerability
-- Steps to reproduce — Android version, device or emulator, app version, and agent mode (Monitor / Operator) if relevant
+- Steps to reproduce — Android version, device or emulator, app version, and copilot mode (Monitor / Operator) if relevant
 - Potential impact
 - Suggested fix (if any)
 
@@ -39,14 +39,14 @@ We take security seriously. If you discover a security vulnerability in Gotcha, 
 
 ## Security Considerations
 
-Gotcha is an autonomous agent with deep device access, so its threat model is unusual for an Android app. The areas below are where we most want your eyes.
+Gotcha is an autonomous copilot with deep device access, so its threat model is unusual for an Android app. The areas below are where we most want your eyes.
 
 ### On-device by design
 
 - **Everything runs in one app on your phone** — no companion PC, no remote server, no ADB tether.
 - **Credentials** (LLM API keys, connector OAuth tokens) are stored in `EncryptedSharedPreferences`, never logged, and never synced off-device.
 - **Chats, action logs, and caches stay local.**
-- **What does leave the device**: requests you make are sent to whichever LLM endpoint you configure — including screen contents when the agent reads the screen, and screenshots when using a vision model. Choose your provider accordingly, or run a local model.
+- **What does leave the device**: requests you make are sent to whichever LLM endpoint you configure — including screen contents when the copilot reads the screen, and screenshots when using a vision model. Choose your provider accordingly, or run a local model.
 
 ### Safety boundaries
 
@@ -54,14 +54,14 @@ These are the controls a vulnerability report would most usefully target:
 
 | Boundary | What it enforces |
 |---|---|
-| **Agent modes** | Monitor is read-only (~30 tools); Operator unlocks the full catalog. A Monitor-mode escape is a security bug. |
+| **Copilot modes** | Monitor is read-only (~30 tools); Operator unlocks the full catalog. A Monitor-mode escape is a security bug. |
 | **Capability tiers** | Tier 0–1 everyday, Tier 2 personal (calls, SMS, calendar, location, camera), Tier 3 automation (screen touch, notifications, device admin), Tier 4 privileged (root — fails closed on unrooted devices). |
 | **Confirmation gate** | Sensitive actions pop an explicit Allow/Deny prompt before running. |
 | **Command deny-list** | Blocks dangerous shell invocations in the terminal tool. |
 | **Audit log** | Append-only record of executed actions. |
 | **Fixed tool catalog** | Tools are defined in code — the model cannot invent a new tool at runtime. The tool loop is bounded (300 rounds per message by default) with an anti-loop guard. |
 
-**Prompt injection is in scope.** Gotcha reads screen content, notifications, files, and email — all of which can carry attacker-controlled text. A report showing that injected content can drive the agent past a confirmation gate, a mode restriction, or a capability tier is exactly the kind of finding we want.
+**Prompt injection is in scope.** Gotcha reads screen content, notifications, files, and email — all of which can carry attacker-controlled text. A report showing that injected content can drive the copilot past a confirmation gate, a mode restriction, or a capability tier is exactly the kind of finding we want.
 
 ### Best practices for users
 

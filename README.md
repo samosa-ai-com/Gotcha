@@ -38,8 +38,8 @@ The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/
 ## 🌟 Highlights
 
 * **🧰 100+ device-control tools** — calls, SMS, contacts, calendar, alarms, files, terminal, location, apps, clipboard, camera, screen automation, notifications, device admin, and root. → [Tool Catalog](https://samosa-ai.com/gotcha/docs/tool-catalog)
-* **🎭 Two agent modes** — read-only **Monitor** (*inspect & plan*, 30 tools) and full-access **Operator** (*execute & automate*). Switch any time, even mid-conversation. → [Agent Modes](https://samosa-ai.com/gotcha/docs/agent-modes)
-* **🔮 The Assistive Ball** — a floating bubble that rides over every app, hosting push-to-talk voice calls with the full agent. → [Assistive Ball](https://samosa-ai.com/gotcha/docs/assistive-ball)
+* **🎭 Two copilot modes** — read-only **Monitor** (*inspect & plan*, 30 tools) and full-access **Operator** (*execute & automate*). Switch any time, even mid-conversation. → [Copilot Modes](https://samosa-ai.com/gotcha/docs/agent-modes)
+* **🔮 The Assistive Ball** — a floating bubble that rides over every app, hosting push-to-talk voice calls with the full copilot. → [Assistive Ball](https://samosa-ai.com/gotcha/docs/assistive-ball)
 * **🔍 Screen Lens & Companion** — circle anything on screen to copy, translate, or ask about it; get one-tap offers when an address, price, or date appears. Text extraction runs on-device.
 * **🛡️ Safety by design** — capability tiers, up-front permissions, a hard confirmation gate on sensitive actions, a command deny-list, and an append-only audit log. → [Safety & Permissions](https://samosa-ai.com/gotcha/docs/safety-permissions)
 * **🏠 Local & cloud AI** — any OpenAI-compatible `/chat/completions` endpoint with tool calling, or Samosa AI for free starter credits.
@@ -49,9 +49,9 @@ The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/
 ## 📚 Documentation
 
 * 🚀 [**Getting Started**](https://samosa-ai.com/gotcha/docs/getting-started) — install, configure a model, grant permissions.
-* 🎭 [**Agent Modes**](https://samosa-ai.com/gotcha/docs/agent-modes) — Monitor vs Operator, and what each can touch.
+* 🎭 [**Copilot Modes**](https://samosa-ai.com/gotcha/docs/agent-modes) — Monitor vs Operator, and what each can touch.
 * 🧰 [**Tool Catalog**](https://samosa-ai.com/gotcha/docs/tool-catalog) — every tool, grouped by capability.
-* 🏗️ [**Architecture**](https://samosa-ai.com/gotcha/docs/architecture) — how the agent loop, tools, and services fit together.
+* 🏗️ [**Architecture**](https://samosa-ai.com/gotcha/docs/architecture) — how the copilot loop, tools, and services fit together.
 * 🛡️ [**Safety & Permissions**](https://samosa-ai.com/gotcha/docs/safety-permissions) — capability tiers, confirmation gates, audit log.
 * ❓ [**FAQ & Known Limitations**](https://samosa-ai.com/gotcha/docs/faq) — backend compatibility and rough edges.
 * ✅ [**Feature Test Coverage**](docs/FEATURE_TEST_COVERAGE.md) — every tool and how it's verified.
