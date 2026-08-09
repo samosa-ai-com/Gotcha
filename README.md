@@ -34,7 +34,7 @@ Building from source instead? 👇
 ./gradlew installDebug
 ```
 
-The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/`), and **Model name**, grant the prompted permissions, and you're live. Full setup notes live in [`RUNNING.md`](RUNNING.md).
+The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/`), and **Model name**, grant the prompted permissions, and you're live. Full setup notes live in [`RUNNING.md`](docs/RUNNING.md).
 
 ## 🌟 Highlights
 

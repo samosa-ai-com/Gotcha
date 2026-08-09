@@ -15,7 +15,7 @@ Gotcha is an on-device Android copilot that drives real devices through the acce
 
 2. **Point Gradle at your Android SDK**
 
-   Android Studio writes `local.properties` on first sync. To build from the CLI before that, create it yourself at the repo root — or just set `ANDROID_HOME`. See [`RUNNING.md`](RUNNING.md#1-prerequisites) for the exact format.
+   Android Studio writes `local.properties` on first sync. To build from the CLI before that, create it yourself at the repo root — or just set `ANDROID_HOME`. See [`RUNNING.md`](docs/RUNNING.md#1-prerequisites) for the exact format.
 
 3. **Build and install**
 
@@ -24,7 +24,7 @@ Gotcha is an on-device Android copilot that drives real devices through the acce
    ./gradlew installDebug        # onto a device or emulator running API 30+
    ```
 
-Full prerequisites (Android Studio 2025.2+, JDK 17+, SDK Platform 34), permission notes, and troubleshooting live in [`RUNNING.md`](RUNNING.md).
+Full prerequisites (Android Studio 2025.2+, JDK 17+, SDK Platform 34), permission notes, and troubleshooting live in [`RUNNING.md`](docs/RUNNING.md).
 
 ## How to Contribute
 
