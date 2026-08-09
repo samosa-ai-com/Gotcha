@@ -301,7 +301,7 @@ kover {
 
 detekt {
     buildUponDefaultConfig = true
-    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    config.setFrom(rootProject.files("detekt-rules/detekt.yml"))
     // One-off formatting fixes: ./gradlew :app:detekt -PdetektAutoCorrect
     autoCorrect = project.hasProperty("detektAutoCorrect")
 }
