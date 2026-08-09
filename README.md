@@ -8,6 +8,7 @@
 
 [![Website](https://img.shields.io/badge/Website-samosa--ai.com%2Fgotcha-6E56CF?style=for-the-badge)](https://samosa-ai.com/gotcha)
 [![Docs](https://img.shields.io/badge/Docs-Read%20the%20guide-0EA5E9?style=for-the-badge)](https://samosa-ai.com/gotcha/docs)
+[![Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/rsgXSpcWNq)
 [![Release](https://img.shields.io/github/v/release/samosa-ai-com/Gotcha?style=for-the-badge&color=22C55E)](https://github.com/samosa-ai-com/Gotcha/releases/latest)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-F59E0B?style=for-the-badge)](LICENSE)
 
@@ -58,6 +59,8 @@ The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/
 
 ## 🤝 Project & Community
 
+* 💬 [**Discord**](https://discord.com/invite/rsgXSpcWNq) — chat with the team and other users, share skills, and get help in real time.
+* 🗣️ [**GitHub Discussions**](https://github.com/orgs/samosa-ai-com/discussions) — feature ideas, Q&A, and longer-form conversations that outlive a chat message.
 * 💡 [**Contributing**](CONTRIBUTING.md) — branching strategy, how to add a tool, and the checks to run before a PR:
   ```bash
   ./gradlew testDebugUnitTest    # JVM unit tests (needs a POSIX sh)
