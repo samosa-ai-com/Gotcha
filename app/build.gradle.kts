@@ -390,7 +390,7 @@ dependencies {
 
     // On-device wake word ("Hey Gotcha") via OpenWakeWord ONNX models run with
     // Microsoft's official ONNX Runtime. The three models live in
-    // app/src/main/assets/openwakeword (see docs/wake-word.md + docs/MODEL_CARD.md).
+    // app/src/main/assets/openwakeword (see docs/MODEL_CARD.md).
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
 
     // Static analysis
