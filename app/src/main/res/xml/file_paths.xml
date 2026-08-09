@@ -6,4 +6,6 @@
     <cache-path name="lens" path="lens/" />
     <!-- "Share your Gotcha moment" poster PNGs. -->
     <cache-path name="poster" path="poster/" />
+    <!-- APK updates downloaded by in-app updater. -->
+    <cache-path name="updates" path="updates/" />
 </paths>

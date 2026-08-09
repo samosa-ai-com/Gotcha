@@ -6,21 +6,32 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.gotcha.BuildConfig
 import com.gotcha.tools.CompanyInfoTool
+import com.gotcha.updater.AppUpdateManager
+import com.gotcha.updater.UpdateStatus
+import kotlinx.coroutines.launch
 
 /**
  * About Us: the hub for everything about who made this app and what using it
@@ -44,6 +55,8 @@ fun AboutScreen(
                 modifier = Modifier.testTag(page.testTag)
             )
         }
+        HorizontalDivider(thickness = 1.dp)
+        AppUpdateSection()
         HorizontalDivider(thickness = 1.dp)
     }
 }
@@ -116,6 +129,174 @@ private val LINKS = listOf(
     "Gotcha documentation" to "https://samosa-ai.com/gotcha/docs",
     "Pricing" to "https://samosa-ai.com/pricing",
     "Blog" to "https://blog.samosa-ai.com",
-    "GitHub" to "https://github.com/Rishabh-Bajpai",
-    "Email samosa.ai.com@gmail.com" to "mailto:samosa.ai.com@gmail.com"
+    "GitHub" to "https://github.com/samosa-ai-com/Gotcha",
+    "Email contact@samosa-ai.com" to "mailto:contact@samosa-ai.com"
 )
+
+@Composable
+fun AppUpdateSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val updateManager = remember { AppUpdateManager.shared }
+    var status by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Idle) }
+    var busy by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                status is UpdateStatus.NeedsInstallPermission &&
+                updateManager.canInstall(context)
+            ) {
+                val needsPermission = status
+                if (needsPermission is UpdateStatus.NeedsInstallPermission) {
+                    status = UpdateStatus.ReadyToInstall(needsPermission.apkFile)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "App Version & Updates",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            text = "Gotcha v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        when (val currentStatus = status) {
+            is UpdateStatus.Idle -> {
+                Button(onClick = {
+                    if (busy) return@Button
+                    busy = true
+                    scope.launch {
+                        try {
+                            status = UpdateStatus.Checking
+                            status = updateManager.checkForUpdate()
+                        } finally {
+                            busy = false
+                        }
+                    }
+                }) {
+                    Text("Check for Updates")
+                }
+            }
+            is UpdateStatus.Checking -> {
+                Text(
+                    text = "Checking for updates...",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            is UpdateStatus.UpToDate -> {
+                Text(
+                    text = "Gotcha is up to date (v${currentStatus.currentVersion}).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            is UpdateStatus.Available -> {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "New update available: v${currentStatus.info.versionName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
+                        Text(
+                            text = currentStatus.info.releaseNotes,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Button(onClick = {
+                        if (busy) return@Button
+                        busy = true
+                        scope.launch {
+                            try {
+                                status = UpdateStatus.Downloading(0)
+                                val res = updateManager.downloadUpdate(
+                                    context,
+                                    currentStatus.info
+                                ) { pct ->
+                                    status = UpdateStatus.Downloading(pct)
+                                }
+                                res.onSuccess { apkFile ->
+                                    status = UpdateStatus.ReadyToInstall(apkFile)
+                                }.onFailure { err ->
+                                    status = UpdateStatus.Error(err.message ?: "Download failed")
+                                }
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }) {
+                        Text("Download Update")
+                    }
+                }
+            }
+            is UpdateStatus.Downloading -> {
+                Text(
+                    text = "Downloading update: ${currentStatus.progressPercent}%",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            is UpdateStatus.ReadyToInstall -> {
+                Button(onClick = {
+                    if (!updateManager.installUpdate(context, currentStatus.apkFile)) {
+                        status = if (updateManager.canInstall(context)) {
+                            UpdateStatus.Error("Could not launch the installer.")
+                        } else {
+                            UpdateStatus.NeedsInstallPermission(currentStatus.apkFile)
+                        }
+                    }
+                }) {
+                    Text("Install Update")
+                }
+            }
+            is UpdateStatus.NeedsInstallPermission -> {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Allow Gotcha to install updates from this source, then return here.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(onClick = {
+                        updateManager.openInstallPermissionSettings(context)
+                    }) {
+                        Text("Grant Install Permission")
+                    }
+                }
+            }
+            is UpdateStatus.Error -> {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Error: ${currentStatus.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Button(onClick = {
+                        if (busy) return@Button
+                        busy = true
+                        scope.launch {
+                            try {
+                                status = UpdateStatus.Checking
+                                status = updateManager.checkForUpdate()
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }) {
+                        Text("Retry Check")
+                    }
+                }
+            }
+        }
+    }
+}

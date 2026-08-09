@@ -9,7 +9,7 @@ Gotcha talks to **any OpenAI-compatible `/chat/completions` endpoint**, so it
 runs against OpenAI, OpenRouter, Groq, or a model served locally by
 llama.cpp / LM Studio / Ollama.
 
-> **Status:** early (`versionName 0.1.0`). Expect rough edges, and read the
+> **Status:** early (`versionName 1.0.0`). Expect rough edges, and read the
 > safety notes below before pointing it at a phone you care about.
 
 ## What it can do

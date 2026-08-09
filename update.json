@@ -1,0 +1,7 @@
+{
+  "versionCode": 3,
+  "versionName": "1.0.2",
+  "downloadUrl": "https://github.com/samosa-ai-com/Gotcha/releases/download/v1.0.2/app-release.apk",
+  "releaseNotes": "### Fixed\n- Release builds now ship with the correct Samosa AI service configuration. The\n  published 1.0.1 APK was assembled without it and silently fell back to inert\n  placeholder endpoints, leaving AI chat, Google sign-in and in-app feedback\n  unable to reach the backend. Users on 1.0.1 should update.\n\n### Changed\n- Release builds are now verified before publication: the APK must be signed\n  with the official Gotcha release key, must not be debuggable, must include\n  native libraries for all supported device architectures, and must contain no\n  placeholder configuration. The published download is re-checked against the\n  update manifest so a corrupted upload can no longer reach devices.\n\n### Note for existing users\n- If \"Check for Updates\" downloads this release but installation fails with\n  \"App not installed\", the copy on your device was signed with a different key\n  and Android will not replace it. Uninstall Gotcha, install this release\n  manually once, and future in-app updates will apply normally.",
+  "sha256": "67f2fbcfb070f78816dfcc8c9472993d6f0ad6ffbcd7d8f36cbdaf56eb596c42"
+}

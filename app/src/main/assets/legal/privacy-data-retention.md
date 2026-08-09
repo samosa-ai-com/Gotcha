@@ -142,7 +142,7 @@ backend that transmits data to a third-party AI provider.
 
 9. CONTACT
 
-   9.1 Questions about this policy can be sent to samosa.ai.com@gmail.com.
+   9.1 Questions about this policy can be sent to contact@samosa-ai.com.
 
 10. OPTIONAL WAKE WORD ("Hey Gotcha")
 

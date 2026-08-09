@@ -70,6 +70,8 @@
     <!-- Android 13+: shows the assistive-ball foreground-service notification (service runs
          regardless of grant). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- In-app APK updater permission for launching PackageInstaller -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Tier 4: run_termux_command. Declared by Termux with protectionLevel="dangerous", so it
          still needs a runtime grant; Termux additionally requires allow-external-apps=true. -->

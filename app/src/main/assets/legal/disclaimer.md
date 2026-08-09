@@ -122,7 +122,7 @@ THE APP, YOU ACKNOWLEDGE AND AGREE TO THE FOLLOWING.
     10.1 The App is not directed to children under 18. We do not
          knowingly collect information from children under 18. If you
          believe a child under 18 is using the App, contact us at
-         samosa.ai.com@gmail.com so we can take appropriate steps.
+         contact@samosa-ai.com so we can take appropriate steps.
 
 11. ACKNOWLEDGEMENT
 

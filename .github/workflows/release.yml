@@ -1,0 +1,334 @@
+name: Release
+
+# Fully automates what used to be a manual build-APK / upload-to-GitHub / edit-update.json
+# process. A developer bumps versionCode + versionName in app/build.gradle.kts and adds
+# the release's notes under the "## [Unreleased]" heading in CHANGELOG.md, then pushes to
+# main. This workflow builds the signed APK, tags the release, publishes it on GitHub,
+# rolls the changelog's Unreleased section into a versioned one, and regenerates
+# update.json (versionCode, versionName, downloadUrl, sha256, releaseNotes) — which is
+# what devices actually read (via raw.githubusercontent.com) to detect the update.
+on:
+  push:
+    branches: [main]
+    paths:
+      - app/build.gradle.kts
+  # Manual trigger for exercising the build + verification steps without cutting a
+  # release. Leave dry_run on (the default) to stop before tagging/publishing.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and verify only — no tag, no release, no commit"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from app/build.gradle.kts
+        id: version
+        run: |
+          NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          if [ -z "$NAME" ] || [ -z "$CODE" ]; then
+            echo "::error::couldn't read versionName/versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if this version was already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NAME: ${{ steps.version.outputs.name }}
+        run: |
+          DRY_RUN=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_RUN=true
+          fi
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run — building and verifying $TAG without publishing."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "$TAG is new — proceeding with the release."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # An existing tag normally means "already released, nothing to do". But a run
+          # that died anywhere after `Create tag` also leaves a tag behind, and skipping
+          # silently would let that half-finished state re-run green while devices still
+          # see nothing. Only treat the tag as a no-op once the release is provably whole.
+          echo "Tag $TAG already exists — verifying the release it points at is complete."
+          FAILED=0
+          note() { echo "  - $1"; FAILED=1; }
+
+          ASSET=$(gh release view "$TAG" --json assets \
+            --jq '.assets[] | select(.name == "app-release.apk")' 2>/dev/null || true)
+          if [ -z "$ASSET" ]; then
+            note "no GitHub release for $TAG, or it carries no app-release.apk asset"
+          fi
+
+          MANIFEST_NAME=$(jq -r '.versionName' update.json)
+          MANIFEST_SHA=$(jq -r '.sha256' update.json)
+          if [ "$MANIFEST_NAME" != "$NAME" ]; then
+            note "update.json advertises $MANIFEST_NAME, not $NAME — devices cannot see this release"
+          fi
+          if [ -n "$ASSET" ]; then
+            ASSET_SHA=$(printf '%s' "$ASSET" | jq -r '.digest // ""' | sed 's/^sha256://')
+            if [ -n "$ASSET_SHA" ] && [ "$ASSET_SHA" != "$MANIFEST_SHA" ]; then
+              note "published asset sha256 ($ASSET_SHA) != update.json ($MANIFEST_SHA) — downloads would fail verification"
+            fi
+          fi
+
+          if [ "$FAILED" = "1" ]; then
+            echo "::error::$TAG was tagged but its release is incomplete (details above). Recover with: git push --delete origin $TAG && git tag -d $TAG && gh release delete $TAG --yes — then re-run."
+            exit 1
+          fi
+
+          echo "$TAG is fully published and update.json matches it — nothing to do."
+          echo "should_release=false" >> "$GITHUB_OUTPUT"
+
+      - name: Roll CHANGELOG.md Unreleased section into this version
+        if: steps.check.outputs.should_release == 'true'
+        id: changelog
+        env:
+          DRY_RUN: ${{ steps.check.outputs.dry_run }}
+        run: |
+          python3 - "${{ steps.version.outputs.name }}" <<'PYEOF'
+          import os, re, sys
+
+          dry_run = os.environ.get("DRY_RUN") == "true"
+
+          version_name = sys.argv[1]
+          path = "CHANGELOG.md"
+          text = open(path, encoding="utf-8").read()
+
+          heading_re = re.compile(r'^## \[.+?\]\s*$', re.MULTILINE)
+          headings = list(heading_re.finditer(text))
+          unreleased = next((m for m in headings if m.group().strip() == "## [Unreleased]"), None)
+          if unreleased is None:
+              sys.exit("::error::CHANGELOG.md has no '## [Unreleased]' section")
+
+          later = [m for m in headings if m.start() > unreleased.start()]
+          section_end = later[0].start() if later else len(text)
+          body = text[unreleased.end():section_end].strip("\n")
+
+          if not body.strip():
+              if not dry_run:
+                  sys.exit("::error::CHANGELOG.md's Unreleased section is empty — add release notes before bumping the version")
+              body = "_(dry run — Unreleased section is empty)_"
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write(body + "\n")
+
+          # A dry run must not rewrite CHANGELOG.md: nothing is being released, and the
+          # file is never committed, but leaving it untouched keeps the diff honest.
+          if not dry_run:
+              new_section_header = f"## [Unreleased]\n\n## [{version_name}]"
+              new_text = text[:unreleased.start()] + new_section_header + text[unreleased.end():]
+              open(path, "w", encoding="utf-8").write(new_text)
+          PYEOF
+
+      - uses: actions/setup-java@v4
+        if: steps.check.outputs.should_release == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.check.outputs.should_release == 'true'
+
+      - name: Configure release signing
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 (and the matching password/alias secrets) must be set in repo secrets to build a properly signed release APK. See app/build.gradle.kts signingConfigs."
+            exit 1
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+          cat >> local.properties <<EOF
+          RELEASE_STORE_FILE=$KEYSTORE_PATH
+          RELEASE_STORE_PASSWORD=$RELEASE_STORE_PASSWORD
+          RELEASE_KEY_ALIAS=$RELEASE_KEY_ALIAS
+          RELEASE_KEY_PASSWORD=$RELEASE_KEY_PASSWORD
+          EOF
+
+      - name: Assemble release APK
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          SAMOSA_API_URL: ${{ secrets.SAMOSA_API_URL }}
+          SAMOSA_SKILL_HOST: ${{ secrets.SAMOSA_SKILL_HOST }}
+          SAMOSA_WEB_CLIENT_ID: ${{ secrets.SAMOSA_WEB_CLIENT_ID }}
+          FEEDBACK_FORM_URL: ${{ secrets.FEEDBACK_FORM_URL }}
+          FEEDBACK_ENTRY_USER_ID: ${{ secrets.FEEDBACK_ENTRY_USER_ID }}
+          FEEDBACK_ENTRY_APP_VERSION: ${{ secrets.FEEDBACK_ENTRY_APP_VERSION }}
+          FEEDBACK_ENTRY_DEVICE_MODEL: ${{ secrets.FEEDBACK_ENTRY_DEVICE_MODEL }}
+          FEEDBACK_ENTRY_ANDROID_VERSION: ${{ secrets.FEEDBACK_ENTRY_ANDROID_VERSION }}
+          FEEDBACK_ENTRY_USAGE_STATS: ${{ secrets.FEEDBACK_ENTRY_USAGE_STATS }}
+          FEEDBACK_ENTRY_CHAT_LOG: ${{ secrets.FEEDBACK_ENTRY_CHAT_LOG }}
+        run: |
+          # samosaConfig() in app/build.gradle.kts silently falls back to inert
+          # *.example placeholders when a value is missing, which produces an APK
+          # that installs fine but can never reach the backend. Fail loudly instead.
+          for name in SAMOSA_API_URL SAMOSA_SKILL_HOST SAMOSA_WEB_CLIENT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set in repo secrets — the release would ship placeholder config"
+              exit 1
+            fi
+          done
+          ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Verify release APK is correctly signed and configured
+        if: steps.check.outputs.should_release == 'true'
+        env:
+          EXPECTED_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n1)
+
+          if [ -z "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::RELEASE_CERT_SHA256 repo variable is not set. Get it with: apksigner verify --print-certs <apk>"
+            exit 1
+          fi
+
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+          echo "$CERTS"
+          # apksigner labels this line differently across build-tools versions
+          # ("Signer #1 certificate ..." vs "V2 Signer: certificate ..."), so match on
+          # the digest itself rather than on either prefix.
+          ACTUAL=$(printf '%s\n' "$CERTS" \
+            | sed -n 's/.*certificate SHA-256 digest: *\([0-9a-fA-F]\{64\}\).*/\1/p' \
+            | head -n1 | tr 'A-Z' 'a-z')
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::Could not parse a certificate SHA-256 out of apksigner output (see above)"
+            exit 1
+          fi
+
+          # A signing-identity change makes the APK un-installable over any existing
+          # install (INSTALL_FAILED_UPDATE_INCOMPATIBLE) — catch it here, not on users' phones.
+          # Tolerate a fingerprint pasted with colons or in upper case (keytool's format).
+          EXPECTED=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr 'A-Z' 'a-z')
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::APK signed with the wrong key. Expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
+          if printf '%s\n' "$CERTS" | grep -q "CN=Android Debug"; then
+            echo "::error::APK is debug-signed"
+            exit 1
+          fi
+          if "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q 'debuggable.*=true'; then
+            echo "::error::APK is marked debuggable"
+            exit 1
+          fi
+
+          # Guard against an ABI-narrowed build (Android Studio's deploy-to-device
+          # optimisation) reaching a release: real phones are arm64.
+          for abi in arm64-v8a armeabi-v7a; do
+            if ! unzip -l "$APK" | grep -q "lib/$abi/"; then
+              echo "::error::APK has no lib/$abi native libraries"
+              exit 1
+            fi
+          done
+
+          # Prove the SAMOSA_* secrets actually reached BuildConfig. Without this an
+          # APK built from missing secrets installs and runs fine, but every backend
+          # call goes to the inert *.example placeholder host.
+          DEXDIR=$(mktemp -d)
+          unzip -o -q "$APK" 'classes*.dex' -d "$DEXDIR"
+          for placeholder in "samosa-ai.example" "YOUR_GOOGLE_WEB_CLIENT_ID"; do
+            if grep -qa "$placeholder" "$DEXDIR"/classes*.dex; then
+              echo "::error::APK still contains the placeholder '$placeholder' — a SAMOSA_* secret did not reach the build"
+              exit 1
+            fi
+          done
+          rm -rf "$DEXDIR"
+          echo "Signature, ABI and config checks passed."
+
+      - name: Create tag
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub release
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            app/build/outputs/apk/release/app-release.apk \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes-file release_notes.md
+
+      - name: Regenerate update.json
+        if: steps.check.outputs.should_release == 'true'
+        id: manifest
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          APK_SHA256=$(sha256sum app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
+          echo "sha256=$APK_SHA256" >> "$GITHUB_OUTPUT"
+          DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download/${{ steps.version.outputs.tag }}/app-release.apk"
+          jq -n \
+            --argjson versionCode "${{ steps.version.outputs.code }}" \
+            --arg versionName "${{ steps.version.outputs.name }}" \
+            --arg downloadUrl "$DOWNLOAD_URL" \
+            --arg sha256 "$APK_SHA256" \
+            --arg releaseNotes "$(cat release_notes.md)" \
+            '{versionCode: $versionCode, versionName: $versionName, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, sha256: $sha256}' \
+            > update.json
+
+      - name: Verify the published asset matches update.json
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Devices refuse any APK whose bytes don't match update.json's sha256, so a
+          # truncated or re-uploaded asset would silently break every update. Re-download
+          # what users will actually get and compare before update.json is committed.
+          URL=$(jq -r .downloadUrl update.json)
+          curl -fsSL -o published.apk "$URL"
+          PUBLISHED=$(sha256sum published.apk | cut -d' ' -f1)
+          if [ "$PUBLISHED" != "${{ steps.manifest.outputs.sha256 }}" ]; then
+            echo "::error::Published asset sha256 ($PUBLISHED) != update.json (${{ steps.manifest.outputs.sha256 }})"
+            exit 1
+          fi
+          echo "Published asset verified: $PUBLISHED"
+          rm -f published.apk
+
+      - name: Commit update.json and CHANGELOG.md
+        if: steps.check.outputs.should_release == 'true' && steps.check.outputs.dry_run != 'true'
+        run: |
+          rm -f release_notes.md
+          git add update.json CHANGELOG.md
+          git commit -m "chore: update.json for ${{ steps.version.outputs.tag }}"
+          git push origin HEAD:main

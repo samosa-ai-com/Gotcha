@@ -149,11 +149,7 @@ fun AiConfigScreen(
     SettingsScaffold(title = SettingsPage.AI_CONFIG.title, onBack = onBack, overlay = overlay) {
         // ---- Provider / model guidance ----
         Text(
-            "Recommended setup:\n" +
-                "• Use the SAMOSA AI provider for the best LLM performance.\n" +
-                "• For speech, pick SAMOSA AI's TTS and STT on the Speech screen — " +
-                "its TTS handles mixed-language text, and its STT is the recommended " +
-                "transcription engine.",
+            "Recommended setup: Use the SAMOSA AI provider for the best LLM performance.\n",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

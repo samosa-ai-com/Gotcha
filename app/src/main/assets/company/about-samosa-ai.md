@@ -80,4 +80,4 @@ The pricing page at https://samosa-ai.com/pricing currently says pricing informa
 
 ## Developers and contact
 
-Samosa AI is open source and built in public. The code lives on GitHub at https://github.com/Rishabh-Bajpai, there is a blog at https://blog.samosa-ai.com, and the team can be reached at samosa.ai.com@gmail.com.
+Samosa AI is open source and built in public. The code is hosted on GitHub at https://github.com/samosa-ai-com/Gotcha, there is a blog at https://blog.samosa-ai.com, and the team can be reached at contact@samosa-ai.com.
