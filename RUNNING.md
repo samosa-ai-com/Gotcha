@@ -257,6 +257,17 @@ When the Accessibility Service is enabled, Monitor and Operator can capture the 
 screen and send it as an image to the LLM for visual understanding. This requires a
 vision-capable model (GPT-4o, Claude 3.5+, Gemini, etc.).
 
+### Accessibility toggle says "Controlled by restricted setting"
+
+If you installed Gotcha from a downloaded APK, Android blocks the Accessibility toggle
+until you unlock restricted settings for the app:
+
+1. **Settings → Apps → See all apps → Gotcha**
+2. Tap the **⋮ three-dot menu** in the top-right corner of that app-info screen
+3. Tap **Allow restricted settings**
+4. Confirm with PIN/fingerprint if prompted
+5. Go back to **Settings → Accessibility → Gotcha** — the toggle now works
+
 Other controls: **Clear** (top bar) wipes chat history; **Clear LLM cache**
 (Settings) drops cached deterministic responses.
 
@@ -270,6 +281,7 @@ Other controls: **Clear** (top bar) wipes chat history; **Clear LLM cache**
 | Local `http://` endpoint blocked as "cleartext not permitted" | Add `android:usesCleartextTraffic="true"` to `<application>` in `AndroidManifest.xml` (debug only), or use an `https` endpoint. |
 | Model replies but never calls tools | Use a model that supports function calling. |
 | Emulator has no Dialer/Wallpaper | Use a *Google APIs/Play* system image. |
+| Accessibility toggle greyed out, "Controlled by restricted setting" | Settings → Apps → See all apps → Gotcha → **⋮** → **Allow restricted settings**. See [Accessibility toggle says "Controlled by restricted setting"](#accessibility-toggle-says-controlled-by-restricted-setting). |
 
 ## 8. Where things live
 
