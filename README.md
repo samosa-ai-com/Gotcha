@@ -4,7 +4,7 @@
 
 ### Say it. Gotcha does it.
 
-**A fully on-device AI copilot for Android that turns natural language into real device actions.**
+**The world's first open-source AI copilot for Android — fully on-device, turning natural language into real device actions.**
 
 [![Website](https://img.shields.io/badge/Website-samosa--ai.com%2Fgotcha-6E56CF?style=for-the-badge)](https://samosa-ai.com/gotcha)
 [![Docs](https://img.shields.io/badge/Docs-Read%20the%20guide-0EA5E9?style=for-the-badge)](https://samosa-ai.com/gotcha/docs)
