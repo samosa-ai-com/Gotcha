@@ -4,7 +4,7 @@
 
 ### Say it. Gotcha does it.
 
-**A fully on-device AI agent for Android that turns natural language into real device actions.**
+**A fully on-device AI copilot for Android that turns natural language into real device actions.**
 
 [![Website](https://img.shields.io/badge/Website-samosa--ai.com%2Fgotcha-6E56CF?style=for-the-badge)](https://samosa-ai.com/gotcha)
 [![Docs](https://img.shields.io/badge/Docs-Read%20the%20guide-0EA5E9?style=for-the-badge)](https://samosa-ai.com/gotcha/docs)
@@ -58,11 +58,12 @@ The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/
 
 ## 🤝 Project & Community
 
-* 💡 **Contributing** — [open an issue](https://github.com/samosa-ai-com/Gotcha/issues) or send a PR. Dev commands:
+* 💡 [**Contributing**](CONTRIBUTING.md) — branching strategy, how to add a tool, and the checks to run before a PR:
   ```bash
   ./gradlew testDebugUnitTest    # JVM unit tests (needs a POSIX sh)
   ./gradlew detekt lintDebug     # static analysis — no baselines, everything must pass
   ```
+* 🛡️ [**Security Policy**](SECURITY.md) — how we handle vulnerabilities and where to report them privately.
 * ⚖️ [**License**](LICENSE) — released under AGPL-3.0. Copyright © 2026 Samosa AI.
 
 > [!WARNING]
