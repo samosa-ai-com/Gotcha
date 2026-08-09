@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [1.0.2]
 ### Fixed
 - Release builds now ship with the correct Samosa AI service configuration. The
   published 1.0.1 APK was assembled without it and silently fell back to inert
