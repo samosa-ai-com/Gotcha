@@ -17,7 +17,7 @@
 
 ---
 
-Most AI projects talk — **Gotcha acts**. 🤖
+Most AI assistants talk — **Gotcha acts**. 🤖
 
 Say *"text mom I'm running late"*, *"free up some space"*, or *"what's on my screen?"*. An LLM reads your request plus live device context, picks from **100+ purpose-built Android tools**, executes real actions, and reports back — by text or by voice. 🗣️
 
