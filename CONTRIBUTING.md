@@ -123,9 +123,12 @@ Gotcha/
 │   ├── data/           # Persistence, encrypted credential storage
 │   └── ui/             # Compose screens
 ├── app/src/test/       # JVM unit + Robolectric tests
-├── detekt-rules/       # Custom static-analysis rules
+├── detekt-rules/       # Custom static-analysis rules + detekt.yml
 ├── docs/               # Setup guides, model card, coverage manifest
-└── scripts/            # Development utilities
+├── .maestro/           # Maestro end-to-end flows
+└── testing/
+    ├── scripts/        # Test-matrix runner, Maestro runner, mock LLM server
+    └── sample-documents/  # Attachment fixtures (also the manual test kit)
 ```
 
 ## Help & documentation

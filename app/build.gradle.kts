@@ -183,10 +183,13 @@ android {
         unitTests.all { test ->
             val updatingCoverageDocs = providers.gradleProperty("updateCoverageDocs").getOrElse("false")
             test.systemProperty("gotcha.coverage.update", updatingCoverageDocs)
-            // sample-documents/ doubles as the fixtures for SampleDocumentsTest; pass the
-            // absolute path so the test reads the single committed copy instead of keeping
+            // testing/sample-documents/ doubles as the fixtures for SampleDocumentsTest; pass
+            // the absolute path so the test reads the single committed copy instead of keeping
             // a second one under src/test/resources.
-            test.systemProperty("gotcha.sampleDocsDir", rootProject.file("sample-documents").absolutePath)
+            test.systemProperty(
+                "gotcha.sampleDocsDir",
+                rootProject.file("testing/sample-documents").absolutePath,
+            )
             // The generated doc is an *input* to the drift assertion, so hand-editing it has to
             // invalidate the task — otherwise Gradle reports UP-TO-DATE and the gate never runs.
             // Skipped while regenerating, when the task writes that same file.

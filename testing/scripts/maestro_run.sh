@@ -3,14 +3,14 @@
 # start the mock LLM server, reverse its port to the device, install the debug
 # APK, grant the overlay appop, and seed settings via the debug broadcast hook.
 #
-# Usage: scripts/maestro_run.sh [maestro test args...]
+# Usage: testing/scripts/maestro_run.sh [maestro test args...]
 # Defaults to running every flow in .maestro/flows.
 set -euo pipefail
 
 ANDROID_HOME="${ANDROID_HOME:-${LOCALAPPDATA:-}/Android/Sdk}"
 ADB="$ANDROID_HOME/platform-tools/adb"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEBUG_APK="$REPO_ROOT/app/build/outputs/apk/debug/app-debug.apk"
 PACKAGE_NAME="com.gotcha"
 MOCK_PORT=8080
@@ -21,7 +21,7 @@ if [[ ! -f "$DEBUG_APK" ]]; then
 fi
 
 echo "Starting mock LLM server on :$MOCK_PORT…"
-python3 "$REPO_ROOT/scripts/mock_llm_server.py" "$MOCK_PORT" &
+python3 "$REPO_ROOT/testing/scripts/mock_llm_server.py" "$MOCK_PORT" &
 MOCK_SERVER_PID=$!
 trap 'kill "$MOCK_SERVER_PID" 2>/dev/null || true' EXIT
 

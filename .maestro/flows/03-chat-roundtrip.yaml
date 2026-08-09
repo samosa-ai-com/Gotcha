@@ -1,6 +1,6 @@
 appId: com.gotcha
 ---
-# Requires scripts/maestro_run.sh: mock_llm_server.py reachable via `adb reverse tcp:8080 tcp:8080`.
+# Requires testing/scripts/maestro_run.sh: mock_llm_server.py reachable via `adb reverse tcp:8080 tcp:8080`.
 - launchApp
 - tapOn:
     text: "Let's Go"
