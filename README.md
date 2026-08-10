@@ -27,7 +27,7 @@ Everything runs in **one self-contained app on your phone**. Bring your own API 
 <div align="center">
 
 <a href="https://www.youtube.com/watch?v=Zk5-dtqRB64">
-  <img src="docs/assets/setup-walkthrough.jpg" width="640" alt="Watch: setting up Gotcha on your phone, step by step">
+  <img src="docs/assets/youtube-setup-walkthrough.jpg" width="640" alt="Watch: setting up Gotcha on your phone, step by step">
 </a>
 
 **🎬 [Setting up Gotcha on your phone — step by step](https://www.youtube.com/watch?v=Zk5-dtqRB64)**
