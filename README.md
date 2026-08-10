@@ -24,9 +24,19 @@ Say *"text mom I'm running late"*, *"free up some space"*, or *"what's on my scr
 
 Everything runs in **one self-contained app on your phone**. Bring your own API key (OpenAI, OpenRouter, Groq, or a local llama.cpp / LM Studio / Ollama server) — it's encrypted on-device and never synced — or sign in to Samosa AI and skip the key entirely. 🔑
 
+## 🎬 Watch the Setup Walkthrough
+
+<div align="center">
+
+[![Gotcha setup walkthrough](https://img.youtube.com/vi/Zk5-dtqRB64/maxresdefault.jpg)](https://www.youtube.com/watch?v=Zk5-dtqRB64)
+
+**[Setting up Gotcha on your phone — step by step](https://www.youtube.com/watch?v=Zk5-dtqRB64)** ▶️
+
+</div>
+
 ## 🏁 Getting Started
 
-Grab the latest `.apk` from [**GitHub Releases**](https://github.com/samosa-ai-com/Gotcha/releases/latest), then follow the **[Getting Started Guide](https://samosa-ai.com/gotcha/docs/getting-started)**. 🛠️
+Grab the latest `.apk` from [**GitHub Releases**](https://github.com/samosa-ai-com/Gotcha/releases/latest), then follow the **[Getting Started Guide](https://samosa-ai.com/gotcha/docs/getting-started)** — or watch the [**video walkthrough**](https://www.youtube.com/watch?v=Zk5-dtqRB64) above. 🛠️
 
 Building from source instead? 👇
 
