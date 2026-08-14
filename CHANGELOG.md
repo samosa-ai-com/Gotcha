@@ -3,6 +3,11 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Fixed
+- The agent is now told how to stop a stuck Termux command: a `run_termux_command`
+  cannot kill a previously running one, so the instructions guide it to open the
+  notifications shade and tap Exit on the Termux notification (asking the user to
+  do so when it cannot reach it), instead of failing or starting more commands.
 
 ## [1.0.2]
 ### Fixed

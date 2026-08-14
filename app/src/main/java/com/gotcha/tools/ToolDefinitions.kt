@@ -1877,7 +1877,13 @@ object ToolDefinitions {
             "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
             "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
             "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +
-            "rather than retrying.",
+            "rather than retrying.\n" +
+            "You cannot stop a command with this tool — there is no kill, each call only starts a new " +
+            "background shell, and a previous one that has not finished (e.g. after a timeout) keeps " +
+            "running. To stop a stuck one, open the notifications shade (global_action or press_key " +
+            "'notifications') and tap the Exit action on the Termux notification, which ends every " +
+            "Termux session. If you cannot reach that, ask the user to tap Exit on the Termux " +
+            "notification.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {
