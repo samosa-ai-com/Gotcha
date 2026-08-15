@@ -39,7 +39,7 @@ proguard/
 *.log
 
 # ...except the sample log fixture used by the document-attachment tests
-!sample-documents/app.log
+!testing/sample-documents/app.log
 
 # Android Studio Navigation editor temp files
 .navigation/
@@ -118,4 +118,4 @@ MARKETING_PLAYBOOK.md
 docs/benchmark
 docs/WAKE_WORD_PLAN.md
 .freebuff
-scripts/wake_battery_idle.sh
+testing/scripts/wake_battery_idle.sh

@@ -183,10 +183,13 @@ android {
         unitTests.all { test ->
             val updatingCoverageDocs = providers.gradleProperty("updateCoverageDocs").getOrElse("false")
             test.systemProperty("gotcha.coverage.update", updatingCoverageDocs)
-            // sample-documents/ doubles as the fixtures for SampleDocumentsTest; pass the
-            // absolute path so the test reads the single committed copy instead of keeping
+            // testing/sample-documents/ doubles as the fixtures for SampleDocumentsTest; pass
+            // the absolute path so the test reads the single committed copy instead of keeping
             // a second one under src/test/resources.
-            test.systemProperty("gotcha.sampleDocsDir", rootProject.file("sample-documents").absolutePath)
+            test.systemProperty(
+                "gotcha.sampleDocsDir",
+                rootProject.file("testing/sample-documents").absolutePath,
+            )
             // The generated doc is an *input* to the drift assertion, so hand-editing it has to
             // invalidate the task — otherwise Gradle reports UP-TO-DATE and the gate never runs.
             // Skipped while regenerating, when the task writes that same file.
@@ -298,7 +301,7 @@ kover {
 
 detekt {
     buildUponDefaultConfig = true
-    config.setFrom(rootProject.files("config/detekt/detekt.yml"))
+    config.setFrom(rootProject.files("detekt-rules/detekt.yml"))
     // One-off formatting fixes: ./gradlew :app:detekt -PdetektAutoCorrect
     autoCorrect = project.hasProperty("detektAutoCorrect")
 }
@@ -387,7 +390,7 @@ dependencies {
 
     // On-device wake word ("Hey Gotcha") via OpenWakeWord ONNX models run with
     // Microsoft's official ONNX Runtime. The three models live in
-    // app/src/main/assets/openwakeword (see docs/wake-word.md + docs/MODEL_CARD.md).
+    // app/src/main/assets/openwakeword (see docs/MODEL_CARD.md).
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
 
     // Static analysis

@@ -1,6 +1,6 @@
 appId: com.gotcha
 ---
-# Requires scripts/maestro_run.sh to have granted the SYSTEM_ALERT_WINDOW appop first
+# Requires testing/scripts/maestro_run.sh to have granted the SYSTEM_ALERT_WINDOW appop first
 # (Maestro cannot send shell/appops commands itself).
 - launchApp
 # The toggle lives in Settings ▸ Assistive Ball.

@@ -6,7 +6,7 @@
 # coverage path — Gradle Managed Devices (Phase 3) supports API 27+ only.
 #
 # Usage:
-#   scripts/test_matrix.sh [--connected] [--maestro] [avd-name ...]
+#   testing/scripts/test_matrix.sh [--connected] [--maestro] [avd-name ...]
 #
 # With no AVD names, every AVD returned by `emulator -list-avds` is run.
 set -uo pipefail
@@ -15,7 +15,7 @@ ANDROID_HOME="${ANDROID_HOME:-${LOCALAPPDATA:-}/Android/Sdk}"
 EMULATOR="$ANDROID_HOME/emulator/emulator"
 ADB="$ANDROID_HOME/platform-tools/adb"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RESULTS_ROOT="$REPO_ROOT/build/matrix-results"
 DEBUG_APK="$REPO_ROOT/app/build/outputs/apk/debug/app-debug.apk"
 
@@ -159,7 +159,7 @@ run_one_avd() {
 
             if [[ "$run_maestro" == true && "$status" == "pass" ]]; then
                 echo "[$avd] running Maestro flows…"
-                if ! "$REPO_ROOT/scripts/maestro_run.sh" > "$avd_dir/maestro.log" 2>&1; then
+                if ! "$REPO_ROOT/testing/scripts/maestro_run.sh" > "$avd_dir/maestro.log" 2>&1; then
                     status="fail-maestro"
                 fi
             fi
