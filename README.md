@@ -29,6 +29,22 @@ llama.cpp / LM Studio / Ollama.
 The full table — every tool, its test tier, and how it is verified — is
 generated from a manifest into [`docs/FEATURE_TEST_COVERAGE.md`](docs/FEATURE_TEST_COVERAGE.md).
 
+## Termux (Linux shell)
+
+Termux (the F-Droid or GitHub build) gives Gotcha a real Linux user-space
+on Android and is reached through the `run_termux_command` tool, which
+runs headlessly under Termux's user id. It is genuinely useful for
+package installs, scripts, compilers, Python, git, and the rest of the
+long Unix tail — but it is not a server. There is no root, no systemd,
+no kernel access, and no persistence between shell calls. Long-running
+processes must be backgrounded explicitly; large packages may need a
+mirror change on slow networks. The bundled `termux_*` skills
+(`termux_operations`, `termux_repositories`, `termux_filesystem`,
+`termux_background`, `termux_proot`) enumerate the realistic limits; ask
+the assistant to `search_skills` for `termux_operations` if anything is
+unclear. See [`docs/termux-setup.md`](docs/termux-setup.md) for the
+one-time setup walkthrough.
+
 ### Monitor vs Operator
 
 Two agent modes, switchable mid-conversation:

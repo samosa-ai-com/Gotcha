@@ -48,7 +48,8 @@ internal object TermuxMessages {
             "background, Android is refusing the start — from Android 12 a backgrounded app cannot launch " +
             "another app's foreground service. Ask the user to bring Gotcha to the foreground (or switch the " +
             "assistive ball on, which keeps it exempt) and try again. Otherwise Termux may have been disabled " +
-            "or force-stopped; use run_command for the app's own sandbox meanwhile."
+            "or force-stopped; use run_command for the app's own sandbox meanwhile. " +
+            "For the full background-process rules, call search_skills('termux_background')."
     )
 
     /**
@@ -84,8 +85,16 @@ internal object TermuxMessages {
                 append("\n- it is waiting for typed input that will never come, since there is no terminal ")
                 append("here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
             }
-            append("\n- or it is genuinely slow. Retry with a larger timeout_seconds. Note it keeps running ")
-            append("either way — I cannot kill another app's process — so check Termux before starting again.")
+            append("\n- or it is genuinely slow. Retry with a larger timeout_seconds (the hard ceiling is 600). ")
+            append("Note it keeps running either way — I cannot kill another app's process — so check Termux ")
+            append("before starting again.")
+            append("\n- or, if the command was `pkg install` or `apt install` and it never moved past the ")
+            append("mirror-connect phase, the default Termux mirror is slow or blocked on the user's network. ")
+            append("Ask the user to open Termux, run `termux-change-repo` once, pick a closer mirror, and retry.")
+            append("\n- or, if this was a long-running process (server, watcher, build) rather than a one-shot ")
+            append("command, it should be backgrounded with `nohup ... > log 2>&1 < /dev/null & echo $! > pid; ")
+            append("disown` and the call should `exit 0` immediately; `termux-wake-lock` locks Doze off.")
+            append("\nFor the full list of pitfalls, call search_skills('termux_operations').")
         }
     )
 
