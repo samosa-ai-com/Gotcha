@@ -88,4 +88,36 @@ class TermuxSkillsBundledTest {
             )
         }
     }
+
+    @Test
+    fun `termux_filesystem is discoverable by sdcard keyword but hidden when tool is gated`() {
+        // Locks in the user-facing contract: when the model calls
+        // search_skills("sdcard") on a device with Termux set up, the
+        // filesystem skill comes back; on a device without it, the skill
+        // is suppressed by the requiresTools gate.
+        //
+        // Regression guard for the /sdcard keyword bug: a previous
+        // version of the skill used only "\b/sdcard\b" as a keyword, but
+        // the leading slash is a non-word character so \b does not match
+        // /sdcard in normal text (only "bar/sdcard"). The model would
+        // then fail to fetch the filesystem skill when the user's last
+        // message mentioned /sdcard, and silently miss the cross-uid
+        // bridge advice.
+        val available = SkillRegistry.searchSkills("sdcard", hiddenTools = emptySet())
+        assertTrue(
+            "termux_filesystem must be discoverable by sdcard keyword when " +
+                "run_termux_command is available. Got: ${available.map { it.id }}",
+            available.any { it.id == "termux_filesystem" }
+        )
+
+        val hidden = SkillRegistry.searchSkills(
+            "sdcard",
+            hiddenTools = setOf("run_termux_command")
+        )
+        assertTrue(
+            "termux_filesystem must be hidden from search_skills when its " +
+                "required tool is gated. Got: ${hidden.map { it.id }}",
+            hidden.none { it.id == "termux_filesystem" }
+        )
+    }
 }
