@@ -66,13 +66,11 @@ internal object TermuxMessages {
 
     fun tooManyInFlight(limit: Int) = ToolResult.error(
         "$limit Termux commands are already running and none has finished yet. Earlier commands keep running " +
-            "even after they time out — a run_termux_command cannot kill them from the timed-out call itself, " +
-            "but a new call can try `pgrep -fl <name> && pkill -9 -f <name>` or " +
-            "`fuser \$PREFIX/var/lib/dpkg/lock-frontend || dpkg --configure -a` first. To stop them, open the " +
+            "even after they time out — a run_termux_command cannot kill them. To stop them, open the " +
             "notifications shade (global_action or press_key 'notifications') and tap the Exit action on the " +
-            "Termux notification, which ends every Termux session. If you cannot reach it, ask the user to tap " +
-            "Exit on the Termux notification. Otherwise wait for them to finish (use the sleep tool) rather " +
-            "than starting another."
+            "Termux notification, which ends every Termux session. You have tap/globalAction tools to do " +
+            "this yourself; if you cannot reach it, ask the user to tap Exit on the Termux notification. " +
+            "Otherwise wait for them to finish (use the sleep tool) rather than starting another."
     )
 
     /**
@@ -91,13 +89,12 @@ internal object TermuxMessages {
                 append("here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
             }
             append("\n- or it is genuinely slow. Retry with a larger timeout_seconds (the hard ceiling is 600). ")
-            append("Note it keeps running either way — a run_termux_command cannot stop it from the timed-out ")
-            append("call itself, but a new call can try `pgrep -fl <name> && pkill -9 -f <name>` or ")
-            append("`fuser \$PREFIX/var/lib/dpkg/lock-frontend || dpkg --configure -a` first — so check Termux ")
-            append("before starting again. To stop a stuck one, open the notifications shade ")
-            append("(global_action or press_key 'notifications') and tap the Exit action on the Termux ")
-            append("notification, which ends every Termux session. If you cannot reach it, ask the user to tap ")
-            append("Exit on the Termux notification.")
+            append("Note it keeps running either way — a run_termux_command cannot stop it — so check Termux ")
+            append("before starting again. To stop a stuck one, open the notifications shade (global_action or ")
+            append("press_key 'notifications') and tap the Exit action on the Termux notification, which ends ")
+            append("every Termux session. You have tap/globalAction tools to do this yourself; if you cannot ")
+            append("reach it, ask the user to tap Exit on the Termux notification. Otherwise retry with a ")
+            append("larger timeout or wait with the sleep tool.")
             append("\n- or, if the command was `pkg install` or `apt install` and it never moved past the ")
             append("mirror-connect phase, the default Termux mirror is slow or blocked on the user's network. ")
             append("Ask the user to open Termux, run `termux-change-repo` once, pick a closer mirror, and retry.")
