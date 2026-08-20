@@ -3,6 +3,18 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- Five bundled skills targeting Termux (`termux_operations`, `termux_repositories`,
+  `termux_filesystem`, `termux_background`, `termux_proot`) so the model can speak
+  authoritatively about Termux's limits instead of rediscovering them one failure
+  at a time. See `docs/termux-setup.md` for the user-facing summary.
+- Expanded `run_termux_command` tool description with realistic limits (no
+  interactive prompts, 32KB output cap, 600s timeout, 4-command concurrency,
+  Android 12+ background rule) and pointers to the bundled skills.
+- `TermuxMessages.timedOut` and `startFailed` now point at the relevant skill via
+  `search_skills` so the model recovers with the right pattern on mirror failures
+  and backgrounded-start refusals.
+
 ### Fixed
 - The agent is now told how to stop a stuck Termux command: a `run_termux_command`
   cannot kill a previously running one, so the instructions guide it to open the

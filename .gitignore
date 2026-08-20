@@ -119,3 +119,4 @@ docs/benchmark
 docs/WAKE_WORD_PLAN.md
 .freebuff
 testing/scripts/wake_battery_idle.sh
+scripts/wake_battery_idle.sh

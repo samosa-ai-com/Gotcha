@@ -48,7 +48,8 @@ internal object TermuxMessages {
             "background, Android is refusing the start — from Android 12 a backgrounded app cannot launch " +
             "another app's foreground service. Ask the user to bring Gotcha to the foreground (or switch the " +
             "assistive ball on, which keeps it exempt) and try again. Otherwise Termux may have been disabled " +
-            "or force-stopped; use run_command for the app's own sandbox meanwhile."
+            "or force-stopped; use run_command for the app's own sandbox meanwhile. " +
+            "For the full background-process rules, call search_skills('termux_background')."
     )
 
     /**
@@ -67,9 +68,9 @@ internal object TermuxMessages {
         "$limit Termux commands are already running and none has finished yet. Earlier commands keep running " +
             "even after they time out — a run_termux_command cannot kill them. To stop them, open the " +
             "notifications shade (global_action or press_key 'notifications') and tap the Exit action on the " +
-            "Termux notification, which ends every Termux session. If you cannot reach it, ask the user to tap " +
-            "Exit on the Termux notification. Otherwise wait for them to finish (use the sleep tool) rather " +
-            "than starting another."
+            "Termux notification, which ends every Termux session. You have tap/globalAction tools to do " +
+            "this yourself; if you cannot reach it, ask the user to tap Exit on the Termux notification. " +
+            "Otherwise wait for them to finish (use the sleep tool) rather than starting another."
     )
 
     /**
@@ -87,11 +88,21 @@ internal object TermuxMessages {
                 append("\n- it is waiting for typed input that will never come, since there is no terminal ")
                 append("here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
             }
-            append("\n- or it is genuinely slow. Retry with a larger timeout_seconds. Note it keeps running ")
-            append("either way — a run_termux_command cannot stop it. To stop it, open the notifications shade ")
-            append("(global_action or press_key 'notifications') and tap the Exit action on the Termux ")
-            append("notification, which ends every Termux session. If you cannot reach it, ask the user to tap ")
-            append("Exit on the Termux notification.")
+            append("\n- or it is genuinely slow. Retry with a larger timeout_seconds (the hard ceiling is 600). ")
+            append("Note it keeps running either way — a run_termux_command cannot stop it — so check Termux ")
+            append("before starting again. To stop a stuck one, open the notifications shade (global_action or ")
+            append("press_key 'notifications') and tap the Exit action on the Termux notification, which ends ")
+            append("every Termux session. You have tap/globalAction tools to do this yourself; if you cannot ")
+            append("reach it, ask the user to tap Exit on the Termux notification. Otherwise retry with a ")
+            append("larger timeout or wait with the sleep tool.")
+            append("\n- or, if the command was `pkg install` or `apt install` and it never moved past the ")
+            append("mirror-connect phase, the default Termux mirror is slow or blocked on the user's network. ")
+            append("Ask the user to open Termux, run `termux-change-repo` once, pick a closer mirror, and retry.")
+            append("\n- or, if this was a long-running process (server, watcher, build) rather than a one-shot ")
+            append("command, it should be backgrounded with `nohup ... > log 2>&1 < /dev/null & echo $! > pid; ")
+            append("disown` and the call should `exit 0` immediately; wrap long tasks with ")
+            append("`termux-wake-lock && { <cmd>; } ; termux-wake-unlock` to prevent Doze throttling.")
+            append("\nFor the full list of pitfalls, call search_skills('termux_operations').")
         }
     )
 

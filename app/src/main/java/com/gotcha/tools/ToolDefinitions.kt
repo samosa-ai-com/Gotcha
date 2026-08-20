@@ -1873,17 +1873,40 @@ object ToolDefinitions {
             "Only offered when Termux is installed.\n" +
             "Each call is a SEPARATE shell: `cd`, `export`, and activated virtualenvs do NOT carry " +
             "over to your next call, which starts again in Termux's home. Chain dependent steps in " +
-            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them.\n" +
+            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them. " +
+            "For scripts use a single heredoc/stdin payload (e.g. `python3 - << 'PY'\\n...\\nPY` or " +
+            "`sh -s << 'EOF'\\n...\\nEOF`) via the stdin tool param — prefer stdin over " +
+            "write_file to /sdcard for payloads <100KB.\n" +
             "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
             "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
             "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +
             "rather than retrying.\n" +
-            "You cannot stop a command with this tool — there is no kill, each call only starts a new " +
-            "background shell, and a previous one that has not finished (e.g. after a timeout) keeps " +
-            "running. To stop a stuck one, open the notifications shade (global_action or press_key " +
-            "'notifications') and tap the Exit action on the Termux notification, which ends every " +
-            "Termux session. If you cannot reach that, ask the user to tap Exit on the Termux " +
-            "notification.",
+            "\nRealistic limits to factor in:\n" +
+            "- No interactive prompts — there is no terminal here, so any command that waits for typed input " +
+            "(pkg install without -y, ssh password, read, mysql>) blocks until the 600s timeout. Always " +
+            "pass -y / --yes / -q where the tool supports them.\n" +
+            "- Output is capped at 32KB by Gotcha and ~100KB by Termux. For larger output, redirect to a " +
+            "file inside Termux (e.g. `... > /sdcard/Download/out.txt`) and read it back via read_file.\n" +
+            "- You cannot kill a command after submitting it. A timed-out command keeps running under " +
+            "Termux's UID. There is no kill from here. To stop a stuck one, open the notifications shade " +
+            "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
+            "notification, which ends every Termux session. If you cannot reach that, ask the user to tap " +
+            "Exit on the Termux notification.\n" +
+            "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
+            "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
+            "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +
+            "- Android 12+ foreground-service rule: if Gotcha is in the background and the assistive ball " +
+            "is off, this tool fails with 'Not allowed to start service'. Tell the user to bring Gotcha to " +
+            "the foreground (or switch the assistive ball on).\n" +
+            "\nIf `pkg install` hangs at \"0% [Connecting to packages.termux.dev]\" or fails with NO_PUBKEY, " +
+            "the default mirror is slow or blocked on the user's network. Tell the user to open Termux and " +
+            "run `termux-change-repo` once, then retry. The full mirror list and the non-interactive " +
+            "sources.list swap are in the termux_repositories skill.\n" +
+            "\nFor long-running processes (servers, watchers, daemons), the foreground process is orphaned " +
+            "the moment Gotcha returns. The persistence pattern (`nohup ... > log 2>&1 < /dev/null & echo $! " +
+            "> pid; disown`) and the termux-wake-lock requirement are in the termux_background skill. For " +
+            "full Debian/Ubuntu via proot-distro (when Termux's bionic/busybox is not enough), see the " +
+            "termux_proot skill.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("command") {

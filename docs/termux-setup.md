@@ -74,3 +74,74 @@ The Settings → Permissions → *Termux Commands (Optional)* row links to the s
    assistant to run something: `pkg install python -y` and `python3 --version`.
 7. Revoke the permission in system Settings → the page's permission step unchecks on
    the next resume, and the copy box / Check button disappear until it is granted again.
+
+## What may go wrong
+
+`run_termux_command` works, but it is not a server. The realistic limits,
+in order of how often they bite:
+
+- **Each call is a fresh shell.** `cd`, `export`, activated virtualenvs,
+  and `source` do not carry over. Chain dependent steps in one command
+  with `&&`, never split across calls.
+- **No interactive prompts.** The plugin API does not connect a TTY, so
+  anything that waits for typed input (a `pkg install` without `-y`, an
+  `ssh` password prompt, `read`, `mysql>`) blocks until the 600 s
+  timeout. Always pass `-y` / `--yes` / `-q` where the tool supports it.
+- **Output is capped** at 32 KB by Gotcha (and ~100 KB by Termux itself).
+  For larger output, redirect to a file inside Termux and read it back
+  through Gotcha's `read_file`.
+- **The model cannot kill a command.** A timed-out command keeps running
+  under Termux's UID. Before launching anything long, warn the user.
+- **Hard ceiling: 600 s.** `pkg install` of `ffmpeg`, `chromium`, `rust`,
+  `golang`, or `texlive` can hit this. Raise `timeout_seconds` to 600
+  and warn the user before starting one.
+- **4 commands in flight, process-wide.** Sub-agents share the same
+  semaphore. A 5th call returns an error.
+- **Android 12+ background restriction.** If Gotcha is in the background
+  and the assistive ball is off, `run_termux_command` fails with
+  *Not allowed to start service*. Bring Gotcha to the foreground, or
+  switch the assistive ball on.
+- **The Play-Store build of Termux has no RUN_COMMAND API** and can
+  never work with Gotcha. Only the F-Droid or GitHub build is usable.
+
+The `termux_operations` bundled skill is the in-prompt summary of these
+limits; the model picks it up automatically when Termux is in the
+foreground.
+
+## What works but is non-obvious
+
+Most things that look broken have a non-obvious workaround. The model
+should know these so the user does not have to:
+
+- **Mirror switching.** The default `packages.termux.dev` mirror is slow
+  or blocked on networks in China, parts of India, behind corporate
+  firewalls, and on some ISPs. The user runs `termux-change-repo` inside
+  Termux once and picks a closer mirror (Tsinghua, USTC, ISCAS, CERN, NJU
+  for China; the official primary or the Netherlands mirror otherwise).
+  After a mirror change, run `pkg update -y` to verify.
+- **Large packages.** `ffmpeg`, `python`, `rust`, `chromium`, `golang`,
+  `nodejs-lts`, `texlive`, and `qt` typically take 5-15 minutes to
+  install even on a fast mirror. Always raise `timeout_seconds` to 600.
+  If a `pkg install` keeps failing midway, split the network step from
+  the install step with `pkg download <pkg>` and `dpkg -i` from the local
+  cache.
+- **Shared storage (`/sdcard`).** `/sdcard/Download` is the only safe
+  cross-uid bridge between Gotcha and Termux. It is empty inside Termux
+  until the user runs `termux-setup-storage` once in Termux.
+- **Long-running processes.** A foreground process started by
+  `run_termux_command` is orphaned the moment Gotcha returns. The
+  persistence pattern is
+  `nohup cmd > /sdcard/Download/x.log 2>&1 < /dev/null & echo $! > /sdcard/Download/x.pid; disown`,
+  then `exit 0` immediately. For tasks longer than ~30 s, also call
+  `termux-wake-lock` (and `termux-wake-unlock` to release).
+- **glibc binaries.** Termux uses bionic, so a `*.deb` built for glibc
+  (Debian/Ubuntu) will not run. Use `proot-distro install debian` (or
+  `ubuntu`, `alpine`, `fedora`, `archlinux`) and run the command inside
+  via `proot-distro login debian -- bash -c "..."`. Performance penalty
+  is ~10× because proot uses `ptrace`.
+- **Real root.** `proot` is not a security boundary — it does not grant
+  real root. On a rooted device, `pkg install tsu -y` then `tsu -c "cmd"`
+  runs with real root via Magisk/SuperSU.
+
+The `termux_repositories`, `termux_filesystem`, `termux_background`, and
+`termux_proot` bundled skills cover each of these in detail.
