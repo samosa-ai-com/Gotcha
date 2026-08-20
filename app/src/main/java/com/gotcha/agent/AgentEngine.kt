@@ -520,7 +520,13 @@ class AgentEngine(
             // make the server 400 the whole chat (issue #13). executeToolCalls
             // below still runs the ORIGINAL calls, so the model still sees the
             // truthful "Malformed tool arguments" result and can fix itself.
-            history += message.withValidToolCallArguments()
+            // Track the assistant index so an interrupt that orphans tool_calls
+            // can be repaired — otherwise the next request is malformed and
+            // the provider 400s every later turn.
+            val sanitizedAssistant = message.withValidToolCallArguments()
+            history += sanitizedAssistant
+            val orphanAssistantIdx = history.size - 1
+            val orphanExpectedCalls = sanitizedAssistant.toolCalls ?: toolCalls
             if (message.hasText || !message.reasoningContent.isNullOrBlank()) {
                 events.onUi(
                     MessageKind.ASSISTANT,
@@ -617,7 +623,15 @@ class AgentEngine(
                 }
             }
             val historySizeBeforeTools = history.size
-            executeToolCalls()
+            try {
+                executeToolCalls()
+            } catch (e: CancellationException) {
+                // Interrupt orphaned the assistant's tool_calls. Synthesize
+                // cancelled stubs so history stays valid for the next request
+                // and the provider does not 400 every later turn.
+                sanitizeOrphanedToolCalls(orphanAssistantIdx, orphanExpectedCalls)
+                throw e
+            }
 
             // finish_task: the model's explicit "done" signal. Without it the only
             // way out of this loop is a reply that happens to carry no tool calls,
@@ -1321,6 +1335,52 @@ class AgentEngine(
             return listOf(note) + trimmed
         }
         return trimmed
+    }
+
+    /**
+     * Repairs an orphaned assistant `tool_calls` left behind by an interrupt.
+     * Some LLM providers 400 the whole chat when `assistant.tool_calls` count
+     * != following `tool` results, bricking the session for every later turn.
+     * We synthesize `Cancelled` stubs for missing calls so the next request is
+     * spec-compliant. Called from `run`'s `CancellationException` path and from
+     * `ChatViewModel`'s interrupt cleanup.
+     */
+    internal fun sanitizeOrphanedToolCalls(assistantIdx: Int, expectedCalls: List<ToolCall>) {
+        if (assistantIdx < 0 || assistantIdx >= history.size) return
+        val assistant = history[assistantIdx]
+        val calls = expectedCalls.ifEmpty { assistant.toolCalls ?: return }
+        if (calls.isEmpty()) return
+        // Count tool results already written after this assistant.
+        var have = 0
+        for (i in assistantIdx + 1 until history.size) {
+            if (history[i].role == "tool") have++
+            // Stop at next user/assistant boundary — tool results are contiguous.
+            if (history[i].role == "user" || history[i].role == "assistant") break
+        }
+        if (have >= calls.size) return
+        // Synthesize missing tool stubs in order, reusing original ids.
+        for (idx in have until calls.size) {
+            val call = calls[idx]
+            history += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(
+                    "Cancelled: agent was interrupted by the user before this tool completed."
+                ),
+                toolCallId = call.id
+            )
+        }
+    }
+
+    /** Convenience: sanitize the last assistant if it carries orphaned tool_calls. */
+    internal fun sanitizeLastOrphanedAssistant() {
+        for (i in history.size - 1 downTo 0) {
+            val msg = history[i]
+            if (msg.role == "assistant" && !msg.toolCalls.isNullOrEmpty()) {
+                sanitizeOrphanedToolCalls(i, msg.toolCalls!!)
+                return
+            }
+            if (msg.role == "user") return
+        }
     }
 
     /**
