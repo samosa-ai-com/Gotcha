@@ -1885,7 +1885,10 @@ object ToolDefinitions {
             "- Output is capped at 32KB by Gotcha and ~100KB by Termux. For larger output, redirect to a " +
             "file inside Termux (e.g. `... > /sdcard/Download/out.txt`) and read it back via read_file.\n" +
             "- You cannot kill a command after submitting it. A timed-out command keeps running under " +
-            "Termux's UID. There is no kill from here.\n" +
+            "Termux's UID. There is no kill from here. To stop a stuck one, open the notifications shade " +
+            "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
+            "notification, which ends every Termux session. If you cannot reach that, ask the user to tap " +
+            "Exit on the Termux notification.\n" +
             "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
             "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
             "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +
