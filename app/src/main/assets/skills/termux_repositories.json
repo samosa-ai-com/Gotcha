@@ -1,6 +1,6 @@
 {
     "id": "termux_repositories",
-    "targetPackageNames": ["com.termux"],
+    "targetPackageNames": ["com.termux", "com.gotcha"],
     "name": "Termux Repositories",
     "description": "Mirror selection and large-package handling for Termux's pkg/apt repositories.",
     "requiresTools": ["run_termux_command"],

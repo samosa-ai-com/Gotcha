@@ -1,6 +1,6 @@
 {
     "id": "termux_proot",
-    "targetPackageNames": ["com.termux"],
+    "targetPackageNames": ["com.termux", "com.gotcha"],
     "name": "Termux Proot / Full Linux",
     "description": "When Termux's bionic/busybox isn't enough — using proot-distro for a full Debian/Ubuntu/Alpine user-space.",
     "requiresTools": ["run_termux_command"],

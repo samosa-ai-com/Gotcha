@@ -17,8 +17,9 @@ import org.robolectric.annotation.Config
  * glibc-only binaries that won't run on bionic). Each one must:
  *
  *  1. load from the bundled assets into [SkillRegistry.getAllSkills];
- *  2. target [Termux's package name], so they auto-inject when Termux is in
- *     the foreground (rather than only being discoverable via search_skills);
+ *  2. target Termux *and* Gotcha, so they auto-inject both when Termux is in
+ *     the foreground and when Gotcha is (the common chat case) — rather than
+ *     only being discoverable via search_skills;
  *  3. require the [run_termux_command] tool, so they are auto-withheld on
  *     devices where Termux is not installed — the model never gets advice
  *     for a tool it cannot reach.
@@ -60,10 +61,9 @@ class TermuxSkillsBundledTest {
         expected.forEach { id ->
             val skill = SkillRegistry.getSkillById(id)
             assertNotNull("Skill '$id' must be registered", skill)
-            assertEquals(
-                "Skill '$id' must target com.termux so it auto-injects",
-                listOf("com.termux"),
-                skill!!.targetPackageNames
+            assertTrue(
+                "Skill '$id' must target com.termux (and com.gotcha) so it auto-injects. Got: ${skill!!.targetPackageNames}",
+                "com.termux" in skill.targetPackageNames && "com.gotcha" in skill.targetPackageNames
             )
             assertTrue(
                 "Skill '$id' must require run_termux_command so it is " +

@@ -1,6 +1,6 @@
 {
     "id": "termux_operations",
-    "targetPackageNames": ["com.termux"],
+    "targetPackageNames": ["com.termux", "com.gotcha"],
     "name": "Termux Operations",
     "description": "How to drive Termux through Gotcha: state isolation, prompts, output caps, and timeouts.",
     "requiresTools": ["run_termux_command"],

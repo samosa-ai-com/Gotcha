@@ -1873,7 +1873,10 @@ object ToolDefinitions {
             "Only offered when Termux is installed.\n" +
             "Each call is a SEPARATE shell: `cd`, `export`, and activated virtualenvs do NOT carry " +
             "over to your next call, which starts again in Termux's home. Chain dependent steps in " +
-            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them.\n" +
+            "one command with '&&' (e.g. 'cd proj && ./build.sh') rather than splitting them. " +
+            "For scripts use a single heredoc/stdin payload (e.g. `python3 - << 'PY'\\n...\\nPY` or " +
+            "`sh -s << 'EOF'\\n...\\nEOF`) via the stdin tool param — prefer stdin over " +
+            "write_file to /sdcard for payloads <100KB.\n" +
             "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
             "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
             "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +

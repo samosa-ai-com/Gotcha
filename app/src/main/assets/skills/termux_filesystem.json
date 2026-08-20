@@ -1,6 +1,6 @@
 {
     "id": "termux_filesystem",
-    "targetPackageNames": ["com.termux"],
+    "targetPackageNames": ["com.termux", "com.gotcha"],
     "name": "Termux Filesystem",
     "description": "Three filesystem worlds: Gotcha's working dir, Termux's home, and /sdcard. They are not interchangeable.",
     "requiresTools": ["run_termux_command"],

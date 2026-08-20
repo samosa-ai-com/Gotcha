@@ -1,6 +1,6 @@
 {
     "id": "termux_background",
-    "targetPackageNames": ["com.termux"],
+    "targetPackageNames": ["com.termux", "com.gotcha"],
     "name": "Termux Background Processes",
     "description": "How to keep a Termux process alive across calls and past Doze / battery savers.",
     "requiresTools": ["run_termux_command"],
