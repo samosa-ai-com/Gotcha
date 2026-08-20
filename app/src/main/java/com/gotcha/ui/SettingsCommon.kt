@@ -342,14 +342,21 @@ internal fun parseBadgeColor(hex: String): Color = try {
     Color(0xFF6C757D)
 }
 
-/** Formats the remaining hours until the 72-hour referral claim window expires. */
-internal fun formatRemainingClaimHours(createdAt: String?): String? {
+/** Formats the remaining hours until the referral claim window expires. */
+internal fun formatRemainingClaimHours(
+    createdAt: String?,
+    now: Instant = Instant.now()
+): String? {
     if (createdAt.isNullOrBlank()) return null
     return try {
         val instant = Instant.parse(createdAt)
-        val elapsedHours = Duration.between(instant, Instant.now()).toHours()
-        val remainingHours = 72 - elapsedHours
-        if (remainingHours > 0) "You have ${remainingHours}h left to claim an invite code." else null
+        val elapsedHours = Duration.between(instant, now).toHours()
+        val remainingHours = com.gotcha.auth.REFERRAL_CLAIM_WINDOW_HOURS - elapsedHours
+        if (remainingHours > 0) {
+            "You have ${remainingHours}h left to claim an invite code."
+        } else {
+            null
+        }
     } catch (_: Exception) {
         null
     }

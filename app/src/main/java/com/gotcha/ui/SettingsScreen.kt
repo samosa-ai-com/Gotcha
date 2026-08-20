@@ -63,12 +63,6 @@ fun SettingsScreen(
     onSamosaSignOut: suspend () -> Unit = {},
     /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
     onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /**
-     * Fetches the user's remaining Samosa credit (raw float) or null when not
-     * signed in / the gateway is unreachable. Shown scaled by ×1000 in the
-     * auth section — never the raw value.
-     */
-    onFetchSamosaCredits: suspend () -> Double? = { null },
     /** Claims an invite code via the auth manager. */
     onClaimReferral: suspend (String) -> Result<Unit> = {
         Result.failure(Exception("Not supported"))
@@ -140,7 +134,6 @@ fun SettingsScreen(
             onSamosaSignIn = onSamosaSignIn,
             onSamosaSignOut = onSamosaSignOut,
             onFetchSamosaProfile = onFetchSamosaProfile,
-            onFetchSamosaCredits = onFetchSamosaCredits,
             onClaimReferral = onClaimReferral,
             onClearLlmCache = onClearLlmCache,
             onClearDebugScreenshots = onClearDebugScreenshots
@@ -153,7 +146,6 @@ fun SettingsScreen(
             onSamosaSignIn = onSamosaSignIn,
             onSamosaSignOut = onSamosaSignOut,
             onFetchSamosaProfile = onFetchSamosaProfile,
-            onFetchSamosaCredits = onFetchSamosaCredits,
             onClaimReferral = onClaimReferral
         )
         SettingsPage.PERMISSIONS -> PermissionsScreen(

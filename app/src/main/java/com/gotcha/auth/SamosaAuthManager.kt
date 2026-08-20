@@ -12,10 +12,8 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.gotcha.BuildConfig
 import com.gotcha.data.SettingsRepository
 import com.gotcha.util.GotchaLog
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -34,9 +32,9 @@ sealed interface SamosaSignInResult {
 }
 
 /**
- * Drives Samosa AI authentication:
- *  1. Request a Google ID token via Credential Manager (using the WEB client ID
- *     as serverClientId, per the backend's requirements).
+ * Handles the Google Sign-In dance for Samosa AI accounts:
+ *
+ *  1. Request a Google ID token from Credential Manager using the Web client ID.
  *  2. Exchange it at POST /register for a session JWT.
  *  3. Persist the JWT + account email in EncryptedSharedPreferences.
  *
@@ -54,7 +52,7 @@ class SamosaAuthManager(
      * Runs the full Google Sign-In → /register → store flow. Must be called with
      * an Activity [context] so Credential Manager can show the account chooser.
      */
-    suspend fun signIn(activityContext: Context, referralCode: String? = null): SamosaSignInResult {
+    suspend fun signIn(activityContext: Context): SamosaSignInResult {
         val idToken = try {
             requestGoogleIdToken(activityContext)
         } catch (e: GetCredentialCancellationException) {
@@ -72,7 +70,7 @@ class SamosaAuthManager(
             return SamosaSignInResult.Error(e.message ?: "Unexpected sign-in error.")
         }
 
-        return register(idToken, referralCode)
+        return register(idToken)
     }
 
     private suspend fun requestGoogleIdToken(activityContext: Context): String {
@@ -83,8 +81,12 @@ class SamosaAuthManager(
             .addCredentialOption(signInWithGoogleOption)
             .build()
 
-        val response = credentialManager.getCredential(activityContext, request)
-        val credential = response.credential
+        val result = credentialManager.getCredential(
+            request = request,
+            context = activityContext
+        )
+
+        val credential = result.credential
         if (credential is androidx.credentials.CustomCredential &&
             credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
         ) {
@@ -93,9 +95,8 @@ class SamosaAuthManager(
         error("Unexpected credential type from Google Sign-In.")
     }
 
-    private suspend fun register(idToken: String, referralCode: String? = null): SamosaSignInResult = try {
-        val cleanCode = referralCode?.trim()?.uppercase()?.takeIf { it.isNotBlank() }
-        val resp = api.register(RegisterRequest(idToken = idToken, referralCode = cleanCode))
+    private suspend fun register(idToken: String): SamosaSignInResult = try {
+        val resp = api.register(RegisterRequest(idToken = idToken))
         if (resp.token.isBlank()) {
             SamosaSignInResult.Error("Server did not return a session token.")
         } else {
@@ -144,8 +145,8 @@ class SamosaAuthManager(
     }
 
     /**
-     * Fetches the full user profile (including tier, tags, and referral metadata) from GET /me.
-     * Returns null when not signed in or when unreachable.
+     * Fetches the user's full profile including tier, tags, and referral info from GET /me.
+     * Returns null when not signed in or when the server is unreachable.
      */
     suspend fun fetchUserProfile(): SamosaUser? {
         val token = settingsRepository.load().samosaSessionToken
@@ -170,7 +171,7 @@ class SamosaAuthManager(
     }
 
     /**
-     * Claims a referral code via POST /api/v1/referrals/claim.
+     * Claims a referral code via POST /v1/referrals/claim.
      * Returns Result.success with ClaimReferralResponse or Result.failure with a user-friendly message.
      */
     suspend fun claimReferralCode(code: String): Result<ClaimReferralResponse> {
@@ -183,10 +184,13 @@ class SamosaAuthManager(
             return Result.failure(IllegalArgumentException("Please enter an invite code."))
         }
         return try {
+            GotchaLog.d(TAG) { "Claiming referral code: $cleanCode" }
             val resp = api.claimReferral("Bearer $token", ClaimReferralRequest(referralCode = cleanCode))
+            GotchaLog.d(TAG) { "Claim referral successful: ${resp.message}" }
             Result.success(resp)
         } catch (e: HttpException) {
-            val detail = extractErrorDetail(e)
+            val detail = HumanReadableError.extractHttpErrorDetail(e)
+            GotchaLog.d(TAG, e) { "Claim referral failed with HTTP ${e.code()}: $detail" }
             val msg = mapClaimError(e.code(), detail)
             Result.failure(Exception(msg))
         } catch (e: IOException) {
@@ -195,21 +199,6 @@ class SamosaAuthManager(
         } catch (e: Exception) {
             GotchaLog.d(TAG, e) { "Unexpected error during referral claim" }
             Result.failure(e)
-        }
-    }
-
-    private fun extractErrorDetail(e: HttpException): String? {
-        return try {
-            val body = e.response()?.errorBody()?.string() ?: return null
-            val json = Json { ignoreUnknownKeys = true }
-            val obj = json.parseToJsonElement(body) as? JsonObject
-            obj?.get("detail")?.let {
-                if (it is JsonPrimitive) it.content else it.toString()
-            } ?: obj?.get("message")?.let {
-                if (it is JsonPrimitive) it.content else it.toString()
-            }
-        } catch (_: Exception) {
-            null
         }
     }
 
@@ -223,17 +212,17 @@ class SamosaAuthManager(
                     detail ?: "Invalid referral code."
                 }
             }
-            404 -> "Referral code not found."
+            404 -> detail ?: "Referral code not found."
             409 -> {
                 if (lowerDetail.contains("limit")) {
                     "This referral code has reached its maximum invite limit."
                 } else {
-                    "You have already been referred."
+                    detail ?: "You have already been referred."
                 }
             }
-            410 -> "Referral window expired. Codes must be claimed within 72 hours of signup."
-            429 -> "Too many attempts. Please try again later."
-            502 -> "Bonus grant failed. Please try again shortly."
+            410 -> detail ?: "Referral window expired. Codes must be claimed within $REFERRAL_CLAIM_WINDOW_HOURS hours of signup."
+            429 -> detail ?: "Too many attempts. Please try again later."
+            502 -> detail ?: "Bonus grant failed. Please try again shortly."
             else -> detail ?: "Referral claim failed (HTTP $code)."
         }
     }

@@ -772,7 +772,6 @@ class MainActivity : ComponentActivity() {
                             chatViewModel.refreshSettings()
                         },
                         onFetchSamosaProfile = { samosaAuthManager.fetchUserProfile() },
-                        onFetchSamosaCredits = { samosaAuthManager.fetchCreditsRemaining() },
                         onClaimReferral = { code ->
                             samosaAuthManager.claimReferralCode(code).map { }
                         },

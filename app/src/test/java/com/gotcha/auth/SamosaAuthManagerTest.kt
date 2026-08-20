@@ -174,6 +174,6 @@ class SamosaAuthManagerTest {
 
         val result = manager.claimReferralCode("AIR-EXPIRED")
         assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message?.contains("72 hours", ignoreCase = true) == true)
+        assertTrue(result.exceptionOrNull()?.message?.contains("expired", ignoreCase = true) == true)
     }
 }

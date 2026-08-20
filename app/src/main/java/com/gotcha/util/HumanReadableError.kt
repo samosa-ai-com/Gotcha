@@ -89,25 +89,33 @@ object HumanReadableError {
         else -> "Text-to-speech error (code $code)."
     }
 
+    /** Safely parses error JSON from an HttpException response body once and extracts detail, message, or error. */
+    fun extractHttpErrorDetail(e: HttpException): String? {
+        return try {
+            val body = e.response()?.errorBody()?.string()
+            if (!body.isNullOrBlank()) {
+                val json = Json { ignoreUnknownKeys = true }
+                val elem = json.parseToJsonElement(body)
+                val obj = elem as? JsonObject
+                obj?.get("detail")?.let {
+                    if (it is JsonPrimitive) it.content else it.toString()
+                } ?: obj?.get("message")?.let {
+                    if (it is JsonPrimitive) it.content else it.toString()
+                } ?: obj?.get("error")?.let {
+                    if (it is JsonPrimitive) it.content else it.toString()
+                }
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** Translates any exception into a user-friendly error message. */
     fun format(e: Throwable): String = when {
         e is HttpException -> {
-            val bodyDetail = try {
-                val body = e.response()?.errorBody()?.string()
-                if (!body.isNullOrBlank()) {
-                    val json = Json { ignoreUnknownKeys = true }
-                    val elem = json.parseToJsonElement(body)
-                    (elem as? JsonObject)?.get("detail")?.let {
-                        if (it is JsonPrimitive) it.content else it.toString()
-                    } ?: (elem as? JsonObject)?.get("error")?.let {
-                        if (it is JsonPrimitive) it.content else it.toString()
-                    }
-                } else {
-                    null
-                }
-            } catch (_: Exception) {
-                null
-            }
+            val bodyDetail = extractHttpErrorDetail(e)
             fromHttpCode(e.code(), bodyDetail ?: e.message())
         }
         e is UnknownHostException ->

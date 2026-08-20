@@ -15,6 +15,9 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
+/** Maximum claim window in hours from signup for referral bonus. */
+const val REFERRAL_CLAIM_WINDOW_HOURS = 72L
+
 /** Request body for POST /register — the Google ID token (not the JWT) plus optional referral code. */
 @Serializable
 data class RegisterRequest(
@@ -85,13 +88,13 @@ data class MeResponse(
     val user: SamosaUser = SamosaUser()
 )
 
-/** Request body for POST /api/v1/referrals/claim. */
+/** Request body for POST /v1/referrals/claim. */
 @Serializable
 data class ClaimReferralRequest(
     @SerialName("referral_code") val referralCode: String
 )
 
-/** Details of the claimed referral returned in ClaimReferralResponse. */
+/** Referral reward details returned in claim response. */
 @Serializable
 data class ClaimedReferralInfo(
     val code: String = "",
@@ -100,7 +103,7 @@ data class ClaimedReferralInfo(
     @SerialName("referee_reward") val refereeReward: Double = 0.0
 )
 
-/** Response from POST /api/v1/referrals/claim. */
+/** Response from POST /v1/referrals/claim. */
 @Serializable
 data class ClaimReferralResponse(
     val message: String = "",
@@ -121,7 +124,7 @@ interface SamosaAuthApi {
     @GET("me")
     suspend fun me(@Header("Authorization") bearer: String): MeResponse
 
-    @POST("api/v1/referrals/claim")
+    @POST("v1/referrals/claim")
     suspend fun claimReferral(
         @Header("Authorization") bearer: String,
         @Body body: ClaimReferralRequest

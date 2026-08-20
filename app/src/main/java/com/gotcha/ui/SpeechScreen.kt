@@ -51,8 +51,6 @@ fun SpeechScreen(
     onSamosaSignOut: suspend () -> Unit = {},
     /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
     onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
-    /** Fetches the user's remaining credit (raw float) or null when unavailable. */
-    onFetchSamosaCredits: suspend () -> Double? = { null },
     /** Claims an invite code via the auth manager. */
     onClaimReferral: suspend (String) -> Result<Unit> = {
         Result.failure(Exception("Not supported"))
@@ -105,7 +103,7 @@ fun SpeechScreen(
         } else {
             val profile = onFetchSamosaProfile()
             samosaUser = profile
-            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
+            samosaCredits = profile?.creditsRemaining
         }
     }
 
@@ -194,8 +192,13 @@ fun SpeechScreen(
                         val res = onClaimReferral(code)
                         res.onSuccess {
                             val profile = onFetchSamosaProfile()
-                            samosaUser = profile
-                            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
+                            samosaUser = (profile ?: samosaUser)?.let { u ->
+                                u.copy(
+                                    referral = u.referral.copy(canClaim = false),
+                                    creditsRemaining = profile?.creditsRemaining ?: samosaCredits
+                                )
+                            }
+                            samosaCredits = samosaUser?.creditsRemaining
                             referralBusy = false
                             status = "Invite code applied!"
                         }.onFailure { e ->
@@ -214,7 +217,7 @@ fun SpeechScreen(
                             samosaToken = token
                             val profile = onFetchSamosaProfile()
                             samosaUser = profile
-                            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
+                            samosaCredits = profile?.creditsRemaining
                             status = "Signed in as $email"
                         }.onFailure { e ->
                             status = e.message ?: "Sign-in failed."
