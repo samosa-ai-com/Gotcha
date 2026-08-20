@@ -88,6 +88,22 @@ object GotchaStorage {
         return dir
     }
 
+    /**
+     * Like [ensureChatDir] but never renames — returns the existing dir if any,
+     * otherwise creates/returns the desired dir. Used mid-run to avoid
+     * invalidating an absolute path the agent already received in the system
+     * prompt (`Working directory: .../Slug_id`) when the title is generated
+     * mid-run.
+     */
+    fun findOrCreateChatDir(sessionId: String, title: String, create: Boolean = true): File {
+        val existing = findChatDir(sessionId)
+        if (existing != null) {
+            if (create) existing.mkdirs()
+            return existing
+        }
+        return ensureChatDir(sessionId, title, create)
+    }
+
     fun subdir(chatDir: File, kind: Kind): File {
         val dir = File(chatDir, kind.dirName)
         dir.mkdirs()

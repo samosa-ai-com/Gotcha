@@ -200,8 +200,13 @@ class AgentEngine(
         val id = sessionId ?: "unknown"
         return if (workingDirRoot == GotchaStorage.chatsRoot().absolutePath) {
             // Chat dirs are named "Slug_shortId" and renamed in place as the
-            // title becomes known; call working dirs (below) have no title.
-            GotchaStorage.ensureChatDir(id, currentTitle(), create)
+            // title becomes known. During an active run the system prompt already
+            // told the agent the working directory, so renaming mid-run would
+            // invalidate absolute paths the agent just received (issue in
+            // 3923757b Sudoku: Create-a-Sudoku-game vs Sudoku-Game-Creation-Request).
+            // Use findOrCreate mid-run to keep the dir stable; real rename happens
+            // only in saveCurrentSession when the run is done.
+            GotchaStorage.findOrCreateChatDir(id, currentTitle(), create)
         } else {
             java.io.File(workingDirRoot, id).also { if (create) it.mkdirs() }
         }
@@ -303,7 +308,16 @@ class AgentEngine(
             )
         )
         // Rename the chat dir in place now that the real title is known.
-        setupWorkingDir()
+        // Use ensureChatDir (with rename) here, not the mid-run findOrCreate
+        // path in setupWorkingDir, so the rename is deferred to session save
+        // and does not invalidate absolute paths the agent received mid-run.
+        if (workingDirRoot == GotchaStorage.chatsRoot().absolutePath) {
+            val dir = GotchaStorage.ensureChatDir(id, title, create = true)
+            FileResolver.WORKING_DIR_BASE = dir.absolutePath
+            GotchaLog.d(TAG) { "saveCurrentSession: renamed working dir to ${dir.absolutePath}" }
+        } else {
+            setupWorkingDir()
+        }
     }
 
     /** Replaces the persisted run-summary list when switching to another session. */
@@ -1077,17 +1091,23 @@ class AgentEngine(
         // Default to HTML-on-port when the user wants something built but did not
         // say how to run it — make it runnable on this phone without a follow-up.
         // Operator-only and suppressed in voice-call brevity mode. The skill
-        // local_serve carries the exact run_command/toybox recipe; this nudge
-        // is the cheap index-0 default that causes the agent to fetch it.
+        // local_serve carries the exact recipe; this nudge is the cheap index-0
+        // default that causes the agent to fetch it. Most complex/long-running
+        // commands only work reliably with run_termux_command, so prefer Termux
+        // when available — do not waste turns probing run_command toybox when the
+        // task needs python/build/serve and Termux is installed.
         val serveDirective = if (agent == AgentMode.OPERATOR && !callMode) {
             "\n\nWhen the user asks you to build, develop, or create an app, game, page, or tool " +
                 "and does not specify how to run it, default to a self-contained HTML page " +
-                "in the Gotcha chats folder and serve it on a free local port with run_command " +
-                "(toybox nc) so it is immediately usable on this phone — do not wait for a " +
-                "follow-up 'run it'. If the request is genuinely ambiguous (could be an Android " +
-                "APK vs a web app vs a Python script vs a Termux program), ask one clarifying " +
-                "question whether they want it runnable on this phone as a web app or elsewhere " +
-                "before choosing."
+                "in the Gotcha chats folder and serve it on a free local port so it is " +
+                "immediately usable on this phone — do not wait for a follow-up 'run it'. " +
+                "If Termux is available (check <env> Termux installed: yes), prefer " +
+                "run_termux_command: copy the HTML to \$HOME via stdin and serve with " +
+                "termux-wake-lock + python3 -m http.server; otherwise use run_command " +
+                "toybox nc loop. If the request is genuinely ambiguous (could be an " +
+                "Android APK vs a web app vs a Python script vs a Termux program), ask one " +
+                "clarifying question whether they want it runnable on this phone as a web app " +
+                "or elsewhere before choosing."
         } else {
             ""
         }
