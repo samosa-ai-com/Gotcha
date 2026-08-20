@@ -18,7 +18,7 @@ class HumanReadableErrorTest {
     fun testFromHttpCodeKnownAndFallbackCodes() {
         assertTrue(HumanReadableError.fromHttpCode(400).contains("Bad request"))
         assertTrue(HumanReadableError.fromHttpCode(401).contains("Authentication failed"))
-        assertTrue(HumanReadableError.fromHttpCode(403).contains("Access forbidden"))
+        assertTrue(HumanReadableError.fromHttpCode(403).contains("Access restricted"))
         assertTrue(HumanReadableError.fromHttpCode(404).contains("Resource not found"))
         assertTrue(HumanReadableError.fromHttpCode(408).contains("Request timeout"))
         assertTrue(HumanReadableError.fromHttpCode(429).contains("Rate limit"))

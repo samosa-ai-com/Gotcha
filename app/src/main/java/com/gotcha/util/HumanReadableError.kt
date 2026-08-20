@@ -22,15 +22,11 @@ object HumanReadableError {
         400 -> "Bad request (HTTP 400). The request format or parameters sent to the API were invalid."
         401 -> "Authentication failed (HTTP 401). Please check your API key in Settings."
         403 -> {
-            val isTierGated = !rawMessage.isNullOrBlank() && (
-                rawMessage.contains("Upgrade", ignoreCase = true) ||
-                    rawMessage.contains("tier", ignoreCase = true) ||
-                    rawMessage.contains("Pro", ignoreCase = true)
-                )
-            if (isTierGated) {
+            if (!rawMessage.isNullOrBlank()) {
                 rawMessage
             } else {
-                "Access forbidden (HTTP 403). Your API key does not have permission for this resource or model."
+                "Access restricted (HTTP 403). This model is not available on your current tier. " +
+                    "Please upgrade your account in Settings to access it."
             }
         }
         404 -> "Resource not found (HTTP 404). Check if the selected model ID or endpoint URL is correct in Settings."
