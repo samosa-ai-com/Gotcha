@@ -65,8 +65,11 @@ internal object TermuxMessages {
 
     fun tooManyInFlight(limit: Int) = ToolResult.error(
         "$limit Termux commands are already running and none has finished yet. Earlier commands keep running " +
-            "even after they time out — I cannot kill them. Wait for them to finish (use the sleep tool), or " +
-            "check Termux directly, rather than starting another."
+            "even after they time out — a run_termux_command cannot kill them. To stop them, open the " +
+            "notifications shade (global_action or press_key 'notifications') and tap the Exit action on the " +
+            "Termux notification, which ends every Termux session. If you cannot reach it, ask the user to tap " +
+            "Exit on the Termux notification. Otherwise wait for them to finish (use the sleep tool) rather " +
+            "than starting another."
     )
 
     /**
@@ -85,7 +88,10 @@ internal object TermuxMessages {
                 append("here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
             }
             append("\n- or it is genuinely slow. Retry with a larger timeout_seconds. Note it keeps running ")
-            append("either way — I cannot kill another app's process — so check Termux before starting again.")
+            append("either way — a run_termux_command cannot stop it. To stop it, open the notifications shade ")
+            append("(global_action or press_key 'notifications') and tap the Exit action on the Termux ")
+            append("notification, which ends every Termux session. If you cannot reach it, ask the user to tap ")
+            append("Exit on the Termux notification.")
         }
     )
 
