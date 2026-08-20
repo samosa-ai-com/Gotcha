@@ -33,13 +33,18 @@ data class SamosaTier(
     @SerialName("badge_color") val badgeColor: String = "#6c757d"
 )
 
-/** Referrer details returned in referral metadata. */
+/** Referrer details returned in referral metadata (code-only in Rev 3). */
 @Serializable
 data class SamosaReferrer(
     val id: String = "",
     @SerialName("display_name") val displayName: String = "",
-    val email: String = ""
-)
+    val email: String = "",
+    @SerialName("referral_code") val referralCode: String = ""
+) {
+    /** Best-effort display code for this referrer. */
+    val displayCode: String
+        get() = referralCode.ifBlank { id }
+}
 
 /** Referral metadata returned in /me. */
 @Serializable

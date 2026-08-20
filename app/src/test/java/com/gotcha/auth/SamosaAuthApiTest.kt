@@ -194,4 +194,24 @@ class SamosaAuthApiTest {
         val jsonStrNoCode = json.encodeToString(RegisterRequest.serializer(), withoutCode)
         org.junit.Assert.assertFalse(jsonStrNoCode.contains("referral_code"))
     }
+
+    @Test
+    fun `me response parses code-only referred_by`() {
+        val payload = """
+            {
+              "user": {
+                "id": "u1",
+                "referral": {
+                  "can_claim": false,
+                  "referred_by": {
+                    "referral_code": "AIR-K9X2P7"
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+        val decoded = json.decodeFromString(MeResponse.serializer(), payload)
+        assertEquals("AIR-K9X2P7", decoded.user.referral.referredBy?.referralCode)
+        assertEquals("AIR-K9X2P7", decoded.user.referral.referredBy?.displayCode)
+    }
 }

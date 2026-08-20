@@ -473,7 +473,34 @@ fun ReferAndEarnCard(
                 )
             }
 
-            if (referral.canClaim && onClaimReferral != null) {
+            val referredByCode = referral.referredBy?.displayCode?.ifBlank { null }
+            if (referredByCode != null) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "🎁 Referred by",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = referredByCode,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            if (referral.canClaim && referral.referredBy == null && onClaimReferral != null) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
