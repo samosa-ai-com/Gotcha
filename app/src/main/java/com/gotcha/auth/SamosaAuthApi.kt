@@ -15,9 +15,39 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 import java.util.concurrent.TimeUnit
 
-/** Request body for POST /register — the Google ID token (not the JWT). */
+/** Request body for POST /register — the Google ID token (not the JWT) plus optional referral code. */
 @Serializable
-data class RegisterRequest(val idToken: String)
+data class RegisterRequest(
+    val idToken: String,
+    @SerialName("referral_code") val referralCode: String? = null
+)
+
+/** User tier information returned in /me. */
+@Serializable
+data class SamosaTier(
+    val id: String = "free",
+    @SerialName("display_name") val displayName: String = "Free",
+    @SerialName("badge_color") val badgeColor: String = "#6c757d"
+)
+
+/** Referrer details returned in referral metadata. */
+@Serializable
+data class SamosaReferrer(
+    val id: String = "",
+    @SerialName("display_name") val displayName: String = "",
+    val email: String = ""
+)
+
+/** Referral metadata returned in /me. */
+@Serializable
+data class SamosaReferral(
+    val code: String? = null,
+    @SerialName("share_url") val shareUrl: String = "",
+    @SerialName("total_referred") val totalReferred: Int = 0,
+    @SerialName("credits_earned") val creditsEarned: Double = 0.0,
+    @SerialName("can_claim") val canClaim: Boolean = false,
+    @SerialName("referred_by") val referredBy: SamosaReferrer? = null
+)
 
 /** User profile returned by /register and /me. */
 @Serializable
@@ -27,13 +57,19 @@ data class SamosaUser(
     @SerialName("display_name") val displayName: String = "",
     @SerialName("profile_picture") val profilePicture: String = "",
     val role: String = "",
+    val status: String = "active",
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("last_login") val lastLogin: String? = null,
     /**
      * Remaining credit as a float, fetched live from the AIR gateway via the
      * user's own `sk-air-*` key. Null when the user has no gateway key yet or
      * the gateway is unreachable. Never rendered raw — only as the ×1000
      * whole number (see `formatScaledCredits` in SettingsCommon.kt).
      */
-    @SerialName("credits_remaining") val creditsRemaining: Double? = null
+    @SerialName("credits_remaining") val creditsRemaining: Double? = null,
+    val tier: SamosaTier = SamosaTier(),
+    val tags: List<String> = emptyList(),
+    val referral: SamosaReferral = SamosaReferral()
 )
 
 /** Response from POST /register — the session JWT plus the user profile. */
@@ -49,6 +85,29 @@ data class MeResponse(
     val user: SamosaUser = SamosaUser()
 )
 
+/** Request body for POST /api/v1/referrals/claim. */
+@Serializable
+data class ClaimReferralRequest(
+    @SerialName("referral_code") val referralCode: String
+)
+
+/** Details of the claimed referral returned in ClaimReferralResponse. */
+@Serializable
+data class ClaimedReferralInfo(
+    val code: String = "",
+    val referrer: SamosaReferrer? = null,
+    @SerialName("referrer_reward") val referrerReward: Double = 0.0,
+    @SerialName("referee_reward") val refereeReward: Double = 0.0
+)
+
+/** Response from POST /api/v1/referrals/claim. */
+@Serializable
+data class ClaimReferralResponse(
+    val message: String = "",
+    val referral: ClaimedReferralInfo? = null,
+    @SerialName("credits_remaining") val creditsRemaining: Double? = null
+)
+
 /**
  * Samosa AI auth endpoints (base URL [AUTH_BASE_URL], from BuildConfig).
  * The OpenAI-compatible chat/model endpoints are handled by the existing
@@ -61,6 +120,12 @@ interface SamosaAuthApi {
 
     @GET("me")
     suspend fun me(@Header("Authorization") bearer: String): MeResponse
+
+    @POST("api/v1/referrals/claim")
+    suspend fun claimReferral(
+        @Header("Authorization") bearer: String,
+        @Body body: ClaimReferralRequest
+    ): ClaimReferralResponse
 
     @POST("logout")
     suspend fun logout(@Header("Authorization") bearer: String)

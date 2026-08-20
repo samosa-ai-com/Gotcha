@@ -52,8 +52,14 @@ fun AiConfigScreen(
         Result.failure(Exception("Not available"))
     },
     onSamosaSignOut: suspend () -> Unit = {},
+    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
+    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
     /** Fetches the user's remaining credit (raw float) or null when unavailable. */
     onFetchSamosaCredits: suspend () -> Double? = { null },
+    /** Claims an invite code via the auth manager. */
+    onClaimReferral: suspend (String) -> Result<Unit> = {
+        Result.failure(Exception("Not supported"))
+    },
     onClearLlmCache: () -> Unit = {},
     onClearDebugScreenshots: () -> Unit = {}
 ) {
@@ -67,6 +73,9 @@ fun AiConfigScreen(
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
     var samosaCredits by remember { mutableStateOf<Double?>(null) }
+    var samosaUser by remember { mutableStateOf<com.gotcha.auth.SamosaUser?>(null) }
+    var referralBusy by remember { mutableStateOf(false) }
+    var referralError by remember { mutableStateOf<String?>(null) }
     var subAgentModel by remember { mutableStateOf(initial.subAgentModel) }
     var navigatorModel by remember { mutableStateOf(initial.navigatorModel) }
     var maxToolRounds by remember { mutableStateOf(initial.maxToolRounds.toString()) }
@@ -90,13 +99,16 @@ fun AiConfigScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
 
-    // Fetch the credit balance when signed in, and whenever the token changes
+    // Fetch the profile & credit balance when signed in, and whenever the token changes
     // (sign-in sets it, sign-out clears it). Keep it light: no polling.
     LaunchedEffect(samosaToken) {
-        samosaCredits = if (samosaToken.isBlank()) {
-            null
+        if (samosaToken.isBlank()) {
+            samosaCredits = null
+            samosaUser = null
         } else {
-            onFetchSamosaCredits()
+            val profile = onFetchSamosaProfile()
+            samosaUser = profile
+            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
         }
     }
 
@@ -195,6 +207,26 @@ fun AiConfigScreen(
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
                 creditsRemaining = samosaCredits,
+                user = samosaUser,
+                referralBusy = referralBusy,
+                referralError = referralError,
+                onClaimReferral = { code ->
+                    referralBusy = true
+                    referralError = null
+                    scope.launch {
+                        val res = onClaimReferral(code)
+                        res.onSuccess {
+                            val profile = onFetchSamosaProfile()
+                            samosaUser = profile
+                            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
+                            referralBusy = false
+                            status = "Invite code applied!"
+                        }.onFailure { e ->
+                            referralError = e.message ?: "Failed to apply invite code."
+                            referralBusy = false
+                        }
+                    }
+                },
                 signInModifier = Modifier.tourAnchor(TourAnchor.AI_SAMOSA_SIGN_IN),
                 onSignIn = {
                     samosaBusy = true
@@ -204,6 +236,9 @@ fun AiConfigScreen(
                         result.onSuccess { (email, token) ->
                             samosaEmail = email
                             samosaToken = token
+                            val profile = onFetchSamosaProfile()
+                            samosaUser = profile
+                            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
                             status = "Signed in as $email"
                         }.onFailure { e ->
                             status = e.message ?: "Sign-in failed."
@@ -219,6 +254,7 @@ fun AiConfigScreen(
                         samosaToken = ""
                         samosaEmail = ""
                         samosaCredits = null
+                        samosaUser = null
                         availableChatModels = emptyList()
                         status = "Signed out of Samosa AI."
                         samosaBusy = false

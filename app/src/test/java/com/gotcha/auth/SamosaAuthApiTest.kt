@@ -101,4 +101,97 @@ class SamosaAuthApiTest {
     fun `scaled credits uses thousands separators for large values`() {
         assertEquals("1,234,567", formatScaledCredits(1234.5674))
     }
+
+    @Test
+    fun `me response parses tier, tags and referral metadata`() {
+        val payload = """
+            {
+              "user": {
+                "id": "c6a2e413-0000",
+                "email": "user@example.com",
+                "display_name": "Rishabh",
+                "profile_picture": "https://example.com/pic.jpg",
+                "role": "user",
+                "status": "active",
+                "created_at": "2026-08-19T10:00:00.000Z",
+                "last_login": "2026-08-19T10:05:00.000Z",
+                "credits_remaining": 1250.0,
+                "tier": {
+                  "id": "pro",
+                  "display_name": "Pro",
+                  "badge_color": "#0d6efd"
+                },
+                "tags": ["beta_tester", "early_adopter"],
+                "referral": {
+                  "code": "AIR-K9X2P7",
+                  "share_url": "https://api.samosa-ai.com/join?ref=AIR-K9X2P7",
+                  "total_referred": 4,
+                  "credits_earned": 200.0,
+                  "can_claim": true,
+                  "referred_by": {
+                    "id": "ref-1",
+                    "display_name": "Alice",
+                    "email": "alice@example.com"
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val decoded = json.decodeFromString(MeResponse.serializer(), payload)
+        val user = decoded.user
+
+        assertEquals("c6a2e413-0000", user.id)
+        assertEquals("user@example.com", user.email)
+        assertEquals("Rishabh", user.displayName)
+        assertEquals(1250.0, user.creditsRemaining)
+        assertEquals("pro", user.tier.id)
+        assertEquals("Pro", user.tier.displayName)
+        assertEquals("#0d6efd", user.tier.badgeColor)
+        assertEquals(listOf("beta_tester", "early_adopter"), user.tags)
+        assertEquals("AIR-K9X2P7", user.referral.code)
+        assertEquals("https://api.samosa-ai.com/join?ref=AIR-K9X2P7", user.referral.shareUrl)
+        assertEquals(4, user.referral.totalReferred)
+        assertEquals(200.0, user.referral.creditsEarned, 0.001)
+        assertEquals(true, user.referral.canClaim)
+        assertEquals("Alice", user.referral.referredBy?.displayName)
+    }
+
+    @Test
+    fun `claim referral response parses successfully`() {
+        val payload = """
+            {
+              "message": "Referral claimed",
+              "referral": {
+                "code": "AIR-K9X2P7",
+                "referrer": {
+                  "id": "ref-1",
+                  "display_name": "Alice",
+                  "email": "alice@example.com"
+                },
+                "referrer_reward": 50.0,
+                "referee_reward": 50.0
+              },
+              "credits_remaining": 1300.0
+            }
+        """.trimIndent()
+
+        val decoded = json.decodeFromString(ClaimReferralResponse.serializer(), payload)
+        assertEquals("Referral claimed", decoded.message)
+        assertEquals("AIR-K9X2P7", decoded.referral?.code)
+        assertEquals(50.0, decoded.referral?.refereeReward)
+        assertEquals(50.0, decoded.referral?.referrerReward)
+        assertEquals(1300.0, decoded.creditsRemaining)
+    }
+
+    @Test
+    fun `register request serializes optional referral_code`() {
+        val withCode = RegisterRequest(idToken = "token123", referralCode = "AIR-K9X2P7")
+        val jsonStr = json.encodeToString(RegisterRequest.serializer(), withCode)
+        org.junit.Assert.assertTrue(jsonStr.contains("\"referral_code\":\"AIR-K9X2P7\""))
+
+        val withoutCode = RegisterRequest(idToken = "token123", referralCode = null)
+        val jsonStrNoCode = json.encodeToString(RegisterRequest.serializer(), withoutCode)
+        org.junit.Assert.assertFalse(jsonStrNoCode.contains("referral_code"))
+    }
 }

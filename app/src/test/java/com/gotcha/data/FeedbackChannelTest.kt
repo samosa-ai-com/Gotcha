@@ -1,5 +1,7 @@
 package com.gotcha.data
 
+import com.gotcha.auth.ClaimReferralRequest
+import com.gotcha.auth.ClaimReferralResponse
 import com.gotcha.auth.MeResponse
 import com.gotcha.auth.RegisterRequest
 import com.gotcha.auth.RegisterResponse
@@ -197,6 +199,10 @@ class FeedbackChannelTest {
         override suspend fun register(body: RegisterRequest): RegisterResponse = RegisterResponse()
         override suspend fun me(bearer: String): MeResponse =
             MeResponse(user = SamosaUser(id = id, email = "a@b.com"))
+        override suspend fun claimReferral(
+            bearer: String,
+            body: ClaimReferralRequest
+        ): ClaimReferralResponse = ClaimReferralResponse()
         override suspend fun logout(bearer: String) = Unit
     }
 }

@@ -49,8 +49,14 @@ fun SpeechScreen(
         Result.failure(Exception("Not available"))
     },
     onSamosaSignOut: suspend () -> Unit = {},
+    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
+    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
     /** Fetches the user's remaining credit (raw float) or null when unavailable. */
-    onFetchSamosaCredits: suspend () -> Double? = { null }
+    onFetchSamosaCredits: suspend () -> Double? = { null },
+    /** Claims an invite code via the auth manager. */
+    onClaimReferral: suspend (String) -> Result<Unit> = {
+        Result.failure(Exception("Not supported"))
+    }
 ) {
     val initial = remember { load() }
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
@@ -69,6 +75,9 @@ fun SpeechScreen(
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
     var samosaBusy by remember { mutableStateOf(false) }
     var samosaCredits by remember { mutableStateOf<Double?>(null) }
+    var samosaUser by remember { mutableStateOf<com.gotcha.auth.SamosaUser?>(null) }
+    var referralBusy by remember { mutableStateOf(false) }
+    var referralError by remember { mutableStateOf<String?>(null) }
 
     var availableTtsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
     var availableSttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
@@ -87,13 +96,16 @@ fun SpeechScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
 
-    // Fetch the credit balance when signed in, and whenever the token changes
+    // Fetch the profile & credit balance when signed in, and whenever the token changes
     // (sign-in sets it, sign-out clears it). Keep it light: no polling.
     LaunchedEffect(samosaToken) {
-        samosaCredits = if (samosaToken.isBlank()) {
-            null
+        if (samosaToken.isBlank()) {
+            samosaCredits = null
+            samosaUser = null
         } else {
-            onFetchSamosaCredits()
+            val profile = onFetchSamosaProfile()
+            samosaUser = profile
+            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
         }
     }
 
@@ -172,6 +184,26 @@ fun SpeechScreen(
                 signedIn = samosaToken.isNotBlank(),
                 busy = samosaBusy,
                 creditsRemaining = samosaCredits,
+                user = samosaUser,
+                referralBusy = referralBusy,
+                referralError = referralError,
+                onClaimReferral = { code ->
+                    referralBusy = true
+                    referralError = null
+                    scope.launch {
+                        val res = onClaimReferral(code)
+                        res.onSuccess {
+                            val profile = onFetchSamosaProfile()
+                            samosaUser = profile
+                            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
+                            referralBusy = false
+                            status = "Invite code applied!"
+                        }.onFailure { e ->
+                            referralError = e.message ?: "Failed to apply invite code."
+                            referralBusy = false
+                        }
+                    }
+                },
                 onSignIn = {
                     samosaBusy = true
                     status = "Signing in with Google…"
@@ -180,6 +212,9 @@ fun SpeechScreen(
                         result.onSuccess { (email, token) ->
                             samosaEmail = email
                             samosaToken = token
+                            val profile = onFetchSamosaProfile()
+                            samosaUser = profile
+                            samosaCredits = profile?.creditsRemaining ?: onFetchSamosaCredits()
                             status = "Signed in as $email"
                         }.onFailure { e ->
                             status = e.message ?: "Sign-in failed."
@@ -195,6 +230,7 @@ fun SpeechScreen(
                         samosaToken = ""
                         samosaEmail = ""
                         samosaCredits = null
+                        samosaUser = null
                         status = "Signed out of Samosa AI."
                         samosaBusy = false
                     }

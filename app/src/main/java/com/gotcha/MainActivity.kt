@@ -39,6 +39,7 @@ import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
+import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaAuthManager
 import com.gotcha.auth.SamosaSignInResult
 import com.gotcha.data.FeedbackChannel
@@ -62,6 +63,7 @@ import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.NotificationDetailDialog
+import com.gotcha.ui.ReferralInviteDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
@@ -572,6 +574,10 @@ class MainActivity : ComponentActivity() {
         }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         var showFeedbackSheet by remember { mutableStateOf(false) }
+        var showReferralInviteDialog by remember { mutableStateOf(false) }
+        var referralPrefillCode by remember { mutableStateOf<String?>(null) }
+        var referralClaimBusy by remember { mutableStateOf(false) }
+        var referralClaimError by remember { mutableStateOf<String?>(null) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
 
@@ -747,6 +753,12 @@ class MainActivity : ComponentActivity() {
                                     // Token is already persisted by the auth manager.
                                     val token = settingsRepository.load().samosaSessionToken
                                     chatViewModel.refreshSettings()
+                                    if (r.isNewUser && r.user?.referral?.canClaim == true) {
+                                        val ctx = this@MainActivity
+                                        referralPrefillCode = ReferralClipboardHelper.getReferralFromClipboard(ctx)
+                                        referralClaimError = null
+                                        showReferralInviteDialog = true
+                                    }
                                     Result.success(r.email to token)
                                 }
                                 is SamosaSignInResult.Cancelled ->
@@ -759,7 +771,11 @@ class MainActivity : ComponentActivity() {
                             samosaAuthManager.signOut()
                             chatViewModel.refreshSettings()
                         },
+                        onFetchSamosaProfile = { samosaAuthManager.fetchUserProfile() },
                         onFetchSamosaCredits = { samosaAuthManager.fetchCreditsRemaining() },
+                        onClaimReferral = { code ->
+                            samosaAuthManager.claimReferralCode(code).map { }
+                        },
                         onSyncServerMessages = {
                             val s = settingsRepository.load()
                             if (!s.serverMessagesEnabled) return@SettingsScreen null
@@ -906,6 +922,33 @@ class MainActivity : ComponentActivity() {
                             ).show()
                         }
                     }
+                }
+            )
+        }
+
+        if (showReferralInviteDialog) {
+            ReferralInviteDialog(
+                initialCode = referralPrefillCode,
+                busy = referralClaimBusy,
+                errorMessage = referralClaimError,
+                onApply = { code ->
+                    referralClaimBusy = true
+                    referralClaimError = null
+                    lifecycleScope.launch {
+                        val claimResult = samosaAuthManager.claimReferralCode(code)
+                        claimResult.onSuccess {
+                            referralClaimBusy = false
+                            showReferralInviteDialog = false
+                            Toast.makeText(this@MainActivity, "Bonus credits claimed!", Toast.LENGTH_SHORT).show()
+                        }.onFailure { err ->
+                            referralClaimBusy = false
+                            referralClaimError = err.message ?: "Failed to claim code."
+                        }
+                    }
+                },
+                onSkip = {
+                    showReferralInviteDialog = false
+                    referralClaimError = null
                 }
             )
         }

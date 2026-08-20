@@ -2,6 +2,9 @@ package com.gotcha.util
 
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.ConnectException
@@ -18,7 +21,18 @@ object HumanReadableError {
     fun fromHttpCode(code: Int, rawMessage: String? = null): String = when (code) {
         400 -> "Bad request (HTTP 400). The request format or parameters sent to the API were invalid."
         401 -> "Authentication failed (HTTP 401). Please check your API key in Settings."
-        403 -> "Access forbidden (HTTP 403). Your API key does not have permission for this resource or model."
+        403 -> {
+            val isTierGated = !rawMessage.isNullOrBlank() && (
+                rawMessage.contains("Upgrade", ignoreCase = true) ||
+                    rawMessage.contains("tier", ignoreCase = true) ||
+                    rawMessage.contains("Pro", ignoreCase = true)
+                )
+            if (isTierGated) {
+                rawMessage
+            } else {
+                "Access forbidden (HTTP 403). Your API key does not have permission for this resource or model."
+            }
+        }
         404 -> "Resource not found (HTTP 404). Check if the selected model ID or endpoint URL is correct in Settings."
         408 -> "Request timeout (HTTP 408). The server timed out waiting for the request."
         429 -> "Rate limit or quota exceeded (HTTP 429). Please wait a moment or check your API usage limits."
@@ -77,7 +91,25 @@ object HumanReadableError {
 
     /** Translates any exception into a user-friendly error message. */
     fun format(e: Throwable): String = when {
-        e is HttpException -> fromHttpCode(e.code(), e.message())
+        e is HttpException -> {
+            val bodyDetail = try {
+                val body = e.response()?.errorBody()?.string()
+                if (!body.isNullOrBlank()) {
+                    val json = Json { ignoreUnknownKeys = true }
+                    val elem = json.parseToJsonElement(body)
+                    (elem as? JsonObject)?.get("detail")?.let {
+                        if (it is JsonPrimitive) it.content else it.toString()
+                    } ?: (elem as? JsonObject)?.get("error")?.let {
+                        if (it is JsonPrimitive) it.content else it.toString()
+                    }
+                } else {
+                    null
+                }
+            } catch (_: Exception) {
+                null
+            }
+            fromHttpCode(e.code(), bodyDetail ?: e.message())
+        }
         e is UnknownHostException ->
             "Cannot connect to server. Check your internet connection or server URL in Settings."
         e is ConnectException ->
@@ -87,7 +119,11 @@ object HumanReadableError {
         e is IOException && e.message?.contains("HTTP ") == true -> {
             val codeStr = e.message?.substringAfter("HTTP ")?.substringBefore(":")?.trim()
             val code = codeStr?.toIntOrNull()
-            if (code != null) fromHttpCode(code, e.message) else "Network problem: ${e.message}"
+            if (code != null) {
+                fromHttpCode(code, e.message)
+            } else {
+                "Network problem: ${e.message}"
+            }
         }
         e is IOException ->
             "Network problem: ${e.message ?: "could not reach the server"}. Check your connection."
