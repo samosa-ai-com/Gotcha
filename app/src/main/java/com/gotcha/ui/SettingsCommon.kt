@@ -12,12 +12,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -35,14 +41,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.auth.ReferralClipboardHelper
+import com.gotcha.auth.SamosaTier
+import com.gotcha.auth.SamosaUser
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
+import java.time.Duration
+import java.time.Instant
 import kotlin.math.round
 
 /**
@@ -323,6 +335,231 @@ private fun OverlayMessage(message: SettingsOverlay?, modifier: Modifier = Modif
 internal fun formatScaledCredits(credits: Double): String =
     NumberFormat.getIntegerInstance().format(round(credits * 1000).toLong())
 
+/** Parses a hex color safely (e.g. #0d6efd), falling back to grey on error. */
+internal fun parseBadgeColor(hex: String): Color = try {
+    Color(android.graphics.Color.parseColor(hex))
+} catch (_: Exception) {
+    Color(0xFF6C757D)
+}
+
+/** Formats the remaining hours until the referral claim window expires. */
+internal fun formatRemainingClaimHours(
+    createdAt: String?,
+    now: Instant = Instant.now()
+): String? {
+    if (createdAt.isNullOrBlank()) return null
+    return try {
+        val instant = Instant.parse(createdAt)
+        val elapsedHours = Duration.between(instant, now).toHours()
+        val remainingHours = com.gotcha.auth.REFERRAL_CLAIM_WINDOW_HOURS - elapsedHours
+        if (remainingHours > 0) {
+            "You have ${remainingHours}h left to claim an invite code."
+        } else {
+            null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Pill badge displaying user tier (e.g. Free, Pro, Premium, Influencer). */
+@Composable
+fun TierPill(tier: SamosaTier, modifier: Modifier = Modifier) {
+    val bgColor = parseBadgeColor(tier.badgeColor)
+    Surface(
+        color = bgColor,
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Text(
+            text = tier.displayName.ifBlank { "Free" },
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
+    }
+}
+
+/** Chip displaying a user tag (e.g. beta_tester, early_adopter). */
+@Composable
+fun TagChip(tag: String, modifier: Modifier = Modifier) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(8.dp),
+        modifier = modifier
+    ) {
+        Text(
+            text = tag,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
+}
+
+/** "Refer & Earn" card showing the user's invite code, stats, share action, and late claim fallback. */
+@Composable
+fun ReferAndEarnCard(
+    user: SamosaUser,
+    onClaimReferral: ((String) -> Unit)? = null,
+    referralBusy: Boolean = false,
+    referralError: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val referral = user.referral
+    val code = referral.code ?: ""
+    var claimInput by remember { mutableStateOf("") }
+
+    OutlinedCard(
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "🎁 Invite Friends & Earn",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            if (code.isNotBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Your invite code:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = code,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { ReferralClipboardHelper.copyReferralCode(context, code) }
+                    ) {
+                        Text("Copy Code")
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        ReferralClipboardHelper.shareReferralLink(
+                            context = context,
+                            code = code,
+                            shareUrl = referral.shareUrl
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Share Invite Link")
+                }
+
+                val earnedCredits = formatScaledCredits(referral.creditsEarned)
+                Text(
+                    text = "You've referred ${referral.totalReferred} friends • $earnedCredits credits earned",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val referredByCode = referral.referredBy?.displayCode?.ifBlank { null }
+            if (referredByCode != null) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "🎁 Referred by",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = referredByCode,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            if (referral.canClaim && referral.referredBy == null && onClaimReferral != null) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Text(
+                    text = "Enter Invite Code",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                val remainingText = formatRemainingClaimHours(user.createdAt)
+                if (remainingText != null) {
+                    Text(
+                        text = remainingText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = claimInput,
+                        onValueChange = { claimInput = it.uppercase().trim() },
+                        placeholder = { Text("AIR-XXXXXX") },
+                        singleLine = true,
+                        enabled = !referralBusy,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Button(
+                        onClick = { onClaimReferral(claimInput) },
+                        enabled = !referralBusy && claimInput.isNotBlank()
+                    ) {
+                        if (referralBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("Apply")
+                        }
+                    }
+                }
+
+                if (!referralError.isNullOrBlank()) {
+                    Text(
+                        text = referralError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
 @Composable
 fun SamosaAuthSection(
@@ -333,15 +570,41 @@ fun SamosaAuthSection(
     onSignOut: () -> Unit,
     /** Raw remaining credit; scaled ×1000 for display. Null hides the line. */
     creditsRemaining: Double? = null,
+    /** Full user profile containing tier, tags, and referral metadata. */
+    user: SamosaUser? = null,
+    /** Optional callback to claim an invite code. */
+    onClaimReferral: ((String) -> Unit)? = null,
+    referralBusy: Boolean = false,
+    referralError: String? = null,
     /** Applied to the sign-in button only, so the tour can spotlight it. */
     signInModifier: Modifier = Modifier
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            if (signedIn && user != null && user.tier.displayName.isNotBlank()) {
+                TierPill(tier = user.tier)
+            }
+        }
+
+        if (signedIn && user != null && user.tags.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                user.tags.forEach { tag ->
+                    TagChip(tag = tag)
+                }
+            }
+        }
+
         if (signedIn && email.isNotBlank()) {
             Text(
                 text = email,
@@ -367,6 +630,15 @@ fun SamosaAuthSection(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
             ) { Text(if (busy) "Please wait…" else "Log out") }
+
+            if (user != null) {
+                ReferAndEarnCard(
+                    user = user,
+                    onClaimReferral = onClaimReferral,
+                    referralBusy = referralBusy,
+                    referralError = referralError
+                )
+            }
         } else {
             Button(
                 onClick = onSignIn,

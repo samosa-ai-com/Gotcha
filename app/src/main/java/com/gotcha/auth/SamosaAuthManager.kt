@@ -12,13 +12,19 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.gotcha.BuildConfig
 import com.gotcha.data.SettingsRepository
 import com.gotcha.util.GotchaLog
+import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
 import java.io.IOException
 
 /** Outcome of a Samosa sign-in attempt, surfaced to the UI. */
 sealed interface SamosaSignInResult {
-    data class Success(val email: String) : SamosaSignInResult
+    data class Success(
+        val email: String,
+        val user: SamosaUser? = null,
+        val isNewUser: Boolean = false
+    ) : SamosaSignInResult
+
     data class Error(val message: String) : SamosaSignInResult
 
     /** User dismissed the Google account chooser — not a real failure. */
@@ -26,9 +32,9 @@ sealed interface SamosaSignInResult {
 }
 
 /**
- * Drives Samosa AI authentication:
- *  1. Request a Google ID token via Credential Manager (using the WEB client ID
- *     as serverClientId, per the backend's requirements).
+ * Handles the Google Sign-In dance for Samosa AI accounts:
+ *
+ *  1. Request a Google ID token from Credential Manager using the Web client ID.
  *  2. Exchange it at POST /register for a session JWT.
  *  3. Persist the JWT + account email in EncryptedSharedPreferences.
  *
@@ -75,8 +81,12 @@ class SamosaAuthManager(
             .addCredentialOption(signInWithGoogleOption)
             .build()
 
-        val response = credentialManager.getCredential(activityContext, request)
-        val credential = response.credential
+        val result = credentialManager.getCredential(
+            request = request,
+            context = activityContext
+        )
+
+        val credential = result.credential
         if (credential is androidx.credentials.CustomCredential &&
             credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
         ) {
@@ -86,12 +96,15 @@ class SamosaAuthManager(
     }
 
     private suspend fun register(idToken: String): SamosaSignInResult = try {
-        val resp = api.register(RegisterRequest(idToken))
+        val resp = api.register(RegisterRequest(idToken = idToken))
         if (resp.token.isBlank()) {
             SamosaSignInResult.Error("Server did not return a session token.")
         } else {
             settingsRepository.saveSamosaSession(resp.token, resp.user.email)
-            SamosaSignInResult.Success(resp.user.email)
+            // Fetch fresh /me to obtain full tier, tags, and referral metadata
+            val profile = runCatching { api.me("Bearer ${resp.token}").user }.getOrNull() ?: resp.user
+            val isNew = profile.referral.canClaim
+            SamosaSignInResult.Success(resp.user.email, user = profile, isNewUser = isNew)
         }
     } catch (e: HttpException) {
         SamosaSignInResult.Error(mapRegisterError(e.code()))
@@ -132,20 +145,85 @@ class SamosaAuthManager(
     }
 
     /**
+     * Fetches the user's full profile including tier, tags, and referral info from GET /me.
+     * Returns null when not signed in or when the server is unreachable.
+     */
+    suspend fun fetchUserProfile(): SamosaUser? {
+        val token = settingsRepository.load().samosaSessionToken
+        if (token.isBlank()) return null
+        return try {
+            api.me("Bearer $token").user
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GotchaLog.d(TAG, e) { "Could not fetch user profile (ignored)" }
+            null
+        }
+    }
+
+    /**
      * Fetches the user's remaining credit from GET /me. Returns null when not
      * signed in, when the user has no gateway key yet, or when the gateway is
      * unreachable — never throws, so a hiccup cannot break the page.
      */
     suspend fun fetchCreditsRemaining(): Double? {
+        return fetchUserProfile()?.creditsRemaining
+    }
+
+    /**
+     * Claims a referral code via POST /v1/referrals/claim.
+     * Returns Result.success with ClaimReferralResponse or Result.failure with a user-friendly message.
+     */
+    suspend fun claimReferralCode(code: String): Result<ClaimReferralResponse> {
         val token = settingsRepository.load().samosaSessionToken
-        if (token.isBlank()) return null
+        if (token.isBlank()) {
+            return Result.failure(IllegalStateException("Not signed in to Samosa AI."))
+        }
+        val cleanCode = code.trim().uppercase()
+        if (cleanCode.isBlank()) {
+            return Result.failure(IllegalArgumentException("Please enter an invite code."))
+        }
         return try {
-            api.me("Bearer $token").user.creditsRemaining
-        } catch (e: CancellationException) {
-            throw e
+            GotchaLog.d(TAG) { "Claiming referral code: $cleanCode" }
+            val resp = api.claimReferral("Bearer $token", ClaimReferralRequest(referralCode = cleanCode))
+            GotchaLog.d(TAG) { "Claim referral successful: ${resp.message}" }
+            Result.success(resp)
+        } catch (e: HttpException) {
+            val detail = HumanReadableError.extractHttpErrorDetail(e)
+            GotchaLog.d(TAG, e) { "Claim referral failed with HTTP ${e.code()}: $detail" }
+            val msg = mapClaimError(e.code(), detail)
+            Result.failure(Exception(msg))
+        } catch (e: IOException) {
+            GotchaLog.d(TAG, e) { "Network error during referral claim" }
+            Result.failure(Exception("Network error. Please check your connection and try again."))
         } catch (e: Exception) {
-            GotchaLog.d(TAG, e) { "Could not fetch credit balance (ignored)" }
-            null
+            GotchaLog.d(TAG, e) { "Unexpected error during referral claim" }
+            Result.failure(e)
+        }
+    }
+
+    private fun mapClaimError(code: Int, detail: String?): String {
+        val lowerDetail = detail?.lowercase() ?: ""
+        return when (code) {
+            400 -> {
+                if (lowerDetail.contains("yourself")) {
+                    "You cannot refer yourself."
+                } else {
+                    detail ?: "Invalid referral code."
+                }
+            }
+            404 -> detail ?: "Referral code not found."
+            409 -> {
+                if (lowerDetail.contains("limit")) {
+                    "This referral code has reached its maximum invite limit."
+                } else {
+                    detail ?: "You have already been referred."
+                }
+            }
+            410 -> detail ?: "Referral window expired. Codes must be claimed within $REFERRAL_CLAIM_WINDOW_HOURS hours of signup."
+            429 -> detail ?: "Too many attempts. Please try again later."
+            502 -> detail ?: "Bonus grant failed. Please try again shortly."
+            else -> detail ?: "Referral claim failed (HTTP $code)."
         }
     }
 
