@@ -43,7 +43,7 @@ import kotlin.random.Random
  */
 class TermuxTool(
     private val context: Context,
-    private val defaultTimeoutSeconds: Int = 60,
+    private val defaultTimeoutSeconds: Int = 120,
     private val maxOutputBytes: Int = 32 * 1024
 ) {
 
@@ -198,7 +198,12 @@ class TermuxTool(
         if (!status.pluginApiAvailable) return TermuxMessages.pluginApiMissing(status.versionName)
         if (!status.permissionGranted) return TermuxMessages.permissionNeeded()
 
-        val timeout = (timeoutSeconds ?: defaultTimeoutSeconds).coerceIn(1, MAX_TIMEOUT_SECONDS)
+        val adaptiveDefault = if (timeoutSeconds == null && PKG_LIKE_REGEX.containsMatchIn(trimmed)) {
+            300
+        } else {
+            defaultTimeoutSeconds
+        }
+        val timeout = (timeoutSeconds ?: adaptiveDefault).coerceIn(1, MAX_TIMEOUT_SECONDS)
         // A timed-out command is not cancelled — it keeps running under Termux's uid, out of our
         // reach. Without a ceiling, a model that retries a slow `pkg` a few times would leave a
         // growing pile of live processes behind it, each still holding Termux's package lock.
@@ -414,6 +419,9 @@ class TermuxTool(
         internal const val ERRNO_CANCELLED = 0 // Activity.RESULT_CANCELED
         internal const val ERRNO_MINOR_FAILURES = 1 // Activity.RESULT_FIRST_USER
         internal const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
+
+        /** Package-manager commands that are inherently slow and benefit from a larger default timeout. */
+        private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|pip3?|npm|cargo|proot-distro)\b""")
 
         /** Shell separators the deny-list splits on before matching each part. */
         private val SEGMENT_SEPARATORS = Regex("""[;&|\n]+""")
