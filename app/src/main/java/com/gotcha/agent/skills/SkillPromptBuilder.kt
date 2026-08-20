@@ -19,6 +19,10 @@ object SkillPromptBuilder {
     /** Regex matching the tool result header format emitted by ToolExecutor for search_skills. */
     val SKILL_RESULT_REGEX = Regex("""Skill \[([^\]]+)\]:""")
 
+    /** Regex matching the `<available-skills>` summary we inject (`• skill_id: desc` / `• skill_id (community):`). */
+    private val AVAILABLE_SKILL_REGEX =
+        Regex("""^•\s*([a-z0-9_]+)(?:\s*\(community\))?:""", RegexOption.MULTILINE)
+
     /**
      * Scans conversation history for tool-result messages containing full skill bodies
      * previously fetched via `search_skills`.
@@ -27,6 +31,34 @@ object SkillPromptBuilder {
         return history.asSequence()
             .filter { it.role == "tool" }
             .flatMap { SKILL_RESULT_REGEX.findAll(it.textContent) }
+            .map { it.groupValues[1] }
+            .toSet()
+    }
+
+    /**
+     * Skill summaries we injected via `<available-skills>` as `user` messages.
+     * Used to avoid re-pushing the same 60-token summary over and over in the
+     * same chat — e.g. a repeated `run it at ...` cue should not burn context by
+     * re-injecting `local_serve` every turn. We scan the whole history (session
+     * scope) so a summary is pushed once per chat and then suppressed; a new
+     * chat starts with a fresh history and the skill becomes eligible again.
+     */
+    fun extractRecentlyInjectedSkillIds(
+        history: List<ChatMessage>,
+        lookback: Int = Int.MAX_VALUE
+    ): Set<String> {
+        val candidates = history.filter {
+            it.role == "user" && it.textContent.contains("<available-skills>")
+        }
+        val window = if (
+            lookback == Int.MAX_VALUE || lookback >= candidates.size
+        ) {
+            candidates
+        } else {
+            candidates.takeLast(lookback)
+        }
+        return window
+            .flatMap { AVAILABLE_SKILL_REGEX.findAll(it.textContent) }
             .map { it.groupValues[1] }
             .toSet()
     }
@@ -53,12 +85,13 @@ object SkillPromptBuilder {
         history: List<ChatMessage>
     ): ChatMessage? {
         val fetchedIds = extractFetchedSkillIds(history)
+        val injectedIds = extractRecentlyInjectedSkillIds(history)
         val lastUserMsg = extractLastHumanUserMessage(history)
         return build(
             currentPackage = currentPackage,
             activeSkills = activeSkills,
             communityIds = communityIds,
-            recentlyFetchedSkillIds = fetchedIds,
+            recentlyFetchedSkillIds = fetchedIds + injectedIds,
             lastUserMessage = lastUserMsg
         )
     }

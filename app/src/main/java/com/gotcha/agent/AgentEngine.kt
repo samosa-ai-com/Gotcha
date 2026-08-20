@@ -454,7 +454,7 @@ class AgentEngine(
                 add(systemPromptMessage(agent))
                 addAll(cullOldObservations(trimmedHistory()))
                 add(currentTimestampMessage())
-                addAll(activeSkillsMessages())
+                addAll(activeSkillsMessages(agent))
             }
             val response = try {
                 llm.chat(
@@ -1017,11 +1017,16 @@ class AgentEngine(
      * Injects context-aware skills based on the currently foregrounded package.
      * This makes the agent behave optimally for the specific app on screen.
      */
-    private fun activeSkillsMessages(): List<ChatMessage> {
+    private fun activeSkillsMessages(agent: AgentMode? = null): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
         val disabledSkills = settingsProvider().disabledSkills
-        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
+        var activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
             .filter { !disabledSkills.contains(it.id) }
+        // local_serve is a phone HTML serve default — never in voice-call
+        // brevity mode or when Monitor cannot execute write_file/run_command.
+        if (callMode || agent == AgentMode.MONITOR) {
+            activeSkills = activeSkills.filterNot { it.id == "local_serve" }
+        }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
         val message = SkillPromptBuilder.buildFromHistory(
             currentPackage = currentPackage,
@@ -1069,6 +1074,23 @@ class AgentEngine(
                     "mode restrictions below, or with a format a tool requires."
             }
             .orEmpty()
+        // Default to HTML-on-port when the user wants something built but did not
+        // say how to run it — make it runnable on this phone without a follow-up.
+        // Operator-only and suppressed in voice-call brevity mode. The skill
+        // local_serve carries the exact run_command/toybox recipe; this nudge
+        // is the cheap index-0 default that causes the agent to fetch it.
+        val serveDirective = if (agent == AgentMode.OPERATOR && !callMode) {
+            "\n\nWhen the user asks you to build, develop, or create an app, game, page, or tool " +
+                "and does not specify how to run it, default to a self-contained HTML page " +
+                "in the Gotcha chats folder and serve it on a free local port with run_command " +
+                "(toybox nc) so it is immediately usable on this phone — do not wait for a " +
+                "follow-up 'run it'. If the request is genuinely ambiguous (could be an Android " +
+                "APK vs a web app vs a Python script vs a Termux program), ask one clarifying " +
+                "question whether they want it runnable on this phone as a web app or elsewhere " +
+                "before choosing."
+        } else {
+            ""
+        }
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Gotcha (operating in Monitor mode), a read-only AI assistant " +
@@ -1143,7 +1165,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return core + languageDirective + styleDirective + reminder
+        return core + serveDirective + languageDirective + styleDirective + reminder
     }
 
     /**
