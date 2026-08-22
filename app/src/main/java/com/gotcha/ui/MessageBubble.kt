@@ -10,19 +10,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -44,6 +44,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -370,18 +372,43 @@ private fun ToolLedger(
     contentColor: Color,
     collapsed: Boolean
 ) {
-    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-        Box(
-            modifier = Modifier
-                .width(2.dp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(1.dp))
-                .background(railColor.copy(alpha = 0.7f))
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
+    // Rail drawn without IntrinsicSize.Min — the previous Row(height=
+    // IntrinsicSize.Min) + Box(fillMaxHeight) forced an intrinsic
+    // measurement of a Column containing a Text(maxLines=Int.MAX_VALUE)
+    // holding 32KB Termux stdout, recursing through
+    // LayoutModifierNode.maxIntrinsicHeight and crashing on expand
+    // (issue #55 on 1.0.2). drawBehind paints the rail in the Row's
+    // own 2.dp inset without querying children's intrinsics.
+    val railAlpha = railColor.copy(alpha = 0.7f)
+    Row(
+        modifier = Modifier.drawBehind {
+            val stroke = 2.dp.toPx()
+            drawLine(
+                color = railAlpha,
+                start = Offset(stroke / 2f, 0f),
+                end = Offset(stroke / 2f, size.height),
+                strokeWidth = stroke
+            )
+        }
+    ) {
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(
+            modifier = if (collapsed) {
+                Modifier
+            } else {
+                Modifier
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            }
+        ) {
+            val softCap = 8192
+            val display = if (!collapsed && text.length > softCap) {
+                text.take(softCap) + "\n…truncated ${text.length - softCap} chars — Copy as text for full output"
+            } else {
+                text
+            }
             Text(
-                text = text,
+                text = display,
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = GotchaMono,
                 color = contentColor,

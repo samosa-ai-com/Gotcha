@@ -61,12 +61,12 @@ fun SettingsScreen(
     },
     /** Logs out of Samosa (clears JWT + Google state). */
     onSamosaSignOut: suspend () -> Unit = {},
-    /**
-     * Fetches the user's remaining Samosa credit (raw float) or null when not
-     * signed in / the gateway is unreachable. Shown scaled by ×1000 in the
-     * auth section — never the raw value.
-     */
-    onFetchSamosaCredits: suspend () -> Double? = { null },
+    /** Fetches the user's full profile (including tier, tags, referral) or null when unavailable. */
+    onFetchSamosaProfile: suspend () -> com.gotcha.auth.SamosaUser? = { null },
+    /** Claims an invite code via the auth manager. */
+    onClaimReferral: suspend (String) -> Result<Unit> = {
+        Result.failure(Exception("Not supported"))
+    },
     /**
      * Forces a fetch of the server-messages feed (notifications). Bypasses
      * the 6h gate. Returns the new last-fetched-at timestamp (ms), or null
@@ -133,7 +133,8 @@ fun SettingsScreen(
             onRefreshChatModels = onRefreshChatModels,
             onSamosaSignIn = onSamosaSignIn,
             onSamosaSignOut = onSamosaSignOut,
-            onFetchSamosaCredits = onFetchSamosaCredits,
+            onFetchSamosaProfile = onFetchSamosaProfile,
+            onClaimReferral = onClaimReferral,
             onClearLlmCache = onClearLlmCache,
             onClearDebugScreenshots = onClearDebugScreenshots
         )
@@ -144,7 +145,8 @@ fun SettingsScreen(
             onRefreshAudioModels = onRefreshAudioModels,
             onSamosaSignIn = onSamosaSignIn,
             onSamosaSignOut = onSamosaSignOut,
-            onFetchSamosaCredits = onFetchSamosaCredits
+            onFetchSamosaProfile = onFetchSamosaProfile,
+            onClaimReferral = onClaimReferral
         )
         SettingsPage.PERMISSIONS -> PermissionsScreen(
             packageName = packageName,

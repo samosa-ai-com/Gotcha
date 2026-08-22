@@ -231,6 +231,17 @@ Type natural-language requests. Examples:
 - **run_command** runs as the unprivileged app user (no root). Many system paths
   are unreadable; destructive commands (`rm -r`, `dd`, `reboot`, `su`, …) are
   blocked, with a 15 s timeout and 32 KB output cap.
+- **run_termux_command** runs inside Termux's user-space, which gives you a
+  real Linux shell with `pkg`/`apt`, Python, git, compilers and the rest of
+  the Unix tail. It is not a server: no root, no systemd, no kernel access,
+  no persistence between calls, output capped at 32 KB, hard 600 s timeout,
+  and 4 concurrent commands. Long-running processes need to be backgrounded
+  with `nohup ... &` + `disown` and can be killed by Doze / battery savers —
+  call `search_skills('termux_background')` for the full pattern. The default
+  Termux mirror is slow or blocked on some networks; if `pkg install` hangs,
+  ask the user to open Termux and run `termux-change-repo` once. See
+  [`docs/termux-setup.md`](docs/termux-setup.md) for the one-time setup
+  walkthrough.
 
 ### Monitor vs Operator modes
 

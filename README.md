@@ -57,6 +57,22 @@ The app opens on Settings — fill in **API key**, **Base URL** (including `/v1/
 * **⚡ Skills** — bundled operational guidance for specific apps, injected automatically when that app is in front. → [Skill Hub](https://samosa-ai.com/gotcha/hub)
 * **🎙️ Voice & vision** — selectable TTS/STT providers, plus screenshot understanding for multimodal models.
 
+## 🐧 Termux (Linux shell)
+
+Termux (the F-Droid or GitHub build) gives Gotcha a real Linux user-space
+on Android and is reached through the `run_termux_command` tool, which
+runs headlessly under Termux's user id. It is genuinely useful for
+package installs, scripts, compilers, Python, git, and the rest of the
+long Unix tail — but it is not a server. There is no root, no systemd,
+no kernel access, and no persistence between shell calls. Long-running
+processes must be backgrounded explicitly; large packages may need a
+mirror change on slow networks. The bundled `termux_*` skills
+(`termux_operations`, `termux_repositories`, `termux_filesystem`,
+`termux_background`, `termux_proot`) enumerate the realistic limits; ask
+the assistant to `search_skills` for `termux_operations` if anything is
+unclear. See [`docs/termux-setup.md`](docs/termux-setup.md) for the
+one-time setup walkthrough.
+
 ## 📚 Documentation
 
 * 🚀 [**Getting Started**](https://samosa-ai.com/gotcha/docs/getting-started) — install, configure a model, grant permissions.

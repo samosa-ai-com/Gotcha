@@ -200,8 +200,13 @@ class AgentEngine(
         val id = sessionId ?: "unknown"
         return if (workingDirRoot == GotchaStorage.chatsRoot().absolutePath) {
             // Chat dirs are named "Slug_shortId" and renamed in place as the
-            // title becomes known; call working dirs (below) have no title.
-            GotchaStorage.ensureChatDir(id, currentTitle(), create)
+            // title becomes known. During an active run the system prompt already
+            // told the agent the working directory, so renaming mid-run would
+            // invalidate absolute paths the agent just received (issue in
+            // 3923757b Sudoku: Create-a-Sudoku-game vs Sudoku-Game-Creation-Request).
+            // Use findOrCreate mid-run to keep the dir stable; real rename happens
+            // only in saveCurrentSession when the run is done.
+            GotchaStorage.findOrCreateChatDir(id, currentTitle(), create)
         } else {
             java.io.File(workingDirRoot, id).also { if (create) it.mkdirs() }
         }
@@ -303,7 +308,16 @@ class AgentEngine(
             )
         )
         // Rename the chat dir in place now that the real title is known.
-        setupWorkingDir()
+        // Use ensureChatDir (with rename) here, not the mid-run findOrCreate
+        // path in setupWorkingDir, so the rename is deferred to session save
+        // and does not invalidate absolute paths the agent received mid-run.
+        if (workingDirRoot == GotchaStorage.chatsRoot().absolutePath) {
+            val dir = GotchaStorage.ensureChatDir(id, title, create = true)
+            FileResolver.WORKING_DIR_BASE = dir.absolutePath
+            GotchaLog.d(TAG) { "saveCurrentSession: renamed working dir to ${dir.absolutePath}" }
+        } else {
+            setupWorkingDir()
+        }
     }
 
     /** Replaces the persisted run-summary list when switching to another session. */
@@ -454,7 +468,7 @@ class AgentEngine(
                 add(systemPromptMessage(agent))
                 addAll(cullOldObservations(trimmedHistory()))
                 add(currentTimestampMessage())
-                addAll(activeSkillsMessages())
+                addAll(activeSkillsMessages(agent))
             }
             val response = try {
                 llm.chat(
@@ -520,7 +534,13 @@ class AgentEngine(
             // make the server 400 the whole chat (issue #13). executeToolCalls
             // below still runs the ORIGINAL calls, so the model still sees the
             // truthful "Malformed tool arguments" result and can fix itself.
-            history += message.withValidToolCallArguments()
+            // Track the assistant index so an interrupt that orphans tool_calls
+            // can be repaired — otherwise the next request is malformed and
+            // the provider 400s every later turn.
+            val sanitizedAssistant = message.withValidToolCallArguments()
+            history += sanitizedAssistant
+            val orphanAssistantIdx = history.size - 1
+            val orphanExpectedCalls = sanitizedAssistant.toolCalls ?: toolCalls
             if (message.hasText || !message.reasoningContent.isNullOrBlank()) {
                 events.onUi(
                     MessageKind.ASSISTANT,
@@ -617,7 +637,15 @@ class AgentEngine(
                 }
             }
             val historySizeBeforeTools = history.size
-            executeToolCalls()
+            try {
+                executeToolCalls()
+            } catch (e: CancellationException) {
+                // Interrupt orphaned the assistant's tool_calls. Synthesize
+                // cancelled stubs so history stays valid for the next request
+                // and the provider does not 400 every later turn.
+                sanitizeOrphanedToolCalls(orphanAssistantIdx, orphanExpectedCalls)
+                throw e
+            }
 
             // finish_task: the model's explicit "done" signal. Without it the only
             // way out of this loop is a reply that happens to carry no tool calls,
@@ -1003,11 +1031,16 @@ class AgentEngine(
      * Injects context-aware skills based on the currently foregrounded package.
      * This makes the agent behave optimally for the specific app on screen.
      */
-    private fun activeSkillsMessages(): List<ChatMessage> {
+    private fun activeSkillsMessages(agent: AgentMode? = null): List<ChatMessage> {
         val currentPackage = ScreenPerception.getCurrentPackageName() ?: return emptyList()
         val disabledSkills = settingsProvider().disabledSkills
-        val activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
+        var activeSkills = SkillRegistry.getSkillsForPackage(currentPackage, hiddenTools())
             .filter { !disabledSkills.contains(it.id) }
+        // local_serve is a phone HTML serve default — never in voice-call
+        // brevity mode or when Monitor cannot execute write_file/run_command.
+        if (callMode || agent == AgentMode.MONITOR) {
+            activeSkills = activeSkills.filterNot { it.id == "local_serve" }
+        }
         val communityIds = SkillRegistry.getCommunitySkills().map { it.id }.toSet()
         val message = SkillPromptBuilder.buildFromHistory(
             currentPackage = currentPackage,
@@ -1055,6 +1088,29 @@ class AgentEngine(
                     "mode restrictions below, or with a format a tool requires."
             }
             .orEmpty()
+        // Default to HTML-on-port when the user wants something built but did not
+        // say how to run it — make it runnable on this phone without a follow-up.
+        // Operator-only and suppressed in voice-call brevity mode. The skill
+        // local_serve carries the exact recipe; this nudge is the cheap index-0
+        // default that causes the agent to fetch it. Most complex/long-running
+        // commands only work reliably with run_termux_command, so prefer Termux
+        // when available — do not waste turns probing run_command toybox when the
+        // task needs python/build/serve and Termux is installed.
+        val serveDirective = if (agent == AgentMode.OPERATOR && !callMode) {
+            "\n\nWhen the user asks you to build, develop, or create an app, game, page, or tool " +
+                "and does not specify how to run it, default to a self-contained HTML page " +
+                "in the Gotcha chats folder and serve it on a free local port so it is " +
+                "immediately usable on this phone — do not wait for a follow-up 'run it'. " +
+                "If Termux is available (check <env> Termux installed: yes), prefer " +
+                "run_termux_command: copy the HTML to \$HOME via stdin and serve with " +
+                "termux-wake-lock + python3 -m http.server; otherwise use run_command " +
+                "toybox nc loop. If the request is genuinely ambiguous (could be an " +
+                "Android APK vs a web app vs a Python script vs a Termux program), ask one " +
+                "clarifying question whether they want it runnable on this phone as a web app " +
+                "or elsewhere before choosing."
+        } else {
+            ""
+        }
         val core = when (agent) {
             AgentMode.MONITOR ->
                 "You are Gotcha (operating in Monitor mode), a read-only AI assistant " +
@@ -1129,7 +1185,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return core + languageDirective + styleDirective + reminder
+        return core + serveDirective + languageDirective + styleDirective + reminder
     }
 
     /**
@@ -1321,6 +1377,52 @@ class AgentEngine(
             return listOf(note) + trimmed
         }
         return trimmed
+    }
+
+    /**
+     * Repairs an orphaned assistant `tool_calls` left behind by an interrupt.
+     * Some LLM providers 400 the whole chat when `assistant.tool_calls` count
+     * != following `tool` results, bricking the session for every later turn.
+     * We synthesize `Cancelled` stubs for missing calls so the next request is
+     * spec-compliant. Called from `run`'s `CancellationException` path and from
+     * `ChatViewModel`'s interrupt cleanup.
+     */
+    internal fun sanitizeOrphanedToolCalls(assistantIdx: Int, expectedCalls: List<ToolCall>) {
+        if (assistantIdx < 0 || assistantIdx >= history.size) return
+        val assistant = history[assistantIdx]
+        val calls = expectedCalls.ifEmpty { assistant.toolCalls ?: return }
+        if (calls.isEmpty()) return
+        // Count tool results already written after this assistant.
+        var have = 0
+        for (i in assistantIdx + 1 until history.size) {
+            if (history[i].role == "tool") have++
+            // Stop at next user/assistant boundary — tool results are contiguous.
+            if (history[i].role == "user" || history[i].role == "assistant") break
+        }
+        if (have >= calls.size) return
+        // Synthesize missing tool stubs in order, reusing original ids.
+        for (idx in have until calls.size) {
+            val call = calls[idx]
+            history += ChatMessage(
+                role = "tool",
+                content = JsonPrimitive(
+                    "Cancelled: agent was interrupted by the user before this tool completed."
+                ),
+                toolCallId = call.id
+            )
+        }
+    }
+
+    /** Convenience: sanitize the last assistant if it carries orphaned tool_calls. */
+    internal fun sanitizeLastOrphanedAssistant() {
+        for (i in history.size - 1 downTo 0) {
+            val msg = history[i]
+            if (msg.role == "assistant" && !msg.toolCalls.isNullOrEmpty()) {
+                sanitizeOrphanedToolCalls(i, msg.toolCalls!!)
+                return
+            }
+            if (msg.role == "user") return
+        }
     }
 
     /**

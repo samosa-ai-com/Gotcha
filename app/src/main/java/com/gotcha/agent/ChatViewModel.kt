@@ -543,10 +543,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.run(agent)
         } catch (_: CancellationException) {
             appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
+            // The interrupt may have orphaned an assistant with tool_calls but no
+            // matching tool results. Repair it in NonCancellable before the next
+            // turn is built — otherwise the provider 400s every later request.
+            withContext(NonCancellable) {
+                agentEngine.sanitizeLastOrphanedAssistant()
+            }
         } finally {
             withContext(NonCancellable) {
                 currentRunIsVoice = false
                 lastInputWasVoice = false
+                // Belt-and-suspenders: an interrupt that slipped past the engine's
+                // own sanitize still gets repaired here before persisting.
+                agentEngine.sanitizeLastOrphanedAssistant()
                 agentEngine.saveCurrentSession()
                 _uiState.update {
                     it.copy(
