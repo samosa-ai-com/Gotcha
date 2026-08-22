@@ -1,5 +1,7 @@
 package com.gotcha.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.BuildConfig
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
@@ -560,6 +563,70 @@ fun ReferAndEarnCard(
     }
 }
 
+/**
+ * Builds the influencer form URL, pre-filling the "Samosa AI login email" question
+ * with [email] when both [formUrl] and [entryId] are configured — that field must
+ * match the signed-in account or credits land on the wrong one. Falls back to the
+ * bare [formUrl] when either is blank, so pre-fill is opt-in via config.
+ */
+internal fun buildInfluencerFormUrl(
+    formUrl: String,
+    entryId: String,
+    email: String
+): String {
+    val base = formUrl.trimEnd('/')
+    if (base.isBlank() || entryId.isBlank() || email.isBlank()) return base
+    return "$base?usp=pp_url&$entryId=${Uri.encode(email)}"
+}
+
+/**
+ * Card inviting creators with a sizable following to apply for the influencer program.
+ * Renders nothing when [BuildConfig.INFLUENCER_FORM_URL] is blank, so a public checkout
+ * without the form URL configured stays inert.
+ */
+@Composable
+fun InfluencerProgramCard(email: String = "", modifier: Modifier = Modifier) {
+    val formUrl = BuildConfig.INFLUENCER_FORM_URL
+    if (formUrl.isBlank()) return
+
+    val context = LocalContext.current
+
+    OutlinedCard(
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "🌟 Got an audience? Let's team up",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "If you're an influencer with a solid following, we'd love to get " +
+                    "Samosa AI in your hands early — with perks to match.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = {
+                    val url = buildInfluencerFormUrl(
+                        formUrl = formUrl,
+                        entryId = BuildConfig.INFLUENCER_ENTRY_EMAIL,
+                        email = email
+                    )
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Apply as an Influencer")
+            }
+        }
+    }
+}
+
 /** Sign-in / sign-out block for Samosa AI, shown by both AI Configuration and Speech. */
 @Composable
 fun SamosaAuthSection(
@@ -639,6 +706,8 @@ fun SamosaAuthSection(
                     referralError = referralError
                 )
             }
+
+            InfluencerProgramCard(email = email)
         } else {
             Button(
                 onClick = onSignIn,

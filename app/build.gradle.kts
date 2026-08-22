@@ -109,6 +109,23 @@ android {
             "FEEDBACK_ENTRY_CHAT_LOG",
             "\"${samosaConfig("FEEDBACK_ENTRY_CHAT_LOG", "")}\""
         )
+        // Google Form for the influencer program signup, injected the same way as
+        // FEEDBACK_FORM_URL above. A blank URL hides the influencer card, keeping
+        // a public checkout inert.
+        buildConfigField(
+            "String",
+            "INFLUENCER_FORM_URL",
+            "\"${samosaConfig("INFLUENCER_FORM_URL", "")}\""
+        )
+        // entry.* key for the form's "Samosa AI login email" question, so the
+        // in-app link pre-fills it with the signed-in account's email — that
+        // field must match the signed-in account or credits land on the wrong
+        // one, and a blank ID here just skips pre-fill (link still works).
+        buildConfigField(
+            "String",
+            "INFLUENCER_ENTRY_EMAIL",
+            "\"${samosaConfig("INFLUENCER_ENTRY_EMAIL", "")}\""
+        )
     }
 
     signingConfigs {
