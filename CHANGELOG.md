@@ -3,6 +3,10 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Fixed
+- The influencer program card now appears in release builds. 1.1.0 was assembled
+  without its form configuration, so the card was hidden and there was no way to
+  apply from inside the app.
 
 ## [1.1.0]
 ### Added
