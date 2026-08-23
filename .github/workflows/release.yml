@@ -195,6 +195,8 @@ jobs:
           FEEDBACK_ENTRY_ANDROID_VERSION: ${{ secrets.FEEDBACK_ENTRY_ANDROID_VERSION }}
           FEEDBACK_ENTRY_USAGE_STATS: ${{ secrets.FEEDBACK_ENTRY_USAGE_STATS }}
           FEEDBACK_ENTRY_CHAT_LOG: ${{ secrets.FEEDBACK_ENTRY_CHAT_LOG }}
+          INFLUENCER_FORM_URL: ${{ secrets.INFLUENCER_FORM_URL }}
+          INFLUENCER_ENTRY_EMAIL: ${{ secrets.INFLUENCER_ENTRY_EMAIL }}
         run: |
           # samosaConfig() in app/build.gradle.kts silently falls back to inert
           # *.example placeholders when a value is missing, which produces an APK
@@ -203,6 +205,16 @@ jobs:
             if [ -z "${!name}" ]; then
               echo "::error::$name is not set in repo secrets — the release would ship placeholder config"
               exit 1
+            fi
+          done
+
+          # A blank INFLUENCER_* is a legitimate default for a public checkout (the card
+          # renders nothing), so this cannot be fatal — but on an official release it means
+          # the influencer card silently disappears, which is how 1.1.0 shipped without it.
+          # Nothing in the built APK distinguishes "blank" from "unset", so warn here.
+          for name in INFLUENCER_FORM_URL INFLUENCER_ENTRY_EMAIL; do
+            if [ -z "${!name}" ]; then
+              echo "::warning::$name is empty — the influencer program card will not appear in this release"
             fi
           done
           ./gradlew :app:assembleRelease --stacktrace
