@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [1.1.0]
 ### Added
 - **Referral program.** You can now share your referral code from a dedicated
   in-app dialog (with one-tap copy), and accounts that joined through a code
