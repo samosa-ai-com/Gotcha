@@ -31,6 +31,13 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # What the release asset is called on GitHub - i.e. the filename a user ends
+      # up with after downloading it. Deliberately NOT the Gradle output name:
+      # renaming that would move app/build/outputs/apk/release/app-release.apk for
+      # every local build and every script and doc pointing at it. Only the upload
+      # is renamed.
+      PUBLISHED_APK_NAME: Gotcha.apk
     permissions:
       contents: write
       pull-requests: write
@@ -85,10 +92,13 @@ jobs:
           FAILED=0
           note() { echo "  - $1"; FAILED=1; }
 
+          # Releases through v1.1.0 shipped the asset as app-release.apk; v1.1.1
+          # onward publishes Gotcha.apk. Accept either, so re-running against an
+          # older tag does not report a perfectly good release as missing its APK.
           ASSET=$(gh release view "$TAG" --json assets \
-            --jq '.assets[] | select(.name == "app-release.apk")' 2>/dev/null || true)
+            --jq '.assets[] | select(.name == "'"$PUBLISHED_APK_NAME"'" or .name == "app-release.apk")' 2>/dev/null || true)
           if [ -z "$ASSET" ]; then
-            note "no GitHub release for $TAG, or it carries no app-release.apk asset"
+            note "no GitHub release for $TAG, or it carries no APK asset"
           fi
 
           MANIFEST_NAME=$(jq -r '.versionName' update.json)
@@ -299,10 +309,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # gh names the asset after the file it uploads, so stage a renamed copy.
+          cp app/build/outputs/apk/release/app-release.apk "$PUBLISHED_APK_NAME"
           gh release create "${{ steps.version.outputs.tag }}" \
-            app/build/outputs/apk/release/app-release.apk \
+            "$PUBLISHED_APK_NAME" \
             --title "${{ steps.version.outputs.tag }}" \
             --notes-file release_notes.md
+          rm -f "$PUBLISHED_APK_NAME"
 
       - name: Regenerate update.json
         if: steps.check.outputs.should_release == 'true'
@@ -312,7 +325,7 @@ jobs:
         run: |
           APK_SHA256=$(sha256sum app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1)
           echo "sha256=$APK_SHA256" >> "$GITHUB_OUTPUT"
-          DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download/${{ steps.version.outputs.tag }}/app-release.apk"
+          DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download/${{ steps.version.outputs.tag }}/$PUBLISHED_APK_NAME"
           jq -n \
             --argjson versionCode "${{ steps.version.outputs.code }}" \
             --arg versionName "${{ steps.version.outputs.name }}" \

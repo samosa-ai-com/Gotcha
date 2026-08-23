@@ -3,6 +3,16 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Fixed
+- The influencer program card now appears in release builds. 1.1.0 was assembled
+  without its form configuration, so the card was hidden and there was no way to
+  apply from inside the app.
+
+### Changed
+- The download on GitHub Releases is now named `Gotcha.apk` instead of
+  `app-release.apk`. Existing installs are unaffected — "Check for Updates"
+  follows the link in the update manifest, whatever the file is called — and
+  the older releases keep their original filename.
 
 ## [1.1.0]
 ### Added
