@@ -407,6 +407,16 @@
       "notes": "unique match, replaceAll, no-match and blank-argument rejection"
     },
     {
+      "tool": "pdf_edit",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.PdfToolTest",
+        "com.gotcha.tools.PdfPageSpecTest",
+        "com.gotcha.tools.PdfEncryptionTest"
+      ],
+      "notes": "every operation round-tripped through pdfbox (merge order, split naming, extract/delete page identity, cumulative rotation), password-protected files at 40/128/256-bit, and the guards: overwrite refusal, safe write-back over the input, delete-all refusal, non-PDF signature rejection and page-range arithmetic"
+    },
+    {
       "tool": "glob",
       "tier": "ROBOLECTRIC",
       "tests": [

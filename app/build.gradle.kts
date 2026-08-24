@@ -362,12 +362,15 @@ dependencies {
     // HTML parsing for webfetch tool
     implementation("org.jsoup:jsoup:1.17.2")
 
-    // PDF text extraction for document attachments (DocumentParser). bouncycastle
-    // is pulled in only for encrypted/signed PDFs, which are out of scope; the
-    // text path never touches it, so exclude it to keep the dependency lean.
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0") {
-        exclude(group = "org.bouncycastle")
-    }
+    // PDF text extraction for document attachments (DocumentParser) and page-structure
+    // editing (PdfTool). bouncycastle is pdfbox's crypto provider for encrypted PDFs;
+    // it used to be excluded as out of scope, but pdf_edit takes a password argument
+    // (bank statements and payslips are routinely locked). The exclusion cannot simply
+    // come back: pdfbox registers BouncyCastleProvider for EVERY encrypted PDF, even
+    // 40-bit RC4, so without it any password file fails with NoClassDefFoundError
+    // (PdfEncryptionTest covers this). Costs ~5.6 MB of dex, which ships uncompressed
+    // while isMinifyEnabled is false — enabling R8 would strip most of it.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     // Connectors: Custom Tabs for the BYO-OAuth consent flow
     implementation("androidx.browser:browser:1.8.0")

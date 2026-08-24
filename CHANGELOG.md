@@ -3,6 +3,17 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **PDF editing.** A new `pdf_edit` tool reshapes PDFs entirely on-device: merge
+  several files into one, split into single pages, extract or delete a page
+  range, and rotate pages, plus an `info` read for the page count. Encrypted
+  files open with a password you supply — but because the edited copy cannot keep
+  that protection, Gotcha now refuses the edit until it has told you the copy
+  will open without a password and you have agreed. Every operation writes a new
+  file and leaves the original alone unless you ask for it to be replaced. Editing the
+  text or images printed on a page is not possible — PDF stores glyphs at fixed
+  coordinates, so there is nothing to reflow — and a bundled `pdf_editing` skill
+  teaches the assistant to say so rather than fake it.
 
 ## [1.1.1]
 ### Fixed

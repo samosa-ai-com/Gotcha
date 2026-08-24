@@ -61,6 +61,7 @@ class ToolExecutor(
     private val questionTool = QuestionTool()
     private val todoTool = TodoTool()
     private val editTool = EditTool(appContext)
+    private val pdfTool = PdfTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -219,6 +220,17 @@ class ToolExecutor(
                 content = args.requireString("content") ?: return missing("content"),
                 append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false,
                 binary = args["binary"]?.jsonPrimitive?.booleanOrNull ?: false
+            )
+            "pdf_edit" -> pdfTool.edit(
+                operation = args.requireString("operation") ?: return missing("operation"),
+                input = args.requireString("input"),
+                inputs = args.requireStringList("inputs"),
+                output = args.requireString("output"),
+                pages = args.requireString("pages"),
+                degrees = args.requireInt("degrees"),
+                password = args.requireString("password"),
+                overwrite = args.requireBoolean("overwrite") ?: false,
+                confirmed = args.requireBoolean("confirmed") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
             "set_brightness" -> systemTool.setBrightness(

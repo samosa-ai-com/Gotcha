@@ -1193,6 +1193,101 @@ object ToolDefinitions {
         }
     )
 
+    val pdfEdit = tool(
+        "pdf_edit",
+        "Edit a PDF's page structure on-device: merge several PDFs into one, split one into " +
+            "single-page files, extract a page range into a new PDF, delete pages, or rotate pages. " +
+            "Also reports page count and page size with operation='info' — call that first when you " +
+            "need to know how many pages a file has before choosing a range. Every operation writes a " +
+            "NEW file and never modifies the input unless you point 'output' at the same path with " +
+            "overwrite=true. It CANNOT edit the text or images inside a page: PDF stores glyphs at " +
+            "fixed coordinates, so there is nothing to reflow — to read a PDF's text use read_file " +
+            "instead, and tell the user plainly that rewriting page content is not possible. Editing a " +
+            "password-protected PDF strips the protection from the copy, so it is refused until you have " +
+            "warned the user and pass confirmed=true.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("operation") {
+                    put("type", "string")
+                    putJsonArray("enum") { PdfTool.OPERATIONS.forEach { add(it) } }
+                    put(
+                        "description",
+                        "info = page count and size; merge = join 'inputs' in order; split = one file per " +
+                            "page; extract_pages = keep 'pages'; delete_pages = drop 'pages'; " +
+                            "rotate_pages = turn 'pages' by 'degrees'."
+                    )
+                }
+                putJsonObject("input") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the source PDF. Required by every operation except merge, e.g. " +
+                            "'/sdcard/Download/statement.pdf'."
+                    )
+                }
+                putJsonObject("inputs") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put(
+                        "description",
+                        "merge only: two or more PDF paths, in the order they should be joined."
+                    )
+                }
+                putJsonObject("output") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the PDF to write. Required by every operation except info and split; " +
+                            "for split it is the output DIRECTORY and defaults to the input's folder."
+                    )
+                }
+                putJsonObject("pages") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "1-based page selection: '3', '1-3,7', '9-' (9 to the end) or 'all'. Required by " +
+                            "extract_pages and delete_pages; optional for rotate_pages (defaults to all)."
+                    )
+                }
+                putJsonObject("degrees") {
+                    put("type", "integer")
+                    putJsonArray("enum") {
+                        add(90)
+                        add(180)
+                        add(270)
+                    }
+                    put("description", "rotate_pages only: clockwise rotation to add, 90, 180 or 270.")
+                }
+                putJsonObject("password") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Password for an encrypted PDF. Ask the user for it — never guess. The output is " +
+                            "written unencrypted."
+                    )
+                }
+                putJsonObject("confirmed") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Set to true ONLY after telling the user that editing their password-protected PDF " +
+                            "writes an unprotected copy, and they agreed. Editing an encrypted PDF fails " +
+                            "without it. Never set it pre-emptively."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") { add("operation") }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2420,6 +2515,8 @@ object ToolDefinitions {
         todowrite,
         // Surgical file editing (Operator only)
         edit,
+        // PDF page-structure editing (Operator only)
+        pdfEdit,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch
