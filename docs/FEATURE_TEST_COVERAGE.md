@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 21 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 22 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **109** | |
+| **Total** | **110** | |
 
-**45 of 109** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**46 of 110** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -65,6 +65,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `lock_screen` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `mark_email_read` | `UNIT` | `EmailToolsTest` — read/unread toggle routed to the right backend |
 | `media_control` | `UNIT` | `MediaSelectionTest` — action parsing and active-session selection |
+| `media_convert` | `ROBOLECTRIC` | `MediaConvertToolTest`, `FfmpegCommandTest` — exhaustive coverage of the generated ffmpeg command on the JVM — POSIX shell quoting against spaces, embedded quotes and metacharacters, /storage/emulated/0 to /sdcard translation including secondary-user roots and near-miss prefixes, bitrate validation, and every audio target's codec arguments — plus the guards that run before Termux is invoked: unsupported and video output formats, nonsense bitrates, paths inside Gotcha's private storage that Termux cannot see, missing input, same-file conversion, existing-output refusal and directory outputs. The conversion itself is device-only and additionally needs Termux with the ffmpeg package installed, so a real MP3 round trip must be verified by hand |
 | `media_edit` | `ROBOLECTRIC` | `MediaEditToolTest`, `MediaTimeSpecTest` — timecode parsing and trim-window arithmetic on the JVM (m:ss, h:mm:ss, unit and plain-seconds forms, ambiguous-field and backwards-window refusals, clamping an over-long end), plus every guard that runs before a codec is touched: unknown operation, missing arguments, trim with no bounds, refusal to write back over the input or over any concat input, existing-output refusal, directory output, the MP4/M4A container check and the .mp3 redirect to .m4a, speed bounds and the pointless speed=1.0 re-encode, non-positive compress height, and concat's input-count limits. The export itself is device-only — Media3 Transformer drives MediaCodec, which is native and has no Robolectric shadow, so the output of trim, extract_audio, remove_audio, compress, speed and concat must be verified by hand on hardware |
 | `notion_append_to_page` | `UNIT` | `NotionToolsTest` — block append request shape |
 | `notion_create_page` | `UNIT` | `NotionToolsTest` — parent/title handling and request shape |

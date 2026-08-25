@@ -80,6 +80,16 @@ class FfmpegCommandTest {
     }
 
     @Test
+    fun `a secondary android user's storage root is honoured`() {
+        // /storage/emulated/10 is a second profile; hardcoding the primary root
+        // would point ffmpeg at another user's files or at nothing at all.
+        val secondary = "/storage/emulated/10"
+        assertEquals("/sdcard/Music/a.mp3", FfmpegCommand.termuxPath("$secondary/Music/a.mp3", secondary))
+        assertTrue(FfmpegCommand.isReachableFromTermux("$secondary/Music/a.mp3", secondary))
+        assertFalse(FfmpegCommand.isReachableFromTermux("/storage/emulated/0/Music/a.mp3", secondary))
+    }
+
+    @Test
     fun `reachability follows the same boundary as translation`() {
         assertTrue(FfmpegCommand.isReachableFromTermux("/storage/emulated/0/Download/a.m4a"))
         assertTrue(FfmpegCommand.isReachableFromTermux("/storage/emulated/0"))

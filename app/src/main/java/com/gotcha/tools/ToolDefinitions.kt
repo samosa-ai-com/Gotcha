@@ -1389,6 +1389,58 @@ object ToolDefinitions {
         }
     )
 
+    val mediaConvert = tool(
+        "media_convert",
+        "Convert an audio file from one format to another on-device, using Termux's ffmpeg. This is the ONLY " +
+            "way to produce an MP3: Android ships no MP3 encoder, so media_edit physically cannot write one. " +
+            "Targets: .mp3, .m4a, .aac, .ogg, .opus, .wav, .flac — the format is taken from the output " +
+            "extension. The file never leaves the device. Needs Termux installed with the ffmpeg package; if " +
+            "it is missing the error says exactly what to install. For everything other than format — " +
+            "trimming, muting, compressing, changing speed, joining — use media_edit, which needs no setup. " +
+            "This does not convert video containers.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("input") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the source audio or video file to take the audio from, e.g. " +
+                            "'/sdcard/Music/recording.m4a'. Must be on shared storage — Termux cannot see " +
+                            "Gotcha's private folders."
+                    )
+                }
+                putJsonObject("output") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path to write, its extension choosing the format: '.mp3', '.m4a', '.aac', '.ogg', " +
+                            "'.opus', '.wav' or '.flac'. Must be on shared storage and cannot be the input."
+                    )
+                }
+                putJsonObject("bitrate") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Audio bitrate as kbps, e.g. '192k' or '320k'. Defaults to 192k (128k for Opus). " +
+                            "Ignored for .wav and .flac, which are lossless."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("input")
+                add("output")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2620,6 +2672,8 @@ object ToolDefinitions {
         pdfEdit,
         // Audio/video editing (Operator only)
         mediaEdit,
+        // Audio format conversion via Termux ffmpeg (Operator only)
+        mediaConvert,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch

@@ -64,6 +64,7 @@ class ToolExecutor(
     private val editTool = EditTool(appContext)
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
+    private val mediaConvertTool = MediaConvertTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -243,6 +244,12 @@ class ToolExecutor(
                 end = args.requireString("end"),
                 height = args.requireInt("height"),
                 speed = args["speed"]?.jsonPrimitive?.doubleOrNull,
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "media_convert" -> mediaConvertTool.convert(
+                input = args.requireString("input") ?: return missing("input"),
+                output = args.requireString("output") ?: return missing("output"),
+                bitrate = args.requireString("bitrate"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))

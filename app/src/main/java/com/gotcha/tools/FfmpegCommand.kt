@@ -24,8 +24,14 @@ import java.util.Locale
  */
 object FfmpegCommand {
 
-    /** Android's canonical shared-storage root, as Gotcha's [FileResolver] reports it. */
-    const val SHARED_STORAGE_ROOT = "/storage/emulated/0"
+    /**
+     * Shared storage as Android usually reports it for the primary user. Only a
+     * fallback and a documentation aid: callers pass the real root from
+     * `Environment.getExternalStorageDirectory()`, because a secondary Android
+     * user gets `/storage/emulated/<id>` and hardcoding the primary would send
+     * ffmpeg at another user's files — or, under a test harness, at nothing.
+     */
+    const val DEFAULT_SHARED_STORAGE_ROOT = "/storage/emulated/0"
 
     /** The same tree as Termux must address it. */
     const val TERMUX_STORAGE_ROOT = "/sdcard"
@@ -85,16 +91,16 @@ object FfmpegCommand {
      * Anything outside shared storage is returned unchanged — [MediaConvertTool]
      * refuses those separately, with an explanation Termux itself cannot give.
      */
-    fun termuxPath(canonicalPath: String): String = when {
-        canonicalPath == SHARED_STORAGE_ROOT -> TERMUX_STORAGE_ROOT
-        canonicalPath.startsWith("$SHARED_STORAGE_ROOT/") ->
-            TERMUX_STORAGE_ROOT + canonicalPath.removePrefix(SHARED_STORAGE_ROOT)
+    fun termuxPath(canonicalPath: String, sharedRoot: String = DEFAULT_SHARED_STORAGE_ROOT): String = when {
+        canonicalPath == sharedRoot -> TERMUX_STORAGE_ROOT
+        canonicalPath.startsWith("$sharedRoot/") ->
+            TERMUX_STORAGE_ROOT + canonicalPath.removePrefix(sharedRoot)
         else -> canonicalPath
     }
 
     /** True when [canonicalPath] is somewhere Termux can reach at all. */
-    fun isReachableFromTermux(canonicalPath: String): Boolean =
-        canonicalPath == SHARED_STORAGE_ROOT || canonicalPath.startsWith("$SHARED_STORAGE_ROOT/")
+    fun isReachableFromTermux(canonicalPath: String, sharedRoot: String = DEFAULT_SHARED_STORAGE_ROOT): Boolean =
+        canonicalPath == sharedRoot || canonicalPath.startsWith("$sharedRoot/")
 
     /**
      * Normalises a requested bitrate to ffmpeg's spelling, or null when it is not
@@ -129,15 +135,16 @@ object FfmpegCommand {
         inputCanonical: String,
         outputCanonical: String,
         target: Target,
-        bitrate: String?
+        bitrate: String?,
+        sharedRoot: String = DEFAULT_SHARED_STORAGE_ROOT
     ): String {
         val args = mutableListOf("ffmpeg", "-nostdin", "-loglevel", "error", "-y")
-        args += listOf("-i", shellQuote(termuxPath(inputCanonical)))
+        args += listOf("-i", shellQuote(termuxPath(inputCanonical, sharedRoot)))
         args += "-vn"
         args += target.codecArgs
         val effective = if (target.isLossless) null else bitrate ?: target.bitrate
         effective?.let { args += listOf("-b:a", it) }
-        args += shellQuote(termuxPath(outputCanonical))
+        args += shellQuote(termuxPath(outputCanonical, sharedRoot))
         return args.joinToString(" ")
     }
 

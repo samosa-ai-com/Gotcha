@@ -4,6 +4,12 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Audio format conversion.** A new `media_convert` tool converts audio between
+  MP3, M4A, AAC, OGG, Opus, WAV and FLAC using Termux's ffmpeg — still entirely
+  on the device, with nothing uploaded anywhere. This is the only way to get an
+  MP3 out of Gotcha: Android ships no MP3 encoder at all, so `media_edit` cannot
+  write one however it is asked. The tool appears only when Termux is installed,
+  and if its ffmpeg package is missing the error says exactly what to run.
 - **Audio & video editing.** A new `media_edit` tool edits media entirely
   on-device: trim a window out of a clip, pull a video's audio into its own
   file, mute a video, shrink one to a smaller resolution, speed it up or slow it
