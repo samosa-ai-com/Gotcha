@@ -372,6 +372,25 @@ dependencies {
     // while isMinifyEnabled is false — enabling R8 would strip most of it.
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
+    // Media3 Transformer: on-device audio/video editing (MediaEditTool). Wraps
+    // MediaCodec/MediaMuxer, so edits are hardware-accelerated and — crucially —
+    // transmuxed rather than re-encoded when the edit does not touch pixels, which
+    // is what makes a trim take seconds instead of minutes. media3-effect carries
+    // the pixel-touching transformations (scale, rotate, speed).
+    //
+    // Pinned to 1.4.1 deliberately: media3 1.5.0+ requires compileSdk 35 and this
+    // module is on 34. Bump both together or not at all.
+    //
+    // ffmpeg-kit was the obvious alternative and was rejected: its maintainer
+    // retired the project and pulled the prebuilt binaries, it adds tens of MB per
+    // ABI, and being software-only it is slower on-device than the hardware path.
+    // run_termux_command remains the escape hatch for formats MediaCodec cannot
+    // open (see the media_editing skill).
+    val media3Version = "1.4.1"
+    implementation("androidx.media3:media3-transformer:$media3Version")
+    implementation("androidx.media3:media3-effect:$media3Version")
+    implementation("androidx.media3:media3-common:$media3Version")
+
     // Connectors: Custom Tabs for the BYO-OAuth consent flow
     implementation("androidx.browser:browser:1.8.0")
 
