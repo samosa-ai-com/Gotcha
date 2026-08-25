@@ -65,8 +65,22 @@ class MediaEditTool(private val context: Context) {
          * named, so anything else would be a mislabelled file that some players
          * refuse and the user cannot diagnose. .m4a is the audio-only spelling of
          * the same container, which is why it is allowed alongside .mp4.
+         *
+         * MP3 is not on this list and cannot be added. Two independent blockers:
+         * media3's FrameworkMuxer accepts only audio/mp4a-latm, audio/3gpp and
+         * audio/amr-wb as output audio formats, and Android ships no MP3 *encoder*
+         * at all (only a decoder). Writing MP3 would mean bundling something like
+         * LAME through the NDK, outside the media3 pipeline entirely.
          */
         val OUTPUT_EXTENSIONS = listOf("mp4", "m4a")
+
+        /**
+         * Extensions a user is likely to name when they mean "an audio file",
+         * MP3 above all. They get pointed at .m4a rather than at ffmpeg, because
+         * "extract the mp3" almost always means "give me the audio", and AAC in an
+         * .m4a plays on everything the asker owns.
+         */
+        private val AUDIO_EXTENSIONS = setOf("mp3", "wav", "ogg", "flac", "aac", "opus", "wma", "m4b")
     }
 
     /**
@@ -413,11 +427,7 @@ class MediaEditTool(private val context: Context) {
         }
         val extension = file.extension.lowercase()
         if (extension !in OUTPUT_EXTENSIONS) {
-            return fail(
-                "Output '$path' ends in '.$extension', but this tool always writes an MP4 container — " +
-                    "name it .mp4 for video or .m4a for audio-only. Converting to ${extension.ifEmpty { "that format" }} " +
-                    "needs ffmpeg via run_termux_command."
-            )
+            return fail(unsupportedContainerMessage(path, extension))
         }
         if (file.exists() && !overwrite) {
             return fail(
@@ -431,6 +441,32 @@ class MediaEditTool(private val context: Context) {
             }
         }
         return Result.success(file)
+    }
+
+    /**
+     * Explains an unwritable output container, and — for an audio extension —
+     * redirects rather than dead-ends.
+     *
+     * "Extract the mp3" is how people ask for an audio file; they mean the audio,
+     * not the codec. Sending the model to ffmpeg over a filename would trade a
+     * two-second stream copy for a Termux dependency the user may not even have
+     * installed, to produce a file that plays no more widely than the .m4a would.
+     * So MP3 gets a substitution to offer, and only a genuine MP3 requirement is
+     * worth the detour.
+     */
+    private fun unsupportedContainerMessage(path: String, extension: String): String {
+        val named = extension.ifEmpty { "no extension" }
+        return if (extension in AUDIO_EXTENSIONS) {
+            "Output '$path' ends in '.$extension', which this tool cannot write — Android has no MP3 encoder and " +
+                "its muxer only writes AAC audio, so no on-device tool can produce one. Write '.m4a' instead: it " +
+                "holds AAC, is smaller than MP3 at the same quality, and plays on phones, browsers, cars and " +
+                "desktops alike. Do that and tell the user you saved an .m4a because MP3 cannot be made on-device — " +
+                "for almost every purpose it is the same thing. Only if they specifically need MP3 for a device that " +
+                "accepts nothing else is ffmpeg via run_termux_command worth the detour, and that needs Termux installed."
+        } else {
+            "Output '$path' has $named, but this tool always writes an MP4 container — name it '.mp4' for video or " +
+                "'.m4a' for audio-only. Converting to another container needs ffmpeg via run_termux_command."
+        }
     }
 
     /**

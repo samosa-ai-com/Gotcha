@@ -163,11 +163,38 @@ class MediaEditToolTest {
 
     @Test
     fun `an output container the muxer cannot write is refused`() {
-        listOf("out.mp3", "out.wav", "out.mkv", "out").forEach { name ->
+        listOf("out.mkv", "out.avi", "out").forEach { name ->
             val result = edit("trim", input = placeholder("a.mp4").path, output = File(dir, name).path, start = "1")
             assertFalse(name, result.success)
             assertTrue(name, result.message.contains(".mp4") && result.message.contains(".m4a"))
         }
+    }
+
+    @Test
+    fun `an audio extension is redirected to m4a rather than to ffmpeg`() {
+        // "Extract the mp3" means "give me the audio". Sending the model to Termux
+        // over a filename would cost a dependency the user may not have, to produce
+        // a file that plays no more widely than the .m4a it could have written.
+        listOf("out.mp3", "out.wav", "out.flac", "out.ogg").forEach { name ->
+            val result = edit(
+                "extract_audio",
+                input = placeholder("a.mp4").path,
+                output = File(dir, name).path
+            )
+            assertFalse(name, result.success)
+            assertTrue(name, result.message.contains(".m4a"))
+            assertTrue("$name should explain why", result.message.contains("no MP3 encoder"))
+        }
+    }
+
+    @Test
+    fun `the mp3 redirect still names ffmpeg for a genuine mp3 requirement`() {
+        val result = edit(
+            "extract_audio",
+            input = placeholder("a.mp4").path,
+            output = File(dir, "out.mp3").path
+        )
+        assertTrue(result.message.contains("run_termux_command"))
     }
 
     // ---- re-encoding operations ----
