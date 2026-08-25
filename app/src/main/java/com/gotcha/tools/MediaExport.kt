@@ -3,13 +3,20 @@ package com.gotcha.tools
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
+import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -78,33 +85,50 @@ class MediaExport(private val context: Context) {
      * track dropped. With no clip and no removals this is a plain container
      * rewrite, which Transformer still performs as a stream copy.
      */
+    @Suppress("LongParameterList")
     suspend fun run(
         input: File,
         output: File,
         clip: LongRange? = null,
         removeAudio: Boolean = false,
-        removeVideo: Boolean = false
+        removeVideo: Boolean = false,
+        videoEffects: List<Effect> = emptyList(),
+        audioProcessors: List<AudioProcessor> = emptyList(),
+        videoBitrateBps: Int? = null
     ): Outcome {
         val outcome = withTimeoutOrNull(TIMEOUT_MS) {
             withContext(Dispatchers.Main) {
-                export(input, output, clip, removeAudio, removeVideo)
+                export(
+                    input = input,
+                    output = output,
+                    clip = clip,
+                    removeAudio = removeAudio,
+                    removeVideo = removeVideo,
+                    videoEffects = videoEffects,
+                    audioProcessors = audioProcessors,
+                    videoBitrateBps = videoBitrateBps
+                )
             }
         }
-        if (outcome == null) {
-            // A half-written file is worse than none: it looks like a successful
-            // edit to anything that only checks for existence.
-            runCatching { if (output.exists()) output.delete() }
-            return Outcome(
-                error = ToolResult.error(
-                    "The export did not finish within ${TIMEOUT_MS / 60_000} minutes and was abandoned. " +
-                        "This usually means the file is very long or very high-resolution. Trim it to a shorter " +
-                        "window first, and tell the user why."
-                ),
-                videoEncoder = null,
-                audioEncoder = null
-            )
-        }
-        return outcome
+        return outcome ?: timedOut(output)
+    }
+
+    /**
+     * A half-written output is worse than none: it looks like a successful edit
+     * to anything that only checks for existence, so it is deleted before the
+     * failure is reported.
+     */
+    private fun timedOut(output: File): Outcome {
+        runCatching { if (output.exists()) output.delete() }
+        return Outcome(
+            error = ToolResult.error(
+                "The export did not finish within ${TIMEOUT_MS / 60_000} minutes and was abandoned. " +
+                    "This usually means the file is very long or very high-resolution. Trim it to a shorter " +
+                    "window first, and tell the user why."
+            ),
+            videoEncoder = null,
+            audioEncoder = null
+        )
     }
 
     @Suppress("LongParameterList")
@@ -113,10 +137,61 @@ class MediaExport(private val context: Context) {
         output: File,
         clip: LongRange?,
         removeAudio: Boolean,
-        removeVideo: Boolean
+        removeVideo: Boolean,
+        videoEffects: List<Effect>,
+        audioProcessors: List<AudioProcessor>,
+        videoBitrateBps: Int?
     ): Outcome = suspendCancellableCoroutine { continuation ->
-        val item = MediaItem.Builder()
-            .setUri(Uri.fromFile(input))
+        val edited = EditedMediaItem.Builder(mediaItem(input, clip))
+            .setRemoveAudio(removeAudio)
+            .setRemoveVideo(removeVideo)
+            .setEffects(Effects(ImmutableList.copyOf(audioProcessors), ImmutableList.copyOf(videoEffects)))
+            .build()
+
+        val transformer = transformerBuilder(output, videoBitrateBps, continuation)
+            .build()
+
+        continuation.invokeOnCancellation {
+            // cancel() must run on the thread that built the Transformer.
+            runCatching { transformer.cancel() }
+        }
+        transformer.start(edited, output.absolutePath)
+    }
+
+    /**
+     * Joins [inputs] end to end into [output].
+     *
+     * A concatenation is the one operation that cannot be expressed as an edit of
+     * a single item, so it builds a [Composition] instead. Transformer re-encodes
+     * whatever it must to make mismatched sources line up, which is why
+     * [MediaEditTool] warns about the cost before calling this.
+     */
+    suspend fun concat(inputs: List<File>, output: File): Outcome {
+        val outcome = withTimeoutOrNull(TIMEOUT_MS) {
+            withContext(Dispatchers.Main) { concatOnLooper(inputs, output) }
+        }
+        return outcome ?: timedOut(output)
+    }
+
+    private suspend fun concatOnLooper(
+        inputs: List<File>,
+        output: File
+    ): Outcome = suspendCancellableCoroutine { continuation ->
+        val sequence = EditedMediaItemSequence(
+            inputs.map { EditedMediaItem.Builder(mediaItem(it, clip = null)).build() }
+        )
+        val composition = Composition.Builder(ImmutableList.of(sequence)).build()
+
+        val transformer = transformerBuilder(output, videoBitrateBps = null, continuation = continuation)
+            .build()
+
+        continuation.invokeOnCancellation { runCatching { transformer.cancel() } }
+        transformer.start(composition, output.absolutePath)
+    }
+
+    private fun mediaItem(file: File, clip: LongRange?): MediaItem =
+        MediaItem.Builder()
+            .setUri(Uri.fromFile(file))
             .apply {
                 clip?.let {
                     setClippingConfiguration(
@@ -129,12 +204,12 @@ class MediaExport(private val context: Context) {
             }
             .build()
 
-        val edited = EditedMediaItem.Builder(item)
-            .setRemoveAudio(removeAudio)
-            .setRemoveVideo(removeVideo)
-            .build()
-
-        val transformer = Transformer.Builder(context)
+    private fun transformerBuilder(
+        output: File,
+        videoBitrateBps: Int?,
+        continuation: kotlinx.coroutines.CancellableContinuation<Outcome>
+    ): Transformer.Builder {
+        val builder = Transformer.Builder(context)
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, result: ExportResult) {
                     if (continuation.isActive) {
@@ -157,7 +232,7 @@ class MediaExport(private val context: Context) {
                     if (continuation.isActive) {
                         continuation.resume(
                             Outcome(
-                                error = ToolResult.error(describeExportError(exception, input)),
+                                error = ToolResult.error(describeExportError(exception, output)),
                                 videoEncoder = null,
                                 audioEncoder = null
                             )
@@ -165,13 +240,14 @@ class MediaExport(private val context: Context) {
                     }
                 }
             })
-            .build()
-
-        continuation.invokeOnCancellation {
-            // cancel() must run on the thread that built the Transformer.
-            runCatching { transformer.cancel() }
+        videoBitrateBps?.let { bitrate ->
+            builder.setEncoderFactory(
+                DefaultEncoderFactory.Builder(context)
+                    .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
+                    .build()
+            )
         }
-        transformer.start(edited, output.absolutePath)
+        return builder
     }
 
     /**

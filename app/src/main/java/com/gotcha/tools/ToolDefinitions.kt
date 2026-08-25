@@ -1291,14 +1291,16 @@ object ToolDefinitions {
     val mediaEdit = tool(
         "media_edit",
         "Edit an audio or video file on-device: trim a window out of it, pull its audio track into a " +
-            "separate file, or strip the audio from a video. Also reports duration, resolution, tracks and " +
-            "codecs with operation='info' — call that FIRST whenever you need a timecode, so you are trimming " +
-            "against the real duration rather than a guess. Works the same on video and on audio-only files. " +
-            "Every operation writes a NEW file and never modifies the input; the output cannot be the input, " +
-            "because the encoder writes it while still reading from it. These operations copy the streams " +
-            "rather than re-encoding, so they are fast and lossless. It CANNOT re-encode, compress, resize, " +
-            "change speed, join files, or add music yet, and it cannot open DRM-protected media at all — say " +
-            "so plainly instead of attempting a workaround.",
+            "separate file, strip the audio from a video, shrink it, change its playback speed, or join " +
+            "several files end to end. Also reports duration, resolution, tracks and codecs with " +
+            "operation='info' — call that FIRST whenever you need a timecode or a resolution, so you are " +
+            "working against real numbers rather than a guess. Works the same on video and on audio-only " +
+            "files. Every operation writes a NEW file and never modifies the input; the output cannot be the " +
+            "input, because the encoder writes it while still reading from it. trim, extract_audio and " +
+            "remove_audio copy the streams rather than re-encoding, so they are fast and lossless; compress, " +
+            "speed and concat re-encode, so they take much longer and lose a little quality. It cannot add " +
+            "music, overlay text or a watermark, blur or remove anything inside a frame, or open " +
+            "DRM-protected media at all — say so plainly instead of attempting a workaround.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("operation") {
@@ -1308,7 +1310,8 @@ object ToolDefinitions {
                         "description",
                         "info = duration, tracks, resolution and codecs; trim = keep the window between " +
                             "'start' and 'end'; extract_audio = write the audio track as its own file; " +
-                            "remove_audio = write the video with its audio dropped."
+                            "remove_audio = write the video with its audio dropped; compress = re-encode " +
+                            "smaller at 'height'; speed = re-time by 'speed'; concat = join 'inputs' in order."
                     )
                 }
                 putJsonObject("input") {
@@ -1316,7 +1319,7 @@ object ToolDefinitions {
                     put(
                         "description",
                         "Path of the source audio or video file, e.g. '/sdcard/DCIM/Camera/VID_0001.mp4'. " +
-                            "Required by every operation."
+                            "Required by every operation except concat, which takes 'inputs' instead."
                     )
                 }
                 putJsonObject("output") {
@@ -1346,6 +1349,33 @@ object ToolDefinitions {
                             "and 'end'."
                     )
                 }
+                putJsonObject("inputs") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put(
+                        "description",
+                        "concat only: two or more media paths, in the order they should be joined. They must " +
+                            "all be video or all be audio-only."
+                    )
+                }
+                putJsonObject("height") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "compress only: target height in pixels, e.g. 720 or 480. Defaults to 720. Width " +
+                            "follows the original aspect ratio. Compressing something already this small is " +
+                            "refused."
+                    )
+                }
+                putJsonObject("speed") {
+                    put("type", "number")
+                    put(
+                        "description",
+                        "speed only: playback multiplier between 0.25 and 4.0. 2.0 plays twice as fast and " +
+                            "halves the duration; 0.5 plays at half speed. Audio and video are re-timed " +
+                            "together."
+                    )
+                }
                 putJsonObject("overwrite") {
                     put("type", "boolean")
                     put(
@@ -1355,10 +1385,7 @@ object ToolDefinitions {
                     )
                 }
             }
-            putJsonArray("required") {
-                add("operation")
-                add("input")
-            }
+            putJsonArray("required") { add("operation") }
         }
     )
 

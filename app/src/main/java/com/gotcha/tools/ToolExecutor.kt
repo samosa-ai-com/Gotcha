@@ -13,6 +13,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -236,9 +237,12 @@ class ToolExecutor(
             "media_edit" -> mediaEditTool.edit(
                 operation = args.requireString("operation") ?: return missing("operation"),
                 input = args.requireString("input"),
+                inputs = args.requireStringList("inputs"),
                 output = args.requireString("output"),
                 start = args.requireString("start"),
                 end = args.requireString("end"),
+                height = args.requireInt("height"),
+                speed = args["speed"]?.jsonPrimitive?.doubleOrNull,
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))

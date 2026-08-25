@@ -4,6 +4,20 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Audio & video editing.** A new `media_edit` tool edits media entirely
+  on-device: trim a window out of a clip, pull a video's audio into its own
+  file, mute a video, shrink one to a smaller resolution, speed it up or slow it
+  down, and join several files end to end, plus an `info` read for duration,
+  resolution and tracks. Video and audio files work the same way, so trimming a
+  voice memo and trimming a 4K video are the same request. Trimming, extracting
+  and muting copy the streams rather than re-encoding, so they finish in seconds
+  and lose no quality at all; compressing, re-timing and joining do re-encode,
+  and Gotcha now says which of the two happened so you know whether a file was
+  degraded. Every operation writes a new file and leaves the original alone.
+  Adding music, overlaying text and editing what is inside a frame are not
+  possible, and DRM-protected media cannot be opened at all — a bundled
+  `media_editing` skill teaches the assistant to say so rather than attempt a
+  workaround.
 - **PDF editing.** A new `pdf_edit` tool reshapes PDFs entirely on-device: merge
   several files into one, split into single pages, extract or delete a page
   range, and rotate pages, plus an `info` read for the page count. Encrypted

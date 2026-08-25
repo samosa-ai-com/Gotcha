@@ -1,6 +1,11 @@
 package com.gotcha.tools
 
 import android.content.Context
+import androidx.annotation.OptIn
+import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.Presentation
+import androidx.media3.effect.SpeedChangeEffect
 import java.io.File
 
 /**
@@ -22,6 +27,7 @@ import java.io.File
  * Only available to Operator (writes files).
  */
 @Suppress("TooManyFunctions")
+@OptIn(UnstableApi::class)
 class MediaEditTool(private val context: Context) {
 
     private val resolver = FileResolver(context)
@@ -34,7 +40,25 @@ class MediaEditTool(private val context: Context) {
          */
         const val MAX_MEDIA_BYTES = 2L * 1024 * 1024 * 1024
 
-        val OPERATIONS = listOf("info", "trim", "extract_audio", "remove_audio")
+        val OPERATIONS = listOf("info", "trim", "extract_audio", "remove_audio", "compress", "speed", "concat")
+
+        /** Keeps a concat from being handed an unbounded glob result. */
+        const val MAX_CONCAT_INPUTS = 20
+
+        /**
+         * Above this, a re-encode will not finish inside [MediaExport.TIMEOUT_MS]
+         * on a mid-range phone. Refusing up front with a usable suggestion beats
+         * burning ten minutes to report a timeout. Stream-copy operations are
+         * unaffected — they are bounded by disk speed, not by the codec.
+         */
+        const val MAX_REENCODE_DURATION_MS = 30L * 60 * 1000
+
+        /** Playback-speed bounds. Outside these the audio resampler produces noise, not sound. */
+        const val MIN_SPEED = 0.25
+        const val MAX_SPEED = 4.0
+
+        /** Default target height for compress — 720p is the usual "make it small enough to send". */
+        const val DEFAULT_COMPRESS_HEIGHT = 720
 
         /**
          * Transformer's muxer writes an MP4 container whatever the output path is
@@ -57,9 +81,12 @@ class MediaEditTool(private val context: Context) {
     suspend fun edit(
         operation: String,
         input: String? = null,
+        inputs: List<String>? = null,
         output: String? = null,
         start: String? = null,
         end: String? = null,
+        height: Int? = null,
+        speed: Double? = null,
         overwrite: Boolean = false
     ): ToolResult {
         val op = operation.trim().lowercase()
@@ -68,16 +95,26 @@ class MediaEditTool(private val context: Context) {
                 "Unknown operation '$operation'. Valid operations: ${OPERATIONS.joinToString(", ")}."
             )
         }
-        val source = input ?: return missing("input", op)
         return try {
+            if (op == "concat") {
+                return concat(inputs, output ?: return missing("output", op), overwrite)
+            }
+            val source = input ?: return missing("input", op)
             when (op) {
                 "info" -> info(source)
                 "trim" -> trim(source, output ?: return missing("output", op), start, end, overwrite)
                 "extract_audio" -> extractAudio(source, output ?: return missing("output", op), overwrite)
-                else -> removeAudio(source, output ?: return missing("output", op), overwrite)
+                "remove_audio" -> removeAudio(source, output ?: return missing("output", op), overwrite)
+                "compress" -> compress(source, output ?: return missing("output", op), height, overwrite)
+                else -> changeSpeed(
+                    source,
+                    output ?: return missing("output", op),
+                    speed ?: return missing("speed", op),
+                    overwrite
+                )
             }
         } catch (e: Exception) {
-            ToolResult.error(describeFailure(e, source))
+            ToolResult.error(describeFailure(e, input ?: inputs?.firstOrNull() ?: "the input"))
         }
     }
 
@@ -163,6 +200,166 @@ class MediaEditTool(private val context: Context) {
         return ToolResult.ok(
             "Muted '${file.name}' into '${target.canonicalPath}' — video kept, audio track dropped, " +
                 "${resolver.formatSize(target.length())}.${export.qualityNote()}"
+        )
+    }
+
+    private suspend fun compress(
+        input: String,
+        output: String,
+        height: Int?,
+        overwrite: Boolean
+    ): ToolResult {
+        val targetHeight = height ?: DEFAULT_COMPRESS_HEIGHT
+        if (targetHeight <= 0) {
+            return ToolResult.error("height must be a positive number of pixels, e.g. 720. Got $targetHeight.")
+        }
+        val file = resolveInput(input).unwrap { return it }
+        val target = resolveOutput(output, file, overwrite).unwrap { return it }
+        val probe = MediaProbe.of(file)
+        if (!probe.hasVideo) {
+            return ToolResult.error(
+                "'${file.name}' has no video track, and compressing audio is not supported. " +
+                    "Use trim to shorten it instead, or say that shrinking an audio file is not something this can do."
+            )
+        }
+        tooLongToReencode(probe, file.name, "compress")?.let { return it }
+
+        if (probe.displayHeight in 1..targetHeight) {
+            return ToolResult.error(
+                "'${file.name}' is already ${probe.displayWidth}x${probe.displayHeight}, which is no taller than the " +
+                    "requested ${targetHeight}p — re-encoding it would lose quality without saving meaningful space. " +
+                    "Tell the user it is already small enough."
+            )
+        }
+
+        val export = MediaExport(context).run(
+            input = file,
+            output = target,
+            videoEffects = listOf(Presentation.createForHeight(targetHeight))
+        )
+        export.failure()?.let { return it }
+        return ToolResult.ok(
+            "Compressed '${file.name}' from ${probe.displayWidth}x${probe.displayHeight} to ${targetHeight}p " +
+                "into '${target.canonicalPath}' — ${resolver.formatSize(file.length())} became " +
+                "${resolver.formatSize(target.length())}.${export.qualityNote()}"
+        )
+    }
+
+    private suspend fun changeSpeed(
+        input: String,
+        output: String,
+        speed: Double,
+        overwrite: Boolean
+    ): ToolResult {
+        if (speed !in MIN_SPEED..MAX_SPEED || speed == 1.0) {
+            return ToolResult.error(
+                if (speed == 1.0) {
+                    "speed=1.0 would re-encode the file without changing anything. Pick a different speed, " +
+                        "or copy the file with write_file if a copy is what was wanted."
+                } else {
+                    "speed must be between $MIN_SPEED and $MAX_SPEED — outside that the audio becomes unintelligible. " +
+                        "Got $speed."
+                }
+            )
+        }
+        val file = resolveInput(input).unwrap { return it }
+        val target = resolveOutput(output, file, overwrite).unwrap { return it }
+        val probe = MediaProbe.of(file)
+        tooLongToReencode(probe, file.name, "speed")?.let { return it }
+
+        // Both tracks have to be sped up by the same factor or they drift apart.
+        val audio = if (probe.hasAudio) {
+            listOf(SonicAudioProcessor().apply { setSpeed(speed.toFloat()) })
+        } else {
+            emptyList()
+        }
+        val video = if (probe.hasVideo) listOf(SpeedChangeEffect(speed.toFloat())) else emptyList()
+
+        val export = MediaExport(context).run(
+            input = file,
+            output = target,
+            videoEffects = video,
+            audioProcessors = audio
+        )
+        export.failure()?.let { return it }
+        val newDuration = if (probe.durationMs > 0) (probe.durationMs / speed).toLong() else 0L
+        return ToolResult.ok(
+            "Changed the speed of '${file.name}' to ${speed}x into '${target.canonicalPath}'" +
+                if (newDuration > 0) {
+                    " — ${MediaTimeSpec.format(probe.durationMs)} became ${MediaTimeSpec.format(newDuration)}."
+                } else {
+                    "."
+                } + export.qualityNote()
+        )
+    }
+
+    private suspend fun concat(inputs: List<String>?, output: String, overwrite: Boolean): ToolResult {
+        if (inputs.isNullOrEmpty()) {
+            return ToolResult.error(
+                "concat needs an 'inputs' array of at least two media paths, in the order they should be joined."
+            )
+        }
+        if (inputs.size < 2) {
+            return ToolResult.error(
+                "concat needs at least two input files — got ${inputs.size}. To copy one file, use trim."
+            )
+        }
+        if (inputs.size > MAX_CONCAT_INPUTS) {
+            return ToolResult.error(
+                "Too many inputs (${inputs.size}). Join at most $MAX_CONCAT_INPUTS files at a time."
+            )
+        }
+        val files = inputs.map { path -> resolveInput(path).unwrap { return it } }
+        val target = resolveOutput(output, files.first(), overwrite).unwrap { return it }
+        files.drop(1).forEach { file ->
+            if (file.canonicalPath == target.canonicalPath) {
+                return ToolResult.error(
+                    "Output '${target.canonicalPath}' is also one of the inputs, which would destroy it mid-read. " +
+                        "Write to a new path."
+                )
+            }
+        }
+
+        val probes = files.map { MediaProbe.of(it) }
+        // Mixing an audio-only file into a video sequence produces a result with a
+        // silent gap or no video at all, depending on order — never what was meant.
+        val withVideo = probes.count { it.hasVideo }
+        if (withVideo != 0 && withVideo != probes.size) {
+            val audioOnly = files.filterIndexed { i, _ -> !probes[i].hasVideo }.joinToString(", ") { it.name }
+            return ToolResult.error(
+                "Cannot join video and audio-only files together — $audioOnly ${if (withVideo == probes.size - 1) "has" else "have"} " +
+                    "no video track. Extract the audio from the videos first if an audio-only result is what was wanted."
+            )
+        }
+        val totalMs = probes.sumOf { it.durationMs }
+        if (totalMs > MAX_REENCODE_DURATION_MS) {
+            return ToolResult.error(
+                "The joined result would be ${MediaTimeSpec.format(totalMs)}, past the " +
+                    "${MediaTimeSpec.format(MAX_REENCODE_DURATION_MS)} ceiling for an operation that re-encodes. " +
+                    "Join fewer files, or trim them first."
+            )
+        }
+
+        val export = MediaExport(context).concat(files, target)
+        export.failure()?.let { return it }
+        return ToolResult.ok(
+            "Joined ${files.size} files into '${target.canonicalPath}' — ${MediaTimeSpec.format(totalMs)}, " +
+                "${resolver.formatSize(target.length())}. Source order: " +
+                files.joinToString(", ") { it.name } + "." + export.qualityNote()
+        )
+    }
+
+    /**
+     * Re-encoding operations are bounded by the codec, not by disk, so a long
+     * input will exhaust [MediaExport.TIMEOUT_MS] and report nothing useful after
+     * ten minutes of work. Refuse early with something the model can act on.
+     */
+    private fun tooLongToReencode(probe: MediaProbe, name: String, operation: String): ToolResult? {
+        if (probe.durationMs <= MAX_REENCODE_DURATION_MS) return null
+        return ToolResult.error(
+            "'$name' is ${MediaTimeSpec.format(probe.durationMs)}, past the " +
+                "${MediaTimeSpec.format(MAX_REENCODE_DURATION_MS)} ceiling for '$operation', which re-encodes the " +
+                "whole file. Trim it to the part that is actually wanted first, and say why."
         )
     }
 

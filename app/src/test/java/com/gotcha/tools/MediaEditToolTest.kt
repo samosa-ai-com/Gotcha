@@ -50,15 +50,29 @@ class MediaEditToolTest {
     private fun placeholder(name: String): File =
         File(dir, name).apply { writeBytes(ByteArray(1024)) }
 
+    @Suppress("LongParameterList")
     private fun edit(
         operation: String,
         input: String? = null,
+        inputs: List<String>? = null,
         output: String? = null,
         start: String? = null,
         end: String? = null,
+        height: Int? = null,
+        speed: Double? = null,
         overwrite: Boolean = false
     ): ToolResult = runBlocking {
-        tool.edit(operation, input, output, start, end, overwrite)
+        tool.edit(
+            operation = operation,
+            input = input,
+            inputs = inputs,
+            output = output,
+            start = start,
+            end = end,
+            height = height,
+            speed = speed,
+            overwrite = overwrite
+        )
     }
 
     // ---- operation and argument validation ----
@@ -154,6 +168,99 @@ class MediaEditToolTest {
             assertFalse(name, result.success)
             assertTrue(name, result.message.contains(".mp4") && result.message.contains(".m4a"))
         }
+    }
+
+    // ---- re-encoding operations ----
+
+    @Test
+    fun `speed outside the intelligible range is refused`() {
+        listOf(0.1, 10.0, 0.0).forEach { rate ->
+            val result = edit(
+                "speed",
+                input = placeholder("a.mp4").path,
+                output = File(dir, "out.mp4").path,
+                speed = rate
+            )
+            assertFalse(rate.toString(), result.success)
+            assertTrue(rate.toString(), result.message.contains("between"))
+        }
+    }
+
+    @Test
+    fun `speed of exactly one is refused as a pointless re-encode`() {
+        val result = edit(
+            "speed",
+            input = placeholder("a.mp4").path,
+            output = File(dir, "out.mp4").path,
+            speed = 1.0
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("without changing anything"))
+    }
+
+    @Test
+    fun `speed without a rate names the missing parameter`() {
+        val result = edit("speed", input = placeholder("a.mp4").path, output = File(dir, "out.mp4").path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("speed"))
+    }
+
+    @Test
+    fun `a non-positive compress height is refused`() {
+        val result = edit(
+            "compress",
+            input = placeholder("a.mp4").path,
+            output = File(dir, "out.mp4").path,
+            height = 0
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("positive"))
+    }
+
+    @Test
+    fun `concat needs at least two inputs`() {
+        val single = edit("concat", inputs = listOf(placeholder("a.mp4").path), output = File(dir, "out.mp4").path)
+        assertFalse(single.success)
+        assertTrue(single.message.contains("at least two"))
+
+        val none = edit("concat", output = File(dir, "out.mp4").path)
+        assertFalse(none.success)
+        assertTrue(none.message.contains("at least two"))
+    }
+
+    @Test
+    fun `concat refuses more inputs than it will join at once`() {
+        val many = (1..MediaEditTool.MAX_CONCAT_INPUTS + 1).map { placeholder("clip$it.mp4").path }
+        val result = edit("concat", inputs = many, output = File(dir, "out.mp4").path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("${MediaEditTool.MAX_CONCAT_INPUTS}"))
+    }
+
+    @Test
+    fun `concat refuses to write over any of its own inputs`() {
+        // resolveOutput catches the first input; the later ones need their own check,
+        // and overwriting input three is just as destructive as overwriting input one.
+        val first = placeholder("a.mp4")
+        val second = placeholder("b.mp4")
+        val result = edit(
+            "concat",
+            inputs = listOf(first.path, second.path),
+            output = second.path,
+            overwrite = true
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("also one of the inputs"))
+    }
+
+    @Test
+    fun `concat reports a missing input rather than silently joining the rest`() {
+        val result = edit(
+            "concat",
+            inputs = listOf(placeholder("a.mp4").path, File(dir, "gone.mp4").path),
+            output = File(dir, "out.mp4").path
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("does not exist"))
     }
 
     @Test
