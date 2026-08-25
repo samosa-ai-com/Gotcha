@@ -1,0 +1,27 @@
+{
+    "id": "media_editing",
+    "targetPackageNames": [],
+    "title": "Audio & Video Editing Skills",
+    "description": "Trim clips and split audio from video on-device with media_edit instead of a web converter or an editor app.",
+    "requiresTools": [
+        "media_edit"
+    ],
+    "keywords": [
+        "video",
+        "videos",
+        "audio",
+        "clip",
+        "trim",
+        "cut",
+        "mute",
+        "recording",
+        "footage",
+        "mp4",
+        "m4a",
+        "soundtrack",
+        "voice",
+        "memo",
+        "podcast"
+    ],
+    "instructions": "Never upload a video or audio file to a web converter, and never automate a video editor's UI to trim a clip. media_edit does it locally: the file never leaves the device, and there is no watermark, length limit or account.\n\nCall operation='info' FIRST whenever you need a timecode. It reports duration, tracks, resolution, rotation and codecs without decoding anything, so it is cheap. Never guess a duration from the file name or size, and never trim against a duration the user quoted from memory — check it.\n\nWhat it does:\n1. 'info' — what the file contains. Also the way to answer \"how long is this?\" or \"does this video have sound?\".\n2. 'trim' — keeps the window between 'start' and 'end' and drops the rest. Give at least one of them; 'start' alone runs to the end of the file, 'end' alone starts from the beginning.\n3. 'extract_audio' — writes the audio track as its own .m4a. This is \"rip the audio\", \"just the sound\", \"turn this video into a podcast episode\".\n4. 'remove_audio' — writes the video with the audio dropped. This is \"mute it\", \"remove the background noise\" (which it does by removing ALL sound — say so, because that is usually not what they hoped for).\n\nTimecodes take several forms: '1:23' (m:ss), '1:02:03' (h:mm:ss), '90s', '1m30s', '500ms', or plain seconds like '12.5'. A colon field holding 60 or more seconds is refused as ambiguous — write '1:30' or '90s', not '1:90'. Use 'end' as the end timecode to mean the end of the file.\n\nAll four operations work identically on video and on audio-only files. Trimming an .m4a voice memo and trimming a 4K video are the same call. The two exceptions are refused with an explanation: extracting audio from a file that has no audio track, and removing the audio from a file that is audio-only.\n\nThese operations copy the streams instead of re-encoding them, so they are fast even on a long video and lose no quality at all. The result message tells you which happened; if it ever says the file was re-encoded, pass that on, because repeated re-encoding visibly degrades a file.\n\nOutput rules that matter. Every operation writes a NEW file and leaves the input untouched. The output path CANNOT be the same as the input — unlike pdf_edit there is no in-place mode, because the encoder writes the target while still reading the source, which would destroy both. Pick a clearly derived name (VID_0001-trimmed.mp4, interview-audio.m4a) and tell the user where you put it. An existing output fails unless you pass overwrite=true; do not reflexively retry with overwrite after that error, since the file in the way may be one the user still wants. The output must end in .mp4 (video) or .m4a (audio only) — the muxer always writes an MP4 container, so any other extension would be a mislabelled file.\n\nThe hard limits, which you must state plainly rather than work around:\n• It CANNOT compress, resize, change resolution or bitrate, change playback speed, join or concatenate files, add background music, overlay text or a watermark, fade audio, or adjust volume. These are not yet implemented. Do not fake any of them by chaining other tools.\n• It CANNOT open DRM-protected media — anything bought or downloaded from a store. That is a property of the file, not a missing feature, and no retry will work.\n• It CANNOT edit what is inside a frame: no removing an object, no blurring a face, no cutting a middle section out and rejoining the ends (that needs concatenation).\nWhen asked for one of these, say so directly and offer what does work.\n\nIf a file will not open at all, it may be in a container Android's codecs cannot read (MKV, OGG, FLV are the usual ones). ffmpeg through run_termux_command is the fallback, but it requires Termux installed with the ffmpeg package, so offer it as an option rather than assuming it is there.\n\nFinding the file: phone video lives in /sdcard/DCIM/Camera, screen recordings in /sdcard/Movies, voice memos and music in /sdcard/Music or /sdcard/Recordings, downloads in /sdcard/Download, and WhatsApp media under /sdcard/Android/media/com.whatsapp. Use glob (e.g. '/sdcard/DCIM/Camera/*.mp4') rather than asking the user for a full path they will not know. When several match, use info on the likely ones and confirm which they meant before writing anything — trimming the wrong video looks like data loss."
+}

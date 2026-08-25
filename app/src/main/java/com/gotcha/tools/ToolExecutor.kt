@@ -62,6 +62,7 @@ class ToolExecutor(
     private val todoTool = TodoTool()
     private val editTool = EditTool(appContext)
     private val pdfTool = PdfTool(appContext)
+    private val mediaEditTool = MediaEditTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -231,6 +232,14 @@ class ToolExecutor(
                 password = args.requireString("password"),
                 overwrite = args.requireBoolean("overwrite") ?: false,
                 confirmed = args.requireBoolean("confirmed") ?: false
+            )
+            "media_edit" -> mediaEditTool.edit(
+                operation = args.requireString("operation") ?: return missing("operation"),
+                input = args.requireString("input"),
+                output = args.requireString("output"),
+                start = args.requireString("start"),
+                end = args.requireString("end"),
+                overwrite = args.requireBoolean("overwrite") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
             "set_brightness" -> systemTool.setBrightness(

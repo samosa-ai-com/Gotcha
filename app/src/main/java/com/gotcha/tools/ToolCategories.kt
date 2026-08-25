@@ -18,7 +18,7 @@ object ToolCategories {
     )
 
     private val backgroundTools = setOf(
-        "edit", "write_file", "make_directory", "delete_file", "pdf_edit",
+        "edit", "write_file", "make_directory", "delete_file", "pdf_edit", "media_edit",
         "uninstall_app", "delete_calendar_event", "delete_alarm",
         "delete_timer", "edit_alarm",
         "toggle_wifi", "toggle_torch",

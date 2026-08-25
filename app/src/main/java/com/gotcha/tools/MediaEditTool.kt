@@ -104,8 +104,10 @@ class MediaEditTool(private val context: Context) {
             )
         }
         val file = resolveInput(input).unwrap { return it }
-        val probe = MediaProbe.of(file)
+        // Path validation before probing: it is cheaper, and it fails without
+        // having opened a file the model was never going to be allowed to write.
         val target = resolveOutput(output, file, overwrite).unwrap { return it }
+        val probe = MediaProbe.of(file)
         val window = MediaTimeSpec.parseRange(start, end, probe.durationMs)
             .getOrElse { return ToolResult.error(it.message.orEmpty()) }
 
@@ -126,6 +128,7 @@ class MediaEditTool(private val context: Context) {
 
     private suspend fun extractAudio(input: String, output: String, overwrite: Boolean): ToolResult {
         val file = resolveInput(input).unwrap { return it }
+        val target = resolveOutput(output, file, overwrite).unwrap { return it }
         val probe = MediaProbe.of(file)
         if (!probe.hasAudio) {
             return ToolResult.error(
@@ -133,7 +136,6 @@ class MediaEditTool(private val context: Context) {
                     "what a file contains before choosing an operation."
             )
         }
-        val target = resolveOutput(output, file, overwrite).unwrap { return it }
         val export = MediaExport(context).run(input = file, output = target, removeVideo = true)
         export.failure()?.let { return it }
         return ToolResult.ok(
@@ -145,6 +147,7 @@ class MediaEditTool(private val context: Context) {
 
     private suspend fun removeAudio(input: String, output: String, overwrite: Boolean): ToolResult {
         val file = resolveInput(input).unwrap { return it }
+        val target = resolveOutput(output, file, overwrite).unwrap { return it }
         val probe = MediaProbe.of(file)
         if (probe.isAudioOnly) {
             return ToolResult.error(
@@ -155,7 +158,6 @@ class MediaEditTool(private val context: Context) {
         if (!probe.hasAudio) {
             return ToolResult.error("'${file.name}' already has no audio track — there is nothing to remove.")
         }
-        val target = resolveOutput(output, file, overwrite).unwrap { return it }
         val export = MediaExport(context).run(input = file, output = target, removeAudio = true)
         export.failure()?.let { return it }
         return ToolResult.ok(

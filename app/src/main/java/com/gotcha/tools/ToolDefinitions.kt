@@ -1288,6 +1288,80 @@ object ToolDefinitions {
         }
     )
 
+    val mediaEdit = tool(
+        "media_edit",
+        "Edit an audio or video file on-device: trim a window out of it, pull its audio track into a " +
+            "separate file, or strip the audio from a video. Also reports duration, resolution, tracks and " +
+            "codecs with operation='info' — call that FIRST whenever you need a timecode, so you are trimming " +
+            "against the real duration rather than a guess. Works the same on video and on audio-only files. " +
+            "Every operation writes a NEW file and never modifies the input; the output cannot be the input, " +
+            "because the encoder writes it while still reading from it. These operations copy the streams " +
+            "rather than re-encoding, so they are fast and lossless. It CANNOT re-encode, compress, resize, " +
+            "change speed, join files, or add music yet, and it cannot open DRM-protected media at all — say " +
+            "so plainly instead of attempting a workaround.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("operation") {
+                    put("type", "string")
+                    putJsonArray("enum") { MediaEditTool.OPERATIONS.forEach { add(it) } }
+                    put(
+                        "description",
+                        "info = duration, tracks, resolution and codecs; trim = keep the window between " +
+                            "'start' and 'end'; extract_audio = write the audio track as its own file; " +
+                            "remove_audio = write the video with its audio dropped."
+                    )
+                }
+                putJsonObject("input") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the source audio or video file, e.g. '/sdcard/DCIM/Camera/VID_0001.mp4'. " +
+                            "Required by every operation."
+                    )
+                }
+                putJsonObject("output") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the file to write. Required by every operation except info. Must end in .mp4 " +
+                            "(video) or .m4a (audio only) — the muxer always writes an MP4 container. Cannot be " +
+                            "the same path as 'input'."
+                    )
+                }
+                putJsonObject("start") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "trim only: where the kept window begins. Timecodes are '1:23' (m:ss), '1:02:03' " +
+                            "(h:mm:ss), '90s', '1m30s' or plain seconds like '12.5'. Defaults to the start of " +
+                            "the file."
+                    )
+                }
+                putJsonObject("end") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "trim only: where the kept window ends, in the same timecode formats, or 'end' for the " +
+                            "end of the file. Defaults to the end of the file. Give at least one of 'start' " +
+                            "and 'end'."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("operation")
+                add("input")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2517,6 +2591,8 @@ object ToolDefinitions {
         edit,
         // PDF page-structure editing (Operator only)
         pdfEdit,
+        // Audio/video editing (Operator only)
+        mediaEdit,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch
