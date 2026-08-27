@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 25 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 26 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **113** | |
+| **Total** | **114** | |
 
-**49 of 113** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**50 of 114** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -37,6 +37,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `press_key` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `read_screen` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `read_screen_raw` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
+| `share_podcast` | `ROBOLECTRIC` | `PodcastToolTest` — the guards and the intent contract: missing files and non-audio extensions refused before any chooser appears, a file outside the FileProvider's Gotcha/ mapping reported with a move-it-first message instead of a crash, and the happy path verified to build an ACTION_SEND chooser carrying a content:// URI (never file://) with the read-grant flag. Actually watching the share sheet appear and land in another app is device-only manual verification |
 | `show_alarms` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `swipe` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |
 | `tap` | `MANUAL_ONLY` | Depends on a live GotchaAccessibilityService bound to a real foreground app; the service cannot reliably self-bind under instrumentation (see AccessibilityServiceTest's @Ignore writeup). |

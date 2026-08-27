@@ -43,7 +43,9 @@ class PodcastTool(
     },
     private val mediaExport: MediaExport = MediaExport(context),
     private val mediaConvert: MediaConvertTool = MediaConvertTool(context),
-    private val termuxUsable: () -> Boolean = { DeviceCapabilities.termuxUsable(context) }
+    private val termuxUsable: () -> Boolean = { DeviceCapabilities.termuxUsable(context) },
+    /** Fires the share sheet. Injectable so tests can capture the intent instead of launching it. */
+    private val startChooser: (android.content.Intent) -> Unit = { context.startActivity(it) }
 ) {
 
     /** The two calls synthesis needs from the TTS API, extracted for tests. */
@@ -98,6 +100,18 @@ class PodcastTool(
         private const val TMP_SUFFIX = ".podcast-tmp.m4a"
 
         private const val ERROR_DETAIL_CHARS = 200
+
+        /** Extension → MIME type for the share intent. Also the shareable-format list. */
+        private val SHARE_MIME_TYPES = mapOf(
+            "m4a" to "audio/mp4",
+            "mp4" to "audio/mp4",
+            "aac" to "audio/aac",
+            "mp3" to "audio/mpeg",
+            "wav" to "audio/wav",
+            "ogg" to "audio/ogg",
+            "opus" to "audio/ogg",
+            "flac" to "audio/flac"
+        )
     }
 
     private sealed interface Resolved {
@@ -361,6 +375,58 @@ class PodcastTool(
         return kept to " The MP3 conversion step failed " +
             "(${result.message.take(ERROR_DETAIL_CHARS)}) — the finished audio was kept as '${kept.name}'; " +
             "media_convert can turn it into an MP3 once that is fixed."
+    }
+
+    // ---- sharing ----
+
+    /**
+     * Opens the system share sheet for a finished podcast (or any audio file
+     * under the Gotcha folder). The file is handed over as a `content://` URI
+     * through the app's existing [androidx.core.content.FileProvider] — a
+     * `file://` URI would crash the receiving app on every supported Android
+     * version — and its `external-path path="Gotcha/"` mapping is also the
+     * boundary of what can be shared here.
+     */
+    @Suppress("ReturnCount")
+    fun share(path: String): ToolResult {
+        val file = when (val r = resolver.resolveForRead(path)) {
+            is FileResolver.ResolveResult.PermissionNeeded -> return r.result
+            is FileResolver.ResolveResult.Error -> return ToolResult.error(r.message)
+            is FileResolver.ResolveResult.Ok -> r.file
+        }
+        resolver.checkReadPermission(file)?.let { return it }
+        if (!file.exists() || !file.isFile) {
+            return ToolResult.error(
+                "'$path' does not exist (resolved: ${file.canonicalPath}). You may use list_files to find it."
+            )
+        }
+        val mime = SHARE_MIME_TYPES[file.extension.lowercase()]
+            ?: return ToolResult.error(
+                "'.${file.extension}' is not an audio format this tool shares. Supported: " +
+                    SHARE_MIME_TYPES.keys.sorted().joinToString(", ") { ".$it" } + "."
+            )
+        val uri = runCatching {
+            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        }.getOrElse {
+            return ToolResult.error(
+                "'${file.canonicalPath}' is outside the folder this app can hand to other apps. Move or " +
+                    "copy it under '${GotchaStorage.rootPath}' first, then share that copy."
+            )
+        }
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = android.content.Intent.createChooser(send, "Share ${file.name}").apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startChooser(chooser)
+        return ToolResult.ok(
+            "Opened the share sheet for '${file.name}' (${resolver.formatSize(file.length())}). The user " +
+                "picks the destination app themselves — nothing has been sent yet."
+        )
     }
 
     // ---- validation ----

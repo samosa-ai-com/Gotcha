@@ -14,7 +14,7 @@ object ToolCategories {
         "global_action", "open_app", "open_setting",
         "read_screen", "read_screen_raw",
         "navigate_app", "task",
-        "dial_number", "compose_email", "show_alarms"
+        "dial_number", "compose_email", "show_alarms", "share_podcast"
     )
 
     private val backgroundTools = setOf(

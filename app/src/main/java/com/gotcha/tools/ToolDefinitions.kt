@@ -1638,6 +1638,28 @@ object ToolDefinitions {
         }
     )
 
+    val sharePodcast = tool(
+        "share_podcast",
+        "Open the system share sheet for an audio file under the Gotcha folder — a generated podcast, a " +
+            "recording, a converted track — so the user can send it through any app they choose. Nothing is " +
+            "sent by this call itself: it only presents the chooser, and the user picks (or dismisses) the " +
+            "destination. Accepts .m4a, .mp3, .wav, .ogg, .opus, .flac, .aac and .mp4 audio. The file must " +
+            "live under the Gotcha folder on shared storage (where synthesize_podcast writes); files " +
+            "elsewhere must be copied there first.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the audio file to share, e.g. '/sdcard/Gotcha/Podcasts/morning-digest.m4a'."
+                    )
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2872,7 +2894,7 @@ object ToolDefinitions {
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
         // Script-to-speech podcast synthesis (Operator only)
-        synthesizePodcast, synthesizePodcastDialogue,
+        synthesizePodcast, synthesizePodcastDialogue, sharePodcast,
         // Audio-file transcription via the STT API (Operator only)
         transcribeFile,
         // Content search and file discovery

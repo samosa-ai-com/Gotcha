@@ -453,6 +453,14 @@
       "notes": "shares synthesize_podcast's pipeline and its coverage, plus the dialogue-specific guards and mechanics: unknown-speaker refusal, empty-dialogue refusal, blank turns dropped after sanitising rather than synthesized as dead air, and the three-level host-voice resolution (explicit argument beats configured setting beats the first voice in the model's list that differs from host A). Silence-gap WAV generation is verified on the JVM to match the speech's own sample rate and channel count. The audible result — two distinguishable hosts with a natural pause between turns — is device-only and must be verified by hand"
     },
     {
+      "tool": "share_podcast",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.PodcastToolTest"
+      ],
+      "notes": "the guards and the intent contract: missing files and non-audio extensions refused before any chooser appears, a file outside the FileProvider's Gotcha/ mapping reported with a move-it-first message instead of a crash, and the happy path verified to build an ACTION_SEND chooser carrying a content:// URI (never file://) with the read-grant flag. Actually watching the share sheet appear and land in another app is device-only manual verification"
+    },
+    {
       "tool": "transcribe_file",
       "tier": "ROBOLECTRIC",
       "tests": [

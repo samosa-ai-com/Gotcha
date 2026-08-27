@@ -23,6 +23,8 @@ import kotlinx.serialization.json.jsonPrimitive
  * preconditions (executors return permission errors instead of crashing),
  * and records every execution in the [ActionLog].
  */
+// One class dispatching the entire fixed tool catalog is the design; size follows from it.
+@Suppress("LargeClass")
 class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
@@ -266,6 +268,9 @@ class ToolExecutor(
                 hostBModel = args.requireString("host_b_model"),
                 format = args.requireString("format"),
                 overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "share_podcast" -> podcastTool.share(
+                path = args.requireString("path") ?: return missing("path")
             )
             "transcribe_file" -> transcribeTool.transcribe(
                 path = args.requireString("path") ?: return missing("path"),

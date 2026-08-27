@@ -322,6 +322,64 @@ class PodcastToolTest {
         assertEquals("The real opener.", backend.synthesizedWith.single().first)
     }
 
+    // ---- sharing ----
+
+    private class ChooserCapture {
+        var intent: android.content.Intent? = null
+        val launcher: (android.content.Intent) -> Unit = { intent = it }
+    }
+
+    private fun shareTool(capture: ChooserCapture): PodcastTool =
+        PodcastTool(context, loadSettings = { apiSettings }, startChooser = capture.launcher)
+
+    @Test
+    fun `sharing a missing file is an error and no chooser appears`() {
+        val capture = ChooserCapture()
+        val result = shareTool(capture).share(File(GotchaStorage.podcastsRoot(), "gone.m4a").path)
+        assertFalse(result.success)
+        assertTrue(capture.intent == null)
+    }
+
+    @Test
+    fun `sharing a non-audio file is refused with the supported list`() {
+        val capture = ChooserCapture()
+        GotchaStorage.podcastsRoot().mkdirs()
+        val file = File(GotchaStorage.podcastsRoot(), "notes.txt").apply { writeText("hi") }
+        val result = shareTool(capture).share(file.path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains(".m4a"))
+        assertTrue(capture.intent == null)
+    }
+
+    @Test
+    @Suppress("DEPRECATION") // getParcelableExtra's typed replacement needs API 33+ at the call site
+    fun `sharing hands over a content URI chooser, never a file URI`() {
+        val capture = ChooserCapture()
+        GotchaStorage.podcastsRoot().mkdirs()
+        val file = File(GotchaStorage.podcastsRoot(), "episode.m4a").apply { writeBytes(ByteArray(64)) }
+
+        val result = shareTool(capture).share(file.path)
+
+        assertTrue(result.message, result.success)
+        val chooser = capture.intent!!
+        assertEquals(android.content.Intent.ACTION_CHOOSER, chooser.action)
+        val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+        assertEquals(android.content.Intent.ACTION_SEND, send.action)
+        assertEquals("audio/mp4", send.type)
+        val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+        assertEquals("content", uri.scheme)
+        assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+    }
+
+    @Test
+    fun `a file outside the shareable folder is a move-it-first message, not a crash`() {
+        val capture = ChooserCapture()
+        val outside = File(context.cacheDir, "elsewhere.mp3").apply { writeBytes(ByteArray(16)) }
+        val result = shareTool(capture).share(outside.path)
+        assertFalse(result.success)
+        assertTrue(capture.intent == null)
+    }
+
     @Test
     fun `a long script reaches the API as multiple whole-sentence segments`() {
         val backend = FakeBackend(answer = { Result.failure(IOException("stop after capture")) })
