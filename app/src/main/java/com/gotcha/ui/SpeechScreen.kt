@@ -62,6 +62,8 @@ fun SpeechScreen(
     var ttsApiKey by remember { mutableStateOf(initial.ttsApiKey) }
     var ttsApiModel by remember { mutableStateOf(initial.ttsApiModel) }
     var ttsVoice by remember { mutableStateOf(initial.ttsVoice) }
+    var podcastHostAVoice by remember { mutableStateOf(initial.podcastHostAVoice) }
+    var podcastHostBVoice by remember { mutableStateOf(initial.podcastHostBVoice) }
     var sttProvider by remember { mutableStateOf(initial.sttProvider) }
     var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
     var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
@@ -88,6 +90,8 @@ fun SpeechScreen(
     var sttProviderExpanded by remember { mutableStateOf(false) }
     var ttsModelExpanded by remember { mutableStateOf(false) }
     var ttsVoiceExpanded by remember { mutableStateOf(false) }
+    var hostAVoiceExpanded by remember { mutableStateOf(false) }
+    var hostBVoiceExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
     var sttLanguageExpanded by remember { mutableStateOf(false) }
 
@@ -114,6 +118,8 @@ fun SpeechScreen(
         ttsApiKey = ttsApiKey.trim(),
         ttsApiModel = ttsApiModel.trim(),
         ttsVoice = ttsVoice.trim(),
+        podcastHostAVoice = podcastHostAVoice.trim(),
+        podcastHostBVoice = podcastHostBVoice.trim(),
         sttProvider = sttProvider,
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiKey = sttApiKey.trim(),
@@ -352,6 +358,42 @@ fun SpeechScreen(
             }
             AudioProvider.ANDROID, AudioProvider.NONE -> Unit
         }
+        // ---- Podcast hosts (synthesize_podcast_dialogue) ----
+        if (ttsProvider.isApiBased()) {
+            Text(
+                "Podcast hosts — the two voices used when the assistant generates a two-host " +
+                    "podcast dialogue. Leave blank to use the TTS voice for host A and an " +
+                    "automatically chosen different voice for host B.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TtsVoicePicker(
+                selectedModel = ttsApiModel,
+                selectedVoice = podcastHostAVoice,
+                availableModels = availableTtsModels,
+                expanded = hostAVoiceExpanded,
+                onExpandedChange = { hostAVoiceExpanded = it },
+                onSelect = {
+                    podcastHostAVoice = it
+                    hostAVoiceExpanded = false
+                },
+                onClearVoice = { podcastHostAVoice = "" },
+                label = "Podcast Host A Voice (optional)"
+            )
+            TtsVoicePicker(
+                selectedModel = ttsApiModel,
+                selectedVoice = podcastHostBVoice,
+                availableModels = availableTtsModels,
+                expanded = hostBVoiceExpanded,
+                onExpandedChange = { hostBVoiceExpanded = it },
+                onSelect = {
+                    podcastHostBVoice = it
+                    hostBVoiceExpanded = false
+                },
+                onClearVoice = { podcastHostBVoice = "" },
+                label = "Podcast Host B Voice (optional)"
+            )
+        }
         ExposedDropdownMenuBox(
             expanded = sttProviderExpanded,
             onExpandedChange = { sttProviderExpanded = it }
@@ -564,7 +606,8 @@ private fun TtsVoicePicker(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onSelect: (String) -> Unit,
-    onClearVoice: () -> Unit
+    onClearVoice: () -> Unit,
+    label: String = "TTS Voice (optional)"
 ) {
     val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
     val voicesList: List<VoiceInfo> = run {
@@ -586,7 +629,7 @@ private fun TtsVoicePicker(
         OutlinedTextField(
             value = selectedVoice,
             onValueChange = onSelect,
-            label = { Text("TTS Voice (optional)") },
+            label = { Text(label) },
             placeholder = {
                 if (hasAnyVoices) {
                     Text("Default ($defaultVoiceLabel) or pick below")

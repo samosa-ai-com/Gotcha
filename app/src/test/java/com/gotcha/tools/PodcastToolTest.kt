@@ -231,6 +231,97 @@ class PodcastToolTest {
         assertTrue(result.message.contains("not WAV"))
     }
 
+    // ---- dialogue ----
+
+    private fun dialogue(
+        tool: PodcastTool,
+        lines: List<PodcastTool.DialogueLine>,
+        hostAVoice: String? = null,
+        hostBVoice: String? = null
+    ): ToolResult = runBlocking {
+        tool.synthesizeDialogue(lines, "roundtable", hostAVoice, hostBVoice)
+    }
+
+    private val twoTurns = listOf(
+        PodcastTool.DialogueLine("A", "Welcome to the show."),
+        PodcastTool.DialogueLine("B", "Great to be here.")
+    )
+
+    /** Succeeds [okCalls] times with a real (silent) WAV, then fails — lets voice capture cross turns. */
+    private fun backendFailingAfter(okCalls: Int, models: List<AudioModel> = emptyList()): FakeBackend {
+        var calls = 0
+        return FakeBackend(models = models).apply {
+            answer = {
+                if (calls++ < okCalls) {
+                    Result.success(PodcastAudio.silenceWav(100, 24_000, 1))
+                } else {
+                    Result.failure(IOException("stop here"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a dialogue line with an unknown speaker is refused before any API call`() {
+        val backend = FakeBackend()
+        val lines = twoTurns + PodcastTool.DialogueLine("C", "Who am I?")
+        val result = dialogue(tool(backend = backend), lines)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("'C'"))
+        assertTrue(backend.synthesizedWith.isEmpty())
+    }
+
+    @Test
+    fun `an empty dialogue is refused before any API call`() {
+        val backend = FakeBackend()
+        val result = dialogue(tool(backend = backend), emptyList())
+        assertFalse(result.success)
+        assertTrue(backend.synthesizedWith.isEmpty())
+    }
+
+    @Test
+    fun `the hosts get distinct voices by default, host B from the model's own list`() {
+        val backend = backendFailingAfter(
+            okCalls = 1,
+            models = listOf(
+                AudioModel(
+                    id = "kokoro",
+                    category = ModelCategory.TTS,
+                    voices = listOf(VoiceInfo(id = "af_heart"), VoiceInfo(id = "bm_george"))
+                )
+            )
+        )
+        dialogue(tool(backend = backend), twoTurns)
+        assertEquals(listOf("af_heart", "bm_george"), backend.synthesizedWith.map { it.third })
+    }
+
+    @Test
+    fun `configured host voices win over derived defaults`() {
+        val backend = backendFailingAfter(okCalls = 1)
+        val settings = apiSettings.copy(podcastHostAVoice = "am_adam", podcastHostBVoice = "bf_emma")
+        dialogue(tool(settings = settings, backend = backend), twoTurns)
+        assertEquals(listOf("am_adam", "bf_emma"), backend.synthesizedWith.map { it.third })
+    }
+
+    @Test
+    fun `explicit host voice arguments beat the configured ones`() {
+        val backend = backendFailingAfter(okCalls = 1)
+        val settings = apiSettings.copy(podcastHostAVoice = "am_adam", podcastHostBVoice = "bf_emma")
+        dialogue(tool(settings = settings, backend = backend), twoTurns, hostAVoice = "aa", hostBVoice = "bb")
+        assertEquals(listOf("aa", "bb"), backend.synthesizedWith.map { it.third })
+    }
+
+    @Test
+    fun `blank dialogue turns are dropped rather than synthesized as silence`() {
+        val backend = FakeBackend(answer = { Result.failure(IOException("capture only")) })
+        val lines = listOf(
+            PodcastTool.DialogueLine("A", "```only code```"),
+            PodcastTool.DialogueLine("B", "The real opener.")
+        )
+        dialogue(tool(backend = backend), lines)
+        assertEquals("The real opener.", backend.synthesizedWith.single().first)
+    }
+
     @Test
     fun `a long script reaches the API as multiple whole-sentence segments`() {
         val backend = FakeBackend(answer = { Result.failure(IOException("stop after capture")) })

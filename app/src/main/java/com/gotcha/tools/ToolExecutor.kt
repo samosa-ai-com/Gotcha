@@ -253,6 +253,19 @@ class ToolExecutor(
                 bitrate = args.requireString("bitrate"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
+            "synthesize_podcast_dialogue" -> podcastTool.synthesizeDialogue(
+                lines = parseDialogueLines(args["lines"]) ?: return ToolResult.error(
+                    "Missing or invalid required parameter 'lines' — it must be a non-empty array of " +
+                        "{\"speaker\": \"A\" or \"B\", \"text\": \"...\"} objects."
+                ),
+                outputName = args.requireString("output_name") ?: return missing("output_name"),
+                hostAVoice = args.requireString("host_a_voice"),
+                hostBVoice = args.requireString("host_b_voice"),
+                hostAModel = args.requireString("host_a_model"),
+                hostBModel = args.requireString("host_b_model"),
+                format = args.requireString("format"),
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
             "synthesize_podcast" -> podcastTool.synthesize(
                 script = args.requireString("script") ?: return missing("script"),
                 outputName = args.requireString("output_name") ?: return missing("output_name"),
@@ -649,6 +662,18 @@ class ToolExecutor(
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
+
+    /** Null on any malformed entry rather than dropping it — a silently skipped turn is a mangled episode. */
+    private fun parseDialogueLines(element: JsonElement?): List<PodcastTool.DialogueLine>? {
+        val array = element as? JsonArray ?: return null
+        if (array.isEmpty()) return null
+        return array.map { item ->
+            val obj = item as? JsonObject ?: return null
+            val speaker = (obj["speaker"] as? JsonPrimitive)?.content?.trim() ?: return null
+            val text = (obj["text"] as? JsonPrimitive)?.content ?: return null
+            PodcastTool.DialogueLine(speaker, text)
+        }
+    }
 
     private fun parseTodoItems(element: JsonElement?): List<TodoItem>? {
         val array = element as? JsonArray ?: return null

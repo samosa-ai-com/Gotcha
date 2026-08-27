@@ -63,6 +63,11 @@ data class Settings(
     val ttsApiKey: String = "",
     val ttsApiModel: String = "",
     val ttsVoice: String = "",
+    // Voices for the two hosts of synthesize_podcast_dialogue. Blank falls back
+    // to [ttsVoice] for host A and to a deterministically different voice from
+    // the model's own list for host B, so the hosts stay distinguishable.
+    val podcastHostAVoice: String = "",
+    val podcastHostBVoice: String = "",
     val sttProvider: AudioProvider = AudioProvider.ANDROID,
     val sttApiBaseUrl: String = "",
     val sttApiKey: String = "",
@@ -382,6 +387,8 @@ class SettingsRepository(context: Context) : SettingsStore {
         ttsApiKey = string(KEY_TTS_API_KEY),
         ttsApiModel = string(KEY_TTS_API_MODEL),
         ttsVoice = string(KEY_TTS_VOICE),
+        podcastHostAVoice = string(KEY_PODCAST_HOST_A_VOICE),
+        podcastHostBVoice = string(KEY_PODCAST_HOST_B_VOICE),
         sttProvider = runCatching {
             AudioProvider.valueOf(string(KEY_STT_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
@@ -448,6 +455,8 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_TTS_API_KEY, settings.ttsApiKey)
             .putString(KEY_TTS_API_MODEL, settings.ttsApiModel)
             .putString(KEY_TTS_VOICE, settings.ttsVoice)
+            .putString(KEY_PODCAST_HOST_A_VOICE, settings.podcastHostAVoice)
+            .putString(KEY_PODCAST_HOST_B_VOICE, settings.podcastHostBVoice)
             .putString(KEY_STT_PROVIDER, settings.sttProvider.name)
             .putString(KEY_STT_API_URL, settings.sttApiBaseUrl)
             .putString(KEY_STT_API_KEY, settings.sttApiKey)
@@ -555,6 +564,8 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_API_MODEL = "tts_api_model"
         const val KEY_TTS_VOICE = "tts_voice"
+        const val KEY_PODCAST_HOST_A_VOICE = "podcast_host_a_voice"
+        const val KEY_PODCAST_HOST_B_VOICE = "podcast_host_b_voice"
         const val KEY_STT_PROVIDER = "stt_provider"
         const val KEY_STT_API_URL = "stt_api_url"
         const val KEY_STT_API_KEY = "stt_api_key"

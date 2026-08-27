@@ -119,6 +119,25 @@ class PodcastAudioTest {
         assertNull(PodcastAudio.wavInfo(byteArrayOf(0xFF.toByte(), 0xFB.toByte()) + ByteArray(100)))
     }
 
+    // ---- silence generation ----
+
+    @Test
+    fun `generated silence is a valid WAV of the requested format and length`() {
+        val info = PodcastAudio.wavInfo(PodcastAudio.silenceWav(1000, 24_000, 1))!!
+        assertEquals(24_000, info.sampleRate)
+        assertEquals(1, info.channels)
+        assertEquals(16, info.bitsPerSample)
+        assertEquals(1000L, info.durationMs)
+    }
+
+    @Test
+    fun `silence matches whatever rate and channel count the speech used`() {
+        val info = PodcastAudio.wavInfo(PodcastAudio.silenceWav(300, 44_100, 2))!!
+        assertEquals(44_100, info.sampleRate)
+        assertEquals(2, info.channels)
+        assertEquals(300L, info.durationMs)
+    }
+
     // ---- synthetic WAV builder ----
 
     private fun buildWav(

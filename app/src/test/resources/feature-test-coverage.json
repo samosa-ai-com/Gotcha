@@ -444,6 +444,15 @@
       "notes": "the pure halves on the JVM — sentence-boundary script chunking (limit respected, nothing lost or reordered, oversize sentences split at word boundaries, hard cut only as a last resort) and WAV header parsing by chunk walk (real sample rate honoured rather than assumed, lying data-chunk sizes measured from what actually arrived, JSON/HTML/MP3 responses rejected) — plus every guard that runs before TTS money is spent: Android/unconfigured provider refusals with directions to Settings, blank model, scripts that sanitize to nothing or exceed the ceiling, unsupported formats, existing-output refusal, output_name slugification, and voice resolution (explicit argument beats configured voice beats the model's own default). The assembly itself is device-only — Media3 Transformer drives MediaCodec — and additionally needs a reachable TTS endpoint, so a full script-to-.m4a (and, with Termux, .mp3) run — audible joins, Files-app visibility, the .m4a fallback note — must be verified by hand"
     },
     {
+      "tool": "synthesize_podcast_dialogue",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.PodcastToolTest",
+        "com.gotcha.tools.PodcastAudioTest"
+      ],
+      "notes": "shares synthesize_podcast's pipeline and its coverage, plus the dialogue-specific guards and mechanics: unknown-speaker refusal, empty-dialogue refusal, blank turns dropped after sanitising rather than synthesized as dead air, and the three-level host-voice resolution (explicit argument beats configured setting beats the first voice in the model's list that differs from host A). Silence-gap WAV generation is verified on the JVM to match the speech's own sample rate and channel count. The audible result — two distinguishable hosts with a natural pause between turns — is device-only and must be verified by hand"
+    },
+    {
       "tool": "glob",
       "tier": "ROBOLECTRIC",
       "tests": [

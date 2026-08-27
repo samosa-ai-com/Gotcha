@@ -14,16 +14,18 @@ import java.io.File
 import kotlin.coroutines.coroutineContext
 
 /**
- * Turns a written script into a spoken audio file — a single-voice podcast.
+ * Turns written text into spoken audio files — podcasts.
  *
- * The synthesis reuses the same OpenAI-compatible `/audio/speech` endpoint the
- * voice features already talk through, but deliberately not via
+ * Two entry points share one pipeline: [synthesize] narrates a script in a
+ * single voice, [synthesizeDialogue] alternates two host voices with a short
+ * silence between turns. Both reuse the OpenAI-compatible `/audio/speech`
+ * endpoint the voice features already talk through, but deliberately not via
  * [com.gotcha.audio.TtsEngine]: that class is hardwired to play what it
- * fetches, while this one needs the raw WAV bytes on disk. The script is
- * sanitized exactly as spoken replies are, split at sentence boundaries (the
- * endpoint has input-length limits a whole script would blow through),
- * synthesized segment by segment into the cache dir, and joined on-device by
- * [MediaExport] into an `.m4a` under `Gotcha/Podcasts`.
+ * fetches, while this one needs the raw WAV bytes on disk. Text is sanitized
+ * exactly as spoken replies are, split at sentence boundaries (the endpoint
+ * has input-length limits a whole script would blow through), synthesized
+ * segment by segment into the cache dir, and joined on-device by [MediaExport]
+ * into an `.m4a` under `Gotcha/Podcasts`.
  *
  * `.m4a` is the canonical output because it needs nothing beyond what ships in
  * the app. MP3 exists only through Termux's ffmpeg ([MediaConvertTool]), so a
@@ -56,6 +58,9 @@ class PodcastTool(
             api.synthesize(text, model, voice)
     }
 
+    /** One turn of a dialogue script, as the model writes it. */
+    data class DialogueLine(val speaker: String, val text: String)
+
     private val resolver = FileResolver(context)
 
     companion object {
@@ -77,9 +82,17 @@ class PodcastTool(
         /** Same ceiling as media_edit's re-encode guard — assembly re-encodes everything. */
         const val MAX_TOTAL_DURATION_MS = MediaEditTool.MAX_REENCODE_DURATION_MS
 
+        /**
+         * Breathing room between dialogue turns. Long enough to read as a
+         * speaker change, short enough not to read as dead air.
+         */
+        const val DIALOGUE_GAP_MS = 300L
+
         private const val TTS_TIMEOUT_SECONDS = 120L
         private const val FORMAT_M4A = "m4a"
         private const val FORMAT_MP3 = "mp3"
+        private const val SPEAKER_A = "A"
+        private const val SPEAKER_B = "B"
 
         /** Intermediate for the MP3 detour. Ends in `.m4a` so ffmpeg and the salvage rename both see AAC. */
         private const val TMP_SUFFIX = ".podcast-tmp.m4a"
@@ -92,19 +105,28 @@ class PodcastTool(
         data class Failed(val result: ToolResult) : Resolved
     }
 
-    /** Everything one synthesis run carries between its stages. */
-    private data class Job(
+    /** A single TTS request: what to say, and with which model and voice. */
+    private data class SpeechSegment(val text: String, val model: String, val voice: String)
+
+    /**
+     * Everything one synthesis run carries between its stages. [groups] are
+     * lists of segments; the silence gap is inserted *between groups*, never
+     * between the chunks of one over-long piece of text.
+     */
+    private data class SynthesisJob(
         val backend: TtsBackend,
-        val text: String,
-        val model: String,
-        val voice: String,
+        val groups: List<List<SpeechSegment>>,
+        val gapMs: Long,
         val tempDir: File,
         val destination: File,
         val wantMp3: Boolean,
         val baseName: String,
         val overwrite: Boolean,
-        val degradeNote: String
+        val notes: String,
+        val voiceLabel: String
     )
+
+    // ---- entry points ----
 
     @Suppress("ReturnCount", "LongParameterList")
     suspend fun synthesize(
@@ -117,25 +139,100 @@ class PodcastTool(
     ): ToolResult {
         val settings = loadSettings()
         credentialError(settings)?.let { return it }
-
         val requestedFormat = normaliseFormat(format, outputName) ?: return unsupportedFormat(format, outputName)
         val resolvedModel = (model ?: settings.ttsApiModel).trim()
         if (resolvedModel.isBlank()) return noModelConfigured()
 
         val text = SpeechTextSanitizer.sanitize(script)
-        if (text.isBlank()) {
+        scriptError(text.length, emptyText = text.isBlank())?.let { return it }
+
+        val backend = ttsBackendFactory(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        val resolvedVoice = resolveVoice(voice, settings.ttsVoice, backend, resolvedModel)
+            ?: return noVoiceResolvable(resolvedModel)
+
+        val segments = PodcastAudio.chunk(text, MAX_CHUNK_CHARS)
+            .map { SpeechSegment(it, resolvedModel, resolvedVoice) }
+        return runJob(
+            backend = backend,
+            groups = listOf(segments),
+            gapMs = 0L,
+            outputName = outputName,
+            requestedFormat = requestedFormat,
+            overwrite = overwrite,
+            notes = "",
+            voiceLabel = "voice '$resolvedVoice'"
+        )
+    }
+
+    @Suppress("ReturnCount", "LongParameterList")
+    suspend fun synthesizeDialogue(
+        lines: List<DialogueLine>,
+        outputName: String,
+        hostAVoice: String? = null,
+        hostBVoice: String? = null,
+        hostAModel: String? = null,
+        hostBModel: String? = null,
+        format: String? = null,
+        overwrite: Boolean = false
+    ): ToolResult {
+        val settings = loadSettings()
+        credentialError(settings)?.let { return it }
+        val requestedFormat = normaliseFormat(format, outputName) ?: return unsupportedFormat(format, outputName)
+        val modelA = (hostAModel ?: settings.ttsApiModel).trim()
+        val modelB = (hostBModel ?: modelA).trim()
+        if (modelA.isBlank()) return noModelConfigured()
+
+        val turns = lines.map { it.copy(text = SpeechTextSanitizer.sanitize(it.text)) }
+            .filter { it.text.isNotBlank() }
+        val badSpeaker = turns.firstOrNull { it.speaker != SPEAKER_A && it.speaker != SPEAKER_B }
+        if (badSpeaker != null) {
             return ToolResult.error(
-                "The script is empty once markdown, code and emoji are stripped for speech. " +
-                    "Write the narration as plain prose and try again."
+                "speaker '${badSpeaker.speaker}' is not a host — every line's speaker must be exactly " +
+                    "'$SPEAKER_A' or '$SPEAKER_B'."
             )
         }
-        if (text.length > MAX_SCRIPT_CHARS) {
-            return ToolResult.error(
-                "The script is ${text.length} characters; the limit is $MAX_SCRIPT_CHARS (~25 minutes of " +
-                    "speech). Split it into parts and synthesize each as its own file."
-            )
+        scriptError(turns.sumOf { it.text.length }, emptyText = turns.isEmpty())?.let { return it }
+
+        val backend = ttsBackendFactory(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        val voiceA = resolveVoice(hostAVoice, settings.podcastHostAVoice.ifBlank { settings.ttsVoice }, backend, modelA)
+            ?: return noVoiceResolvable(modelA)
+        val voiceB = resolveHostBVoice(hostBVoice, settings, backend, modelB, voiceA)
+        val sameVoiceNote = if (voiceA == voiceB) {
+            " Both hosts ended up with voice '$voiceA' — no second voice could be found automatically; pass " +
+                "host_b_voice or set one in Settings → Speech to make them distinguishable."
+        } else {
+            ""
         }
 
+        val groups = turns.map { turn ->
+            val (model, voice) = if (turn.speaker == SPEAKER_A) modelA to voiceA else modelB to voiceB
+            PodcastAudio.chunk(turn.text, MAX_CHUNK_CHARS).map { SpeechSegment(it, model, voice) }
+        }
+        return runJob(
+            backend = backend,
+            groups = groups,
+            gapMs = DIALOGUE_GAP_MS,
+            outputName = outputName,
+            requestedFormat = requestedFormat,
+            overwrite = overwrite,
+            notes = sameVoiceNote,
+            voiceLabel = "voices '$voiceA' (host A) and '$voiceB' (host B)"
+        )
+    }
+
+    // ---- the shared pipeline ----
+
+    @Suppress("ReturnCount", "LongParameterList")
+    private suspend fun runJob(
+        backend: TtsBackend,
+        groups: List<List<SpeechSegment>>,
+        gapMs: Long,
+        outputName: String,
+        requestedFormat: String,
+        overwrite: Boolean,
+        notes: String,
+        voiceLabel: String
+    ): ToolResult {
         val wantMp3 = requestedFormat == FORMAT_MP3 && termuxUsable()
         val degradeNote = if (requestedFormat == FORMAT_MP3 && !wantMp3) {
             " MP3 was requested, but that conversion runs through Termux's ffmpeg, which is not available on " +
@@ -149,21 +246,13 @@ class PodcastTool(
             is Resolved.Failed -> return r.result
             is Resolved.Ok -> r.file
         }
-
-        val backend = ttsBackendFactory(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
-        val resolvedVoice = resolveVoice(voice, settings, backend, resolvedModel)
-            ?: return ToolResult.error(
-                "No TTS voice is set and the API's voice list for '$resolvedModel' could not be fetched. " +
-                    "Pass voice explicitly, or ask the user to pick one in Settings → Speech."
-            )
-
         val tempDir = File(context.cacheDir, "podcast_${System.currentTimeMillis()}")
         return try {
             produce(
-                Job(
-                    backend = backend, text = text, model = resolvedModel, voice = resolvedVoice,
-                    tempDir = tempDir, destination = destination, wantMp3 = wantMp3,
-                    baseName = baseName, overwrite = overwrite, degradeNote = degradeNote
+                SynthesisJob(
+                    backend = backend, groups = groups, gapMs = gapMs, tempDir = tempDir,
+                    destination = destination, wantMp3 = wantMp3, baseName = baseName,
+                    overwrite = overwrite, notes = notes + degradeNote, voiceLabel = voiceLabel
                 )
             )
         } finally {
@@ -171,35 +260,44 @@ class PodcastTool(
         }
     }
 
-    // ---- the pipeline ----
-
     @Suppress("ReturnCount")
-    private suspend fun produce(job: Job): ToolResult {
+    private suspend fun produce(job: SynthesisJob): ToolResult {
         job.tempDir.mkdirs()
-        val chunks = PodcastAudio.chunk(job.text, MAX_CHUNK_CHARS)
-        val wavs = mutableListOf<File>()
+        val totalSegments = job.groups.sumOf { it.size }
+        val files = mutableListOf<File>()
+        val silenceByFormat = mutableMapOf<Pair<Int, Int>, File>()
         var totalMs = 0L
-        for ((index, chunk) in chunks.withIndex()) {
-            coroutineContext.ensureActive()
-            val bytes = job.backend.synthesize(chunk, job.model, job.voice).getOrElse { e ->
-                return ToolResult.error(
-                    "The TTS request failed on segment ${index + 1} of ${chunks.size}: " +
-                        "${e.message?.take(ERROR_DETAIL_CHARS) ?: "no detail"}. Nothing was written."
+        var index = 0
+        var lastWav: PodcastAudio.WavInfo? = null
+        for ((groupIndex, group) in job.groups.withIndex()) {
+            for (segment in group) {
+                coroutineContext.ensureActive()
+                index++
+                val bytes = job.backend.synthesize(segment.text, segment.model, segment.voice).getOrElse { e ->
+                    return ToolResult.error(
+                        "The TTS request failed on segment $index of $totalSegments: " +
+                            "${e.message?.take(ERROR_DETAIL_CHARS) ?: "no detail"}. Nothing was written."
+                    )
+                }
+                val info = PodcastAudio.wavInfo(bytes) ?: return ToolResult.error(
+                    "The TTS endpoint returned something that is not WAV audio for segment $index. " +
+                        "The model name or voice may be wrong for this provider — check them against the " +
+                        "provider's model list."
                 )
+                totalMs += info.durationMs
+                if (totalMs > MAX_TOTAL_DURATION_MS) return audioTooLong()
+                files += File(job.tempDir, "segment_%03d.wav".format(index)).apply { writeBytes(bytes) }
+                lastWav = info
             }
-            val info = PodcastAudio.wavInfo(bytes) ?: return ToolResult.error(
-                "The TTS endpoint returned something that is not WAV audio for segment ${index + 1}. " +
-                    "The model name or voice may be wrong for this provider — check them against the " +
-                    "provider's model list."
-            )
-            totalMs += info.durationMs
-            if (totalMs > MAX_TOTAL_DURATION_MS) {
-                return ToolResult.error(
-                    "The synthesized audio passed ${MediaTimeSpec.format(MAX_TOTAL_DURATION_MS)} before the " +
-                        "script was finished. Shorten the script or split it into parts."
-                )
+            val wav = lastWav
+            if (job.gapMs > 0 && groupIndex < job.groups.lastIndex && wav != null) {
+                files += silenceByFormat.getOrPut(wav.sampleRate to wav.channels) {
+                    File(job.tempDir, "gap_${wav.sampleRate}_${wav.channels}.wav").apply {
+                        writeBytes(PodcastAudio.silenceWav(job.gapMs, wav.sampleRate, wav.channels))
+                    }
+                }
+                totalMs += job.gapMs
             }
-            wavs += File(job.tempDir, "segment_%03d.wav".format(index)).apply { writeBytes(bytes) }
         }
 
         val m4aOut = if (job.wantMp3) {
@@ -207,15 +305,15 @@ class PodcastTool(
         } else {
             job.destination
         }
-        assemble(wavs, job.tempDir, m4aOut)?.let { return it }
+        assemble(files, job.tempDir, m4aOut)?.let { return it }
 
         val (finalFile, conversionNote) = if (job.wantMp3) convertToMp3(m4aOut, job) else job.destination to ""
         GotchaStorage.publishToGallery(context, finalFile)
         return ToolResult.ok(
             "Created the podcast at '${finalFile.canonicalPath}' — ${MediaTimeSpec.format(totalMs)} of audio, " +
-                "${resolver.formatSize(finalFile.length())}, synthesized as ${chunks.size} segment(s) with " +
-                "voice '${job.voice}' and assembled on-device. It is visible in the phone's Files app under " +
-                "Gotcha/Podcasts." + job.degradeNote + conversionNote
+                "${resolver.formatSize(finalFile.length())}, synthesized as $totalSegments segment(s) with " +
+                "${job.voiceLabel} and assembled on-device. It is visible in the phone's Files app under " +
+                "Gotcha/Podcasts." + job.notes + conversionNote
         )
     }
 
@@ -223,7 +321,8 @@ class PodcastTool(
      * Joins the segment WAVs into [output] as AAC. Temp files skip
      * [FileResolver] on purpose: they live in the app's own cache, where a
      * permission check has nothing to say — the shared-storage checks already
-     * ran on the final destination.
+     * ran on the final destination. Batching counts every file, silence gaps
+     * included — a 10-line dialogue is already 19 concat inputs.
      */
     private suspend fun assemble(wavs: List<File>, tempDir: File, output: File): ToolResult? {
         output.parentFile?.mkdirs()
@@ -251,7 +350,7 @@ class PodcastTool(
      * money is already spent and the audio is already good, so it is salvaged
      * as `.m4a` with a note saying what happened and how to finish the job.
      */
-    private suspend fun convertToMp3(m4a: File, job: Job): Pair<File, String> {
+    private suspend fun convertToMp3(m4a: File, job: SynthesisJob): Pair<File, String> {
         val result = mediaConvert.convert(m4a.absolutePath, job.destination.absolutePath, overwrite = job.overwrite)
         if (result.success) {
             m4a.delete()
@@ -288,6 +387,23 @@ class PodcastTool(
         return null
     }
 
+    private fun scriptError(sanitizedLength: Int, emptyText: Boolean): ToolResult? = when {
+        emptyText -> ToolResult.error(
+            "The script is empty once markdown, code and emoji are stripped for speech. " +
+                "Write the narration as plain prose and try again."
+        )
+        sanitizedLength > MAX_SCRIPT_CHARS -> ToolResult.error(
+            "The script is $sanitizedLength characters; the limit is $MAX_SCRIPT_CHARS (~25 minutes of " +
+                "speech). Split it into parts and synthesize each as its own file."
+        )
+        else -> null
+    }
+
+    private fun audioTooLong(): ToolResult = ToolResult.error(
+        "The synthesized audio passed ${MediaTimeSpec.format(MAX_TOTAL_DURATION_MS)} before the " +
+            "script was finished. Shorten the script or split it into parts."
+    )
+
     /** The format arg wins; a recognisable extension on output_name is honoured when the arg is absent. */
     private fun normaliseFormat(format: String?, outputName: String): String? {
         val requested = format?.trim()?.lowercase().takeUnless { it.isNullOrBlank() }
@@ -306,18 +422,47 @@ class PodcastTool(
             "Settings → Speech → Text-to-Speech."
     )
 
+    private fun noVoiceResolvable(model: String): ToolResult = ToolResult.error(
+        "No TTS voice is set and the API's voice list for '$model' could not be fetched. " +
+            "Pass voice explicitly, or ask the user to pick one in Settings → Speech."
+    )
+
     private fun resolveVoice(
         voiceArg: String?,
-        settings: Settings,
+        configuredVoice: String,
         backend: TtsBackend,
         model: String
     ): String? {
-        val explicit = (voiceArg ?: settings.ttsVoice).trim()
+        val explicit = (voiceArg ?: configuredVoice).trim()
         if (explicit.isNotBlank()) return explicit
-        val ttsModels = runCatching { backend.listModels() }.getOrDefault(emptyList())
-            .filter { it.category == ModelCategory.TTS }
-        return (ttsModels.firstOrNull { it.id == model } ?: ttsModels.firstOrNull())?.defaultVoice
+        return ttsModels(backend).let { models ->
+            (models.firstOrNull { it.id == model } ?: models.firstOrNull())?.defaultVoice
+        }
     }
+
+    /**
+     * Host B must differ from host A to be worth having. With nothing
+     * configured, the first voice in the model's list that is not A's is
+     * chosen — deterministic for a given provider, unlike "the second voice",
+     * which silently collides when A already *is* the second voice.
+     */
+    private fun resolveHostBVoice(
+        voiceArg: String?,
+        settings: Settings,
+        backend: TtsBackend,
+        model: String,
+        voiceA: String
+    ): String {
+        val explicit = (voiceArg ?: settings.podcastHostBVoice).trim()
+        if (explicit.isNotBlank()) return explicit
+        val models = ttsModels(backend)
+        val voices = (models.firstOrNull { it.id == model } ?: models.firstOrNull())?.voices.orEmpty()
+        return voices.firstOrNull { it.id != voiceA }?.id ?: voiceA
+    }
+
+    private fun ttsModels(backend: TtsBackend): List<AudioModel> =
+        runCatching { backend.listModels() }.getOrDefault(emptyList())
+            .filter { it.category == ModelCategory.TTS }
 
     @Suppress("ReturnCount")
     private fun resolveDestination(baseName: String, extension: String, overwrite: Boolean): Resolved {

@@ -1509,6 +1509,95 @@ object ToolDefinitions {
         }
     )
 
+    val synthesizePodcastDialogue = tool(
+        "synthesize_podcast_dialogue",
+        "Turn a two-host dialogue script into a spoken audio file — a conversational podcast in the " +
+            "NotebookLM style — saved under Gotcha/Podcasts on shared storage. Write the dialogue yourself " +
+            "first: an array of turns, each with speaker 'A' or 'B' and the exact words to speak, as plain " +
+            "prose. The hosts get distinct voices (configured in Settings → Speech, overridable per call, " +
+            "and defaulting to two different voices from the model's own list), with a short natural pause " +
+            "between turns. Length ceiling, output formats and the TTS provider requirement are the same as " +
+            "synthesize_podcast: ~25 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
+            "API-based TTS provider — Android's built-in TTS cannot write files.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("lines") {
+                    put("type", "array")
+                    put(
+                        "description",
+                        "The dialogue in order. Each item is one turn: " +
+                            "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\"}."
+                    )
+                    putJsonObject("items") {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("speaker") {
+                                put("type", "string")
+                                put("description", "'A' or 'B' — which host speaks this turn.")
+                            }
+                            putJsonObject("text") {
+                                put("type", "string")
+                                put("description", "What this host says, spoken verbatim. Plain prose only.")
+                            }
+                        }
+                        putJsonArray("required") {
+                            add("speaker")
+                            add("text")
+                        }
+                    }
+                }
+                putJsonObject("output_name") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Base name for the file, e.g. 'ai-news-roundtable'. Slugified and written under " +
+                            "Gotcha/Podcasts; a '.mp3' extension selects the mp3 format."
+                    )
+                }
+                putJsonObject("host_a_voice") {
+                    put("type", "string")
+                    put("description", "Voice id for host A. Defaults to the configured podcast host A voice.")
+                }
+                putJsonObject("host_b_voice") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Voice id for host B. Defaults to the configured podcast host B voice, then to the " +
+                            "first voice in the model's list that differs from host A."
+                    )
+                }
+                putJsonObject("host_a_model") {
+                    put("type", "string")
+                    put("description", "TTS model id for host A. Defaults to the configured TTS model.")
+                }
+                putJsonObject("host_b_model") {
+                    put("type", "string")
+                    put("description", "TTS model id for host B. Defaults to host A's model.")
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "'m4a' (default, works with no setup) or 'mp3' (needs Termux's ffmpeg; degrades to " +
+                            ".m4a with a note when unavailable)."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("lines")
+                add("output_name")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2743,7 +2832,7 @@ object ToolDefinitions {
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
         // Script-to-speech podcast synthesis (Operator only)
-        synthesizePodcast,
+        synthesizePodcast, synthesizePodcastDialogue,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch
