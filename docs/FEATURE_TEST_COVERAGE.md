@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 22 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 23 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **110** | |
+| **Total** | **111** | |
 
-**46 of 110** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**47 of 111** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -90,6 +90,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `snooze_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `start_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `stop_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
+| `synthesize_podcast` | `ROBOLECTRIC` | `PodcastToolTest`, `PodcastAudioTest` — the pure halves on the JVM — sentence-boundary script chunking (limit respected, nothing lost or reordered, oversize sentences split at word boundaries, hard cut only as a last resort) and WAV header parsing by chunk walk (real sample rate honoured rather than assumed, lying data-chunk sizes measured from what actually arrived, JSON/HTML/MP3 responses rejected) — plus every guard that runs before TTS money is spent: Android/unconfigured provider refusals with directions to Settings, blank model, scripts that sanitize to nothing or exceed the ceiling, unsupported formats, existing-output refusal, output_name slugification, and voice resolution (explicit argument beats configured voice beats the model's own default). The assembly itself is device-only — Media3 Transformer drives MediaCodec — and additionally needs a reachable TTS endpoint, so a full script-to-.m4a (and, with Termux, .mp3) run — audible joins, Files-app visibility, the .m4a fallback note — must be verified by hand |
 | `take_photo` | `MANUAL_ONLY` | Needs a real camera; CameraX has no usable emulator fake for the capture callback. |
 | `toggle_torch` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `toggle_wifi` | `MANUAL_ONLY` | `SystemToolTest` — The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier. |

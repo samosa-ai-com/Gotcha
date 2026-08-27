@@ -65,6 +65,7 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
+    private val podcastTool = PodcastTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -250,6 +251,14 @@ class ToolExecutor(
                 input = args.requireString("input") ?: return missing("input"),
                 output = args.requireString("output") ?: return missing("output"),
                 bitrate = args.requireString("bitrate"),
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "synthesize_podcast" -> podcastTool.synthesize(
+                script = args.requireString("script") ?: return missing("script"),
+                outputName = args.requireString("output_name") ?: return missing("output_name"),
+                model = args.requireString("model"),
+                voice = args.requireString("voice"),
+                format = args.requireString("format"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))

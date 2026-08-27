@@ -1441,6 +1441,74 @@ object ToolDefinitions {
         }
     )
 
+    val synthesizePodcast = tool(
+        "synthesize_podcast",
+        "Turn a written narration script into a spoken audio file — a single-voice podcast — saved under " +
+            "Gotcha/Podcasts on shared storage, where the Files app can see it. Write the script yourself " +
+            "first as plain prose (no markdown, no code; it will be read aloud verbatim), then pass it here. " +
+            "Long scripts are synthesized in segments and joined on-device; ~25 minutes of speech is the " +
+            "ceiling. Output is .m4a by default; format='mp3' converts through Termux's ffmpeg when Termux " +
+            "is available and quietly falls back to .m4a when it is not. Needs an API-based TTS provider " +
+            "(Samosa AI or External API) in Settings → Speech — Android's built-in TTS cannot write files, " +
+            "and the error will say so.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("script") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The full narration text, exactly as it should be spoken. Plain prose only — write " +
+                            "for the ear, not the eye."
+                    )
+                }
+                putJsonObject("output_name") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Base name for the file, e.g. 'morning-news-digest'. It is slugified and written " +
+                            "under Gotcha/Podcasts; any directory part or extension is ignored except that " +
+                            "a '.mp3' extension selects the mp3 format."
+                    )
+                }
+                putJsonObject("model") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "TTS model id to use. Defaults to the model configured in Settings → Speech."
+                    )
+                }
+                putJsonObject("voice") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Voice id from the TTS model's voice list. Defaults to the configured voice, then " +
+                            "to the model's own default."
+                    )
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "'m4a' (default, works with no setup) or 'mp3' (needs Termux's ffmpeg; degrades to " +
+                            ".m4a with a note when unavailable)."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("script")
+                add("output_name")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2674,6 +2742,8 @@ object ToolDefinitions {
         mediaEdit,
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
+        // Script-to-speech podcast synthesis (Operator only)
+        synthesizePodcast,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch
