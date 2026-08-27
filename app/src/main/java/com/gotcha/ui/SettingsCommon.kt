@@ -582,12 +582,13 @@ internal fun buildInfluencerFormUrl(
 /**
  * Card inviting creators with a sizable following to apply for the influencer program.
  * Renders nothing when [BuildConfig.INFLUENCER_FORM_URL] is blank, so a public checkout
- * without the form URL configured stays inert.
+ * without the form URL configured stays inert. Also hidden for users whose tier is
+ * already "influencer" — they don't need to be invited to apply.
  */
 @Composable
-fun InfluencerProgramCard(email: String = "", modifier: Modifier = Modifier) {
+fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, modifier: Modifier = Modifier) {
     val formUrl = BuildConfig.INFLUENCER_FORM_URL
-    if (formUrl.isBlank()) return
+    if (formUrl.isBlank() || isInfluencer) return
 
     val context = LocalContext.current
 
@@ -707,7 +708,10 @@ fun SamosaAuthSection(
                 )
             }
 
-            InfluencerProgramCard(email = email)
+            InfluencerProgramCard(
+                email = email,
+                isInfluencer = user?.tier?.id.equals("influencer", ignoreCase = true)
+            )
         } else {
             Button(
                 onClick = onSignIn,
