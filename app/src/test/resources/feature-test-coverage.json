@@ -453,6 +453,14 @@
       "notes": "shares synthesize_podcast's pipeline and its coverage, plus the dialogue-specific guards and mechanics: unknown-speaker refusal, empty-dialogue refusal, blank turns dropped after sanitising rather than synthesized as dead air, and the three-level host-voice resolution (explicit argument beats configured setting beats the first voice in the model's list that differs from host A). Silence-gap WAV generation is verified on the JVM to match the speech's own sample rate and channel count. The audible result — two distinguishable hosts with a natural pause between turns — is device-only and must be verified by hand"
     },
     {
+      "tool": "transcribe_file",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.TranscribeToolTest"
+      ],
+      "notes": "every guard that runs before the upload — Android/unconfigured STT provider refusals with directions to Settings, missing/empty/oversized files, unsupported extensions refused before the backend is touched — plus the properties that make the tool safe to point at a user's only copy of a recording: the input file demonstrably survives transcription byte-for-byte (the deliberate contrast with SttEngine.transcribeApi, which deletes its input), model resolution (explicit argument beats configured setting beats the first STT model the API advertises), empty transcripts reported as errors rather than silence, and over-long transcripts truncated with an honest note. The upload itself needs a reachable STT endpoint, so a real memo round trip is device-only manual verification"
+    },
+    {
       "tool": "glob",
       "tier": "ROBOLECTRIC",
       "tests": [

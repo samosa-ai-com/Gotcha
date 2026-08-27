@@ -66,6 +66,7 @@ class ToolExecutor(
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
     private val podcastTool = PodcastTool(appContext)
+    private val transcribeTool = TranscribeTool(appContext)
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -265,6 +266,11 @@ class ToolExecutor(
                 hostBModel = args.requireString("host_b_model"),
                 format = args.requireString("format"),
                 overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "transcribe_file" -> transcribeTool.transcribe(
+                path = args.requireString("path") ?: return missing("path"),
+                model = args.requireString("model"),
+                language = args.requireString("language")
             )
             "synthesize_podcast" -> podcastTool.synthesize(
                 script = args.requireString("script") ?: return missing("script"),

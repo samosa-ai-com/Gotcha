@@ -1598,6 +1598,46 @@ object ToolDefinitions {
         }
     )
 
+    val transcribeFile = tool(
+        "transcribe_file",
+        "Transcribe an audio file already on disk to text, using the configured Speech-to-Text API. The " +
+            "file is read and uploaded to the STT endpoint but never modified or deleted. Accepts .m4a, " +
+            ".mp3, .wav, .ogg, .opus, .flac, .aac, .mp4 and .webm up to 25MB — trim or split longer " +
+            "recordings with media_edit first. This is how a saved voice memo becomes text: record with " +
+            "start_audio_recording using an explicit output_path (without one the recording lands behind a " +
+            "MediaStore URI this tool cannot reach), stop it, then transcribe the file. Needs an API-based " +
+            "STT provider (Samosa AI or External API) in Settings → Speech — Android's SpeechRecognizer " +
+            "only listens to the microphone.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the audio file to transcribe, e.g. '/sdcard/Gotcha/Recordings/memo.m4a'."
+                    )
+                }
+                putJsonObject("model") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "STT model id to use. Defaults to the model configured in Settings → Speech, then " +
+                            "to the first STT model the API advertises."
+                    )
+                }
+                putJsonObject("language") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "ISO language hint for the recording, e.g. 'en' or 'hi'. Defaults to the " +
+                            "configured STT language; leave unset to let the model detect it."
+                    )
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2833,6 +2873,8 @@ object ToolDefinitions {
         mediaConvert,
         // Script-to-speech podcast synthesis (Operator only)
         synthesizePodcast, synthesizePodcastDialogue,
+        // Audio-file transcription via the STT API (Operator only)
+        transcribeFile,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch
