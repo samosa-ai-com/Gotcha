@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The body of the Connectors screen: one card per connector, built from the two
@@ -67,19 +68,29 @@ fun ConnectorsSection() {
     var disabled by remember { mutableStateOf(settings.disabledConnectors) }
     val scope = rememberCoroutineScope()
     val refreshScheduler = remember(context) { ConnectorRefreshScheduler(context) }
+    // True while the scheduled refresh below is in flight, so the header can say
+    // so instead of just looking stuck.
+    var autoSyncing by remember { mutableStateOf(false) }
 
-    // Automatic background scheduler loop while screen is open
+    // Automatic background scheduler loop while screen is open.
+    //
+    // Changing the interval restarts this effect, so everything in it has to
+    // stay off the main thread: a Settings load is ~60 AES-decrypted reads and
+    // takes the same prefs lock the interval write holds, which is what used to
+    // freeze the slider for a moment after each change.
     LaunchedEffect(settings.connectorAutoRefreshIntervalMinutes) {
-        refreshScheduler.refreshIfNeeded()
-        settings = settingsRepo.load()
-        if (settings.connectorAutoRefreshIntervalMinutes > 0) {
-            while (isActive) {
-                delay(60_000L)
-                val refreshed = refreshScheduler.refreshIfNeeded()
-                if (refreshed.isNotEmpty()) {
-                    settings = settingsRepo.load()
-                }
+        if (settings.connectorAutoRefreshIntervalMinutes <= 0) return@LaunchedEffect
+        while (isActive) {
+            autoSyncing = true
+            val refreshed = try {
+                refreshScheduler.refreshIfNeeded()
+            } finally {
+                autoSyncing = false
             }
+            if (refreshed.isNotEmpty()) {
+                settings = withContext(Dispatchers.IO) { settingsRepo.load() }
+            }
+            delay(60_000L)
         }
     }
 
@@ -94,6 +105,7 @@ fun ConnectorsSection() {
         AutoRefreshHeader(
             intervalMinutes = settings.connectorAutoRefreshIntervalMinutes,
             lastRefreshedAt = settings.connectorLastRefreshedAt,
+            isAutoSyncing = autoSyncing,
             // Reflected in the UI immediately and persisted off the main thread.
             // Settings lives in EncryptedSharedPreferences, so the read-modify-
             // write behind this is ~60 AES reads plus 58 writes -- long enough
@@ -159,6 +171,7 @@ private fun indexOfInterval(minutes: Int): Int {
 private fun AutoRefreshHeader(
     intervalMinutes: Int,
     lastRefreshedAt: Long,
+    isAutoSyncing: Boolean,
     onIntervalChange: (Int) -> Unit,
     onRefreshAll: suspend () -> Map<String, String>
 ) {
@@ -262,6 +275,16 @@ private fun AutoRefreshHeader(
                 steps = AUTO_REFRESH_INTERVALS.size - 2,
                 modifier = Modifier.fillMaxWidth()
             )
+            // A new interval saves in milliseconds; what takes a moment is the
+            // sync it starts when one is already due. Name that rather than the
+            // save, so the pause is explained instead of looking like a hang.
+            if (isAutoSyncing) {
+                Text(
+                    "Syncing connectors…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
