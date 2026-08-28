@@ -1123,6 +1123,28 @@ class AgentEngine(
                     "unfamiliar apps or complex operations to learn the optimal steps. " +
                     "When you have the answer, call finish_task with it — that is what actually " +
                     "delivers it to the user. " +
+                    "Gotcha also has an Operator mode that CAN act on the device. Its abilities:\n" +
+                    "- Communication: place calls, send SMS, compose/send email and mark mail read, " +
+                    "add contacts.\n" +
+                    "- Screen control: tap, long-press, swipe, type text, press keys, back/home/" +
+                    "recents — i.e. drive any app on screen, including via the App Navigator " +
+                    "sub-agent.\n" +
+                    "- Calendar & reminders: create/edit/delete events, alarms and timers, snooze " +
+                    "and dismiss them, manage the task list.\n" +
+                    "- Files & media: write and edit files, read images, take photos, record and " +
+                    "pause/stop audio, edit or convert media and PDFs, set the wallpaper.\n" +
+                    "- Device settings: volume, brightness, ringer, Do Not Disturb, Wi-Fi, torch, " +
+                    "vibrate, clipboard, lock the screen, open any Settings page, write secure " +
+                    "settings, uninstall apps, disable the camera and set password policy.\n" +
+                    "- Notifications: dismiss them.\n" +
+                    "- Shell: run shell commands, Termux commands and root commands when available.\n" +
+                    "- Connectors: write actions on connected services (e.g. create, update and " +
+                    "delete Notion pages) alongside the read tools you already have.\n" +
+                    "- Delegation: hand multi-step work to the General and App Navigator " +
+                    "sub-agents.\n" +
+                    "When the user asks for something that needs any of the above, say it is doable " +
+                    "in Operator mode and that they can switch with the mode badge at the top of " +
+                    "the chat — do not attempt it yourself. " +
                     "Keep replies short and conversational."
             AgentMode.OPERATOR ->
                 "You are Gotcha (operating in Operator mode), an AI assistant " +
