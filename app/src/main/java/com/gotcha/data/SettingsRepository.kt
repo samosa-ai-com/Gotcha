@@ -331,6 +331,26 @@ private const val LEGACY_THEME_MODE_SYSTEM = "SYSTEM"
 interface SettingsStore {
     fun load(): Settings
     fun save(settings: Settings)
+
+    /**
+     * Write just the auto-refresh interval.
+     *
+     * [save] rewrites all 58 keys, so the usual load-copy-save clobbers any
+     * field another writer changed in between. The connector screen sets this
+     * from a slider while [saveConnectorLastRefreshedAt] is being written by a
+     * refresh on another thread, and whichever load ran first used to win.
+     *
+     * The default keeps that old read-modify-write, which is fine for stores
+     * with no concurrency; [SettingsRepository] narrows it to one key.
+     */
+    fun saveConnectorAutoRefreshIntervalMinutes(minutes: Int) {
+        save(load().copy(connectorAutoRefreshIntervalMinutes = minutes))
+    }
+
+    /** Write just the last-refreshed stamp. See [saveConnectorAutoRefreshIntervalMinutes]. */
+    fun saveConnectorLastRefreshedAt(millis: Long) {
+        save(load().copy(connectorLastRefreshedAt = millis))
+    }
 }
 
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
@@ -426,6 +446,14 @@ class SettingsRepository(context: Context) : SettingsStore {
         tourStepId = string(KEY_TOUR_STEP),
         onboardingVersion = prefs.getInt(KEY_ONBOARDING_VERSION, 0)
     )
+
+    override fun saveConnectorAutoRefreshIntervalMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_CONNECTOR_AUTO_REFRESH_INTERVAL, minutes).apply()
+    }
+
+    override fun saveConnectorLastRefreshedAt(millis: Long) {
+        prefs.edit().putLong(KEY_CONNECTOR_LAST_REFRESHED, millis).apply()
+    }
 
     override fun save(settings: Settings) {
         prefs.edit()

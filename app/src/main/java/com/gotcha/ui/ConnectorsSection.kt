@@ -88,7 +88,14 @@ fun ConnectorsSection() {
                 autoSyncing = false
             }
             if (refreshed.isNotEmpty()) {
-                settings = withContext(Dispatchers.IO) { settingsRepo.load() }
+                // Take the new stamp and nothing else. Reassigning all of
+                // Settings from disk would also overwrite the interval held in
+                // memory -- with a value read before the slider's write landed,
+                // which snapped the thumb back to where it started.
+                val stamp = withContext(Dispatchers.IO) {
+                    settingsRepo.load().connectorLastRefreshedAt
+                }
+                settings = settings.copy(connectorLastRefreshedAt = stamp)
             }
             delay(60_000L)
         }
@@ -113,10 +120,7 @@ fun ConnectorsSection() {
             onIntervalChange = { newInterval ->
                 settings = settings.copy(connectorAutoRefreshIntervalMinutes = newInterval)
                 scope.launch(Dispatchers.IO) {
-                    val current = settingsRepo.load()
-                    settingsRepo.save(
-                        current.copy(connectorAutoRefreshIntervalMinutes = newInterval)
-                    )
+                    settingsRepo.saveConnectorAutoRefreshIntervalMinutes(newInterval)
                 }
             },
             onRefreshAll = {
