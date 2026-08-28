@@ -60,8 +60,12 @@ class PodcastTool(
             api.synthesize(text, model, voice)
     }
 
-    /** One turn of a dialogue script, as the model writes it. */
-    data class DialogueLine(val speaker: String, val text: String)
+    /**
+     * One turn of a dialogue script, as the model writes it. [pauseMs] is the
+     * script's pacing direction — the silence after this turn — null meaning
+     * "use the episode default".
+     */
+    data class DialogueLine(val speaker: String, val text: String, val pauseMs: Long? = null)
 
     private val resolver = FileResolver(context)
 
@@ -85,10 +89,24 @@ class PodcastTool(
         const val MAX_TOTAL_DURATION_MS = MediaEditTool.MAX_REENCODE_DURATION_MS
 
         /**
-         * Breathing room between dialogue turns. Long enough to read as a
-         * speaker change, short enough not to read as dead air.
+         * Breathing room between dialogue turns when neither the call's
+         * `gap_ms` nor the line's `pause_ms` says otherwise. Long enough to
+         * read as a speaker change, short enough not to read as dead air.
          */
         const val DIALOGUE_GAP_MS = 300L
+
+        /** Ceiling on any single pause — past this a "beat" is just dead air, or a hallucinated number. */
+        const val MAX_TURN_PAUSE_MS = 2_000L
+
+        /**
+         * The pause that actually lands after a turn: the line's own request
+         * if it carried one, the episode default otherwise, clamped either
+         * way. A `pause_ms` the dispatcher could not read arrives here as
+         * null, which is what makes the default the fallback rather than an
+         * error.
+         */
+        fun resolvePause(requested: Long?, default: Long): Long =
+            (requested ?: default).coerceIn(0L, MAX_TURN_PAUSE_MS)
 
         private const val TTS_TIMEOUT_SECONDS = 120L
         private const val FORMAT_M4A = "m4a"
@@ -123,14 +141,17 @@ class PodcastTool(
     private data class SpeechSegment(val text: String, val model: String, val voice: String)
 
     /**
-     * Everything one synthesis run carries between its stages. [groups] are
-     * lists of segments; the silence gap is inserted *between groups*, never
-     * between the chunks of one over-long piece of text.
+     * One spoken turn: its segments (an over-long turn chunks into several)
+     * and the silence appended after its last segment. The pause lives on the
+     * turn, never between a turn's own chunks — a pause inside a sentence
+     * would be a stall, not a beat.
      */
+    private data class Turn(val segments: List<SpeechSegment>, val pauseAfterMs: Long)
+
+    /** Everything one synthesis run carries between its stages. */
     private data class SynthesisJob(
         val backend: TtsBackend,
-        val groups: List<List<SpeechSegment>>,
-        val gapMs: Long,
+        val turns: List<Turn>,
         val tempDir: File,
         val destination: File,
         val wantMp3: Boolean,
@@ -168,8 +189,7 @@ class PodcastTool(
             .map { SpeechSegment(it, resolvedModel, resolvedVoice) }
         return runJob(
             backend = backend,
-            groups = listOf(segments),
-            gapMs = 0L,
+            turns = listOf(Turn(segments, pauseAfterMs = 0L)),
             outputName = outputName,
             requestedFormat = requestedFormat,
             overwrite = overwrite,
@@ -186,6 +206,7 @@ class PodcastTool(
         hostBVoice: String? = null,
         hostAModel: String? = null,
         hostBModel: String? = null,
+        gapMs: Long? = null,
         format: String? = null,
         overwrite: Boolean = false
     ): ToolResult {
@@ -218,14 +239,18 @@ class PodcastTool(
             ""
         }
 
-        val groups = turns.map { turn ->
+        val episodeGap = resolvePause(gapMs, DIALOGUE_GAP_MS)
+        val spoken = turns.mapIndexed { index, turn ->
             val (model, voice) = if (turn.speaker == SPEAKER_A) modelA to voiceA else modelB to voiceB
-            PodcastAudio.chunk(turn.text, MAX_CHUNK_CHARS).map { SpeechSegment(it, model, voice) }
+            Turn(
+                segments = PodcastAudio.chunk(turn.text, MAX_CHUNK_CHARS).map { SpeechSegment(it, model, voice) },
+                // Nothing follows the last turn, so a pause there is only trailing silence.
+                pauseAfterMs = if (index == turns.lastIndex) 0L else resolvePause(turn.pauseMs, episodeGap)
+            )
         }
         return runJob(
             backend = backend,
-            groups = groups,
-            gapMs = DIALOGUE_GAP_MS,
+            turns = spoken,
             outputName = outputName,
             requestedFormat = requestedFormat,
             overwrite = overwrite,
@@ -239,8 +264,7 @@ class PodcastTool(
     @Suppress("ReturnCount", "LongParameterList")
     private suspend fun runJob(
         backend: TtsBackend,
-        groups: List<List<SpeechSegment>>,
-        gapMs: Long,
+        turns: List<Turn>,
         outputName: String,
         requestedFormat: String,
         overwrite: Boolean,
@@ -264,7 +288,7 @@ class PodcastTool(
         return try {
             produce(
                 SynthesisJob(
-                    backend = backend, groups = groups, gapMs = gapMs, tempDir = tempDir,
+                    backend = backend, turns = turns, tempDir = tempDir,
                     destination = destination, wantMp3 = wantMp3, baseName = baseName,
                     overwrite = overwrite, notes = notes + degradeNote, voiceLabel = voiceLabel
                 )
@@ -277,14 +301,12 @@ class PodcastTool(
     @Suppress("ReturnCount")
     private suspend fun produce(job: SynthesisJob): ToolResult {
         job.tempDir.mkdirs()
-        val totalSegments = job.groups.sumOf { it.size }
+        val totalSegments = job.turns.sumOf { it.segments.size }
         val files = mutableListOf<File>()
-        val silenceByFormat = mutableMapOf<Pair<Int, Int>, File>()
         var totalMs = 0L
         var index = 0
-        var lastWav: PodcastAudio.WavInfo? = null
-        for ((groupIndex, group) in job.groups.withIndex()) {
-            for (segment in group) {
+        for (turn in job.turns) {
+            for ((positionInTurn, segment) in turn.segments.withIndex()) {
                 coroutineContext.ensureActive()
                 index++
                 val bytes = job.backend.synthesize(segment.text, segment.model, segment.voice).getOrElse { e ->
@@ -298,19 +320,14 @@ class PodcastTool(
                         "The model name or voice may be wrong for this provider — check them against the " +
                         "provider's model list."
                 )
-                totalMs += info.durationMs
+                // The turn's pause rides on its final segment, so the joiner sees
+                // one input per segment and no seam where the silence begins.
+                val lastOfTurn = positionInTurn == turn.segments.lastIndex
+                val pauseMs = if (lastOfTurn) turn.pauseAfterMs else 0L
+                val audio = if (pauseMs > 0) PodcastAudio.appendSilence(bytes, pauseMs) ?: bytes else bytes
+                totalMs += info.durationMs + if (audio !== bytes) pauseMs else 0L
                 if (totalMs > MAX_TOTAL_DURATION_MS) return audioTooLong()
-                files += File(job.tempDir, "segment_%03d.wav".format(index)).apply { writeBytes(bytes) }
-                lastWav = info
-            }
-            val wav = lastWav
-            if (job.gapMs > 0 && groupIndex < job.groups.lastIndex && wav != null) {
-                files += silenceByFormat.getOrPut(wav.sampleRate to wav.channels) {
-                    File(job.tempDir, "gap_${wav.sampleRate}_${wav.channels}.wav").apply {
-                        writeBytes(PodcastAudio.silenceWav(job.gapMs, wav.sampleRate, wav.channels))
-                    }
-                }
-                totalMs += job.gapMs
+                files += File(job.tempDir, "segment_%03d.wav".format(index)).apply { writeBytes(audio) }
             }
         }
 

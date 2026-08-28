@@ -17,6 +17,7 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /**
  * Single dispatch point for all tool side effects. Validates args, checks
@@ -266,6 +267,7 @@ class ToolExecutor(
                 hostBVoice = args.requireString("host_b_voice"),
                 hostAModel = args.requireString("host_a_model"),
                 hostBModel = args.requireString("host_b_model"),
+                gapMs = args.requireInt("gap_ms")?.toLong(),
                 format = args.requireString("format"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
@@ -674,7 +676,12 @@ class ToolExecutor(
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
 
-    /** Null on any malformed entry rather than dropping it — a silently skipped turn is a mangled episode. */
+    /**
+     * Null on a malformed entry rather than dropping it — a silently skipped
+     * turn is a mangled episode. `pause_ms` is the exception: it is pacing
+     * advice, so an unreadable one falls back to the episode default instead
+     * of failing a script that is otherwise fine.
+     */
     private fun parseDialogueLines(element: JsonElement?): List<PodcastTool.DialogueLine>? {
         val array = element as? JsonArray ?: return null
         if (array.isEmpty()) return null
@@ -682,7 +689,8 @@ class ToolExecutor(
             val obj = item as? JsonObject ?: return null
             val speaker = (obj["speaker"] as? JsonPrimitive)?.content?.trim() ?: return null
             val text = (obj["text"] as? JsonPrimitive)?.content ?: return null
-            PodcastTool.DialogueLine(speaker, text)
+            val pause = (obj["pause_ms"] as? JsonPrimitive)?.let { it.longOrNull ?: it.content.trim().toLongOrNull() }
+            PodcastTool.DialogueLine(speaker, text, pause)
         }
     }
 

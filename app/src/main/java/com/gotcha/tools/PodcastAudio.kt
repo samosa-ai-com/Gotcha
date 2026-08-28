@@ -127,43 +127,58 @@ object PodcastAudio {
     /** [wavInfo] for a file already on disk. */
     fun wavInfo(file: File): WavInfo? = runCatching { wavInfo(file.readBytes()) }.getOrNull()
 
-    private const val PCM_FORMAT_CODE = 1
-    private const val PCM16_BYTES_PER_SAMPLE = 2
-    private const val FMT_CHUNK_BYTES = 16
-    private const val BITS_PER_BYTE = 8
-
     /**
-     * A canonical PCM16 WAV of digital silence, used as the breathing gap
-     * between dialogue turns. Generated at the [sampleRate]/[channels] of the
-     * speech it sits between rather than at some fixed rate, so the joiner
-     * sees a homogeneous sequence instead of resampling a mismatched clip at
-     * every turn boundary.
+     * Returns [wav] with [durationMs] of PCM silence appended to its data
+     * chunk, both size fields patched to match.
+     *
+     * This is how a pause lands between dialogue turns: extending the turn's
+     * own audio instead of emitting a separate silence file means the joiner
+     * sees one input per turn instead of two, there is no extra re-encode
+     * boundary for a seam to appear at, and the silence matches the speech's
+     * sample rate and channel count by construction. A declared data size that
+     * was lying (streamed WAVs write 0 or -1) is replaced with the honest
+     * value while we are here.
+     *
+     * Returns null when [wav] is not a well-formed WAV — callers that already
+     * validated with [wavInfo] can treat that as "keep the original".
      */
-    fun silenceWav(durationMs: Long, sampleRate: Int, channels: Int): ByteArray {
-        require(durationMs >= 0 && sampleRate > 0 && channels > 0) { "invalid silence parameters" }
-        val frameBytes = channels * PCM16_BYTES_PER_SAMPLE
-        val dataBytes = (durationMs * sampleRate / MILLIS_PER_SECOND).toInt() * frameBytes
-        val out = java.io.ByteArrayOutputStream(MIN_WAV_BYTES + dataBytes)
-        fun ascii(s: String) = s.forEach { out.write(it.code) }
-        fun le32(v: Int) = repeat(4) { out.write((v shr (BITS_PER_BYTE * it)) and 0xFF) }
-        fun le16(v: Int) = repeat(2) { out.write((v shr (BITS_PER_BYTE * it)) and 0xFF) }
+    @Suppress("ReturnCount")
+    fun appendSilence(wav: ByteArray, durationMs: Long): ByteArray? {
+        if (durationMs <= 0) return wav
+        val info = wavInfo(wav) ?: return null
 
-        ascii("RIFF")
-        le32(MIN_WAV_BYTES - CHUNK_HEADER_BYTES + dataBytes)
-        ascii("WAVE")
-        ascii("fmt ")
-        le32(FMT_CHUNK_BYTES)
-        le16(PCM_FORMAT_CODE)
-        le16(channels)
-        le32(sampleRate)
-        le32(sampleRate * frameBytes)
-        le16(frameBytes)
-        le16(PCM16_BYTES_PER_SAMPLE * BITS_PER_BYTE)
-        ascii("data")
-        le32(dataBytes)
-        out.write(ByteArray(dataBytes))
-        return out.toByteArray()
+        var offset = RIFF_HEADER_BYTES
+        var dataHeader = -1
+        while (offset + CHUNK_HEADER_BYTES <= wav.size) {
+            if (wav.ascii(offset, "data")) {
+                dataHeader = offset
+                break
+            }
+            val chunkSize = wav.leInt(offset + 4).toLong() and 0xFFFFFFFFL
+            offset += CHUNK_HEADER_BYTES + chunkSize.toInt() + (chunkSize % 2).toInt()
+            if (offset < 0) return null
+        }
+        if (dataHeader < 0) return null
+
+        val frameBytes = info.channels * (info.bitsPerSample / BITS_PER_BYTE)
+        if (frameBytes <= 0) return null
+        val extra = (durationMs * info.byteRate / MILLIS_PER_SECOND).toInt().let { it - it % frameBytes }
+        val dataEnd = dataHeader + CHUNK_HEADER_BYTES + info.dataBytes.toInt()
+
+        val out = ByteArray(wav.size + extra)
+        wav.copyInto(out, 0, 0, dataEnd)
+        // The gap itself is already zeros; only the region after it needs copying.
+        wav.copyInto(out, dataEnd + extra, dataEnd, wav.size)
+        out.patchLe32(dataHeader + 4, (info.dataBytes + extra).toInt())
+        out.patchLe32(4, out.size - CHUNK_HEADER_BYTES)
+        return out
     }
+
+    private fun ByteArray.patchLe32(offset: Int, value: Int) {
+        repeat(4) { this[offset + it] = ((value shr (BITS_PER_BYTE * it)) and 0xFF).toByte() }
+    }
+
+    private const val BITS_PER_BYTE = 8
 
     private fun ByteArray.ascii(offset: Int, expected: String): Boolean {
         if (offset + expected.length > size) return false

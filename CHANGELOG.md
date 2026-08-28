@@ -8,8 +8,11 @@ All notable changes to Gotcha are documented here.
   for a topic, an article or your notes as a podcast and the assistant writes
   the script and speaks it through your configured text-to-speech API — as a
   single narrator (`synthesize_podcast`) or as two hosts in conversation with
-  distinct voices and a natural pause between turns
-  (`synthesize_podcast_dialogue`; pick the host voices in Settings → Speech).
+  distinct voices (`synthesize_podcast_dialogue`; pick the host voices in
+  Settings → Speech). The assistant paces the conversation as it writes it,
+  choosing the silence after each turn — a quick interjection runs straight
+  into the reply, a revelation gets a beat first — so an episode breathes
+  the way the script intended instead of ticking along on a fixed gap.
   Long scripts are synthesized in segments and joined on the device, episodes
   land under `Gotcha/Podcasts` as `.m4a` (or `.mp3` when Termux's ffmpeg is
   available), and `share_podcast` opens the system share sheet to send one

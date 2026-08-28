@@ -1515,8 +1515,10 @@ object ToolDefinitions {
             "NotebookLM style — saved under Gotcha/Podcasts on shared storage. Write the dialogue yourself " +
             "first: an array of turns, each with speaker 'A' or 'B' and the exact words to speak, as plain " +
             "prose. The hosts get distinct voices (configured in Settings → Speech, overridable per call, " +
-            "and defaulting to two different voices from the model's own list), with a short natural pause " +
-            "between turns. Length ceiling, output formats and the TTS provider requirement are the same as " +
+            "and defaulting to two different voices from the model's own list). You also direct the pacing: " +
+            "each turn may carry a pause_ms for the silence after it — a quick interjection wants less than " +
+            "a beat before a revelation — and gap_ms sets the episode's default. Length ceiling, output " +
+            "formats and the TTS provider requirement are the same as " +
             "synthesize_podcast: ~25 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
             "API-based TTS provider — Android's built-in TTS cannot write files.",
         schema {
@@ -1526,7 +1528,8 @@ object ToolDefinitions {
                     put(
                         "description",
                         "The dialogue in order. Each item is one turn: " +
-                            "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\"}."
+                            "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\", " +
+                            "\"pause_ms\": optional pacing}."
                     )
                     putJsonObject("items") {
                         put("type", "object")
@@ -1539,12 +1542,31 @@ object ToolDefinitions {
                                 put("type", "string")
                                 put("description", "What this host says, spoken verbatim. Plain prose only.")
                             }
+                            putJsonObject("pause_ms") {
+                                put("type", "integer")
+                                put(
+                                    "description",
+                                    "Silence AFTER this turn, in milliseconds — pacing you direct like a " +
+                                        "stage direction. Roughly: 150-250 for quick back-and-forth, 300 " +
+                                        "for a normal hand-off, 500-800 to let a point land or mark a topic " +
+                                        "change. Omit it and the turn uses gap_ms. Clamped to 0-2000, and " +
+                                        "ignored on the final turn, where it would only be trailing silence."
+                                )
+                            }
                         }
                         putJsonArray("required") {
                             add("speaker")
                             add("text")
                         }
                     }
+                }
+                putJsonObject("gap_ms") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Default silence between turns for this episode, in milliseconds (0-2000, " +
+                            "default 300). Individual lines override it with their own pause_ms."
+                    )
                 }
                 putJsonObject("output_name") {
                     put("type", "string")

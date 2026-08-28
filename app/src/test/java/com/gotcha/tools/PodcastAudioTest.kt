@@ -1,5 +1,6 @@
 package com.gotcha.tools
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -119,34 +120,105 @@ class PodcastAudioTest {
         assertNull(PodcastAudio.wavInfo(byteArrayOf(0xFF.toByte(), 0xFB.toByte()) + ByteArray(100)))
     }
 
-    // ---- silence generation ----
+    // ---- appending silence ----
 
     @Test
-    fun `generated silence is a valid WAV of the requested format and length`() {
-        val info = PodcastAudio.wavInfo(PodcastAudio.silenceWav(1000, 24_000, 1))!!
+    fun `appending silence extends the duration by exactly that much`() {
+        val speech = buildWav(sampleRate = 24_000, channels = 1, bitsPerSample = 16, dataBytes = 48_000)
+        val padded = PodcastAudio.appendSilence(speech, 300)!!
+        val info = PodcastAudio.wavInfo(padded)!!
+        assertEquals(1300L, info.durationMs)
         assertEquals(24_000, info.sampleRate)
         assertEquals(1, info.channels)
-        assertEquals(16, info.bitsPerSample)
-        assertEquals(1000L, info.durationMs)
     }
 
     @Test
-    fun `silence matches whatever rate and channel count the speech used`() {
-        val info = PodcastAudio.wavInfo(PodcastAudio.silenceWav(300, 44_100, 2))!!
-        assertEquals(44_100, info.sampleRate)
-        assertEquals(2, info.channels)
-        assertEquals(300L, info.durationMs)
+    fun `the pause inherits the speech's own rate and channel count`() {
+        // 500ms of 44.1kHz stereo is 88200 bytes, not the 24kHz-mono 24000.
+        val speech = buildWav(sampleRate = 44_100, channels = 2, bitsPerSample = 16, dataBytes = 176_400)
+        val padded = PodcastAudio.appendSilence(speech, 500)!!
+        assertEquals(speech.size + 88_200, padded.size)
+        assertEquals(1500L, PodcastAudio.wavInfo(padded)!!.durationMs)
+    }
+
+    @Test
+    fun `the original audio is preserved byte for byte ahead of the pause`() {
+        val speech = buildWav(
+            sampleRate = 24_000,
+            channels = 1,
+            bitsPerSample = 16,
+            dataBytes = 4_800,
+            dataFill = { (it % 251).toByte() }
+        )
+        val padded = PodcastAudio.appendSilence(speech, 100)!!
+        val spoken = PodcastAudio.wavInfo(speech)!!.dataBytes.toInt()
+        val dataStart = speech.size - spoken
+        assertArrayEquals(
+            speech.copyOfRange(dataStart, speech.size),
+            padded.copyOfRange(dataStart, dataStart + spoken)
+        )
+    }
+
+    @Test
+    fun `the appended region is actual silence`() {
+        val speech = buildWav(
+            sampleRate = 24_000,
+            channels = 1,
+            bitsPerSample = 16,
+            dataBytes = 4_800,
+            dataFill = { 0x7F }
+        )
+        val padded = PodcastAudio.appendSilence(speech, 100)!!
+        val tail = padded.copyOfRange(speech.size, padded.size)
+        assertTrue("nothing was appended", tail.isNotEmpty())
+        assertTrue("appended region is not silent", tail.all { it == 0.toByte() })
+    }
+
+    @Test
+    fun `a zero or negative pause returns the audio untouched`() {
+        val speech = buildWav(sampleRate = 24_000, channels = 1, bitsPerSample = 16, dataBytes = 4_800)
+        assertArrayEquals(speech, PodcastAudio.appendSilence(speech, 0))
+        assertArrayEquals(speech, PodcastAudio.appendSilence(speech, -100))
+    }
+
+    @Test
+    fun `appending to something that is not a WAV reports failure instead of corrupting it`() {
+        assertNull(PodcastAudio.appendSilence("{\"error\":\"nope\"}".toByteArray(), 300))
+        assertNull(PodcastAudio.appendSilence(ByteArray(8), 300))
+    }
+
+    @Test
+    fun `a padded WAV survives a second round of padding`() {
+        // Proves the patched size fields are honest enough to parse again.
+        val speech = buildWav(sampleRate = 24_000, channels = 1, bitsPerSample = 16, dataBytes = 24_000)
+        val once = PodcastAudio.appendSilence(speech, 200)!!
+        val twice = PodcastAudio.appendSilence(once, 300)!!
+        assertEquals(1000L, PodcastAudio.wavInfo(twice)!!.durationMs)
+    }
+
+    @Test
+    fun `padding walks past a leading chunk to find the real data chunk`() {
+        val speech = buildWav(
+            sampleRate = 24_000,
+            channels = 1,
+            bitsPerSample = 16,
+            dataBytes = 24_000,
+            leadingJunkChunk = true
+        )
+        assertEquals(700L, PodcastAudio.wavInfo(PodcastAudio.appendSilence(speech, 200)!!)!!.durationMs)
     }
 
     // ---- synthetic WAV builder ----
 
+    @Suppress("LongParameterList")
     private fun buildWav(
         sampleRate: Int,
         channels: Int,
         bitsPerSample: Int,
         dataBytes: Int,
         leadingJunkChunk: Boolean = false,
-        declaredDataSize: Int = dataBytes
+        declaredDataSize: Int = dataBytes,
+        dataFill: ((Int) -> Byte)? = null
     ): ByteArray {
         val out = ByteArrayOutputStream()
         fun ascii(s: String) = out.write(s.toByteArray(Charsets.US_ASCII))
@@ -172,7 +244,7 @@ class PodcastAudioTest {
         le16(bitsPerSample)
         ascii("data")
         le32(declaredDataSize)
-        out.write(ByteArray(dataBytes))
+        out.write(if (dataFill == null) ByteArray(dataBytes) else ByteArray(dataBytes) { dataFill(it) })
         return out.toByteArray()
     }
 }

@@ -237,9 +237,10 @@ class PodcastToolTest {
         tool: PodcastTool,
         lines: List<PodcastTool.DialogueLine>,
         hostAVoice: String? = null,
-        hostBVoice: String? = null
+        hostBVoice: String? = null,
+        gapMs: Long? = null
     ): ToolResult = runBlocking {
-        tool.synthesizeDialogue(lines, "roundtable", hostAVoice, hostBVoice)
+        tool.synthesizeDialogue(lines, "roundtable", hostAVoice, hostBVoice, gapMs = gapMs)
     }
 
     private val twoTurns = listOf(
@@ -247,16 +248,36 @@ class PodcastToolTest {
         PodcastTool.DialogueLine("B", "Great to be here.")
     )
 
-    /** Succeeds [okCalls] times with a real (silent) WAV, then fails — lets voice capture cross turns. */
+    /** 100ms of 24kHz mono PCM16 — a valid WAV for the fake backend to return. */
+    private fun fakeWav(): ByteArray {
+        val dataBytes = 4_800
+        val out = java.io.ByteArrayOutputStream()
+        fun ascii(s: String) = s.forEach { out.write(it.code) }
+        fun le32(v: Int) = repeat(4) { out.write((v shr (8 * it)) and 0xFF) }
+        fun le16(v: Int) = repeat(2) { out.write((v shr (8 * it)) and 0xFF) }
+        ascii("RIFF")
+        le32(36 + dataBytes)
+        ascii("WAVE")
+        ascii("fmt ")
+        le32(16)
+        le16(1)
+        le16(1)
+        le32(24_000)
+        le32(48_000)
+        le16(2)
+        le16(16)
+        ascii("data")
+        le32(dataBytes)
+        out.write(ByteArray(dataBytes))
+        return out.toByteArray()
+    }
+
+    /** Succeeds [okCalls] times with a real WAV, then fails — lets voice capture cross turns. */
     private fun backendFailingAfter(okCalls: Int, models: List<AudioModel> = emptyList()): FakeBackend {
         var calls = 0
         return FakeBackend(models = models).apply {
             answer = {
-                if (calls++ < okCalls) {
-                    Result.success(PodcastAudio.silenceWav(100, 24_000, 1))
-                } else {
-                    Result.failure(IOException("stop here"))
-                }
+                if (calls++ < okCalls) Result.success(fakeWav()) else Result.failure(IOException("stop here"))
             }
         }
     }
@@ -309,6 +330,51 @@ class PodcastToolTest {
         val settings = apiSettings.copy(podcastHostAVoice = "am_adam", podcastHostBVoice = "bf_emma")
         dialogue(tool(settings = settings, backend = backend), twoTurns, hostAVoice = "aa", hostBVoice = "bb")
         assertEquals(listOf("aa", "bb"), backend.synthesizedWith.map { it.third })
+    }
+
+    // ---- pacing ----
+
+    @Test
+    fun `a line without pause_ms falls back to the episode default`() {
+        assertEquals(
+            PodcastTool.DIALOGUE_GAP_MS,
+            PodcastTool.resolvePause(requested = null, default = PodcastTool.DIALOGUE_GAP_MS)
+        )
+    }
+
+    @Test
+    fun `a line's own pause_ms overrides the episode default`() {
+        assertEquals(750L, PodcastTool.resolvePause(requested = 750L, default = PodcastTool.DIALOGUE_GAP_MS))
+    }
+
+    @Test
+    fun `a zero pause is honoured, not treated as unset`() {
+        // The difference that matters: "run these turns together" must not silently become 300ms.
+        assertEquals(0L, PodcastTool.resolvePause(requested = 0L, default = PodcastTool.DIALOGUE_GAP_MS))
+    }
+
+    @Test
+    fun `an absurd or negative pause is clamped rather than obeyed`() {
+        assertEquals(PodcastTool.MAX_TURN_PAUSE_MS, PodcastTool.resolvePause(999_999L, PodcastTool.DIALOGUE_GAP_MS))
+        assertEquals(0L, PodcastTool.resolvePause(-5_000L, PodcastTool.DIALOGUE_GAP_MS))
+    }
+
+    @Test
+    fun `a hallucinated gap_ms cannot stretch the episode through the lines that inherit it`() {
+        val episodeGap = PodcastTool.resolvePause(60_000L, PodcastTool.DIALOGUE_GAP_MS)
+        assertEquals(PodcastTool.MAX_TURN_PAUSE_MS, episodeGap)
+        assertEquals(PodcastTool.MAX_TURN_PAUSE_MS, PodcastTool.resolvePause(null, episodeGap))
+    }
+
+    @Test
+    fun `a dialogue with custom pacing still reaches the API with its text intact`() {
+        val backend = backendFailingAfter(okCalls = 1)
+        val paced = listOf(
+            PodcastTool.DialogueLine("A", "So here's the thing.", pauseMs = 800),
+            PodcastTool.DialogueLine("B", "Go on.", pauseMs = 150)
+        )
+        dialogue(tool(backend = backend), paced, gapMs = 250L)
+        assertEquals(listOf("So here's the thing.", "Go on."), backend.synthesizedWith.map { it.first })
     }
 
     @Test
