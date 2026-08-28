@@ -37,6 +37,7 @@ import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -93,10 +94,18 @@ fun ConnectorsSection() {
         AutoRefreshHeader(
             intervalMinutes = settings.connectorAutoRefreshIntervalMinutes,
             lastRefreshedAt = settings.connectorLastRefreshedAt,
+            // Reflected in the UI immediately and persisted off the main thread.
+            // Settings lives in EncryptedSharedPreferences, so the read-modify-
+            // write behind this is ~60 AES reads plus 58 writes -- long enough
+            // to drop frames while a finger is still on the slider.
             onIntervalChange = { newInterval ->
-                val current = settingsRepo.load()
-                settings = current.copy(connectorAutoRefreshIntervalMinutes = newInterval)
-                settingsRepo.save(settings)
+                settings = settings.copy(connectorAutoRefreshIntervalMinutes = newInterval)
+                scope.launch(Dispatchers.IO) {
+                    val current = settingsRepo.load()
+                    settingsRepo.save(
+                        current.copy(connectorAutoRefreshIntervalMinutes = newInterval)
+                    )
+                }
             },
             onRefreshAll = {
                 val results = refreshScheduler.refreshIfNeeded(force = true)
