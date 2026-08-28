@@ -163,6 +163,10 @@ private val AUTO_REFRESH_INTERVALS = listOf(
  * steps -- written by an older build, or by a settings import -- snaps to the
  * nearest one rather than resetting the user to Off.
  */
+/** Slider position to a valid index into [AUTO_REFRESH_INTERVALS]. */
+private fun Float.toIndex(): Int =
+    roundToInt().coerceIn(0, AUTO_REFRESH_INTERVALS.lastIndex)
+
 private fun indexOfInterval(minutes: Int): Int {
     val exact = AUTO_REFRESH_INTERVALS.indexOfFirst { it.first == minutes }
     if (exact >= 0) return exact
@@ -183,13 +187,12 @@ private fun AutoRefreshHeader(
     var isRefreshing by remember { mutableStateOf(false) }
     var syncFeedback by remember { mutableStateOf("") }
     var tick by remember { mutableStateOf(0) }
-    // Position is held locally so the thumb tracks the finger; it is re-seeded
-    // whenever the stored interval changes underneath us.
-    var sliderPosition by remember(intervalMinutes) {
-        mutableStateOf(indexOfInterval(intervalMinutes).toFloat())
-    }
-    val sliderIndex = sliderPosition.roundToInt()
-        .coerceIn(0, AUTO_REFRESH_INTERVALS.lastIndex)
+    // Seeded once from the stored interval and authoritative from then on. It is
+    // deliberately not keyed on intervalMinutes: this screen is the only writer
+    // while it is open, and re-seeding from a reload gives a stale read a way to
+    // drag the thumb back out from under the user.
+    var sliderPosition by remember { mutableStateOf(indexOfInterval(intervalMinutes).toFloat()) }
+    val sliderIndex = sliderPosition.toIndex()
 
     // Live recomposition ticker for "X min ago" display
     LaunchedEffect(lastRefreshedAt) {
@@ -272,8 +275,16 @@ private fun AutoRefreshHeader(
                 // The interval only reaches Settings once the thumb is let go;
                 // dragging would otherwise write SharedPreferences every frame
                 // and restart the refresh loop on each one.
+                //
+                // Read the position here rather than closing over sliderIndex.
+                // Slider calls onValueChange and then onValueChangeFinished
+                // within the one gesture, so this lambda can still be the
+                // instance built by the composition *before* the tap -- and the
+                // index it captured is where the thumb used to be. That is what
+                // made a first tap commit the old value and appear to do
+                // nothing, while a second tap on the same spot worked.
                 onValueChangeFinished = {
-                    onIntervalChange(AUTO_REFRESH_INTERVALS[sliderIndex].first)
+                    onIntervalChange(AUTO_REFRESH_INTERVALS[sliderPosition.toIndex()].first)
                 },
                 valueRange = 0f..(AUTO_REFRESH_INTERVALS.size - 1).toFloat(),
                 steps = AUTO_REFRESH_INTERVALS.size - 2,
