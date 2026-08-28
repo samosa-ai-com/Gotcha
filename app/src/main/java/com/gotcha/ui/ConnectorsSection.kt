@@ -2,6 +2,8 @@ package com.gotcha.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -116,6 +118,7 @@ fun ConnectorsSection() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AutoRefreshHeader(
     intervalMinutes: Int,
@@ -186,13 +189,29 @@ private fun AutoRefreshHeader(
             Text(syncFeedback, style = MaterialTheme.typography.bodySmall)
         }
 
-        Row(
+        // Eight choices no longer fit one phone-width line, so the chips wrap.
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text("Interval:", style = MaterialTheme.typography.bodyMedium)
-            val intervals = listOf(0 to "Off", 15 to "15m", 30 to "30m", 120 to "2h")
+            Text(
+                "Interval:",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.align(Alignment.CenterVertically)
+            )
+            // Anything under a minute would be finer than the 60s poll tick in
+            // ConnectorsSection can honour, so 1m is the floor.
+            val intervals = listOf(
+                0 to "Off",
+                1 to "1m",
+                2 to "2m",
+                5 to "5m",
+                10 to "10m",
+                15 to "15m",
+                30 to "30m",
+                120 to "2h"
+            )
             intervals.forEach { (mins, label) ->
                 FilterChip(
                     selected = intervalMinutes == mins,
