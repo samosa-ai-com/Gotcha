@@ -2,17 +2,15 @@ package com.gotcha.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +36,7 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -118,7 +117,35 @@ fun ConnectorsSection() {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * The auto-sync intervals the slider offers, in minutes, with the label shown
+ * for each. 1m is the floor: the loop driving auto-sync in [ConnectorsSection]
+ * ticks every 60s, so anything finer would be a setting the app cannot honour.
+ */
+private val AUTO_REFRESH_INTERVALS = listOf(
+    0 to "Off",
+    1 to "1m",
+    2 to "2m",
+    5 to "5m",
+    10 to "10m",
+    15 to "15m",
+    30 to "30m",
+    120 to "2h"
+)
+
+/**
+ * Slider index for a stored interval. A value that is not one of the offered
+ * steps -- written by an older build, or by a settings import -- snaps to the
+ * nearest one rather than resetting the user to Off.
+ */
+private fun indexOfInterval(minutes: Int): Int {
+    val exact = AUTO_REFRESH_INTERVALS.indexOfFirst { it.first == minutes }
+    if (exact >= 0) return exact
+    return AUTO_REFRESH_INTERVALS.indices.minByOrNull {
+        kotlin.math.abs(AUTO_REFRESH_INTERVALS[it].first - minutes)
+    } ?: 0
+}
+
 @Composable
 private fun AutoRefreshHeader(
     intervalMinutes: Int,
@@ -130,6 +157,13 @@ private fun AutoRefreshHeader(
     var isRefreshing by remember { mutableStateOf(false) }
     var syncFeedback by remember { mutableStateOf("") }
     var tick by remember { mutableStateOf(0) }
+    // Position is held locally so the thumb tracks the finger; it is re-seeded
+    // whenever the stored interval changes underneath us.
+    var sliderPosition by remember(intervalMinutes) {
+        mutableStateOf(indexOfInterval(intervalMinutes).toFloat())
+    }
+    val sliderIndex = sliderPosition.roundToInt()
+        .coerceIn(0, AUTO_REFRESH_INTERVALS.lastIndex)
 
     // Live recomposition ticker for "X min ago" display
     LaunchedEffect(lastRefreshedAt) {
@@ -189,36 +223,36 @@ private fun AutoRefreshHeader(
             Text(syncFeedback, style = MaterialTheme.typography.bodySmall)
         }
 
-        // Eight choices no longer fit one phone-width line, so the chips wrap.
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                "Interval:",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.align(Alignment.CenterVertically)
-            )
-            // Anything under a minute would be finer than the 60s poll tick in
-            // ConnectorsSection can honour, so 1m is the floor.
-            val intervals = listOf(
-                0 to "Off",
-                1 to "1m",
-                2 to "2m",
-                5 to "5m",
-                10 to "10m",
-                15 to "15m",
-                30 to "30m",
-                120 to "2h"
-            )
-            intervals.forEach { (mins, label) ->
-                FilterChip(
-                    selected = intervalMinutes == mins,
-                    onClick = { onIntervalChange(mins) },
-                    label = { Text(label) }
+        // Eight choices are too many to sit on one phone-width line as chips, so
+        // the interval is a slider that snaps to the steps below. The spacing is
+        // deliberately not proportional to the durations -- every step is one
+        // notch, so the far end stays reachable without a 2h-wide gap.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Interval", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    AUTO_REFRESH_INTERVALS[sliderIndex].second,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
                 )
             }
+            Slider(
+                value = sliderPosition,
+                onValueChange = { sliderPosition = it },
+                // The interval only reaches Settings once the thumb is let go;
+                // dragging would otherwise write SharedPreferences every frame
+                // and restart the refresh loop on each one.
+                onValueChangeFinished = {
+                    onIntervalChange(AUTO_REFRESH_INTERVALS[sliderIndex].first)
+                },
+                valueRange = 0f..(AUTO_REFRESH_INTERVALS.size - 1).toFloat(),
+                steps = AUTO_REFRESH_INTERVALS.size - 2,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
