@@ -129,7 +129,7 @@ fun AiConfigScreen(
         maxRepeatedToolCalls = maxRepeatedToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 20,
         maxNavigationToolCalls = maxNavigationToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxConsecutiveDelegations = maxConsecutiveDelegations.toIntOrNull()?.takeIf { it > 0 } ?: 3,
-        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 70000,
+        maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: 256000,
         apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
     )
 

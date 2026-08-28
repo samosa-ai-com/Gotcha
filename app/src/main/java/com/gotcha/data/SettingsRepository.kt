@@ -55,7 +55,7 @@ data class Settings(
      * each call carries a freshly rephrased task string.
      */
     val maxConsecutiveDelegations: Int = 3,
-    val maxContextTokens: Int = 70000,
+    val maxContextTokens: Int = 256000,
     val apiTimeoutSeconds: Long = 0L,
     // TTS / STT settings
     val ttsProvider: AudioProvider = AudioProvider.ANDROID,
@@ -373,7 +373,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         maxRepeatedToolCalls = prefs.getInt(KEY_MAX_REPEATED_TOOL_CALLS, 20),
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
         maxConsecutiveDelegations = prefs.getInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, 3),
-        maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
+        maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 256000),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = runCatching {
             AudioProvider.valueOf(string(KEY_TTS_PROVIDER, "ANDROID"))
