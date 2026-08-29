@@ -162,7 +162,12 @@ should know these so the user does not have to:
   MP3 once ffmpeg is installed.
 - **Shared storage (`/sdcard`).** `/sdcard/Download` is the only safe
   cross-uid bridge between Gotcha and Termux. It is empty inside Termux
-  until the user runs `termux-setup-storage` once in Termux.
+  until the user runs `termux-setup-storage` once in Termux. When that grant
+  is missing or a `cp` through FUSE is refused, the `pull_from_termux` tool
+  falls back to a loopback transfer over `127.0.0.1` (Termux `python3`
+  sender → Gotcha receiver) that crosses the uid boundary without the
+  storage grant at all — so a file produced inside Termux always reaches the
+  user, whichever bridge works.
 - **Long-running processes.** A foreground process started by
   `run_termux_command` is orphaned the moment Gotcha returns. The
   persistence pattern is

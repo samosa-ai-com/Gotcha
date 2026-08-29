@@ -1699,6 +1699,41 @@ object ToolDefinitions {
         }
     )
 
+    val pullFromTermux = tool(
+        "pull_from_termux",
+        "Copy a file that currently lives inside Termux (its Linux user-space) out to a path Gotcha " +
+            "and the user can reach, e.g. '/storage/emulated/0/Download/name.mp4'. Uses the shared-storage " +
+            "bridge when Termux's storage is linked, and a loopback transfer otherwise, so it works even " +
+            "before 'termux-setup-storage' is granted. This is how a file produced inside Termux " +
+            "(yt-dlp downloads, script output, server files) gets into the user's Downloads/Gotcha " +
+            "folder — run the producing command first with run_termux_command, then pull the result. " +
+            "Needs Termux installed.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("termux_path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute path of the file inside Termux, e.g. " +
+                            "'/data/data/com.termux/files/home/gotcha_guide.mp4' or '~/gotcha_guide.mp4'."
+                    )
+                }
+                putJsonObject("destination") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute destination path Gotcha writes to, e.g. " +
+                            "'/storage/emulated/0/Download/gotcha_guide.mp4'. A parent folder it can write."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("termux_path")
+                add("destination")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2942,6 +2977,8 @@ object ToolDefinitions {
         mediaEdit,
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
+        // Pull a file produced inside Termux out to Gotcha-accessible storage (Operator only)
+        pullFromTermux,
         // Script-to-speech podcast synthesis (Operator only)
         synthesizePodcast, synthesizePodcastDialogue, sharePodcast,
         // Audio-file transcription via the STT API (Operator only)
