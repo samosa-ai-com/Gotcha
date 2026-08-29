@@ -17,12 +17,15 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /**
  * Single dispatch point for all tool side effects. Validates args, checks
  * preconditions (executors return permission errors instead of crashing),
  * and records every execution in the [ActionLog].
  */
+// One class dispatching the entire fixed tool catalog is the design; size follows from it.
+@Suppress("LargeClass")
 class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
@@ -69,6 +72,14 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
+    private val podcastTool = PodcastTool(
+        appContext,
+        onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
+    )
+    private val transcribeTool = TranscribeTool(
+        appContext,
+        onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
+    )
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -254,6 +265,36 @@ class ToolExecutor(
                 input = args.requireString("input") ?: return missing("input"),
                 output = args.requireString("output") ?: return missing("output"),
                 bitrate = args.requireString("bitrate"),
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "synthesize_podcast_dialogue" -> podcastTool.synthesizeDialogue(
+                lines = parseDialogueLines(args["lines"]) ?: return ToolResult.error(
+                    "Missing or invalid required parameter 'lines' — it must be a non-empty array of " +
+                        "{\"speaker\": \"A\" or \"B\", \"text\": \"...\"} objects."
+                ),
+                outputName = args.requireString("output_name") ?: return missing("output_name"),
+                hostAVoice = args.requireString("host_a_voice"),
+                hostBVoice = args.requireString("host_b_voice"),
+                hostAModel = args.requireString("host_a_model"),
+                hostBModel = args.requireString("host_b_model"),
+                gapMs = args.requireInt("gap_ms")?.toLong(),
+                format = args.requireString("format"),
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "share_podcast" -> podcastTool.share(
+                path = args.requireString("path") ?: return missing("path")
+            )
+            "transcribe_file" -> transcribeTool.transcribe(
+                path = args.requireString("path") ?: return missing("path"),
+                model = args.requireString("model"),
+                language = args.requireString("language")
+            )
+            "synthesize_podcast" -> podcastTool.synthesize(
+                script = args.requireString("script") ?: return missing("script"),
+                outputName = args.requireString("output_name") ?: return missing("output_name"),
+                model = args.requireString("model"),
+                voice = args.requireString("voice"),
+                format = args.requireString("format"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
@@ -644,6 +685,24 @@ class ToolExecutor(
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
+
+    /**
+     * Null on a malformed entry rather than dropping it — a silently skipped
+     * turn is a mangled episode. `pause_ms` is the exception: it is pacing
+     * advice, so an unreadable one falls back to the episode default instead
+     * of failing a script that is otherwise fine.
+     */
+    private fun parseDialogueLines(element: JsonElement?): List<PodcastTool.DialogueLine>? {
+        val array = element as? JsonArray ?: return null
+        if (array.isEmpty()) return null
+        return array.map { item ->
+            val obj = item as? JsonObject ?: return null
+            val speaker = (obj["speaker"] as? JsonPrimitive)?.content?.trim() ?: return null
+            val text = (obj["text"] as? JsonPrimitive)?.content ?: return null
+            val pause = (obj["pause_ms"] as? JsonPrimitive)?.let { it.longOrNull ?: it.content.trim().toLongOrNull() }
+            PodcastTool.DialogueLine(speaker, text, pause)
+        }
+    }
 
     private fun parseTodoItems(element: JsonElement?): List<TodoItem>? {
         val array = element as? JsonArray ?: return null

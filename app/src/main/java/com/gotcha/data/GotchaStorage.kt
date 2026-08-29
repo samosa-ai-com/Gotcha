@@ -15,6 +15,7 @@ import java.io.IOException
  * Single source of truth for every path Gotcha reads or writes under shared
  * storage.
  */
+@Suppress("TooManyFunctions") // one accessor per well-known directory, plus the MediaStore plumbing
 object GotchaStorage {
 
     private var overrideRootPath: String? = null
@@ -41,6 +42,7 @@ object GotchaStorage {
     fun archiveRoot(): File = File(root(), "old_chats")
     fun screenshotsRoot(): File = File(root(), "Screenshots")
     fun downloadsRoot(): File = File(root(), "Downloads")
+    fun podcastsRoot(): File = File(root(), "Podcasts")
 
     /**
      * Non-alphanumeric runs collapse to a single '-'; leading/trailing '-' trimmed;

@@ -435,6 +435,40 @@
       "notes": "exhaustive coverage of the generated ffmpeg command on the JVM — POSIX shell quoting against spaces, embedded quotes and metacharacters, /storage/emulated/0 to /sdcard translation including secondary-user roots and near-miss prefixes, bitrate validation, and every audio target's codec arguments — plus the guards that run before Termux is invoked: unsupported and video output formats, nonsense bitrates, paths inside Gotcha's private storage that Termux cannot see, missing input, same-file conversion, existing-output refusal and directory outputs. The conversion itself is device-only and additionally needs Termux with the ffmpeg package installed, so a real MP3 round trip must be verified by hand"
     },
     {
+      "tool": "synthesize_podcast",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.PodcastToolTest",
+        "com.gotcha.tools.PodcastAudioTest"
+      ],
+      "notes": "the pure halves on the JVM — sentence-boundary script chunking (limit respected, nothing lost or reordered, oversize sentences split at word boundaries, hard cut only as a last resort) and WAV header parsing by chunk walk (real sample rate honoured rather than assumed, lying data-chunk sizes measured from what actually arrived, JSON/HTML/MP3 responses rejected) — plus every guard that runs before TTS money is spent: Android/unconfigured provider refusals with directions to Settings, blank model, scripts that sanitize to nothing or exceed the ceiling, unsupported formats, existing-output refusal, output_name slugification, and voice resolution (explicit argument beats configured voice beats the model's own default). The assembly itself is device-only — Media3 Transformer drives MediaCodec — and additionally needs a reachable TTS endpoint, so a full script-to-.m4a (and, with Termux, .mp3) run — audible joins, Files-app visibility, the .m4a fallback note — must be verified by hand"
+    },
+    {
+      "tool": "synthesize_podcast_dialogue",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.PodcastToolTest",
+        "com.gotcha.tools.PodcastAudioTest"
+      ],
+      "notes": "shares synthesize_podcast's pipeline and its coverage, plus the dialogue-specific guards and mechanics: unknown-speaker refusal, empty-dialogue refusal, blank turns dropped after sanitising rather than synthesized as dead air, and the three-level host-voice resolution (explicit argument beats configured setting beats the first voice in the model's list that differs from host A). Pacing is covered on both halves: pause resolution (a line's pause_ms beats gap_ms beats the 300ms default, zero honoured as zero rather than treated as unset, absurd or negative values clamped) and the silence append itself (duration grows by exactly the requested pause, the pause inherits the speech's own sample rate and channel count, the spoken bytes survive untouched, the appended region is genuinely silent, and a padded WAV re-parses so it can be padded again). The audible result — two distinguishable hosts and whether the chosen pauses actually sound like conversation — is device-only and must be verified by hand"
+    },
+    {
+      "tool": "share_podcast",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.PodcastToolTest"
+      ],
+      "notes": "the guards and the intent contract: missing files and non-audio extensions refused before any chooser appears, a file outside the FileProvider's Gotcha/ mapping reported with a move-it-first message instead of a crash, and the happy path verified to build an ACTION_SEND chooser carrying a content:// URI (never file://) with the read-grant flag. Actually watching the share sheet appear and land in another app is device-only manual verification"
+    },
+    {
+      "tool": "transcribe_file",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.TranscribeToolTest"
+      ],
+      "notes": "every guard that runs before the upload — Android/unconfigured STT provider refusals with directions to Settings, missing/empty/oversized files, unsupported extensions refused before the backend is touched — plus the properties that make the tool safe to point at a user's only copy of a recording: the input file demonstrably survives transcription byte-for-byte (the deliberate contrast with SttEngine.transcribeApi, which deletes its input), model resolution (explicit argument beats configured setting beats the first STT model the API advertises), empty transcripts reported as errors rather than silence, and over-long transcripts truncated with an honest note. The upload itself needs a reachable STT endpoint, so a real memo round trip is device-only manual verification"
+    },
+    {
       "tool": "glob",
       "tier": "ROBOLECTRIC",
       "tests": [

@@ -1441,6 +1441,264 @@ object ToolDefinitions {
         }
     )
 
+    val synthesizePodcast = tool(
+        "synthesize_podcast",
+        "Turn a written narration script into a spoken audio file — a single-voice podcast — saved under " +
+            "Gotcha/Podcasts on shared storage, where the Files app can see it. Write the script yourself " +
+            "first as plain prose (no markdown, no code; it will be read aloud verbatim), then pass it here. " +
+            "Long scripts are synthesized in segments and joined on-device; ~20 minutes of speech is the " +
+            "ceiling. Output is .m4a by default; format='mp3' converts through Termux's ffmpeg when Termux " +
+            "is available and quietly falls back to .m4a when it is not. Needs an API-based TTS provider " +
+            "(Samosa AI or External API) in Settings → Speech — Android's built-in TTS cannot write files, " +
+            "and the error will say so.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("script") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The full narration text, exactly as it should be spoken. Plain prose only — write " +
+                            "for the ear, not the eye."
+                    )
+                }
+                putJsonObject("output_name") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Base name for the file, e.g. 'morning-news-digest'. It is slugified and written " +
+                            "under Gotcha/Podcasts; any directory part or extension is ignored except that " +
+                            "a '.mp3' extension selects the mp3 format."
+                    )
+                }
+                putJsonObject("model") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "TTS model id to use. Defaults to the model configured in Settings → Speech."
+                    )
+                }
+                putJsonObject("voice") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Voice id from the TTS model's voice list. Defaults to the configured voice, then " +
+                            "to the model's own default."
+                    )
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "'m4a' (default, works with no setup) or 'mp3' (needs Termux's ffmpeg; degrades to " +
+                            ".m4a with a note when unavailable)."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("script")
+                add("output_name")
+            }
+        }
+    )
+
+    val synthesizePodcastDialogue = tool(
+        "synthesize_podcast_dialogue",
+        "Turn a two-host dialogue script into a spoken audio file — a conversational podcast in the " +
+            "NotebookLM style — saved under Gotcha/Podcasts on shared storage. Write the dialogue yourself " +
+            "first: an array of turns, each with speaker 'A' or 'B' and the exact words to speak, as plain " +
+            "prose. The hosts get distinct voices (configured in Settings → Speech, overridable per call, " +
+            "and defaulting to two different voices from the model's own list). You also direct the pacing, " +
+            "and should: give every turn its own pause_ms for the silence that follows it, varying them the " +
+            "way a real conversation does — an interjection lands almost on top of the previous line, a " +
+            "revelation earns a beat first. gap_ms is only the fallback for turns you leave unpaced, so a " +
+            "script with no pause_ms at all comes out evenly spaced and lifeless. Length ceiling, output " +
+            "formats and the TTS provider requirement are the same as " +
+            "synthesize_podcast: ~20 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
+            "API-based TTS provider — Android's built-in TTS cannot write files. Turns whose text is blank " +
+            "after sanitization (e.g. only markdown or emoji) are dropped rather than synthesized as silence.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("lines") {
+                    put("type", "array")
+                    put(
+                        "description",
+                        "The dialogue in order. Each item is one turn: " +
+                            "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\", " +
+                            "\"pause_ms\": the silence after it}. Turns whose text sanitizes to blank " +
+                            "(e.g. only markdown or emoji) are dropped rather than synthesized as silence."
+                    )
+                    putJsonObject("items") {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("speaker") {
+                                put("type", "string")
+                                put("description", "'A' or 'B' — which host speaks this turn.")
+                            }
+                            putJsonObject("text") {
+                                put("type", "string")
+                                put("description", "What this host says, spoken verbatim. Plain prose only.")
+                            }
+                            putJsonObject("pause_ms") {
+                                put("type", "integer")
+                                put(
+                                    "description",
+                                    "Silence AFTER this turn, in milliseconds. Set it on every turn: this " +
+                                        "rhythm is most of what separates a real conversation from two " +
+                                        "voices taking turns, and an episode where every gap is the same " +
+                                        "length sounds like a machine reading a transcript. Choose each " +
+                                        "number from what just happened and what comes next — 0-150 when " +
+                                        "the other host cuts in or finishes the thought, 200-300 for " +
+                                        "ordinary back-and-forth, 400-600 after a question, a joke, or a " +
+                                        "point that needs a moment to land, 700-1200 at a topic change or " +
+                                        "something genuinely weighty. Vary it: several turns in a row at " +
+                                        "the same value means you are not really pacing. Clamped to " +
+                                        "0-2000, and ignored on the final turn, where it would only be " +
+                                        "trailing silence."
+                                )
+                            }
+                        }
+                        // pause_ms is required of the *model* — asking politely in the description was
+                        // not enough, and an unpaced script is the flat-sounding failure this field
+                        // exists to prevent. The executor still tolerates its absence and falls back to
+                        // gap_ms, so a provider that ignores `required` degrades rather than breaks.
+                        putJsonArray("required") {
+                            add("speaker")
+                            add("text")
+                            add("pause_ms")
+                        }
+                    }
+                }
+                putJsonObject("gap_ms") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Fallback silence between turns, in milliseconds (0-2000, default 300), used only " +
+                            "for turns that carry no pause_ms of their own. It is a safety net, not the " +
+                            "way to pace an episode — set pause_ms per turn instead."
+                    )
+                }
+                putJsonObject("output_name") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Base name for the file, e.g. 'ai-news-roundtable'. Slugified and written under " +
+                            "Gotcha/Podcasts; a '.mp3' extension selects the mp3 format."
+                    )
+                }
+                putJsonObject("host_a_voice") {
+                    put("type", "string")
+                    put("description", "Voice id for host A. Defaults to the configured podcast host A voice.")
+                }
+                putJsonObject("host_b_voice") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Voice id for host B. Defaults to the configured podcast host B voice, then to the " +
+                            "first voice in the model's list that differs from host A."
+                    )
+                }
+                putJsonObject("host_a_model") {
+                    put("type", "string")
+                    put("description", "TTS model id for host A. Defaults to the configured TTS model.")
+                }
+                putJsonObject("host_b_model") {
+                    put("type", "string")
+                    put("description", "TTS model id for host B. Defaults to host A's model.")
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "'m4a' (default, works with no setup) or 'mp3' (needs Termux's ffmpeg; degrades to " +
+                            ".m4a with a note when unavailable)."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("lines")
+                add("output_name")
+            }
+        }
+    )
+
+    val transcribeFile = tool(
+        "transcribe_file",
+        "Transcribe an audio file already on disk to text, using the configured Speech-to-Text API. The " +
+            "file is read and uploaded to the STT endpoint but never modified or deleted. Accepts .m4a, " +
+            ".mp3, .wav, .ogg, .opus, .flac, .aac, .mp4 and .webm up to 25MB — trim or split longer " +
+            "recordings with media_edit first. This is how a saved voice memo becomes text: record with " +
+            "start_audio_recording using an explicit output_path (without one the recording lands behind a " +
+            "MediaStore URI this tool cannot reach), stop it, then transcribe the file. Needs an API-based " +
+            "STT provider (Samosa AI or External API) in Settings → Speech — Android's SpeechRecognizer " +
+            "only listens to the microphone.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the audio file to transcribe, e.g. '/sdcard/Gotcha/Recordings/memo.m4a'."
+                    )
+                }
+                putJsonObject("model") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "STT model id to use. Defaults to the model configured in Settings → Speech, then " +
+                            "to the first STT model the API advertises."
+                    )
+                }
+                putJsonObject("language") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "ISO language hint for the recording, e.g. 'en' or 'hi'. Defaults to the " +
+                            "configured STT language; leave unset to let the model detect it."
+                    )
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
+    val sharePodcast = tool(
+        "share_podcast",
+        "Open the system share sheet for an audio file under the Gotcha folder — a generated podcast, a " +
+            "recording, a converted track — so the user can send it through any app they choose. Nothing is " +
+            "sent by this call itself: it only presents the chooser, and the user picks (or dismisses) the " +
+            "destination. Accepts .m4a, .mp3, .wav, .ogg, .opus, .flac, .aac and .mp4 audio. The file must " +
+            "live under the Gotcha folder on shared storage (where synthesize_podcast writes); files " +
+            "elsewhere must be copied there first.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the audio file to share, e.g. '/sdcard/Gotcha/Podcasts/morning-digest.m4a'."
+                    )
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2674,6 +2932,10 @@ object ToolDefinitions {
         mediaEdit,
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
+        // Script-to-speech podcast synthesis (Operator only)
+        synthesizePodcast, synthesizePodcastDialogue, sharePodcast,
+        // Audio-file transcription via the STT API (Operator only)
+        transcribeFile,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch

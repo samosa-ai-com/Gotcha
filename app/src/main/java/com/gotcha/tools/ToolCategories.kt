@@ -14,11 +14,12 @@ object ToolCategories {
         "global_action", "open_app", "open_setting",
         "read_screen", "read_screen_raw",
         "navigate_app", "task",
-        "dial_number", "compose_email", "show_alarms"
+        "dial_number", "compose_email", "show_alarms", "share_podcast"
     )
 
     private val backgroundTools = setOf(
         "edit", "write_file", "make_directory", "delete_file", "pdf_edit", "media_edit", "media_convert",
+        "synthesize_podcast", "synthesize_podcast_dialogue", "transcribe_file",
         "uninstall_app", "delete_calendar_event", "delete_alarm",
         "delete_timer", "edit_alarm",
         "toggle_wifi", "toggle_torch",
