@@ -38,8 +38,9 @@ import kotlin.coroutines.coroutineContext
 class PodcastTool(
     private val context: Context,
     private val loadSettings: () -> Settings = { SettingsRepository(context).load() },
+    private val onUnauthorized: (() -> Unit)? = null,
     private val ttsBackendFactory: (baseUrl: String, apiKey: String) -> TtsBackend = { url, key ->
-        ApiTtsBackend(AudioApi(url, key, timeoutSeconds = TTS_TIMEOUT_SECONDS))
+        ApiTtsBackend(AudioApi(url, key, timeoutSeconds = TTS_TIMEOUT_SECONDS, onUnauthorized = onUnauthorized))
     },
     private val mediaExport: MediaExport = MediaExport(context),
     private val mediaConvert: MediaConvertTool = MediaConvertTool(context),
@@ -72,11 +73,12 @@ class PodcastTool(
     companion object {
         /**
          * Script ceiling. At a typical ~15 chars/second of speech this is
-         * ~25 minutes of audio, safely inside [MAX_TOTAL_DURATION_MS] — the
+         * ~20 minutes of audio, inside [MAX_TOTAL_DURATION_MS] — the
          * cap that actually matters is on the audio, this one just refuses the
-         * obviously hopeless script before any API spend.
+         * obviously hopeless script before any API spend. Kept conservative
+         * so the audio-duration guard remains the precise backstop.
          */
-        const val MAX_SCRIPT_CHARS = 24_000
+        const val MAX_SCRIPT_CHARS = 20_000
 
         /**
          * Per-request text limit. OpenAI-compatible speech endpoints cap
@@ -85,8 +87,16 @@ class PodcastTool(
          */
         const val MAX_CHUNK_CHARS = 3_000
 
-        /** Same ceiling as media_edit's re-encode guard — assembly re-encodes everything. */
-        const val MAX_TOTAL_DURATION_MS = MediaEditTool.MAX_REENCODE_DURATION_MS
+        /**
+         * Audio-duration ceiling. Re-uses media_edit's 30-min re-encode guard as
+         * an upper bound, but caps lower so a single [MediaExport] re-encode
+         * (bounded by a 10-minute timeout) can realistically finish on a slow
+         * device without discarding paid synthesis. Audio-only AAC encode is
+         * typically faster than realtime, but a 25-30 minute episode in one
+         * export is a plausible timeout after all TTS money is spent, so the
+         * ceiling is set to 20 minutes with margin.
+         */
+        const val MAX_TOTAL_DURATION_MS = 20L * 60 * 1000
 
         /**
          * Breathing room between dialogue turns when neither the call's
@@ -387,8 +397,29 @@ class PodcastTool(
             m4a.delete()
             return job.destination to ""
         }
-        val fallback = File(job.destination.parentFile, "${job.baseName}.$FORMAT_M4A")
-        val kept = if ((job.overwrite || !fallback.exists()) && m4a.renameTo(fallback)) fallback else m4a
+        // A failed ffmpeg run may have left a partial .mp3 at the destination;
+        // delete it so the next run with overwrite=false does not falsely hit
+        // "already exists" and to avoid stranding a corrupt file.
+        runCatching { if (job.destination.exists()) job.destination.delete() }
+        val parent = job.destination.parentFile ?: m4a.parentFile
+        val fallback = File(parent, "${job.baseName}.$FORMAT_M4A")
+        val kept: File = if (job.overwrite) {
+            if (m4a.renameTo(fallback)) fallback else m4a
+        } else {
+            if (!fallback.exists()) {
+                if (m4a.renameTo(fallback)) fallback else m4a
+            } else {
+                // Pick a stable .m4a name rather than leaving the temp-looking
+                // ".podcast-tmp.m4a" in the user's Podcasts folder.
+                var counter = 1
+                var candidate: File
+                do {
+                    candidate = File(parent, "${job.baseName}-$counter.$FORMAT_M4A")
+                    counter++
+                } while (candidate.exists() && counter < 100)
+                if (m4a.renameTo(candidate)) candidate else m4a
+            }
+        }
         return kept to " The MP3 conversion step failed " +
             "(${result.message.take(ERROR_DETAIL_CHARS)}) — the finished audio was kept as '${kept.name}'; " +
             "media_convert can turn it into an MP3 once that is fixed."
@@ -476,7 +507,7 @@ class PodcastTool(
                 "Write the narration as plain prose and try again."
         )
         sanitizedLength > MAX_SCRIPT_CHARS -> ToolResult.error(
-            "The script is $sanitizedLength characters; the limit is $MAX_SCRIPT_CHARS (~25 minutes of " +
+            "The script is $sanitizedLength characters; the limit is $MAX_SCRIPT_CHARS (~20 minutes of " +
                 "speech). Split it into parts and synthesize each as its own file."
         )
         else -> null
@@ -518,9 +549,13 @@ class PodcastTool(
     ): String? {
         val explicit = (voiceArg ?: configuredVoice).trim()
         if (explicit.isNotBlank()) return explicit
-        return ttsModels(backend).let { models ->
-            (models.firstOrNull { it.id == model } ?: models.firstOrNull())?.defaultVoice
-        }
+        val models = ttsModels(backend)
+        val target = models.firstOrNull { it.id == model } ?: models.firstOrNull() ?: return null
+        // Do not fall back to a hard-coded Samosa voice id when the model's
+        // voice list is empty — on a third-party provider that id will not
+        // exist and the generic "not WAV" error hides the real problem.
+        if (target.voices.isEmpty()) return null
+        return target.voices.first().id
     }
 
     /**

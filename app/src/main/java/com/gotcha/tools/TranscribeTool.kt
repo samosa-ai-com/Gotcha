@@ -27,8 +27,9 @@ import java.io.File
 class TranscribeTool(
     private val context: Context,
     private val loadSettings: () -> Settings = { SettingsRepository(context).load() },
+    private val onUnauthorized: (() -> Unit)? = null,
     private val sttBackendFactory: (baseUrl: String, apiKey: String) -> SttBackend = { url, key ->
-        ApiSttBackend(AudioApi(url, key, timeoutSeconds = STT_TIMEOUT_SECONDS))
+        ApiSttBackend(AudioApi(url, key, timeoutSeconds = STT_TIMEOUT_SECONDS, onUnauthorized = onUnauthorized))
     }
 ) {
 

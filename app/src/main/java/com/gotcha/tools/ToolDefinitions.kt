@@ -1446,7 +1446,7 @@ object ToolDefinitions {
         "Turn a written narration script into a spoken audio file — a single-voice podcast — saved under " +
             "Gotcha/Podcasts on shared storage, where the Files app can see it. Write the script yourself " +
             "first as plain prose (no markdown, no code; it will be read aloud verbatim), then pass it here. " +
-            "Long scripts are synthesized in segments and joined on-device; ~25 minutes of speech is the " +
+            "Long scripts are synthesized in segments and joined on-device; ~20 minutes of speech is the " +
             "ceiling. Output is .m4a by default; format='mp3' converts through Termux's ffmpeg when Termux " +
             "is available and quietly falls back to .m4a when it is not. Needs an API-based TTS provider " +
             "(Samosa AI or External API) in Settings → Speech — Android's built-in TTS cannot write files, " +
@@ -1521,8 +1521,9 @@ object ToolDefinitions {
             "revelation earns a beat first. gap_ms is only the fallback for turns you leave unpaced, so a " +
             "script with no pause_ms at all comes out evenly spaced and lifeless. Length ceiling, output " +
             "formats and the TTS provider requirement are the same as " +
-            "synthesize_podcast: ~25 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
-            "API-based TTS provider — Android's built-in TTS cannot write files.",
+            "synthesize_podcast: ~20 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
+            "API-based TTS provider — Android's built-in TTS cannot write files. Turns whose text is blank " +
+            "after sanitization (e.g. only markdown or emoji) are dropped rather than synthesized as silence.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("lines") {
@@ -1531,7 +1532,8 @@ object ToolDefinitions {
                         "description",
                         "The dialogue in order. Each item is one turn: " +
                             "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\", " +
-                            "\"pause_ms\": the silence after it}."
+                            "\"pause_ms\": the silence after it}. Turns whose text sanitizes to blank " +
+                            "(e.g. only markdown or emoji) are dropped rather than synthesized as silence."
                     )
                     putJsonObject("items") {
                         put("type", "object")

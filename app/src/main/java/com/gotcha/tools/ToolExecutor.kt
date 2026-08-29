@@ -68,8 +68,14 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
-    private val podcastTool = PodcastTool(appContext)
-    private val transcribeTool = TranscribeTool(appContext)
+    private val podcastTool = PodcastTool(
+        appContext,
+        onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
+    )
+    private val transcribeTool = TranscribeTool(
+        appContext,
+        onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
+    )
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
