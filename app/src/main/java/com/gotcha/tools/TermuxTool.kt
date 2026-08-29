@@ -272,11 +272,17 @@ class TermuxTool(
             }
             if (errmsg.isNotEmpty()) append("\nTermux note: ${cap(errmsg)}")
         }
-        // apt/dpkg lock contention (exit 100 "Could not get lock ... lock-frontend held by process N")
-        // needs a different recovery than a plain failed command: wait, or tap Exit on the Termux
+        // apt/dpkg lock contention ("Could not get lock ... lock-frontend held by process N") needs
+        // a different recovery than a plain failed command: wait, or tap Exit on the Termux
         // notification — never delete the lock files or kill the holder. Recognised here so the
         // model is told what actually fixes it instead of reading a raw apt error.
-        if (exit != 0 && LOCK_SIGNATURE.containsMatchIn(message)) {
+        //
+        // Deliberately NOT gated on `exit != 0`: a pipeline like `apt-get ... | tail` or
+        // `apt list --upgradable` masks apt's failure behind a successful tail/echo, so the lock
+        // error appears in the output while the reported exit code is 0. The signature below is the
+        // failing-phrase set only ("Could not get lock" / "Unable to acquire ..."), so listing the
+        // lock files with `ls $PREFIX/var/lib/dpkg/lock*` cannot false-positive on the filename.
+        if (LOCK_SIGNATURE.containsMatchIn(message)) {
             return TermuxMessages.lockHeld(HOLDER_PID.find(message)?.groupValues?.get(1))
         }
         return ToolResult(success = exit == 0, message = message)
@@ -438,14 +444,17 @@ class TermuxTool(
         internal const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
 
         /** Package-manager commands that are inherently slow and benefit from a larger default timeout. */
-        private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|pip3?|npm|cargo|proot-distro)\b""")
+        private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|dpkg|pip3?|npm|cargo|proot-distro)\b""")
 
         /**
-         * The apt/dpkg lock-contention signature, as a quick `exit 100` with "Could not get lock".
-         * Recognised before the raw output reaches the model so it is told the real remedy.
+         * The apt/dpkg lock-contention signature: the *failure* phrases apt prints when it cannot
+         * take the lock. Kept to failure text on purpose — bare "lock-frontend" or "cache lock"
+         * would match `ls $PREFIX/var/lib/dpkg/lock*` output and mislead the model. Matched against
+         * the whole result (stdout+stderr), not just the exit code, because pipelines such as
+         * `apt-get ... | tail` report exit 0 while the lock failure is sitting in the output.
          */
         private val LOCK_SIGNATURE = Regex(
-            """(?:lock-frontend|Could not get lock|cache lock|Unable to acquire the dpkg frontend lock)""",
+            """(?:Could not get lock|Unable to acquire the dpkg frontend lock|dpkg frontend lock was locked by another process)""",
             RegexOption.IGNORE_CASE
         )
 
@@ -455,6 +464,13 @@ class TermuxTool(
         /** Termux's wake-lock helpers; required for any task longer than ~30s that Doze would throttle. */
         private const val WAKE_LOCK = "termux-wake-lock"
         private const val WAKE_UNLOCK = "termux-wake-unlock"
+
+        /**
+         * The Debian frontend env var that tells dpkg/apt to take default actions instead of asking
+         * conffile questions. It is safe for every package-manager command and skipped when the user
+         * already set it explicitly.
+         */
+        private const val DEBIAN_FRONTEND = "DEBIAN_FRONTEND"
 
         /** Shell separators the deny-list splits on before matching each part. */
         private val SEGMENT_SEPARATORS = Regex("""[;&|\n]+""")
@@ -476,13 +492,25 @@ class TermuxTool(
         internal const val MAX_CONCURRENT_FOR_TEST = MAX_CONCURRENT_COMMANDS
 
         /**
-         * The command actually sent to Termux: the user's text, wrapped in a wake-lock when it is a
-         * package-manager operation. Doze and OEM battery savers throttle a backgrounded `pkg install`
-         * mid-download, which is how a 30-second install turns into a 10-minute hang — the exact shape
-         * of the ffmpeg failure this guard targets.
+         * The command actually sent to Termux: the user's text, made non-interactive for
+         * package-manager operations (dpkg/apt conffile prompts would otherwise block on a TTY that
+         * does not exist) and wrapped in a wake-lock so Doze cannot throttle the download. The
+         * exact shape of the ffmpeg failure this guard targets: a `pkg upgrade` silently re-asking
+         * `openssl.cnf` and a 30-second install turning into a 10-minute hang.
          */
-        internal fun commandToRun(trimmed: String): String =
-            if (PKG_LIKE_REGEX.containsMatchIn(trimmed)) withWakeLock(trimmed) else trimmed
+        internal fun commandToRun(trimmed: String): String {
+            if (!PKG_LIKE_REGEX.containsMatchIn(trimmed)) return trimmed
+            return withWakeLock(withNonInteractive(trimmed))
+        }
+
+        /**
+         * Prefixes [command] with `DEBIAN_FRONTEND=noninteractive` unless one is already present.
+         * apt/dpkg conffile questions ("Configuration file ... Y/I/N/O/D/Z") have no TTY to read
+         * the answer from and would block until the timeout; the non-interactive frontend takes the
+         * default action (keep the current version), which is what the user's own edit implies.
+         */
+        internal fun withNonInteractive(command: String): String =
+            if (DEBIAN_FRONTEND in command) command else "$DEBIAN_FRONTEND=noninteractive $command"
 
         /**
          * Wraps [command] in `termux-wake-lock`/`termux-wake-unlock`, preserving its exit code (a naive

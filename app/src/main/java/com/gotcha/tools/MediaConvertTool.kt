@@ -230,6 +230,16 @@ class MediaConvertTool(
         val text = result.message
         val detail = text.substringAfter("stderr:", "").trim().ifEmpty { text }
         return when {
+            text.contains("CANNOT LINK EXECUTABLE", ignoreCase = true) ||
+                text.contains("cannot locate symbol", ignoreCase = true) -> ToolResult.error(
+                "Termux's ffmpeg is installed but links against out-of-date libraries — the usual case is " +
+                    "a libplacebo that needs a newer libc++ (the error names " +
+                    "_ZNSt6__ndk127__from_chars_floating_point... referenced by libplacebo.so). Fix it with " +
+                    "a targeted upgrade, NOT a full 'pkg upgrade' (which is heavy and re-asks conffile " +
+                    "questions): run 'apt-get install -y libc++' — a small package that reconfigures ffmpeg " +
+                    "automatically. If that does not clear it, then run 'pkg upgrade -y'. Never delete the " +
+                    "lock files or kill -9 dpkg."
+            )
             text.contains("not found", ignoreCase = true) -> ToolResult.error(
                 "Termux has no ffmpeg installed, which is what does the conversion. Install it with " +
                     "'pkg install ffmpeg -y' (a large download — 5-15 minutes, so warn the user and use " +

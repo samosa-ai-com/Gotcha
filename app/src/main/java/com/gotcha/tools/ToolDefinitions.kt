@@ -2403,6 +2403,11 @@ object ToolDefinitions {
             "this is NOT a mirror problem. Wait for it or tap Exit on the Termux notification to end all " +
             "sessions; never delete the lock files or kill -9 the process, which corrupts the package " +
             "database without releasing the lock.\n" +
+            "- Interactive prompts: if output shows `Configuration file '...'` with `Y/I/N/O/D/Z`, a " +
+            "package manager is waiting for an answer no terminal can provide and will block until the " +
+            "timeout. Package operations are run non-interactively by default; if a bare `dpkg " +
+            "--configure` still asks, supply the answer via the stdin param (`echo N | dpkg --configure " +
+            "<pkg>`).\n" +
             "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
             "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
             "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +

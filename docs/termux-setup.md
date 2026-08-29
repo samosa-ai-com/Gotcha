@@ -110,6 +110,20 @@ in order of how often they bite:
   package (`/data/user/<id>/com.termux/files/usr` under a work profile);
   commands should use `$PREFIX` rather than a hardcoded `/data/data/...`
   prefix.
+- **Interactive `dpkg` prompts.** A package manager stuck at
+  `Configuration file '...' ... Y/I/N/O/D/Z [default=N] ?` is waiting for an
+  answer no terminal can provide and blocks until the timeout. Gotcha runs
+  package operations non-interactively (`DEBIAN_FRONTEND=noninteractive`, keep
+  the current config) so this should not appear; if a bare `dpkg --configure`
+  still asks, answer it through the tool's `stdin` param
+  (`echo N | dpkg --configure <pkg>`).
+- **ffmpeg link error (`libplacebo` / `libc++`).** If `ffmpeg` prints
+  `CANNOT LINK EXECUTABLE ... cannot locate symbol ... referenced by
+  libplacebo.so`, a freshly installed `libplacebo` was built against a newer
+  `libc++` than the device has. Fix it with the targeted
+  `apt-get install -y libc++` (a small package that reconfigures `ffmpeg`
+  itself) rather than the heavy `pkg upgrade`, which re-asks the conffile
+  questions above.
 - **4 commands in flight, process-wide.** Sub-agents share the same
   semaphore. A 5th call returns an error.
 - **Android 12+ background restriction.** If Gotcha is in the background
