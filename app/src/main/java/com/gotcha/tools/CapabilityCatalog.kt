@@ -52,7 +52,12 @@ enum class Capability(
         "Termux (the Linux terminal app, installed from F-Droid)",
         // Gated on Termux being installed, not on the RUN_COMMAND grant: gating on the grant
         // would hide the only tool that can raise the prompt for it. See DeviceCapabilities.
-        setOf("run_termux_command")
+        //
+        // media_convert rides on the same capability because it is ffmpeg run through
+        // run_termux_command. Hiding it without Termux is the point: it is the only route to
+        // MP3, and a model that could see it on a device that cannot run it would promise a
+        // conversion it has no way to perform.
+        setOf("run_termux_command", "media_convert", "pull_from_termux")
     ),
 
     HEALTH_CONNECT(

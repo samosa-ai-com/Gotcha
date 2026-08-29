@@ -1,0 +1,302 @@
+package com.gotcha.tools
+
+import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.File
+
+/**
+ * `media_edit`'s guards — every refusal that happens *before* a codec is touched.
+ *
+ * The export path itself cannot be tested here at any tier below INSTRUMENTED:
+ * Media3 Transformer drives MediaCodec, which is native and has no Robolectric
+ * shadow, so a real device is the only place a trim can actually be exercised.
+ * That makes these guards worth pinning down all the more — they are the part
+ * that decides whether a wrong call destroys a file or returns an explanation,
+ * and they are reachable without hardware precisely because [MediaEditTool]
+ * validates paths before it opens anything.
+ *
+ * Everything stays inside the app sandbox so [FileResolver] grants access
+ * without a permission stub.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class MediaEditToolTest {
+
+    private lateinit var tool: MediaEditTool
+    private lateinit var dir: File
+
+    @Before
+    fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        tool = MediaEditTool(context)
+        dir = File(context.filesDir, "mediatest").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+    }
+
+    /**
+     * A file that exists and is plausibly sized, but is not decodable. Every
+     * assertion below is about a refusal that must land before anything tries to
+     * parse it, so the bytes never matter.
+     */
+    private fun placeholder(name: String): File =
+        File(dir, name).apply { writeBytes(ByteArray(1024)) }
+
+    @Suppress("LongParameterList")
+    private fun edit(
+        operation: String,
+        input: String? = null,
+        inputs: List<String>? = null,
+        output: String? = null,
+        start: String? = null,
+        end: String? = null,
+        height: Int? = null,
+        speed: Double? = null,
+        overwrite: Boolean = false
+    ): ToolResult = runBlocking {
+        tool.edit(
+            operation = operation,
+            input = input,
+            inputs = inputs,
+            output = output,
+            start = start,
+            end = end,
+            height = height,
+            speed = speed,
+            overwrite = overwrite
+        )
+    }
+
+    // ---- operation and argument validation ----
+
+    @Test
+    fun `an unknown operation lists the valid ones`() {
+        val result = edit("sharpen", input = placeholder("a.mp4").path)
+        assertFalse(result.success)
+        MediaEditTool.OPERATIONS.forEach { assertTrue(it, result.message.contains(it)) }
+    }
+
+    @Test
+    fun `a missing input names the parameter and the operation`() {
+        val result = edit("info")
+        assertFalse(result.success)
+        assertTrue(result.message.contains("input"))
+        assertTrue(result.message.contains("info"))
+    }
+
+    @Test
+    fun `a missing output is refused for every writing operation`() {
+        listOf("trim", "extract_audio", "remove_audio").forEach { op ->
+            val result = edit(op, input = placeholder("a.mp4").path, start = "1")
+            assertFalse(op, result.success)
+            assertTrue(op, result.message.contains("output"))
+        }
+    }
+
+    @Test
+    fun `trim with neither bound is refused rather than copying the file`() {
+        val result = edit("trim", input = placeholder("a.mp4").path, output = File(dir, "out.mp4").path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("at least one"))
+    }
+
+    @Test
+    fun `a malformed timecode is reported without writing anything`() {
+        val out = File(dir, "out.mp4")
+        val result = edit("trim", input = placeholder("a.mp4").path, output = out.path, start = "banana")
+        assertFalse(result.success)
+        assertFalse(out.exists())
+    }
+
+    // ---- input resolution ----
+
+    @Test
+    fun `a missing input file suggests how to find it`() {
+        val result = edit("info", input = File(dir, "nope.mp4").path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("glob"))
+    }
+
+    @Test
+    fun `a directory is not accepted as input`() {
+        val result = edit("info", input = dir.path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("not a regular file"))
+    }
+
+    // ---- output resolution: the guards that protect a user's files ----
+
+    @Test
+    fun `writing back over the input is refused with the reason`() {
+        val input = placeholder("clip.mp4")
+        val result = edit("trim", input = input.path, output = input.path, start = "1", overwrite = true)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("same file"))
+        // The suggested alternative has to be a usable path, not a shrug.
+        assertTrue(result.message.contains("clip-edited.mp4"))
+    }
+
+    @Test
+    fun `an existing output is refused unless overwrite is passed`() {
+        val existing = File(dir, "out.mp4").apply { writeBytes(ByteArray(8)) }
+        val result = edit("trim", input = placeholder("a.mp4").path, output = existing.path, start = "1")
+        assertFalse(result.success)
+        assertTrue(result.message.contains("overwrite=true"))
+        // Refusal must not have touched the file that was in the way.
+        assertTrue(existing.length() == 8L)
+    }
+
+    @Test
+    fun `a directory as output is refused`() {
+        val result = edit("trim", input = placeholder("a.mp4").path, output = dir.path, start = "1")
+        assertFalse(result.success)
+        assertTrue(result.message.contains("is a directory"))
+    }
+
+    @Test
+    fun `an output container the muxer cannot write is refused`() {
+        listOf("out.mkv", "out.avi", "out").forEach { name ->
+            val result = edit("trim", input = placeholder("a.mp4").path, output = File(dir, name).path, start = "1")
+            assertFalse(name, result.success)
+            assertTrue(name, result.message.contains(".mp4") && result.message.contains(".m4a"))
+        }
+    }
+
+    @Test
+    fun `an audio extension is redirected to m4a rather than to ffmpeg`() {
+        // "Extract the mp3" means "give me the audio". Sending the model to Termux
+        // over a filename would cost a dependency the user may not have, to produce
+        // a file that plays no more widely than the .m4a it could have written.
+        listOf("out.mp3", "out.wav", "out.flac", "out.ogg").forEach { name ->
+            val result = edit(
+                "extract_audio",
+                input = placeholder("a.mp4").path,
+                output = File(dir, name).path
+            )
+            assertFalse(name, result.success)
+            assertTrue(name, result.message.contains(".m4a"))
+            assertTrue("$name should explain why", result.message.contains("no MP3 encoder"))
+        }
+    }
+
+    @Test
+    fun `the mp3 redirect still names ffmpeg for a genuine mp3 requirement`() {
+        val result = edit(
+            "extract_audio",
+            input = placeholder("a.mp4").path,
+            output = File(dir, "out.mp3").path
+        )
+        assertTrue(result.message.contains("run_termux_command"))
+    }
+
+    // ---- re-encoding operations ----
+
+    @Test
+    fun `speed outside the intelligible range is refused`() {
+        listOf(0.1, 10.0, 0.0).forEach { rate ->
+            val result = edit(
+                "speed",
+                input = placeholder("a.mp4").path,
+                output = File(dir, "out.mp4").path,
+                speed = rate
+            )
+            assertFalse(rate.toString(), result.success)
+            assertTrue(rate.toString(), result.message.contains("between"))
+        }
+    }
+
+    @Test
+    fun `speed of exactly one is refused as a pointless re-encode`() {
+        val result = edit(
+            "speed",
+            input = placeholder("a.mp4").path,
+            output = File(dir, "out.mp4").path,
+            speed = 1.0
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("without changing anything"))
+    }
+
+    @Test
+    fun `speed without a rate names the missing parameter`() {
+        val result = edit("speed", input = placeholder("a.mp4").path, output = File(dir, "out.mp4").path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("speed"))
+    }
+
+    @Test
+    fun `a non-positive compress height is refused`() {
+        val result = edit(
+            "compress",
+            input = placeholder("a.mp4").path,
+            output = File(dir, "out.mp4").path,
+            height = 0
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("positive"))
+    }
+
+    @Test
+    fun `concat needs at least two inputs`() {
+        val single = edit("concat", inputs = listOf(placeholder("a.mp4").path), output = File(dir, "out.mp4").path)
+        assertFalse(single.success)
+        assertTrue(single.message.contains("at least two"))
+
+        val none = edit("concat", output = File(dir, "out.mp4").path)
+        assertFalse(none.success)
+        assertTrue(none.message.contains("at least two"))
+    }
+
+    @Test
+    fun `concat refuses more inputs than it will join at once`() {
+        val many = (1..MediaEditTool.MAX_CONCAT_INPUTS + 1).map { placeholder("clip$it.mp4").path }
+        val result = edit("concat", inputs = many, output = File(dir, "out.mp4").path)
+        assertFalse(result.success)
+        assertTrue(result.message.contains("${MediaEditTool.MAX_CONCAT_INPUTS}"))
+    }
+
+    @Test
+    fun `concat refuses to write over any of its own inputs`() {
+        // resolveOutput catches the first input; the later ones need their own check,
+        // and overwriting input three is just as destructive as overwriting input one.
+        val first = placeholder("a.mp4")
+        val second = placeholder("b.mp4")
+        val result = edit(
+            "concat",
+            inputs = listOf(first.path, second.path),
+            output = second.path,
+            overwrite = true
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("also one of the inputs"))
+    }
+
+    @Test
+    fun `concat reports a missing input rather than silently joining the rest`() {
+        val result = edit(
+            "concat",
+            inputs = listOf(placeholder("a.mp4").path, File(dir, "gone.mp4").path),
+            output = File(dir, "out.mp4").path
+        )
+        assertFalse(result.success)
+        assertTrue(result.message.contains("does not exist"))
+    }
+
+    @Test
+    fun `the supported output containers pass the extension guard`() {
+        // These get past validation and fail later at the codec, which Robolectric
+        // has no shadow for — the point is only that the guard let them through.
+        listOf("out.mp4", "out.M4A").forEach { name ->
+            val result = edit("trim", input = placeholder("a.mp4").path, output = File(dir, name).path, start = "1")
+            assertFalse(name, result.message.contains("name it .mp4"))
+        }
+    }
+}

@@ -1,0 +1,610 @@
+package com.gotcha.tools
+
+import android.content.Context
+import com.gotcha.audio.AudioApi
+import com.gotcha.audio.AudioModel
+import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.ModelCategory
+import com.gotcha.audio.SpeechTextSanitizer
+import com.gotcha.data.GotchaStorage
+import com.gotcha.data.Settings
+import com.gotcha.data.SettingsRepository
+import kotlinx.coroutines.ensureActive
+import java.io.File
+import kotlin.coroutines.coroutineContext
+
+/**
+ * Turns written text into spoken audio files — podcasts.
+ *
+ * Two entry points share one pipeline: [synthesize] narrates a script in a
+ * single voice, [synthesizeDialogue] alternates two host voices with a short
+ * silence between turns. Both reuse the OpenAI-compatible `/audio/speech`
+ * endpoint the voice features already talk through, but deliberately not via
+ * [com.gotcha.audio.TtsEngine]: that class is hardwired to play what it
+ * fetches, while this one needs the raw WAV bytes on disk. Text is sanitized
+ * exactly as spoken replies are, split at sentence boundaries (the endpoint
+ * has input-length limits a whole script would blow through), synthesized
+ * segment by segment into the cache dir, and joined on-device by [MediaExport]
+ * into an `.m4a` under `Gotcha/Podcasts`.
+ *
+ * `.m4a` is the canonical output because it needs nothing beyond what ships in
+ * the app. MP3 exists only through Termux's ffmpeg ([MediaConvertTool]), so a
+ * requested `.mp3` quietly degrades to `.m4a` when Termux is unavailable — a
+ * finished podcast in the wrong container beats no podcast.
+ *
+ * Requires an API-based TTS provider: Android's built-in engine has no
+ * file-output path here. Only available to Operator (writes files).
+ */
+class PodcastTool(
+    private val context: Context,
+    private val loadSettings: () -> Settings = { SettingsRepository(context).load() },
+    private val onUnauthorized: (() -> Unit)? = null,
+    private val ttsBackendFactory: (baseUrl: String, apiKey: String) -> TtsBackend = { url, key ->
+        ApiTtsBackend(AudioApi(url, key, timeoutSeconds = TTS_TIMEOUT_SECONDS, onUnauthorized = onUnauthorized))
+    },
+    private val mediaExport: MediaExport = MediaExport(context),
+    private val mediaConvert: MediaConvertTool = MediaConvertTool(context),
+    private val termuxUsable: () -> Boolean = { DeviceCapabilities.termuxUsable(context) },
+    /** Fires the share sheet. Injectable so tests can capture the intent instead of launching it. */
+    private val startChooser: (android.content.Intent) -> Unit = { context.startActivity(it) }
+) {
+
+    /** The two calls synthesis needs from the TTS API, extracted for tests. */
+    interface TtsBackend {
+        fun listModels(): List<AudioModel>
+        fun synthesize(text: String, model: String, voice: String): Result<ByteArray>
+    }
+
+    private class ApiTtsBackend(private val api: AudioApi) : TtsBackend {
+        override fun listModels(): List<AudioModel> = api.listAudioModels()
+        override fun synthesize(text: String, model: String, voice: String): Result<ByteArray> =
+            api.synthesize(text, model, voice)
+    }
+
+    /**
+     * One turn of a dialogue script, as the model writes it. [pauseMs] is the
+     * script's pacing direction — the silence after this turn — null meaning
+     * "use the episode default".
+     */
+    data class DialogueLine(val speaker: String, val text: String, val pauseMs: Long? = null)
+
+    private val resolver = FileResolver(context)
+
+    companion object {
+        /**
+         * Script ceiling. At a typical ~15 chars/second of speech this is
+         * ~20 minutes of audio, inside [MAX_TOTAL_DURATION_MS] — the
+         * cap that actually matters is on the audio, this one just refuses the
+         * obviously hopeless script before any API spend. Kept conservative
+         * so the audio-duration guard remains the precise backstop.
+         */
+        const val MAX_SCRIPT_CHARS = 20_000
+
+        /**
+         * Per-request text limit. OpenAI-compatible speech endpoints cap
+         * `input` around 4096 chars; staying well under leaves room for
+         * providers that count differently.
+         */
+        const val MAX_CHUNK_CHARS = 3_000
+
+        /**
+         * Audio-duration ceiling. Re-uses media_edit's 30-min re-encode guard as
+         * an upper bound, but caps lower so a single [MediaExport] re-encode
+         * (bounded by a 10-minute timeout) can realistically finish on a slow
+         * device without discarding paid synthesis. Audio-only AAC encode is
+         * typically faster than realtime, but a 25-30 minute episode in one
+         * export is a plausible timeout after all TTS money is spent, so the
+         * ceiling is set to 20 minutes with margin.
+         */
+        const val MAX_TOTAL_DURATION_MS = 20L * 60 * 1000
+
+        /**
+         * Breathing room between dialogue turns when neither the call's
+         * `gap_ms` nor the line's `pause_ms` says otherwise. Long enough to
+         * read as a speaker change, short enough not to read as dead air.
+         */
+        const val DIALOGUE_GAP_MS = 300L
+
+        /** Ceiling on any single pause — past this a "beat" is just dead air, or a hallucinated number. */
+        const val MAX_TURN_PAUSE_MS = 2_000L
+
+        /**
+         * The pause that actually lands after a turn: the line's own request
+         * if it carried one, the episode default otherwise, clamped either
+         * way. A `pause_ms` the dispatcher could not read arrives here as
+         * null, which is what makes the default the fallback rather than an
+         * error.
+         */
+        fun resolvePause(requested: Long?, default: Long): Long =
+            (requested ?: default).coerceIn(0L, MAX_TURN_PAUSE_MS)
+
+        private const val TTS_TIMEOUT_SECONDS = 120L
+        private const val FORMAT_M4A = "m4a"
+        private const val FORMAT_MP3 = "mp3"
+        private const val SPEAKER_A = "A"
+        private const val SPEAKER_B = "B"
+
+        /** Intermediate for the MP3 detour. Ends in `.m4a` so ffmpeg and the salvage rename both see AAC. */
+        private const val TMP_SUFFIX = ".podcast-tmp.m4a"
+
+        private const val ERROR_DETAIL_CHARS = 200
+
+        /** Extension → MIME type for the share intent. Also the shareable-format list. */
+        private val SHARE_MIME_TYPES = mapOf(
+            "m4a" to "audio/mp4",
+            "mp4" to "audio/mp4",
+            "aac" to "audio/aac",
+            "mp3" to "audio/mpeg",
+            "wav" to "audio/wav",
+            "ogg" to "audio/ogg",
+            "opus" to "audio/ogg",
+            "flac" to "audio/flac"
+        )
+    }
+
+    private sealed interface Resolved {
+        data class Ok(val file: File) : Resolved
+        data class Failed(val result: ToolResult) : Resolved
+    }
+
+    /** A single TTS request: what to say, and with which model and voice. */
+    private data class SpeechSegment(val text: String, val model: String, val voice: String)
+
+    /**
+     * One spoken turn: its segments (an over-long turn chunks into several)
+     * and the silence appended after its last segment. The pause lives on the
+     * turn, never between a turn's own chunks — a pause inside a sentence
+     * would be a stall, not a beat.
+     */
+    private data class Turn(val segments: List<SpeechSegment>, val pauseAfterMs: Long)
+
+    /** Everything one synthesis run carries between its stages. */
+    private data class SynthesisJob(
+        val backend: TtsBackend,
+        val turns: List<Turn>,
+        val tempDir: File,
+        val destination: File,
+        val wantMp3: Boolean,
+        val baseName: String,
+        val overwrite: Boolean,
+        val notes: String,
+        val voiceLabel: String
+    )
+
+    // ---- entry points ----
+
+    @Suppress("ReturnCount", "LongParameterList")
+    suspend fun synthesize(
+        script: String,
+        outputName: String,
+        model: String? = null,
+        voice: String? = null,
+        format: String? = null,
+        overwrite: Boolean = false
+    ): ToolResult {
+        val settings = loadSettings()
+        credentialError(settings)?.let { return it }
+        val requestedFormat = normaliseFormat(format, outputName) ?: return unsupportedFormat(format, outputName)
+        val resolvedModel = (model ?: settings.ttsApiModel).trim()
+        if (resolvedModel.isBlank()) return noModelConfigured()
+
+        val text = SpeechTextSanitizer.sanitize(script)
+        scriptError(text.length, emptyText = text.isBlank())?.let { return it }
+
+        val backend = ttsBackendFactory(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        val resolvedVoice = resolveVoice(voice, settings.ttsVoice, backend, resolvedModel)
+            ?: return noVoiceResolvable(resolvedModel)
+
+        val segments = PodcastAudio.chunk(text, MAX_CHUNK_CHARS)
+            .map { SpeechSegment(it, resolvedModel, resolvedVoice) }
+        return runJob(
+            backend = backend,
+            turns = listOf(Turn(segments, pauseAfterMs = 0L)),
+            outputName = outputName,
+            requestedFormat = requestedFormat,
+            overwrite = overwrite,
+            notes = "",
+            voiceLabel = "voice '$resolvedVoice'"
+        )
+    }
+
+    @Suppress("ReturnCount", "LongParameterList")
+    suspend fun synthesizeDialogue(
+        lines: List<DialogueLine>,
+        outputName: String,
+        hostAVoice: String? = null,
+        hostBVoice: String? = null,
+        hostAModel: String? = null,
+        hostBModel: String? = null,
+        gapMs: Long? = null,
+        format: String? = null,
+        overwrite: Boolean = false
+    ): ToolResult {
+        val settings = loadSettings()
+        credentialError(settings)?.let { return it }
+        val requestedFormat = normaliseFormat(format, outputName) ?: return unsupportedFormat(format, outputName)
+        val modelA = (hostAModel ?: settings.ttsApiModel).trim()
+        val modelB = (hostBModel ?: modelA).trim()
+        if (modelA.isBlank()) return noModelConfigured()
+
+        val turns = lines.map { it.copy(text = SpeechTextSanitizer.sanitize(it.text)) }
+            .filter { it.text.isNotBlank() }
+        val badSpeaker = turns.firstOrNull { it.speaker != SPEAKER_A && it.speaker != SPEAKER_B }
+        if (badSpeaker != null) {
+            return ToolResult.error(
+                "speaker '${badSpeaker.speaker}' is not a host — every line's speaker must be exactly " +
+                    "'$SPEAKER_A' or '$SPEAKER_B'."
+            )
+        }
+        scriptError(turns.sumOf { it.text.length }, emptyText = turns.isEmpty())?.let { return it }
+
+        val backend = ttsBackendFactory(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
+        val voiceA = resolveVoice(hostAVoice, settings.podcastHostAVoice.ifBlank { settings.ttsVoice }, backend, modelA)
+            ?: return noVoiceResolvable(modelA)
+        val voiceB = resolveHostBVoice(hostBVoice, settings, backend, modelB, voiceA)
+        val sameVoiceNote = if (voiceA == voiceB) {
+            " Both hosts ended up with voice '$voiceA' — no second voice could be found automatically; pass " +
+                "host_b_voice or set one in Settings → Speech to make them distinguishable."
+        } else {
+            ""
+        }
+
+        val episodeGap = resolvePause(gapMs, DIALOGUE_GAP_MS)
+        val spoken = turns.mapIndexed { index, turn ->
+            val (model, voice) = if (turn.speaker == SPEAKER_A) modelA to voiceA else modelB to voiceB
+            Turn(
+                segments = PodcastAudio.chunk(turn.text, MAX_CHUNK_CHARS).map { SpeechSegment(it, model, voice) },
+                // Nothing follows the last turn, so a pause there is only trailing silence.
+                pauseAfterMs = if (index == turns.lastIndex) 0L else resolvePause(turn.pauseMs, episodeGap)
+            )
+        }
+        return runJob(
+            backend = backend,
+            turns = spoken,
+            outputName = outputName,
+            requestedFormat = requestedFormat,
+            overwrite = overwrite,
+            notes = sameVoiceNote,
+            voiceLabel = "voices '$voiceA' (host A) and '$voiceB' (host B)"
+        )
+    }
+
+    // ---- the shared pipeline ----
+
+    @Suppress("ReturnCount", "LongParameterList")
+    private suspend fun runJob(
+        backend: TtsBackend,
+        turns: List<Turn>,
+        outputName: String,
+        requestedFormat: String,
+        overwrite: Boolean,
+        notes: String,
+        voiceLabel: String
+    ): ToolResult {
+        val wantMp3 = requestedFormat == FORMAT_MP3 && termuxUsable()
+        val degradeNote = if (requestedFormat == FORMAT_MP3 && !wantMp3) {
+            " MP3 was requested, but that conversion runs through Termux's ffmpeg, which is not available on " +
+                "this device — the podcast was written as .m4a instead, which plays everywhere on Android."
+        } else {
+            ""
+        }
+        val baseName = GotchaStorage.slugify(File(outputName).nameWithoutExtension)
+        val extension = if (wantMp3) FORMAT_MP3 else FORMAT_M4A
+        val destination = when (val r = resolveDestination(baseName, extension, overwrite)) {
+            is Resolved.Failed -> return r.result
+            is Resolved.Ok -> r.file
+        }
+        val tempDir = File(context.cacheDir, "podcast_${System.currentTimeMillis()}")
+        return try {
+            produce(
+                SynthesisJob(
+                    backend = backend, turns = turns, tempDir = tempDir,
+                    destination = destination, wantMp3 = wantMp3, baseName = baseName,
+                    overwrite = overwrite, notes = notes + degradeNote, voiceLabel = voiceLabel
+                )
+            )
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
+    @Suppress("ReturnCount")
+    private suspend fun produce(job: SynthesisJob): ToolResult {
+        job.tempDir.mkdirs()
+        val totalSegments = job.turns.sumOf { it.segments.size }
+        val files = mutableListOf<File>()
+        var totalMs = 0L
+        var index = 0
+        for (turn in job.turns) {
+            for ((positionInTurn, segment) in turn.segments.withIndex()) {
+                coroutineContext.ensureActive()
+                index++
+                val bytes = job.backend.synthesize(segment.text, segment.model, segment.voice).getOrElse { e ->
+                    return ToolResult.error(
+                        "The TTS request failed on segment $index of $totalSegments: " +
+                            "${e.message?.take(ERROR_DETAIL_CHARS) ?: "no detail"}. Nothing was written."
+                    )
+                }
+                val info = PodcastAudio.wavInfo(bytes) ?: return ToolResult.error(
+                    "The TTS endpoint returned something that is not WAV audio for segment $index. " +
+                        "The model name or voice may be wrong for this provider — check them against the " +
+                        "provider's model list."
+                )
+                // The turn's pause rides on its final segment, so the joiner sees
+                // one input per segment and no seam where the silence begins.
+                val lastOfTurn = positionInTurn == turn.segments.lastIndex
+                val pauseMs = if (lastOfTurn) turn.pauseAfterMs else 0L
+                val audio = if (pauseMs > 0) PodcastAudio.appendSilence(bytes, pauseMs) ?: bytes else bytes
+                totalMs += info.durationMs + if (audio !== bytes) pauseMs else 0L
+                if (totalMs > MAX_TOTAL_DURATION_MS) return audioTooLong()
+                files += File(job.tempDir, "segment_%03d.wav".format(index)).apply { writeBytes(audio) }
+            }
+        }
+
+        val m4aOut = if (job.wantMp3) {
+            File(job.destination.parentFile, "${job.baseName}$TMP_SUFFIX").apply { delete() }
+        } else {
+            job.destination
+        }
+        assemble(files, job.tempDir, m4aOut)?.let { return it }
+
+        val (finalFile, conversionNote) = if (job.wantMp3) convertToMp3(m4aOut, job) else job.destination to ""
+        GotchaStorage.publishToGallery(context, finalFile)
+        return ToolResult.ok(
+            "Created the podcast at '${finalFile.canonicalPath}' — ${MediaTimeSpec.format(totalMs)} of audio, " +
+                "${resolver.formatSize(finalFile.length())}, synthesized as $totalSegments segment(s) with " +
+                "${job.voiceLabel} and assembled on-device. It is visible in the phone's Files app under " +
+                "Gotcha/Podcasts." + job.notes + conversionNote
+        )
+    }
+
+    /**
+     * Joins the segment WAVs into [output] as AAC. Temp files skip
+     * [FileResolver] on purpose: they live in the app's own cache, where a
+     * permission check has nothing to say — the shared-storage checks already
+     * ran on the final destination. Batching counts every file, silence gaps
+     * included — a 10-line dialogue is already 19 concat inputs.
+     */
+    private suspend fun assemble(wavs: List<File>, tempDir: File, output: File): ToolResult? {
+        output.parentFile?.mkdirs()
+        if (wavs.size == 1) return mediaExport.run(input = wavs[0], output = output).failure()
+        var inputs: List<File> = wavs
+        var round = 0
+        while (inputs.size > MediaEditTool.MAX_CONCAT_INPUTS) {
+            inputs = inputs.chunked(MediaEditTool.MAX_CONCAT_INPUTS).mapIndexed { batchIndex, batch ->
+                val partial = File(tempDir, "batch_${round}_$batchIndex.m4a")
+                val outcome = if (batch.size == 1) {
+                    mediaExport.run(input = batch[0], output = partial)
+                } else {
+                    mediaExport.concat(batch, partial)
+                }
+                outcome.failure()?.let { return it }
+                partial
+            }
+            round++
+        }
+        return mediaExport.concat(inputs, output).failure()
+    }
+
+    /**
+     * The Termux detour. A failure here does not fail the run: the synthesis
+     * money is already spent and the audio is already good, so it is salvaged
+     * as `.m4a` with a note saying what happened and how to finish the job.
+     */
+    private suspend fun convertToMp3(m4a: File, job: SynthesisJob): Pair<File, String> {
+        val result = mediaConvert.convert(m4a.absolutePath, job.destination.absolutePath, overwrite = job.overwrite)
+        if (result.success) {
+            m4a.delete()
+            return job.destination to ""
+        }
+        // A failed ffmpeg run may have left a partial .mp3 at the destination;
+        // delete it so the next run with overwrite=false does not falsely hit
+        // "already exists" and to avoid stranding a corrupt file.
+        runCatching { if (job.destination.exists()) job.destination.delete() }
+        val parent = job.destination.parentFile ?: m4a.parentFile
+        val fallback = File(parent, "${job.baseName}.$FORMAT_M4A")
+        val kept: File = if (job.overwrite) {
+            if (m4a.renameTo(fallback)) fallback else m4a
+        } else {
+            if (!fallback.exists()) {
+                if (m4a.renameTo(fallback)) fallback else m4a
+            } else {
+                // Pick a stable .m4a name rather than leaving the temp-looking
+                // ".podcast-tmp.m4a" in the user's Podcasts folder.
+                var counter = 1
+                var candidate: File
+                do {
+                    candidate = File(parent, "${job.baseName}-$counter.$FORMAT_M4A")
+                    counter++
+                } while (candidate.exists() && counter < 100)
+                if (m4a.renameTo(candidate)) candidate else m4a
+            }
+        }
+        return kept to " The MP3 conversion step failed " +
+            "(${result.message.take(ERROR_DETAIL_CHARS)}) — the finished audio was kept as '${kept.name}'. " +
+            "Install Termux's ffmpeg ('pkg install ffmpeg -y' — a large download, 5-15 minutes, so ask the " +
+            "user first) and run media_convert on '${m4a.name}' to finish the MP3."
+    }
+
+    // ---- sharing ----
+
+    /**
+     * Opens the system share sheet for a finished podcast (or any audio file
+     * under the Gotcha folder). The file is handed over as a `content://` URI
+     * through the app's existing [androidx.core.content.FileProvider] — a
+     * `file://` URI would crash the receiving app on every supported Android
+     * version — and its `external-path path="Gotcha/"` mapping is also the
+     * boundary of what can be shared here.
+     */
+    @Suppress("ReturnCount")
+    fun share(path: String): ToolResult {
+        val file = when (val r = resolver.resolveForRead(path)) {
+            is FileResolver.ResolveResult.PermissionNeeded -> return r.result
+            is FileResolver.ResolveResult.Error -> return ToolResult.error(r.message)
+            is FileResolver.ResolveResult.Ok -> r.file
+        }
+        resolver.checkReadPermission(file)?.let { return it }
+        if (!file.exists() || !file.isFile) {
+            return ToolResult.error(
+                "'$path' does not exist (resolved: ${file.canonicalPath}). You may use list_files to find it."
+            )
+        }
+        val mime = SHARE_MIME_TYPES[file.extension.lowercase()]
+            ?: return ToolResult.error(
+                "'.${file.extension}' is not an audio format this tool shares. Supported: " +
+                    SHARE_MIME_TYPES.keys.sorted().joinToString(", ") { ".$it" } + "."
+            )
+        val uri = runCatching {
+            androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        }.getOrElse {
+            return ToolResult.error(
+                "'${file.canonicalPath}' is outside the folder this app can hand to other apps. Move or " +
+                    "copy it under '${GotchaStorage.rootPath}' first, then share that copy."
+            )
+        }
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val chooser = android.content.Intent.createChooser(send, "Share ${file.name}").apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startChooser(chooser)
+        return ToolResult.ok(
+            "Opened the share sheet for '${file.name}' (${resolver.formatSize(file.length())}). The user " +
+                "picks the destination app themselves — nothing has been sent yet."
+        )
+    }
+
+    // ---- validation ----
+
+    private fun credentialError(settings: Settings): ToolResult? {
+        if (!settings.ttsProvider.isApiBased()) {
+            return ToolResult.error(
+                "The Text-to-Speech provider is '${settings.ttsProvider.label}', which can only speak aloud — " +
+                    "it cannot write audio to a file. Ask the user to set Settings → Speech → Text-to-Speech " +
+                    "to Samosa AI or External API, then try again."
+            )
+        }
+        if (settings.effectiveTtsBaseUrl.isBlank()) {
+            return ToolResult.error(
+                if (settings.ttsProvider == AudioProvider.SAMOSA_AI) {
+                    "TTS is set to Samosa AI but there is no active session. Ask the user to sign in again " +
+                        "in Settings, then retry."
+                } else {
+                    "TTS is set to External API but no base URL is configured. Ask the user to complete " +
+                        "Settings → Speech → Text-to-Speech, then retry."
+                }
+            )
+        }
+        return null
+    }
+
+    private fun scriptError(sanitizedLength: Int, emptyText: Boolean): ToolResult? = when {
+        emptyText -> ToolResult.error(
+            "The script is empty once markdown, code and emoji are stripped for speech. " +
+                "Write the narration as plain prose and try again."
+        )
+        sanitizedLength > MAX_SCRIPT_CHARS -> ToolResult.error(
+            "The script is $sanitizedLength characters; the limit is $MAX_SCRIPT_CHARS (~20 minutes of " +
+                "speech). Split it into parts and synthesize each as its own file."
+        )
+        else -> null
+    }
+
+    private fun audioTooLong(): ToolResult = ToolResult.error(
+        "The synthesized audio passed ${MediaTimeSpec.format(MAX_TOTAL_DURATION_MS)} before the " +
+            "script was finished. Shorten the script or split it into parts."
+    )
+
+    /** The format arg wins; a recognisable extension on output_name is honoured when the arg is absent. */
+    private fun normaliseFormat(format: String?, outputName: String): String? {
+        val requested = format?.trim()?.lowercase().takeUnless { it.isNullOrBlank() }
+            ?: File(outputName).extension.trim().lowercase().ifBlank { FORMAT_M4A }
+        return requested.takeIf { it == FORMAT_M4A || it == FORMAT_MP3 }
+    }
+
+    private fun unsupportedFormat(format: String?, outputName: String): ToolResult = ToolResult.error(
+        "format '${format ?: File(outputName).extension}' is not supported — a podcast is written as 'm4a' " +
+            "(the default, no setup needed) or 'mp3' (via Termux's ffmpeg). For other formats, create the " +
+            ".m4a first and convert it with media_convert."
+    )
+
+    private fun noModelConfigured(): ToolResult = ToolResult.error(
+        "No TTS model is configured. Pass model explicitly, or ask the user to pick one in " +
+            "Settings → Speech → Text-to-Speech."
+    )
+
+    private fun noVoiceResolvable(model: String): ToolResult = ToolResult.error(
+        "No TTS voice is set and the API's voice list for '$model' could not be fetched. " +
+            "Pass voice explicitly, or ask the user to pick one in Settings → Speech."
+    )
+
+    private fun resolveVoice(
+        voiceArg: String?,
+        configuredVoice: String,
+        backend: TtsBackend,
+        model: String
+    ): String? {
+        val explicit = (voiceArg ?: configuredVoice).trim()
+        if (explicit.isNotBlank()) return explicit
+        val models = ttsModels(backend)
+        val target = models.firstOrNull { it.id == model } ?: models.firstOrNull() ?: return null
+        // Do not fall back to a hard-coded Samosa voice id when the model's
+        // voice list is empty — on a third-party provider that id will not
+        // exist and the generic "not WAV" error hides the real problem.
+        if (target.voices.isEmpty()) return null
+        return target.voices.first().id
+    }
+
+    /**
+     * Host B must differ from host A to be worth having. With nothing
+     * configured, the first voice in the model's list that is not A's is
+     * chosen — deterministic for a given provider, unlike "the second voice",
+     * which silently collides when A already *is* the second voice.
+     */
+    private fun resolveHostBVoice(
+        voiceArg: String?,
+        settings: Settings,
+        backend: TtsBackend,
+        model: String,
+        voiceA: String
+    ): String {
+        val explicit = (voiceArg ?: settings.podcastHostBVoice).trim()
+        if (explicit.isNotBlank()) return explicit
+        val models = ttsModels(backend)
+        val voices = (models.firstOrNull { it.id == model } ?: models.firstOrNull())?.voices.orEmpty()
+        return voices.firstOrNull { it.id != voiceA }?.id ?: voiceA
+    }
+
+    private fun ttsModels(backend: TtsBackend): List<AudioModel> =
+        runCatching { backend.listModels() }.getOrDefault(emptyList())
+            .filter { it.category == ModelCategory.TTS }
+
+    @Suppress("ReturnCount")
+    private fun resolveDestination(baseName: String, extension: String, overwrite: Boolean): Resolved {
+        val target = File(GotchaStorage.podcastsRoot(), "$baseName.$extension")
+        val file = when (val r = resolver.resolveForWrite(target.absolutePath)) {
+            is FileResolver.ResolveResult.PermissionNeeded -> return Resolved.Failed(r.result)
+            is FileResolver.ResolveResult.Error -> return Resolved.Failed(ToolResult.error(r.message))
+            is FileResolver.ResolveResult.Ok -> r.file
+        }
+        resolver.checkWritePermission(file)?.let { return Resolved.Failed(it) }
+        if (file.exists() && !overwrite) {
+            return Resolved.Failed(
+                ToolResult.error(
+                    "'${file.canonicalPath}' already exists. Pass overwrite=true to replace it, or choose a " +
+                        "different output_name."
+                )
+            )
+        }
+        file.parentFile?.let { parent ->
+            if (!parent.exists() && !parent.mkdirs()) {
+                return Resolved.Failed(ToolResult.error("Could not create '${parent.canonicalPath}'."))
+            }
+        }
+        return Resolved.Ok(file)
+    }
+}

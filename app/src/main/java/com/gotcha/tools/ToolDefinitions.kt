@@ -1193,6 +1193,547 @@ object ToolDefinitions {
         }
     )
 
+    val pdfEdit = tool(
+        "pdf_edit",
+        "Edit a PDF's page structure on-device: merge several PDFs into one, split one into " +
+            "single-page files, extract a page range into a new PDF, delete pages, or rotate pages. " +
+            "Also reports page count and page size with operation='info' — call that first when you " +
+            "need to know how many pages a file has before choosing a range. Every operation writes a " +
+            "NEW file and never modifies the input unless you point 'output' at the same path with " +
+            "overwrite=true. It CANNOT edit the text or images inside a page: PDF stores glyphs at " +
+            "fixed coordinates, so there is nothing to reflow — to read a PDF's text use read_file " +
+            "instead, and tell the user plainly that rewriting page content is not possible. Editing a " +
+            "password-protected PDF strips the protection from the copy, so it is refused until you have " +
+            "warned the user and pass confirmed=true.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("operation") {
+                    put("type", "string")
+                    putJsonArray("enum") { PdfTool.OPERATIONS.forEach { add(it) } }
+                    put(
+                        "description",
+                        "info = page count and size; merge = join 'inputs' in order; split = one file per " +
+                            "page; extract_pages = keep 'pages'; delete_pages = drop 'pages'; " +
+                            "rotate_pages = turn 'pages' by 'degrees'."
+                    )
+                }
+                putJsonObject("input") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the source PDF. Required by every operation except merge, e.g. " +
+                            "'/sdcard/Download/statement.pdf'."
+                    )
+                }
+                putJsonObject("inputs") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put(
+                        "description",
+                        "merge only: two or more PDF paths, in the order they should be joined."
+                    )
+                }
+                putJsonObject("output") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the PDF to write. Required by every operation except info and split; " +
+                            "for split it is the output DIRECTORY and defaults to the input's folder."
+                    )
+                }
+                putJsonObject("pages") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "1-based page selection: '3', '1-3,7', '9-' (9 to the end) or 'all'. Required by " +
+                            "extract_pages and delete_pages; optional for rotate_pages (defaults to all)."
+                    )
+                }
+                putJsonObject("degrees") {
+                    put("type", "integer")
+                    putJsonArray("enum") {
+                        add(90)
+                        add(180)
+                        add(270)
+                    }
+                    put("description", "rotate_pages only: clockwise rotation to add, 90, 180 or 270.")
+                }
+                putJsonObject("password") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Password for an encrypted PDF. Ask the user for it — never guess. The output is " +
+                            "written unencrypted."
+                    )
+                }
+                putJsonObject("confirmed") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Set to true ONLY after telling the user that editing their password-protected PDF " +
+                            "writes an unprotected copy, and they agreed. Editing an encrypted PDF fails " +
+                            "without it. Never set it pre-emptively."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") { add("operation") }
+        }
+    )
+
+    val mediaEdit = tool(
+        "media_edit",
+        "Edit an audio or video file on-device: trim a window out of it, pull its audio track into a " +
+            "separate file, strip the audio from a video, shrink it, change its playback speed, or join " +
+            "several files end to end. Also reports duration, resolution, tracks and codecs with " +
+            "operation='info' — call that FIRST whenever you need a timecode or a resolution, so you are " +
+            "working against real numbers rather than a guess. Works the same on video and on audio-only " +
+            "files. Every operation writes a NEW file and never modifies the input; the output cannot be the " +
+            "input, because the encoder writes it while still reading from it. trim, extract_audio and " +
+            "remove_audio copy the streams rather than re-encoding, so they are fast and lossless; compress, " +
+            "speed and concat re-encode, so they take much longer and lose a little quality. It cannot add " +
+            "music, overlay text or a watermark, blur or remove anything inside a frame, or open " +
+            "DRM-protected media at all — say so plainly instead of attempting a workaround.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("operation") {
+                    put("type", "string")
+                    putJsonArray("enum") { MediaEditTool.OPERATIONS.forEach { add(it) } }
+                    put(
+                        "description",
+                        "info = duration, tracks, resolution and codecs; trim = keep the window between " +
+                            "'start' and 'end'; extract_audio = write the audio track as its own file; " +
+                            "remove_audio = write the video with its audio dropped; compress = re-encode " +
+                            "smaller at 'height'; speed = re-time by 'speed'; concat = join 'inputs' in order."
+                    )
+                }
+                putJsonObject("input") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the source audio or video file, e.g. '/sdcard/DCIM/Camera/VID_0001.mp4'. " +
+                            "Required by every operation except concat, which takes 'inputs' instead."
+                    )
+                }
+                putJsonObject("output") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the file to write. Required by every operation except info. Must end in .mp4 " +
+                            "(video) or .m4a (audio only) — the muxer always writes an MP4 container. Cannot be " +
+                            "the same path as 'input'."
+                    )
+                }
+                putJsonObject("start") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "trim only: where the kept window begins. Timecodes are '1:23' (m:ss), '1:02:03' " +
+                            "(h:mm:ss), '90s', '1m30s' or plain seconds like '12.5'. Defaults to the start of " +
+                            "the file."
+                    )
+                }
+                putJsonObject("end") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "trim only: where the kept window ends, in the same timecode formats, or 'end' for the " +
+                            "end of the file. Defaults to the end of the file. Give at least one of 'start' " +
+                            "and 'end'."
+                    )
+                }
+                putJsonObject("inputs") {
+                    put("type", "array")
+                    putJsonObject("items") { put("type", "string") }
+                    put(
+                        "description",
+                        "concat only: two or more media paths, in the order they should be joined. They must " +
+                            "all be video or all be audio-only."
+                    )
+                }
+                putJsonObject("height") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "compress only: target height in pixels, e.g. 720 or 480. Defaults to 720. Width " +
+                            "follows the original aspect ratio. Compressing something already this small is " +
+                            "refused."
+                    )
+                }
+                putJsonObject("speed") {
+                    put("type", "number")
+                    put(
+                        "description",
+                        "speed only: playback multiplier between 0.25 and 4.0. 2.0 plays twice as fast and " +
+                            "halves the duration; 0.5 plays at half speed. Audio and video are re-timed " +
+                            "together."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") { add("operation") }
+        }
+    )
+
+    val mediaConvert = tool(
+        "media_convert",
+        "Convert an audio file from one format to another on-device, using Termux's ffmpeg. This is the ONLY " +
+            "way to produce an MP3: Android ships no MP3 encoder, so media_edit physically cannot write one. " +
+            "Targets: .mp3, .m4a, .aac, .ogg, .opus, .wav, .flac — the format is taken from the output " +
+            "extension. The file never leaves the device. Needs Termux installed with the ffmpeg package; if " +
+            "it is missing the error says exactly what to install. For everything other than format — " +
+            "trimming, muting, compressing, changing speed, joining — use media_edit, which needs no setup. " +
+            "This does not convert video containers.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("input") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the source audio or video file to take the audio from, e.g. " +
+                            "'/sdcard/Music/recording.m4a'. Must be on shared storage — Termux cannot see " +
+                            "Gotcha's private folders."
+                    )
+                }
+                putJsonObject("output") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path to write, its extension choosing the format: '.mp3', '.m4a', '.aac', '.ogg', " +
+                            "'.opus', '.wav' or '.flac'. Must be on shared storage and cannot be the input."
+                    )
+                }
+                putJsonObject("bitrate") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Audio bitrate as kbps, e.g. '192k' or '320k'. Defaults to 192k (128k for Opus). " +
+                            "Ignored for .wav and .flac, which are lossless."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("input")
+                add("output")
+            }
+        }
+    )
+
+    val synthesizePodcast = tool(
+        "synthesize_podcast",
+        "Turn a written narration script into a spoken audio file — a single-voice podcast — saved under " +
+            "Gotcha/Podcasts on shared storage, where the Files app can see it. Write the script yourself " +
+            "first as plain prose (no markdown, no code; it will be read aloud verbatim), then pass it here. " +
+            "Long scripts are synthesized in segments and joined on-device; ~20 minutes of speech is the " +
+            "ceiling. Output is .m4a by default; format='mp3' converts through Termux's ffmpeg when Termux " +
+            "is available and quietly falls back to .m4a when it is not. Needs an API-based TTS provider " +
+            "(Samosa AI or External API) in Settings → Speech — Android's built-in TTS cannot write files, " +
+            "and the error will say so.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("script") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "The full narration text, exactly as it should be spoken. Plain prose only — write " +
+                            "for the ear, not the eye."
+                    )
+                }
+                putJsonObject("output_name") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Base name for the file, e.g. 'morning-news-digest'. It is slugified and written " +
+                            "under Gotcha/Podcasts; any directory part or extension is ignored except that " +
+                            "a '.mp3' extension selects the mp3 format."
+                    )
+                }
+                putJsonObject("model") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "TTS model id to use. Defaults to the model configured in Settings → Speech."
+                    )
+                }
+                putJsonObject("voice") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Voice id from the TTS model's voice list. Defaults to the configured voice, then " +
+                            "to the model's own default."
+                    )
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "'m4a' (default, works with no setup) or 'mp3' (needs Termux's ffmpeg; degrades to " +
+                            ".m4a with a note when unavailable)."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("script")
+                add("output_name")
+            }
+        }
+    )
+
+    val synthesizePodcastDialogue = tool(
+        "synthesize_podcast_dialogue",
+        "Turn a two-host dialogue script into a spoken audio file — a conversational podcast in the " +
+            "NotebookLM style — saved under Gotcha/Podcasts on shared storage. Write the dialogue yourself " +
+            "first: an array of turns, each with speaker 'A' or 'B' and the exact words to speak, as plain " +
+            "prose. The hosts get distinct voices (configured in Settings → Speech, overridable per call, " +
+            "and defaulting to two different voices from the model's own list). You also direct the pacing, " +
+            "and should: give every turn its own pause_ms for the silence that follows it, varying them the " +
+            "way a real conversation does — an interjection lands almost on top of the previous line, a " +
+            "revelation earns a beat first. gap_ms is only the fallback for turns you leave unpaced, so a " +
+            "script with no pause_ms at all comes out evenly spaced and lifeless. Length ceiling, output " +
+            "formats and the TTS provider requirement are the same as " +
+            "synthesize_podcast: ~20 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
+            "API-based TTS provider — Android's built-in TTS cannot write files. Turns whose text is blank " +
+            "after sanitization (e.g. only markdown or emoji) are dropped rather than synthesized as silence.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("lines") {
+                    put("type", "array")
+                    put(
+                        "description",
+                        "The dialogue in order. Each item is one turn: " +
+                            "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\", " +
+                            "\"pause_ms\": the silence after it}. Turns whose text sanitizes to blank " +
+                            "(e.g. only markdown or emoji) are dropped rather than synthesized as silence."
+                    )
+                    putJsonObject("items") {
+                        put("type", "object")
+                        putJsonObject("properties") {
+                            putJsonObject("speaker") {
+                                put("type", "string")
+                                put("description", "'A' or 'B' — which host speaks this turn.")
+                            }
+                            putJsonObject("text") {
+                                put("type", "string")
+                                put("description", "What this host says, spoken verbatim. Plain prose only.")
+                            }
+                            putJsonObject("pause_ms") {
+                                put("type", "integer")
+                                put(
+                                    "description",
+                                    "Silence AFTER this turn, in milliseconds. Set it on every turn: this " +
+                                        "rhythm is most of what separates a real conversation from two " +
+                                        "voices taking turns, and an episode where every gap is the same " +
+                                        "length sounds like a machine reading a transcript. Choose each " +
+                                        "number from what just happened and what comes next — 0-150 when " +
+                                        "the other host cuts in or finishes the thought, 200-300 for " +
+                                        "ordinary back-and-forth, 400-600 after a question, a joke, or a " +
+                                        "point that needs a moment to land, 700-1200 at a topic change or " +
+                                        "something genuinely weighty. Vary it: several turns in a row at " +
+                                        "the same value means you are not really pacing. Clamped to " +
+                                        "0-2000, and ignored on the final turn, where it would only be " +
+                                        "trailing silence."
+                                )
+                            }
+                        }
+                        // pause_ms is required of the *model* — asking politely in the description was
+                        // not enough, and an unpaced script is the flat-sounding failure this field
+                        // exists to prevent. The executor still tolerates its absence and falls back to
+                        // gap_ms, so a provider that ignores `required` degrades rather than breaks.
+                        putJsonArray("required") {
+                            add("speaker")
+                            add("text")
+                            add("pause_ms")
+                        }
+                    }
+                }
+                putJsonObject("gap_ms") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Fallback silence between turns, in milliseconds (0-2000, default 300), used only " +
+                            "for turns that carry no pause_ms of their own. It is a safety net, not the " +
+                            "way to pace an episode — set pause_ms per turn instead."
+                    )
+                }
+                putJsonObject("output_name") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Base name for the file, e.g. 'ai-news-roundtable'. Slugified and written under " +
+                            "Gotcha/Podcasts; a '.mp3' extension selects the mp3 format."
+                    )
+                }
+                putJsonObject("host_a_voice") {
+                    put("type", "string")
+                    put("description", "Voice id for host A. Defaults to the configured podcast host A voice.")
+                }
+                putJsonObject("host_b_voice") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Voice id for host B. Defaults to the configured podcast host B voice, then to the " +
+                            "first voice in the model's list that differs from host A."
+                    )
+                }
+                putJsonObject("host_a_model") {
+                    put("type", "string")
+                    put("description", "TTS model id for host A. Defaults to the configured TTS model.")
+                }
+                putJsonObject("host_b_model") {
+                    put("type", "string")
+                    put("description", "TTS model id for host B. Defaults to host A's model.")
+                }
+                putJsonObject("format") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "'m4a' (default, works with no setup) or 'mp3' (needs Termux's ffmpeg; degrades to " +
+                            ".m4a with a note when unavailable)."
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", "boolean")
+                    put(
+                        "description",
+                        "Allow replacing an existing output file. Default false, which fails instead of " +
+                            "destroying a file the user may still need."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("lines")
+                add("output_name")
+            }
+        }
+    )
+
+    val transcribeFile = tool(
+        "transcribe_file",
+        "Transcribe an audio file already on disk to text, using the configured Speech-to-Text API. The " +
+            "file is read and uploaded to the STT endpoint but never modified or deleted. Accepts .m4a, " +
+            ".mp3, .wav, .ogg, .opus, .flac, .aac, .mp4 and .webm up to 25MB — trim or split longer " +
+            "recordings with media_edit first. This is how a saved voice memo becomes text: record with " +
+            "start_audio_recording using an explicit output_path (without one the recording lands behind a " +
+            "MediaStore URI this tool cannot reach), stop it, then transcribe the file. Needs an API-based " +
+            "STT provider (Samosa AI or External API) in Settings → Speech — Android's SpeechRecognizer " +
+            "only listens to the microphone.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the audio file to transcribe, e.g. '/sdcard/Gotcha/Recordings/memo.m4a'."
+                    )
+                }
+                putJsonObject("model") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "STT model id to use. Defaults to the model configured in Settings → Speech, then " +
+                            "to the first STT model the API advertises."
+                    )
+                }
+                putJsonObject("language") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "ISO language hint for the recording, e.g. 'en' or 'hi'. Defaults to the " +
+                            "configured STT language; leave unset to let the model detect it."
+                    )
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
+    val sharePodcast = tool(
+        "share_podcast",
+        "Open the system share sheet for an audio file under the Gotcha folder — a generated podcast, a " +
+            "recording, a converted track — so the user can send it through any app they choose. Nothing is " +
+            "sent by this call itself: it only presents the chooser, and the user picks (or dismisses) the " +
+            "destination. Accepts .m4a, .mp3, .wav, .ogg, .opus, .flac, .aac and .mp4 audio. The file must " +
+            "live under the Gotcha folder on shared storage (where synthesize_podcast writes); files " +
+            "elsewhere must be copied there first.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Path of the audio file to share, e.g. '/sdcard/Gotcha/Podcasts/morning-digest.m4a'."
+                    )
+                }
+            }
+            putJsonArray("required") { add("path") }
+        }
+    )
+
+    val pullFromTermux = tool(
+        "pull_from_termux",
+        "Copy a file that currently lives inside Termux (its Linux user-space) out to a path Gotcha " +
+            "and the user can reach, e.g. '/storage/emulated/0/Download/name.mp4'. Uses the shared-storage " +
+            "bridge when Termux's storage is linked, and a loopback transfer otherwise, so it works even " +
+            "before 'termux-setup-storage' is granted. This is how a file produced inside Termux " +
+            "(yt-dlp downloads, script output, server files) gets into the user's Downloads/Gotcha " +
+            "folder — run the producing command first with run_termux_command, then pull the result. " +
+            "Needs Termux installed.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("termux_path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute path of the file inside Termux, e.g. " +
+                            "'/data/data/com.termux/files/home/gotcha_guide.mp4' or '~/gotcha_guide.mp4'."
+                    )
+                }
+                putJsonObject("destination") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute destination path Gotcha writes to, e.g. " +
+                            "'/storage/emulated/0/Download/gotcha_guide.mp4'. A parent folder it can write."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("termux_path")
+                add("destination")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -1892,6 +2433,16 @@ object ToolDefinitions {
             "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
             "notification, which ends every Termux session. If you cannot reach that, ask the user to tap " +
             "Exit on the Termux notification.\n" +
+            "- Lock contention: an `exit 100` whose error names `lock-frontend` / `Could not get lock` / " +
+            "`held by process <pid>` means ANOTHER pkg/apt is already running and holds the package lock — " +
+            "this is NOT a mirror problem. Wait for it or tap Exit on the Termux notification to end all " +
+            "sessions; never delete the lock files or kill -9 the process, which corrupts the package " +
+            "database without releasing the lock.\n" +
+            "- Interactive prompts: if output shows `Configuration file '...'` with `Y/I/N/O/D/Z`, a " +
+            "package manager is waiting for an answer no terminal can provide and will block until the " +
+            "timeout. Package operations are run non-interactively by default; if a bare `dpkg " +
+            "--configure` still asks, supply the answer via the stdin param (`echo N | dpkg --configure " +
+            "<pkg>`).\n" +
             "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
             "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
             "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +
@@ -2420,6 +2971,18 @@ object ToolDefinitions {
         todowrite,
         // Surgical file editing (Operator only)
         edit,
+        // PDF page-structure editing (Operator only)
+        pdfEdit,
+        // Audio/video editing (Operator only)
+        mediaEdit,
+        // Audio format conversion via Termux ffmpeg (Operator only)
+        mediaConvert,
+        // Pull a file produced inside Termux out to Gotcha-accessible storage (Operator only)
+        pullFromTermux,
+        // Script-to-speech podcast synthesis (Operator only)
+        synthesizePodcast, synthesizePodcastDialogue, sharePodcast,
+        // Audio-file transcription via the STT API (Operator only)
+        transcribeFile,
         // Content search and file discovery
         glob, grep,
         // Web search + fetch

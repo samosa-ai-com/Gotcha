@@ -31,6 +31,36 @@ enum class WakeWordListeningMode {
     }
 }
 
+/**
+ * Chat context budget, in tokens, for a fresh install.
+ */
+const val DEFAULT_MAX_CONTEXT_TOKENS = 256_000
+
+/**
+ * The budget before [DEFAULT_MAX_CONTEXT_TOKENS] was raised. A stored copy of
+ * exactly this value is lifted once by [SettingsRepository.resolvedMaxContextTokens];
+ * see the note there for why raising the default alone was not enough.
+ */
+private const val LEGACY_MAX_CONTEXT_TOKENS = 70_000
+
+/** What the one-shot context-budget lift decided: the value to use, and whether to store it. */
+internal data class MaxContextTokensLift(val value: Int, val writeBack: Boolean)
+
+/**
+ * Decides whether a stored context budget should be lifted to the current default.
+ *
+ * Only a stored value equal to the old default is lifted, and only while
+ * [alreadyLifted] is false, so a user who deliberately picks 70k afterwards
+ * keeps it. Kept pure and separate from the prefs read because
+ * `EncryptedSharedPreferences` cannot be built under Robolectric, which would
+ * otherwise leave a silent one-shot migration with no test at all.
+ */
+internal fun liftMaxContextTokens(stored: Int, alreadyLifted: Boolean): MaxContextTokensLift = when {
+    alreadyLifted -> MaxContextTokensLift(stored, writeBack = false)
+    stored == LEGACY_MAX_CONTEXT_TOKENS -> MaxContextTokensLift(DEFAULT_MAX_CONTEXT_TOKENS, writeBack = true)
+    else -> MaxContextTokensLift(stored, writeBack = false)
+}
+
 data class Settings(
     // Which LLM backend is active. Defaults to the Samosa AI flow.
     val provider: LlmProvider = LlmProvider.SAMOSA_AI,
@@ -55,7 +85,7 @@ data class Settings(
      * each call carries a freshly rephrased task string.
      */
     val maxConsecutiveDelegations: Int = 3,
-    val maxContextTokens: Int = 70000,
+    val maxContextTokens: Int = DEFAULT_MAX_CONTEXT_TOKENS,
     val apiTimeoutSeconds: Long = 0L,
     // TTS / STT settings
     val ttsProvider: AudioProvider = AudioProvider.ANDROID,
@@ -63,6 +93,11 @@ data class Settings(
     val ttsApiKey: String = "",
     val ttsApiModel: String = "",
     val ttsVoice: String = "",
+    // Voices for the two hosts of synthesize_podcast_dialogue. Blank falls back
+    // to [ttsVoice] for host A and to a deterministically different voice from
+    // the model's own list for host B, so the hosts stay distinguishable.
+    val podcastHostAVoice: String = "",
+    val podcastHostBVoice: String = "",
     val sttProvider: AudioProvider = AudioProvider.ANDROID,
     val sttApiBaseUrl: String = "",
     val sttApiKey: String = "",
@@ -331,6 +366,26 @@ private const val LEGACY_THEME_MODE_SYSTEM = "SYSTEM"
 interface SettingsStore {
     fun load(): Settings
     fun save(settings: Settings)
+
+    /**
+     * Write just the auto-refresh interval.
+     *
+     * [save] rewrites all 58 keys, so the usual load-copy-save clobbers any
+     * field another writer changed in between. The connector screen sets this
+     * from a slider while [saveConnectorLastRefreshedAt] is being written by a
+     * refresh on another thread, and whichever load ran first used to win.
+     *
+     * The default keeps that old read-modify-write, which is fine for stores
+     * with no concurrency; [SettingsRepository] narrows it to one key.
+     */
+    fun saveConnectorAutoRefreshIntervalMinutes(minutes: Int) {
+        save(load().copy(connectorAutoRefreshIntervalMinutes = minutes))
+    }
+
+    /** Write just the last-refreshed stamp. See [saveConnectorAutoRefreshIntervalMinutes]. */
+    fun saveConnectorLastRefreshedAt(millis: Long) {
+        save(load().copy(connectorLastRefreshedAt = millis))
+    }
 }
 
 /** Stores credentials in EncryptedSharedPreferences (PRD R6). Never logged. */
@@ -360,6 +415,33 @@ class SettingsRepository(context: Context) : SettingsStore {
         return migrated
     }
 
+    /**
+     * Reads the context budget, lifting a stored 70k to the current default once.
+     *
+     * Raising the default in [Settings] only reaches installs that never wrote
+     * the key, and an APK update -- from Android Studio or a GitHub release --
+     * keeps the app's data directory, so every existing user kept 70k. Anyone
+     * who has opened AI Config and pressed Save has the old default written out
+     * explicitly, which is indistinguishable from having chosen it.
+     *
+     * So this runs exactly once, tracked by its own flag rather than by the
+     * value: after it has run, a user is free to set 70k back and keep it.
+     */
+    private fun resolvedMaxContextTokens(): Int {
+        val alreadyLifted = prefs.getBoolean(KEY_MAX_CONTEXT_TOKENS_RAISED, false)
+        val lift = liftMaxContextTokens(
+            stored = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, DEFAULT_MAX_CONTEXT_TOKENS),
+            alreadyLifted = alreadyLifted
+        )
+        if (!alreadyLifted) {
+            prefs.edit().apply {
+                putBoolean(KEY_MAX_CONTEXT_TOKENS_RAISED, true)
+                if (lift.writeBack) putInt(KEY_MAX_CONTEXT_TOKENS, lift.value)
+            }.apply()
+        }
+        return lift.value
+    }
+
     override fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = string(KEY_API_KEY),
@@ -373,7 +455,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         maxRepeatedToolCalls = prefs.getInt(KEY_MAX_REPEATED_TOOL_CALLS, 20),
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
         maxConsecutiveDelegations = prefs.getInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, 3),
-        maxContextTokens = prefs.getInt(KEY_MAX_CONTEXT_TOKENS, 70000),
+        maxContextTokens = resolvedMaxContextTokens(),
         apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
         ttsProvider = runCatching {
             AudioProvider.valueOf(string(KEY_TTS_PROVIDER, "ANDROID"))
@@ -382,6 +464,8 @@ class SettingsRepository(context: Context) : SettingsStore {
         ttsApiKey = string(KEY_TTS_API_KEY),
         ttsApiModel = string(KEY_TTS_API_MODEL),
         ttsVoice = string(KEY_TTS_VOICE),
+        podcastHostAVoice = string(KEY_PODCAST_HOST_A_VOICE),
+        podcastHostBVoice = string(KEY_PODCAST_HOST_B_VOICE),
         sttProvider = runCatching {
             AudioProvider.valueOf(string(KEY_STT_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
@@ -427,6 +511,14 @@ class SettingsRepository(context: Context) : SettingsStore {
         onboardingVersion = prefs.getInt(KEY_ONBOARDING_VERSION, 0)
     )
 
+    override fun saveConnectorAutoRefreshIntervalMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_CONNECTOR_AUTO_REFRESH_INTERVAL, minutes).apply()
+    }
+
+    override fun saveConnectorLastRefreshedAt(millis: Long) {
+        prefs.edit().putLong(KEY_CONNECTOR_LAST_REFRESHED, millis).apply()
+    }
+
     override fun save(settings: Settings) {
         prefs.edit()
             .putString(KEY_PROVIDER, settings.provider.name)
@@ -448,6 +540,8 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_TTS_API_KEY, settings.ttsApiKey)
             .putString(KEY_TTS_API_MODEL, settings.ttsApiModel)
             .putString(KEY_TTS_VOICE, settings.ttsVoice)
+            .putString(KEY_PODCAST_HOST_A_VOICE, settings.podcastHostAVoice)
+            .putString(KEY_PODCAST_HOST_B_VOICE, settings.podcastHostBVoice)
             .putString(KEY_STT_PROVIDER, settings.sttProvider.name)
             .putString(KEY_STT_API_URL, settings.sttApiBaseUrl)
             .putString(KEY_STT_API_KEY, settings.sttApiKey)
@@ -549,12 +643,17 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_MAX_NAVIGATION_TOOL_CALLS = "max_navigation_tool_calls"
         const val KEY_MAX_CONSECUTIVE_DELEGATIONS = "max_consecutive_delegations"
         const val KEY_MAX_CONTEXT_TOKENS = "max_context_tokens"
+
+        /** Whether the one-shot 70k -> 256k lift has already run. */
+        const val KEY_MAX_CONTEXT_TOKENS_RAISED = "max_context_tokens_raised"
         const val KEY_API_TIMEOUT = "api_timeout"
         const val KEY_TTS_PROVIDER = "tts_provider"
         const val KEY_TTS_API_URL = "tts_api_url"
         const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_API_MODEL = "tts_api_model"
         const val KEY_TTS_VOICE = "tts_voice"
+        const val KEY_PODCAST_HOST_A_VOICE = "podcast_host_a_voice"
+        const val KEY_PODCAST_HOST_B_VOICE = "podcast_host_b_voice"
         const val KEY_STT_PROVIDER = "stt_provider"
         const val KEY_STT_API_URL = "stt_api_url"
         const val KEY_STT_API_KEY = "stt_api_key"

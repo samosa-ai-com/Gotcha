@@ -14,11 +14,12 @@ object ToolCategories {
         "global_action", "open_app", "open_setting",
         "read_screen", "read_screen_raw",
         "navigate_app", "task",
-        "dial_number", "compose_email", "show_alarms"
+        "dial_number", "compose_email", "show_alarms", "share_podcast"
     )
 
     private val backgroundTools = setOf(
-        "edit", "write_file", "make_directory", "delete_file",
+        "edit", "write_file", "make_directory", "delete_file", "pdf_edit", "media_edit", "media_convert",
+        "synthesize_podcast", "synthesize_podcast_dialogue", "transcribe_file",
         "uninstall_app", "delete_calendar_event", "delete_alarm",
         "delete_timer", "edit_alarm",
         "toggle_wifi", "toggle_torch",
@@ -30,7 +31,7 @@ object ToolCategories {
         "take_photo",
         "start_audio_recording", "stop_audio_recording",
         "pause_audio_recording", "resume_audio_recording",
-        "run_command", "run_root_command", "run_termux_command",
+        "run_command", "run_root_command", "run_termux_command", "pull_from_termux",
         "show_overlay", "hide_overlay",
         "lock_screen", "disable_camera", "set_password_policy",
         "dismiss_notifications", "media_control",

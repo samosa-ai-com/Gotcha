@@ -1,0 +1,39 @@
+{
+    "id": "media_editing",
+    "targetPackageNames": [],
+    "title": "Audio & Video Editing Skills",
+    "description": "Trim, shrink, re-time and join audio and video on-device with media_edit instead of a web converter or an editor app.",
+    "requiresTools": [
+        "media_edit",
+        "media_convert"
+    ],
+    "keywords": [
+        "audio",
+        "clip",
+        "compress",
+        "conversion",
+        "convert",
+        "cut",
+        "faster",
+        "footage",
+        "format",
+        "join",
+        "m4a",
+        "memo",
+        "merge",
+        "mp3",
+        "mp4",
+        "mute",
+        "podcast",
+        "recording",
+        "shrink",
+        "slower",
+        "soundtrack",
+        "speed",
+        "trim",
+        "video",
+        "videos",
+        "voice"
+    ],
+    "instructions": "Never upload a video or audio file to a web converter, and never automate a video editor's UI to trim a clip. media_edit does it locally: the file never leaves the device, and there is no watermark, length limit or account.\n\nCall operation='info' FIRST whenever you need a timecode. It reports duration, tracks, resolution, rotation and codecs without decoding anything, so it is cheap. Never guess a duration from the file name or size, and never trim against a duration the user quoted from memory — check it.\n\nWhat it does:\n1. 'info' — what the file contains. Also the way to answer \"how long is this?\" or \"does this video have sound?\".\n2. 'trim' — keeps the window between 'start' and 'end' and drops the rest. Give at least one of them; 'start' alone runs to the end of the file, 'end' alone starts from the beginning.\n3. 'extract_audio' — writes the audio track as its own .m4a. This is \"rip the audio\", \"just the sound\", \"turn this video into a podcast episode\".\n4. 'remove_audio' — writes the video with the audio dropped. This is \"mute it\", \"remove the background noise\" (which it does by removing ALL sound — say so, because that is usually not what they hoped for).\n5. 'compress' — re-encodes smaller at 'height' (default 720). This is \"make it small enough to email/WhatsApp\". Compressing a file that is already that small or smaller is refused rather than silently degrading it.\n6. 'speed' — re-times by 'speed', between 0.25 and 4.0. Audio and video are re-timed together, so they stay in sync. 2.0 halves the duration.\n7. 'concat' — joins 'inputs' end to end, in exactly the order given. Confirm the order with the user when it is not obvious; a join in the wrong order looks like data loss to them. All inputs must be video, or all audio-only — mixing them is refused.\n\nTimecodes take several forms: '1:23' (m:ss), '1:02:03' (h:mm:ss), '90s', '1m30s', '500ms', or plain seconds like '12.5'. A colon field holding 60 or more seconds is refused as ambiguous — write '1:30' or '90s', not '1:90'. Use 'end' as the end timecode to mean the end of the file.\n\nAll four operations work identically on video and on audio-only files. Trimming an .m4a voice memo and trimming a 4K video are the same call. The two exceptions are refused with an explanation: extracting audio from a file that has no audio track, and removing the audio from a file that is audio-only.\n\nCost differs sharply between the two groups, and it is worth telling the user which they are getting. trim, extract_audio and remove_audio COPY the streams: they finish in seconds even on a long video and lose no quality whatsoever. compress, speed and concat RE-ENCODE: they run the whole file through the codec, which takes minutes and loses a little quality each time. The result message says which happened — pass that on, because repeated re-encoding visibly degrades a file and the user cannot see it coming.\n\nBecause re-encoding is slow, inputs longer than 30 minutes are refused for compress, speed and concat, and any export that overruns ten minutes is abandoned. When you hit either, do not retry the same call — trim the file to the part that is actually wanted first, and explain why you are doing that.\n\nOutput rules that matter. Every operation writes a NEW file and leaves the input untouched. The output path CANNOT be the same as the input — unlike pdf_edit there is no in-place mode, because the encoder writes the target while still reading the source, which would destroy both. Pick a clearly derived name (VID_0001-trimmed.mp4, interview-audio.m4a) and tell the user where you put it. An existing output fails unless you pass overwrite=true; do not reflexively retry with overwrite after that error, since the file in the way may be one the user still wants. The output must end in .mp4 (video) or .m4a (audio only) — the muxer always writes an MP4 container, so any other extension would be a mislabelled file.\n\nMP3 and other formats: media_edit itself always writes an MP4 container (.mp4 or .m4a), because Android ships no MP3 encoder and its muxer only writes AAC. When someone asks for an MP3 there are two good answers, in this order.\n1. If they just want \"the audio\" — which is what \"extract the mp3\" almost always means — use media_edit extract_audio to write an .m4a and say so: \"I saved it as an .m4a rather than an MP3; it plays everywhere MP3 does and is a bit smaller for the same quality.\" This needs no setup and takes seconds.\n2. If they specifically want an MP3, use the media_convert tool, which runs Termux's ffmpeg on the device. It converts to .mp3, .m4a, .aac, .ogg, .opus, .wav or .flac and the file never leaves the phone. It only appears when Termux is installed; if it is not in your tool list, offer option 1 and mention that installing Termux plus 'pkg install ffmpeg' would enable real MP3 conversion.\nTo go from a video to an MP3: media_edit extract_audio to .m4a first, then media_convert that to .mp3. Do not try to point media_convert at a video and a .mp3 output in one step — extract first, then convert. Never hand-write an ffmpeg command line with run_termux_command for a conversion media_convert already does; the tool quotes paths safely and diagnoses the common failures, and a hand-written command does neither.\n\nThe hard limits, which you must state plainly rather than work around:\n• It CANNOT add background music or any second audio track, overlay text, a watermark or an image, fade audio in or out, adjust volume, or change the bitrate directly. These are not implemented. Do not fake any of them by chaining other tools.\n• It CANNOT open DRM-protected media — anything bought or downloaded from a store. That is a property of the file, not a missing feature, and no retry will work.\n• It CANNOT edit what is inside a frame: no removing an object, no blurring a face, no colour grading, no stabilisation.\n• Cutting a middle section OUT of one file is possible, but only as two steps: trim the part before and the part after into separate files, then concat them. Say that is what you are doing, and clean up the intermediate files afterwards with delete_file.\nWhen asked for one of these, say so directly and offer what does work.\n\nIf a file will not open at all, it may be in a container Android's codecs cannot read (MKV, OGG, FLV are the usual ones). ffmpeg through run_termux_command is the fallback, but it requires Termux installed with the ffmpeg package, so offer it as an option rather than assuming it is there.\n\nFinding the file: phone video lives in /sdcard/DCIM/Camera, screen recordings in /sdcard/Movies, voice memos and music in /sdcard/Music or /sdcard/Recordings, downloads in /sdcard/Download, and WhatsApp media under /sdcard/Android/media/com.whatsapp. Use glob (e.g. '/sdcard/DCIM/Camera/*.mp4') rather than asking the user for a full path they will not know. When several match, use info on the likely ones and confirm which they meant before writing anything — trimming the wrong video looks like data loss."
+}

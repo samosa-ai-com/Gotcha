@@ -424,9 +424,15 @@ fun ReferAndEarnCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "🎁 Invite Friends & Earn",
+                text = "🎁 Invite Friends, Earn Free Credits",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Share your invite code — you both get bonus credits when a friend " +
+                    "signs up with it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (code.isNotBlank()) {
@@ -574,20 +580,23 @@ internal fun buildInfluencerFormUrl(
     entryId: String,
     email: String
 ): String {
-    val base = formUrl.trimEnd('/')
+    // trim() first: the URL comes from a hand-edited properties file, and stray
+    // whitespace baked into BuildConfig would end up inside the launched URL.
+    val base = formUrl.trim().trimEnd('/')
     if (base.isBlank() || entryId.isBlank() || email.isBlank()) return base
-    return "$base?usp=pp_url&$entryId=${Uri.encode(email)}"
+    return "$base?usp=pp_url&$entryId=${Uri.encode(email.trim())}"
 }
 
 /**
  * Card inviting creators with a sizable following to apply for the influencer program.
  * Renders nothing when [BuildConfig.INFLUENCER_FORM_URL] is blank, so a public checkout
- * without the form URL configured stays inert.
+ * without the form URL configured stays inert. Also hidden for users whose tier is
+ * already "influencer" — they don't need to be invited to apply.
  */
 @Composable
-fun InfluencerProgramCard(email: String = "", modifier: Modifier = Modifier) {
+fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, modifier: Modifier = Modifier) {
     val formUrl = BuildConfig.INFLUENCER_FORM_URL
-    if (formUrl.isBlank()) return
+    if (formUrl.isBlank() || isInfluencer) return
 
     val context = LocalContext.current
 
@@ -707,7 +716,10 @@ fun SamosaAuthSection(
                 )
             }
 
-            InfluencerProgramCard(email = email)
+            InfluencerProgramCard(
+                email = email,
+                isInfluencer = user?.tier?.id.equals("influencer", ignoreCase = true)
+            )
         } else {
             Button(
                 onClick = onSignIn,

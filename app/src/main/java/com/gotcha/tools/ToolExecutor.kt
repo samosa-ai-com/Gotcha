@@ -13,15 +13,19 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 /**
  * Single dispatch point for all tool side effects. Validates args, checks
  * preconditions (executors return permission errors instead of crashing),
  * and records every execution in the [ActionLog].
  */
+// One class dispatching the entire fixed tool catalog is the design; size follows from it.
+@Suppress("LargeClass")
 class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
@@ -32,8 +36,12 @@ class ToolExecutor(
     private companion object {
         const val TAG = "Gotcha"
 
-        /** Argument names never written verbatim to the audit log. See [redactedForAudit]. */
-        val REDACTED_AUDIT_KEYS = setOf("stdin")
+        /**
+         * Argument names never written verbatim to the audit log. See [redactedForAudit].
+         * `password` is a PDF owner/user password for `pdf_edit` — passwords are often
+         * reused across bank statements and payslips, so never persist them in plaintext.
+         */
+        val REDACTED_AUDIT_KEYS = setOf("stdin", "password")
     }
 
     private val appContext = context.applicationContext
@@ -61,6 +69,19 @@ class ToolExecutor(
     private val questionTool = QuestionTool()
     private val todoTool = TodoTool()
     private val editTool = EditTool(appContext)
+    private val pdfTool = PdfTool(appContext)
+    private val mediaEditTool = MediaEditTool(appContext)
+    private val mediaConvertTool = MediaConvertTool(appContext)
+    private val termuxFileBridge = TermuxFileBridge(appContext)
+    private val fileResolver = FileResolver(appContext)
+    private val podcastTool = PodcastTool(
+        appContext,
+        onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
+    )
+    private val transcribeTool = TranscribeTool(
+        appContext,
+        onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
+    )
     private val globTool = GlobTool(appContext)
     private val grepTool = GrepTool(appContext)
     private val accessibilityTool = AccessibilityTool(appContext)
@@ -219,6 +240,72 @@ class ToolExecutor(
                 content = args.requireString("content") ?: return missing("content"),
                 append = args["append"]?.jsonPrimitive?.booleanOrNull ?: false,
                 binary = args["binary"]?.jsonPrimitive?.booleanOrNull ?: false
+            )
+            "pdf_edit" -> pdfTool.edit(
+                operation = args.requireString("operation") ?: return missing("operation"),
+                input = args.requireString("input"),
+                inputs = args.requireStringList("inputs"),
+                output = args.requireString("output"),
+                pages = args.requireString("pages"),
+                degrees = args.requireInt("degrees"),
+                password = args.requireString("password"),
+                overwrite = args.requireBoolean("overwrite") ?: false,
+                confirmed = args.requireBoolean("confirmed") ?: false
+            )
+            "media_edit" -> mediaEditTool.edit(
+                operation = args.requireString("operation") ?: return missing("operation"),
+                input = args.requireString("input"),
+                inputs = args.requireStringList("inputs"),
+                output = args.requireString("output"),
+                start = args.requireString("start"),
+                end = args.requireString("end"),
+                height = args.requireInt("height"),
+                speed = args["speed"]?.jsonPrimitive?.doubleOrNull,
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "media_convert" -> mediaConvertTool.convert(
+                input = args.requireString("input") ?: return missing("input"),
+                output = args.requireString("output") ?: return missing("output"),
+                bitrate = args.requireString("bitrate"),
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "pull_from_termux" -> termuxFileBridge.pull(
+                termuxPath = args.requireString("termux_path") ?: return missing("termux_path"),
+                // Resolve relative paths against the session working dir like every other file
+                // tool; a raw string would resolve against the JVM process CWD instead.
+                destination = java.io.File(
+                    fileResolver.canonicalPath(args.requireString("destination") ?: return missing("destination"))
+                )
+            )
+            "synthesize_podcast_dialogue" -> podcastTool.synthesizeDialogue(
+                lines = parseDialogueLines(args["lines"]) ?: return ToolResult.error(
+                    "Missing or invalid required parameter 'lines' — it must be a non-empty array of " +
+                        "{\"speaker\": \"A\" or \"B\", \"text\": \"...\"} objects."
+                ),
+                outputName = args.requireString("output_name") ?: return missing("output_name"),
+                hostAVoice = args.requireString("host_a_voice"),
+                hostBVoice = args.requireString("host_b_voice"),
+                hostAModel = args.requireString("host_a_model"),
+                hostBModel = args.requireString("host_b_model"),
+                gapMs = args.requireInt("gap_ms")?.toLong(),
+                format = args.requireString("format"),
+                overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "share_podcast" -> podcastTool.share(
+                path = args.requireString("path") ?: return missing("path")
+            )
+            "transcribe_file" -> transcribeTool.transcribe(
+                path = args.requireString("path") ?: return missing("path"),
+                model = args.requireString("model"),
+                language = args.requireString("language")
+            )
+            "synthesize_podcast" -> podcastTool.synthesize(
+                script = args.requireString("script") ?: return missing("script"),
+                outputName = args.requireString("output_name") ?: return missing("output_name"),
+                model = args.requireString("model"),
+                voice = args.requireString("voice"),
+                format = args.requireString("format"),
+                overwrite = args.requireBoolean("overwrite") ?: false
             )
             "open_app" -> systemTool.openApp(args.requireString("package_name") ?: return missing("package_name"))
             "set_brightness" -> systemTool.setBrightness(
@@ -608,6 +695,24 @@ class ToolExecutor(
 
     private fun missing(param: String) =
         ToolResult.error("Missing or invalid required parameter '$param'.")
+
+    /**
+     * Null on a malformed entry rather than dropping it — a silently skipped
+     * turn is a mangled episode. `pause_ms` is the exception: it is pacing
+     * advice, so an unreadable one falls back to the episode default instead
+     * of failing a script that is otherwise fine.
+     */
+    private fun parseDialogueLines(element: JsonElement?): List<PodcastTool.DialogueLine>? {
+        val array = element as? JsonArray ?: return null
+        if (array.isEmpty()) return null
+        return array.map { item ->
+            val obj = item as? JsonObject ?: return null
+            val speaker = (obj["speaker"] as? JsonPrimitive)?.content?.trim() ?: return null
+            val text = (obj["text"] as? JsonPrimitive)?.content ?: return null
+            val pause = (obj["pause_ms"] as? JsonPrimitive)?.let { it.longOrNull ?: it.content.trim().toLongOrNull() }
+            PodcastTool.DialogueLine(speaker, text, pause)
+        }
+    }
 
     private fun parseTodoItems(element: JsonElement?): List<TodoItem>? {
         val array = element as? JsonArray ?: return null
