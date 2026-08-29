@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [1.2.0]
 ### Added
 - **Podcast generation.** Gotcha can now turn text into listenable audio. Ask
   for a topic, an article or your notes as a podcast and the assistant writes
