@@ -424,9 +424,15 @@ fun ReferAndEarnCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "🎁 Invite Friends & Earn",
+                text = "🎁 Invite Friends, Earn Free Credits",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Share your invite code — you both get bonus credits when a friend " +
+                    "signs up with it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (code.isNotBlank()) {
