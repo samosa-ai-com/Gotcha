@@ -64,6 +64,31 @@ internal object TermuxMessages {
             "nothing is pending."
     )
 
+    /**
+     * apt/dpkg lock contention — the `exit 100` "Could not get lock ... lock-frontend" shape.
+     *
+     * This is the failure this app actually meets on slow installs: a previous `pkg install`
+     * timed out, its process kept running under Termux's uid, and every later call waits on the
+     * lock it still holds. Treated distinctly from a timeout because it is *quick* (apt gives up
+     * after ~100 polls) and from [tooManyInFlight] because the semaphore slot is free — the lock
+     * is held by the OS process, not by Gotcha. The two destructive "fixes" a model reaches for
+     * (delete the lock files, `kill -9` the holder) are exactly what must be refused, so they are
+     * spelled out rather than implied.
+     */
+    fun lockHeld(holderPid: String?): ToolResult {
+        val holder = holderPid?.let { " (process $it)" }.orEmpty()
+        return ToolResult.error(
+            "Another apt/dpkg package operation is already running in Termux$holder and holds the package " +
+                "lock, so this command could not start. This is NOT a mirror or network problem. " +
+                "A run_termux_command cannot stop that process — a timed-out or still-running pkg/apt keeps " +
+                "holding the lock under Termux's uid. Do NOT delete the lock files and do NOT kill -9 the " +
+                "process; that corrupts the package database without releasing the lock. Check it with " +
+                "`ps -ef | grep -E '[d]pkg|[a]pt'`. If it never finishes, open the notifications shade " +
+                "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
+                "notification — that ends every Termux session and releases the lock. Then retry."
+        )
+    }
+
     fun tooManyInFlight(limit: Int) = ToolResult.error(
         "$limit Termux commands are already running and none has finished yet. Earlier commands keep running " +
             "even after they time out — a run_termux_command cannot kill them. To stop them, open the " +

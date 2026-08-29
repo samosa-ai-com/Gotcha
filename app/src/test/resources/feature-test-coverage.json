@@ -435,6 +435,14 @@
       "notes": "exhaustive coverage of the generated ffmpeg command on the JVM — POSIX shell quoting against spaces, embedded quotes and metacharacters, /storage/emulated/0 to /sdcard translation including secondary-user roots and near-miss prefixes, bitrate validation, and every audio target's codec arguments — plus the guards that run before Termux is invoked: unsupported and video output formats, nonsense bitrates, paths inside Gotcha's private storage that Termux cannot see, missing input, same-file conversion, existing-output refusal and directory outputs. The conversion itself is device-only and additionally needs Termux with the ffmpeg package installed, so a real MP3 round trip must be verified by hand"
     },
     {
+      "tool": "pull_from_termux",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.TermuxFileBridgeTest"
+      ],
+      "notes": "the deterministic bridge that moves a file out of Termux: ~/ and $HOME expansion to Termux's home, the exact python3 loopback sender script (ephemeral port, single-use nonce, READY handshake, size header, 64KiB chunked stream), the socket machinery driven over a real 127.0.0.1 ServerSocket pair (nonce-accept, wrong-nonce refusal then keep-listening, exact-size success, and a sender that closes early failing WITHOUT leaving a destination or stray temp file), and the shared-storage-vs-loopback selection (only /sdcard when the ~/storage link exists AND the destination is reachable from Termux AND the file is below the 100MB FUSE threshold). The live transfer — a real cp through /sdcard or a loopback python3 send on a device with Termux — must be verified by hand"
+    },
+    {
       "tool": "synthesize_podcast",
       "tier": "ROBOLECTRIC",
       "tests": [

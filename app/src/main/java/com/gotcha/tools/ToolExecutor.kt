@@ -72,6 +72,8 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
+    private val termuxFileBridge = TermuxFileBridge(appContext)
+    private val fileResolver = FileResolver(appContext)
     private val podcastTool = PodcastTool(
         appContext,
         onUnauthorized = { runCatching { com.gotcha.data.SettingsRepository(appContext).clearSamosaSession() } }
@@ -266,6 +268,14 @@ class ToolExecutor(
                 output = args.requireString("output") ?: return missing("output"),
                 bitrate = args.requireString("bitrate"),
                 overwrite = args.requireBoolean("overwrite") ?: false
+            )
+            "pull_from_termux" -> termuxFileBridge.pull(
+                termuxPath = args.requireString("termux_path") ?: return missing("termux_path"),
+                // Resolve relative paths against the session working dir like every other file
+                // tool; a raw string would resolve against the JVM process CWD instead.
+                destination = java.io.File(
+                    fileResolver.canonicalPath(args.requireString("destination") ?: return missing("destination"))
+                )
             )
             "synthesize_podcast_dialogue" -> podcastTool.synthesizeDialogue(
                 lines = parseDialogueLines(args["lines"]) ?: return ToolResult.error(

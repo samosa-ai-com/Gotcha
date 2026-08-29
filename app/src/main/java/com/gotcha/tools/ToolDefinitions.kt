@@ -1699,6 +1699,41 @@ object ToolDefinitions {
         }
     )
 
+    val pullFromTermux = tool(
+        "pull_from_termux",
+        "Copy a file that currently lives inside Termux (its Linux user-space) out to a path Gotcha " +
+            "and the user can reach, e.g. '/storage/emulated/0/Download/name.mp4'. Uses the shared-storage " +
+            "bridge when Termux's storage is linked, and a loopback transfer otherwise, so it works even " +
+            "before 'termux-setup-storage' is granted. This is how a file produced inside Termux " +
+            "(yt-dlp downloads, script output, server files) gets into the user's Downloads/Gotcha " +
+            "folder — run the producing command first with run_termux_command, then pull the result. " +
+            "Needs Termux installed.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("termux_path") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute path of the file inside Termux, e.g. " +
+                            "'/data/data/com.termux/files/home/gotcha_guide.mp4' or '~/gotcha_guide.mp4'."
+                    )
+                }
+                putJsonObject("destination") {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Absolute destination path Gotcha writes to, e.g. " +
+                            "'/storage/emulated/0/Download/gotcha_guide.mp4'. A parent folder it can write."
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add("termux_path")
+                add("destination")
+            }
+        }
+    )
+
     val edit = tool(
         "edit",
         "Replace exact text in a file, for surgical edits without rewriting it. oldString " +
@@ -2398,6 +2433,16 @@ object ToolDefinitions {
             "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
             "notification, which ends every Termux session. If you cannot reach that, ask the user to tap " +
             "Exit on the Termux notification.\n" +
+            "- Lock contention: an `exit 100` whose error names `lock-frontend` / `Could not get lock` / " +
+            "`held by process <pid>` means ANOTHER pkg/apt is already running and holds the package lock — " +
+            "this is NOT a mirror problem. Wait for it or tap Exit on the Termux notification to end all " +
+            "sessions; never delete the lock files or kill -9 the process, which corrupts the package " +
+            "database without releasing the lock.\n" +
+            "- Interactive prompts: if output shows `Configuration file '...'` with `Y/I/N/O/D/Z`, a " +
+            "package manager is waiting for an answer no terminal can provide and will block until the " +
+            "timeout. Package operations are run non-interactively by default; if a bare `dpkg " +
+            "--configure` still asks, supply the answer via the stdin param (`echo N | dpkg --configure " +
+            "<pkg>`).\n" +
             "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
             "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
             "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +
@@ -2932,6 +2977,8 @@ object ToolDefinitions {
         mediaEdit,
         // Audio format conversion via Termux ffmpeg (Operator only)
         mediaConvert,
+        // Pull a file produced inside Termux out to Gotcha-accessible storage (Operator only)
+        pullFromTermux,
         // Script-to-speech podcast synthesis (Operator only)
         synthesizePodcast, synthesizePodcastDialogue, sharePodcast,
         // Audio-file transcription via the STT API (Operator only)

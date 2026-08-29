@@ -421,8 +421,9 @@ class PodcastTool(
             }
         }
         return kept to " The MP3 conversion step failed " +
-            "(${result.message.take(ERROR_DETAIL_CHARS)}) — the finished audio was kept as '${kept.name}'; " +
-            "media_convert can turn it into an MP3 once that is fixed."
+            "(${result.message.take(ERROR_DETAIL_CHARS)}) — the finished audio was kept as '${kept.name}'. " +
+            "Install Termux's ffmpeg ('pkg install ffmpeg -y' — a large download, 5-15 minutes, so ask the " +
+            "user first) and run media_convert on '${m4a.name}' to finish the MP3."
     }
 
     // ---- sharing ----

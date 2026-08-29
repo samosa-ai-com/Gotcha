@@ -95,6 +95,35 @@ in order of how often they bite:
 - **Hard ceiling: 600 s.** `pkg install` of `ffmpeg`, `chromium`, `rust`,
   `golang`, or `texlive` can hit this. Raise `timeout_seconds` to 600
   and warn the user before starting one.
+- **Package-lock contention (`exit 100`).** If `pkg install` returns
+  `Could not get lock ... lock-frontend ... held by process <pid> (dpkg)`,
+  another package operation is still running under Termux's uid — usually a
+  timed-out install that Gotcha could not kill. It is **not** a mirror or
+  network problem. Check `ps -ef | grep -E '[d]pkg|[a]pt'`; if it never
+  finishes, tap **Exit** on the Termux notification (that ends every session
+  and releases the lock). Never delete the lock files or `kill -9` the
+  process — that corrupts the package database without releasing the lock.
+  Package-manager commands are automatically wrapped in `termux-wake-lock` so
+  Doze cannot throttle them mid-download.
+- **Secondary users / work profiles.** `/data/data/com.termux` is only the
+  primary user's path. Gotcha derives Termux's real root from the installed
+  package (`/data/user/<id>/com.termux/files/usr` under a work profile);
+  commands should use `$PREFIX` rather than a hardcoded `/data/data/...`
+  prefix.
+- **Interactive `dpkg` prompts.** A package manager stuck at
+  `Configuration file '...' ... Y/I/N/O/D/Z [default=N] ?` is waiting for an
+  answer no terminal can provide and blocks until the timeout. Gotcha runs
+  package operations non-interactively (`DEBIAN_FRONTEND=noninteractive`, keep
+  the current config) so this should not appear; if a bare `dpkg --configure`
+  still asks, answer it through the tool's `stdin` param
+  (`echo N | dpkg --configure <pkg>`).
+- **ffmpeg link error (`libplacebo` / `libc++`).** If `ffmpeg` prints
+  `CANNOT LINK EXECUTABLE ... cannot locate symbol ... referenced by
+  libplacebo.so`, a freshly installed `libplacebo` was built against a newer
+  `libc++` than the device has. Fix it with the targeted
+  `apt-get install -y libc++` (a small package that reconfigures `ffmpeg`
+  itself) rather than the heavy `pkg upgrade`, which re-asks the conffile
+  questions above.
 - **4 commands in flight, process-wide.** Sub-agents share the same
   semaphore. A 5th call returns an error.
 - **Android 12+ background restriction.** If Gotcha is in the background
@@ -125,9 +154,20 @@ should know these so the user does not have to:
   If a `pkg install` keeps failing midway, split the network step from
   the install step with `pkg download <pkg>` and `dpkg -i` from the local
   cache.
+- **ffmpeg is used by three tools.** `media_convert` (audio format
+  conversion), `synthesize_podcast` / `synthesize_podcast_dialogue` with
+  `format='mp3'`, and the podcast MP3 salvage path all run through Termux's
+  `ffmpeg`. When it is missing, `media_convert` says exactly what to install;
+  a requested `.mp3` podcast degrades to `.m4a` and explains how to finish the
+  MP3 once ffmpeg is installed.
 - **Shared storage (`/sdcard`).** `/sdcard/Download` is the only safe
   cross-uid bridge between Gotcha and Termux. It is empty inside Termux
-  until the user runs `termux-setup-storage` once in Termux.
+  until the user runs `termux-setup-storage` once in Termux. When that grant
+  is missing or a `cp` through FUSE is refused, the `pull_from_termux` tool
+  falls back to a loopback transfer over `127.0.0.1` (Termux `python3`
+  sender → Gotcha receiver) that crosses the uid boundary without the
+  storage grant at all — so a file produced inside Termux always reaches the
+  user, whichever bridge works.
 - **Long-running processes.** A foreground process started by
   `run_termux_command` is orphaned the moment Gotcha returns. The
   persistence pattern is

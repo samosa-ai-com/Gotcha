@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 26 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 27 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **114** | |
+| **Total** | **115** | |
 
-**50 of 114** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**51 of 115** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -72,6 +72,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `notion_create_page` | `UNIT` | `NotionToolsTest` — parent/title handling and request shape |
 | `pause_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `pdf_edit` | `ROBOLECTRIC` | `PdfToolTest`, `PdfPageSpecTest`, `PdfEncryptionTest` — every operation round-tripped through pdfbox (merge order, split naming, extract/delete page identity, cumulative rotation), password-protected files at 40/128/256-bit, and the guards: overwrite refusal, safe write-back over the input, delete-all refusal, non-PDF signature rejection and page-range arithmetic |
+| `pull_from_termux` | `ROBOLECTRIC` | `TermuxFileBridgeTest` — the deterministic bridge that moves a file out of Termux: ~/ and $HOME expansion to Termux's home, the exact python3 loopback sender script (ephemeral port, single-use nonce, READY handshake, size header, 64KiB chunked stream), the socket machinery driven over a real 127.0.0.1 ServerSocket pair (nonce-accept, wrong-nonce refusal then keep-listening, exact-size success, and a sender that closes early failing WITHOUT leaving a destination or stray temp file), and the shared-storage-vs-loopback selection (only /sdcard when the ~/storage link exists AND the destination is reachable from Termux AND the file is below the 100MB FUSE threshold). The live transfer — a real cp through /sdcard or a loopback python3 send on a device with Termux — must be verified by hand |
 | `resume_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `run_command` | `UNIT` | `TerminalToolTest` — argument splitting, timeout, exit codes, output truncation |
 | `run_root_command` | `MANUAL_ONLY` | Requires a rooted device and an interactive superuser grant. |

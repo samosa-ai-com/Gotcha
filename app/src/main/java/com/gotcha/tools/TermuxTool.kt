@@ -141,7 +141,17 @@ class TermuxTool(
         // Defeats coreutils' own refusal to remove `/`, so its presence is intent enough.
         Regex("""--no-preserve-root"""),
         Regex("""\bfastboot\b"""),
-        Regex("""\brecovery\b[^\n]*--wipe""")
+        Regex("""\brecovery\b[^\n]*--wipe"""),
+        // Deleting a live package manager's lock files or DB while a dpkg holds the fd does not
+        // release the lock — it lets a second apt write /var/lib/dpkg/status concurrently and
+        // corrupt the package database. The only remedies are to wait or to tap Exit on the
+        // Termux notification, so the mistake is refused rather than explained after the fact.
+        Regex("""\brm\b[^\n]*(?:dpkg/lock(?:-frontend)?|dpkg/status|apt/lists/lock|apt/archives/lock)"""),
+        // SIGKILL on a package manager or a bare PID. The model cannot legitimately kill a
+        // process from another call anyway (see termux_background), and `kill -9` on a live
+        // dpkg mid-transaction leaves a half-configured package that needs dpkg --configure -a.
+        Regex("""\bkill\s+-9\b[^\n]*(?:\b\d+\b|\bdpkg\b|\bapt(?:-get)?\b|\bpkg\b)"""),
+        Regex("""\b(?:pkill|killall)\b[^\n]*(?:\bdpkg\b|\bapt(?:-get)?\b|\bpkg\b)""")
     )
 
     fun status(): TermuxStatus {
@@ -219,7 +229,7 @@ class TermuxTool(
                 pendingIntentFlags()
             )
             val started = runCatching {
-                context.startService(commandIntent(trimmed, workingDir, stdin, pendingIntent))
+                context.startService(commandIntent(commandToRun(trimmed), workingDir, stdin, pendingIntent))
             }
             started.exceptionOrNull()?.let { return TermuxMessages.startFailed(it) }
             // startService reports "no such service" by returning null, not by throwing. Android
@@ -230,7 +240,7 @@ class TermuxTool(
 
             val bundle = withTimeoutOrNull(timeout * 1000L) { deferred.await() }
                 ?: return TermuxMessages.timedOut(trimmed, timeout, hadStdin = stdin != null)
-            return formatResult(bundle)
+            return formatResult(bundle, trimmed)
         } finally {
             pendingResults.remove(requestCode)
             inFlight.release()
@@ -238,7 +248,7 @@ class TermuxTool(
     }
 
     /** Turn Termux's result bundle into a [ToolResult]. Split out so it is testable without Termux. */
-    internal fun formatResult(bundle: Bundle): ToolResult {
+    internal fun formatResult(bundle: Bundle, command: String = ""): ToolResult {
         val err = bundle.numeric(RESULT_ERR) ?: ERRNO_SUCCESS
         val errmsg = bundle.getString(RESULT_ERRMSG)?.trim().orEmpty()
         if (err != ERRNO_SUCCESS) {
@@ -261,6 +271,22 @@ class TermuxTool(
                 append("\n…(Termux truncated the output at its ~100KB result limit)")
             }
             if (errmsg.isNotEmpty()) append("\nTermux note: ${cap(errmsg)}")
+        }
+        // apt/dpkg lock contention ("Could not get lock ... lock-frontend held by process N") needs
+        // a different recovery than a plain failed command: wait, or tap Exit on the Termux
+        // notification — never delete the lock files or kill the holder. Recognised here so the
+        // model is told what actually fixes it instead of reading a raw apt error.
+        //
+        // Deliberately NOT gated on `exit != 0`: a pipeline like `apt-get ... | tail` or
+        // `apt list --upgradable` masks apt's failure behind a successful tail/echo, so the lock
+        // error appears in the output while the reported exit code is 0. It IS gated on the command
+        // being package-manager-shaped ([PKG_LIKE_REGEX]): a successful diagnostic that merely
+        // *contains* the phrase (`grep "Could not get lock" build.log`) is a successful command, not
+        // a held lock. An empty [command] — the pure test seam — keeps the defensive scan.
+        if ((command.isEmpty() || PKG_LIKE_REGEX.containsMatchIn(command)) &&
+            LOCK_SIGNATURE.containsMatchIn(message)
+        ) {
+            return TermuxMessages.lockHeld(HOLDER_PID.find(message)?.groupValues?.get(1))
         }
         return ToolResult(success = exit == 0, message = message)
     }
@@ -421,7 +447,39 @@ class TermuxTool(
         internal const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
 
         /** Package-manager commands that are inherently slow and benefit from a larger default timeout. */
-        private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|pip3?|npm|cargo|proot-distro)\b""")
+        private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|dpkg|pip3?|npm|cargo|proot-distro)\b""")
+
+        /**
+         * The apt/dpkg lock-contention signature: the *failure* phrases apt prints when it cannot
+         * take the lock. Kept to failure text on purpose — bare "lock-frontend" or "cache lock"
+         * would match `ls $PREFIX/var/lib/dpkg/lock*` output and mislead the model. Matched against
+         * the whole result (stdout+stderr), not just the exit code, because pipelines such as
+         * `apt-get ... | tail` report exit 0 while the lock failure is sitting in the output.
+         */
+        private val LOCK_SIGNATURE = Regex(
+            """(?:Could not get lock|Unable to acquire the dpkg frontend lock|dpkg frontend lock was locked by another process)""",
+            RegexOption.IGNORE_CASE
+        )
+
+        /** The holder named by apt's wait message: `It is held by process 24247 (dpkg)`. */
+        private val HOLDER_PID = Regex("""held by process (\d+)""")
+
+        /** Termux's wake-lock helpers; required for any task longer than ~30s that Doze would throttle. */
+        private const val WAKE_LOCK = "termux-wake-lock"
+        private const val WAKE_UNLOCK = "termux-wake-unlock"
+
+        /**
+         * An actual `DEBIAN_FRONTEND=<value>` assignment. A bare substring would match a package
+         * name or a path containing the literal (e.g. `apt-get install lib-DEBIAN_FRONTEND-1`),
+         * silently skipping the non-interactive injection and letting a conffile prompt hang.
+         */
+        private val DEBIAN_FRONTEND_ASSIGNMENT = Regex("""(^|\s)DEBIAN_FRONTEND=\S+""")
+
+        /** The Debian frontend env var that tells dpkg/apt to take default actions instead of asking
+         * conffile questions. It is safe for every package-manager command and skipped when the user
+         * already set it explicitly.
+         */
+        private const val DEBIAN_FRONTEND = "DEBIAN_FRONTEND"
 
         /** Shell separators the deny-list splits on before matching each part. */
         private val SEGMENT_SEPARATORS = Regex("""[;&|\n]+""")
@@ -441,6 +499,49 @@ class TermuxTool(
 
         /** Test seam: lets the cap be saturated without hardcoding the number twice. */
         internal const val MAX_CONCURRENT_FOR_TEST = MAX_CONCURRENT_COMMANDS
+
+        /**
+         * The command actually sent to Termux: the user's text, made non-interactive for
+         * package-manager operations (dpkg/apt conffile prompts would otherwise block on a TTY that
+         * does not exist) and wrapped in a wake-lock so Doze cannot throttle the download. The
+         * exact shape of the ffmpeg failure this guard targets: a `pkg upgrade` silently re-asking
+         * `openssl.cnf` and a 30-second install turning into a 10-minute hang.
+         */
+        internal fun commandToRun(trimmed: String): String {
+            if (!PKG_LIKE_REGEX.containsMatchIn(trimmed)) return trimmed
+            return withWakeLock(withNonInteractive(trimmed))
+        }
+
+        /**
+         * Prefixes [command] with `DEBIAN_FRONTEND=noninteractive` unless one is already present.
+         * apt/dpkg conffile questions ("Configuration file ... Y/I/N/O/D/Z") have no TTY to read
+         * the answer from and would block until the timeout; the non-interactive frontend takes the
+         * default action (keep the current version), which is what the user's own edit implies.
+         */
+        internal fun withNonInteractive(command: String): String =
+            if (DEBIAN_FRONTEND_ASSIGNMENT.containsMatchIn(command)) {
+                command
+            } else {
+                "$DEBIAN_FRONTEND=noninteractive $command"
+            }
+
+        /**
+         * Wraps [command] in `termux-wake-lock`/`termux-wake-unlock`, preserving its exit code (a naive
+         * `cmd; termux-wake-unlock` would swallow failures) and skipping the wrap entirely when the
+         * lock tools are not installed. Split out so the shape can be asserted without Termux.
+         *
+         * Best-effort for a single long command: Termux's wake-lock is one global marker, so two
+         * concurrent pkg calls each lock and the first to finish unlocks while the other still runs.
+         * The skill notes this; it is not a reason to leave slow installs unwrapped.
+         */
+        internal fun withWakeLock(command: String): String {
+            if (WAKE_LOCK in command) return command
+            // The EXIT trap (rather than a trailing `termux-wake-unlock`) also releases the lock when
+            // the inner command itself exits early — e.g. the skill's persistence pattern ends with a
+            // bare `exit 0`, which would skip a trailing sequence and leak the wake-lock.
+            val wrapped = "$WAKE_LOCK; trap '$WAKE_UNLOCK' EXIT; { $command; rc=\$?; exit \$rc; }"
+            return "if command -v $WAKE_LOCK >/dev/null 2>&1; then $wrapped; else $command; fi"
+        }
 
         /**
          * Test seams for the concurrency cap. Occupying slots directly beats racing real
