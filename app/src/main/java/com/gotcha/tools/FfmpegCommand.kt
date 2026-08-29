@@ -1,5 +1,6 @@
 package com.gotcha.tools
 
+import android.annotation.SuppressLint
 import java.util.Locale
 
 /**
@@ -33,7 +34,12 @@ object FfmpegCommand {
      */
     const val DEFAULT_SHARED_STORAGE_ROOT = "/storage/emulated/0"
 
-    /** The same tree as Termux must address it. */
+    /**
+     * The same tree as Termux must address it. Lint's `SdCardPath` flags the
+     * hardcoded prefix, but here it is required: Termux only exposes the primary
+     * user's shared storage at `/sdcard`, so suppressing the check is correct.
+     */
+    @SuppressLint("SdCardPath")
     const val TERMUX_STORAGE_ROOT = "/sdcard"
 
     /** Default bitrate for the lossy targets that do not name their own. */
