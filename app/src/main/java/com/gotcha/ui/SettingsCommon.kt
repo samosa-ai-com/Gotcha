@@ -574,9 +574,11 @@ internal fun buildInfluencerFormUrl(
     entryId: String,
     email: String
 ): String {
-    val base = formUrl.trimEnd('/')
+    // trim() first: the URL comes from a hand-edited properties file, and stray
+    // whitespace baked into BuildConfig would end up inside the launched URL.
+    val base = formUrl.trim().trimEnd('/')
     if (base.isBlank() || entryId.isBlank() || email.isBlank()) return base
-    return "$base?usp=pp_url&$entryId=${Uri.encode(email)}"
+    return "$base?usp=pp_url&$entryId=${Uri.encode(email.trim())}"
 }
 
 /**
