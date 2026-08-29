@@ -2,6 +2,10 @@ package com.gotcha.tools
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -9,12 +13,20 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
+import java.io.IOException
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.nio.file.Files
 
 /**
  * `pull_from_termux`'s `TermuxFileBridge`. The live transfer (a real `cp` through `/sdcard`, or a
  * loopback `python3` send) needs a real Termux install and is verified by hand — what is covered
  * here is everything that decides the outcome without Termux: `~`/`$HOME` expansion, the exact
- * `python3` sender command and program, and the shared-storage-vs-loopback selection.
+ * `python3` sender command and program, the shared-storage-vs-loopback selection, and the socket
+ * machinery of the loopback receiver driven over a real `127.0.0.1` `ServerSocket`/`Socket` pair
+ * (nonce handshake, wrong-nonce refusal, size verification, and the no-partial-file guarantee).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30, 34])
@@ -91,9 +103,162 @@ class TermuxFileBridgeTest {
     }
 
     @Test
+    fun `files at or above the shared-storage size threshold route to loopback`() {
+        val reachable = "/storage/emulated/0/Download/out.mp4"
+        assertTrue(
+            "a small file uses the linked bridge",
+            bridge.usesSharedStorage(true, reachable, sourceBytes = 64L * 1024 * 1024)
+        )
+        assertFalse(
+            "a file at the 100MB FUSE threshold routes to loopback",
+            bridge.usesSharedStorage(true, reachable, sourceBytes = TermuxFileBridge.SHARED_STORAGE_MAX_BYTES)
+        )
+        assertFalse(
+            "a file above the 100MB FUSE threshold routes to loopback",
+            bridge.usesSharedStorage(true, reachable, sourceBytes = 1024L * 1024 * 1024)
+        )
+        assertFalse(
+            "an unknown size still refuses an unlinked bridge",
+            bridge.usesSharedStorage(false, reachable, sourceBytes = null)
+        )
+    }
+
+    @Test
     fun `the storage probe only reports linked on an explicit marker`() {
         assertTrue(bridge.linksStorage("exit code: 0\nstdout:\nSTORAGE_LINKED"))
         assertFalse(bridge.linksStorage("exit code: 0\nstdout:\nSTORAGE_UNLINKED"))
         assertFalse("a probe that never ran must not read as linked", bridge.linksStorage("Termux is not installed"))
+    }
+
+    // ---- the loopback receiver, driven over a real 127.0.0.1 socket pair ----
+
+    @Test
+    fun `a matching sender streams into the temp and the destination stays untouched`() = runBlocking {
+        val nonce = "deadbeef"
+        val destination = File(tempDir(), "out.bin")
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val receiver = async(Dispatchers.IO) { bridge.receiveInto(server, nonce, destination) }
+        val payload = "streamed body with spaces".toByteArray()
+
+        Socket("127.0.0.1", server.localPort).use { socket ->
+            socket.getOutputStream().write(nonce.toByteArray())
+            socket.getOutputStream().flush()
+            assertEquals("READY\n", readExactly(socket.getInputStream(), 6).decodeToString())
+            socket.getOutputStream().write("${payload.size}\n".toByteArray())
+            socket.getOutputStream().write(payload)
+            socket.getOutputStream().flush()
+            socket.shutdownOutput()
+        }
+
+        val tmp = receiver.await()
+        try {
+            assertTrue("receiveInto must return a file, not finalise the destination", tmp.exists())
+            assertArrayEquals(payload, tmp.readBytes())
+            assertFalse("the destination must not exist until copyViaLoopback renames", destination.exists())
+        } finally {
+            tmp.delete()
+            server.close()
+        }
+    }
+
+    @Test
+    fun `a wrong nonce is refused and the receiver keeps listening for the real sender`() = runBlocking {
+        val nonce = "deadbeef"
+        val destination = File(tempDir(), "out.bin")
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val receiver = async(Dispatchers.IO) { bridge.receiveInto(server, nonce, destination) }
+        val port = server.localPort
+
+        Socket("127.0.0.1", port).use { socket ->
+            socket.getOutputStream().write("wrongone".toByteArray())
+            socket.getOutputStream().flush()
+            assertEquals("DENIED\n", readExactly(socket.getInputStream(), 7).decodeToString())
+        }
+
+        val payload = "real".toByteArray()
+        Socket("127.0.0.1", port).use { socket ->
+            socket.getOutputStream().write(nonce.toByteArray())
+            socket.getOutputStream().flush()
+            assertEquals("READY\n", readExactly(socket.getInputStream(), 6).decodeToString())
+            socket.getOutputStream().write("${payload.size}\n".toByteArray())
+            socket.getOutputStream().write(payload)
+            socket.getOutputStream().flush()
+            socket.shutdownOutput()
+        }
+
+        val tmp = receiver.await()
+        try {
+            assertArrayEquals(payload, tmp.readBytes())
+        } finally {
+            tmp.delete()
+            server.close()
+        }
+    }
+
+    @Test
+    fun `a sender that closes early after declaring a larger size fails and leaves nothing behind`() = runBlocking {
+        // The regression behind the no-partial-file guarantee: a sender killed mid-transfer (lmkd,
+        // force-stop, battery manager) closes the socket early; the receiver must reject the body
+        // rather than treat EOF as success, and leave neither a destination nor a stray temp.
+        val nonce = "deadbeef"
+        val dir = tempDir()
+        val destination = File(dir, "out.bin")
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val receiver = async(Dispatchers.IO) { runCatching { bridge.receiveInto(server, nonce, destination) } }
+
+        Socket("127.0.0.1", server.localPort).use { socket ->
+            socket.getOutputStream().write(nonce.toByteArray())
+            socket.getOutputStream().flush()
+            assertEquals("READY\n", readExactly(socket.getInputStream(), 6).decodeToString())
+            socket.getOutputStream().write("100000\n".toByteArray())
+            socket.getOutputStream().write("partial".toByteArray())
+            socket.getOutputStream().flush()
+            socket.shutdownOutput()
+        }
+
+        val outcome = receiver.await()
+        assertTrue("a truncated transfer must fail, not silently succeed: $outcome", outcome.isFailure)
+        assertFalse("no corrupt file may land at the destination", destination.exists())
+        assertFalse("no stray temp file may linger", dir.listFiles()!!.any { it.name.endsWith(".tmp") })
+        server.close()
+    }
+
+    @Test
+    fun `an empty file with a matching size header transfers cleanly`() = runBlocking {
+        val nonce = "deadbeef"
+        val destination = File(tempDir(), "empty.bin")
+        val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val receiver = async(Dispatchers.IO) { bridge.receiveInto(server, nonce, destination) }
+
+        Socket("127.0.0.1", server.localPort).use { socket ->
+            socket.getOutputStream().write(nonce.toByteArray())
+            socket.getOutputStream().flush()
+            assertEquals("READY\n", readExactly(socket.getInputStream(), 6).decodeToString())
+            socket.getOutputStream().write("0\n".toByteArray())
+            socket.getOutputStream().flush()
+            socket.shutdownOutput()
+        }
+
+        val tmp = receiver.await()
+        try {
+            assertEquals(0, tmp.length())
+            assertFalse(destination.exists())
+        } finally {
+            tmp.delete()
+            server.close()
+        }
+    }
+
+    private fun tempDir(): File = Files.createTempDirectory("termux-bridge-test").toFile()
+
+    private fun readExactly(input: java.io.InputStream, n: Int): ByteArray {
+        val out = ByteArray(n)
+        var offset = 0
+        while (offset < n) {
+            val read = input.read(out, offset, n - offset)
+            if (read < 0) throw IOException("connection closed after $offset of $n bytes")
+            offset += read
+        }
+        return out
     }
 }

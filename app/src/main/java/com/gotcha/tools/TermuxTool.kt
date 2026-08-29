@@ -240,7 +240,7 @@ class TermuxTool(
 
             val bundle = withTimeoutOrNull(timeout * 1000L) { deferred.await() }
                 ?: return TermuxMessages.timedOut(trimmed, timeout, hadStdin = stdin != null)
-            return formatResult(bundle)
+            return formatResult(bundle, trimmed)
         } finally {
             pendingResults.remove(requestCode)
             inFlight.release()
@@ -248,7 +248,7 @@ class TermuxTool(
     }
 
     /** Turn Termux's result bundle into a [ToolResult]. Split out so it is testable without Termux. */
-    internal fun formatResult(bundle: Bundle): ToolResult {
+    internal fun formatResult(bundle: Bundle, command: String = ""): ToolResult {
         val err = bundle.numeric(RESULT_ERR) ?: ERRNO_SUCCESS
         val errmsg = bundle.getString(RESULT_ERRMSG)?.trim().orEmpty()
         if (err != ERRNO_SUCCESS) {
@@ -279,10 +279,13 @@ class TermuxTool(
         //
         // Deliberately NOT gated on `exit != 0`: a pipeline like `apt-get ... | tail` or
         // `apt list --upgradable` masks apt's failure behind a successful tail/echo, so the lock
-        // error appears in the output while the reported exit code is 0. The signature below is the
-        // failing-phrase set only ("Could not get lock" / "Unable to acquire ..."), so listing the
-        // lock files with `ls $PREFIX/var/lib/dpkg/lock*` cannot false-positive on the filename.
-        if (LOCK_SIGNATURE.containsMatchIn(message)) {
+        // error appears in the output while the reported exit code is 0. It IS gated on the command
+        // being package-manager-shaped ([PKG_LIKE_REGEX]): a successful diagnostic that merely
+        // *contains* the phrase (`grep "Could not get lock" build.log`) is a successful command, not
+        // a held lock. An empty [command] — the pure test seam — keeps the defensive scan.
+        if ((command.isEmpty() || PKG_LIKE_REGEX.containsMatchIn(command)) &&
+            LOCK_SIGNATURE.containsMatchIn(message)
+        ) {
             return TermuxMessages.lockHeld(HOLDER_PID.find(message)?.groupValues?.get(1))
         }
         return ToolResult(success = exit == 0, message = message)
@@ -466,7 +469,13 @@ class TermuxTool(
         private const val WAKE_UNLOCK = "termux-wake-unlock"
 
         /**
-         * The Debian frontend env var that tells dpkg/apt to take default actions instead of asking
+         * An actual `DEBIAN_FRONTEND=<value>` assignment. A bare substring would match a package
+         * name or a path containing the literal (e.g. `apt-get install lib-DEBIAN_FRONTEND-1`),
+         * silently skipping the non-interactive injection and letting a conffile prompt hang.
+         */
+        private val DEBIAN_FRONTEND_ASSIGNMENT = Regex("""(^|\s)DEBIAN_FRONTEND=\S+""")
+
+        /** The Debian frontend env var that tells dpkg/apt to take default actions instead of asking
          * conffile questions. It is safe for every package-manager command and skipped when the user
          * already set it explicitly.
          */
@@ -510,16 +519,27 @@ class TermuxTool(
          * default action (keep the current version), which is what the user's own edit implies.
          */
         internal fun withNonInteractive(command: String): String =
-            if (DEBIAN_FRONTEND in command) command else "$DEBIAN_FRONTEND=noninteractive $command"
+            if (DEBIAN_FRONTEND_ASSIGNMENT.containsMatchIn(command)) {
+                command
+            } else {
+                "$DEBIAN_FRONTEND=noninteractive $command"
+            }
 
         /**
          * Wraps [command] in `termux-wake-lock`/`termux-wake-unlock`, preserving its exit code (a naive
          * `cmd; termux-wake-unlock` would swallow failures) and skipping the wrap entirely when the
          * lock tools are not installed. Split out so the shape can be asserted without Termux.
+         *
+         * Best-effort for a single long command: Termux's wake-lock is one global marker, so two
+         * concurrent pkg calls each lock and the first to finish unlocks while the other still runs.
+         * The skill notes this; it is not a reason to leave slow installs unwrapped.
          */
         internal fun withWakeLock(command: String): String {
             if (WAKE_LOCK in command) return command
-            val wrapped = "$WAKE_LOCK; { $command; rc=\$?; $WAKE_UNLOCK; exit \$rc; }"
+            // The EXIT trap (rather than a trailing `termux-wake-unlock`) also releases the lock when
+            // the inner command itself exits early — e.g. the skill's persistence pattern ends with a
+            // bare `exit 0`, which would skip a trailing sequence and leak the wake-lock.
+            val wrapped = "$WAKE_LOCK; trap '$WAKE_UNLOCK' EXIT; { $command; rc=\$?; exit \$rc; }"
             return "if command -v $WAKE_LOCK >/dev/null 2>&1; then $wrapped; else $command; fi"
         }
 

@@ -391,6 +391,38 @@ class TermuxToolTest {
     }
 
     @Test
+    fun `a pkg-like command masking a lock behind a pipe is still lock contention`() {
+        // Same masking shape, but with the actual command named: `apt` is package-manager-shaped,
+        // so the scan must stay enabled.
+        val bundle = resultBundle(
+            exitCode = 0,
+            stdout = "Hit:1 https://packages.termux.dev/termux-main stable InRelease\n" +
+                "E: Could not get lock ... It is held by process 15138 (apt)."
+        )
+
+        val result = tool.formatResult(bundle, command = "apt list --upgradable | tail -n 5")
+
+        assertFalse(result.success)
+        assertTrue(result.message.contains("process 15138"))
+    }
+
+    @Test
+    fun `a successful non-pkg command that merely mentions lock text is not lock contention`() {
+        // The detector is scoped to package-manager-shaped commands: a `grep` of a build log that
+        // happens to contain the phrase is a successful command, not a held lock.
+        val bundle = resultBundle(
+            exitCode = 0,
+            stdout = "grep hit: E: Could not get lock " +
+                "/data/data/com.termux/files/usr/var/lib/dpkg/lock-frontend. It is held by process 24247 (dpkg)."
+        )
+
+        val result = tool.formatResult(bundle, command = "grep -r 'Could not get lock' \$TMPDIR/build.log")
+
+        assertTrue("a grep of a log is not lock contention: ${result.message}", result.success)
+        assertFalse(result.message.contains("Do NOT delete the lock files"))
+    }
+
+    @Test
     fun `listing the lock files does not read as lock contention`() {
         // `ls -l $PREFIX/var/lib/dpkg/lock*` prints filenames that contain "lock-frontend"; the
         // detector must match apt's failure phrases, not bare filenames, or every such listing
@@ -434,6 +466,17 @@ class TermuxToolTest {
     }
 
     @Test
+    fun `the wake-lock wrap uses an EXIT trap so a bare exit cannot leak the lock`() {
+        // The skill's persistence pattern ends with a bare `exit 0`; a trailing
+        // `termux-wake-unlock` sequence would never run and the wake-lock would leak.
+        val wrapped = TermuxTool.withWakeLock("pkg install ffmpeg -y && exit 0")
+
+        assertTrue("must trap EXIT for the unlock: $wrapped", wrapped.contains("trap 'termux-wake-unlock' EXIT"))
+        assertTrue(wrapped.contains("termux-wake-unlock"))
+        assertTrue(wrapped.contains("rc=\$?"))
+    }
+
+    @Test
     fun `pkg-like commands are made non-interactive and wake-locked`() {
         val run = TermuxTool.commandToRun("pkg install ffmpeg -y")
 
@@ -450,6 +493,16 @@ class TermuxToolTest {
         assertEquals(explicit, TermuxTool.withNonInteractive(explicit))
         assertTrue(
             TermuxTool.withNonInteractive("apt-get install -y libc++")
+                .startsWith("DEBIAN_FRONTEND=noninteractive")
+        )
+    }
+
+    @Test
+    fun `a bare DEBIAN_FRONTEND substring in a package name does not suppress injection`() {
+        // The old `DEBIAN_FRONTEND in command` substring check skipped the injection for a package
+        // whose name merely contains the literal, silently leaving the conffile prompt in place.
+        assertTrue(
+            TermuxTool.withNonInteractive("apt-get install -y lib-DEBIAN_FRONTEND-1")
                 .startsWith("DEBIAN_FRONTEND=noninteractive")
         )
     }
