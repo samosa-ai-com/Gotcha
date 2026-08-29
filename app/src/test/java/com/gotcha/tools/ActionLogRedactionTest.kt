@@ -60,6 +60,30 @@ class ActionLogRedactionTest {
     }
 
     @Test
+    fun `pdf password is redacted from the audit log but the operation survives`() = runTest {
+        // The input does not exist, so the tool fails at file resolution — the audit line is
+        // written either way, which is exactly the path a PDF password would leak through.
+        executor.execute(
+            "pdf_edit",
+            JsonObject(
+                mapOf(
+                    "operation" to JsonPrimitive("info"),
+                    "input" to JsonPrimitive("/nonexistent/statement.pdf"),
+                    "password" to JsonPrimitive("hunter2-super-secret")
+                )
+            ),
+            agent = AgentMode.OPERATOR,
+            isSubAgent = true
+        )
+
+        val logged = logFile.readText()
+        assertFalse("the password must not reach disk: $logged", logged.contains("hunter2-super-secret"))
+        assertTrue("the redaction should be visible, not silent", logged.contains("(redacted)"))
+        assertTrue("the audit trail must still say what ran", logged.contains("\"operation\":\"info\""))
+        assertTrue(logged.contains("pdf_edit"))
+    }
+
+    @Test
     fun `arguments without a redacted key are logged unchanged`() = runTest {
         executor.execute(
             "run_termux_command",

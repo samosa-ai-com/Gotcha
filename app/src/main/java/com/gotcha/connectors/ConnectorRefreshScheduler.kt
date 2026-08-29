@@ -47,7 +47,9 @@ class ConnectorRefreshScheduler(
 
         val results = refreshAction.invoke(settings.disabledConnectors)
 
-        store.save(store.load().copy(connectorLastRefreshedAt = now))
+        // Only the stamp: a full save here would rewrite the interval the user
+        // may have just moved, from a Settings read taken before they moved it.
+        store.saveConnectorLastRefreshedAt(now)
         results
     }
 }

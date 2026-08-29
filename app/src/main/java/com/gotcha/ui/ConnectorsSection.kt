@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,9 +36,12 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
+import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The body of the Connectors screen: one card per connector, built from the two
@@ -66,18 +69,27 @@ fun ConnectorsSection() {
     val scope = rememberCoroutineScope()
     val refreshScheduler = remember(context) { ConnectorRefreshScheduler(context) }
 
-    // Automatic background scheduler loop while screen is open
+    // Automatic background scheduler loop while screen is open.
+    //
+    // Changing the interval restarts this effect, so everything in it has to
+    // stay off the main thread: a Settings load is ~60 AES-decrypted reads and
+    // takes the same prefs lock the interval write holds, which is what used to
+    // freeze the slider for a moment after each change.
     LaunchedEffect(settings.connectorAutoRefreshIntervalMinutes) {
-        refreshScheduler.refreshIfNeeded()
-        settings = settingsRepo.load()
-        if (settings.connectorAutoRefreshIntervalMinutes > 0) {
-            while (isActive) {
-                delay(60_000L)
-                val refreshed = refreshScheduler.refreshIfNeeded()
-                if (refreshed.isNotEmpty()) {
-                    settings = settingsRepo.load()
+        if (settings.connectorAutoRefreshIntervalMinutes <= 0) return@LaunchedEffect
+        while (isActive) {
+            val refreshed = refreshScheduler.refreshIfNeeded()
+            if (refreshed.isNotEmpty()) {
+                // Take the new stamp and nothing else. Reassigning all of
+                // Settings from disk would also overwrite the interval held in
+                // memory -- with a value read before the slider's write landed,
+                // which snapped the thumb back to where it started.
+                val stamp = withContext(Dispatchers.IO) {
+                    settingsRepo.load().connectorLastRefreshedAt
                 }
+                settings = settings.copy(connectorLastRefreshedAt = stamp)
             }
+            delay(60_000L)
         }
     }
 
@@ -92,10 +104,15 @@ fun ConnectorsSection() {
         AutoRefreshHeader(
             intervalMinutes = settings.connectorAutoRefreshIntervalMinutes,
             lastRefreshedAt = settings.connectorLastRefreshedAt,
+            // Reflected in the UI immediately and persisted off the main thread.
+            // Settings lives in EncryptedSharedPreferences, so the read-modify-
+            // write behind this is ~60 AES reads plus 58 writes -- long enough
+            // to drop frames while a finger is still on the slider.
             onIntervalChange = { newInterval ->
-                val current = settingsRepo.load()
-                settings = current.copy(connectorAutoRefreshIntervalMinutes = newInterval)
-                settingsRepo.save(settings)
+                settings = settings.copy(connectorAutoRefreshIntervalMinutes = newInterval)
+                scope.launch(Dispatchers.IO) {
+                    settingsRepo.saveConnectorAutoRefreshIntervalMinutes(newInterval)
+                }
             },
             onRefreshAll = {
                 val results = refreshScheduler.refreshIfNeeded(force = true)
@@ -116,6 +133,39 @@ fun ConnectorsSection() {
     }
 }
 
+/**
+ * The auto-sync intervals the slider offers, in minutes, with the label shown
+ * for each. 1m is the floor: the loop driving auto-sync in [ConnectorsSection]
+ * ticks every 60s, so anything finer would be a setting the app cannot honour.
+ */
+private val AUTO_REFRESH_INTERVALS = listOf(
+    0 to "Off",
+    1 to "1m",
+    2 to "2m",
+    5 to "5m",
+    10 to "10m",
+    15 to "15m",
+    30 to "30m",
+    120 to "2h"
+)
+
+/**
+ * Slider index for a stored interval. A value that is not one of the offered
+ * steps -- written by an older build, or by a settings import -- snaps to the
+ * nearest one rather than resetting the user to Off.
+ */
+/** Slider position to a valid index into [AUTO_REFRESH_INTERVALS]. */
+private fun Float.toIndex(): Int =
+    roundToInt().coerceIn(0, AUTO_REFRESH_INTERVALS.lastIndex)
+
+private fun indexOfInterval(minutes: Int): Int {
+    val exact = AUTO_REFRESH_INTERVALS.indexOfFirst { it.first == minutes }
+    if (exact >= 0) return exact
+    return AUTO_REFRESH_INTERVALS.indices.minByOrNull {
+        kotlin.math.abs(AUTO_REFRESH_INTERVALS[it].first - minutes)
+    } ?: 0
+}
+
 @Composable
 private fun AutoRefreshHeader(
     intervalMinutes: Int,
@@ -127,6 +177,12 @@ private fun AutoRefreshHeader(
     var isRefreshing by remember { mutableStateOf(false) }
     var syncFeedback by remember { mutableStateOf("") }
     var tick by remember { mutableStateOf(0) }
+    // Seeded once from the stored interval and authoritative from then on. It is
+    // deliberately not keyed on intervalMinutes: this screen is the only writer
+    // while it is open, and re-seeding from a reload gives a stale read a way to
+    // drag the thumb back out from under the user.
+    var sliderPosition by remember { mutableStateOf(indexOfInterval(intervalMinutes).toFloat()) }
+    val sliderIndex = sliderPosition.toIndex()
 
     // Live recomposition ticker for "X min ago" display
     LaunchedEffect(lastRefreshedAt) {
@@ -186,20 +242,44 @@ private fun AutoRefreshHeader(
             Text(syncFeedback, style = MaterialTheme.typography.bodySmall)
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Interval:", style = MaterialTheme.typography.bodyMedium)
-            val intervals = listOf(0 to "Off", 15 to "15m", 30 to "30m", 120 to "2h")
-            intervals.forEach { (mins, label) ->
-                FilterChip(
-                    selected = intervalMinutes == mins,
-                    onClick = { onIntervalChange(mins) },
-                    label = { Text(label) }
+        // Eight choices are too many to sit on one phone-width line as chips, so
+        // the interval is a slider that snaps to the steps below. The spacing is
+        // deliberately not proportional to the durations -- every step is one
+        // notch, so the far end stays reachable without a 2h-wide gap.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Interval", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    AUTO_REFRESH_INTERVALS[sliderIndex].second,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
                 )
             }
+            Slider(
+                value = sliderPosition,
+                onValueChange = { sliderPosition = it },
+                // The interval only reaches Settings once the thumb is let go;
+                // dragging would otherwise write SharedPreferences every frame
+                // and restart the refresh loop on each one.
+                //
+                // Read the position here rather than closing over sliderIndex.
+                // Slider calls onValueChange and then onValueChangeFinished
+                // within the one gesture, so this lambda can still be the
+                // instance built by the composition *before* the tap -- and the
+                // index it captured is where the thumb used to be. That is what
+                // made a first tap commit the old value and appear to do
+                // nothing, while a second tap on the same spot worked.
+                onValueChangeFinished = {
+                    onIntervalChange(AUTO_REFRESH_INTERVALS[sliderPosition.toIndex()].first)
+                },
+                valueRange = 0f..(AUTO_REFRESH_INTERVALS.size - 1).toFloat(),
+                steps = AUTO_REFRESH_INTERVALS.size - 2,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

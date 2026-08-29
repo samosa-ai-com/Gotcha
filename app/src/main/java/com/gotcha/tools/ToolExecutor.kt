@@ -33,8 +33,12 @@ class ToolExecutor(
     private companion object {
         const val TAG = "Gotcha"
 
-        /** Argument names never written verbatim to the audit log. See [redactedForAudit]. */
-        val REDACTED_AUDIT_KEYS = setOf("stdin")
+        /**
+         * Argument names never written verbatim to the audit log. See [redactedForAudit].
+         * `password` is a PDF owner/user password for `pdf_edit` — passwords are often
+         * reused across bank statements and payslips, so never persist them in plaintext.
+         */
+        val REDACTED_AUDIT_KEYS = setOf("stdin", "password")
     }
 
     private val appContext = context.applicationContext
