@@ -141,7 +141,17 @@ class TermuxTool(
         // Defeats coreutils' own refusal to remove `/`, so its presence is intent enough.
         Regex("""--no-preserve-root"""),
         Regex("""\bfastboot\b"""),
-        Regex("""\brecovery\b[^\n]*--wipe""")
+        Regex("""\brecovery\b[^\n]*--wipe"""),
+        // Deleting a live package manager's lock files or DB while a dpkg holds the fd does not
+        // release the lock — it lets a second apt write /var/lib/dpkg/status concurrently and
+        // corrupt the package database. The only remedies are to wait or to tap Exit on the
+        // Termux notification, so the mistake is refused rather than explained after the fact.
+        Regex("""\brm\b[^\n]*(?:dpkg/lock(?:-frontend)?|dpkg/status|apt/lists/lock|apt/archives/lock)"""),
+        // SIGKILL on a package manager or a bare PID. The model cannot legitimately kill a
+        // process from another call anyway (see termux_background), and `kill -9` on a live
+        // dpkg mid-transaction leaves a half-configured package that needs dpkg --configure -a.
+        Regex("""\bkill\s+-9\b[^\n]*(?:\b\d+\b|\bdpkg\b|\bapt(?:-get)?\b|\bpkg\b)"""),
+        Regex("""\b(?:pkill|killall)\b[^\n]*(?:\bdpkg\b|\bapt(?:-get)?\b|\bpkg\b)""")
     )
 
     fun status(): TermuxStatus {
@@ -219,7 +229,7 @@ class TermuxTool(
                 pendingIntentFlags()
             )
             val started = runCatching {
-                context.startService(commandIntent(trimmed, workingDir, stdin, pendingIntent))
+                context.startService(commandIntent(commandToRun(trimmed), workingDir, stdin, pendingIntent))
             }
             started.exceptionOrNull()?.let { return TermuxMessages.startFailed(it) }
             // startService reports "no such service" by returning null, not by throwing. Android
@@ -261,6 +271,13 @@ class TermuxTool(
                 append("\n…(Termux truncated the output at its ~100KB result limit)")
             }
             if (errmsg.isNotEmpty()) append("\nTermux note: ${cap(errmsg)}")
+        }
+        // apt/dpkg lock contention (exit 100 "Could not get lock ... lock-frontend held by process N")
+        // needs a different recovery than a plain failed command: wait, or tap Exit on the Termux
+        // notification — never delete the lock files or kill the holder. Recognised here so the
+        // model is told what actually fixes it instead of reading a raw apt error.
+        if (exit != 0 && LOCK_SIGNATURE.containsMatchIn(message)) {
+            return TermuxMessages.lockHeld(HOLDER_PID.find(message)?.groupValues?.get(1))
         }
         return ToolResult(success = exit == 0, message = message)
     }
@@ -423,6 +440,22 @@ class TermuxTool(
         /** Package-manager commands that are inherently slow and benefit from a larger default timeout. */
         private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|pip3?|npm|cargo|proot-distro)\b""")
 
+        /**
+         * The apt/dpkg lock-contention signature, as a quick `exit 100` with "Could not get lock".
+         * Recognised before the raw output reaches the model so it is told the real remedy.
+         */
+        private val LOCK_SIGNATURE = Regex(
+            """(?:lock-frontend|Could not get lock|cache lock|Unable to acquire the dpkg frontend lock)""",
+            RegexOption.IGNORE_CASE
+        )
+
+        /** The holder named by apt's wait message: `It is held by process 24247 (dpkg)`. */
+        private val HOLDER_PID = Regex("""held by process (\d+)""")
+
+        /** Termux's wake-lock helpers; required for any task longer than ~30s that Doze would throttle. */
+        private const val WAKE_LOCK = "termux-wake-lock"
+        private const val WAKE_UNLOCK = "termux-wake-unlock"
+
         /** Shell separators the deny-list splits on before matching each part. */
         private val SEGMENT_SEPARATORS = Regex("""[;&|\n]+""")
 
@@ -441,6 +474,26 @@ class TermuxTool(
 
         /** Test seam: lets the cap be saturated without hardcoding the number twice. */
         internal const val MAX_CONCURRENT_FOR_TEST = MAX_CONCURRENT_COMMANDS
+
+        /**
+         * The command actually sent to Termux: the user's text, wrapped in a wake-lock when it is a
+         * package-manager operation. Doze and OEM battery savers throttle a backgrounded `pkg install`
+         * mid-download, which is how a 30-second install turns into a 10-minute hang — the exact shape
+         * of the ffmpeg failure this guard targets.
+         */
+        internal fun commandToRun(trimmed: String): String =
+            if (PKG_LIKE_REGEX.containsMatchIn(trimmed)) withWakeLock(trimmed) else trimmed
+
+        /**
+         * Wraps [command] in `termux-wake-lock`/`termux-wake-unlock`, preserving its exit code (a naive
+         * `cmd; termux-wake-unlock` would swallow failures) and skipping the wrap entirely when the
+         * lock tools are not installed. Split out so the shape can be asserted without Termux.
+         */
+        internal fun withWakeLock(command: String): String {
+            if (WAKE_LOCK in command) return command
+            val wrapped = "$WAKE_LOCK; { $command; rc=\$?; $WAKE_UNLOCK; exit \$rc; }"
+            return "if command -v $WAKE_LOCK >/dev/null 2>&1; then $wrapped; else $command; fi"
+        }
 
         /**
          * Test seams for the concurrency cap. Occupying slots directly beats racing real

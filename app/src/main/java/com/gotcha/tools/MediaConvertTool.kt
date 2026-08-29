@@ -231,9 +231,13 @@ class MediaConvertTool(
         val detail = text.substringAfter("stderr:", "").trim().ifEmpty { text }
         return when {
             text.contains("not found", ignoreCase = true) -> ToolResult.error(
-                "Termux has no ffmpeg installed, which is what does the conversion. Ask the user to open Termux " +
-                    "and run 'pkg install ffmpeg' (it is a large download, so say that), then try again. " +
-                    "You may also run it yourself with run_termux_command if the user agrees."
+                "Termux has no ffmpeg installed, which is what does the conversion. Install it with " +
+                    "'pkg install ffmpeg -y' (a large download — 5-15 minutes, so warn the user and use " +
+                    "timeout_seconds=600). If that reports a package lock held by another process, wait for it " +
+                    "or tap Exit on the Termux notification; never delete the lock files or kill -9 the process. " +
+                    "On a slow or blocked network, split it as 'pkg download ffmpeg' then 'dpkg -i " +
+                    "\$PREFIX/var/cache/apt/archives/*.deb' (see the termux_repositories skill). You may also run " +
+                    "it yourself with run_termux_command if the user agrees."
             )
             text.contains("No such file or directory", ignoreCase = true) -> ToolResult.error(
                 "ffmpeg could not see '${input.canonicalPath}', although Gotcha can. This almost always means the " +

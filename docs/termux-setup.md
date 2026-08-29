@@ -95,6 +95,21 @@ in order of how often they bite:
 - **Hard ceiling: 600 s.** `pkg install` of `ffmpeg`, `chromium`, `rust`,
   `golang`, or `texlive` can hit this. Raise `timeout_seconds` to 600
   and warn the user before starting one.
+- **Package-lock contention (`exit 100`).** If `pkg install` returns
+  `Could not get lock ... lock-frontend ... held by process <pid> (dpkg)`,
+  another package operation is still running under Termux's uid — usually a
+  timed-out install that Gotcha could not kill. It is **not** a mirror or
+  network problem. Check `ps -ef | grep -E '[d]pkg|[a]pt'`; if it never
+  finishes, tap **Exit** on the Termux notification (that ends every session
+  and releases the lock). Never delete the lock files or `kill -9` the
+  process — that corrupts the package database without releasing the lock.
+  Package-manager commands are automatically wrapped in `termux-wake-lock` so
+  Doze cannot throttle them mid-download.
+- **Secondary users / work profiles.** `/data/data/com.termux` is only the
+  primary user's path. Gotcha derives Termux's real root from the installed
+  package (`/data/user/<id>/com.termux/files/usr` under a work profile);
+  commands should use `$PREFIX` rather than a hardcoded `/data/data/...`
+  prefix.
 - **4 commands in flight, process-wide.** Sub-agents share the same
   semaphore. A 5th call returns an error.
 - **Android 12+ background restriction.** If Gotcha is in the background
@@ -125,6 +140,12 @@ should know these so the user does not have to:
   If a `pkg install` keeps failing midway, split the network step from
   the install step with `pkg download <pkg>` and `dpkg -i` from the local
   cache.
+- **ffmpeg is used by three tools.** `media_convert` (audio format
+  conversion), `synthesize_podcast` / `synthesize_podcast_dialogue` with
+  `format='mp3'`, and the podcast MP3 salvage path all run through Termux's
+  `ffmpeg`. When it is missing, `media_convert` says exactly what to install;
+  a requested `.mp3` podcast degrades to `.m4a` and explains how to finish the
+  MP3 once ffmpeg is installed.
 - **Shared storage (`/sdcard`).** `/sdcard/Download` is the only safe
   cross-uid bridge between Gotcha and Termux. It is empty inside Termux
   until the user runs `termux-setup-storage` once in Termux.

@@ -310,6 +310,98 @@ class TermuxToolTest {
     }
 
     @Test
+    fun `package-manager lock file deletion and dpkg sigkill are blocked`() = runTest {
+        // The destructive "fixes" a model reaches for when apt reports a held lock: deleting the
+        // lock files or SIGKILL-ing the holder. Neither releases the lock (the holder keeps the fd),
+        // and both can corrupt the dpkg database — so they are refused before reaching the shell.
+        installTermux()
+        grantRunCommand()
+        listOf(
+            "rm -f /data/data/com.termux/files/usr/var/lib/dpkg/lock-frontend",
+            "rm -f \$PREFIX/var/lib/dpkg/lock",
+            "rm -rf \$PREFIX/var/lib/dpkg/status",
+            "rm -f /data/data/com.termux/files/usr/var/cache/apt/archives/lock",
+            "kill -9 24247",
+            "kill -9 \$(pgrep dpkg)",
+            "killall apt-get",
+            "pkill dpkg",
+            "pkill -f apt"
+        ).forEach { command ->
+            val result = tool.runCommand(command)
+            assertFalse("expected '$command' to be blocked", result.success)
+            assertTrue("'$command' should cite the policy: ${result.message}", result.message.contains("safety policy"))
+        }
+    }
+
+    @Test
+    fun `kill of a process the agent itself started stays allowed`() = runTest {
+        // The background-skill persistence pattern kills a pid it wrote to disk; that is legitimate
+        // and must not trip the new SIGKILL guard (which targets package managers and bare pids).
+        listOf(
+            "kill \$(cat /sdcard/Download/myserver.pid)",
+            "kill -TERM 1234",
+            "rm -f ~/notes.txt",
+            "ls /var/lib/dpkg"
+        ).forEach { command ->
+            val result = tool.runCommand(command)
+            assertFalse("'$command' must not be refused: ${result.message}", result.message.contains("safety policy"))
+        }
+    }
+
+    @Test
+    fun `a package-lock failure is reported with lock recovery guidance`() {
+        // The exact output from the ffmpeg incident: apt polls ~100 times then exits 100 with the
+        // lock-frontend message. The model must be told it is lock contention, not a mirror problem,
+        // and given the only safe remedies.
+        val bundle = resultBundle(
+            exitCode = 100,
+            stdout = "WARNING: apt does not have a stable CLI interface. Use with caution in scripts.\n" +
+                "E: Could not get lock /data/data/com.termux/files/usr/var/lib/dpkg/lock-frontend. " +
+                "It is held by process 24247 (dpkg).\n" +
+                "E: Unable to acquire the dpkg frontend lock, is another process using it?"
+        )
+
+        val result = tool.formatResult(bundle)
+
+        assertFalse(result.success)
+        assertTrue("must name the holder: ${result.message}", result.message.contains("process 24247"))
+        assertTrue(result.message.contains("NOT a mirror"))
+        assertTrue("must forbid the destructive fix", result.message.contains("Do NOT delete the lock files"))
+        assertTrue(result.message.contains("Exit"))
+    }
+
+    @Test
+    fun `a non-lock failure is passed through unaltered`() {
+        val bundle = resultBundle(exitCode = 127, stderr = "sh: nope: not found")
+
+        val result = tool.formatResult(bundle)
+
+        assertFalse(result.success)
+        assertTrue(result.message.contains("exit code: 127"))
+        assertTrue(result.message.contains("not found"))
+    }
+
+    @Test
+    fun `pkg-like commands are wrapped in a wake-lock that preserves the exit code`() {
+        val wrapped = TermuxTool.withWakeLock("pkg install ffmpeg -y -q")
+
+        assertTrue(wrapped.contains("termux-wake-lock"))
+        assertTrue(wrapped.contains("termux-wake-unlock"))
+        assertTrue("must capture the original exit code", wrapped.contains("rc=\$?"))
+        assertTrue(wrapped.contains("exit \$rc"))
+        assertTrue("must degrade on a stripped Termux", wrapped.contains("command -v termux-wake-lock"))
+        assertTrue(wrapped.contains("pkg install ffmpeg -y -q"))
+        assertTrue("an already-wrapped command is not double-wrapped", wrapped == TermuxTool.withWakeLock(wrapped))
+    }
+
+    @Test
+    fun `a non-pkg command is not wake-lock wrapped`() {
+        // withWakeLock itself wraps anything; the package-manager gate lives in commandToRun.
+        assertEquals("echo hello", TermuxTool.commandToRun("echo hello"))
+        assertTrue(TermuxTool.commandToRun("pkg install ffmpeg -y").contains("termux-wake-lock"))
+    }
+
+    @Test
     fun `rm -r inside termux home is allowed unlike run_command`() = runTest {
         // TerminalTool blocks every `rm -r`; here it is ordinary housekeeping, so the deny-list
         // must let it through to the (absent) Termux rather than refusing it outright.
