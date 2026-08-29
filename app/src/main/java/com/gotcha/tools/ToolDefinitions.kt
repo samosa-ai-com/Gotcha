@@ -1515,9 +1515,11 @@ object ToolDefinitions {
             "NotebookLM style — saved under Gotcha/Podcasts on shared storage. Write the dialogue yourself " +
             "first: an array of turns, each with speaker 'A' or 'B' and the exact words to speak, as plain " +
             "prose. The hosts get distinct voices (configured in Settings → Speech, overridable per call, " +
-            "and defaulting to two different voices from the model's own list). You also direct the pacing: " +
-            "each turn may carry a pause_ms for the silence after it — a quick interjection wants less than " +
-            "a beat before a revelation — and gap_ms sets the episode's default. Length ceiling, output " +
+            "and defaulting to two different voices from the model's own list). You also direct the pacing, " +
+            "and should: give every turn its own pause_ms for the silence that follows it, varying them the " +
+            "way a real conversation does — an interjection lands almost on top of the previous line, a " +
+            "revelation earns a beat first. gap_ms is only the fallback for turns you leave unpaced, so a " +
+            "script with no pause_ms at all comes out evenly spaced and lifeless. Length ceiling, output " +
             "formats and the TTS provider requirement are the same as " +
             "synthesize_podcast: ~25 minutes, .m4a by default or format='mp3' via Termux's ffmpeg, and an " +
             "API-based TTS provider — Android's built-in TTS cannot write files.",
@@ -1529,7 +1531,7 @@ object ToolDefinitions {
                         "description",
                         "The dialogue in order. Each item is one turn: " +
                             "{\"speaker\": \"A\" or \"B\", \"text\": \"the words to speak\", " +
-                            "\"pause_ms\": optional pacing}."
+                            "\"pause_ms\": the silence after it}."
                     )
                     putJsonObject("items") {
                         put("type", "object")
@@ -1546,17 +1548,29 @@ object ToolDefinitions {
                                 put("type", "integer")
                                 put(
                                     "description",
-                                    "Silence AFTER this turn, in milliseconds — pacing you direct like a " +
-                                        "stage direction. Roughly: 150-250 for quick back-and-forth, 300 " +
-                                        "for a normal hand-off, 500-800 to let a point land or mark a topic " +
-                                        "change. Omit it and the turn uses gap_ms. Clamped to 0-2000, and " +
-                                        "ignored on the final turn, where it would only be trailing silence."
+                                    "Silence AFTER this turn, in milliseconds. Set it on every turn: this " +
+                                        "rhythm is most of what separates a real conversation from two " +
+                                        "voices taking turns, and an episode where every gap is the same " +
+                                        "length sounds like a machine reading a transcript. Choose each " +
+                                        "number from what just happened and what comes next — 0-150 when " +
+                                        "the other host cuts in or finishes the thought, 200-300 for " +
+                                        "ordinary back-and-forth, 400-600 after a question, a joke, or a " +
+                                        "point that needs a moment to land, 700-1200 at a topic change or " +
+                                        "something genuinely weighty. Vary it: several turns in a row at " +
+                                        "the same value means you are not really pacing. Clamped to " +
+                                        "0-2000, and ignored on the final turn, where it would only be " +
+                                        "trailing silence."
                                 )
                             }
                         }
+                        // pause_ms is required of the *model* — asking politely in the description was
+                        // not enough, and an unpaced script is the flat-sounding failure this field
+                        // exists to prevent. The executor still tolerates its absence and falls back to
+                        // gap_ms, so a provider that ignores `required` degrades rather than breaks.
                         putJsonArray("required") {
                             add("speaker")
                             add("text")
+                            add("pause_ms")
                         }
                     }
                 }
@@ -1564,8 +1578,9 @@ object ToolDefinitions {
                     put("type", "integer")
                     put(
                         "description",
-                        "Default silence between turns for this episode, in milliseconds (0-2000, " +
-                            "default 300). Individual lines override it with their own pause_ms."
+                        "Fallback silence between turns, in milliseconds (0-2000, default 300), used only " +
+                            "for turns that carry no pause_ms of their own. It is a safety net, not the " +
+                            "way to pace an episode — set pause_ms per turn instead."
                     )
                 }
                 putJsonObject("output_name") {
