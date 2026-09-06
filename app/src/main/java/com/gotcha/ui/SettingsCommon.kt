@@ -148,7 +148,7 @@ enum class SettingsPage(
         "settings_notifications_row"
     ),
     ABOUT(
-        "About Us",
+        "About",
         "Samosa AI, other products, legal, contact",
         "settings_about_row"
     ),

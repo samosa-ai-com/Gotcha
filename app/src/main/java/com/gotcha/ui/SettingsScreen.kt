@@ -220,7 +220,7 @@ private fun SettingsHome(
                     .testTag(entry.testTag)
                     .then(entry.tourAnchorModifier())
             )
-            // Re-entry into the guided setup sits just above About Us, so the menu
+            // Re-entry into the guided setup sits just above About, so the menu
             // ends on the two rows a returning user is least likely to need.
             if (entry == SettingsPage.NOTIFICATIONS) {
                 HorizontalDivider(thickness = 1.dp)

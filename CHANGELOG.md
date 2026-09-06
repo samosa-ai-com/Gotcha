@@ -3,6 +3,11 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Changed
+- **Settings → About.** The hub that collects the company page, the legal
+  agreements and the app updater is now titled `About` rather than `About Us`:
+  it holds more than company information, so the old title undersold it.
+  `About Samosa AI` and `Legal` still sit underneath it, unchanged.
 
 ## [1.2.0]
 ### Added
