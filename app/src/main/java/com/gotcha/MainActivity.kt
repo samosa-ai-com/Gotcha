@@ -96,6 +96,7 @@ private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean):
     route == Route.HOME -> TourPlace.CHAT
     route == Route.SETTINGS -> when (page) {
         null -> TourPlace.SETTINGS_HOME
+        SettingsPage.AI -> TourPlace.AI_HUB
         SettingsPage.AI_CONFIG -> TourPlace.AI_CONFIG
         SettingsPage.PERMISSIONS -> TourPlace.PERMISSIONS
         SettingsPage.PERSONAL_INFO -> TourPlace.PERSONAL_INFO
@@ -108,6 +109,7 @@ private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean):
 private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = when (place) {
     TourPlace.CHAT, TourPlace.CHAT_DRAWER -> Route.HOME to null
     TourPlace.SETTINGS_HOME -> Route.SETTINGS to null
+    TourPlace.AI_HUB -> Route.SETTINGS to SettingsPage.AI
     TourPlace.AI_CONFIG -> Route.SETTINGS to SettingsPage.AI_CONFIG
     TourPlace.PERMISSIONS -> Route.SETTINGS to SettingsPage.PERMISSIONS
     TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO

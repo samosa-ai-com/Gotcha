@@ -70,7 +70,10 @@ class SettingsFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        // First run opens on AI Configuration; Back reaches the category list.
+        // First run opens on AI Configuration, which sits inside the AI hub, so
+        // reaching the category list takes two Backs.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
@@ -99,16 +102,42 @@ class SettingsFlowTest {
         composeRule.waitForIdle()
 
         // First run opens on AI Configuration; Back from a sub-page lands on the
-        // category list rather than leaving Settings.
+        // hub it hangs off rather than leaving Settings...
         composeRule.onNodeWithTag("settings_base_url").assertExists()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
 
-        // Opening another category replaces the list with that page.
+        // ...and Back again from the hub lands on the category list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_row").assertExists()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
+
+        // Opening a category replaces the list with that page.
+        composeRule.onNodeWithTag("settings_ai_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
         composeRule.onNodeWithText("TTS Provider").assertExists()
+    }
+
+    @Test
+    fun aiConfig_keepsTheAdvancedKnobsCollapsedUntilAsked() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration. The agent-loop limits are one tap
+        // away, not in the way of the fields that make the app work.
+        composeRule.onNodeWithTag("settings_model").assertExists()
+        composeRule.onNodeWithText("Max tool rounds").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("settings_ai_advanced").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Max tool rounds").performScrollTo().assertExists()
     }
 }

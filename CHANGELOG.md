@@ -4,6 +4,18 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Changed
+- **Settings → AI.** The model and the voice used to sit as two unrelated rows on
+  the settings list, as if choosing what Gotcha thinks with had nothing to do with
+  choosing what it speaks with. Both now live under a single `AI` row:
+  `AI Configuration` for the provider and models, `Speech (TTS / STT)` for voices
+  and transcription. The pages themselves are unchanged, and so is everything
+  already saved on them.
+- **Advanced settings are collapsed by default.** The knobs almost nobody needs —
+  sub-agent and navigator model overrides, the agent-loop limits, the API timeout,
+  the cache-clearing buttons, the podcast host voices — are now behind an
+  `Advanced settings` disclosure on the page they belong to, instead of standing
+  between a new install and the Save button. Nothing moved pages, and expanding
+  the section is never required to save.
 - **Settings → About.** The hub that collects the company page, the legal
   agreements and the app updater is now titled `About` rather than `About Us`:
   it holds more than company information, so the old title undersold it.

@@ -359,40 +359,45 @@ fun SpeechScreen(
             AudioProvider.ANDROID, AudioProvider.NONE -> Unit
         }
         // ---- Podcast hosts (synthesize_podcast_dialogue) ----
+        // Advanced: only two-host podcast generation reads these, and the
+        // defaults (the TTS voice for host A, an automatically chosen second
+        // voice for host B) already work.
         if (ttsProvider.isApiBased()) {
-            Text(
-                "Podcast hosts — the two voices used when the assistant generates a two-host " +
-                    "podcast dialogue. Leave blank to use the TTS voice for host A and an " +
-                    "automatically chosen different voice for host B.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TtsVoicePicker(
-                selectedModel = ttsApiModel,
-                selectedVoice = podcastHostAVoice,
-                availableModels = availableTtsModels,
-                expanded = hostAVoiceExpanded,
-                onExpandedChange = { hostAVoiceExpanded = it },
-                onSelect = {
-                    podcastHostAVoice = it
-                    hostAVoiceExpanded = false
-                },
-                onClearVoice = { podcastHostAVoice = "" },
-                label = "Podcast Host A Voice (optional)"
-            )
-            TtsVoicePicker(
-                selectedModel = ttsApiModel,
-                selectedVoice = podcastHostBVoice,
-                availableModels = availableTtsModels,
-                expanded = hostBVoiceExpanded,
-                onExpandedChange = { hostBVoiceExpanded = it },
-                onSelect = {
-                    podcastHostBVoice = it
-                    hostBVoiceExpanded = false
-                },
-                onClearVoice = { podcastHostBVoice = "" },
-                label = "Podcast Host B Voice (optional)"
-            )
+            SettingsAdvancedSection(testTag = "settings_speech_advanced") {
+                Text(
+                    "Podcast hosts — the two voices used when the assistant generates a two-host " +
+                        "podcast dialogue. Leave blank to use the TTS voice for host A and an " +
+                        "automatically chosen different voice for host B.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TtsVoicePicker(
+                    selectedModel = ttsApiModel,
+                    selectedVoice = podcastHostAVoice,
+                    availableModels = availableTtsModels,
+                    expanded = hostAVoiceExpanded,
+                    onExpandedChange = { hostAVoiceExpanded = it },
+                    onSelect = {
+                        podcastHostAVoice = it
+                        hostAVoiceExpanded = false
+                    },
+                    onClearVoice = { podcastHostAVoice = "" },
+                    label = "Podcast Host A Voice (optional)"
+                )
+                TtsVoicePicker(
+                    selectedModel = ttsApiModel,
+                    selectedVoice = podcastHostBVoice,
+                    availableModels = availableTtsModels,
+                    expanded = hostBVoiceExpanded,
+                    onExpandedChange = { hostBVoiceExpanded = it },
+                    onSelect = {
+                        podcastHostBVoice = it
+                        hostBVoiceExpanded = false
+                    },
+                    onClearVoice = { podcastHostBVoice = "" },
+                    label = "Podcast Host B Voice (optional)"
+                )
+            }
         }
         ExposedDropdownMenuBox(
             expanded = sttProviderExpanded,

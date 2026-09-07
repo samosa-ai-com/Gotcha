@@ -125,6 +125,10 @@ fun SettingsScreen(
             onBack = backToHome,
             onTestVoice = onTestVoice
         )
+        SettingsPage.AI -> AiHubScreen(
+            onBack = backToHome,
+            onOpenPage = onPageChange
+        )
         SettingsPage.AI_CONFIG -> AiConfigScreen(
             load = load,
             onSave = onSave,
@@ -240,7 +244,7 @@ private fun SettingsHome(
 @Composable
 private fun SettingsPage.tourAnchorModifier(): Modifier = when (this) {
     SettingsPage.PERSONAL_INFO -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERSONAL_INFO)
-    SettingsPage.AI_CONFIG -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI_CONFIG)
+    SettingsPage.AI -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI)
     SettingsPage.PERMISSIONS -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERMISSIONS)
     else -> Modifier
 }

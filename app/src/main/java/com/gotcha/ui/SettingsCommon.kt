@@ -39,6 +39,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,8 +83,9 @@ import kotlin.math.round
  *
  * Most pages hang directly off the home list. The exceptions declare a [parent]:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. [ABOUT] is the only such hub today,
- * collecting "who made this app and what did I agree to" into one row.
+ * that parent instead of from the home list. Two hubs exist: [AI], which collects
+ * everything the assistant thinks, hears and speaks with, and [ABOUT], which
+ * collects "who made this app and what did I agree to".
  */
 enum class SettingsPage(
     val title: String,
@@ -102,15 +104,22 @@ enum class SettingsPage(
         "Who you are, language, currency, reply style",
         "settings_personal_info_row"
     ),
+    AI(
+        "AI",
+        "Model, provider, voice and transcription",
+        "settings_ai_row"
+    ),
     AI_CONFIG(
         "AI Configuration",
         "Provider, models, agent limits",
-        "settings_ai_config_row"
+        "settings_ai_config_row",
+        { AI }
     ),
     SPEECH(
         "Speech (TTS / STT)",
         "Voices, transcription, read replies aloud",
-        "settings_speech_row"
+        "settings_speech_row",
+        { AI }
     ),
     PERMISSIONS(
         "Permissions",
@@ -729,6 +738,57 @@ fun SamosaAuthSection(
                     .then(signInModifier)
             ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
         }
+    }
+}
+
+/**
+ * A collapsed-by-default disclosure for the knobs a page has but most people
+ * never touch — model overrides, loop limits, timeouts. Keeps them one tap away
+ * without letting them crowd out the two or three controls that actually decide
+ * whether the app works.
+ *
+ * Uses the same text triangle as the permission groups rather than an icon font,
+ * so the settings pages keep one disclosure idiom.
+ *
+ * [testTag] tags the header row, which is the part a test clicks to expand.
+ * Expansion is remembered per page visit (`rememberSaveable`), so a rotation or
+ * a trip to Android Settings doesn't fold the section back up mid-edit. The
+ * fields inside stay hoisted in the calling screen, so collapsing the section
+ * never discards what was typed into it.
+ */
+@Composable
+fun SettingsAdvancedSection(
+    testTag: String,
+    title: String = "Advanced settings",
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .padding(vertical = 8.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (expanded) "▼ " else "▶ ",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+    AnimatedVisibility(visible = expanded) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
     }
 }
 
