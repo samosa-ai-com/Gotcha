@@ -123,6 +123,12 @@ fun SettingsScreen(
             load = load,
             onSave = onSave,
             onBack = backToHome,
+            onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+        )
+        SettingsPage.LANGUAGE -> LanguageScreen(
+            load = load,
+            onSave = onSave,
+            onBack = backToHome,
             onTestVoice = onTestVoice
         )
         SettingsPage.AI -> AiHubScreen(

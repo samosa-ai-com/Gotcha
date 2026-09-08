@@ -10,6 +10,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.testutil.TestSeed
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -91,6 +92,51 @@ class SettingsFlowTest {
         val persisted = SettingsRepository(context).load()
         assertEquals("Ada", persisted.userName)
         assertEquals("No bullet lists.", persisted.userResponseStyle)
+    }
+
+    @Test
+    fun languagePage_showsTheThreeLanguagesApartAndPersistsThem() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_language_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        // The point of the page (issue #74): all three named and visible at once.
+        composeRule.onNodeWithText("App display language").assertExists()
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_reply_language").performScrollTo().assertExists()
+
+        // Untouched, the voice follows the reply language — what a pre-#74 install did.
+        composeRule.onNodeWithText("Same as AI reply language").assertExists()
+
+        // The whole point of the split: answers written in one language, spoken in
+        // another. Pick Hindi for the voice and leave the reply language English.
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Hindi").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_save_language").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        scenario?.close()
+
+        // Round-trips through EncryptedSharedPreferences, which no JVM test reaches.
+        val persisted = SettingsRepository(context).load()
+        assertEquals("Hindi", persisted.voiceLanguage)
+        assertEquals("English", persisted.preferredLanguage)
+        // TTS and STT follow the voice; the prompt still follows preferredLanguage.
+        assertEquals(Language.HINDI, persisted.effectiveVoiceLanguage)
+        assertEquals("hi-IN", persisted.effectiveVoiceLanguage.bcp47)
+        assertEquals("hi", persisted.effectiveVoiceLanguage.iso639)
     }
 
     @Test

@@ -101,8 +101,13 @@ enum class SettingsPage(
 ) {
     PERSONAL_INFO(
         "Personal Info",
-        "Who you are, language, currency, reply style",
+        "Who you are, currency, reply style",
         "settings_personal_info_row"
+    ),
+    LANGUAGE(
+        "Language",
+        "App display, voice, and AI reply language",
+        "settings_language_row"
     ),
     AI(
         "AI",

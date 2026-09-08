@@ -213,7 +213,7 @@ class CallSessionController(
         narrationErrorReported = false
         _state.value = CallState.STARTING
         scope.launch {
-            val language = Language.fromLabel(s.preferredLanguage)
+            val language = s.effectiveVoiceLanguage
             if (!speakText(startGreeting(handsFree, language), language)) {
                 reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
             }
@@ -453,7 +453,7 @@ class CallSessionController(
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
             sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
-            val language = Language.fromLabel(s.preferredLanguage)
+            val language = s.effectiveVoiceLanguage
             val sttLanguage = s.sttLanguage.ifBlank { language.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
             val text = result.getOrDefault("")
@@ -480,7 +480,7 @@ class CallSessionController(
      */
     private suspend fun finishTurn(text: String) {
         val s = settingsRepository.load()
-        val language = Language.fromLabel(s.preferredLanguage)
+        val language = s.effectiveVoiceLanguage
         _state.value = CallState.THINKING
 
         // API STT (Whisper-class) output is already punctuated and cased —
@@ -737,9 +737,9 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
-    /** Resolve the persisted [preferredLanguage] to a [Language]. */
+    /** The language this call is spoken and heard in — see `Settings.effectiveVoiceLanguage`. */
     private fun currentLanguage(): Language =
-        Language.fromLabel(settingsRepository.load().preferredLanguage)
+        settingsRepository.load().effectiveVoiceLanguage
 
     /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
     private fun reportError(message: String) {

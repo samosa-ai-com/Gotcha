@@ -109,11 +109,24 @@ class AgentPromptTest {
     }
 
     @Test
-    fun `user profile block carries preferred language and currency facts`() = runTest {
+    fun `user profile block carries reply language and currency facts`() = runTest {
         val body = requestBodyFor(AgentMode.OPERATOR)
         assertTrue(body.contains("<user_profile>"))
-        assertTrue(body.contains("Preferred language: Hindi"))
+        assertTrue(body.contains("Reply language: Hindi"))
         assertTrue(body.contains("Preferred currency:"))
+    }
+
+    @Test
+    fun `voice language does not affect the written reply language`() = runTest {
+        // Issue #74 split the two: voiceLanguage drives TTS and STT only, so a
+        // German voice must not leak into the directive or the profile block.
+        val body = requestBodyFor(
+            AgentMode.OPERATOR,
+            testSettings { copy(voiceLanguage = "German") }
+        )
+        assertTrue(body.contains("Respond to the user in Hindi"))
+        assertTrue(body.contains("Reply language: Hindi"))
+        assertFalse(body.contains("German"))
     }
 
     @Test

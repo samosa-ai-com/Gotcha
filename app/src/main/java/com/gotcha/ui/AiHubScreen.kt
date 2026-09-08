@@ -29,7 +29,8 @@ fun AiHubScreen(
     SettingsScaffold(title = SettingsPage.AI.title, onBack = onBack, overlay = overlay) {
         Text(
             "The model does the thinking; speech gives it a voice and ears. " +
-                "One provider can cover both.",
+                "One provider can cover both. Which language it speaks and answers " +
+                "in lives under Settings → Language.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

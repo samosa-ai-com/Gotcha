@@ -456,6 +456,13 @@ fun SpeechScreen(
                     },
                     onClearLanguage = { sttLanguage = "" }
                 )
+                Text(
+                    "Leave this empty and transcription follows the voice language " +
+                        "set under Settings → Language. Set it to force one language, " +
+                        "which helps accuracy when the model tends to guess wrong.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             AudioProvider.API -> {
                 OutlinedTextField(
@@ -507,6 +514,13 @@ fun SpeechScreen(
                         sttLanguageExpanded = false
                     },
                     onClearLanguage = { sttLanguage = "" }
+                )
+                Text(
+                    "Leave this empty and transcription follows the voice language " +
+                        "set under Settings → Language. Set it to force one language, " +
+                        "which helps accuracy when the model tends to guess wrong.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             AudioProvider.ANDROID, AudioProvider.NONE -> Unit
@@ -729,7 +743,14 @@ private fun SttModelPicker(
     }
 }
 
-/** STT language picker — uses the model's languages when available, otherwise [COMMON_STT_LANGUAGES]. */
+/**
+ * Transcription language override — uses the model's languages when available,
+ * otherwise [COMMON_STT_LANGUAGES].
+ *
+ * An override, not the language setting: left empty, transcription follows the
+ * voice language on Settings → Language. It lives here rather than there because
+ * the list of codes it offers comes from the selected STT model (issue #74).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SttLanguagePicker(
@@ -751,8 +772,8 @@ private fun SttLanguagePicker(
         OutlinedTextField(
             value = selectedLanguage,
             onValueChange = onSelect,
-            label = { Text("STT Language (optional)") },
-            placeholder = { Text("Auto-detect / Default (or select below)") },
+            label = { Text("Transcription language override") },
+            placeholder = { Text("Follow voice language / auto-detect") },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -763,7 +784,7 @@ private fun SttLanguagePicker(
             onDismissRequest = { onExpandedChange(false) }
         ) {
             DropdownMenuItem(
-                text = { Text("Auto-detect / Default (empty)") },
+                text = { Text("Follow voice language / auto-detect") },
                 onClick = onClearLanguage
             )
             languagesList.forEach { lang ->
