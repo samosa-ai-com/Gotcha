@@ -1,8 +1,10 @@
 package com.gotcha.ui
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -20,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -63,11 +66,11 @@ fun LanguageScreen(
     onTestVoice: suspend (Language) -> Boolean? = { null }
 ) {
     val initial = remember { load() }
-    var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
-    var voiceLanguage by remember { mutableStateOf(initial.voiceLanguage) }
+    var preferredLanguage by rememberSaveable { mutableStateOf(initial.preferredLanguage) }
+    var voiceLanguage by rememberSaveable { mutableStateOf(initial.voiceLanguage) }
 
-    var replyExpanded by remember { mutableStateOf(false) }
-    var voiceExpanded by remember { mutableStateOf(false) }
+    var replyExpanded by rememberSaveable { mutableStateOf(false) }
+    var voiceExpanded by rememberSaveable { mutableStateOf(false) }
     var testingVoice by remember { mutableStateOf(false) }
 
     /** Last [Language] whose voice data was reported missing, or null when not shown. */
@@ -214,7 +217,13 @@ fun LanguageScreen(
                                         android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
                                     ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 )
-                            } catch (_: Exception) { }
+                            } catch (_: Exception) {
+                                Toast.makeText(
+                                    localContext,
+                                    "Could not open text-to-speech settings.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                     ) { Text("Install") }
                 },
@@ -286,10 +295,10 @@ fun LanguageScreen(
 /**
  * Open the per-app language screen where the platform has one (API 33+), falling
  * back to the device-wide language list. Both are ordinary system activities that
- * a heavily-skinned OEM build may simply not have, hence the catch — the same
- * shape as the TTS-data launch above.
+ * a heavily-skinned OEM build may simply not have; if neither activity resolves,
+ * a toast informs the user.
  */
-private fun openLanguageSettings(context: android.content.Context) {
+internal fun openLanguageSettings(context: Context) {
     val intents = buildList {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(
@@ -305,4 +314,9 @@ private fun openLanguageSettings(context: android.content.Context) {
             return
         } catch (_: Exception) { }
     }
+    Toast.makeText(
+        context,
+        "Could not open language settings.",
+        Toast.LENGTH_SHORT
+    ).show()
 }
