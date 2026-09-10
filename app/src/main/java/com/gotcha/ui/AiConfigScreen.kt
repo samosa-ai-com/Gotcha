@@ -36,6 +36,12 @@ import kotlinx.coroutines.launch
  * The AI Configuration page: which LLM backend to talk to, which models to use
  * for the main agent and its sub-agents, and the agent loop's limits.
  *
+ * Only the three things a working install needs — provider, credentials, main
+ * model — are on the page itself. The sub-agent and navigator overrides, the loop
+ * limits and the cache-clearing buttons sit inside a collapsed
+ * [SettingsAdvancedSection]: they are worth having, but not worth scrolling past
+ * on the way to Save.
+ *
  * Saves write only the fields on this page (see [SettingsScreen]'s `onSave`), so
  * edits left half-finished on another page are never dragged into storage here.
  */
@@ -341,150 +347,172 @@ fun AiConfigScreen(
                 )
             }
         }
-        ExposedDropdownMenuBox(
-            expanded = subAgentModelExpanded,
-            onExpandedChange = {
-                subAgentModelExpanded = it
-                if (it) refreshChatModelsAction()
-            }
-        ) {
-            val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
-            OutlinedTextField(
-                value = subLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Sub-agent model") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = subAgentModelExpanded
-                    )
-                },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
-            )
-            SkinExposedDropdownMenu(
+        // ---- Advanced: model overrides, agent-loop limits, maintenance ----
+        // Collapsed by default. The fields' state lives at the top of this
+        // composable and `applyAiConfig` reads it either way, so folding the
+        // section away never drops an edit or changes what Save writes.
+        SettingsAdvancedSection(testTag = "settings_ai_advanced") {
+            ExposedDropdownMenuBox(
                 expanded = subAgentModelExpanded,
-                onDismissRequest = { subAgentModelExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                    onClick = { refreshChatModelsAction() }
-                )
-                DropdownMenuItem(
-                    text = { Text("Same as main agent") },
-                    onClick = {
-                        subAgentModel = ""
-                        subAgentModelExpanded = false
-                    }
-                )
-                if (availableChatModels.isNotEmpty()) {
-                    availableChatModels.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
-                                subAgentModel = m
-                                subAgentModelExpanded = false
-                            }
-                        )
-                    }
+                onExpandedChange = {
+                    subAgentModelExpanded = it
+                    if (it) refreshChatModelsAction()
                 }
-            }
-        }
-        ExposedDropdownMenuBox(
-            expanded = navigatorModelExpanded,
-            onExpandedChange = {
-                navigatorModelExpanded = it
-                if (it) refreshChatModelsAction()
-            }
-        ) {
-            val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
-            OutlinedTextField(
-                value = navLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Navigator model") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = navigatorModelExpanded
+            ) {
+                val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
+                OutlinedTextField(
+                    value = subLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Sub-agent model") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(
+                            expanded = subAgentModelExpanded
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                SkinExposedDropdownMenu(
+                    expanded = subAgentModelExpanded,
+                    onDismissRequest = { subAgentModelExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                        onClick = { refreshChatModelsAction() }
                     )
-                },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
-            )
-            SkinExposedDropdownMenu(
-                expanded = navigatorModelExpanded,
-                onDismissRequest = { navigatorModelExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                    onClick = { refreshChatModelsAction() }
-                )
-                DropdownMenuItem(
-                    text = { Text("Same as main model") },
-                    onClick = {
-                        navigatorModel = ""
-                        navigatorModelExpanded = false
-                    }
-                )
-                if (availableChatModels.isNotEmpty()) {
-                    availableChatModels.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
-                                navigatorModel = m
-                                navigatorModelExpanded = false
-                            }
-                        )
+                    DropdownMenuItem(
+                        text = { Text("Same as main agent") },
+                        onClick = {
+                            subAgentModel = ""
+                            subAgentModelExpanded = false
+                        }
+                    )
+                    if (availableChatModels.isNotEmpty()) {
+                        availableChatModels.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text(m) },
+                                onClick = {
+                                    subAgentModel = m
+                                    subAgentModelExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
+            ExposedDropdownMenuBox(
+                expanded = navigatorModelExpanded,
+                onExpandedChange = {
+                    navigatorModelExpanded = it
+                    if (it) refreshChatModelsAction()
+                }
+            ) {
+                val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
+                OutlinedTextField(
+                    value = navLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Navigator model") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(
+                            expanded = navigatorModelExpanded
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                SkinExposedDropdownMenu(
+                    expanded = navigatorModelExpanded,
+                    onDismissRequest = { navigatorModelExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                        onClick = { refreshChatModelsAction() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Same as main model") },
+                        onClick = {
+                            navigatorModel = ""
+                            navigatorModelExpanded = false
+                        }
+                    )
+                    if (availableChatModels.isNotEmpty()) {
+                        availableChatModels.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text(m) },
+                                onClick = {
+                                    navigatorModel = m
+                                    navigatorModelExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = maxToolRounds,
+                onValueChange = { maxToolRounds = it },
+                label = { Text("Max tool rounds") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxRepeatedToolCalls,
+                onValueChange = { maxRepeatedToolCalls = it },
+                label = { Text("Max repeated tool calls") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxNavigationToolCalls,
+                onValueChange = { maxNavigationToolCalls = it },
+                label = { Text("Max navigation tool calls") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxConsecutiveDelegations,
+                onValueChange = { maxConsecutiveDelegations = it },
+                label = { Text("Max consecutive delegations") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxContextTokens,
+                onValueChange = { maxContextTokens = it },
+                label = { Text("Max context tokens") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = apiTimeoutSeconds,
+                onValueChange = { apiTimeoutSeconds = it },
+                label = { Text("API Timeout (seconds, 0 for infinite)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedButton(
+                onClick = {
+                    onClearLlmCache()
+                    overlay.show("LLM response cache cleared.")
+                    status = null
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Clear LLM cache") }
+            OutlinedButton(
+                onClick = {
+                    onClearDebugScreenshots()
+                    overlay.show("Debug screenshots cleared.")
+                    status = null
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Clear debug screenshots") }
         }
-        OutlinedTextField(
-            value = maxToolRounds,
-            onValueChange = { maxToolRounds = it },
-            label = { Text("Max tool rounds") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxRepeatedToolCalls,
-            onValueChange = { maxRepeatedToolCalls = it },
-            label = { Text("Max repeated tool calls") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxNavigationToolCalls,
-            onValueChange = { maxNavigationToolCalls = it },
-            label = { Text("Max navigation tool calls") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxConsecutiveDelegations,
-            onValueChange = { maxConsecutiveDelegations = it },
-            label = { Text("Max consecutive delegations") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxContextTokens,
-            onValueChange = { maxContextTokens = it },
-            label = { Text("Max context tokens") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = apiTimeoutSeconds,
-            onValueChange = { apiTimeoutSeconds = it },
-            label = { Text("API Timeout (seconds, 0 for infinite)") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
         Button(
             onClick = {
                 onSave { applyAiConfig(it) }
@@ -524,22 +552,6 @@ fun AiConfigScreen(
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Test connection") }
-        OutlinedButton(
-            onClick = {
-                onClearLlmCache()
-                overlay.show("LLM response cache cleared.")
-                status = null
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Clear LLM cache") }
-        OutlinedButton(
-            onClick = {
-                onClearDebugScreenshots()
-                overlay.show("Debug screenshots cleared.")
-                status = null
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Clear debug screenshots") }
         status?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }

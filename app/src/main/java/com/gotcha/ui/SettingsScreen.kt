@@ -123,7 +123,17 @@ fun SettingsScreen(
             load = load,
             onSave = onSave,
             onBack = backToHome,
+            onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+        )
+        SettingsPage.LANGUAGE -> LanguageScreen(
+            load = load,
+            onSave = onSave,
+            onBack = backToHome,
             onTestVoice = onTestVoice
+        )
+        SettingsPage.AI -> AiHubScreen(
+            onBack = backToHome,
+            onOpenPage = onPageChange
         )
         SettingsPage.AI_CONFIG -> AiConfigScreen(
             load = load,
@@ -220,7 +230,7 @@ private fun SettingsHome(
                     .testTag(entry.testTag)
                     .then(entry.tourAnchorModifier())
             )
-            // Re-entry into the guided setup sits just above About Us, so the menu
+            // Re-entry into the guided setup sits just above About, so the menu
             // ends on the two rows a returning user is least likely to need.
             if (entry == SettingsPage.NOTIFICATIONS) {
                 HorizontalDivider(thickness = 1.dp)
@@ -240,7 +250,7 @@ private fun SettingsHome(
 @Composable
 private fun SettingsPage.tourAnchorModifier(): Modifier = when (this) {
     SettingsPage.PERSONAL_INFO -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERSONAL_INFO)
-    SettingsPage.AI_CONFIG -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI_CONFIG)
+    SettingsPage.AI -> Modifier.tourAnchor(TourAnchor.SETTINGS_AI)
     SettingsPage.PERMISSIONS -> Modifier.tourAnchor(TourAnchor.SETTINGS_PERMISSIONS)
     else -> Modifier
 }

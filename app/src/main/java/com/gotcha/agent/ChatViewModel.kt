@@ -864,7 +864,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ttsEngine.stop()
             _uiState.update { it.copy(isSpeaking = true) }
             try {
-                val language = Language.fromLabel(settings.preferredLanguage)
+                val language = settings.effectiveVoiceLanguage
                 val defaultVoice = _uiState.value.ttsModels
                     .firstOrNull { it.id == settings.ttsApiModel }
                     ?.defaultVoiceFor(language) ?: "af_heart"
@@ -925,7 +925,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening(Language.fromLabel(settings.preferredLanguage))
+                val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage)
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
@@ -978,7 +978,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                             return@launch
                         }
                         val sttLanguage = settings.sttLanguage.ifBlank {
-                            Language.fromLabel(settings.preferredLanguage).iso639
+                            settings.effectiveVoiceLanguage.iso639
                         }
                         transcript = sttEngine.transcribeApi(
                             audioFile, settings.sttApiModel, sttLanguage
@@ -999,7 +999,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     // cleanText is redundant there and would cost an extra LLM round-trip.
                     val cleaned = if (provider == AudioProvider.ANDROID) {
                         val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                        client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                        client?.cleanText(transcript, navModel, settings.effectiveVoiceLanguage)
                             ?: transcript
                     } else {
                         transcript

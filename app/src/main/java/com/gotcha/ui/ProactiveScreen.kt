@@ -15,8 +15,9 @@ import com.gotcha.data.Settings
  * The Proactive Assistance page: whether the assistant volunteers help, and
  * which surfaces it may scan for the context to do so.
  *
- * Language and currency used to live here; they moved to
- * [PersonalInfoScreen] — they describe the user rather than this feature.
+ * Language and currency used to live here; they describe the user rather than
+ * this feature, so currency moved to [PersonalInfoScreen] and language on to
+ * [LanguageScreen].
  */
 @Composable
 fun ProactiveScreen(

@@ -8,28 +8,21 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
-import com.gotcha.i18n.Language
-import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
-import kotlinx.coroutines.launch
 
 /** Currencies offered for [Settings.preferredCurrency]. */
 private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
@@ -42,9 +35,12 @@ private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY",
  * language one (see `AgentEngine`). Nothing on this page changes what the agent
  * is *allowed* to do; it only changes what it knows about the person asking.
  *
- * Language and currency live here rather than under Proactive Assistance, where
- * they started: they describe the user, not whether the assistant volunteers
- * help, and they apply to every reply whether proactive or not.
+ * Currency lives here rather than under Proactive Assistance, where it started:
+ * it describes the user, not whether the assistant volunteers help, and it
+ * applies to every reply whether proactive or not. The language settings used to
+ * sit here too and now have their own page (issue #74) — "Preferred Language"
+ * next to a name and an occupation read as the app's UI language, which it never
+ * was; this page keeps only a pointer to them.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +48,7 @@ fun PersonalInfoScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
-    onTestVoice: suspend (Language) -> Boolean? = { null }
+    onOpenLanguage: () -> Unit = {}
 ) {
     val initial = remember { load() }
     var userName by remember { mutableStateOf(initial.userName) }
@@ -60,19 +56,11 @@ fun PersonalInfoScreen(
     var userOccupation by remember { mutableStateOf(initial.userOccupation) }
     var userBackground by remember { mutableStateOf(initial.userBackground) }
     var userResponseStyle by remember { mutableStateOf(initial.userResponseStyle) }
-    var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
     var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
 
-    var languageExpanded by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
-    var testingVoice by remember { mutableStateOf(false) }
-
-    /** Last [Language] whose voice data was reported missing, or null when not shown. */
-    var voiceDataMissing by remember { mutableStateOf<Language?>(null) }
 
     val overlay = rememberSettingsOverlayState()
-    val scope = rememberCoroutineScope()
-    val localContext = LocalContext.current
 
     /** This page's fields, copied onto [base]. */
     fun applyPersonalInfo(base: Settings) = base.copy(
@@ -81,7 +69,6 @@ fun PersonalInfoScreen(
         userOccupation = userOccupation.trim(),
         userBackground = userBackground.trim(),
         userResponseStyle = userResponseStyle.trim(),
-        preferredLanguage = preferredLanguage,
         preferredCurrency = preferredCurrency
     )
 
@@ -175,85 +162,6 @@ fun PersonalInfoScreen(
         )
 
         ExposedDropdownMenuBox(
-            expanded = languageExpanded,
-            onExpandedChange = { languageExpanded = it }
-        ) {
-            OutlinedTextField(
-                value = preferredLanguage,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Preferred Language") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor()
-            )
-            SkinExposedDropdownMenu(
-                expanded = languageExpanded,
-                onDismissRequest = { languageExpanded = false }
-            ) {
-                Language.labels.forEach { lang ->
-                    DropdownMenuItem(
-                        text = { Text(lang) },
-                        onClick = {
-                            preferredLanguage = lang
-                            languageExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-        OutlinedButton(
-            onClick = {
-                testingVoice = true
-                scope.launch {
-                    val lang = Language.fromLabel(preferredLanguage)
-                    // Track which language triggered the missing-data state so
-                    // rapid language-switch clicks don't surface a stale dialog.
-                    val ok = onTestVoice(lang)
-                    voiceDataMissing = if (ok == false) lang else null
-                    testingVoice = false
-                }
-            },
-            enabled = !testingVoice,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (testingVoice) "Playing…" else "Test voice")
-        }
-        voiceDataMissing?.let { missingLang ->
-            SkinAlertDialog(
-                onDismissRequest = { voiceDataMissing = null },
-                title = { Text("Voice data not installed") },
-                text = {
-                    Text(
-                        "Your device doesn't have Android's built-in voice for " +
-                            "${missingLang.label}. It was spoken in English instead. " +
-                            "Install the voice data to fix pronunciation."
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            voiceDataMissing = null
-                            try {
-                                localContext.startActivity(
-                                    android.content.Intent(
-                                        android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
-                                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            } catch (_: Exception) { }
-                        }
-                    ) { Text("Install") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
-                }
-            )
-        }
-
-        ExposedDropdownMenuBox(
             expanded = currencyExpanded,
             onExpandedChange = { currencyExpanded = it }
         ) {
@@ -284,6 +192,21 @@ fun PersonalInfoScreen(
                 }
             }
         }
+
+        HorizontalDivider(thickness = 1.dp)
+
+        // Language moved out of this page (issue #74); a pointer keeps it findable
+        // for anyone who still comes here looking for "Preferred Language".
+        Text(
+            "Reply, voice and app display language now live on their own page.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SettingsNavRow(
+            page = SettingsPage.LANGUAGE,
+            onClick = onOpenLanguage,
+            modifier = Modifier.testTag("settings_personal_info_language_row")
+        )
 
         Button(
             onClick = {

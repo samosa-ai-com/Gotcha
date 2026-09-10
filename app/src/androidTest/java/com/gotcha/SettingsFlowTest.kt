@@ -10,6 +10,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.testutil.TestSeed
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -70,7 +71,10 @@ class SettingsFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        // First run opens on AI Configuration; Back reaches the category list.
+        // First run opens on AI Configuration, which sits inside the AI hub, so
+        // reaching the category list takes two Backs.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
@@ -91,6 +95,51 @@ class SettingsFlowTest {
     }
 
     @Test
+    fun languagePage_showsTheThreeLanguagesApartAndPersistsThem() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_language_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        // The point of the page (issue #74): all three named and visible at once.
+        composeRule.onNodeWithText("App display language").assertExists()
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_reply_language").performScrollTo().assertExists()
+
+        // Untouched, the voice follows the reply language — what a pre-#74 install did.
+        composeRule.onNodeWithText("Same as AI reply language").assertExists()
+
+        // The whole point of the split: answers written in one language, spoken in
+        // another. Pick Hindi for the voice and leave the reply language English.
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Hindi").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_save_language").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        scenario?.close()
+
+        // Round-trips through EncryptedSharedPreferences, which no JVM test reaches.
+        val persisted = SettingsRepository(context).load()
+        assertEquals("Hindi", persisted.voiceLanguage)
+        assertEquals("English", persisted.preferredLanguage)
+        // TTS and STT follow the voice; the prompt still follows preferredLanguage.
+        assertEquals(Language.HINDI, persisted.effectiveVoiceLanguage)
+        assertEquals("hi-IN", persisted.effectiveVoiceLanguage.bcp47)
+        assertEquals("hi", persisted.effectiveVoiceLanguage.iso639)
+    }
+
+    @Test
     fun settingsSubPage_opensFromTheListAndBackReturnsToIt() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
@@ -99,16 +148,42 @@ class SettingsFlowTest {
         composeRule.waitForIdle()
 
         // First run opens on AI Configuration; Back from a sub-page lands on the
-        // category list rather than leaving Settings.
+        // hub it hangs off rather than leaving Settings...
         composeRule.onNodeWithTag("settings_base_url").assertExists()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
 
-        // Opening another category replaces the list with that page.
+        // ...and Back again from the hub lands on the category list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_row").assertExists()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
+
+        // Opening a category replaces the list with that page.
+        composeRule.onNodeWithTag("settings_ai_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
         composeRule.onNodeWithText("TTS Provider").assertExists()
+    }
+
+    @Test
+    fun aiConfig_keepsTheAdvancedKnobsCollapsedUntilAsked() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration. The agent-loop limits are one tap
+        // away, not in the way of the fields that make the app work.
+        composeRule.onNodeWithTag("settings_model").assertExists()
+        composeRule.onNodeWithText("Max tool rounds").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("settings_ai_advanced").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Max tool rounds").performScrollTo().assertExists()
     }
 }

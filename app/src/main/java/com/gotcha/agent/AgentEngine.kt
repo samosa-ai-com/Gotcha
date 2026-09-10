@@ -1362,7 +1362,7 @@ class AgentEngine(
             fact("Location", s.userLocation)
             fact("Occupation", s.userOccupation)
             fact("Background", s.userBackground)
-            fact("Preferred language", s.preferredLanguage)
+            fact("Reply language", s.preferredLanguage)
             fact("Preferred currency", s.preferredCurrency)
         }
         return buildString {

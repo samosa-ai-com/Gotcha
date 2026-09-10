@@ -34,7 +34,7 @@ import com.gotcha.updater.UpdateStatus
 import kotlinx.coroutines.launch
 
 /**
- * About Us: the hub for everything about who made this app and what using it
+ * About: the hub for everything about who made this app and what using it
  * commits you to. Shaped like the settings home list rather than a content page,
  * so the two things underneath it — the company and the agreements — stay
  * separate reads instead of one long scroll.

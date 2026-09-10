@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
+import com.gotcha.i18n.Language
 
 /**
  * When the wake-word listener is allowed to run, relative to the screen state.
@@ -170,7 +171,22 @@ data class Settings(
      * directive rather than into the profile block.
      */
     val userResponseStyle: String = "",
+    /**
+     * The language the assistant *writes* its answers in — the reply directive
+     * and the `<user_profile>` fact in `AgentEngine`. Persisted as a
+     * [com.gotcha.i18n.Language] label; the value must stay stable.
+     */
     val preferredLanguage: String = "English",
+    /**
+     * The language speech is spoken and heard in, or blank to follow
+     * [preferredLanguage] — see [effectiveVoiceLanguage].
+     *
+     * Split out from [preferredLanguage] because the two are genuinely separate
+     * choices: plenty of people want answers written in English but read aloud
+     * (and dictated) in their own language. Blank by default so every install
+     * that predates the split keeps behaving exactly as it did.
+     */
+    val voiceLanguage: String = "",
     val preferredCurrency: String = "USD",
     val communitySkillHosts: Set<String> = setOf(BuildConfig.SAMOSA_SKILL_HOST),
     /**
@@ -280,6 +296,14 @@ data class Settings(
             AudioProvider.API -> sttApiKey.ifBlank { effectiveApiKey }
             else -> ""
         }
+
+    /**
+     * The language TTS speaks and STT listens in: the explicit [voiceLanguage]
+     * when one is set, otherwise the reply language. [sttLanguage] still wins
+     * for transcription specifically, since it is a per-model override.
+     */
+    val effectiveVoiceLanguage: Language
+        get() = Language.fromLabel(voiceLanguage.ifBlank { preferredLanguage })
 
     /** True when Samosa AI is selected and a session token exists. */
     val isSamosaAuthenticated: Boolean
@@ -503,6 +527,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         userBackground = string(KEY_USER_BACKGROUND),
         userResponseStyle = string(KEY_USER_RESPONSE_STYLE),
         preferredLanguage = string(KEY_PREFERRED_LANGUAGE, "English"),
+        voiceLanguage = string(KEY_VOICE_LANGUAGE),
         preferredCurrency = string(KEY_PREFERRED_CURRENCY, "USD"),
         communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts),
         legalAcceptedVersion = string(KEY_LEGAL_ACCEPTED_VERSION),
@@ -575,6 +600,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_USER_BACKGROUND, settings.userBackground)
             .putString(KEY_USER_RESPONSE_STYLE, settings.userResponseStyle)
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
+            .putString(KEY_VOICE_LANGUAGE, settings.voiceLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
             .putString(KEY_LEGAL_ACCEPTED_VERSION, settings.legalAcceptedVersion)
@@ -690,6 +716,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_USER_BACKGROUND = "user_background"
         const val KEY_USER_RESPONSE_STYLE = "user_response_style"
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
+        const val KEY_VOICE_LANGUAGE = "voice_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
         const val KEY_LEGAL_ACCEPTED_VERSION = "legal_accepted_version"
