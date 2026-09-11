@@ -78,7 +78,8 @@ class AssistiveBallTest {
 
         composeRule.onNodeWithTag("chat_input").assertExists()
 
-        // The toggle lives in Settings ▸ Assistive Ball: drawer, category, switch.
+        // The toggle lives in Settings ▸ Assistive Ball and Wake Word: drawer,
+        // category, switch.
         composeRule.onNode(hasContentDescription("Open menu")).performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Settings").performClick()

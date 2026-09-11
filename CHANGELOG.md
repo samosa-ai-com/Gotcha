@@ -20,6 +20,12 @@ All notable changes to Gotcha are documented here.
   agreements and the app updater is now titled `About` rather than `About Us`:
   it holds more than company information, so the old title undersold it.
   `About Samosa AI` and `Legal` still sit underneath it, unchanged.
+- **Settings → Assistive Ball and Wake Word.** The `Hey Gotcha` wake word has
+  always lived on the assistive-ball page — its listener runs inside the ball's
+  service and cannot outlive it — but the row said only `Assistive Ball`, so
+  there was nothing to tell you where the wake word was or why it switched
+  itself off. The row now names both, and the page states the dependency whether
+  the ball is on or off instead of only once it is already too late.
 
 ## [1.2.0]
 ### Added

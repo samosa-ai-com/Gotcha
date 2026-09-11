@@ -3,13 +3,13 @@ appId: com.gotcha
 # Requires testing/scripts/maestro_run.sh to have granted the SYSTEM_ALERT_WINDOW appop first
 # (Maestro cannot send shell/appops commands itself).
 - launchApp
-# The toggle lives in Settings ▸ Assistive Ball.
+# The toggle lives in Settings ▸ Assistive Ball and Wake Word.
 - tapOn: "Open menu"
 - tapOn: "Settings"
 - scrollUntilVisible:
-    element: "Assistive Ball"
+    element: "Assistive Ball and Wake Word"
     direction: DOWN
-- tapOn: "Assistive Ball"
+- tapOn: "Assistive Ball and Wake Word"
 - tapOn: "Turn on assistive ball"
 - pressKey: Home
 - assertVisible: "Gotcha assistive ball"
