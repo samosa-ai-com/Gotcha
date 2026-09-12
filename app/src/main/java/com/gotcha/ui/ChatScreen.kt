@@ -319,12 +319,39 @@ fun ChatScreen(
                         selected = state.activeAgent,
                         onSelect = onSetAgent
                     )
+                    // Starters are an offer to fill the composer, so they are
+                    // only shown when the composer can actually be used: no API
+                    // key means typing is disabled, and a run in another chat
+                    // blocks sending from here.
+                    if (state.isConfigured && !otherChatRunning) {
+                        // Re-drawn per session rather than per recomposition, so
+                        // the three on offer don't reshuffle under a rotation.
+                        val starters = rememberSaveable(
+                            state.activeSessionId,
+                            saver = StarterPromptLabelsSaver
+                        ) {
+                            STARTER_PROMPTS.shuffled().take(STARTER_PROMPT_COUNT)
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        StarterPromptRow(
+                            prompts = starters,
+                            onPick = { prompt ->
+                                // Fill, never send: the template is a draft the
+                                // user is expected to edit first.
+                                input = prompt.template
+                                inputWasVoice = false
+                            }
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth().testTag("message_list")
                 ) {
+                    if (state.viewingSample) {
+                        item(key = "sample_notice") { SampleChatNotice() }
+                    }
                     items(state.messages, key = { it.id }) { message ->
                         // Only what arrives after the chat is open animates, and
                         // each id only ever animates once — `add` is false the
@@ -1008,5 +1035,31 @@ private fun AgentModeOption(
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
             )
         }
+    }
+}
+
+/**
+ * Sits above the first bubble of a chat seeded on first run. The transcript is
+ * written in the user's voice, so without this line it would read as something
+ * they said and Gotcha did — the notice is what keeps a demonstration from
+ * passing itself off as history.
+ */
+@Composable
+private fun SampleChatNotice() {
+    Surface(
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .testTag("sample_chat_notice")
+    ) {
+        Text(
+            "Sample chat — this one ships with Gotcha to show what it can do. " +
+                "Carry it on, or delete it from the drawer.",
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+        )
     }
 }

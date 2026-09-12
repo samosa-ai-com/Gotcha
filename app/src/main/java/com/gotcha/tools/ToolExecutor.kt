@@ -62,6 +62,7 @@ class ToolExecutor(
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     private val companyInfoTool = CompanyInfoTool(appContext)
+    private val appInfoTool = AppInfoTool(appContext)
 
     // Tier 3 tools
     private val webSearchTool = WebSearchTool()
@@ -215,6 +216,7 @@ class ToolExecutor(
             "get_storage_info" -> storageTool.getStorageInfo()
             "get_battery_info" -> systemTool.getBatteryInfo()
             "about_samosa_ai" -> companyInfoTool.aboutSamosaAi()
+            "about_gotcha" -> appInfoTool.aboutGotcha()
             "edit" -> editTool.edit(
                 path = args.requireString("path") ?: return missing("path"),
                 oldString = args.requireString("oldString") ?: return missing("oldString"),

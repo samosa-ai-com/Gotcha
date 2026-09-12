@@ -147,9 +147,9 @@ backend that transmits data to a third-party AI provider.
 10. OPTIONAL WAKE WORD ("Hey Gotcha")
 
    10.1 The wake-word feature is opt-in. When turned on in Settings
-        (Settings → Assistive Ball → "Wake word: Hey Gotcha"), the App keeps a
-        microphone-type foreground service alive while the Assistive Ball is on
-        and no voice call is in progress.
+        (Settings → Assistive Ball and Wake Word → "Wake word: Hey Gotcha"), the
+        App keeps a microphone-type foreground service alive while the Assistive
+        Ball is on and no voice call is in progress.
 
    10.2 The wake-word listener processes all microphone audio **on-device**
         using the bundled OpenWakeWord models (Apache 2.0, see

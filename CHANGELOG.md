@@ -3,6 +3,42 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **Two sample chats on a fresh install.** The chat list opened on nothing at
+  all, so the one thing a first-time user couldn't find out was what Gotcha is
+  for. A new install now starts with two short transcripts that show it: a
+  device action with a follow-up in **Operator** (turn Wi-Fi on, then the
+  Bluetooth screen the agent opens because Android won't let it flip that switch
+  itself) and a question about the screen in **Monitor**. They are ordinary
+  chats — open them, carry them on, or delete them — and both the drawer row and
+  a line above the transcript say they're samples, so a demonstration is never
+  mistaken for something you said. Seeding happens once per install and only
+  into an empty list: upgrading keeps the chats you have, and deleting the
+  samples is final.
+- **The assistant can now answer questions about Gotcha itself.** There was a
+  tool for the company behind the app (`about_samosa_ai`) but none for the app,
+  so "what can you do?" and "which setting do I change to read replies aloud?"
+  were answered from the model's memory or by driving the Settings screens to
+  rediscover a path — both of which produce confident directions to places that
+  don't exist. A new `about_gotcha` tool reads a bundled handbook covering the
+  capability areas, Monitor vs Operator, the exact path to every settings page,
+  which permission each group of tools waits on and where it's granted, and the
+  safety model. It's read-only, so **Monitor** has it too. The handbook is
+  checked against the `SettingsPage` and `Capability` enums by a test, so
+  renaming a settings page fails the build rather than quietly leaving the agent
+  with a stale path.
+- **Starter prompts on the home screen.** A new chat used to be a greeting and an
+  empty composer, which says nothing about what Gotcha can be asked for. Three
+  suggestion chips now sit under the agent selector — drawn per session from a
+  set covering the things people least expect: driving the device, reading the
+  screen, going through the filesystem (`Find the largest files in my Downloads
+  folder and tell me what's safe to delete`, `Read the most recent PDF in my
+  Downloads and summarise it`) and handling messages. Tapping one **fills the
+  composer and stops there**: nothing is sent until you've read it, edited the
+  parts left blank, and pressed send yourself. Nor does a chip change the agent
+  mode on your behalf — the two device actions need Operator, the rest answer in
+  Monitor, and which mode you're in stays the selector's business.
+
 ### Changed
 - **Settings → AI.** The model and the voice used to sit as two unrelated rows on
   the settings list, as if choosing what Gotcha thinks with had nothing to do with
@@ -20,6 +56,12 @@ All notable changes to Gotcha are documented here.
   agreements and the app updater is now titled `About` rather than `About Us`:
   it holds more than company information, so the old title undersold it.
   `About Samosa AI` and `Legal` still sit underneath it, unchanged.
+- **Settings → Assistive Ball and Wake Word.** The `Hey Gotcha` wake word has
+  always lived on the assistive-ball page — its listener runs inside the ball's
+  service and cannot outlive it — but the row said only `Assistive Ball`, so
+  there was nothing to tell you where the wake word was or why it switched
+  itself off. The row now names both, and the page states the dependency whether
+  the ball is on or off instead of only once it is already too late.
 
 ## [1.2.0]
 ### Added
