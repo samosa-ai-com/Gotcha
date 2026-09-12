@@ -4,6 +4,18 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **The assistant can now answer questions about Gotcha itself.** There was a
+  tool for the company behind the app (`about_samosa_ai`) but none for the app,
+  so "what can you do?" and "which setting do I change to read replies aloud?"
+  were answered from the model's memory or by driving the Settings screens to
+  rediscover a path — both of which produce confident directions to places that
+  don't exist. A new `about_gotcha` tool reads a bundled handbook covering the
+  capability areas, Monitor vs Operator, the exact path to every settings page,
+  which permission each group of tools waits on and where it's granted, and the
+  safety model. It's read-only, so **Monitor** has it too. The handbook is
+  checked against the `SettingsPage` and `Capability` enums by a test, so
+  renaming a settings page fails the build rather than quietly leaving the agent
+  with a stale path.
 - **Starter prompts on the home screen.** A new chat used to be a greeting and an
   empty composer, which says nothing about what Gotcha can be asked for. Three
   suggestion chips now sit under the agent selector — drawn per session from a

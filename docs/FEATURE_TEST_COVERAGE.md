@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 27 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 28 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **115** | |
+| **Total** | **116** | |
 
-**51 of 115** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**52 of 116** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -107,6 +107,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tool | Tier | Tests / reason |
 |---|---|---|
+| `about_gotcha` | `ROBOLECTRIC` | `AppInfoToolTest` — the bundled handbook ships and still documents every SettingsPage and every gated Capability, checked against the enums so a rename fails the build |
 | `about_samosa_ai` | `ROBOLECTRIC` | `CompanyInfoToolTest` — the bundled asset ships and still contains the company, product and contact facts the tool promises |
 | `ask_final_answer` | `MANUAL_ONLY` | Only reachable from inside a sub-agent loop with a live LLM connection. |
 | `check_availability` | `UNIT` | `CalendarWindowTest` — free/busy window arithmetic |
