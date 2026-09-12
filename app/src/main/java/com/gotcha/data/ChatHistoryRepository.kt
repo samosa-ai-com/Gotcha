@@ -29,7 +29,15 @@ data class ChatSession(
      * Structured records of completed runs (the "share your moment" raw data),
      * newest last. Bounded at capture time so this can't grow unbounded.
      */
-    val runSummaries: List<RunSummary> = emptyList()
+    val runSummaries: List<RunSummary> = emptyList(),
+    /**
+     * True for the chats seeded on first run to demonstrate what Gotcha can be
+     * asked for. Marked in the drawer and above the transcript so a sample is
+     * never mistaken for something the user said, but otherwise an ordinary
+     * session: openable, continuable and deletable. Defaulted so every chat
+     * written before samples existed decodes as a real one.
+     */
+    val isSample: Boolean = false
 )
 
 /**
@@ -74,10 +82,18 @@ class ChatHistoryRepository internal constructor(private val chatsDir: File) {
         }
     }
 
-    suspend fun saveSession(session: ChatSession) = withContext(Dispatchers.IO) {
+    /**
+     * Writes [session], stamping it as modified now. Pass [touch] = false to keep
+     * the session's own [ChatSession.lastModified] — seeded sample chats carry
+     * crafted timestamps that decide their order in the drawer, and a save-time
+     * stamp would collapse them all into the same millisecond.
+     */
+    suspend fun saveSession(session: ChatSession, touch: Boolean = true) = withContext(Dispatchers.IO) {
         try {
             val file = File(chatsDir, "${session.id}.json")
-            file.writeText(json.encodeToString(serializer, session.copy(lastModified = System.currentTimeMillis())))
+            val toWrite =
+                if (touch) session.copy(lastModified = System.currentTimeMillis()) else session
+            file.writeText(json.encodeToString(serializer, toWrite))
         } catch (_: Exception) {
             // Best-effort
         }

@@ -104,6 +104,12 @@ data class ChatUiState(
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.MONITOR,
+    /**
+     * True while the open chat is one of the samples seeded on first run, so the
+     * transcript can say so above the first bubble. Nothing else depends on it:
+     * a sample is continued, renamed and deleted like any other chat.
+     */
+    val viewingSample: Boolean = false,
     /** Id of the session with an in-progress run, or null when nothing is running. */
     val runningSessionId: String? = null,
     /** Title of the running session, for the "return to running chat" banner. */
@@ -272,6 +278,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
             updateContextUsage()
             migrateChatDirsIfNeeded()
+            com.gotcha.data.SampleChatSeeder.seedIfNeeded(historyRepository, settingsRepository.prefs)
             refreshSessions()
         }
     }
@@ -1107,6 +1114,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             // and saveCurrentSession() would persist the stale list into the
             // new chat file.
             agentEngine.restoreRunSummaries(emptyList())
+            agentEngine.sessionIsSample = false
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -1115,7 +1123,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             it.copy(
                 messages = emptyList(),
                 activeSessionId = newId,
-                activeAgent = defaultAgent
+                activeAgent = defaultAgent,
+                viewingSample = false
             )
         }
         applyContextUsage(0)
@@ -1177,7 +1186,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = id,
                         activeAgent = engineAgent,
-                        messages = engineTranscript
+                        messages = engineTranscript,
+                        viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample == true
                     )
                 }
                 applyContextUsage(agentEngine.tokenCount)
@@ -1197,6 +1207,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.tokenCount = session.tokenCount
                 agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
                 agentEngine.restoreRunSummaries(session.runSummaries)
+                agentEngine.sessionIsSample = session.isSample
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent
@@ -1210,6 +1221,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = session.id,
                         activeAgent = restoredAgent,
+                        viewingSample = session.isSample,
                         messages = session.displayMessages,
                         // Clear engine-scoped transient UI for the viewed (non-running) chat.
                         activity = null,
@@ -1224,6 +1236,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = session.id,
                         activeAgent = restoredAgent,
+                        viewingSample = session.isSample,
                         activity = null,
                         subAgentRunning = null,
                         subAgentCurrentAction = null

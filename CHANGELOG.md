@@ -4,6 +4,17 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Two sample chats on a fresh install.** The chat list opened on nothing at
+  all, so the one thing a first-time user couldn't find out was what Gotcha is
+  for. A new install now starts with two short transcripts that show it: a
+  device action with a follow-up in **Operator** (turn Wi-Fi on, then the
+  Bluetooth screen the agent opens because Android won't let it flip that switch
+  itself) and a question about the screen in **Monitor**. They are ordinary
+  chats — open them, carry them on, or delete them — and both the drawer row and
+  a line above the transcript say they're samples, so a demonstration is never
+  mistaken for something you said. Seeding happens once per install and only
+  into an empty list: upgrading keeps the chats you have, and deleting the
+  samples is final.
 - **The assistant can now answer questions about Gotcha itself.** There was a
   tool for the company behind the app (`about_samosa_ai`) but none for the app,
   so "what can you do?" and "which setting do I change to read replies aloud?"

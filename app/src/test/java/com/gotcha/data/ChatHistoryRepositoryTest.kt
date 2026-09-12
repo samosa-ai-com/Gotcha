@@ -54,6 +54,31 @@ class ChatHistoryRepositoryTest {
     }
 
     @Test
+    fun `the sample marking survives a round-trip and defaults to false`() = runBlocking {
+        val dir = tmp.newFolder("chats")
+        val repo = ChatHistoryRepository(dir)
+        repo.saveSession(session("seeded").copy(isSample = true))
+        assertTrue(repo.loadSession("seeded")!!.isSample)
+        assertFalse(repo.loadSession("seeded")!!.title.isBlank())
+
+        // A chat written before samples existed has no such field at all.
+        File(dir, "legacy.json").writeText(
+            """{"id":"legacy","title":"Old","lastModified":0,"messages":[]}"""
+        )
+        assertFalse(repo.loadSession("legacy")!!.isSample)
+    }
+
+    @Test
+    fun `saving without touch keeps the session's own timestamp`() = runBlocking {
+        val repo = ChatHistoryRepository(tmp.newFolder("chats"))
+        repo.saveSession(session("kept").copy(lastModified = 4_200L), touch = false)
+        assertEquals(4_200L, repo.loadSession("kept")!!.lastModified)
+
+        repo.saveSession(session("stamped").copy(lastModified = 4_200L))
+        assertTrue(repo.loadSession("stamped")!!.lastModified > 4_200L)
+    }
+
+    @Test
     fun `deleteSession removes the backing file`() = runBlocking {
         val dir = tmp.newFolder("calls")
         val repo = ChatHistoryRepository(dir)
