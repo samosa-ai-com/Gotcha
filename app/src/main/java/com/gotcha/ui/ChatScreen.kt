@@ -319,6 +319,30 @@ fun ChatScreen(
                         selected = state.activeAgent,
                         onSelect = onSetAgent
                     )
+                    // Starters are an offer to fill the composer, so they are
+                    // only shown when the composer can actually be used: no API
+                    // key means typing is disabled, and a run in another chat
+                    // blocks sending from here.
+                    if (state.isConfigured && !otherChatRunning) {
+                        // Re-drawn per session rather than per recomposition, so
+                        // the three on offer don't reshuffle under a rotation.
+                        val starters = rememberSaveable(
+                            state.activeSessionId,
+                            saver = StarterPromptLabelsSaver
+                        ) {
+                            STARTER_PROMPTS.shuffled().take(STARTER_PROMPT_COUNT)
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        StarterPromptRow(
+                            prompts = starters,
+                            onPick = { prompt ->
+                                // Fill, never send: the template is a draft the
+                                // user is expected to edit first.
+                                input = prompt.template
+                                inputWasVoice = false
+                            }
+                        )
+                    }
                 }
             } else {
                 LazyColumn(

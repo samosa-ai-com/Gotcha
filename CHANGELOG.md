@@ -23,6 +23,17 @@ All notable changes to Gotcha are documented here.
 
 ## [1.2.0]
 ### Added
+- **Starter prompts on the home screen.** A new chat used to be a greeting and an
+  empty composer, which says nothing about what Gotcha can be asked for. Three
+  suggestion chips now sit under the agent selector — drawn per session from a
+  set covering the things people least expect: driving the device, reading the
+  screen, going through the filesystem (`Find the largest files in my Downloads
+  folder and tell me what's safe to delete`, `Read the most recent PDF in my
+  Downloads and summarise it`) and handling messages. Tapping one **fills the
+  composer and stops there**: nothing is sent until you've read it, edited the
+  parts left blank, and pressed send yourself. Nor does a chip change the agent
+  mode on your behalf — the two device actions need Operator, the rest answer in
+  Monitor, and which mode you're in stays the selector's business.
 - **Podcast generation.** Gotcha can now turn text into listenable audio. Ask
   for a topic, an article or your notes as a podcast and the assistant writes
   the script and speaks it through your configured text-to-speech API — as a
