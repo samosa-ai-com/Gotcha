@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,9 +23,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import com.gotcha.BuildConfig
+import com.gotcha.audio.AudioLanguageLabels
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.VoiceInfo
@@ -303,6 +308,7 @@ fun SpeechScreen(
                     },
                     onClearVoice = { ttsVoice = "" }
                 )
+                SpeechDocsLink(modifier = Modifier.testTag("settings_tts_docs_link"))
             }
             AudioProvider.API -> {
                 OutlinedTextField(
@@ -463,6 +469,7 @@ fun SpeechScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                SpeechDocsLink(modifier = Modifier.testTag("settings_stt_docs_link"))
             }
             AudioProvider.API -> {
                 OutlinedTextField(
@@ -774,6 +781,7 @@ private fun SttLanguagePicker(
             onValueChange = onSelect,
             label = { Text("Transcription language override") },
             placeholder = { Text("Follow voice language / auto-detect") },
+            supportingText = AudioLanguageLabels.describe(selectedLanguage)?.let { name -> { Text(name) } },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -789,12 +797,27 @@ private fun SttLanguagePicker(
             )
             languagesList.forEach { lang ->
                 DropdownMenuItem(
-                    text = { Text(lang) },
+                    text = { Text(AudioLanguageLabels.label(lang)) },
                     onClick = { onSelect(lang) }
                 )
             }
         }
     }
+}
+
+/** Inline link to the Samosa AI docs on choosing a voice and language. */
+@Composable
+private fun SpeechDocsLink(modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+    Text(
+        text = "How to choose a voice and language (Samosa AI docs)",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+        textDecoration = TextDecoration.Underline,
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { uriHandler.openUri(AudioLanguageLabels.SPEECH_DOCS_URL) }
+    )
 }
 
 private val COMMON_STT_LANGUAGES = listOf(
