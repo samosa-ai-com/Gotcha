@@ -332,16 +332,18 @@ fun ChatScreen(
                         ) {
                             STARTER_PROMPTS.shuffled().take(STARTER_PROMPT_COUNT)
                         }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        StarterPromptRow(
-                            prompts = starters,
-                            onPick = { prompt ->
-                                // Fill, never send: the template is a draft the
-                                // user is expected to edit first.
-                                input = prompt.template
-                                inputWasVoice = false
-                            }
-                        )
+                        if (starters.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            StarterPromptRow(
+                                prompts = starters,
+                                onPick = { prompt ->
+                                    // Fill, never send: the template is a draft the
+                                    // user is expected to edit first.
+                                    input = prompt.template
+                                    inputWasVoice = false
+                                }
+                            )
+                        }
                     }
                 }
             } else {

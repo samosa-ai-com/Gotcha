@@ -28,7 +28,15 @@ internal object SampleChatSeeder {
             if (seed) {
                 // touch = false: the crafted timestamps are what order the two
                 // samples in the drawer, and a save-time stamp would flatten them.
-                SampleChats.all().forEach { repository.saveSession(it, touch = false) }
+                val allSaved = SampleChats.all().map { it to repository.saveSession(it, touch = false) }
+                if (allSaved.any { (_, ok) -> !ok }) {
+                    // Leave no partial trace: a half-written attempt would make the
+                    // next launch's "is the list empty?" check see the survivors and
+                    // skip retrying, stranding the install without any samples.
+                    allSaved.forEach { (chat, ok) -> if (ok) repository.deleteSession(chat.id) }
+                    Log.w("Gotcha", "seedIfNeeded: failed to write one or more sample chats")
+                    return false
+                }
             }
             prefs.edit().putBoolean(SEEDED_KEY, true).apply()
             seed

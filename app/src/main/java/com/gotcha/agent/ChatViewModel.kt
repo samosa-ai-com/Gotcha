@@ -730,10 +730,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.tokenCount = saved.tokenCount
                 agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
                 agentEngine.restoreRunSummaries(saved.runSummaries)
+                agentEngine.sessionIsSample = saved.isSample
             } else {
                 agentEngine.tokenCount = 0
                 agentEngine.restoreTitle(null)
                 agentEngine.restoreRunSummaries(emptyList())
+                agentEngine.sessionIsSample = false
             }
             agentEngine.setupWorkingDir()
         }
@@ -1187,7 +1189,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         activeSessionId = id,
                         activeAgent = engineAgent,
                         messages = engineTranscript,
-                        viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample == true
+                        viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample
+                            ?: agentEngine.sessionIsSample
                     )
                 }
                 applyContextUsage(agentEngine.tokenCount)

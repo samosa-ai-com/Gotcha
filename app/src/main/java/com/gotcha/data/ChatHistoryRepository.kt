@@ -88,14 +88,16 @@ class ChatHistoryRepository internal constructor(private val chatsDir: File) {
      * crafted timestamps that decide their order in the drawer, and a save-time
      * stamp would collapse them all into the same millisecond.
      */
-    suspend fun saveSession(session: ChatSession, touch: Boolean = true) = withContext(Dispatchers.IO) {
+    /** Returns true when the write succeeded. Best-effort by design: most callers ignore it. */
+    suspend fun saveSession(session: ChatSession, touch: Boolean = true): Boolean = withContext(Dispatchers.IO) {
         try {
             val file = File(chatsDir, "${session.id}.json")
             val toWrite =
                 if (touch) session.copy(lastModified = System.currentTimeMillis()) else session
             file.writeText(json.encodeToString(serializer, toWrite))
+            true
         } catch (_: Exception) {
-            // Best-effort
+            false
         }
     }
 

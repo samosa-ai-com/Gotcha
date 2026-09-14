@@ -104,9 +104,11 @@ one-time setup instead.
 
 ## Safety model
 
-Tools are organised in capability tiers, permissions are asked for up front, and
-sensitive actions pass a confirmation gate. Shell commands run against a
-deny-list, actions are recorded in an append-only audit log, and settings
+Tools are organised in capability tiers and permissions are asked for up front.
+Only a few destructive actions — uninstalling an app, deleting an alarm, timer or
+calendar event, and sending an email — ask the user to confirm before running;
+everything else executes without a confirmation step. Shell commands run against
+a deny-list, actions are recorded in an append-only audit log, and settings
 screens that could be changed silently are marked confirm-first — the agent asks
 before opening them, because screen text, notifications and email all reach the
 model's context and could carry an injected instruction.

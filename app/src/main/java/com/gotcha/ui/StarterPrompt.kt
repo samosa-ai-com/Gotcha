@@ -81,12 +81,16 @@ internal const val STARTER_PROMPT_COUNT = 3
  * rememberSaveable saver for the drawn starters. Only the labels are stored —
  * they are unique, and the prompts themselves are a compile-time list, so a
  * restore is a lookup. A label that no longer exists (the list changed across an
- * app update, with saved state from the old one) simply drops out.
+ * app update, with saved state from the old one) drops out, and the row is
+ * refilled from the current list so a stale save never shows fewer than
+ * [STARTER_PROMPT_COUNT] chips.
  */
 internal val StarterPromptLabelsSaver = listSaver<List<StarterPrompt>, String>(
     save = { prompts -> prompts.map { it.label } },
     restore = { labels ->
-        labels.mapNotNull { label -> STARTER_PROMPTS.firstOrNull { it.label == label } }
+        val restored = labels.mapNotNull { label -> STARTER_PROMPTS.firstOrNull { it.label == label } }
+        val fill = STARTER_PROMPTS.filter { it !in restored }.shuffled()
+        (restored + fill).take(STARTER_PROMPT_COUNT)
     }
 )
 
