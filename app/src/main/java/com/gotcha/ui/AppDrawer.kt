@@ -124,6 +124,17 @@ fun AppDrawerContent(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                // The one thing that distinguishes a seeded chat
+                                // from one the user held: said on the row rather
+                                // than only inside, so the list itself is honest.
+                                if (session.isSample) {
+                                    Text(
+                                        "Sample chat",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1
+                                    )
+                                }
                                 if (usage != null) {
                                     // Tabular figures: this counter ticks while a
                                     // reply streams, and proportional digits make

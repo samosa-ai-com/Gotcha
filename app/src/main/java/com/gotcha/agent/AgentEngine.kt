@@ -73,6 +73,13 @@ class AgentEngine(
     var tokenCount: Int = 0
 
     /**
+     * True while the bound session is one of the chats seeded on first run.
+     * Carried through every save so a sample the user carries on with stays
+     * labelled as one — its opening exchange is still not something they said.
+     */
+    var sessionIsSample: Boolean = false
+
+    /**
      * Stable key for the provider's server-side prompt KV cache
      * (`prompt_cache_key` / `X-Session-Id`), independent of [sessionId] which
      * also serves as per-session file identity. Defaults to [sessionId] when
@@ -304,7 +311,8 @@ class AgentEngine(
                 tokenCount = tokenCount,
                 displayMessages = displayMessagesProvider(),
                 agentMode = agentModeProvider()?.name,
-                runSummaries = runSummaries.toList()
+                runSummaries = runSummaries.toList(),
+                isSample = sessionIsSample
             )
         )
         // Rename the chat dir in place now that the real title is known.

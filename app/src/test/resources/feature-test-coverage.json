@@ -23,6 +23,14 @@
       "notes": "the bundled asset ships and still contains the company, product and contact facts the tool promises"
     },
     {
+      "tool": "about_gotcha",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.AppInfoToolTest"
+      ],
+      "notes": "the bundled handbook ships and still documents every SettingsPage and every gated Capability, checked against the enums so a rename fails the build"
+    },
+    {
       "tool": "get_storage_info",
       "tier": "ROBOLECTRIC",
       "tests": [

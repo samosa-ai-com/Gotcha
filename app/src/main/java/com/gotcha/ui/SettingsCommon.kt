@@ -147,8 +147,10 @@ enum class SettingsPage(
         "settings_proactive_row"
     ),
     ASSISTIVE_BALL(
-        "Assistive Ball",
-        "Floating ball over other apps, hands-free calls",
+        // The wake word listens from inside the ball's service, so it is not a
+        // page of its own — the title says so to make it findable.
+        "Assistive Ball and Wake Word",
+        "Floating ball over other apps, hands-free calls, \"Hey Gotcha\"",
         "settings_assistive_ball_row"
     ),
     APPEARANCE(

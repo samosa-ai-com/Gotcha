@@ -36,8 +36,10 @@ import com.gotcha.data.WakeWordListeningMode
 import android.provider.Settings as AndroidSettings
 
 /**
- * The Assistive Ball page: one switch that starts or stops the floating overlay,
- * plus the short version of what the ball does once it is on.
+ * The Assistive Ball and Wake Word page: a switch that starts or stops the
+ * floating overlay, the short version of what the ball does once it is on, and
+ * the "Hey Gotcha" wake word — which lives here because its listener runs inside
+ * the ball's service and cannot outlive it.
  *
  * The switch is not a stored preference the page owns — it drives the
  * [com.gotcha.service.AssistiveBallService] through the host, which persists
@@ -112,21 +114,23 @@ fun AssistiveBallScreen(
                 "Turn on Hey Gotcha wake word"
             }
         )
+        // Stated whether or not the ball is on: with the ball on, the toggle
+        // works and nothing else would explain why it stops later.
+        Text(
+            "Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device, but " +
+                "only while the Assistive Ball is on and no call is active. The " +
+                "listener lives inside the ball's service, so switching the ball off " +
+                "switches the wake word off too. Keep microphone permission enabled.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         if (!ballEnabled) {
             Text(
-                "The wake word requires the Assistive Ball to be on — turn on " +
-                    "\"Show Assistive Ball\" to use it.",
+                "Turn on \"Show Assistive Ball\" above to use it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(
-            "Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device while " +
-                "the assistive ball is on and no call is active. Keep microphone " +
-                "permission enabled.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
         if (wakeWordEnabled) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(

@@ -92,7 +92,7 @@ object ToolRegistry {
         "check_root", "search_skills",
         "get_health_summary", "get_health_records",
         "get_now_playing",
-        "about_samosa_ai"
+        "about_samosa_ai", "about_gotcha"
     )
 
     /**
