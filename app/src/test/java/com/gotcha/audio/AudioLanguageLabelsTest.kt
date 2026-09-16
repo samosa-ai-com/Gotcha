@@ -36,6 +36,22 @@ class AudioLanguageLabelsTest {
     }
 
     @Test
+    fun `ids from other servers are not read as Kokoro ids`() {
+        // Piper ids share Kokoro's first two letters but mean language plus region.
+        assertNull(AudioLanguageLabels.languageFromVoiceId("am_ET-amharic-medium"))
+        assertNull(AudioLanguageLabels.genderFromVoiceId("af_ZA-google-nwu"))
+        assertEquals("am_ET-amharic-medium", VoiceInfo(id = "am_ET-amharic-medium").displayLabel)
+    }
+
+    @Test
+    fun `a server-sent language is never paired with a gender guessed from the id`() {
+        assertEquals(
+            "af_heart — Afrikaans",
+            VoiceInfo(id = "af_heart", language = "af").displayLabel
+        )
+    }
+
+    @Test
     fun `voice label prefers server metadata and keeps a distinct name`() {
         assertEquals(
             "v1 — Priya, Hindi (India), female",

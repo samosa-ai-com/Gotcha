@@ -54,16 +54,21 @@ data class VoiceInfo(
 ) {
     /**
      * Picker text: the id followed by the language's name and the gender, e.g.
-     * `af_heart — English (United States), female`. When the server sent no
-     * language or gender, both are read off Kokoro-style ids where possible.
+     * `af_heart — English (United States), female`. When the server sent neither
+     * a language nor a gender, both are read off Kokoro-style ids where
+     * possible; whatever the server did send is never second-guessed.
      */
     val displayLabel: String
         get() {
-            val languageCode = language.ifBlank { AudioLanguageLabels.languageFromVoiceId(id).orEmpty() }
+            val guessFromId = language.isBlank() && gender.isBlank()
+            val languageCode =
+                if (guessFromId) AudioLanguageLabels.languageFromVoiceId(id).orEmpty() else language
+            val genderLabel =
+                if (guessFromId) AudioLanguageLabels.genderFromVoiceId(id).orEmpty() else gender
             val details = listOfNotNull(
                 name.takeIf { it.isNotBlank() && !it.equals(id, ignoreCase = true) },
                 languageCode.takeIf { it.isNotBlank() }?.let { AudioLanguageLabels.describe(it) ?: it },
-                gender.ifBlank { AudioLanguageLabels.genderFromVoiceId(id).orEmpty() }.takeIf { it.isNotBlank() }
+                genderLabel.takeIf { it.isNotBlank() }
             )
             return if (details.isEmpty()) {
                 id

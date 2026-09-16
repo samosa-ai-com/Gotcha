@@ -21,11 +21,13 @@ object AudioLanguageLabels {
     )
 
     /**
-     * Kokoro voice ids start with a language letter and a gender letter
-     * (`af_heart` = American English, female). Used only when the server did
-     * not send a `language` for the voice.
+     * Kokoro voice ids are a language letter, a gender letter and a lower-case
+     * name (`af_heart` = American English, female). Matched whole and
+     * case-sensitively so ids from other servers that happen to start the same
+     * way — Piper's `<lang>_<REGION>-<name>-<quality>`, e.g. `am_ET-amharic-medium`
+     * — are not mistaken for Kokoro ones.
      */
-    private val KOKORO_VOICE_ID = Regex("^([abefhijpz])([fm])_", RegexOption.IGNORE_CASE)
+    private val KOKORO_VOICE_ID = Regex("^([abefhijpz])([fm])_[a-z0-9]+$")
     private val KOKORO_LANGUAGES = mapOf(
         'a' to "en-US",
         'b' to "en-GB",
@@ -59,11 +61,11 @@ object AudioLanguageLabels {
 
     /** Language tag implied by a Kokoro-style voice id, or null. */
     fun languageFromVoiceId(voiceId: String): String? =
-        KOKORO_VOICE_ID.find(voiceId)?.let { KOKORO_LANGUAGES[it.groupValues[1].lowercase()[0]] }
+        KOKORO_VOICE_ID.find(voiceId.trim())?.let { KOKORO_LANGUAGES[it.groupValues[1][0]] }
 
     /** Gender implied by a Kokoro-style voice id, or null. */
     fun genderFromVoiceId(voiceId: String): String? =
-        KOKORO_VOICE_ID.find(voiceId)?.let { match ->
-            if (match.groupValues[2].equals("f", ignoreCase = true)) "female" else "male"
+        KOKORO_VOICE_ID.find(voiceId.trim())?.let { match ->
+            if (match.groupValues[2] == "f") "female" else "male"
         }
 }
