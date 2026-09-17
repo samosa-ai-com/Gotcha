@@ -4,6 +4,18 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Chat personas.** The starter chips said what to ask; nothing said who to ask.
+  A persona row now sits under the agent selector on an empty chat — **Doctor,
+  Chef, Fitness Coach, Tutor, Travel Planner, Handyman** — and picking one starts
+  the chat in that role, with the role's own instructions carried in the system
+  prompt for every turn of it. The role is chosen before the first message and
+  fixed from there: it is saved with the chat, so reopening one weeks later is
+  still answered in role (the top bar names it), and a new chat never inherits
+  the last one's. Each persona starts read-only in Monitor and the selector stays
+  live, so taking one into Operator is still your call, and a role never loosens
+  what the agent is allowed to do — the mode restrictions remain the last word.
+  Where a role shadows a regulated profession its prompt says so: the Doctor
+  never presents itself as your doctor, and routes emergencies to real care.
 - **Search the settings.** Fifteen settings pages hold well over a hundred
   controls between them, and finding one meant scrolling the list and guessing
   which page owned it — "wake word" is under Assistive Ball, "API key" under AI

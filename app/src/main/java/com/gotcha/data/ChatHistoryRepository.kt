@@ -37,7 +37,15 @@ data class ChatSession(
      * session: openable, continuable and deletable. Defaulted so every chat
      * written before samples existed decodes as a real one.
      */
-    val isSample: Boolean = false
+    val isSample: Boolean = false,
+    /**
+     * Id of the built-in persona this chat was started with, or null for a plain
+     * chat. Fixed when the chat is created and carried through every save, so a
+     * conversation reopened weeks later is still answered in the role it began
+     * in. Defaulted so every chat written before personas existed decodes as a
+     * plain one, and an id that no longer resolves degrades to the same thing.
+     */
+    val personaId: String? = null
 )
 
 /**

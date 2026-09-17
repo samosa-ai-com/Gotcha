@@ -35,6 +35,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.Persona
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -104,6 +105,12 @@ data class ChatUiState(
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.MONITOR,
+    /**
+     * Id of the persona the open chat was started with, or null for a plain one.
+     * Chosen on the home screen before the first message and fixed from there:
+     * the picker is only shown while the chat is empty.
+     */
+    val activePersonaId: String? = null,
     /**
      * True while the open chat is one of the samples seeded on first run, so the
      * transcript can say so above the first bubble. Nothing else depends on it:
@@ -741,6 +748,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
         engineTranscript = _uiState.value.messages
         engineAgent = _uiState.value.activeAgent
+        agentEngine.sessionPersonaId = _uiState.value.activePersonaId
     }
 
     /** Load an image from a content:// URI, downscale, and return base64. */
@@ -1087,6 +1095,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update { it.copy(activeAgent = mode) }
     }
 
+    /**
+     * Put the chat about to start into [persona]'s role, or back to a plain chat
+     * when null. Creation-time only: the picker is only drawn on an empty chat,
+     * and a persona arriving mid-conversation would rewrite the system message
+     * the provider has already cached for this session — so a chat that has
+     * messages ignores this.
+     *
+     * The persona's own default mode is applied through [setAgent] (silently,
+     * like the selector itself), so the user sees where the persona put them and
+     * can still move. Clearing a persona leaves the mode where it is.
+     */
+    fun setPersona(persona: Persona?) {
+        if (_uiState.value.messages.isNotEmpty()) return
+        if (_uiState.value.activePersonaId == persona?.id) return
+        // While another chat is running the engine stays bound to it; the picked
+        // persona rides in UI state and reaches the engine at send time, through
+        // bindEngineToViewedSession.
+        if (_uiState.value.runningSessionId == null) {
+            agentEngine.sessionPersonaId = persona?.id
+        }
+        _uiState.update { it.copy(activePersonaId = persona?.id) }
+        persona?.let { setAgent(it.defaultAgent) }
+    }
+
     override fun onCleared() {
         confirmationOverlay.dismiss()
         super.onCleared()
@@ -1117,6 +1149,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             // new chat file.
             agentEngine.restoreRunSummaries(emptyList())
             agentEngine.sessionIsSample = false
+            // A new chat never inherits the previous one's persona: it is picked
+            // per chat, on the home screen this call is about to show.
+            agentEngine.sessionPersonaId = null
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -1126,6 +1161,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 messages = emptyList(),
                 activeSessionId = newId,
                 activeAgent = defaultAgent,
+                activePersonaId = null,
                 viewingSample = false
             )
         }
@@ -1188,6 +1224,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = id,
                         activeAgent = engineAgent,
+                        activePersonaId = agentEngine.sessionPersonaId,
                         messages = engineTranscript,
                         viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample
                             ?: agentEngine.sessionIsSample
@@ -1211,6 +1248,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
                 agentEngine.restoreRunSummaries(session.runSummaries)
                 agentEngine.sessionIsSample = session.isSample
+                agentEngine.sessionPersonaId = session.personaId
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent
@@ -1224,6 +1262,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = session.id,
                         activeAgent = restoredAgent,
+                        activePersonaId = session.personaId,
                         viewingSample = session.isSample,
                         messages = session.displayMessages,
                         // Clear engine-scoped transient UI for the viewed (non-running) chat.
@@ -1239,6 +1278,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = session.id,
                         activeAgent = restoredAgent,
+                        activePersonaId = session.personaId,
                         viewingSample = session.isSample,
                         activity = null,
                         subAgentRunning = null,
