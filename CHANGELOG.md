@@ -4,6 +4,16 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Search the settings.** Fifteen settings pages hold well over a hundred
+  controls between them, and finding one meant scrolling the list and guessing
+  which page owned it — "wake word" is under Assistive Ball, "API key" under AI
+  › AI Configuration. A search field now sits pinned above the settings list:
+  type what the control is called and the list narrows to the pages that hold
+  it, matching titles, summaries and the everyday words for the fields inside
+  ("read aloud", "dark mode", "otp", "accessibility"). Pages that live inside a
+  hub — Speech, AI Configuration, Legal — show up too, named with the hub they
+  sit in and opened in one tap, which the list itself can't do. Clearing the
+  field brings the whole list back.
 - **Voice and language pickers name the language.** The Speech page listed raw
   codes — `hi`, `en-us`, `af_heart` — with nothing saying which language each
   one is. Transcription language entries now read like `hi — Hindi`, the field

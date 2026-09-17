@@ -195,7 +195,9 @@ enum class SettingsPage(
 fun SettingsNavRow(
     page: SettingsPage,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Overrides the row label. Search results pass the "hub › page" path. */
+    title: String = page.title
 ) {
     Row(
         modifier = modifier
@@ -206,7 +208,7 @@ fun SettingsNavRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = page.title,
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
@@ -266,6 +268,10 @@ fun rememberSettingsOverlayState(): SettingsOverlayState {
 /**
  * The frame every settings page shares: a titled top bar with a back action, a
  * scrolling content column, and the overlay anchored on top of it.
+ *
+ * [header] is the one thing that sits outside the scrolling column, pinned
+ * between the top bar and the content — the settings home list puts its search
+ * field there so it stays reachable however far the list has scrolled.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -273,6 +279,7 @@ fun SettingsScaffold(
     title: String,
     onBack: () -> Unit,
     overlay: SettingsOverlayState,
+    header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Scaffold(
@@ -294,14 +301,20 @@ fun SettingsScaffold(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                content = content
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                header?.let {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { it() }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = content
+                )
+            }
 
             // Centered rather than bottom-aligned: under the keyboard area BottomCenter
             // reads as a stray toast instead of feedback attached to the field that

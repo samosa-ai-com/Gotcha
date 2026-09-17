@@ -170,6 +170,73 @@ class SettingsFlowTest {
     }
 
     @Test
+    fun settingsSearch_findsAPageByAControlInsideIt() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // "wake word" is a control inside the ball's page, not a row on the list.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("wake word")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_assistive_ball_row").assertExists()
+        composeRule.onNodeWithTag("settings_termux_row").assertDoesNotExist()
+        // The tour and feedback rows are not pages, so they drop out of a search.
+        composeRule.onNodeWithTag("settings_feature_tour_row").assertDoesNotExist()
+
+        // Nothing matching says so rather than showing an empty list.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("qwertyuiop")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_search_empty").assertExists()
+        composeRule.onNodeWithTag("settings_assistive_ball_row").assertDoesNotExist()
+
+        // Clearing restores the full list, tour row included.
+        composeRule.onNodeWithTag("settings_search_clear").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_search_empty").assertDoesNotExist()
+        composeRule.onNodeWithTag("settings_feature_tour_row").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun settingsSearch_opensAPageNestedInsideAHub() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // Speech lives inside the AI hub, so the home list never shows this row —
+        // the search result is the only way to reach it in one tap.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("read aloud")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("TTS Provider").assertExists()
+
+        // Back from a nested page lands on its hub, and the query is gone: the
+        // list that comes back is the whole list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().assertExists()
+    }
+
+    @Test
     fun aiConfig_keepsTheAdvancedKnobsCollapsedUntilAsked() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)

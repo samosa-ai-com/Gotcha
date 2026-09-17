@@ -3,13 +3,24 @@ package com.gotcha.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -210,7 +221,15 @@ fun SettingsScreen(
     }
 }
 
-/** The settings home list: one row per sub-page, plus the way back into the tour. */
+/**
+ * The settings home list: one row per sub-page, plus the way back into the tour.
+ *
+ * With 15 pages between them holding well over a hundred controls, the list on
+ * its own answers "where is the setting for X?" with a scroll and a guess, so a
+ * search field sits pinned above it. A query replaces the list with matching
+ * pages — including the ones nested inside a hub, which the list never shows —
+ * and an empty query leaves the list exactly as it was.
+ */
 @Composable
 private fun SettingsHome(
     onBack: () -> Unit,
@@ -219,30 +238,116 @@ private fun SettingsHome(
     onSendFeedback: () -> Unit
 ) {
     val overlay = rememberSettingsOverlayState()
+    var query by rememberSaveable { mutableStateOf("") }
 
-    SettingsScaffold(title = "Settings", onBack = onBack, overlay = overlay) {
-        SettingsPage.topLevel.forEach { entry ->
-            HorizontalDivider(thickness = 1.dp)
-            SettingsNavRow(
-                page = entry,
-                onClick = { onOpenPage(entry) },
-                modifier = Modifier
-                    .testTag(entry.testTag)
-                    .then(entry.tourAnchorModifier())
+    // Opening a page ends the search: coming back to a list still filtered by a
+    // query typed minutes ago reads as a list that has lost most of its rows.
+    val openPage = { page: SettingsPage ->
+        query = ""
+        onOpenPage(page)
+    }
+
+    SettingsScaffold(
+        title = "Settings",
+        onBack = onBack,
+        overlay = overlay,
+        header = { SettingsSearchField(query = query, onQueryChange = { query = it }) }
+    ) {
+        if (query.isBlank()) {
+            SettingsHomeRows(
+                onOpenPage = openPage,
+                onStartTour = onStartTour,
+                onSendFeedback = onSendFeedback
             )
-            // Re-entry into the guided setup sits just above About, so the menu
-            // ends on the two rows a returning user is least likely to need.
-            if (entry == SettingsPage.NOTIFICATIONS) {
-                HorizontalDivider(thickness = 1.dp)
-                FeatureTourRow(onClick = onStartTour)
-                // Feedback is the same shape; only rendered when the form URL is
-                // configured at build time (gitignored FEEDBACK_* config).
-                if (FeedbackChannel.isConfigured()) {
-                    HorizontalDivider(thickness = 1.dp)
-                    FeedbackRow(onClick = onSendFeedback)
-                }
+        } else {
+            SettingsSearchResults(query = query, onOpenPage = openPage)
+        }
+    }
+}
+
+/** The search field pinned above the home list. */
+@Composable
+private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("settings_search"),
+        singleLine = true,
+        placeholder = { Text("Search settings") },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(
+                    onClick = { onQueryChange("") },
+                    modifier = Modifier.testTag("settings_search_clear")
+                ) { Icon(Icons.Filled.Close, contentDescription = "Clear search") }
             }
         }
+    )
+}
+
+/** The unfiltered list: every top-level page, then the tour and feedback rows. */
+@Composable
+private fun ColumnScope.SettingsHomeRows(
+    onOpenPage: (SettingsPage) -> Unit,
+    onStartTour: () -> Unit,
+    onSendFeedback: () -> Unit
+) {
+    SettingsPage.topLevel.forEach { entry ->
+        HorizontalDivider(thickness = 1.dp)
+        SettingsNavRow(
+            page = entry,
+            onClick = { onOpenPage(entry) },
+            modifier = Modifier
+                .testTag(entry.testTag)
+                .then(entry.tourAnchorModifier())
+        )
+        // Re-entry into the guided setup sits just above About, so the menu
+        // ends on the two rows a returning user is least likely to need.
+        if (entry == SettingsPage.NOTIFICATIONS) {
+            HorizontalDivider(thickness = 1.dp)
+            FeatureTourRow(onClick = onStartTour)
+            // Feedback is the same shape; only rendered when the form URL is
+            // configured at build time (gitignored FEEDBACK_* config).
+            if (FeedbackChannel.isConfigured()) {
+                HorizontalDivider(thickness = 1.dp)
+                FeedbackRow(onClick = onSendFeedback)
+            }
+        }
+    }
+}
+
+/**
+ * Pages matching the query. Rows keep their home-list [SettingsPage.testTag] so
+ * a result is the same row by every name the tour and the tests know it by; a
+ * nested page shows its hub in the label instead of a tour anchor it would be
+ * spotlighting in the wrong place.
+ */
+@Composable
+private fun SettingsSearchResults(query: String, onOpenPage: (SettingsPage) -> Unit) {
+    val results = filterSettings(query)
+    if (results.isEmpty()) {
+        Text(
+            text = "No settings match “$query”",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 24.dp)
+                .testTag("settings_search_empty")
+        )
+        return
+    }
+    results.forEach { result ->
+        HorizontalDivider(thickness = 1.dp)
+        SettingsNavRow(
+            page = result.page,
+            onClick = { onOpenPage(result.page) },
+            modifier = Modifier.testTag(result.page.testTag),
+            title = result.breadcrumb
+        )
     }
 }
 
