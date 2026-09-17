@@ -4,6 +4,14 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Voice and language pickers name the language.** The Speech page listed raw
+  codes — `hi`, `en-us`, `af_heart` — with nothing saying which language each
+  one is. Transcription language entries now read like `hi — Hindi`, the field
+  shows the name of the code you typed, and TTS voices read like
+  `af_heart — English (United States), female` (the language and gender are
+  taken from the server, or read off Kokoro-style voice ids when it sends
+  none). The Samosa AI TTS and STT sections also link to the Samosa AI docs on
+  choosing a voice and language.
 - **Two sample chats on a fresh install.** The chat list opened on nothing at
   all, so the one thing a first-time user couldn't find out was what Gotcha is
   for. A new install now starts with two short transcripts that show it: a
