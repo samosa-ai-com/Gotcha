@@ -4,6 +4,36 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Chat personas.** The starter chips said what to ask; nothing said who to ask.
+  A persona row now sits under the agent selector on an empty chat — **Doctor,
+  Chef, Fitness Coach, Tutor, Travel Planner, Handyman** — and picking one starts
+  the chat in that role, with the role's own instructions carried in the system
+  prompt for every turn of it. The role is chosen before the first message and
+  fixed from there: it is saved with the chat, so reopening one weeks later is
+  still answered in role (the top bar names it), and a new chat never inherits
+  the last one's. Each persona starts read-only in Monitor and the selector stays
+  live, so taking one into Operator is still your call, and a role never loosens
+  what the agent is allowed to do — the mode restrictions remain the last word.
+  Where a role shadows a regulated profession its prompt says so: the Doctor
+  never presents itself as your doctor, and routes emergencies to real care.
+- **Search the settings.** Fifteen settings pages hold well over a hundred
+  controls between them, and finding one meant scrolling the list and guessing
+  which page owned it — "wake word" is under Assistive Ball, "API key" under AI
+  › AI Configuration. A search field now sits pinned above the settings list:
+  type what the control is called and the list narrows to the pages that hold
+  it, matching titles, summaries and the everyday words for the fields inside
+  ("read aloud", "dark mode", "otp", "accessibility"). Pages that live inside a
+  hub — Speech, AI Configuration, Legal — show up too, named with the hub they
+  sit in and opened in one tap, which the list itself can't do. Clearing the
+  field brings the whole list back.
+- **Voice and language pickers name the language.** The Speech page listed raw
+  codes — `hi`, `en-us`, `af_heart` — with nothing saying which language each
+  one is. Transcription language entries now read like `hi — Hindi`, the field
+  shows the name of the code you typed, and TTS voices read like
+  `af_heart — English (United States), female` (the language and gender are
+  taken from the server, or read off Kokoro-style voice ids when it sends
+  none). The Samosa AI TTS and STT sections also link to the Samosa AI docs on
+  choosing a voice and language.
 - **Two sample chats on a fresh install.** The chat list opened on nothing at
   all, so the one thing a first-time user couldn't find out was what Gotcha is
   for. A new install now starts with two short transcripts that show it: a

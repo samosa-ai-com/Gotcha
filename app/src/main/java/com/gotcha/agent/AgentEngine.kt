@@ -24,6 +24,7 @@ import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.ui.personaById
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
@@ -78,6 +79,14 @@ class AgentEngine(
      * labelled as one — its opening exchange is still not something they said.
      */
     var sessionIsSample: Boolean = false
+
+    /**
+     * Id of the persona the bound session was started with, or null for a plain
+     * chat. Read by [agentInstructionText] and persisted on every save. Fixed
+     * for the life of a session — the picker is only offered on an empty chat —
+     * so splicing it into the system message keeps index 0 cache-stable.
+     */
+    var sessionPersonaId: String? = null
 
     /**
      * Stable key for the provider's server-side prompt KV cache
@@ -312,7 +321,8 @@ class AgentEngine(
                 displayMessages = displayMessagesProvider(),
                 agentMode = agentModeProvider()?.name,
                 runSummaries = runSummaries.toList(),
-                isSample = sessionIsSample
+                isSample = sessionIsSample,
+                personaId = sessionPersonaId
             )
         )
         // Rename the chat dir in place now that the real title is known.
@@ -1096,6 +1106,18 @@ class AgentEngine(
                     "mode restrictions below, or with a format a tool requires."
             }
             .orEmpty()
+        // The role the user picked for this chat (home screen ▸ Persona). It
+        // sits ahead of the reply-style directive so the user's own words about
+        // how they want to be answered win on a conflict, and ahead of the mode
+        // <system-reminder>, which stays the last word on what may be done.
+        val personaDirective = personaById(sessionPersonaId)
+            ?.let {
+                "\n\nFor this conversation the user has chosen the ${it.label} persona:\n" +
+                    "${it.systemPrompt}\n" +
+                    "Adopt that role's voice and expertise. It never overrides a safety constraint, " +
+                    "the mode restrictions below, or a format a tool requires."
+            }
+            .orEmpty()
         // Default to HTML-on-port when the user wants something built but did not
         // say how to run it — make it runnable on this phone without a follow-up.
         // Operator-only and suppressed in voice-call brevity mode. The skill
@@ -1146,7 +1168,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return core + serveDirective + languageDirective + styleDirective + reminder
+        return core + serveDirective + languageDirective + personaDirective + styleDirective + reminder
     }
 
     /** The Monitor-mode core instruction block; split out so [agentInstructionText] stays readable. */

@@ -69,6 +69,20 @@ class ChatHistoryRepositoryTest {
     }
 
     @Test
+    fun `the chosen persona survives a round-trip and defaults to none`() = runBlocking {
+        val dir = tmp.newFolder("chats")
+        val repo = ChatHistoryRepository(dir)
+        repo.saveSession(session("in-role").copy(personaId = "doctor"))
+        assertEquals("doctor", repo.loadSession("in-role")!!.personaId)
+
+        // A chat written before personas existed carries no such field.
+        File(dir, "legacy.json").writeText(
+            """{"id":"legacy","title":"Old","lastModified":0,"messages":[]}"""
+        )
+        assertNull(repo.loadSession("legacy")!!.personaId)
+    }
+
+    @Test
     fun `saving without touch keeps the session's own timestamp`() = runBlocking {
         val repo = ChatHistoryRepository(tmp.newFolder("chats"))
         repo.saveSession(session("kept").copy(lastModified = 4_200L), touch = false)

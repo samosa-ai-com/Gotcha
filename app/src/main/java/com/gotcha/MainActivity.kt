@@ -840,6 +840,7 @@ class MainActivity : ComponentActivity() {
                         pickResults = chatViewModel.pickResults,
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
+                        onSetPersona = chatViewModel::setPersona,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = chatViewModel::startListening,
