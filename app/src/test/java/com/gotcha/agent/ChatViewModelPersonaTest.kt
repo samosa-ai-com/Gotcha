@@ -62,9 +62,26 @@ class ChatViewModelPersonaTest {
     }
 
     /** The engine is private; its persona is what the system prompt is built from. */
-    private fun enginePersonaId(): String? {
+    private fun engine(): AgentEngine {
         val field = ChatViewModel::class.java.getDeclaredField("agentEngine").apply { isAccessible = true }
-        return (field.get(viewModel) as AgentEngine).sessionPersonaId
+        return field.get(viewModel) as AgentEngine
+    }
+
+    private fun enginePersonaId(): String? = engine().sessionPersonaId
+
+    /** Which session the engine is bound to — the one a persona would apply to. */
+    private fun enginePersonaOwner(): String? = engine().sessionId
+
+    /**
+     * Mark [id] as the session with a run in flight (null once it finishes). The
+     * real path runs an agent loop over the network, which this tier can't drive.
+     */
+    private fun seedRunningSession(id: String?) {
+        val stateField = ChatViewModel::class.java.getDeclaredField("_uiState").apply { isAccessible = true }
+
+        @Suppress("UNCHECKED_CAST")
+        val flow = stateField.get(viewModel) as MutableStateFlow<ChatUiState>
+        flow.value = flow.value.copy(runningSessionId = id)
     }
 
     private fun seedMessages(messages: List<UiMessage>) {
@@ -127,6 +144,43 @@ class ChatViewModelPersonaTest {
 
         assertNull(viewModel.uiState.value.activePersonaId)
         assertNull(enginePersonaId())
+    }
+
+    /**
+     * The view-only transition: a run is in flight in another chat, so the engine
+     * stays bound to that one and must not pick up a persona chosen on the blank
+     * chat the user browsed to. The persona waits in UI state and reaches the
+     * engine only when the viewed chat becomes the engine's, at send time.
+     */
+    @Test
+    fun `a persona picked while another chat runs never touches the running one`() {
+        val runningId = requireNotNull(viewModel.uiState.value.activeSessionId)
+        seedRunningSession(runningId)
+        // Browse to a new blank chat; the engine stays on the running session.
+        viewModel.clearChat()
+        assertEquals(runningId, enginePersonaOwner())
+
+        viewModel.setPersona(requireNotNull(personaById("doctor")))
+
+        assertEquals("doctor", viewModel.uiState.value.activePersonaId)
+        assertNull("the running chat's prompt must not gain a persona", enginePersonaId())
+    }
+
+    @Test
+    fun `the persona reaches the engine when the viewed chat becomes the engine's`() = runBlocking {
+        val runningId = requireNotNull(viewModel.uiState.value.activeSessionId)
+        seedRunningSession(runningId)
+        viewModel.clearChat()
+        viewModel.setPersona(requireNotNull(personaById("chef")))
+        val viewedId = requireNotNull(viewModel.uiState.value.activeSessionId)
+
+        // The run finishes and the user sends their first message here: sendMessage
+        // binds the engine to the viewed session before running it.
+        seedRunningSession(null)
+        viewModel.bindEngineToViewedSession(viewedId)
+
+        assertEquals(viewedId, enginePersonaOwner())
+        assertEquals("chef", enginePersonaId())
     }
 
     @Test

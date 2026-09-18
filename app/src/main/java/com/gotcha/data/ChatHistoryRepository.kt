@@ -95,8 +95,10 @@ class ChatHistoryRepository internal constructor(private val chatsDir: File) {
      * the session's own [ChatSession.lastModified] — seeded sample chats carry
      * crafted timestamps that decide their order in the drawer, and a save-time
      * stamp would collapse them all into the same millisecond.
+     *
+     * Returns true when the write succeeded. Best-effort by design: most callers
+     * ignore it, and [SampleChatSeeder] is the one that doesn't.
      */
-    /** Returns true when the write succeeded. Best-effort by design: most callers ignore it. */
     suspend fun saveSession(session: ChatSession, touch: Boolean = true): Boolean = withContext(Dispatchers.IO) {
         try {
             val file = File(chatsDir, "${session.id}.json")

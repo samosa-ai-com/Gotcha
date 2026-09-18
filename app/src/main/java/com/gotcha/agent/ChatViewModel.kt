@@ -726,8 +726,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * operates on it. Only called from [sendMessage], which is gated on nothing
      * else running, so re-pointing the engine here is safe. Reloads the session's
      * LLM history from disk when the engine had drifted to another session.
+     *
+     * `internal` rather than private so the handoff can be tested directly: it is
+     * where a persona picked while another chat was running finally reaches the
+     * engine, and [sendMessage] itself can't be driven from a JVM test.
      */
-    private suspend fun bindEngineToViewedSession(viewedId: String?) {
+    internal suspend fun bindEngineToViewedSession(viewedId: String?) {
         if (viewedId != null && agentEngine.sessionId != viewedId) {
             val saved = historyRepository.loadSession(viewedId)
             agentEngine.history.clear()
