@@ -80,6 +80,37 @@ class SampleChatSeederTest {
         assertTrue(repo.listSessions().isEmpty())
     }
 
+    /**
+     * The half-written case, which is the one that can strand an install without
+     * samples forever: if a failed attempt left the first sample behind, the next
+     * launch's "is the list empty?" check would see it and skip retrying.
+     *
+     * The failure is made real rather than mocked — a directory sitting where the
+     * second sample's file belongs makes that one write throw, and only that one.
+     */
+    @Test
+    fun `a partial write leaves nothing behind and retries on the next launch`() = runBlocking {
+        val dir = tmp.newFolder()
+        val repo = ChatHistoryRepository(dir)
+        val blocker = java.io.File(dir, "${SampleChats.SCREEN_QA_ID}.json").apply { mkdirs() }
+
+        assertFalse(SampleChatSeeder.seedIfNeeded(repo, prefs))
+        assertTrue(
+            "the sample that did write must be cleaned up, or the retry never runs",
+            repo.listSessions().isEmpty()
+        )
+        assertFalse(
+            "the flag must stay unset so the next launch tries again",
+            prefs.getBoolean(SampleChatSeeder.SEEDED_KEY, false)
+        )
+
+        // Next launch, with whatever blocked the write gone.
+        assertTrue(blocker.delete())
+        assertTrue(SampleChatSeeder.seedIfNeeded(repo, prefs))
+        assertEquals(SampleChats.all().map { it.id }.toSet(), repo.listSessions().map { it.id }.toSet())
+        assertTrue(prefs.getBoolean(SampleChatSeeder.SEEDED_KEY, false))
+    }
+
     @Test
     fun `an upgrading user with chats is never seeded`() = runBlocking {
         val repo = repo()

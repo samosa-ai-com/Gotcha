@@ -10,20 +10,24 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
@@ -117,6 +121,7 @@ fun ChatScreen(
     pickResults: Flow<PickedFile?>,
     onSwitchAgent: () -> Unit,
     onSetAgent: (AgentMode) -> Unit = {},
+    onSetPersona: (Persona?) -> Unit = {},
     onSpeak: (String) -> Unit = {},
     onStopSpeaking: () -> Unit = {},
     onStartListening: () -> Unit = {},
@@ -199,11 +204,26 @@ fun ChatScreen(
                     containerColor = Color.Transparent
                 ),
                 title = {
-                    Text(
-                        if (isHome) "Gotcha" else (sessionTitle ?: "Gotcha"),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Column {
+                        Text(
+                            if (isHome) "Gotcha" else (sessionTitle ?: "Gotcha"),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        // The persona is invisible once the picker is gone, so
+                        // the open chat says which role it is being answered in.
+                        val persona = if (isHome) null else personaById(state.activePersonaId)
+                        if (persona != null) {
+                            Text(
+                                persona.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.testTag("persona_badge")
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
@@ -292,57 +312,81 @@ fun ChatScreen(
             }
             if (isHome) {
                 val greeting = rememberSaveable(state.activeSessionId) { HOME_GREETINGS.random() }
-                Column(
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 32.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    ComposeImage(
-                        // The in-app mark, not the launcher icon: @mipmap/ic_launcher_round
-                        // is an adaptive-icon XML, which painterResource cannot load.
-                        painter = painterResource(R.drawable.gotcha_logo),
-                        contentDescription = "Gotcha logo",
-                        modifier = Modifier.size(96.dp).clip(CircleShape)
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        greeting,
-                        style = MaterialTheme.typography.headlineMedium,
-                        textAlign = TextAlign.Center,
-                        // The largest text on the home screen, so it takes the
-                        // primary ink. Secondary ink over a wallpaper was the
-                        // weakest thing on the screen.
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    AgentModeSelector(
-                        selected = state.activeAgent,
-                        onSelect = onSetAgent
-                    )
-                    // Starters are an offer to fill the composer, so they are
-                    // only shown when the composer can actually be used: no API
-                    // key means typing is disabled, and a run in another chat
-                    // blocks sending from here.
-                    if (state.isConfigured && !otherChatRunning) {
-                        // Re-drawn per session rather than per recomposition, so
-                        // the three on offer don't reshuffle under a rotation.
-                        val starters = rememberSaveable(
-                            state.activeSessionId,
-                            saver = StarterPromptLabelsSaver
-                        ) {
-                            STARTER_PROMPTS.shuffled().take(STARTER_PROMPT_COUNT)
-                        }
-                        if (starters.isNotEmpty()) {
+                // `heightIn(min = maxHeight)` inside a scroller keeps the column
+                // centred exactly as before whenever it fits, and lets it scroll
+                // once it doesn't — which the persona row made reachable on a
+                // short screen with the keyboard up.
+                BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    val available = maxHeight
+                    Column(
+                        modifier = Modifier
+                            .verticalScroll(rememberScrollState())
+                            .heightIn(min = available)
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ComposeImage(
+                            // The in-app mark, not the launcher icon: @mipmap/ic_launcher_round
+                            // is an adaptive-icon XML, which painterResource cannot load.
+                            painter = painterResource(R.drawable.gotcha_logo),
+                            contentDescription = "Gotcha logo",
+                            modifier = Modifier.size(96.dp).clip(CircleShape)
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            greeting,
+                            style = MaterialTheme.typography.headlineMedium,
+                            textAlign = TextAlign.Center,
+                            // The largest text on the home screen, so it takes the
+                            // primary ink. Secondary ink over a wallpaper was the
+                            // weakest thing on the screen.
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        AgentModeSelector(
+                            selected = state.activeAgent,
+                            onSelect = onSetAgent
+                        )
+                        // Persona and agent both describe how the chat about to
+                        // start will behave, so the picker sits with the selector
+                        // rather than with the starters below — and under the same
+                        // gate as them: there is nothing to set up a chat for when
+                        // the composer can't be used.
+                        if (state.isConfigured && !otherChatRunning) {
                             Spacer(modifier = Modifier.height(24.dp))
-                            StarterPromptRow(
-                                prompts = starters,
-                                onPick = { prompt ->
-                                    // Fill, never send: the template is a draft the
-                                    // user is expected to edit first.
-                                    input = prompt.template
-                                    inputWasVoice = false
-                                }
+                            PersonaRow(
+                                personas = PERSONAS,
+                                selectedId = state.activePersonaId,
+                                onPick = onSetPersona
                             )
+                        }
+                        // Starters are an offer to fill the composer, so they are
+                        // only shown when the composer can actually be used: no API
+                        // key means typing is disabled, and a run in another chat
+                        // blocks sending from here.
+                        if (state.isConfigured && !otherChatRunning) {
+                            // Re-drawn per session rather than per recomposition, so
+                            // the three on offer don't reshuffle under a rotation.
+                            val starters = rememberSaveable(
+                                state.activeSessionId,
+                                saver = StarterPromptLabelsSaver
+                            ) {
+                                STARTER_PROMPTS.shuffled().take(STARTER_PROMPT_COUNT)
+                            }
+                            if (starters.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                StarterPromptRow(
+                                    prompts = starters,
+                                    onPick = { prompt ->
+                                        // Fill, never send: the template is a draft the
+                                        // user is expected to edit first.
+                                        input = prompt.template
+                                        inputWasVoice = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
