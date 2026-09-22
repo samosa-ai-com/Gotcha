@@ -16,7 +16,18 @@ enum class Capability(
     /** Human name used in the tool-unavailable message. */
     val label: String,
     /** Tools that cannot function without it. */
-    val tools: Set<String>
+    val tools: Set<String>,
+    /**
+     * The [ToolResult] special-access marker that opens the screen where this
+     * capability is granted, or null when there is no screen to open (root and
+     * Health Connect availability are properties of the device, not grants).
+     *
+     * This is what makes a *hidden* tool still actionable. The tool itself is
+     * withheld from the model, so its own `permissionNeeded` result can never
+     * run; carrying the marker on the capability lets [ToolExecutor] emit the
+     * same deep-link when the model reaches for a tool that is not there.
+     */
+    val permissionMarker: String? = null
 ) {
     ACCESSIBILITY(
         "the accessibility service",
@@ -25,19 +36,22 @@ enum class Capability(
             "input_text", "press_key", "global_action",
             "read_screen", "read_screen_raw",
             "navigate_app"
-        )
+        ),
+        ToolResult.ACCESSIBILITY_ACCESS
     ),
 
     NOTIFICATION_LISTENER(
         "notification access",
         // media_control and get_now_playing read MediaSessions, which Android
         // only hands out to an enabled notification listener.
-        setOf("read_notifications", "dismiss_notifications", "media_control", "get_now_playing")
+        setOf("read_notifications", "dismiss_notifications", "media_control", "get_now_playing"),
+        ToolResult.NOTIFICATION_LISTENER_ACCESS
     ),
 
     DEVICE_ADMIN(
         "device admin",
-        setOf("lock_screen", "disable_camera", "set_password_policy")
+        setOf("lock_screen", "disable_camera", "set_password_policy"),
+        ToolResult.DEVICE_ADMIN
     ),
 
     ROOT(
@@ -57,7 +71,10 @@ enum class Capability(
         // run_termux_command. Hiding it without Termux is the point: it is the only route to
         // MP3, and a model that could see it on a device that cannot run it would promise a
         // conversion it has no way to perform.
-        setOf("run_termux_command", "media_convert", "pull_from_termux")
+        setOf("run_termux_command", "media_convert", "pull_from_termux"),
+        // Installing Termux is not a grant, so there is no settings screen to
+        // open; the <env> block tells the model to say "install it from F-Droid".
+        null
     ),
 
     HEALTH_CONNECT(
@@ -67,7 +84,8 @@ enum class Capability(
 
     OVERLAY(
         "the display-over-other-apps permission",
-        setOf("show_overlay", "hide_overlay")
+        setOf("show_overlay", "hide_overlay"),
+        ToolResult.OVERLAY_ACCESS
     )
 }
 

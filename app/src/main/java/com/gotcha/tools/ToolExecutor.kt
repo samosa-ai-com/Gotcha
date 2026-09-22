@@ -120,7 +120,7 @@ class ToolExecutor(
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
         if (name in hiddenTools) {
-            return ToolResult.error(unavailableMessage(name))
+            return unavailableResult(name)
         }
         if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
@@ -655,12 +655,31 @@ class ToolExecutor(
         }
     }
 
-    /** Names what would make [name] work, so the model can steer the user there. */
-    private fun unavailableMessage(name: String): String {
+    /**
+     * What to hand back for a tool that was withheld this turn: a message naming
+     * what would make it work, plus — for a capability the user can actually
+     * grant — the special-access marker that opens the right settings screen.
+     *
+     * The marker is the point. A gated tool is hidden from the model, so its own
+     * `permissionNeeded` result never runs, and before this the user's only hope
+     * was that the model would read the `<env>` block and explain the gap in
+     * prose. It usually did; when it did not, the failure surfaced as whatever
+     * unrelated thing it tried instead (issue #76). Emitting the marker here
+     * makes the deep-link fire whether or not the model words it well.
+     */
+    private fun unavailableResult(name: String): ToolResult {
         CapabilityCatalog.ownerOf(name)?.let { capability ->
-            return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
+            val message = "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
                 "available on this device right now. Tell the user what to enable; do not retry."
+            return capability.permissionMarker
+                ?.let { ToolResult.permissionNeeded(it, message) }
+                ?: ToolResult.error(message)
         }
+        return ToolResult.error(connectorUnavailableMessage(name))
+    }
+
+    /** The connector half of [unavailableResult] — no device grant to deep-link to. */
+    private fun connectorUnavailableMessage(name: String): String {
         // Dynamic tools (e.g. Home Assistant MCP) are registered at runtime, so the
         // compile-time catalog cannot know them; name the owning connector explicitly.
         if (name in ToolRegistry.dynamicTools) {

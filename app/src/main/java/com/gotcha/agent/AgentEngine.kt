@@ -15,6 +15,7 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.llm.withValidToolCallArguments
+import com.gotcha.tools.AccessibilityState
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
@@ -203,10 +204,16 @@ class AgentEngine(
                         appContext.startActivity(launchIntent)
                     }
                 } catch (_: Exception) { }
-                if (!output.success) {
-                    ToolResult.error(output.finalAnswer)
-                } else {
-                    ToolResult.ok("TASK_RESULT:App Navigation:$stepsEncoded\n|||\n${output.finalAnswer}")
+                when {
+                    // Carry the marker out so the host opens the settings screen.
+                    // Dropping it here left the user with prose about a failed
+                    // navigation and no way to act on it (issue #76).
+                    output.needsPermission != null ->
+                        ToolResult.permissionNeeded(output.needsPermission, output.finalAnswer)
+                    !output.success -> ToolResult.error(output.finalAnswer)
+                    else -> ToolResult.ok(
+                        "TASK_RESULT:App Navigation:$stepsEncoded\n|||\n${output.finalAnswer}"
+                    )
                 }
             }
         )
@@ -1264,7 +1271,7 @@ class AgentEngine(
 
         // Same probes that decide tool exposure, so the status the model reads can
         // never disagree with the tools it was offered.
-        val accEnabled = DeviceCapabilities.accessibilityEnabled(app)
+        val accState = DeviceCapabilities.accessibilityState(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
         val termux = com.gotcha.tools.TermuxTool(app).status()
@@ -1286,7 +1293,22 @@ class AgentEngine(
                 "  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
             )
             appendLine("  Active agent: ${agent.name}")
-            appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
+            // Three states, not two: "switched on but not bound" needs different
+            // advice from "switched off", and telling a user to enable something
+            // already enabled is the wrong-error half of issue #76.
+            appendLine(
+                when (accState) {
+                    AccessibilityState.AVAILABLE -> "  Accessibility service: enabled and running"
+                    AccessibilityState.ENABLED_BUT_NOT_BOUND ->
+                        "  Accessibility service: switched on but NOT running, so every tool that " +
+                            "needs it is withheld. Tell the user to toggle Gotcha off and on in " +
+                            "Settings ▸ Accessibility; do not tell them to enable it, it is already on."
+                    AccessibilityState.OFF ->
+                        "  Accessibility service: off (so screen reading, tapping, typing and " +
+                            "navigate_app are all unavailable — tell the user to enable Gotcha in " +
+                            "Settings ▸ Accessibility)"
+                }
+            )
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
             // run_termux_command is withheld unless Termux is installed, and refuses until its

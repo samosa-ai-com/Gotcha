@@ -64,6 +64,22 @@ class PermissionsRoutingTest {
     }
 
     @Test
+    fun everyGrantableCapabilityHasARoute() {
+        // A capability's marker is what makes a *hidden* tool actionable: the
+        // tool never runs, so ToolExecutor emits the capability's marker instead.
+        // A marker with no route here means the deep-link silently does nothing
+        // and the user is back to guessing which setting to enable (issue #76).
+        val markers = com.gotcha.tools.Capability.entries.mapNotNull { it.permissionMarker }
+        assertTrue("at least one capability must be grantable", markers.isNotEmpty())
+        markers.forEach { marker ->
+            assertNotNull(
+                "capability marker '$marker' must have a route",
+                openSpecialAccess(context, marker, packageName)
+            )
+        }
+    }
+
+    @Test
     fun healthConnectPermissionScreenIsTheProviderTargetedIntent() {
         // The exact intent the HEALTH_CONNECT route fires when the provider is available:
         // PermissionController.createRequestPermissionResultContract().createIntent(...). The
