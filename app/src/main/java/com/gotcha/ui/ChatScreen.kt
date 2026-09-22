@@ -210,9 +210,10 @@ fun ChatScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        // The persona is invisible once the picker is gone, so
-                        // the open chat says which role it is being answered in.
-                        val persona = if (isHome) null else personaById(state.activePersonaId)
+                        // Shown both on the home screen, to confirm a persona
+                        // tap actually registered, and once the picker is gone
+                        // so the open chat still says which role it's in.
+                        val persona = personaById(state.activePersonaId)
                         if (persona != null) {
                             Text(
                                 persona.label,

@@ -198,9 +198,9 @@ private fun PersonaChip(
 ) {
     val scheme = MaterialTheme.colorScheme
     val colorSpec = motionSpec<Color>(180)
-    // Same veil as the agent selector: the light skins' containers sit a few
-    // points off their near-white ground, and a fill that pale reads as none.
-    val filled = scheme.primary.copy(alpha = 0.16f).compositeOver(scheme.primaryContainer)
+    // Stronger than the agent selector's veil: unlike that badge, this is the
+    // only home-screen feedback a tap gets, so a fill that pale reads as none.
+    val filled = scheme.primary.copy(alpha = 0.28f).compositeOver(scheme.primaryContainer)
     val container by animateColorAsState(
         targetValue = if (selected) filled else Color.Transparent,
         animationSpec = colorSpec,
