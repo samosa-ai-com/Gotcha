@@ -1,5 +1,9 @@
 package com.gotcha.ui
 
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.gotcha.BuildConfig
 import com.gotcha.audio.CompletionFeedback
 import com.gotcha.data.Settings
@@ -49,6 +54,12 @@ fun NotificationsScreen(
     val overlay = rememberSettingsOverlayState()
     val localContext = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Asked for when server messages are switched on, not at first launch —
+    // a notification permission is only meaningful once something wants to post.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* declining just means no status-bar alert; the setting still holds */ }
 
     // Sync only when the user toggles server messages ON, not on the
     // initial composition — `onResume` already covers the first-arrival case.
@@ -106,6 +117,16 @@ fun NotificationsScreen(
             onCheckedChange = {
                 serverMessagesEnabled = it
                 onSave { s -> s.copy(serverMessagesEnabled = it) }
+                // The one moment the permission is actually needed: a message
+                // that can't be posted is a setting that silently does nothing.
+                if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        localContext,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
             },
             isLarge = true,
             switchTestTag = "settings_server_messages_enabled"

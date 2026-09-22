@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.VpnService
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -63,11 +62,15 @@ import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.NotificationDetailDialog
+import com.gotcha.ui.PermissionAsk
+import com.gotcha.ui.PermissionBlockedDialog
+import com.gotcha.ui.PermissionRationaleDialog
 import com.gotcha.ui.ReferralInviteDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
+import com.gotcha.ui.runtimePermissionAsk
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -115,7 +118,7 @@ private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = wh
     TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
 }
 
-@Suppress("LargeClass")
+@Suppress("LargeClass", "TooManyFunctions")
 class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
@@ -218,10 +221,30 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    /** Requests all runtime permissions at once on first launch. */
-    private val firstLaunchLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
-            // No action needed; the Settings screen shows live permission state.
+    /** A permission Android will no longer prompt for; the user has to re-grant it in Settings. */
+    private var blockedPermissionAsk by mutableStateOf<PermissionAsk?>(null)
+
+    /** The permission [runtimePermissionLauncher] is currently resolving. */
+    private var requestedPermission: PermissionAsk? = null
+
+    /**
+     * On-demand runtime permission, requested the moment a tool needs it (issue
+     * #79). The engine is waiting on the answer through
+     * [ChatViewModel.onPermissionResult] and retries the tool call on a grant,
+     * so every path out of here — granted, denied, permanently denied — has to
+     * answer exactly once.
+     */
+    private val runtimePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val ask = requestedPermission
+            requestedPermission = null
+            chatViewModel.onPermissionResult(granted)
+            // Two denials (or a denial in Settings) and Android stops showing the
+            // dialog at all: the request returns instantly and the user is left
+            // wondering why nothing happened. Say where the switch lives instead.
+            if (!granted && ask != null && !shouldShowRequestPermissionRationale(ask.permission)) {
+                blockedPermissionAsk = ask
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -236,9 +259,10 @@ class MainActivity : ComponentActivity() {
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
         handleNotificationIntent(intent)
 
-        // Phase 7: tools report special-access markers; open Settings deep-links.
-        // Runtime permissions are no longer requested here — they are pre-configured
-        // in Settings → Permissions or auto-requested on first launch.
+        // Tools report what they need the moment they need it. A special-access
+        // marker opens the Settings screen that grants it; a runtime permission
+        // travels through the view model instead, as a pending ask the dialog in
+        // GotchaApp answers.
         lifecycleScope.launch {
             chatViewModel.permissionRequests.collect { permission ->
                 handlePermissionRequest(permission)
@@ -257,19 +281,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Auto-request runtime permissions on first launch
-        lifecycleScope.launch {
-            val prefs = settingsRepository.prefs
-            if (!prefs.getBoolean(KEY_FIRST_LAUNCH_DONE, false)) {
-                requestAllRuntimePermissions()
-                prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
-            }
-            // MediaProjection consent is deliberately NOT requested here. The token
-            // dies with the process and is single-use on API 34, so prompting at
-            // launch would re-fire the system dialog on every cold start for a
-            // capability the user hasn't asked for yet. It is requested on demand
-            // instead — see the "special:screenshot_consent" branch below.
-        }
+        // Nothing is requested at launch. Every runtime permission is asked for
+        // at the moment a tool reaches for it, with a sentence saying why, and
+        // can be pre-granted or taken back in Settings › Permissions. The
+        // MediaProjection token is on demand for a second reason: it dies with
+        // the process and is single-use on API 34, so a launch-time prompt would
+        // re-fire on every cold start — see "special:screenshot_consent" below.
 
         appearance = settingsRepository.load().appearance()
         applyLaunchBackground()
@@ -306,7 +323,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Opens the matching special-access Settings screen for a tool-reported marker. */
+    /**
+     * Opens the system screen that grants the special access a tool reported.
+     * Runtime permissions do not come through here — they are asked for in
+     * place, from the rationale dialog mounted in [GotchaApp].
+     */
     private fun handlePermissionRequest(permission: String) {
         when (permission) {
             ToolResult.WRITE_SETTINGS -> startActivity(
@@ -368,8 +389,30 @@ class MainActivity : ComponentActivity() {
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             ToolResult.TERMUX_ACCESS -> requestTermuxAccess()
-            // Runtime permissions are mapped in Settings → Permissions; skip here.
+            // Runtime permissions don't arrive here: they come through
+            // ChatViewModel's pendingPermission, which the dialog below reads,
+            // so the ask survives a rotation while it is on screen.
+            else -> Unit
         }
+    }
+
+    /** "Continue" on the rationale dialog: raise the system prompt for [ask]. */
+    private fun requestRuntimePermission(ask: PermissionAsk) {
+        // Already granted (the user may have switched it on in Settings while the
+        // dialog sat there): answer straight away, no system prompt needed.
+        if (ContextCompat.checkSelfPermission(this, ask.permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            chatViewModel.onPermissionResult(true)
+            return
+        }
+        requestedPermission = ask
+        runtimePermissionLauncher.launch(ask.permission)
+    }
+
+    /** "Not now": the tool's own error message stands, and nothing is asked again this turn. */
+    private fun declineRuntimePermission() {
+        chatViewModel.onPermissionResult(false)
     }
 
     /**
@@ -955,6 +998,27 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        // A tool just reached for a permission it doesn't have. Shown over
+        // whatever screen the user is on, for as long as the engine is waiting
+        // on the answer — including across a rotation, since the ask lives in
+        // the view model rather than here.
+        state.pendingPermission?.let { permission ->
+            val ask = remember(permission) { runtimePermissionAsk(permission) }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = { requestRuntimePermission(ask) },
+                onDeny = { declineRuntimePermission() }
+            )
+        }
+
+        blockedPermissionAsk?.let { ask ->
+            PermissionBlockedDialog(
+                ask = ask,
+                packageName = packageName,
+                onDismiss = { blockedPermissionAsk = null }
+            )
+        }
+
         // First-launch / re-acceptance gate. Non-dismissable while not accepted
         // — the only way out is tapping "I agree." Re-prompted whenever the
         // current LEGAL_VERSION doesn't match the stored acceptance, so a
@@ -1034,9 +1098,6 @@ class MainActivity : ComponentActivity() {
         /** Intent extra: brought to front by the assistive ball (Operator-origin). */
         const val EXTRA_FROM_ASSISTIVE_BALL = "com.gotcha.FROM_ASSISTIVE_BALL"
 
-        /** SharedPreferences key to track first-launch permission setup. */
-        const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"
-
         /**
          * SharedPreferences key: when true, skip the on-demand MediaProjection consent
          * prompt so instrumentation never faces the system dialog (test-only).
@@ -1047,27 +1108,5 @@ class MainActivity : ComponentActivity() {
         @Volatile
         var lifecycleOwner: androidx.lifecycle.LifecycleOwner? = null
             private set
-    }
-
-    /** Request all runtime permissions the app needs on first launch. */
-    private fun requestAllRuntimePermissions() {
-        val perms = mutableListOf<String>().apply {
-            add(android.Manifest.permission.CAMERA)
-            add(android.Manifest.permission.RECORD_AUDIO)
-            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            add(android.Manifest.permission.CALL_PHONE)
-            add(android.Manifest.permission.SEND_SMS)
-            add(android.Manifest.permission.READ_SMS)
-            add(android.Manifest.permission.READ_CALL_LOG)
-            add(android.Manifest.permission.READ_CONTACTS)
-            add(android.Manifest.permission.WRITE_CONTACTS)
-            add(android.Manifest.permission.READ_CALENDAR)
-            add(android.Manifest.permission.WRITE_CALENDAR)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(android.Manifest.permission.POST_NOTIFICATIONS)
-                add(android.Manifest.permission.READ_MEDIA_IMAGES)
-            }
-        }
-        firstLaunchLauncher.launch(perms.toTypedArray())
     }
 }

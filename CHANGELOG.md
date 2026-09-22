@@ -70,6 +70,23 @@ All notable changes to Gotcha are documented here.
   Monitor, and which mode you're in stays the selector's business.
 
 ### Changed
+- **Permissions are asked for when they're needed, not at startup.** A fresh
+  install used to open with thirteen system permission dialogs in a row —
+  contacts, SMS, call log, camera, microphone, location — before you had asked
+  Gotcha for anything, which reads less like setup than like a shakedown.
+  Nothing is requested at launch now. The first time a tool actually reaches for
+  one, Gotcha says in a sentence what it is about to do with it — *Gotcha needs
+  your contacts to turn a name into a number, so asking it to call Priya reaches
+  the right Priya* — and only then does Android's own dialog appear; grant it and the
+  action you asked for carries straight on, rather than failing and having to be
+  repeated. "Not now" is a real answer, and the next request starts fresh. First
+  run works with nothing granted at all: every capability is still listed under
+  Settings › Permissions, each row now saying whether it is granted, ready to
+  switch on ahead of time. Turning one back off is no longer a toast naming a
+  four-level path you can't follow before it vanishes — the switch opens the
+  system screen that owns the permission. And on Android 13+, notification
+  permission is asked for when you switch server messages on, which is the only
+  moment it means anything.
 - **Settings → AI.** The model and the voice used to sit as two unrelated rows on
   the settings list, as if choosing what Gotcha thinks with had nothing to do with
   choosing what it speaks with. Both now live under a single `AI` row:

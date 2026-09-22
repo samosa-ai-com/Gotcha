@@ -97,14 +97,20 @@ missing, where to turn it on, and offer to try again afterwards.
 | Health Connect | Health summaries and records | Settings > Permissions > Health |
 | Display over other apps | The overlay tools and the Assistive Ball | Settings > Permissions |
 
-Runtime permissions (phone, SMS, contacts, calendar, camera, microphone,
-location, storage) show the normal Android dialog when toggled on in Settings >
-Permissions. Special-access permissions open a system settings screen for a
-one-time setup instead.
+Nothing is requested when the app starts. A runtime permission (phone, SMS,
+contacts, calendar, camera, microphone, location, storage) is asked for the
+first time a tool needs it: Gotcha explains why, then Android's own dialog
+appears, and the action carries on once it is granted. The same permissions can
+be granted ahead of time by toggling them on in Settings > Permissions, where
+each row also shows whether it is currently granted. Special-access permissions
+open a system settings screen for a one-time setup instead. Android lets no app
+revoke its own grants, so turning one off means opening the system screen that
+owns it — the toggle offers to do that.
 
 ## Safety model
 
-Tools are organised in capability tiers and permissions are asked for up front.
+Tools are organised in capability tiers, and a permission is asked for at the
+moment a tool needs it rather than up front.
 Only a few destructive actions — uninstalling an app, deleting an alarm, timer or
 calendar event, and sending an email — ask the user to confirm before running;
 everything else executes without a confirmation step. Shell commands run against

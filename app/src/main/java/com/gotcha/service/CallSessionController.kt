@@ -671,6 +671,17 @@ class CallSessionController(
         reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
     }
 
+    /**
+     * Same answer for a runtime permission: the system dialog needs a foreground
+     * Activity, and this host is a call. Says so, and tells the engine it was
+     * not granted so the turn continues instead of stalling behind a prompt that
+     * will never appear.
+     */
+    override suspend fun awaitPermissionGrant(permission: String): Boolean {
+        onPermissionRequest(permission)
+        return false
+    }
+
     override fun onScreenCaptureChrome(hide: Boolean) {
         // Never capture the pulse: drop any stale window before a capture starts.
         if (hide) screenReadFlash.dismiss()

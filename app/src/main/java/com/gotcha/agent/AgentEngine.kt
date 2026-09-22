@@ -580,7 +580,7 @@ class AgentEngine(
             var finishSummary: String? = null
             suspend fun executeToolCalls() {
                 for (call in toolCalls) {
-                    val result = when (decision) {
+                    val firstAttempt = when (decision) {
                         ConfirmDecision.APPROVED -> executeCall(call, agent)
                         ConfirmDecision.DENIED ->
                             ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
@@ -589,15 +589,14 @@ class AgentEngine(
                                 "Do not retry automatically; tell the user to ask again when ready."
                         )
                     }
-                    recordTool(call, result)
-
-                    // Special-access markers: emit the marker and continue.
-                    // Runtime permissions are pre-configured in Settings — the tool
-                    // already returned an error message with guidance if one is missing.
-                    val perm = result.needsPermission
-                    if (perm != null && perm.startsWith("special:")) {
-                        events.onPermissionRequest(perm)
+                    // A missing permission is asked for here, at the moment the tool
+                    // reached for it, rather than in a burst at first launch.
+                    val result = if (decision == ConfirmDecision.APPROVED) {
+                        resolveMissingPermission(call, agent, firstAttempt)
+                    } else {
+                        firstAttempt
                     }
+                    recordTool(call, result)
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {
                         handleImageResult(call, result)
@@ -654,10 +653,6 @@ class AgentEngine(
                     // Also saves the raw bytes to the working directory as a file.
                     if (result.success && call.function.name == "read_screen_raw") {
                         injectFullResScreenshot(result)
-                    }
-                    // Special-access markers: emit and continue (no wait needed since they open Settings)
-                    if (perm != null && perm.startsWith("special:")) {
-                        events.onPermissionRequest(perm)
                     }
                 }
             }
@@ -1011,6 +1006,35 @@ class AgentEngine(
             ),
             toolCallId = call.id
         )
+    }
+
+    /**
+     * Handles a tool result that failed for want of a permission, at the moment
+     * the tool reached for it (issue #79 — permissions used to be demanded in a
+     * burst at first launch, before the user had asked for anything).
+     *
+     * The two kinds of permission are answered differently. A special access
+     * ("special:*") lives on a Settings screen the host deep-links to; there is
+     * no result to wait for, so the marker is emitted and the tool's own error
+     * message stands as this turn's answer. A runtime permission can be granted
+     * then and there, so the host is asked to explain and request it, and the
+     * call is retried once when the user allows it — otherwise a grant would
+     * land a beat too late, after the model had already been told it failed.
+     *
+     * Anything other than a grant (declined, no Activity to ask from, a host
+     * that cannot ask at all) returns [result] untouched.
+     */
+    private suspend fun resolveMissingPermission(
+        call: ToolCall,
+        agent: AgentMode,
+        result: ToolResult
+    ): ToolResult {
+        val permission = result.needsPermission ?: return result
+        if (permission.startsWith("special:")) {
+            events.onPermissionRequest(permission)
+            return result
+        }
+        return if (events.awaitPermissionGrant(permission)) executeCall(call, agent) else result
     }
 
     private suspend fun executeCall(call: ToolCall, agent: AgentMode): ToolResult {

@@ -612,6 +612,89 @@ class AgentLoopTest {
         )
     }
 
+    // ---- permissions, asked for when they are needed (issue #79) ----
+
+    /**
+     * The whole point of dropping the first-launch permission burst: a tool that
+     * needs a runtime permission asks for it *here*, mid-turn, and the call is
+     * retried the moment it is granted. Without the retry the grant lands a beat
+     * too late — the model has already been told the tool failed, and the user
+     * has to repeat themselves after saying yes.
+     */
+    @Test
+    fun `a missing runtime permission is asked for mid-turn and the call retried on a grant`() = runTest {
+        enqueueToolCall("get_location", "{}")
+        enqueueTextReply("Here's where you are.")
+        events.permissionAnswer = { permission ->
+            org.robolectric.Shadows.shadowOf(
+                org.robolectric.RuntimeEnvironment.getApplication()
+            ).grantPermissions(permission)
+            true
+        }
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(
+            "the tool's own permission should have been asked for, not a Settings marker",
+            listOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+            events.permissionAsks
+        )
+        assertEquals(
+            "the call should have run twice: once to discover the gap, once with the grant",
+            2,
+            events.activities.count { it == "Running: get_location…" }
+        )
+        server.takeRequest()
+        val followUp = server.takeRequest().body.readUtf8()
+        assertFalse(
+            "the model was told about a permission that had just been granted:\n$followUp",
+            followUp.contains("Location permission is not granted")
+        )
+    }
+
+    /**
+     * "Not now" is a real answer. The tool's own message stands, the model is
+     * told, and nothing is retried behind the user's back.
+     */
+    @Test
+    fun `declining a permission leaves the tool failure as the answer`() = runTest {
+        enqueueToolCall("get_location", "{}")
+        enqueueTextReply("I can't see your location.")
+        events.permissionAnswer = { false }
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, events.activities.count { it == "Running: get_location…" })
+        server.takeRequest()
+        val followUp = server.takeRequest().body.readUtf8()
+        assertTrue(
+            "the model should have been told the permission is missing:\n$followUp",
+            followUp.contains("Location permission is not granted")
+        )
+    }
+
+    /**
+     * A special access has no runtime dialog — it lives on a Settings screen —
+     * so it goes out as a marker and the turn continues. It must be emitted
+     * exactly once: it used to be emitted twice per call, which opened the
+     * system settings screen, then opened it again.
+     */
+    @Test
+    fun `a special-access marker is emitted once and never asked as a runtime permission`() = runTest {
+        // Accessibility is off in this environment, so `tap` is withheld and the
+        // executor answers with the capability's marker.
+        enqueueToolCall("tap", """{"x":10,"y":10}""")
+        enqueueTextReply("I need accessibility access first.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(
+            listOf(ToolResult.ACCESSIBILITY_ACCESS),
+            events.permissionRequests
+        )
+        assertTrue("a special access must never reach the runtime path", events.permissionAsks.isEmpty())
+    }
+
     /**
      * From API 34 a consent token backs exactly one capture session. Holding on to a
      * spent token would keep the request above from ever firing again, so the token

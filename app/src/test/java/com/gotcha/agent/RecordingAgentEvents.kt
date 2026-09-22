@@ -20,8 +20,18 @@ class RecordingAgentEvents : AgentEvents {
     var historyResets = 0
         private set
 
+    /** Runtime permissions the loop asked for, in order, via [awaitPermissionGrant]. */
+    val permissionAsks = mutableListOf<String>()
+
     /** What [awaitConfirmation] should answer. Defaults to approving. */
     var confirmationAnswer: Boolean = true
+
+    /**
+     * What [awaitPermissionGrant] should answer. Takes the permission so a test
+     * can actually grant it before saying yes — a retry that finds it still
+     * missing proves nothing.
+     */
+    var permissionAnswer: (String) -> Boolean = { false }
 
     /** What [awaitQuestionAnswer] should answer. */
     var questionAnswer: String = ""
@@ -50,6 +60,11 @@ class RecordingAgentEvents : AgentEvents {
 
     override fun onPermissionRequest(marker: String) {
         permissionRequests += marker
+    }
+
+    override suspend fun awaitPermissionGrant(permission: String): Boolean {
+        permissionAsks += permission
+        return permissionAnswer(permission)
     }
 
     override fun onHistoryReset() {

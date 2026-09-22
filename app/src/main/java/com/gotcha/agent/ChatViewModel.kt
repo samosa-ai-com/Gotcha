@@ -102,6 +102,13 @@ data class ChatUiState(
     val subAgentCurrentAction: String? = null,
     val pendingConfirmation: PendingConfirmation? = null,
     val pendingQuestion: PendingQuestion? = null,
+    /**
+     * Runtime permission a tool is waiting on, asked for at the moment it is
+     * needed (issue #79). Held in the state rather than fired as a one-shot
+     * event so the dialog comes back with the activity — a rotation while it is
+     * open must not leave the agent blocked on an answer nobody can give.
+     */
+    val pendingPermission: String? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.MONITOR,
@@ -209,6 +216,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var questionGate: CompletableDeferred<String>? = null
+    private var permissionGate: CompletableDeferred<Boolean>? = null
     private var agentJob: Job? = null
 
     /**
@@ -263,7 +271,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val _liveTokenBySession = MutableStateFlow<Map<String, Int>>(emptyMap())
     val liveTokenBySession: StateFlow<Map<String, Int>> = _liveTokenBySession.asStateFlow()
 
-    /** Permission names (or ToolResult.WRITE_SETTINGS) the Activity should request. */
+    /**
+     * Special-access markers ("special:*") the Activity should deep-link to.
+     * Runtime permissions travel as [ChatUiState.pendingPermission] instead —
+     * they need an answer, and this is a fire-and-forget signal.
+     */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
 
@@ -343,6 +355,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     override fun onPermissionRequest(marker: String) {
         _permissionRequests.tryEmit(marker)
+    }
+
+    /**
+     * A tool needs a runtime permission right now. The Activity collecting
+     * [permissionRequests] explains why and raises the system dialog, then
+     * answers through [onPermissionResult].
+     *
+     * A runtime dialog can only be raised by a foreground Activity, so a
+     * backgrounded run says "not granted" immediately rather than stalling the
+     * agent behind a prompt nobody can see — the tool's own error message
+     * already tells the model (and, on screen, the user) what is missing.
+     */
+    override suspend fun awaitPermissionGrant(permission: String): Boolean {
+        if (!appInForeground) return false
+        val gate = CompletableDeferred<Boolean>()
+        permissionGate = gate
+        _uiState.update { it.copy(activity = null, pendingPermission = permission) }
+
+        val granted = withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
+
+        _uiState.update { it.copy(pendingPermission = null) }
+        permissionGate = null
+        return granted
+    }
+
+    /** The Activity's answer to [awaitPermissionGrant]: the system dialog's outcome. */
+    fun onPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(pendingPermission = null) }
+        permissionGate?.complete(granted)
+        permissionGate = null
     }
 
     /** Compaction dropped the LLM history; clear the engine transcript to match. */
