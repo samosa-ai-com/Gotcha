@@ -1,9 +1,11 @@
 package com.gotcha.notifications
 
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.testsupport.FakeAndroidKeyStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -15,6 +17,11 @@ class NotificationStoreTest {
     private val store get() = NotificationStore(ctx)
 
     private val pruneAfterMs = 30L * 24L * 60L * 60L * 1000L
+
+    // The store is backed by encrypted prefs, which need a keystore. Without this
+    // the test only passed when another test happened to install it first.
+    @Before
+    fun setUp() = FakeAndroidKeyStore.setUp()
 
     @Test
     fun `recordDelivery writes id, count and timestamp`() {
