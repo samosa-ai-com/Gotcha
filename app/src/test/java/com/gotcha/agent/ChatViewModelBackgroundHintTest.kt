@@ -91,6 +91,10 @@ class ChatViewModelBackgroundHintTest {
             backgroundHintText(vibrate = true, chime = true)
         )
         assertEquals("$base.", backgroundHintText(vibrate = false, chime = false))
+        assertEquals(
+            "$base — Gotcha will notify you when the task is finished.",
+            backgroundHintText(vibrate = true, chime = true, notify = true)
+        )
     }
 
     @Test

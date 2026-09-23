@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,6 +29,8 @@ import com.gotcha.llm.attachmentsUserMessage
 import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
+import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.notifications.RunOutcome
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.DocumentError
 import com.gotcha.tools.DocumentParser
@@ -123,12 +126,14 @@ internal val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(document atta
 
 /**
  * The "you can leave Gotcha" hint shown while a run works. It only promises the
- * signal the user will actually get: the buzz and chime are opt-in, and there is
- * no system notification yet (issue #103).
+ * signal the user will actually get: [notify] is true only when a task-finished
+ * notification is switched on and Android allows it (issue #97); otherwise the
+ * opt-in buzz and chime are all there is.
  */
-internal fun backgroundHintText(vibrate: Boolean, chime: Boolean): String {
+internal fun backgroundHintText(vibrate: Boolean, chime: Boolean, notify: Boolean = false): String {
     val base = "Gotcha is working in the background. You can use another app while it works"
     val signal = when {
+        notify -> "Gotcha will notify you when the task is finished"
         vibrate && chime -> "your phone will buzz and chime when it's done"
         vibrate -> "your phone will buzz when it's done"
         chime -> "your phone will chime when it's done"
@@ -196,6 +201,12 @@ data class ChatUiState(
      * run, never in the transcript, so returning to the app can't repeat it.
      */
     val backgroundHint: String? = null,
+    /**
+     * True while the one-time "allow notifications?" ask is on screen. Asked the
+     * first time a request is sent without the permission, so the user learns a
+     * task can notify them; the run does not wait on the answer.
+     */
+    val askNotificationPermission: Boolean = false,
     val contextUsagePercent: Float = 0f,
     val tokenCount: Int = 0,
     val maxContextTokens: Int = 0,
@@ -222,6 +233,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val confirmationOverlay = ConfirmationOverlay(application)
+    private val completionNotifier = ChatCompletionNotifier(application)
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
@@ -330,6 +342,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return title.isBlank() || title == fallback
     }
 
+    /**
+     * Startup: the fresh session, the chat-directory migration and the sample
+     * seeding. Anything that loads a saved chat on the user's behalf before the
+     * UI is up (a notification tap) waits for it, or the migration could move
+     * the chat out from under the load.
+     */
+    private val initJob: Job
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -361,7 +381,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         ScreenPerception.appContext = application
         com.gotcha.agent.skills.SkillRegistry.init(application)
         refreshSettings()
-        viewModelScope.launch {
+        initJob = viewModelScope.launch {
             // Always start on a fresh session so the home screen greets with an
             // empty chat; past sessions remain one tap away in the drawer.
             agentEngine.sessionId = java.util.UUID.randomUUID().toString()
@@ -683,16 +703,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 isBusy = true,
                 runningSessionId = runningId,
                 runningSessionTitle = runningTitle,
-                backgroundHint = backgroundHintText(
-                    vibrate = settings.notifyVibrationEnabled,
-                    chime = settings.notifyChimeEnabled
-                )
+                backgroundHint = currentBackgroundHint(),
+                askNotificationPermission = it.askNotificationPermission || claimNotificationPermissionAsk()
             )
         }
         runHadError = false
+        var stopped = false
         try {
             agentEngine.run(agent)
         } catch (_: CancellationException) {
+            stopped = true
             appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             // The interrupt may have orphaned an assistant with tool_calls but no
             // matching tool results. Repair it in NonCancellable before the next
@@ -708,6 +728,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 // own sanitize still gets repaired here before persisting.
                 agentEngine.sanitizeLastOrphanedAssistant()
                 agentEngine.saveCurrentSession()
+                notifyRunFinished(
+                    sessionId = runningId,
+                    outcome = when {
+                        stopped -> RunOutcome.STOPPED
+                        runHadError -> RunOutcome.FAILED
+                        else -> RunOutcome.DONE
+                    }
+                )
                 _uiState.update {
                     it.copy(
                         isBusy = false,
@@ -721,6 +749,73 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 }
                 agentJob = null
             }
+        }
+    }
+
+    private fun currentBackgroundHint(): String = backgroundHintText(
+        vibrate = settings.notifyVibrationEnabled,
+        chime = settings.notifyChimeEnabled,
+        notify = settings.chatCompletionNotificationsEnabled && completionNotifier.canPost()
+    )
+
+    /**
+     * The run in [sessionId] just ended. Posts the task-finished notification
+     * when the user is away from Gotcha; in the foreground the reply buzz is
+     * enough. Called once per run, from [executeRun]'s cleanup, so a run never
+     * produces two — the engine reports text mid-run too, which is why this is
+     * not driven by [onAssistantReply].
+     */
+    private fun notifyRunFinished(sessionId: String, outcome: RunOutcome) {
+        if (appInForeground || !settings.chatCompletionNotificationsEnabled) return
+        val reply = engineTranscript.lastOrNull {
+            it.kind == MessageKind.ASSISTANT || it.kind == MessageKind.ERROR
+        }?.text
+        completionNotifier.notify(
+            sessionId = sessionId,
+            chatTitle = agentEngine.currentTitle(),
+            outcome = outcome,
+            reply = reply,
+            preview = settings.chatCompletionPreview
+        )
+    }
+
+    /**
+     * True, once per install, when the user should be asked for notification
+     * permission: they want task-finished notifications, Android 13+ blocks
+     * them, and they are here to see the ask. Claimed as it is shown, so
+     * "Not now" is final — the Notifications settings page can still ask.
+     */
+    private fun claimNotificationPermissionAsk(): Boolean {
+        if (!appInForeground || !settings.chatCompletionNotificationsEnabled) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        if (completionNotifier.canPost()) return false
+        val prefs = settingsRepository.prefs
+        if (prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, false)) return false
+        prefs.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, true).apply()
+        return true
+    }
+
+    /**
+     * The answer to [ChatUiState.askNotificationPermission]. A grant mid-run
+     * upgrades the hint on screen to the notification promise it can now keep.
+     */
+    fun onNotificationPermissionResult(granted: Boolean) {
+        _uiState.update {
+            it.copy(
+                askNotificationPermission = false,
+                backgroundHint = if (granted && it.backgroundHint != null) currentBackgroundHint() else it.backgroundHint
+            )
+        }
+    }
+
+    /**
+     * Opens [id] from a tapped task-finished notification. Waits for startup,
+     * which would otherwise replace the chat with the fresh one it opens.
+     */
+    fun openSessionFromNotification(id: String) {
+        viewModelScope.launch {
+            initJob.join()
+            openSession(id)
         }
     }
 
@@ -1060,6 +1155,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
     fun setForeground(foreground: Boolean) {
         appInForeground = foreground
+        // Back in the app on a chat whose task finished: that chat's
+        // notification has done its job.
+        if (foreground) _uiState.value.activeSessionId?.let(completionNotifier::cancel)
     }
 
     /** Speak the given text aloud using the configured TTS provider. */
@@ -1398,6 +1496,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun openSession(id: String?) {
+        id?.let(completionNotifier::cancel)
         lastInputWasVoice = false
         currentRunIsVoice = false
         viewModelScope.launch {
@@ -1755,6 +1854,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+
+        /** Set once the one-time notification-permission ask has been shown. */
+        const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
 
         /** Starts each document section in a user message; see [documentPromptText]. */
         const val ATTACHED_FILE_MARKER = "\n[Attached file:"

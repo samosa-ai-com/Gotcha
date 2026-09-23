@@ -49,6 +49,7 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.data.computeFeedbackStats
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.ChatCompletionNotifier
 import com.gotcha.notifications.NotificationDispatcher
 import com.gotcha.notifications.NotificationPayload
 import com.gotcha.notifications.ServerMessages
@@ -130,6 +131,9 @@ class MainActivity : ComponentActivity() {
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
+
+    /** Chat to open, set when a task-finished notification is tapped (issue #97). */
+    private var openSessionRequested by mutableStateOf<String?>(null)
 
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
@@ -245,6 +249,16 @@ class MainActivity : ComponentActivity() {
             if (!granted && ask != null && !shouldShowRequestPermissionRationale(ask.permission)) {
                 blockedPermissionAsk = ask
             }
+        }
+
+    /**
+     * The one-time notification ask raised when a request is sent (issue #97).
+     * Unlike [runtimePermissionLauncher] nothing waits on it: a denial only
+     * means the task-finished notification stays off.
+     */
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            chatViewModel.onNotificationPermissionResult(granted)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -478,6 +492,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
+        intent?.getStringExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)?.let { id ->
+            openSessionRequested = id
+            // Consumed: a later recreation must not reopen this chat over the user's choice.
+            intent.removeExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)
+        }
         val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
         val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
         if (!title.isNullOrBlank() || !body.isNullOrBlank()) {
@@ -661,6 +680,15 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             AssistiveBallService.isRunning.collect { running ->
                 assistiveBallOn = running
+            }
+        }
+
+        // A tapped task-finished notification: show exactly that chat.
+        LaunchedEffect(openSessionRequested) {
+            openSessionRequested?.let { id ->
+                currentRoute = Route.HOME
+                chatViewModel.openSessionFromNotification(id)
+                openSessionRequested = null
             }
         }
 
@@ -1009,6 +1037,15 @@ class MainActivity : ComponentActivity() {
                 ask = ask,
                 onAllow = { requestRuntimePermission(ask) },
                 onDeny = { declineRuntimePermission() }
+            )
+        }
+
+        if (state.askNotificationPermission) {
+            val ask = remember { runtimePermissionAsk(android.Manifest.permission.POST_NOTIFICATIONS) }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = { notificationPermissionLauncher.launch(ask.permission) },
+                onDeny = { chatViewModel.onNotificationPermissionResult(false) }
             )
         }
 
