@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -407,6 +408,28 @@ fun ChatScreen(
                 }
             }
 
+            // Once per run: the user may leave Gotcha while it works (issue #96).
+            // From another chat the banner below says so instead.
+            if (state.backgroundHint != null && !otherChatRunning) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        state.backgroundHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             if (state.subAgentRunning != null) {
                 Column(
                     modifier = Modifier
@@ -469,7 +492,7 @@ fun ChatScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "⚡ Agent working in “${state.runningSessionTitle ?: "another chat"}” — tap to return",
+                        "⚡ Agent working in “${state.runningSessionTitle ?: "another chat"}” — you can leave Gotcha; tap to return",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         maxLines = 1,

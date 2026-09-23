@@ -121,6 +121,22 @@ sealed class ComposerAttachment {
  */
 internal val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(document attached)", "(files attached)")
 
+/**
+ * The "you can leave Gotcha" hint shown while a run works. It only promises the
+ * signal the user will actually get: the buzz and chime are opt-in, and there is
+ * no system notification yet (issue #103).
+ */
+internal fun backgroundHintText(vibrate: Boolean, chime: Boolean): String {
+    val base = "Gotcha is working in the background. You can use another app while it works"
+    val signal = when {
+        vibrate && chime -> "your phone will buzz and chime when it's done"
+        vibrate -> "your phone will buzz when it's done"
+        chime -> "your phone will chime when it's done"
+        else -> null
+    }
+    return if (signal == null) "$base." else "$base — $signal."
+}
+
 @kotlinx.serialization.Serializable
 data class UiMessage(
     val id: Long,
@@ -174,6 +190,12 @@ data class ChatUiState(
     val runningSessionId: String? = null,
     /** Title of the running session, for the "return to running chat" banner. */
     val runningSessionTitle: String? = null,
+    /**
+     * Informational hint that the user may leave Gotcha while the run works
+     * (issue #96), or null when nothing is running. Lives only as long as the
+     * run, never in the transcript, so returning to the app can't repeat it.
+     */
+    val backgroundHint: String? = null,
     val contextUsagePercent: Float = 0f,
     val tokenCount: Int = 0,
     val maxContextTokens: Int = 0,
@@ -660,7 +682,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             it.copy(
                 isBusy = true,
                 runningSessionId = runningId,
-                runningSessionTitle = runningTitle
+                runningSessionTitle = runningTitle,
+                backgroundHint = backgroundHintText(
+                    vibrate = settings.notifyVibrationEnabled,
+                    chime = settings.notifyChimeEnabled
+                )
             )
         }
         runHadError = false
@@ -687,6 +713,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         isBusy = false,
                         runningSessionId = null,
                         runningSessionTitle = null,
+                        backgroundHint = null,
                         activity = if (viewingEngineSession()) null else it.activity,
                         subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
                         subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
