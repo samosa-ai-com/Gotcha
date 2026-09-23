@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 28 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 29 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **116** | |
+| **Total** | **117** | |
 
-**52 of 116** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**53 of 117** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -148,6 +148,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `search_skills` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `sleep` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `todowrite` | `MANUAL_ONLY` | Pure UI round-trip: writes the visible todo list in the chat surface. |
+| `update_gotcha_settings` | `ROBOLECTRIC` | `GotchaSettingsUpdateTest`, `SettingsUpdateLoopTest` — the allowlist (credentials refused), per-key validation, all-or-nothing rejection, and the loop: a prompt on every change, denial leaves settings untouched, approval saves through SettingsRepository, both audited |
 | `update_user_profile` | `UNIT` | `UpdateUserProfileTest` — merge semantics (modify-and-extend, never erase), the no-op guard, and the 250/50-word caps |
 | `webfetch` | `UNIT` | `WebFetchToolTest` — HTML-to-text extraction, truncation, error handling |
 | `websearch` | `MANUAL_ONLY` | Performs real network I/O against a search provider; exercising it in CI would make the suite non-hermetic. |

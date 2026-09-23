@@ -20,11 +20,13 @@ import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.GotchaSettingsUpdate
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.tools.liveSettingsCatalog
 import com.gotcha.ui.personaById
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
@@ -62,6 +64,11 @@ class AgentEngine(
     private val clientProvider: () -> LLMClient?,
     /** Persists agent-initiated profile changes; null disables the update_user_profile tool. */
     private val onUpdateUserProfile: (suspend (com.gotcha.tools.ProfileUpdate) -> com.gotcha.tools.ToolResult)? = null,
+    /**
+     * Writes a settings change the user approved and refreshes whatever reads it;
+     * null disables update_gotcha_settings. Only ever called after a confirmation.
+     */
+    private val onUpdateGotchaSettings: (suspend (com.gotcha.tools.SettingsChangePlan) -> ToolResult)? = null,
     private val workingDirRoot: String = GotchaStorage.chatsRoot().absolutePath,
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
@@ -631,6 +638,10 @@ class AgentEngine(
                         handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_SEND_EMAIL:")) {
                         handleSendEmailConfirm(call, result)
+                    } else if (result.success &&
+                        result.message.startsWith(GotchaSettingsUpdate.CONFIRM_PREFIX)
+                    ) {
+                        handleSettingsUpdateConfirm(call, result)
                     } else {
                         history += ChatMessage(
                             role = "tool",
@@ -933,6 +944,61 @@ class AgentEngine(
             history += ChatMessage(role = "tool", content = JsonPrimitive(msg), toolCallId = call.id)
             events.onUi(MessageKind.TOOL, "${call.function.name}: $msg")
         }
+    }
+
+    /**
+     * Handles a tool result prefixed with CONFIRM_UPDATE_SETTINGS:base64(request).
+     *
+     * Every call asks — an earlier approval never carries over to the next change
+     * (issue #99). The dialog shows each setting's current and requested value and
+     * what the change touches; nothing is written unless the user allows it.
+     */
+    private suspend fun handleSettingsUpdateConfirm(call: ToolCall, result: ToolResult) {
+        val handler = onUpdateGotchaSettings
+        // A refusal is the user's answer, not a failure — show it like the other declines.
+        var declined = false
+        val request = GotchaSettingsUpdate.decodePayload(
+            result.message.removePrefix(GotchaSettingsUpdate.CONFIRM_PREFIX),
+            liveSettingsCatalog()
+        )
+        val outcome = when {
+            handler == null -> ToolResult.error("Changing Gotcha settings is not available here.")
+            request == null -> ToolResult.error("Failed to read the settings request. Nothing was changed.")
+            else -> {
+                val plan = GotchaSettingsUpdate.plan(request.changes, settingsProvider())
+                if (plan.changes.isEmpty()) {
+                    ToolResult.ok("No change — those settings already have the requested values.")
+                } else {
+                    val approved = events.awaitConfirmation(
+                        listOf("update_gotcha_settings"),
+                        GotchaSettingsUpdate.describe(plan, request.reason)
+                    )
+                    val decided = if (approved) {
+                        handler(plan)
+                    } else {
+                        declined = true
+                        ToolResult.error(
+                            "The user declined the settings change; nothing was changed. " +
+                                "Do not retry unless the user asks again."
+                        )
+                    }
+                    // The call itself was logged when it returned its marker; this entry says
+                    // what was asked for and the answer. Values are safe to log in full —
+                    // no credential is on the allowlist.
+                    toolExecutor.actionLog.record(
+                        "update_gotcha_settings",
+                        (if (approved) "(approved) " else "(denied) ") + plan.lines().joinToString("; "),
+                        decided
+                    )
+                    decided
+                }
+            }
+        }
+        history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)
+        events.onUi(
+            if (outcome.success || declined) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: ${outcome.message}"
+        )
     }
 
     private suspend fun handleDeleteConfirm(confirmPrefix: String, kind: String, call: ToolCall, result: ToolResult) {

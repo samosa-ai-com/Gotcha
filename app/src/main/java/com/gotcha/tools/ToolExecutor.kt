@@ -94,7 +94,9 @@ class ToolExecutor(
     private val rootTool = RootTool()
     private val termuxTool = TermuxTool(appContext)
     private val healthTool = HealthTool(appContext)
-    private val actionLog = ActionLog(appContext)
+
+    /** The audit log; the engine also writes the answers to its confirmation prompts here. */
+    val actionLog = ActionLog(appContext)
 
     init {
         com.gotcha.connectors.ConnectorRegistry.init(appContext)
@@ -506,6 +508,21 @@ class ToolExecutor(
                         )
                     )
                 }
+            }
+            "update_gotcha_settings" -> {
+                val requested = args["changes"] as? JsonObject ?: return missing("changes")
+                // Validated here, before the user is asked anything: an unsupported key or
+                // bad value never reaches a prompt, let alone SettingsRepository.
+                val changes = GotchaSettingsUpdate.parse(requested, liveSettingsCatalog()).getOrElse {
+                    return ToolResult.error(
+                        "No settings were changed: ${it.message}. Only the settings listed in " +
+                            "this tool's schema can be changed, and only to the values it lists."
+                    )
+                }
+                ToolResult.ok(
+                    GotchaSettingsUpdate.CONFIRM_PREFIX +
+                        GotchaSettingsUpdate.encodePayload(changes, args.requireString("reason"))
+                )
             }
             "sleep" -> {
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)

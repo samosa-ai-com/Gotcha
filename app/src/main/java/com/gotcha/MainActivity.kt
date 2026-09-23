@@ -167,6 +167,22 @@ class MainActivity : ComponentActivity() {
 
     private fun Settings.appearance() = Appearance(skinId = skinId)
 
+    /**
+     * Repaints when the skin is written from outside the Appearance screen — the
+     * assistant's update_gotcha_settings (issue #99) — without a restart. Held in a
+     * field: SharedPreferences keeps listeners weakly.
+     */
+    private val appearanceListener =
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> syncAppearance() }
+
+    private fun syncAppearance() {
+        val latest = settingsRepository.load().appearance()
+        if (latest != appearance) {
+            appearance = latest
+            applyLaunchBackground()
+        }
+    }
+
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -517,6 +533,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         chatViewModel.setForeground(true)
+        // Catch up on a change made while stopped, then follow later ones.
+        syncAppearance()
+        com.gotcha.data.settingsChangeNotifier(this).registerOnSharedPreferenceChangeListener(appearanceListener)
     }
 
     override fun onResume() {
@@ -615,6 +634,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         chatViewModel.setForeground(false)
+        com.gotcha.data.settingsChangeNotifier(this).unregisterOnSharedPreferenceChangeListener(appearanceListener)
     }
 
     @Composable

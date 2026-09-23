@@ -127,7 +127,10 @@ class AgentPromptTest {
         )
         assertTrue(body.contains("Respond to the user in Hindi"))
         assertTrue(body.contains("Reply language: Hindi"))
-        assertFalse(body.contains("German"))
+        // Only the messages: the tool schemas list every language as an allowed value.
+        val messages = kotlinx.serialization.json.Json.parseToJsonElement(body)
+            .let { it as kotlinx.serialization.json.JsonObject }["messages"].toString()
+        assertFalse(messages.contains("German"))
     }
 
     @Test

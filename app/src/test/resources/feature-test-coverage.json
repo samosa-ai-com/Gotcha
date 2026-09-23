@@ -15,6 +15,15 @@
       "notes": "merge semantics (modify-and-extend, never erase), the no-op guard, and the 250/50-word caps"
     },
     {
+      "tool": "update_gotcha_settings",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.GotchaSettingsUpdateTest",
+        "com.gotcha.agent.SettingsUpdateLoopTest"
+      ],
+      "notes": "the allowlist (credentials refused), per-key validation, all-or-nothing rejection, and the loop: a prompt on every change, denial leaves settings untouched, approval saves through SettingsRepository, both audited"
+    },
+    {
       "tool": "about_samosa_ai",
       "tier": "ROBOLECTRIC",
       "tests": [

@@ -23,6 +23,7 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.Category
+import com.gotcha.tools.GotchaSettingsUpdate
 import com.gotcha.tools.ToolCategories
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
@@ -198,6 +199,11 @@ class CallSessionController(
                     "Updated " + merged.changedFields.joinToString(", ") + ". " +
                         "The new value will be used from the next message."
                 )
+            },
+            onUpdateGotchaSettings = { plan ->
+                // settingsProvider reloads every round, so the next turn already sees this.
+                settingsRepository.save(plan.applyTo(settingsRepository.load()))
+                ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
             },
             workingDirRoot = CALLS_WORKING_ROOT
         )

@@ -4,6 +4,20 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **The assistant can change Gotcha's settings, with your approval every
+  time** (#99). Ask it to turn off the reply chime, switch the skin, stop
+  scanning the clipboard or turn a connector off, and it proposes the change
+  through a new `update_gotcha_settings` tool. Nothing is written until you
+  approve a prompt that lists each setting with its current and new value and
+  says whether it touches privacy, notifications, permissions or device
+  control, and an approval never carries over to the next change. Only an
+  allowlist can be changed — notifications, reply and speech language, read
+  aloud, skin, proactive assistance, wake-word listening mode and sensitivity,
+  connectors and skills. API keys, sign-in, the model and run limits are out of
+  reach, and an unknown key or bad value is refused before you are asked
+  anything. Approved changes take effect at once (the skin repaints without a
+  restart), and both approvals and refusals go into the action log. Operator
+  mode only.
 - **Chat personas.** The starter chips said what to ask; nothing said who to ask.
   A persona row now sits under the agent selector on an empty chat — **Doctor,
   Chef, Fitness Coach, Tutor, Travel Planner, Handyman** — and picking one starts

@@ -106,6 +106,33 @@ object ToolDefinitions {
         }
     )
 
+    val updateGotchaSettings = tool(
+        "update_gotcha_settings",
+        "Change Gotcha's own settings when the user asks you to — notifications, reply and " +
+            "speech language, reading replies aloud, the skin, proactive assistance, the wake " +
+            "word's listening mode and sensitivity, and turning connectors or skills on or off. " +
+            "Only the settings in `changes` can be set; API keys, sign-in, the model and " +
+            "permissions cannot, so send the user to Settings for those (about_gotcha has the " +
+            "path). The user is shown every change with its current and new value and must " +
+            "approve it, every time; if they decline, nothing changes — do not retry unless " +
+            "they ask again. Change only what the user asked for.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("changes") {
+                    put("type", "object")
+                    put("description", "The settings to change and their new values. Include only these.")
+                    put("properties", GotchaSettingsUpdate.schemaProperties(staticSettingsCatalog()))
+                    put("additionalProperties", false)
+                }
+                putJsonObject("reason") {
+                    put("type", "string")
+                    put("description", "One short sentence shown to the user on the approval prompt: why.")
+                }
+            }
+            putJsonArray("required") { add("changes") }
+        }
+    )
+
     val getStorageInfo = tool(
         "get_storage_info",
         "Report total, used and free internal storage of the device.",
@@ -2962,6 +2989,7 @@ object ToolDefinitions {
         aboutSamosaAi,
         aboutGotcha,
         updateUserProfile,
+        updateGotchaSettings,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,

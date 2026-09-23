@@ -52,6 +52,11 @@ mid-conversation.
   Calendar, To Do), Notion, and Home Assistant.
 - **Skills** — bundled and community operational guidance, searchable and
   injected automatically when the matching app is in front.
+- **Its own settings** — in Operator, change notification, language, read-aloud,
+  skin, proactive-assistance and wake-word listening settings, and switch
+  connectors and skills on or off, with `update_gotcha_settings`. API keys,
+  sign-in, the model, run limits and permissions are not reachable this way; the
+  user changes those in Settings.
 
 ## Where the settings are
 
@@ -111,8 +116,10 @@ owns it — the toggle offers to do that.
 
 Tools are organised in capability tiers, and a permission is asked for at the
 moment a tool needs it rather than up front.
-Only a few destructive actions — uninstalling an app, deleting an alarm, timer or
-calendar event, and sending an email — ask the user to confirm before running;
+Only a few actions — uninstalling an app, deleting an alarm, timer or calendar
+event, sending an email, and changing Gotcha's own settings — ask the user to
+confirm before running, every time, and a declined change leaves everything as it
+was;
 everything else executes without a confirmation step. Shell commands run against
 a deny-list, actions are recorded in an append-only audit log, and settings
 screens that could be changed silently are marked confirm-first — the agent asks

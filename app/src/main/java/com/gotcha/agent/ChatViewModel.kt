@@ -34,6 +34,7 @@ import com.gotcha.notifications.RunOutcome
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.DocumentError
 import com.gotcha.tools.DocumentParser
+import com.gotcha.tools.GotchaSettingsUpdate
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
@@ -292,6 +293,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 "Updated " + merged.changedFields.joinToString(", ") + ". " +
                     "The new value will be used from the next message."
             )
+        },
+        onUpdateGotchaSettings = { plan ->
+            // Only reached after the user approved this exact change. Apply it onto a
+            // fresh load so a concurrent write elsewhere (the Settings screen, the
+            // assistive ball) is not clobbered by the snapshot the prompt was built from.
+            settingsRepository.save(plan.applyTo(settingsRepository.load()))
+            withContext(Dispatchers.Main) {
+                // Rebuilds the cached settings the engine reads next round, and the
+                // speech engines; the skin and services follow settingsChangeNotifier.
+                refreshSettings()
+                appendEngineUi(
+                    MessageKind.TOOL,
+                    "Assistant changed settings: " + plan.lines().joinToString("; ") + "."
+                )
+            }
+            ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
         },
         // Persist the ENGINE session's own data, never the viewed session's —
         // the user may be browsing another chat while this run continues.
