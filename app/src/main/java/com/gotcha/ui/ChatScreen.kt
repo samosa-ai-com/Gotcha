@@ -495,7 +495,7 @@ fun ChatScreen(
                         "⚡ Agent working in “${state.runningSessionTitle ?: "another chat"}” — you can leave Gotcha; tap to return",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
