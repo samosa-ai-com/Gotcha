@@ -49,6 +49,9 @@ enum class WakeWordListeningMode {
  */
 const val DEFAULT_MAX_CONTEXT_TOKENS = 256_000
 
+/** Daily tip time for a fresh install: 10:00, in minutes after midnight. */
+const val DEFAULT_DAILY_TIP_MINUTE = 10 * 60
+
 /**
  * The budget before [DEFAULT_MAX_CONTEXT_TOKENS] was raised. A stored copy of
  * exactly this value is lifted once by [SettingsRepository.resolvedMaxContextTokens];
@@ -132,6 +135,14 @@ data class Settings(
      */
     val chatCompletionNotificationsEnabled: Boolean = true,
     val chatCompletionPreview: CompletionPreview = CompletionPreview.SHORT,
+    /**
+     * A daily notification suggesting one thing to try, which opens a new chat
+     * with that prompt ready to send (issue #101). On by default; off in
+     * Settings → Notifications.
+     */
+    val dailyTipsEnabled: Boolean = true,
+    /** When the daily tip arrives, as minutes after local midnight. */
+    val dailyTipMinuteOfDay: Int = DEFAULT_DAILY_TIP_MINUTE,
     val assistiveBallEnabled: Boolean = false,
     val wakeWordEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.75f,
@@ -523,6 +534,8 @@ class SettingsRepository(context: Context) : SettingsStore {
         chatCompletionPreview = runCatching {
             CompletionPreview.valueOf(string(KEY_CHAT_COMPLETION_PREVIEW, "SHORT"))
         }.getOrDefault(CompletionPreview.SHORT),
+        dailyTipsEnabled = prefs.getBoolean(KEY_DAILY_TIPS, true),
+        dailyTipMinuteOfDay = prefs.getInt(KEY_DAILY_TIP_MINUTE, DEFAULT_DAILY_TIP_MINUTE),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         wakeWordEnabled = prefs.getBoolean(KEY_WAKE_WORD_ENABLED, false),
         wakeWordSensitivity = prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, 0.75f),
@@ -600,6 +613,8 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_CHAT_COMPLETION_NOTIFICATIONS, settings.chatCompletionNotificationsEnabled)
             .putString(KEY_CHAT_COMPLETION_PREVIEW, settings.chatCompletionPreview.name)
+            .putBoolean(KEY_DAILY_TIPS, settings.dailyTipsEnabled)
+            .putInt(KEY_DAILY_TIP_MINUTE, settings.dailyTipMinuteOfDay)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putBoolean(KEY_WAKE_WORD_ENABLED, settings.wakeWordEnabled)
             .putFloat(KEY_WAKE_WORD_SENSITIVITY, settings.wakeWordSensitivity)
@@ -715,6 +730,8 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_CHAT_COMPLETION_NOTIFICATIONS = "chat_completion_notifications"
         const val KEY_CHAT_COMPLETION_PREVIEW = "chat_completion_preview"
+        const val KEY_DAILY_TIPS = "daily_tips_enabled"
+        const val KEY_DAILY_TIP_MINUTE = "daily_tip_minute_of_day"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"

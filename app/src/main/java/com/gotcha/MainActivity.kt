@@ -50,6 +50,10 @@ import com.gotcha.data.computeFeedbackStats
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.notifications.DAILY_TIPS
+import com.gotcha.notifications.DailyTip
+import com.gotcha.notifications.DailyTipNotifier
+import com.gotcha.notifications.DailyTipScheduler
 import com.gotcha.notifications.NotificationDispatcher
 import com.gotcha.notifications.NotificationPayload
 import com.gotcha.notifications.ServerMessages
@@ -134,6 +138,9 @@ class MainActivity : ComponentActivity() {
 
     /** Chat to open, set when a task-finished notification is tapped (issue #97). */
     private var openSessionRequested by mutableStateOf<String?>(null)
+
+    /** Tip whose prompt a new chat should open with, set when a daily tip is tapped (issue #101). */
+    private var openTipRequested by mutableStateOf<DailyTip?>(null)
 
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
@@ -288,6 +295,12 @@ class MainActivity : ComponentActivity() {
         openChatRequested = intent?.getBooleanExtra(EXTRA_OPEN_CHAT, false) == true
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
         handleNotificationIntent(intent)
+
+        // A fresh install has had no boot or update broadcast yet, so the daily
+        // tip alarm is armed here too. Re-arming is idempotent.
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { DailyTipScheduler.schedule(applicationContext) }
+        }
 
         // Tools report what they need the moment they need it. A special-access
         // marker opens the Settings screen that grants it; a runtime permission
@@ -513,6 +526,12 @@ class MainActivity : ComponentActivity() {
             // Consumed: a later recreation must not reopen this chat over the user's choice.
             intent.removeExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)
         }
+        intent?.getStringExtra(DailyTipNotifier.EXTRA_DAILY_TIP_ID)?.let { id ->
+            // An id from an older version that no longer exists just opens the app.
+            openTipRequested = DAILY_TIPS.firstOrNull { it.id == id }
+            // Consumed, as above: a recreation must not open another chat.
+            intent.removeExtra(DailyTipNotifier.EXTRA_DAILY_TIP_ID)
+        }
         val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
         val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
         if (!title.isNullOrBlank() || !body.isNullOrBlank()) {
@@ -709,6 +728,15 @@ class MainActivity : ComponentActivity() {
                 currentRoute = Route.HOME
                 chatViewModel.openSessionFromNotification(id)
                 openSessionRequested = null
+            }
+        }
+
+        // A tapped daily tip: a new chat, in the tip's mode, with its prompt drafted.
+        LaunchedEffect(openTipRequested) {
+            openTipRequested?.let { tip ->
+                currentRoute = Route.HOME
+                chatViewModel.startChatFromTip(tip.prompt, tip.agent)
+                openTipRequested = null
             }
         }
 
@@ -933,6 +961,7 @@ class MainActivity : ComponentActivity() {
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSetPersona = chatViewModel::setPersona,
+                        onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = chatViewModel::startListening,

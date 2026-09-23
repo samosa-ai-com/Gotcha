@@ -223,7 +223,13 @@ data class ChatUiState(
      * than in the composer's saved state: several base64 images would overflow
      * the saved-instance Bundle.
      */
-    val pendingAttachments: List<ComposerAttachment> = emptyList()
+    val pendingAttachments: List<ComposerAttachment> = emptyList(),
+    /**
+     * Text to put in the composer once, e.g. a tapped daily tip's prompt (issue
+     * #101). The composer owns its text, so this is a hand-off: the screen copies
+     * it in and calls [ChatViewModel.consumeComposerDraft]. Never sent by itself.
+     */
+    val composerDraft: String? = null
 )
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
@@ -834,6 +840,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             initJob.join()
             openSession(id)
         }
+    }
+
+    /**
+     * Opens a new chat for a tapped daily tip (issue #101): in the tip's mode —
+     * a fresh chat has no earlier choice of mode to override — and with its
+     * prompt in the composer for the user to edit or send. Waits for startup
+     * like [openSessionFromNotification]. Without an API key the composer is
+     * disabled, so the chat opens without the draft.
+     */
+    fun startChatFromTip(prompt: String, mode: AgentMode) {
+        viewModelScope.launch {
+            initJob.join()
+            clearChat(mode)
+            if (_uiState.value.isConfigured) {
+                _uiState.update { it.copy(composerDraft = prompt) }
+            }
+        }
+    }
+
+    /** The composer has taken [ChatUiState.composerDraft]. */
+    fun consumeComposerDraft() {
+        _uiState.update { it.copy(composerDraft = null) }
     }
 
     /**

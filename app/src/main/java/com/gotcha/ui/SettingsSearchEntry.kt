@@ -111,7 +111,8 @@ private fun keywordsFor(page: SettingsPage): List<String> = when (page) {
     )
     SettingsPage.NOTIFICATIONS -> words(
         """
-        alerts, sound, vibrate, server messages, announcements, sync
+        alerts, sound, vibrate, server messages, announcements, sync,
+        daily tip, tips, suggestions, ideas, reminder
         """
     )
     SettingsPage.ABOUT -> words(

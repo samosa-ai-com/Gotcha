@@ -4,6 +4,15 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Daily tips** (#101). Once a day, at 10:00 by default, Gotcha sends a
+  notification suggesting one thing to try: reading your screen, catching up
+  on notifications, texting someone, planning the day. Tapping it opens a new
+  chat with the prompt already in the composer, to edit or send as it is. Tips
+  for tools you have never used come first, none repeats until ten others have
+  been shown, and no tip is sent on a day you have already used Gotcha. Tips for
+  device actions start the chat in Operator. On by default; Settings →
+  Notifications turns tips off or changes the time, and they have their own
+  "Daily tips" channel in Android's settings.
 - **The assistant can change Gotcha's settings, with your approval every
   time** (#99). Ask it to turn off the reply chime, switch the skin, stop
   scanning the clipboard or turn a connector off, and it proposes the change

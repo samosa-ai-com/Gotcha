@@ -184,6 +184,13 @@ object GotchaSettingsUpdate {
             { s, v -> s.copy(chatCompletionPreview = v) }
         ),
         boolSpec(
+            "daily_tips",
+            "A daily tip with something to try",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.dailyTipsEnabled },
+            { s, v -> s.copy(dailyTipsEnabled = v) }
+        ),
+        boolSpec(
             "server_messages",
             "Messages from Samosa AI",
             setOf(SettingImpact.NOTIFICATIONS),

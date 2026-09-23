@@ -114,7 +114,8 @@ fun ChatScreen(
     onReturnToRunning: () -> Unit = {},
     onCreateShareCard: () -> Unit = {},
     onEditMessage: (Long, String, List<ComposerAttachment>) -> Unit = { _, _, _ -> },
-    onRevertMessage: (Long) -> Unit = { _ -> }
+    onRevertMessage: (Long) -> Unit = { _ -> },
+    onComposerDraftConsumed: () -> Unit = {}
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -129,6 +130,15 @@ fun ChatScreen(
     var editingMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Id of the user message pending a revert confirmation.
     var pendingRevertId by remember { mutableStateOf<Long?>(null) }
+    // A draft handed over by the view model (a tapped daily tip): fill, never send.
+    LaunchedEffect(state.composerDraft) {
+        state.composerDraft?.let { draft ->
+            input = draft
+            inputWasVoice = false
+            editingMessageId = null
+            onComposerDraftConsumed()
+        }
+    }
     val listState = rememberLazyListState()
 
     // Everything already in the transcript when this chat opened is history, and
