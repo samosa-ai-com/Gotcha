@@ -342,4 +342,52 @@ class ModelsTest {
         assertEquals(plain, plain.withValidToolCallArguments())
         assertEquals(noCalls, noCalls.withValidToolCallArguments())
     }
+
+    @Test
+    fun `attachmentsUserMessage with one document matches documentUserMessage`() {
+        val single = attachmentsUserMessage(
+            userText = "summarize",
+            documents = listOf(DocumentPart("a.pdf", "application/pdf", "BODY", pageCount = 3)),
+            imagesBase64 = emptyList()
+        )
+        val legacy = documentUserMessage("summarize", "a.pdf", "application/pdf", "BODY", pageCount = 3)
+        assertEquals(legacy, single)
+    }
+
+    @Test
+    fun `attachmentsUserMessage with one image matches visionUserMessage`() {
+        assertEquals(
+            visionUserMessage("", "QUJD", "jpeg"),
+            attachmentsUserMessage("", emptyList(), listOf("QUJD"), imageFormat = "jpeg")
+        )
+    }
+
+    @Test
+    fun `attachmentsUserMessage puts documents in the first part and each image in its own part`() {
+        val msg = attachmentsUserMessage(
+            userText = "",
+            documents = listOf(
+                DocumentPart("one.txt", "text/plain", "FIRST"),
+                DocumentPart("two.txt", "text/plain", "SECOND")
+            ),
+            imagesBase64 = listOf("AAA", "BBB")
+        )
+        val parts = msg.content as JsonArray
+        assertEquals(3, parts.size)
+        assertEquals(2, msg.imageCount)
+        val text = msg.textContent
+        assertTrue(text.startsWith("Answer questions about the attached files."))
+        assertTrue(text.indexOf("[Attached file: one.txt") < text.indexOf("[Attached file: two.txt"))
+        assertTrue(text.contains("FIRST") && text.contains("SECOND"))
+        assertEquals(
+            listOf("data:image/jpeg;base64,AAA", "data:image/jpeg;base64,BBB"),
+            parts.drop(1).map { it.jsonObject["image_url"]!!.jsonObject["url"]!!.jsonPrimitive.content }
+        )
+    }
+
+    @Test
+    fun `attachmentsUserMessage defaults the prompt for several images`() {
+        val msg = attachmentsUserMessage("", emptyList(), listOf("A", "B"))
+        assertEquals("What is in these images?", msg.textContent)
+    }
 }

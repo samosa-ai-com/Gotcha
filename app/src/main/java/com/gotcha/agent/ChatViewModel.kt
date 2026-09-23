@@ -22,9 +22,9 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
+import com.gotcha.llm.DocumentPart
 import com.gotcha.llm.LLMClient
-import com.gotcha.llm.documentUserMessage
-import com.gotcha.llm.visionUserMessage
+import com.gotcha.llm.attachmentsUserMessage
 import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
@@ -52,7 +52,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
@@ -70,11 +69,57 @@ data class Attachment(
     val truncated: Boolean = false
 )
 
-/** Result of the composer's picker: routed to either the image or the document pipeline. */
-sealed class PickedFile {
-    data class Image(val base64: String) : PickedFile()
-    data class Document(val attachment: Attachment) : PickedFile()
+/**
+ * One file queued in the composer, or carried by a sent user message. Images are
+ * already downscaled to JPEG base64; documents carry their extracted text. The
+ * [id] is stable for the life of the attachment, so one can be removed from the
+ * composer without disturbing the order of the rest.
+ */
+@kotlinx.serialization.Serializable
+sealed class ComposerAttachment {
+    abstract val id: String
+    abstract val name: String
+
+    @kotlinx.serialization.Serializable
+    @kotlinx.serialization.SerialName("image")
+    data class Image(
+        override val id: String,
+        override val name: String,
+        val base64: String
+    ) : ComposerAttachment()
+
+    @kotlinx.serialization.Serializable
+    @kotlinx.serialization.SerialName("document")
+    data class Document(
+        override val id: String,
+        val attachment: Attachment
+    ) : ComposerAttachment() {
+        override val name: String get() = attachment.name
+    }
+
+    companion object {
+        /**
+         * Files per message. Images are downscaled to ~1024 px JPEG, so ten stay
+         * far below every provider's request-size cap; the tighter per-request
+         * image caps some providers apply (e.g. Groq's 3) surface as a readable
+         * error from [HumanReadableError] instead of being guessed here.
+         */
+        const val MAX_PER_MESSAGE = 10
+
+        /**
+         * Extracted document text across one message. Each document is already
+         * capped at [DocumentParser.MAX_EXTRACTED_CHARS]; this keeps several of
+         * them from crowding the model's context window.
+         */
+        const val MAX_TOTAL_DOCUMENT_CHARS = 2 * DocumentParser.MAX_EXTRACTED_CHARS
+    }
 }
+
+/**
+ * Transcript labels for a prompt that was only attachments. The composer treats
+ * these as empty when a message is edited, so they never become the new prompt.
+ */
+internal val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(document attached)", "(files attached)")
 
 @kotlinx.serialization.Serializable
 data class UiMessage(
@@ -85,7 +130,8 @@ data class UiMessage(
     val subAgentSteps: List<String> = emptyList(),
     val subAgentCollapsed: Boolean = true,
     val reasoningContent: String? = null,
-    val attachment: Attachment? = null
+    /** Files the user sent with this message, in the order they were picked. */
+    val attachments: List<ComposerAttachment> = emptyList()
 )
 
 data class SubAgentStepUi(
@@ -137,7 +183,13 @@ data class ChatUiState(
     val isTranscribing: Boolean = false,
     val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
-    val sttModels: List<AudioModel> = emptyList()
+    val sttModels: List<AudioModel> = emptyList(),
+    /**
+     * Files queued in the composer until the user taps Send. Held here rather
+     * than in the composer's saved state: several base64 images would overflow
+     * the saved-instance Bundle.
+     */
+    val pendingAttachments: List<ComposerAttachment> = emptyList()
 )
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
@@ -492,12 +544,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     fun sendMessage(
         text: String,
-        imageBase64: String? = null,
-        attachment: Attachment? = null,
+        attachments: List<ComposerAttachment> = emptyList(),
         isVoiceInput: Boolean = false
     ) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty() && imageBase64 == null && attachment == null) return
+        if (trimmed.isEmpty() && attachments.isEmpty()) return
         // One agent runs at a time. Block sending while any run is in flight —
         // the user can browse other chats but must let the current run finish.
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
@@ -505,25 +556,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        val msg = buildUserMessage(trimmed, imageBase64, attachment)
-        launchUserRun(msg, imageBase64, attachment, trimmed, isVoiceInput)
+        val msg = buildUserMessage(trimmed, attachments)
+        launchUserRun(msg, attachments, trimmed, isVoiceInput)
     }
 
     /**
-     * Builds the LLM user message for the given prompt and optional attachments.
-     * A document takes precedence over an image (v1 limitation: an attachment is
-     * one kind per message).
+     * Builds the LLM user message for the given prompt and attachments: every
+     * document's text joins the prompt in the first text part, and every image
+     * follows as its own image part.
      */
-    private fun buildUserMessage(text: String, imageBase64: String?, attachment: Attachment?): ChatMessage = when {
-        attachment != null -> documentUserMessage(
-            userText = text,
-            fileName = attachment.name,
-            mimeType = attachment.mimeType,
-            extractedText = attachment.text,
-            pageCount = attachment.pageCount
-        )
-        imageBase64 != null -> visionUserMessage(text, imageBase64, "jpeg")
-        else -> ChatMessage(role = "user", content = JsonPrimitive(text))
+    private fun buildUserMessage(text: String, attachments: List<ComposerAttachment>): ChatMessage {
+        if (attachments.isEmpty()) return ChatMessage(role = "user", content = JsonPrimitive(text))
+        val documents = attachments.filterIsInstance<ComposerAttachment.Document>().map {
+            DocumentPart(it.attachment.name, it.attachment.mimeType, it.attachment.text, it.attachment.pageCount)
+        }
+        val images = attachments.filterIsInstance<ComposerAttachment.Image>().map { it.base64 }
+        return attachmentsUserMessage(text, documents, images, imageFormat = "jpeg")
     }
 
     /**
@@ -533,8 +581,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      */
     private fun launchUserRun(
         msg: ChatMessage,
-        imageBase64: String?,
-        attachment: Attachment?,
+        attachments: List<ComposerAttachment>,
         userText: String,
         isVoiceInput: Boolean
     ) {
@@ -550,9 +597,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.history += msg
             appendEngineUi(
                 MessageKind.USER,
-                userDisplayText(userText, msg, attachment),
-                imageBase64,
-                attachment = attachment
+                userDisplayText(userText, msg, attachments),
+                attachments = attachments
             )
 
             val runningId = agentEngine.sessionId ?: return@launch
@@ -562,14 +608,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     /**
      * The transcript label for a sent message: the prompt text, or a placeholder
-     * when the message is attachment-only. Document messages show the prompt
-     * rather than the extracted body; images keep their historical behavior
-     * (the message's text part, default prompt when blank).
+     * when the message is attachment-only. Messages with documents show the
+     * prompt rather than the extracted bodies; image-only messages keep their
+     * historical behavior (the message's text part, default prompt when blank).
      */
-    private fun userDisplayText(userText: String, msg: ChatMessage, attachment: Attachment?): String = when {
-        attachment != null -> userText.ifEmpty { "(document attached)" }
-        else -> msg.textContent
-    }
+    private fun userDisplayText(userText: String, msg: ChatMessage, attachments: List<ComposerAttachment>): String =
+        when {
+            attachments.none { it is ComposerAttachment.Document } -> msg.textContent
+            else -> userText.ifEmpty {
+                if (attachments.size == 1) "(document attached)" else "(files attached)"
+            }
+        }
 
     /**
      * The user's prompt portion of a document message's text part, or null when
@@ -578,9 +627,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * the user's own words.
      */
     private fun documentPromptText(content: String): String? {
-        val marker = "\n[Attached file:"
-        val index = content.indexOf(marker)
+        val index = content.indexOf(ATTACHED_FILE_MARKER)
         return if (index >= 0) content.substring(0, index).trim() else null
+    }
+
+    /** How many `[Attached file: …]` sections a user message's text part carries. */
+    private fun countAttachedFiles(content: String): Int =
+        content.split(ATTACHED_FILE_MARKER).size - 1
+
+    /**
+     * The export's note for a user message's attachments, e.g. "Image attached"
+     * or "3 images, 1 document attached"; null when there are none.
+     */
+    private fun exportAttachmentLabel(documents: Int, images: Int): String? = when {
+        documents == 0 && images == 0 -> null
+        documents == 1 && images == 0 -> "Document attached"
+        documents == 0 && images == 1 -> "Image attached"
+        else -> listOfNotNull(
+            images.takeIf { it > 0 }?.let { plural(it, "image") },
+            documents.takeIf { it > 0 }?.let { plural(it, "document") }
+        ).joinToString(", ") + " attached"
     }
 
     /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
@@ -629,15 +695,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
-     * Replaces the user message [targetId] with [newText], keeping the original
-     * image attachment unless a new one was picked. The target's whole turn and
+     * Replaces the user message [targetId] with [newText] and [attachments]; a
+     * null [attachments] keeps the ones the original message was sent with. The target's whole turn and
      * everything after it are dropped from both the LLM history and the on-screen
      * transcript, then the agent re-runs immediately so a fresh reply is
      * generated from the edited history.
      */
-    fun editMessage(targetId: Long, newText: String, imageBase64: String?, attachment: Attachment? = null) {
+    fun editMessage(targetId: Long, newText: String, attachments: List<ComposerAttachment>? = null) {
         val trimmed = newText.trim()
-        if (trimmed.isEmpty() && imageBase64 == null && attachment == null) return
+        if (trimmed.isEmpty() && attachments.isNullOrEmpty()) return
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         if (client == null) {
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
@@ -676,17 +742,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
             // Never promote undone work on the share card.
             agentEngine.restoreRunSummaries(emptyList())
-            val editImage = imageBase64 ?: target.imageBase64
             // A previously-sent document keeps its extracted text (the file grant is
             // long gone); a newly-picked one carries its own.
-            val editAttachment = attachment ?: target.attachment
-            val msg = buildUserMessage(trimmed, editImage, editAttachment)
+            val editAttachments = attachments ?: target.attachments
+            val msg = buildUserMessage(trimmed, editAttachments)
             agentEngine.history += msg
             appendEngineUi(
                 MessageKind.USER,
-                userDisplayText(trimmed, msg, editAttachment),
-                editImage,
-                attachment = editAttachment
+                userDisplayText(trimmed, msg, editAttachments),
+                attachments = editAttachments
             )
             executeRun(engineAgent, agentEngine.sessionId ?: return@launch)
         }
@@ -819,48 +883,96 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
-     * Result of the composer's "+" pick, delivered asynchronously once the file
-     * has been read and parsed off the main thread. `null` means a failed pick
-     * (an ERROR bubble is appended first).
+     * Entry point for the composer's "+" button. Each picked file is read and
+     * parsed on [Dispatchers.IO] in the order it was picked, then appended to
+     * [ChatUiState.pendingAttachments] — nothing already queued is replaced, and
+     * nothing is sent until the user taps Send. Images reuse the image pipeline;
+     * anything else goes through [loadDocument]. Files that fail to load, or that
+     * would go past [ComposerAttachment.MAX_PER_MESSAGE] or
+     * [ComposerAttachment.MAX_TOTAL_DOCUMENT_CHARS], are skipped with an ERROR
+     * bubble saying why; the rest are still added.
      */
-    private val _pickResults = MutableSharedFlow<PickedFile?>(extraBufferCapacity = 1)
-    val pickResults: SharedFlow<PickedFile?> = _pickResults.asSharedFlow()
+    fun addAttachments(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val room = ComposerAttachment.MAX_PER_MESSAGE - _uiState.value.pendingAttachments.size
+            val toLoad = uris.take(room.coerceAtLeast(0))
+            val loaded = withContext(Dispatchers.IO) { toLoad.map { loadAttachment(it) } }
+            // Back on the main dispatcher. Re-check against the queue as it is now,
+            // since another pick may have landed while these were loading.
+            val errors = loaded.mapNotNull { it.exceptionOrNull()?.message }.toMutableList()
+            var overCount = 0
+            var overText = 0
+            _uiState.update { state ->
+                // update may retry this block, so the counts start over each time.
+                overCount = uris.size - toLoad.size
+                overText = 0
+                val queue = state.pendingAttachments.toMutableList()
+                var docChars = queue.documentChars()
+                for (attachment in loaded.mapNotNull { it.getOrNull() }) {
+                    val chars = (attachment as? ComposerAttachment.Document)?.attachment?.text?.length ?: 0
+                    when {
+                        queue.size >= ComposerAttachment.MAX_PER_MESSAGE -> overCount++
+                        docChars + chars > ComposerAttachment.MAX_TOTAL_DOCUMENT_CHARS -> overText++
+                        else -> {
+                            queue += attachment
+                            docChars += chars
+                        }
+                    }
+                }
+                state.copy(pendingAttachments = queue)
+            }
+            if (overCount > 0) {
+                errors += "You can attach up to ${ComposerAttachment.MAX_PER_MESSAGE} files per message — " +
+                    "skipped ${plural(overCount, "file")}."
+            }
+            if (overText > 0) {
+                errors += "The attached documents are too long to send together — " +
+                    "skipped ${plural(overText, "document")}. Send them in separate messages."
+            }
+            errors.forEach { appendUi(MessageKind.ERROR, it) }
+        }
+    }
+
+    /** Removes one queued attachment from the composer. */
+    fun removeAttachment(id: String) {
+        _uiState.update { state -> state.copy(pendingAttachments = state.pendingAttachments.filterNot { it.id == id }) }
+    }
+
+    /** Replaces the composer's queue, e.g. with a message's attachments when it is edited. */
+    fun setAttachments(attachments: List<ComposerAttachment>) {
+        _uiState.update { it.copy(pendingAttachments = attachments) }
+    }
+
+    fun clearAttachments() = setAttachments(emptyList())
+
+    private fun List<ComposerAttachment>.documentChars(): Int =
+        sumOf { (it as? ComposerAttachment.Document)?.attachment?.text?.length ?: 0 }
+
+    private fun plural(count: Int, noun: String): String = if (count == 1) "1 $noun" else "$count ${noun}s"
 
     /**
-     * Entry point for the composer's "+" button. Routes by content type: images
-     * reuse the image pipeline; anything else goes through [loadDocument]. The
-     * read + parse runs on [Dispatchers.IO] so a large document never blocks the
-     * main thread; a failure surfaces as an ERROR bubble and the result (or
-     * null) is delivered on [pickResults].
+     * Reads one picked file into an attachment. A failure carries the message to
+     * show the user, so one unreadable file never costs the rest of the pick.
      */
-    fun pickContent(uri: Uri) {
-        viewModelScope.launch {
-            val (picked, error) = withContext(Dispatchers.IO) {
-                try {
-                    val resolver = getApplication<Application>().contentResolver
-                    val mime = resolver.getType(uri)
-                    val picked = if (mime?.startsWith("image/") == true) {
-                        loadImageBase64(uri)?.let { PickedFile.Image(it) }
-                    } else {
-                        loadDocument(uri)?.let { PickedFile.Document(it) }
-                    }
-                    // Both loaders return null when the stream cannot be opened;
-                    // treat that like any other failed pick so the user gets a
-                    // visible error instead of a silent no-op.
-                    if (picked != null) picked to null else null to "Could not read that file."
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: DocumentError) {
-                    null to (e.message ?: "Could not read that file.")
-                } catch (e: Exception) {
-                    null to "Could not read that file: ${HumanReadableError.format(e)}"
-                }
-            }
-            // Back on the main dispatcher: the error bubble lands before the pick
-            // result so a failed attachment explains itself in the transcript.
-            if (error != null) appendUi(MessageKind.ERROR, error)
-            _pickResults.tryEmit(picked)
+    private fun loadAttachment(uri: Uri): Result<ComposerAttachment> = try {
+        val resolver = getApplication<Application>().contentResolver
+        val id = java.util.UUID.randomUUID().toString()
+        val attachment = if (resolver.getType(uri)?.startsWith("image/") == true) {
+            loadImageBase64(uri)?.let { ComposerAttachment.Image(id, queryDisplayName(resolver, uri, "image"), it) }
+        } else {
+            loadDocument(uri)?.let { ComposerAttachment.Document(id, it) }
         }
+        // Both loaders return null when the stream cannot be opened; treat that
+        // like any other failed pick so the user gets a visible error instead of
+        // a silent no-op.
+        if (attachment != null) Result.success(attachment) else Result.failure(Exception("Could not read that file."))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: DocumentError) {
+        Result.failure(Exception(e.message ?: "Could not read that file."))
+    } catch (e: Exception) {
+        Result.failure(Exception("Could not read that file: ${HumanReadableError.format(e)}"))
     }
 
     /**
@@ -869,7 +981,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * [Attachment], so the transient picker read grant is never needed again and
      * nothing is copied into the app cache. Returns null only when the stream
      * cannot be opened; unreadable/unsupported content throws [DocumentError],
-     * which [pickContent] surfaces as an ERROR bubble on the main thread.
+     * which [addAttachments] surfaces as an ERROR bubble on the main thread.
      */
     private fun loadDocument(uri: Uri): Attachment? {
         val app = getApplication<Application>()
@@ -887,7 +999,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         )
     }
 
-    private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String {
+    private fun queryDisplayName(resolver: ContentResolver, uri: Uri, fallback: String = "document"): String {
         return try {
             resolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst()) return@use null
@@ -896,7 +1008,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
         } catch (_: Exception) {
             null
-        }?.takeIf { it.isNotBlank() } ?: "document"
+        }?.takeIf { it.isNotBlank() } ?: fallback
     }
 
     fun stopAgent() {
@@ -1380,7 +1492,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         kind: MessageKind,
         text: String,
         imageBase64: String? = null,
-        attachment: Attachment? = null,
+        attachments: List<ComposerAttachment> = emptyList(),
         subAgentSteps: List<String> = emptyList(),
         reasoningContent: String? = null
     ) {
@@ -1395,7 +1507,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             subAgentSteps = subAgentSteps,
             subAgentCollapsed = true,
             reasoningContent = reasoningContent,
-            attachment = attachment
+            attachments = attachments
         )
         engineTranscript = engineTranscript + message
         if (viewing) {
@@ -1499,13 +1611,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 "user" -> {
                     val docPrompt = documentPromptText(text)
                     sb.appendLine("### User")
-                    if (docPrompt != null) {
-                        if (docPrompt.isNotBlank()) sb.appendLine(docPrompt)
-                        sb.appendLine("*(Document attached)*")
-                    } else {
-                        if (text.isNotBlank()) sb.appendLine(text)
-                        if (msg.content is JsonArray) sb.appendLine("*(Image attached)*")
-                    }
+                    val prompt = docPrompt ?: text
+                    if (prompt.isNotBlank()) sb.appendLine(prompt)
+                    exportAttachmentLabel(documents = countAttachedFiles(text), images = msg.imageCount)
+                        ?.let { sb.appendLine("*($it)*") }
                     sb.appendLine()
                 }
                 "assistant" -> {
@@ -1616,6 +1725,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+
+        /** Starts each document section in a user message; see [documentPromptText]. */
+        const val ATTACHED_FILE_MARKER = "\n[Attached file:"
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
     }
 }

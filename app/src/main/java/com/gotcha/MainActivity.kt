@@ -870,8 +870,8 @@ class MainActivity : ComponentActivity() {
                     }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64, attachment, isVoiceInput ->
-                            chatViewModel.sendMessage(text, imageBase64, attachment, isVoiceInput)
+                        onSend = { text, attachments, isVoiceInput ->
+                            chatViewModel.sendMessage(text, attachments, isVoiceInput)
                         },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
@@ -879,8 +879,9 @@ class MainActivity : ComponentActivity() {
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        onPickFile = chatViewModel::pickContent,
-                        pickResults = chatViewModel.pickResults,
+                        onPickFiles = chatViewModel::addAttachments,
+                        onRemoveAttachment = chatViewModel::removeAttachment,
+                        onSetAttachments = chatViewModel::setAttachments,
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSetPersona = chatViewModel::setPersona,
@@ -895,8 +896,8 @@ class MainActivity : ComponentActivity() {
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         },
-                        onEditMessage = { id, text, imageBase64, attachment ->
-                            chatViewModel.editMessage(id, text, imageBase64, attachment)
+                        onEditMessage = { id, text, attachments ->
+                            chatViewModel.editMessage(id, text, attachments)
                         },
                         onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )

@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -166,45 +165,8 @@ fun MessageBubble(
                         )
                     }
                 }
-                message.attachment?.let { attachment ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(skin.cornerSmall))
-                            .background(contentColor.copy(alpha = 0.08f))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Filled.InsertDriveFile,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = contentColor.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                attachment.name,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = contentColor,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                buildString {
-                                    append(attachment.mimeType.ifBlank { "document" })
-                                    append(" · ")
-                                    append(com.gotcha.tools.FileResolver.formatSizeStatic(attachment.size))
-                                    if (attachment.truncated) append(" · truncated")
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = contentColor.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+                if (message.attachments.isNotEmpty()) {
+                    SentAttachments(message.attachments, contentColor)
                 }
                 message.reasoningContent?.let { reasoning ->
                     var reasoningExpanded by remember { mutableStateOf(false) }
