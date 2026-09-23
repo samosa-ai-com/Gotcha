@@ -76,9 +76,9 @@ class ModelsTest {
     }
 
     @Test
-    fun `visionUserMessage falls back to a default prompt for blank text`() {
+    fun `visionUserMessage sends whitespace, not an invented prompt, for blank text`() {
         val msg = visionUserMessage("  ", "QUJD")
-        assertEquals("What is in this image?", msg.textContent)
+        assertEquals(" ", msg.textContent)
     }
 
     @Test
@@ -386,8 +386,14 @@ class ModelsTest {
     }
 
     @Test
-    fun `attachmentsUserMessage defaults the prompt for several images`() {
-        val msg = attachmentsUserMessage("", emptyList(), listOf("A", "B"))
-        assertEquals("What is in these images?", msg.textContent)
+    fun `attachmentsUserMessage sends whitespace, not an invented prompt, for image-only messages`() {
+        assertEquals(" ", attachmentsUserMessage("", emptyList(), listOf("A")).textContent)
+        assertEquals(" ", attachmentsUserMessage("  ", emptyList(), listOf("A", "B")).textContent)
+    }
+
+    @Test
+    fun `attachmentsUserMessage keeps the document prompt when the text is blank`() {
+        val msg = attachmentsUserMessage("", listOf(DocumentPart("a.txt", "text/plain", "BODY")), listOf("A"))
+        assertTrue(msg.textContent.startsWith("Answer questions about the attached files."))
     }
 }

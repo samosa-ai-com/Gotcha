@@ -69,6 +69,13 @@ data class ChatMessage(
     }
 }
 
+/**
+ * The text part of an image-only message. Multimodal APIs require a text part,
+ * but inventing a prompt (e.g. "What is in this image?") would change what the
+ * user asked, so a single space stands in for "no text".
+ */
+const val IMAGE_ONLY_TEXT = " "
+
 /** Build a vision-content ChatMessage with text + an image. */
 fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "png"): ChatMessage {
     val dataUri = "data:image/$imageFormat;base64,$imageBase64"
@@ -78,7 +85,7 @@ fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "
             add(
                 buildJsonObject {
                     put("type", "text")
-                    put("text", text.ifBlank { "What is in this image?" })
+                    put("text", text.ifBlank { IMAGE_ONLY_TEXT })
                 }
             )
             add(
@@ -162,11 +169,7 @@ fun attachmentsUserMessage(
     imageFormat: String = "jpeg"
 ): ChatMessage {
     val prompt = userText.ifBlank {
-        when {
-            documents.isNotEmpty() -> "Answer questions about the attached files."
-            imagesBase64.size > 1 -> "What is in these images?"
-            else -> "What is in this image?"
-        }
+        if (documents.isNotEmpty()) "Answer questions about the attached files." else IMAGE_ONLY_TEXT
     }
     val text = (listOf(prompt) + documents.map(::documentSection)).joinToString("\n\n")
     return ChatMessage(

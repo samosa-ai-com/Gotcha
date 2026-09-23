@@ -609,12 +609,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /**
      * The transcript label for a sent message: the prompt text, or a placeholder
      * when the message is attachment-only. Messages with documents show the
-     * prompt rather than the extracted bodies; image-only messages keep their
-     * historical behavior (the message's text part, default prompt when blank).
+     * prompt rather than the extracted bodies; image-only messages show a
+     * placeholder, never the whitespace text part sent to the model.
      */
     private fun userDisplayText(userText: String, msg: ChatMessage, attachments: List<ComposerAttachment>): String =
         when {
-            attachments.none { it is ComposerAttachment.Document } -> msg.textContent
+            attachments.isEmpty() -> msg.textContent
+            attachments.none { it is ComposerAttachment.Document } -> userText.ifEmpty {
+                if (attachments.size == 1) "(image attached)" else "(files attached)"
+            }
             else -> userText.ifEmpty {
                 if (attachments.size == 1) "(document attached)" else "(files attached)"
             }
@@ -1537,7 +1540,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         if (docPrompt != null) {
                             docPrompt.ifEmpty { "(document attached)" }
                         } else {
-                            text.ifEmpty { "(image attached)" }
+                            text.ifBlank { "(image attached)" }
                         }
                     )
                 }

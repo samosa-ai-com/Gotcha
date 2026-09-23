@@ -291,4 +291,43 @@ class ChatViewModelAttachmentTest {
         assertEquals("just text now", last.textContent)
         assertEquals(0, last.imageCount)
     }
+
+    @Test
+    fun `sendMessage with only an image sends whitespace and shows the image placeholder`() {
+        viewModel.sendMessage("", listOf(image("a")))
+        ShadowLooper.idleMainLooper()
+
+        val userBubble = viewModel.uiState.value.messages.first { it.kind == MessageKind.USER }
+        assertEquals("(image attached)", userBubble.text)
+
+        val sent = engineHistory().last { it.role == "user" }
+        assertEquals(" ", sent.textContent)
+        assertEquals(1, sent.imageCount)
+    }
+
+    @Test
+    fun `sendMessage with only several images shows the files placeholder`() {
+        viewModel.sendMessage("", listOf(image("a"), image("b")))
+        ShadowLooper.idleMainLooper()
+
+        val userBubble = viewModel.uiState.value.messages.first { it.kind == MessageKind.USER }
+        assertEquals("(files attached)", userBubble.text)
+        assertEquals(" ", engineHistory().last { it.role == "user" }.textContent)
+    }
+
+    @Test
+    fun `editMessage of an image-only message keeps sending whitespace`() {
+        viewModel.sendMessage("", listOf(image("p")))
+        waitForRunToFinish()
+        val targetId = viewModel.uiState.value.messages.first { it.kind == MessageKind.USER }.id
+
+        viewModel.editMessage(targetId = targetId, newText = "", attachments = listOf(image("p")))
+        waitForRunToFinish()
+
+        val userBubble = viewModel.uiState.value.messages.first { it.kind == MessageKind.USER }
+        assertEquals("(image attached)", userBubble.text)
+        val sent = engineHistory().last { it.role == "user" }
+        assertEquals(" ", sent.textContent)
+        assertEquals(listOf("data:image/jpeg;base64,IMG-p"), imageUrls(sent))
+    }
 }
