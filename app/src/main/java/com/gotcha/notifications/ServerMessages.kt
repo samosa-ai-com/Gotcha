@@ -27,7 +27,8 @@ object ServerMessages {
             context = context,
             api = api,
             store = NotificationStore(context),
-            versionName = versionName
+            versionName = versionName,
+            inbox = LocalNotificationStore(context)
         )
     }
 

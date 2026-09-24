@@ -160,7 +160,7 @@ enum class SettingsPage(
     ),
     NOTIFICATIONS(
         "Notifications",
-        "How you're alerted when a reply arrives",
+        "Replies, finished tasks, reminders and tips",
         "settings_notifications_row"
     ),
     ABOUT(

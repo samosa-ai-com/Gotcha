@@ -75,7 +75,7 @@ Everything below is reached from **Settings** in the navigation drawer.
 | Proactive Assistance | Master switch for proactive offers, OTP/code detection, auto-copy OTP, and what may be scanned (screen content, notifications, clipboard) |
 | Assistive Ball and Wake Word | The floating ball over other apps, hands-free voice calls, the "Hey Gotcha" wake word, when it listens, and detection sensitivity |
 | Appearance | Theme |
-| Notifications | Reply chime, vibration, and server messages |
+| Notifications | Reply chime and vibration; the task-finished notification and its reply preview; Gotcha notifications (reminders about unfinished chats, routines that are due and quiet spells, the daily tip, quiet hours, a daily cap, whether chats may be named, clearing the history); and server messages. The bell on the chat screen opens the list of recent notifications, and a chat's ⋮ menu keeps that chat out of notifications |
 | About | Samosa AI, other products, legal, contact |
 | About > About Samosa AI | Mission, products, pricing, developers |
 | About > Legal | Terms, disclaimer, data retention |

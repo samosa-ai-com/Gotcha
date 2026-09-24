@@ -250,17 +250,21 @@
             </intent-filter>
         </receiver>
 
-        <!-- Daily tip (issue #101). The alarm receiver posts the tip; it is not exported,
-             as only Gotcha's own PendingIntent fires it. -->
+        <!-- Gotcha's own proactive notifications (issues #100, #101). The daily tip alarm and
+             the periodic reminder check post them; neither is exported, as only Gotcha's own
+             PendingIntents fire them. -->
         <receiver
             android:name=".notifications.DailyTipAlarmReceiver"
             android:exported="false" />
-
-        <!-- Re-arms the daily tip alarm, which a reboot, an app update or a clock change
-             would otherwise lose or misplace. All four broadcasts are protected and exempt
-             from the implicit-broadcast limits. -->
         <receiver
-            android:name=".notifications.DailyTipReceiver"
+            android:name=".notifications.ReminderCheckReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms those alarms, which a reboot, an app update or a clock change would
+             otherwise lose or misplace. All four broadcasts are protected and exempt from the
+             implicit-broadcast limits. -->
+        <receiver
+            android:name=".notifications.NotificationRescheduleReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

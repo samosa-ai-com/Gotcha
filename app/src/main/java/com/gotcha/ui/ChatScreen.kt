@@ -35,13 +35,17 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -115,7 +119,11 @@ fun ChatScreen(
     onCreateShareCard: () -> Unit = {},
     onEditMessage: (Long, String, List<ComposerAttachment>) -> Unit = { _, _, _ -> },
     onRevertMessage: (Long) -> Unit = { _ -> },
-    onComposerDraftConsumed: () -> Unit = {}
+    onComposerDraftConsumed: () -> Unit = {},
+    unreadNotifications: Int = 0,
+    onOpenInbox: () -> Unit = {},
+    chatKeptOutOfNotifications: Boolean = false,
+    onSetChatKeptOutOfNotifications: (Boolean) -> Unit = {}
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -206,8 +214,9 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    // The home screen carries no actions: its top bar is the menu
-                    // and the title only. Everything here belongs to an open chat.
+                    // The inbox (issue #100) is the one action on the home screen
+                    // too; everything after it belongs to an open chat.
+                    InboxButton(unread = unreadNotifications, onClick = onOpenInbox)
                     if (!isHome) {
                         // Operator can change the device, Monitor cannot. Both
                         // badges name their own mode so that distinction is never
@@ -271,10 +280,12 @@ fun ChatScreen(
                                 )
                             }
                         }
-                        ChatShareMenu(
+                        ChatOptionsMenu(
                             onExportChat = onExportChat,
                             onCreateShareCard = onCreateShareCard,
-                            enabled = !state.isBusy
+                            shareEnabled = !state.isBusy,
+                            keptOutOfNotifications = chatKeptOutOfNotifications,
+                            onSetKeptOutOfNotifications = onSetChatKeptOutOfNotifications
                         )
                     }
                 }
@@ -833,24 +844,46 @@ fun ChatScreen(
 }
 
 /**
- * Share menu in the chat top bar, reached from a single share icon: the
- * markdown chat export plus the "Create share card" (whole-chat aggregation)
- * entry point for the marketing poster.
+ * The inbox bell (issue #100), with the number of unread notifications on it.
  */
 @Composable
-private fun ChatShareMenu(
+private fun InboxButton(unread: Int, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.testTag("inbox_button")) {
+        BadgedBox(
+            badge = {
+                if (unread > 0) Badge { Text(if (unread > 9) "9+" else unread.toString()) }
+            }
+        ) {
+            Icon(
+                Icons.Outlined.Notifications,
+                contentDescription = if (unread > 0) "Notifications, $unread unread" else "Notifications"
+            )
+        }
+    }
+}
+
+/**
+ * The open chat's menu: the markdown chat export and the "Create share card"
+ * (whole-chat aggregation) entry point for the marketing poster, plus whether
+ * Gotcha's notifications may use this chat (issue #100).
+ */
+@Composable
+private fun ChatOptionsMenu(
     onExportChat: () -> Unit,
     onCreateShareCard: () -> Unit,
-    enabled: Boolean
+    shareEnabled: Boolean,
+    keptOutOfNotifications: Boolean,
+    onSetKeptOutOfNotifications: (Boolean) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }, enabled = enabled) {
-            Icon(Icons.Default.Share, contentDescription = "Share chat")
+        IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("chat_options")) {
+            Icon(Icons.Default.MoreVert, contentDescription = "Chat options")
         }
         SkinDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
                 text = { Text("Export chat") },
+                enabled = shareEnabled,
                 onClick = {
                     expanded = false
                     onExportChat()
@@ -858,10 +891,17 @@ private fun ChatShareMenu(
             )
             DropdownMenuItem(
                 text = { Text("Create share card") },
+                enabled = shareEnabled,
                 onClick = {
                     expanded = false
                     onCreateShareCard()
                 }
+            )
+            DropdownMenuItem(
+                text = { Text("Keep out of notifications") },
+                trailingIcon = { Checkbox(checked = keptOutOfNotifications, onCheckedChange = null) },
+                onClick = { onSetKeptOutOfNotifications(!keptOutOfNotifications) },
+                modifier = Modifier.testTag("chat_keep_out_of_notifications")
             )
         }
     }

@@ -4,6 +4,24 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Gotcha's own notifications, and a list of them** (#100). Gotcha now works
+  out from your chats, on the phone, when a notification would actually help,
+  and nothing about how you use it is uploaded to decide. It reminds you about a
+  chat left unfinished (a task that failed or was stopped, or a question you
+  didn't answer, a few hours on); suggests a request you make regularly once
+  it's due again, opening a new chat with it ready to send; and nudges you after
+  a quiet spell (four days by default), offering your last chat back. A new
+  "Gotcha notifications" section in Settings → Notifications turns each of these
+  and the daily tip on or off, sets the quiet spell, quiet hours (22:00–08:00 by
+  default), and how many a day (two by default), and whether notifications may
+  name chats. The same occasion is never notified twice, one of a kind a day at
+  most, and the lock screen never shows the chat. A bell on the chat screen opens
+  the last 30 days of notifications — reminders, tips, finished tasks and
+  messages from Samosa AI — each opening where its notification did, and the
+  history can be cleared. A chat's new ⋮ menu (which also holds Export and the
+  share card) keeps it out of notifications altogether; Doctor chats start that
+  way. Task-finished notifications for such chats, or with naming off, say only
+  that a task finished.
 - **Daily tips** (#101). Once a day, at 10:00 by default, Gotcha sends a
   notification suggesting one thing to try: reading your screen, catching up
   on notifications, texting someone, planning the day. Tapping it opens a new

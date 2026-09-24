@@ -149,7 +149,7 @@ object GotchaSettingsUpdate {
     const val FOLLOW_REPLY_LANGUAGE = "same_as_replies"
 
     private fun specs(catalog: SettingsCatalog): List<Spec> =
-        notificationSpecs() + voiceSpecs() + appearanceSpecs(catalog) + proactiveSpecs() + wakeWordSpecs()
+        notificationSpecs() + localNotificationSpecs() + voiceSpecs() + appearanceSpecs(catalog) + proactiveSpecs() + wakeWordSpecs()
 
     private fun notificationSpecs(): List<Spec> = listOf(
         boolSpec(
@@ -184,18 +184,82 @@ object GotchaSettingsUpdate {
             { s, v -> s.copy(chatCompletionPreview = v) }
         ),
         boolSpec(
-            "daily_tips",
-            "A daily tip with something to try",
-            setOf(SettingImpact.NOTIFICATIONS),
-            { it.dailyTipsEnabled },
-            { s, v -> s.copy(dailyTipsEnabled = v) }
-        ),
-        boolSpec(
             "server_messages",
             "Messages from Samosa AI",
             setOf(SettingImpact.NOTIFICATIONS),
             { it.serverMessagesEnabled },
             { s, v -> s.copy(serverMessagesEnabled = v) }
+        )
+    )
+
+    /** Gotcha's own proactive notifications (issue #100). */
+    private fun localNotificationSpecs(): List<Spec> = listOf(
+        boolSpec(
+            "local_notifications",
+            "Gotcha's own reminders and tips",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.localNotificationsEnabled },
+            { s, v -> s.copy(localNotificationsEnabled = v) }
+        ),
+        boolSpec(
+            "unfinished_chat_reminders",
+            "Remind me about unfinished chats",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.unfinishedChatRemindersEnabled },
+            { s, v -> s.copy(unfinishedChatRemindersEnabled = v) }
+        ),
+        boolSpec(
+            "routine_suggestions",
+            "Suggest routines when they're due",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.routineSuggestionsEnabled },
+            { s, v -> s.copy(routineSuggestionsEnabled = v) }
+        ),
+        boolSpec(
+            "inactivity_reminders",
+            "Remind me after a quiet spell",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.inactivityRemindersEnabled },
+            { s, v -> s.copy(inactivityRemindersEnabled = v) }
+        ),
+        choiceSpec(
+            "inactivity_days",
+            "Days without Gotcha before a reminder",
+            setOf(SettingImpact.NOTIFICATIONS),
+            listOf(2, 3, 4, 7, 14).associateBy { it.toString() },
+            { it.toString() },
+            { it.inactivityDays },
+            { s, v -> s.copy(inactivityDays = v) }
+        ),
+        boolSpec(
+            "quiet_hours",
+            "Quiet hours for reminders and tips",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.quietHoursEnabled },
+            { s, v -> s.copy(quietHoursEnabled = v) }
+        ),
+        choiceSpec(
+            "max_notifications_per_day",
+            "Most reminders and tips a day",
+            setOf(SettingImpact.NOTIFICATIONS),
+            listOf(1, 2, 3).associateBy { it.toString() },
+            { it.toString() },
+            { it.maxLocalNotificationsPerDay },
+            { s, v -> s.copy(maxLocalNotificationsPerDay = v) }
+        ),
+        boolSpec(
+            "notifications_name_chats",
+            "Name chats in notifications",
+            setOf(SettingImpact.NOTIFICATIONS, SettingImpact.PRIVACY),
+            { it.notificationsMentionChats },
+            { s, v -> s.copy(notificationsMentionChats = v) }
+        ),
+        boolSpec(
+            "daily_tips",
+            "A daily tip with something to try",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.dailyTipsEnabled },
+            { s, v -> s.copy(dailyTipsEnabled = v) }
         )
     )
 

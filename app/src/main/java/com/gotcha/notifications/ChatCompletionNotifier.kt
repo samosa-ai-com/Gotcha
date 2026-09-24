@@ -38,7 +38,10 @@ class ChatCompletionNotifier(private val context: Context) {
     /**
      * Posts the notification for [sessionId]. [reply] is the run's last assistant
      * message (or error text); [preview] decides how much of it is shown.
-     * Returns false when nothing was posted.
+     * With [named] false — a chat kept out of notifications, or chats not to be
+     * mentioned at all (issue #100) — neither the chat nor the reply appears.
+     * [inboxEntryId] is the inbox entry a tap marks read. Returns false when
+     * nothing was posted.
      */
     @Suppress("MissingPermission") // canPost() checks it.
     fun notify(
@@ -46,13 +49,16 @@ class ChatCompletionNotifier(private val context: Context) {
         chatTitle: String,
         outcome: RunOutcome,
         reply: String?,
-        preview: CompletionPreview
+        preview: CompletionPreview,
+        named: Boolean = true,
+        inboxEntryId: String? = null
     ): Boolean {
         if (!canPost()) return false
         ensureChannel()
         val notifyId = notificationId(sessionId)
-        val title = notificationTitle(chatTitle, outcome)
-        val body = previewText(reply, preview) ?: defaultBody(outcome)
+        val title = if (named) notificationTitle(chatTitle, outcome) else anonymousTitle(outcome)
+        val shown = if (named) preview else CompletionPreview.NONE
+        val body = previewText(reply, shown) ?: defaultBody(outcome)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(com.gotcha.R.drawable.ic_notification)
@@ -68,8 +74,8 @@ class ChatCompletionNotifier(private val context: Context) {
                     .build()
             )
             .setAutoCancel(true)
-            .setContentIntent(openChatIntent(sessionId, notifyId))
-        if (preview == CompletionPreview.FULL) {
+            .setContentIntent(openChatIntent(sessionId, notifyId, inboxEntryId))
+        if (shown == CompletionPreview.FULL) {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
         }
         NotificationManagerCompat.from(context).notify(notifyId, builder.build())
@@ -81,10 +87,11 @@ class ChatCompletionNotifier(private val context: Context) {
         NotificationManagerCompat.from(context).cancel(notificationId(sessionId))
     }
 
-    private fun openChatIntent(sessionId: String, requestCode: Int): PendingIntent {
+    private fun openChatIntent(sessionId: String, requestCode: Int, inboxEntryId: String?): PendingIntent {
         val intent = Intent(context, com.gotcha.MainActivity::class.java).apply {
             action = ACTION_OPEN_CHAT_SESSION
             putExtra(EXTRA_OPEN_SESSION_ID, sessionId)
+            inboxEntryId?.let { putExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID, it) }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         return PendingIntent.getActivity(
@@ -122,6 +129,13 @@ class ChatCompletionNotifier(private val context: Context) {
                 RunOutcome.FAILED -> "Failed: $chat"
                 RunOutcome.STOPPED -> "Stopped: $chat"
             }
+        }
+
+        /** The title when the chat may not be named. */
+        internal fun anonymousTitle(outcome: RunOutcome): String = when (outcome) {
+            RunOutcome.DONE -> "Task finished"
+            RunOutcome.FAILED -> "Task failed"
+            RunOutcome.STOPPED -> "Task stopped"
         }
 
         internal fun defaultBody(outcome: RunOutcome): String = when (outcome) {

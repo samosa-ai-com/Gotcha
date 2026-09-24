@@ -30,6 +30,9 @@ import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
 import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.notifications.LocalNotificationStore
+import com.gotcha.notifications.NotificationCategory
+import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.RunOutcome
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.DocumentError
@@ -241,6 +244,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val historyRepository = ChatHistoryRepository(application)
     private val confirmationOverlay = ConfirmationOverlay(application)
     private val completionNotifier = ChatCompletionNotifier(application)
+    private val localNotificationStore = LocalNotificationStore(application)
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
@@ -790,15 +794,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      */
     private fun notifyRunFinished(sessionId: String, outcome: RunOutcome) {
         if (appInForeground || !settings.chatCompletionNotificationsEnabled) return
+        if (!completionNotifier.canPost()) return
         val reply = engineTranscript.lastOrNull {
             it.kind == MessageKind.ASSISTANT || it.kind == MessageKind.ERROR
         }?.text
+        // Issue #100: a chat kept out of notifications, or chats not to be named
+        // at all, get a notification that says only that a task finished.
+        val named = settings.notificationsMentionChats &&
+            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+        val title = if (named) {
+            ChatCompletionNotifier.notificationTitle(agentEngine.currentTitle(), outcome)
+        } else {
+            ChatCompletionNotifier.anonymousTitle(outcome)
+        }
+        val entryId = localNotificationStore.addEntry(
+            category = NotificationCategory.TASK_FINISHED,
+            title = title,
+            body = ChatCompletionNotifier.defaultBody(outcome),
+            target = NotificationTarget.Chat(sessionId)
+        )
         completionNotifier.notify(
             sessionId = sessionId,
             chatTitle = agentEngine.currentTitle(),
             outcome = outcome,
             reply = reply,
-            preview = settings.chatCompletionPreview
+            preview = settings.chatCompletionPreview,
+            named = named,
+            inboxEntryId = entryId
         )
     }
 
@@ -857,6 +879,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 _uiState.update { it.copy(composerDraft = prompt) }
             }
         }
+    }
+
+    /**
+     * Whether chat [sessionId] is kept out of notifications (issue #100): the
+     * user's own choice, else true for a Doctor-persona chat.
+     */
+    fun isChatKeptOutOfNotifications(sessionId: String, personaId: String?): Boolean =
+        localNotificationStore.isChatSensitive(sessionId, personaId)
+
+    fun setChatKeptOutOfNotifications(sessionId: String, keptOut: Boolean) {
+        localNotificationStore.setChatKeptOut(sessionId, keptOut)
+        // A notification already in the tray may name the chat.
+        if (keptOut) completionNotifier.cancel(sessionId)
     }
 
     /** The composer has taken [ChatUiState.composerDraft]. */
@@ -1629,6 +1664,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 com.gotcha.data.GotchaStorage.archiveChatDir(id)
             }
             historyRepository.deleteSession(id)
+            localNotificationStore.forgetChat(id)
             if (agentEngine.sessionId == id) {
                 clearChat()
             }

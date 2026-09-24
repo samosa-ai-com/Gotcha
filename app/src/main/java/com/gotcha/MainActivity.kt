@@ -50,15 +50,18 @@ import com.gotcha.data.computeFeedbackStats
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.notifications.ChatCompletionNotifier
-import com.gotcha.notifications.DAILY_TIPS
-import com.gotcha.notifications.DailyTip
-import com.gotcha.notifications.DailyTipNotifier
-import com.gotcha.notifications.DailyTipScheduler
+import com.gotcha.notifications.InboxEntry
+import com.gotcha.notifications.LocalNotificationScheduler
+import com.gotcha.notifications.LocalNotificationStore
+import com.gotcha.notifications.LocalNotifier
+import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationDispatcher
 import com.gotcha.notifications.NotificationPayload
+import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
@@ -66,6 +69,7 @@ import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
+import com.gotcha.ui.InboxScreen
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.PermissionAsk
 import com.gotcha.ui.PermissionBlockedDialog
@@ -92,7 +96,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS }
+enum class Route { HOME, SETTINGS, CONNECTORS, INBOX }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -139,8 +143,15 @@ class MainActivity : ComponentActivity() {
     /** Chat to open, set when a task-finished notification is tapped (issue #97). */
     private var openSessionRequested by mutableStateOf<String?>(null)
 
-    /** Tip whose prompt a new chat should open with, set when a daily tip is tapped (issue #101). */
-    private var openTipRequested by mutableStateOf<DailyTip?>(null)
+    /**
+     * Prompt and mode a new chat should open with, set when a notification
+     * offering one is tapped: a daily tip (issue #101) or a routine (#100).
+     */
+    private var openDraftRequested by mutableStateOf<NotificationTarget.Draft?>(null)
+
+    /** Gotcha's own notification history: the inbox, its unread count, per-chat privacy (issue #100). */
+    private val localNotificationStore by lazy { LocalNotificationStore(applicationContext) }
+    private var inboxUnread by mutableStateOf(0)
 
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
@@ -296,10 +307,10 @@ class MainActivity : ComponentActivity() {
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
         handleNotificationIntent(intent)
 
-        // A fresh install has had no boot or update broadcast yet, so the daily
-        // tip alarm is armed here too. Re-arming is idempotent.
+        // A fresh install has had no boot or update broadcast yet, so the
+        // notification alarms are armed here too. Re-arming is idempotent.
         lifecycleScope.launch(Dispatchers.IO) {
-            runCatching { DailyTipScheduler.schedule(applicationContext) }
+            runCatching { LocalNotificationScheduler.scheduleAll(applicationContext) }
         }
 
         // Tools report what they need the moment they need it. A special-access
@@ -526,11 +537,20 @@ class MainActivity : ComponentActivity() {
             // Consumed: a later recreation must not reopen this chat over the user's choice.
             intent.removeExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)
         }
-        intent?.getStringExtra(DailyTipNotifier.EXTRA_DAILY_TIP_ID)?.let { id ->
-            // An id from an older version that no longer exists just opens the app.
-            openTipRequested = DAILY_TIPS.firstOrNull { it.id == id }
+        intent?.getStringExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)?.let { prompt ->
+            val mode = runCatching {
+                AgentMode.valueOf(intent.getStringExtra(LocalNotifier.EXTRA_DRAFT_MODE).orEmpty())
+            }.getOrDefault(AgentMode.MONITOR)
+            openDraftRequested = NotificationTarget.Draft(prompt, mode)
             // Consumed, as above: a recreation must not open another chat.
-            intent.removeExtra(DailyTipNotifier.EXTRA_DAILY_TIP_ID)
+            intent.removeExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)
+        }
+        intent?.getStringExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)?.let { entryId ->
+            intent.removeExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)
+            lifecycleScope.launch(Dispatchers.IO) {
+                localNotificationStore.markRead(entryId)
+                inboxUnread = localNotificationStore.unreadCount()
+            }
         }
         val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
         val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
@@ -557,8 +577,31 @@ class MainActivity : ComponentActivity() {
         com.gotcha.data.settingsChangeNotifier(this).registerOnSharedPreferenceChangeListener(appearanceListener)
     }
 
+    /**
+     * Goes where an inbox entry points (issue #100): its chat, a new chat with
+     * its prompt drafted, or home. A server message reopens in the same dialog
+     * its system notification opens.
+     */
+    private fun openInboxEntry(entry: InboxEntry, goTo: (Route) -> Unit) {
+        goTo(Route.HOME)
+        if (entry.categoryOrNull == NotificationCategory.SERVER) {
+            notificationPayload = NotificationPayload(id = -1, title = entry.title, body = entry.body, url = entry.url)
+            return
+        }
+        when (val target = entry.target) {
+            is NotificationTarget.Chat -> openSessionRequested = target.sessionId
+            is NotificationTarget.Draft -> openDraftRequested = target
+            NotificationTarget.Home -> Unit
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        // What the inactivity reminder counts from, and the inbox badge (issue #100).
+        lifecycleScope.launch(Dispatchers.IO) {
+            localNotificationStore.setLastOpenedAt(System.currentTimeMillis())
+            inboxUnread = localNotificationStore.unreadCount()
+        }
         // Server-driven notifications — fetch fresh if the cached value is
         // older than 6h. The dispatcher itself no-ops when the user has the
         // toggle off, so calling it on every resume is safe.
@@ -732,11 +775,11 @@ class MainActivity : ComponentActivity() {
         }
 
         // A tapped daily tip: a new chat, in the tip's mode, with its prompt drafted.
-        LaunchedEffect(openTipRequested) {
-            openTipRequested?.let { tip ->
+        LaunchedEffect(openDraftRequested) {
+            openDraftRequested?.let { draft ->
                 currentRoute = Route.HOME
-                chatViewModel.startChatFromTip(tip.prompt, tip.agent)
-                openTipRequested = null
+                chatViewModel.startChatFromTip(draft.prompt, draft.mode)
+                openDraftRequested = null
             }
         }
 
@@ -927,6 +970,19 @@ class MainActivity : ComponentActivity() {
                         onPageChange = { settingsPage = it }
                     )
                 }
+                Route.INBOX -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    InboxScreen(
+                        load = { localNotificationStore.entries() },
+                        onOpened = {
+                            localNotificationStore.markAllRead()
+                            inboxUnread = 0
+                        },
+                        onClear = { localNotificationStore.clearHistory() },
+                        onOpenEntry = { entry -> openInboxEntry(entry) { currentRoute = it } },
+                        onBack = { currentRoute = Route.HOME }
+                    )
+                }
                 Route.CONNECTORS -> {
                     // refreshSettings() on the way out, like every other route: the
                     // enable/disable toggles write disabledConnectors, and the agent
@@ -943,6 +999,13 @@ class MainActivity : ComponentActivity() {
                     // new greeting); on an empty home the default back exits the app.
                     BackHandler(enabled = state.messages.isNotEmpty() && !state.isBusy) {
                         chatViewModel.openSession(null)
+                    }
+                    // Bumped when the user flips the switch, so the menu re-reads it.
+                    var privacyVersion by remember { mutableStateOf(0) }
+                    val chatKeptOut = remember(state.activeSessionId, state.activePersonaId, privacyVersion) {
+                        state.activeSessionId
+                            ?.let { chatViewModel.isChatKeptOutOfNotifications(it, state.activePersonaId) }
+                            ?: false
                     }
                     ChatScreen(
                         state = state,
@@ -961,6 +1024,13 @@ class MainActivity : ComponentActivity() {
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
                         onSetPersona = chatViewModel::setPersona,
+                        unreadNotifications = inboxUnread,
+                        onOpenInbox = { currentRoute = Route.INBOX },
+                        chatKeptOutOfNotifications = chatKeptOut,
+                        onSetChatKeptOutOfNotifications = { keptOut ->
+                            state.activeSessionId?.let { chatViewModel.setChatKeptOutOfNotifications(it, keptOut) }
+                            privacyVersion++
+                        },
                         onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,

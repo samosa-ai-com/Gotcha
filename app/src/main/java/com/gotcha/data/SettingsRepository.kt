@@ -52,6 +52,16 @@ const val DEFAULT_MAX_CONTEXT_TOKENS = 256_000
 /** Daily tip time for a fresh install: 10:00, in minutes after midnight. */
 const val DEFAULT_DAILY_TIP_MINUTE = 10 * 60
 
+/** Days without opening Gotcha before the inactivity reminder, as the issue (#100) suggests. */
+const val DEFAULT_INACTIVITY_DAYS = 4
+
+/** Quiet hours for a fresh install: 22:00 to 08:00. */
+const val DEFAULT_QUIET_START_MINUTE = 22 * 60
+const val DEFAULT_QUIET_END_MINUTE = 8 * 60
+
+/** Proactive notifications a day: room for the tip and one reminder. */
+const val DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY = 2
+
 /**
  * The budget before [DEFAULT_MAX_CONTEXT_TOKENS] was raised. A stored copy of
  * exactly this value is lifted once by [SettingsRepository.resolvedMaxContextTokens];
@@ -143,6 +153,30 @@ data class Settings(
     val dailyTipsEnabled: Boolean = true,
     /** When the daily tip arrives, as minutes after local midnight. */
     val dailyTipMinuteOfDay: Int = DEFAULT_DAILY_TIP_MINUTE,
+    /**
+     * Master switch for Gotcha's own proactive notifications (issue #100):
+     * reminders about unfinished chats, routines and quiet spells, and the daily
+     * tip. Task-finished notifications and server messages have their own.
+     */
+    val localNotificationsEnabled: Boolean = true,
+    /** Remind the user after [inactivityDays] without opening Gotcha. */
+    val inactivityRemindersEnabled: Boolean = true,
+    val inactivityDays: Int = DEFAULT_INACTIVITY_DAYS,
+    /** Remind about a chat whose task failed, was stopped or ended on a question. */
+    val unfinishedChatRemindersEnabled: Boolean = true,
+    /** Suggest a request the user makes regularly when it is due again. */
+    val routineSuggestionsEnabled: Boolean = true,
+    /** No proactive notification between these times (minutes after midnight). */
+    val quietHoursEnabled: Boolean = true,
+    val quietHoursStartMinute: Int = DEFAULT_QUIET_START_MINUTE,
+    val quietHoursEndMinute: Int = DEFAULT_QUIET_END_MINUTE,
+    /** At most this many proactive notifications a day. */
+    val maxLocalNotificationsPerDay: Int = DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY,
+    /**
+     * Whether notifications may name chats and requests. Off, they stay generic.
+     * Chats kept out of notifications are never named either way.
+     */
+    val notificationsMentionChats: Boolean = true,
     val assistiveBallEnabled: Boolean = false,
     val wakeWordEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.75f,
@@ -536,6 +570,16 @@ class SettingsRepository(context: Context) : SettingsStore {
         }.getOrDefault(CompletionPreview.SHORT),
         dailyTipsEnabled = prefs.getBoolean(KEY_DAILY_TIPS, true),
         dailyTipMinuteOfDay = prefs.getInt(KEY_DAILY_TIP_MINUTE, DEFAULT_DAILY_TIP_MINUTE),
+        localNotificationsEnabled = prefs.getBoolean(KEY_LOCAL_NOTIFICATIONS, true),
+        inactivityRemindersEnabled = prefs.getBoolean(KEY_INACTIVITY_REMINDERS, true),
+        inactivityDays = prefs.getInt(KEY_INACTIVITY_DAYS, DEFAULT_INACTIVITY_DAYS),
+        unfinishedChatRemindersEnabled = prefs.getBoolean(KEY_UNFINISHED_REMINDERS, true),
+        routineSuggestionsEnabled = prefs.getBoolean(KEY_ROUTINE_SUGGESTIONS, true),
+        quietHoursEnabled = prefs.getBoolean(KEY_QUIET_HOURS, true),
+        quietHoursStartMinute = prefs.getInt(KEY_QUIET_START, DEFAULT_QUIET_START_MINUTE),
+        quietHoursEndMinute = prefs.getInt(KEY_QUIET_END, DEFAULT_QUIET_END_MINUTE),
+        maxLocalNotificationsPerDay = prefs.getInt(KEY_MAX_LOCAL_PER_DAY, DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY),
+        notificationsMentionChats = prefs.getBoolean(KEY_MENTION_CHATS, true),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         wakeWordEnabled = prefs.getBoolean(KEY_WAKE_WORD_ENABLED, false),
         wakeWordSensitivity = prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, 0.75f),
@@ -615,6 +659,16 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_CHAT_COMPLETION_PREVIEW, settings.chatCompletionPreview.name)
             .putBoolean(KEY_DAILY_TIPS, settings.dailyTipsEnabled)
             .putInt(KEY_DAILY_TIP_MINUTE, settings.dailyTipMinuteOfDay)
+            .putBoolean(KEY_LOCAL_NOTIFICATIONS, settings.localNotificationsEnabled)
+            .putBoolean(KEY_INACTIVITY_REMINDERS, settings.inactivityRemindersEnabled)
+            .putInt(KEY_INACTIVITY_DAYS, settings.inactivityDays)
+            .putBoolean(KEY_UNFINISHED_REMINDERS, settings.unfinishedChatRemindersEnabled)
+            .putBoolean(KEY_ROUTINE_SUGGESTIONS, settings.routineSuggestionsEnabled)
+            .putBoolean(KEY_QUIET_HOURS, settings.quietHoursEnabled)
+            .putInt(KEY_QUIET_START, settings.quietHoursStartMinute)
+            .putInt(KEY_QUIET_END, settings.quietHoursEndMinute)
+            .putInt(KEY_MAX_LOCAL_PER_DAY, settings.maxLocalNotificationsPerDay)
+            .putBoolean(KEY_MENTION_CHATS, settings.notificationsMentionChats)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putBoolean(KEY_WAKE_WORD_ENABLED, settings.wakeWordEnabled)
             .putFloat(KEY_WAKE_WORD_SENSITIVITY, settings.wakeWordSensitivity)
@@ -732,6 +786,16 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_CHAT_COMPLETION_PREVIEW = "chat_completion_preview"
         const val KEY_DAILY_TIPS = "daily_tips_enabled"
         const val KEY_DAILY_TIP_MINUTE = "daily_tip_minute_of_day"
+        const val KEY_LOCAL_NOTIFICATIONS = "local_notifications_enabled"
+        const val KEY_INACTIVITY_REMINDERS = "inactivity_reminders_enabled"
+        const val KEY_INACTIVITY_DAYS = "inactivity_days"
+        const val KEY_UNFINISHED_REMINDERS = "unfinished_chat_reminders_enabled"
+        const val KEY_ROUTINE_SUGGESTIONS = "routine_suggestions_enabled"
+        const val KEY_QUIET_HOURS = "quiet_hours_enabled"
+        const val KEY_QUIET_START = "quiet_hours_start_minute"
+        const val KEY_QUIET_END = "quiet_hours_end_minute"
+        const val KEY_MAX_LOCAL_PER_DAY = "max_local_notifications_per_day"
+        const val KEY_MENTION_CHATS = "notifications_mention_chats"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"

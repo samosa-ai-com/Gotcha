@@ -1,10 +1,8 @@
 package com.gotcha.ui
 
-import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.text.format.DateFormat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -39,17 +37,13 @@ import com.gotcha.audio.CompletionFeedback
 import com.gotcha.data.CompletionPreview
 import com.gotcha.data.Settings
 import com.gotcha.notifications.ChatCompletionNotifier
-import com.gotcha.notifications.DailyTipScheduler
 import kotlinx.coroutines.launch
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import android.provider.Settings as AndroidSettings
 
 /**
  * The Notifications page: what the phone does the moment a reply arrives
- * (vibration/chime), the task-finished and daily tip notifications, and
- * server-driven messages from the Samosa team (updates, tips, maintenance).
+ * (vibration/chime), the task-finished notification, Gotcha's own reminders
+ * and tips ([LocalNotificationsSection]), and server-driven messages from the Samosa team (updates, tips, maintenance).
  *
  * The vibration/chime page has no Save button, and deliberately so —
  * switching one on plays it once, which is the whole point. A preview that
@@ -68,8 +62,6 @@ fun NotificationsScreen(
     var notifyChime by remember { mutableStateOf(initial.notifyChimeEnabled) }
     var taskFinished by remember { mutableStateOf(initial.chatCompletionNotificationsEnabled) }
     var taskPreview by remember { mutableStateOf(initial.chatCompletionPreview) }
-    var dailyTips by remember { mutableStateOf(initial.dailyTipsEnabled) }
-    var dailyTipMinute by remember { mutableStateOf(initial.dailyTipMinuteOfDay) }
     var serverMessagesEnabled by remember { mutableStateOf(initial.serverMessagesEnabled) }
     var lastFetched by remember { mutableStateOf(initial.serverMessagesLastFetchedAt) }
     var isSyncing by remember { mutableStateOf(false) }
@@ -185,57 +177,16 @@ fun NotificationsScreen(
         }
 
         Spacer(Modifier.height(16.dp))
-        Text(
-            "Daily tips",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Text(
-            "One thing to try with Gotcha each day, picked from what you haven't used yet. " +
-                "Tap it to start a chat with the prompt ready to edit or send. " +
-                "Skipped on days you've already used Gotcha.",
-            style = MaterialTheme.typography.bodySmall
-        )
-        SettingsToggleRow(
-            label = "Send a daily tip",
-            checked = dailyTips,
-            onCheckedChange = {
-                dailyTips = it
-                onSave { s -> s.copy(dailyTipsEnabled = it) }
-                if (it && !canPost && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        LocalNotificationsSection(
+            initial = initial,
+            onSave = onSave,
+            canPost = canPost,
+            requestPermission = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
-            },
-            isLarge = true,
-            switchTestTag = "settings_daily_tips_enabled"
+            }
         )
-        if (dailyTips) {
-            TextButton(
-                onClick = {
-                    TimePickerDialog(
-                        localContext,
-                        { _, hour, minute ->
-                            val picked = hour * 60 + minute
-                            dailyTipMinute = picked
-                            onSave { s -> s.copy(dailyTipMinuteOfDay = picked) }
-                            DailyTipScheduler.schedule(localContext, picked)
-                        },
-                        dailyTipMinute / 60,
-                        dailyTipMinute % 60,
-                        DateFormat.is24HourFormat(localContext)
-                    ).show()
-                },
-                modifier = Modifier.testTag("settings_daily_tip_time")
-            ) {
-                Text("Time: ${LocalTime.of(dailyTipMinute / 60, dailyTipMinute % 60).format(TIME_FORMAT)}")
-            }
-            if (!canPost) {
-                Text(
-                    "Notifications are blocked for Gotcha, so no tips will be shown.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
 
         Spacer(Modifier.height(16.dp))
         Text(
@@ -320,8 +271,6 @@ private fun CompletionPreviewRow(
         )
     }
 }
-
-private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
 
 private fun formatRelative(epochMillis: Long): String {
     if (epochMillis <= 0L) return "never"
