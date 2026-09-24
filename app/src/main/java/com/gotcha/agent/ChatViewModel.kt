@@ -15,11 +15,13 @@ import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.ChatMarkdown
 import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.documentPromptText
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
@@ -691,35 +693,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 if (attachments.size == 1) "(document attached)" else "(files attached)"
             }
         }
-
-    /**
-     * The user's prompt portion of a document message's text part, or null when
-     * [content] is not a document message. Document messages put
-     * `[Attached file: …]` on its own line, so everything before that marker is
-     * the user's own words.
-     */
-    private fun documentPromptText(content: String): String? {
-        val index = content.indexOf(ATTACHED_FILE_MARKER)
-        return if (index >= 0) content.substring(0, index).trim() else null
-    }
-
-    /** How many `[Attached file: …]` sections a user message's text part carries. */
-    private fun countAttachedFiles(content: String): Int =
-        content.split(ATTACHED_FILE_MARKER).size - 1
-
-    /**
-     * The export's note for a user message's attachments, e.g. "Image attached"
-     * or "3 images, 1 document attached"; null when there are none.
-     */
-    private fun exportAttachmentLabel(documents: Int, images: Int): String? = when {
-        documents == 0 && images == 0 -> null
-        documents == 1 && images == 0 -> "Document attached"
-        documents == 0 && images == 1 -> "Image attached"
-        else -> listOfNotNull(
-            images.takeIf { it > 0 }?.let { plural(it, "image") },
-            documents.takeIf { it > 0 }?.let { plural(it, "document") }
-        ).joinToString(", ") + " attached"
-    }
 
     /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
     private suspend fun executeRun(agent: AgentMode, runningId: String) {
@@ -1798,66 +1771,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun exportChat() {
-        val sessionId = agentEngine.sessionId ?: "unknown"
-        val sb = StringBuilder()
-        sb.appendLine("# Gotcha Chat Export")
-        sb.appendLine("**Session:** $sessionId")
-        sb.appendLine(
-            "**Date:** ${java.text.SimpleDateFormat(
-                "yyyy-MM-dd HH:mm:ss",
-                java.util.Locale.US
-            ).format(java.util.Date())}"
+        val markdown = ChatMarkdown.export(
+            history = agentEngine.history.toList(),
+            sessionId = agentEngine.sessionId ?: "unknown",
+            title = agentEngine.currentTitle()
         )
-        sb.appendLine("**Messages:** ${agentEngine.history.size}")
-        sb.appendLine()
-        sb.appendLine("---")
-        sb.appendLine()
-
-        for (msg in agentEngine.history) {
-            val role = msg.role
-            val text = msg.textContent
-
-            when (role) {
-                "user" -> {
-                    val docPrompt = documentPromptText(text)
-                    sb.appendLine("### User")
-                    val prompt = docPrompt ?: text
-                    if (prompt.isNotBlank()) sb.appendLine(prompt)
-                    exportAttachmentLabel(documents = countAttachedFiles(text), images = msg.imageCount)
-                        ?.let { sb.appendLine("*($it)*") }
-                    sb.appendLine()
-                }
-                "assistant" -> {
-                    sb.appendLine("### Assistant")
-                    if (text.isNotBlank()) sb.appendLine(text)
-                    val calls = msg.toolCalls
-                    if (!calls.isNullOrEmpty()) {
-                        sb.appendLine()
-                        sb.appendLine("**Called tools:**")
-                        for (call in calls) {
-                            sb.appendLine("- `${call.function.name}(${call.function.arguments.take(200)})`")
-                        }
-                    }
-                    sb.appendLine()
-                }
-                "tool" -> {
-                    if (text.startsWith("SUBAGENT_STEPS:")) {
-                        appendSubAgentExport(sb, text)
-                    } else {
-                        sb.appendLine("### Tool Result")
-                        sb.appendLine(text.ifEmpty { "(no result)" })
-                    }
-                    sb.appendLine()
-                }
-                "system" -> {
-                    sb.appendLine("### System")
-                    sb.appendLine(text.ifEmpty { "(system message)" })
-                    sb.appendLine()
-                }
-            }
-        }
-
-        _exportContent.tryEmit(sb.toString())
+        _exportContent.tryEmit(markdown)
     }
 
     /**
@@ -1901,46 +1820,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
     }
 
-    /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
-    private fun appendSubAgentExport(sb: StringBuilder, text: String) {
-        val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
-        val desc = if (descEnd > 0) {
-            text.substring("SUBAGENT_STEPS:".length, descEnd)
-        } else {
-            text.substring("SUBAGENT_STEPS:".length)
-        }
-        sb.appendLine("### Sub-Agent: $desc")
-        val rest = if (descEnd > 0) text.substring(descEnd + 1) else ""
-        val stepsMarker = "── Steps ──\n"
-        val resultMarker = "\n── Result ──\n"
-        if (!rest.startsWith(stepsMarker)) {
-            sb.appendLine(rest)
-            return
-        }
-        val afterSteps = rest.removePrefix(stepsMarker)
-        val resIdx = afterSteps.indexOf(resultMarker)
-        if (resIdx < 0) {
-            sb.appendLine(afterSteps)
-            return
-        }
-        val steps = afterSteps.substring(0, resIdx).split("\n").filter { it.isNotBlank() }
-        val answer = afterSteps.substring(resIdx + resultMarker.length)
-        sb.appendLine()
-        sb.appendLine("**Steps:**")
-        for (s in steps) sb.appendLine("- $s")
-        sb.appendLine()
-        sb.appendLine("**Result:**")
-        sb.appendLine(answer)
-    }
-
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
 
         /** Set once the one-time notification-permission ask has been shown. */
         const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
 
-        /** Starts each document section in a user message; see [documentPromptText]. */
-        const val ATTACHED_FILE_MARKER = "\n[Attached file:"
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
     }
 }
