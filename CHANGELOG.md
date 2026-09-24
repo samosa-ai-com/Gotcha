@@ -4,6 +4,20 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Import chats, and back them up** (#83). "Import chats" in the navigation
+  drawer reads back a chat exported as Markdown ("Export chat" in a chat's ⋮
+  menu), so a shared or saved conversation can be opened and continued. The
+  Markdown export holds text only, so an imported one has no images or
+  attachments and shows tool calls as the export did. For a complete copy, "Back
+  up chat" in the ⋮ menu and "Back up all chats" in the drawer save a
+  `.gotcha.json` file that imports back exactly, for moving to a new phone or
+  restoring. Before saving, Gotcha says what a backup holds and offers to leave
+  images out. Before importing, it says what the file holds; when a chat is
+  already here in another version, you choose to keep both, replace yours or
+  skip it, and an unchanged copy is skipped. A damaged chat in a backup is
+  reported by name and the rest still import; a file from a newer Gotcha, one
+  that isn't a Gotcha chat, or one over 64 MB is refused with the reason. The
+  Markdown export now also carries the chat's title.
 - **Gotcha's own notifications, and a list of them** (#100). Gotcha now works
   out from your chats, on the phone, when a notification would actually help,
   and nothing about how you use it is uploaded to decide. It reminds you about a

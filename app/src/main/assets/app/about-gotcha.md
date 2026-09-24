@@ -86,6 +86,15 @@ the guided setup one step at a time, and **Send Feedback**.
 **Connectors are not in Settings.** They live in the navigation drawer next to
 Settings, on their own Connectors screen.
 
+**Chat backup and import are not in Settings either.** A chat's ⋮ menu has
+**Export chat** (shares the conversation as readable Markdown) and **Back up
+chat** (saves the whole chat to a `.gotcha.json` file, images optional). The
+navigation drawer has **Back up all chats** and **Import chats**, which reads
+either kind of file back. A Markdown export imports as text only, without its
+images, attachments or full tool arguments; a backup restores the chat exactly.
+When an imported chat is already on the phone in another version, the user
+picks keep both, replace or skip.
+
 ## Permissions and prerequisites
 
 Some tools need a grant that cannot be requested from inside a chat turn. When
