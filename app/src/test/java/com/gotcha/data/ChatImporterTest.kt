@@ -243,7 +243,7 @@ class ChatImporterTest {
 
     @Test
     fun `re-importing a chat's own markdown export is recognised as a duplicate`() = runBlocking {
-        val stored = fullSession()
+        val stored = fullSession().copy(messages = fullSession().messages + text("system", "Run stopped."))
         repo.saveSession(stored, touch = false)
         val markdown = ChatMarkdown.export(stored.messages, stored.id, stored.title)
         assertEquals(1, ready(importer().preview(markdown.toByteArray())).identicalCount)

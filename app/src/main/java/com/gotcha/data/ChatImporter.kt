@@ -175,8 +175,10 @@ class ChatImporter(
         val existing = repository.loadSession(session.id) ?: return ImportStatus.NEW
         val same = if (format == ImportFormat.MARKDOWN) {
             // A Markdown export carries less than the stored chat, so compare
-            // what the export would show of each rather than the chats themselves.
-            ChatMarkdown.export(existing.messages, session.id, null, now = 0) ==
+            // what the export would show of each rather than the chats themselves,
+            // with the stored chat's system messages turned into the notes an
+            // import makes of them.
+            ChatMarkdown.export(ChatMarkdown.withSystemAsNotes(existing.messages), session.id, null, now = 0) ==
                 ChatMarkdown.export(session.messages, session.id, null, now = 0)
         } else {
             existing.messages == session.messages && existing.displayMessages == session.displayMessages

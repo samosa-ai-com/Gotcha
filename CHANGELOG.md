@@ -16,7 +16,9 @@ All notable changes to Gotcha are documented here.
   already here in another version, you choose to keep both, replace yours or
   skip it, and an unchanged copy is skipped. A damaged chat in a backup is
   reported by name and the rest still import; a file from a newer Gotcha, one
-  that isn't a Gotcha chat, or one over 64 MB is refused with the reason. The
+  that isn't a Gotcha chat, or one over 64 MB is refused with the reason. A
+  Markdown file's "System" sections come in as labelled notes, never as system
+  instructions, so a shared file can't use one to steer the assistant. The
   Markdown export now also carries the chat's title.
 - **Gotcha's own notifications, and a list of them** (#100). Gotcha now works
   out from your chats, on the phone, when a notification would actually help,
