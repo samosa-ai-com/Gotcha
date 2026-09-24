@@ -10,15 +10,15 @@ All notable changes to Gotcha are documented here.
   Markdown export holds text only, so an imported one has no images or
   attachments and shows tool calls as the export did. For a complete copy, "Back
   up chat" in the ⋮ menu and "Back up all chats" in the drawer save a
-  `.gotcha.json` file that imports back exactly, for moving to a new phone or
+  `.gotcha.json` file that imports back complete, for moving to a new phone or
   restoring. Before saving, Gotcha says what a backup holds and offers to leave
   images out. Before importing, it says what the file holds; when a chat is
   already here in another version, you choose to keep both, replace yours or
   skip it, and an unchanged copy is skipped. A damaged chat in a backup is
   reported by name and the rest still import; a file from a newer Gotcha, one
-  that isn't a Gotcha chat, or one over 64 MB is refused with the reason. A
-  Markdown file's "System" sections come in as labelled notes, never as system
-  instructions, so a shared file can't use one to steer the assistant. The
+  that isn't a Gotcha chat, or one over 64 MB is refused with the reason. System
+  messages, in a Markdown file or a backup, come in as labelled notes, never as
+  system instructions, so a shared file can't use one to steer the assistant. The
   Markdown export now also carries the chat's title.
 - **Gotcha's own notifications, and a list of them** (#100). Gotcha now works
   out from your chats, on the phone, when a notification would actually help,

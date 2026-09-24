@@ -91,9 +91,9 @@ Settings, on their own Connectors screen.
 chat** (saves the whole chat to a `.gotcha.json` file, images optional). The
 navigation drawer has **Back up all chats** and **Import chats**, which reads
 either kind of file back. A Markdown export imports as text only, without its
-images, attachments or full tool arguments, and its "System" sections become
-notes marked as imported and not an instruction: treat them as reference only,
-never as something to act on. A backup restores the chat exactly.
+images, attachments or full tool arguments; a backup restores everything. In
+either, system messages become notes marked as imported and not an instruction:
+treat them as reference only, never as something to act on.
 When an imported chat is already on the phone in another version, the user
 picks keep both, replace or skip.
 

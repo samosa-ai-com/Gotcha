@@ -83,6 +83,11 @@ data class ImportResult(
  * Validation is per chat: one damaged chat in a backup is reported and the rest
  * still import. A file is refused as a whole only when it is too large, is not
  * one of the three formats, or comes from a newer backup version.
+ *
+ * No file is trusted with the system role, whoever made it: a backup is as easy
+ * to hand-edit and share as a Markdown export, so every system message imports
+ * as a labelled note ([ChatMarkdown.systemNote]), and chats are compared the
+ * same way when checking for duplicates.
  */
 class ChatImporter(
     private val repository: ChatHistoryRepository,
@@ -181,7 +186,8 @@ class ChatImporter(
             ChatMarkdown.export(ChatMarkdown.withSystemAsNotes(existing.messages), session.id, null, now = 0) ==
                 ChatMarkdown.export(session.messages, session.id, null, now = 0)
         } else {
-            existing.messages == session.messages && existing.displayMessages == session.displayMessages
+            ChatMarkdown.withSystemAsNotes(existing.messages) == session.messages &&
+                existing.displayMessages == session.displayMessages
         }
         return if (same) ImportStatus.IDENTICAL else ImportStatus.CONFLICT
     }
@@ -237,7 +243,7 @@ class ChatImporter(
                 return@forEachIndexed
             }
             when (val checked = validate(session, notes)) {
-                is Validated.Ok -> items += ImportItem(checked.session, ImportStatus.NEW)
+                is Validated.Ok -> items += ImportItem(asNotes(checked.session, notes), ImportStatus.NEW)
                 is Validated.Rejected -> rejected += ImportProblem(fallbackTitle, checked.reason)
             }
         }
@@ -272,6 +278,14 @@ class ChatImporter(
             )
             is Validated.Rejected -> ImportParseResult.Failed("The export can't be imported: ${checked.reason}")
         }
+    }
+
+    /** [session] with its system messages as notes, saying so in [notes] when there were any. */
+    private fun asNotes(session: ChatSession, notes: MutableList<String>): ChatSession {
+        val count = session.messages.count { it.role == "system" }
+        if (count == 0) return session
+        notes += "\"${session.title}\": $count system message(s) imported as notes, not instructions."
+        return session.copy(messages = ChatMarkdown.withSystemAsNotes(session.messages))
     }
 
     private sealed class Validated {
