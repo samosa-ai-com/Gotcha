@@ -67,6 +67,7 @@ import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
+import com.gotcha.ui.ChatTransferDialogs
 import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
 import com.gotcha.ui.InboxScreen
@@ -79,6 +80,7 @@ import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
+import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
@@ -704,6 +706,8 @@ class MainActivity : ComponentActivity() {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
         val liveTokenBySession by chatViewModel.liveTokenBySession.collectAsState()
+        val chatTransferState by chatViewModel.chatTransfer.collectAsState()
+        val chatTransfer = rememberChatTransfer(chatViewModel)
 
         val initial = remember { settingsRepository.load() }
 
@@ -827,6 +831,14 @@ class MainActivity : ComponentActivity() {
                     onOpenConnectors = {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.CONNECTORS
+                    },
+                    onImportChats = {
+                        scope.launch { drawerState.close() }
+                        chatTransfer.startImport()
+                    },
+                    onBackupAllChats = {
+                        scope.launch { drawerState.close() }
+                        chatTransfer.startBackupAll()
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1037,6 +1049,7 @@ class MainActivity : ComponentActivity() {
                         onStartListening = chatViewModel::startListening,
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
+                        onBackupChat = { state.activeSessionId?.let(chatTransfer::startBackup) },
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },
@@ -1070,6 +1083,13 @@ class MainActivity : ComponentActivity() {
                 onDismiss = { notificationPayload = null }
             )
         }
+
+        ChatTransferDialogs(
+            controller = chatTransfer,
+            state = chatTransferState,
+            onConfirmImport = chatViewModel::confirmImport,
+            onDismiss = chatViewModel::dismissChatTransfer
+        )
 
         sharePoster.runs?.let { runs ->
             SharePosterSheet(

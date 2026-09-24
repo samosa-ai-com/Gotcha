@@ -115,6 +115,7 @@ fun ChatScreen(
     onStartListening: () -> Unit = {},
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
+    onBackupChat: () -> Unit = {},
     onReturnToRunning: () -> Unit = {},
     onCreateShareCard: () -> Unit = {},
     onEditMessage: (Long, String, List<ComposerAttachment>) -> Unit = { _, _, _ -> },
@@ -282,6 +283,7 @@ fun ChatScreen(
                         }
                         ChatOptionsMenu(
                             onExportChat = onExportChat,
+                            onBackupChat = onBackupChat,
                             onCreateShareCard = onCreateShareCard,
                             shareEnabled = !state.isBusy,
                             keptOutOfNotifications = chatKeptOutOfNotifications,
@@ -863,13 +865,15 @@ private fun InboxButton(unread: Int, onClick: () -> Unit) {
 }
 
 /**
- * The open chat's menu: the markdown chat export and the "Create share card"
+ * The open chat's menu: the markdown chat export, the full backup a chat can be
+ * imported back from (issue #83), the "Create share card"
  * (whole-chat aggregation) entry point for the marketing poster, plus whether
  * Gotcha's notifications may use this chat (issue #100).
  */
 @Composable
 private fun ChatOptionsMenu(
     onExportChat: () -> Unit,
+    onBackupChat: () -> Unit,
     onCreateShareCard: () -> Unit,
     shareEnabled: Boolean,
     keptOutOfNotifications: Boolean,
@@ -888,6 +892,15 @@ private fun ChatOptionsMenu(
                     expanded = false
                     onExportChat()
                 }
+            )
+            DropdownMenuItem(
+                text = { Text("Back up chat") },
+                enabled = shareEnabled,
+                onClick = {
+                    expanded = false
+                    onBackupChat()
+                },
+                modifier = Modifier.testTag("chat_backup")
             )
             DropdownMenuItem(
                 text = { Text("Create share card") },

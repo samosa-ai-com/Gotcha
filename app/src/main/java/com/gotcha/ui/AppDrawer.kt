@@ -10,7 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
@@ -50,6 +52,8 @@ fun AppDrawerContent(
     onDeleteSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
+    onImportChats: () -> Unit = {},
+    onBackupAllChats: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -167,6 +171,24 @@ fun AppDrawerContent(
                 }
             }
             HorizontalDivider()
+            NavigationDrawerItem(
+                label = { Text("Import chats") },
+                icon = { Icon(Icons.Default.FileOpen, contentDescription = null) },
+                selected = false,
+                onClick = onImportChats,
+                colors = itemColors,
+                modifier = itemModifier
+            )
+            if (sessions.isNotEmpty()) {
+                NavigationDrawerItem(
+                    label = { Text("Back up all chats") },
+                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
+                    selected = false,
+                    onClick = onBackupAllChats,
+                    colors = itemColors,
+                    modifier = itemModifier
+                )
+            }
             NavigationDrawerItem(
                 label = { Text("Connectors") },
                 icon = { Icon(Icons.Default.Link, contentDescription = null) },

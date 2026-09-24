@@ -14,9 +14,13 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
+import com.gotcha.data.ChatArchive
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.ChatImporter
 import com.gotcha.data.ChatMarkdown
 import com.gotcha.data.ChatSession
+import com.gotcha.data.DuplicateStrategy
+import com.gotcha.data.ImportParseResult
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
@@ -1777,6 +1781,141 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             title = agentEngine.currentTitle()
         )
         _exportContent.tryEmit(markdown)
+    }
+
+    // ---- Chat backup and import (issue #83) ----
+
+    private val chatImporter = ChatImporter(historyRepository)
+
+    private val _chatTransfer = MutableStateFlow<ChatTransferState>(ChatTransferState.Idle)
+    val chatTransfer: StateFlow<ChatTransferState> = _chatTransfer.asStateFlow()
+
+    /** Set just before the "save backup" picker opens, consumed by [writeBackup]. */
+    private var pendingBackup: BackupRequest? = null
+
+    /**
+     * Holds [request] for the file picker the caller is about to open, and
+     * returns the file name to suggest in it.
+     */
+    fun prepareBackup(request: BackupRequest): String {
+        pendingBackup = request
+        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        val name = request.sessionId
+            ?.let { id -> _sessions.value.firstOrNull { it.id == id }?.title }
+            ?.let { title -> title.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(40) }
+            ?.takeIf { it.isNotEmpty() }
+            ?: if (request.sessionId == null) "chats" else "chat"
+        return "gotcha-$name-$date${ChatArchive.FILE_SUFFIX}"
+    }
+
+    /** Writes the [prepareBackup] request to [uri]; a null [uri] means the picker was cancelled. */
+    fun writeBackup(uri: Uri?) {
+        val request = pendingBackup ?: return
+        pendingBackup = null
+        if (uri == null) return
+        _chatTransfer.value = ChatTransferState.Working("Saving backup…")
+        viewModelScope.launch {
+            val outcome = runCatching {
+                withContext(Dispatchers.IO) {
+                    val sessions = request.sessionId
+                        ?.let { listOfNotNull(historyRepository.loadSession(it)) }
+                        ?: historyRepository.listSessions()
+                    check(sessions.isNotEmpty()) { "There are no saved chats to back up yet." }
+                    val archive = ChatArchive(
+                        exportedAt = System.currentTimeMillis(),
+                        appVersion = com.gotcha.BuildConfig.VERSION_NAME,
+                        includesImages = request.includeImages,
+                        sessions = if (request.includeImages) sessions else sessions.map(ChatArchive::withoutImages)
+                    )
+                    val stream = getApplication<Application>().contentResolver.openOutputStream(uri, "wt")
+                        ?: error("The chosen location can't be written to.")
+                    stream.use { it.write(ChatArchive.encode(archive).toByteArray(Charsets.UTF_8)) }
+                    sessions.size
+                }
+            }
+            _chatTransfer.value = outcome.fold(
+                onSuccess = { count ->
+                    ChatTransferState.Report(
+                        "Backup saved",
+                        if (count == 1) "Saved 1 chat." else "Saved $count chats."
+                    )
+                },
+                onFailure = { e ->
+                    ChatTransferState.Report("Backup failed", e.message ?: "The backup couldn't be saved.")
+                }
+            )
+        }
+    }
+
+    /** Reads the file the user picked to import and shows what it holds; null means the picker was cancelled. */
+    fun readImport(uri: Uri?) {
+        if (uri == null) return
+        _chatTransfer.value = ChatTransferState.Working("Reading file…")
+        viewModelScope.launch {
+            val bytes = runCatching {
+                withContext(Dispatchers.IO) { readAtMost(uri, ChatImporter.MAX_BYTES) }
+            }.getOrNull()
+            _chatTransfer.value = when {
+                bytes == null -> ChatTransferState.Report("Import failed", "The file couldn't be opened.")
+                bytes.size > ChatImporter.MAX_BYTES -> ChatTransferState.Report(
+                    "Import failed",
+                    "The file is larger than ${ChatImporter.MAX_BYTES / (1024 * 1024)} MB, the most Gotcha imports at once."
+                )
+                else -> when (val read = chatImporter.preview(bytes)) {
+                    is ImportParseResult.Ready -> ChatTransferState.Previewing(read.preview)
+                    is ImportParseResult.Failed -> ChatTransferState.Report("Import failed", read.message)
+                }
+            }
+        }
+    }
+
+    /** Imports the previewed file, resolving clashes with existing chats by [strategy]. */
+    fun confirmImport(strategy: DuplicateStrategy) {
+        val preview = (_chatTransfer.value as? ChatTransferState.Previewing)?.preview ?: return
+        _chatTransfer.value = ChatTransferState.Working("Importing…")
+        viewModelScope.launch {
+            val result = chatImporter.commit(
+                preview,
+                strategy,
+                protectedIds = setOfNotNull(_uiState.value.runningSessionId)
+            )
+            refreshSessions()
+            // An open chat that was just replaced would otherwise keep showing,
+            // and on the next turn saving, the copy that was imported over.
+            val open = _uiState.value.activeSessionId
+            if (open != null && open in result.writtenIds) openSession(open)
+
+            val counts = listOfNotNull(
+                "Imported ${result.imported}",
+                result.replaced.takeIf { it > 0 }?.let { "replaced $it" },
+                result.skipped.takeIf { it > 0 }?.let { "skipped $it" },
+                result.failed.size.takeIf { it > 0 }?.let { "$it failed" }
+            )
+            _chatTransfer.value = ChatTransferState.Report(
+                title = if (result.imported + result.replaced > 0) "Import finished" else "Nothing imported",
+                summary = counts.joinToString(" · ") + ".",
+                details = result.failed.map { "${it.title}: ${it.reason}" } + preview.warnings
+            )
+        }
+    }
+
+    fun dismissChatTransfer() {
+        _chatTransfer.value = ChatTransferState.Idle
+    }
+
+    /** Up to [limit] + 1 bytes of [uri], so an oversized file is caught without reading all of it. */
+    private fun readAtMost(uri: Uri, limit: Int): ByteArray? {
+        val input = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
+        return input.use { stream ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            while (out.size() <= limit) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                out.write(buffer, 0, read)
+            }
+            out.toByteArray()
+        }
     }
 
     /**
