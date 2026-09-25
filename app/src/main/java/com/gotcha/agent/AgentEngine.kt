@@ -36,6 +36,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -125,6 +126,16 @@ class AgentEngine(
     lateinit var toolExecutor: ToolExecutor
         private set
 
+    /** The app named in this request's foreground-control ask, for the "controlling" status. */
+    @Volatile
+    private var foregroundControlApp: String? = null
+
+    /** Asks once per request before Gotcha opens or controls another app (issue #98). */
+    private val foregroundControl = ForegroundControlGate(
+        ask = { name, args -> askForegroundControl(name, args) },
+        onControlStarted = { events.onForegroundControlChanged(true, foregroundControlApp) }
+    )
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val settings: Settings get() = settingsProvider()
@@ -169,6 +180,7 @@ class AgentEngine(
                 }
             },
             onUpdateUserProfile = onUpdateUserProfile,
+            onBeforeTool = { name, args -> foregroundControl.check(name, args) },
             onNavigateApp = { task ->
                 events.onSubAgentUpdate("App Navigation", "starting…")
                 val steps = mutableListOf<SubAgentStepUi>()
@@ -431,9 +443,27 @@ class AgentEngine(
         }
     }
 
+    /**
+     * Runs one top-level request. The foreground-control answer (issue #98) lives
+     * exactly as long as this call: however the run ends — reply, error, limit
+     * or cancellation — it is forgotten, and if Gotcha had taken control of
+     * another app the host is told that control is over.
+     */
+    suspend fun run(agent: AgentMode) {
+        foregroundControl.reset()
+        try {
+            runLoop(agent)
+        } finally {
+            if (foregroundControl.reset()) {
+                events.onForegroundControlChanged(false, foregroundControlApp)
+            }
+            foregroundControlApp = null
+        }
+    }
+
     // The core agent loop: LLM call → tool dispatch → confirmation gates → repeat.
     @Suppress("CyclomaticComplexMethod", "LongMethod")
-    suspend fun run(agent: AgentMode) {
+    private suspend fun runLoop(agent: AgentMode) {
         val llm = clientProvider() ?: return
         val sessionId = this.sessionId ?: "unknown"
         // KNOWN LIMITATION: WORKING_DIR_BASE is a process-wide global. We
@@ -766,6 +796,48 @@ class AgentEngine(
         events.onAssistantReply(exhausted)
         emitRunSummary(exhausted, succeeded = false)
     }
+
+    /**
+     * The one foreground-control ask of a request (issue #98): names the app,
+     * quotes what the user asked for as the reason, and records the answer in
+     * the audit log alongside the other confirmations.
+     */
+    private suspend fun askForegroundControl(toolName: String, args: JsonObject): Boolean {
+        val request = ForegroundControlRequest(
+            toolName = toolName,
+            appLabel = foregroundControlTarget(toolName, args),
+            userRequest = history.lastOrNull { it.role == "user" }?.textContent.orEmpty(),
+            task = if (toolName == "navigate_app") args["task"]?.jsonPrimitive?.contentOrNull else null
+        )
+        foregroundControlApp = request.appLabel
+        val allowed = events.awaitForegroundControl(request)
+        toolExecutor.actionLog.record(
+            "foreground_control",
+            "$toolName ${request.appLabel.orEmpty()}".trim(),
+            if (allowed) ToolResult.ok("Allowed for this request") else ToolResult.error("Denied")
+        )
+        return allowed
+    }
+
+    /**
+     * The app a foreground-control tool is about to open or act on: the one
+     * open_app names, Settings for open_setting, otherwise whatever is on
+     * screen. Null for navigate_app, which only knows its task, and when the
+     * app on screen is Gotcha itself.
+     */
+    private fun foregroundControlTarget(toolName: String, args: JsonObject): String? = when (toolName) {
+        "open_app" -> args["package_name"]?.jsonPrimitive?.contentOrNull?.let { appLabel(it) ?: it }
+        "open_setting" -> "Settings"
+        "navigate_app" -> null
+        else -> com.gotcha.service.GotchaAccessibilityService.instance?.activeAppPackage()
+            ?.takeIf { it != appContext.packageName }
+            ?.let { appLabel(it) ?: it }
+    }
+
+    private fun appLabel(packageName: String): String? = runCatching {
+        val pm = appContext.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    }.getOrNull()
 
     /**
      * Sensitive-action confirmation is disabled. Permissions are pre-configured

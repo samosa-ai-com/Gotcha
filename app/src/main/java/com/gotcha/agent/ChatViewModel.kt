@@ -48,6 +48,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.ForegroundControlIndicator
 import com.gotcha.ui.Persona
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
@@ -178,6 +179,13 @@ data class ChatUiState(
     val subAgentRunning: String? = null,
     val subAgentCurrentAction: String? = null,
     val pendingConfirmation: PendingConfirmation? = null,
+    /** The once-per-request "may Gotcha control your apps?" ask on screen (issue #98). */
+    val pendingForegroundControl: ForegroundControlRequest? = null,
+    /**
+     * "Gotcha is controlling …" while the run controls another app, then "Gotcha
+     * is done…" once it has let go (issue #98). Cleared when the next run starts.
+     */
+    val foregroundControlStatus: String? = null,
     val pendingQuestion: PendingQuestion? = null,
     /**
      * Runtime permission a tool is waiting on, asked for at the moment it is
@@ -249,6 +257,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val confirmationOverlay = ConfirmationOverlay(application)
+    private val foregroundControlIndicator = ForegroundControlIndicator(application)
     private val completionNotifier = ChatCompletionNotifier(application)
     private val localNotificationStore = LocalNotificationStore(application)
 
@@ -336,6 +345,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var questionGate: CompletableDeferred<String>? = null
     private var permissionGate: CompletableDeferred<Boolean>? = null
+    private var foregroundControlGate: CompletableDeferred<Boolean>? = null
     private var agentJob: Job? = null
 
     /**
@@ -549,6 +559,61 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return approved
     }
 
+    /**
+     * The once-per-request ask before Gotcha controls another app (issue #98).
+     * Out of the app the in-app dialog can't be seen, so the same question is
+     * also drawn over whatever is on screen; either answer counts.
+     */
+    override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean {
+        val gate = CompletableDeferred<Boolean>()
+        foregroundControlGate = gate
+        _uiState.update { it.copy(activity = null, pendingForegroundControl = request) }
+        if (!appInForeground && confirmationOverlay.canShow()) {
+            confirmationOverlay.show(
+                summary = request.promptText(),
+                onAllow = { gate.complete(true) },
+                onDeny = { gate.complete(false) },
+                title = request.title,
+                allowLabel = ForegroundControlRequest.ALLOW_LABEL,
+                denyLabel = ForegroundControlRequest.DENY_LABEL
+            )
+        }
+        return try {
+            withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
+        } finally {
+            confirmationOverlay.dismiss()
+            _uiState.update { it.copy(pendingForegroundControl = null) }
+            foregroundControlGate = null
+        }
+    }
+
+    /** The in-app dialog's answer to [awaitForegroundControl]. */
+    fun answerForegroundControl(allowed: Boolean) {
+        _uiState.update { it.copy(pendingForegroundControl = null) }
+        foregroundControlGate?.complete(allowed)
+        foregroundControlGate = null
+    }
+
+    override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
+        if (active) {
+            val text = ForegroundControlRequest.controllingMessage(appLabel)
+            _uiState.update { it.copy(foregroundControlStatus = text) }
+            foregroundControlIndicator.showControlling(text)
+        } else {
+            _uiState.update { it.copy(foregroundControlStatus = ForegroundControlRequest.DONE_MESSAGE) }
+            // In the app the status line says it; outside, the card over their app does.
+            if (appInForeground) {
+                foregroundControlIndicator.dismiss()
+            } else {
+                foregroundControlIndicator.showDone(ForegroundControlRequest.DONE_MESSAGE)
+            }
+        }
+    }
+
+    override fun onScreenCaptureChrome(hide: Boolean) {
+        foregroundControlIndicator.setCaptureHidden(hide)
+    }
+
     // ---- Settings / models ----
 
     // Never read from the engine here. The engine may be bound to a different
@@ -708,6 +773,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 runningSessionId = runningId,
                 runningSessionTitle = runningTitle,
                 backgroundHint = currentBackgroundHint(),
+                foregroundControlStatus = null,
                 askNotificationPermission = it.askNotificationPermission || claimNotificationPermissionAsk()
             )
         }
@@ -1464,6 +1530,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     override fun onCleared() {
         confirmationOverlay.dismiss()
+        foregroundControlIndicator.dismiss()
         super.onCleared()
     }
 

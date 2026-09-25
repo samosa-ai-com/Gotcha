@@ -453,6 +453,113 @@ class AgentLoopTest {
         )
     }
 
+    // ---- foreground control (issue #98) ----
+
+    private fun addUserMessage(text: String) {
+        engine.history += com.gotcha.llm.ChatMessage(
+            role = "user",
+            content = kotlinx.serialization.json.JsonPrimitive(text)
+        )
+    }
+
+    @Test
+    fun `foreground control is asked once per request, naming the app and the reason`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        addUserMessage("Say hi to Sam on Chat App")
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "call_1")
+        enqueueToolCall("open_setting", """{"setting":"wifi"}""", id = "call_2")
+        enqueueTextReply("Done.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(
+            "a second foreground step in the same request must not ask again",
+            1,
+            events.foregroundControlRequests.size
+        )
+        val request = events.foregroundControlRequests.single()
+        assertEquals("open_app", request.toolName)
+        assertEquals("Chat App", request.appLabel)
+        assertTrue(request.promptText().contains("Say hi to Sam on Chat App"))
+        assertEquals(listOf(true to "Chat App", false to "Chat App"), events.foregroundControlChanges)
+    }
+
+    @Test
+    fun `a new request asks again`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""")
+        enqueueTextReply("Opened.")
+        engine.run(AgentMode.OPERATOR)
+
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""")
+        enqueueTextReply("Opened again.")
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(2, events.foregroundControlRequests.size)
+    }
+
+    @Test
+    fun `denying foreground control blocks every foreground step in the request`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        events.foregroundControlAnswer = false
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "call_1")
+        enqueueToolCall("open_setting", """{"setting":"wifi"}""", id = "call_2")
+        enqueueTextReply("I left your apps alone.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("a denial is remembered for the request", 1, events.foregroundControlRequests.size)
+        assertTrue("control never started, so there is nothing to end", events.foregroundControlChanges.isEmpty())
+        assertTrue(
+            "the model should be told the user said no: ${events.uiMessages}",
+            events.uiMessages.count { it.contains("did not allow Gotcha") } == 2
+        )
+        val launched = org.robolectric.Shadows.shadowOf(
+            context as android.app.Application
+        ).nextStartedActivity
+        assertEquals("a denied open_app must not launch anything", null, launched)
+    }
+
+    @Test
+    fun `background tools never ask for foreground control`() = runTest {
+        enqueueToolCall("write_file", """{"path":"${File(workDir, "bg.txt").absolutePath}","content":"ok"}""")
+        enqueueTextReply("Written.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertTrue(events.foregroundControlRequests.isEmpty())
+        assertTrue(events.foregroundControlChanges.isEmpty())
+    }
+
+    @Test
+    fun `a sub-agent's foreground step is gated too`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        events.foregroundControlAnswer = false
+        enqueueToolCall("task", """{"description":"Chat","prompt":"open the chat app"}""", id = "call_1")
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "sub_1")
+        enqueueToolCall("ask_final_answer", """{"answer":"Not allowed to open it."}""", id = "sub_2")
+        enqueueTextReply("I couldn't open it.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(listOf("open_app"), events.foregroundControlRequests.map { it.toolName })
+    }
+
+    @Test
+    fun `the destructive-action confirmation still fires after foreground control is allowed`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        installFakePackage("com.example.victim", "Victim App")
+        events.confirmationAnswer = false
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "call_1")
+        enqueueToolCall("uninstall_app", """{"package_name":"com.example.victim"}""", id = "call_2")
+        enqueueTextReply("Left it installed.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, events.foregroundControlRequests.size)
+        assertTrue(events.confirmationRequests.any { it.contains("uninstall_app") })
+    }
+
     // ---- agent-mode enforcement, end to end ----
 
     @Test

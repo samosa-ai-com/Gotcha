@@ -1027,6 +1027,7 @@ class MainActivity : ComponentActivity() {
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
                         onAnswer = chatViewModel::submitAnswer,
+                        onAnswerForegroundControl = chatViewModel::answerForegroundControl,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,

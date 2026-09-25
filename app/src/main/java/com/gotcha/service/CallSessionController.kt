@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
+import com.gotcha.agent.ForegroundControlRequest
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.PendingQuestion
 import com.gotcha.agent.ScreenSnapshot
@@ -28,6 +29,7 @@ import com.gotcha.tools.ToolCategories
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.ForegroundControlIndicator
 import com.gotcha.ui.ScreenReadFlashOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -59,7 +61,7 @@ data class CallTranscriptItem(val id: Long, val kind: MessageKind, val text: Str
  * Call sessions persist to a separate "calls" directory (never the main chat
  * list) and are deleted — history and working dir — when the call ends.
  */
-@Suppress("TooManyFunctions")
+@Suppress("LargeClass", "TooManyFunctions")
 class CallSessionController(
     private val appContext: Context,
     private val scope: CoroutineScope,
@@ -71,6 +73,7 @@ class CallSessionController(
     private val callsRepo = ChatHistoryRepository(appContext, "calls")
     private val confirmationOverlay = ConfirmationOverlay(appContext)
     private val screenReadFlash = ScreenReadFlashOverlay(appContext)
+    private val foregroundControlIndicator = ForegroundControlIndicator(appContext)
 
     /** Survives service teardown so end-of-call deletion always completes. */
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -398,6 +401,7 @@ class CallSessionController(
         questionGate = null
         confirmationOverlay.dismiss()
         screenReadFlash.dismiss()
+        foregroundControlIndicator.dismiss()
         engine = null
 
         val id = endingEngine.sessionId
@@ -691,6 +695,7 @@ class CallSessionController(
     override fun onScreenCaptureChrome(hide: Boolean) {
         // Never capture the pulse: drop any stale window before a capture starts.
         if (hide) screenReadFlash.dismiss()
+        foregroundControlIndicator.setCaptureHidden(hide)
         onCaptureChrome(hide)
     }
 
@@ -729,23 +734,61 @@ class CallSessionController(
      * Show a visual confirmation overlay over all apps for destructive actions.
      * Denies on timeout after 90 seconds.
      */
-    override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
+    override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean =
+        askOverScreen("Confirmation needed: $description", description)
+
+    /**
+     * The once-per-request ask before Gotcha controls another app (issue #98).
+     * A call sits over other apps, so it is asked the way confirmations are:
+     * spoken, and drawn over the screen. Denies on timeout.
+     */
+    override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean =
+        askOverScreen(
+            transcript = "${request.title} ${request.promptText()}",
+            summary = request.promptText(),
+            title = request.title,
+            allowLabel = ForegroundControlRequest.ALLOW_LABEL,
+            denyLabel = ForegroundControlRequest.DENY_LABEL
+        )
+
+    /** Says a decision is needed, then waits on the overlay's Allow/Deny; denies on timeout. */
+    private suspend fun askOverScreen(
+        transcript: String,
+        summary: String,
+        title: String = "Gotcha — confirm action",
+        allowLabel: String = "Allow",
+        denyLabel: String = "Deny"
+    ): Boolean {
         _state.value = CallState.WAITING_USER
-        addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
+        addTranscript(MessageKind.ASSISTANT, transcript)
         val language = currentLanguage()
         if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
             reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
         }
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
-            summary = description,
+            summary = summary,
             onAllow = { gate.complete(true) },
-            onDeny = { gate.complete(false) }
+            onDeny = { gate.complete(false) },
+            title = title,
+            allowLabel = allowLabel,
+            denyLabel = denyLabel
         )
-        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
-        confirmationOverlay.dismiss()
-        _state.value = CallState.THINKING
-        return approved
+        return try {
+            withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
+        } finally {
+            confirmationOverlay.dismiss()
+            _state.value = CallState.THINKING
+        }
+    }
+
+    override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
+        if (active) {
+            foregroundControlIndicator.showControlling(ForegroundControlRequest.controllingMessage(appLabel))
+        } else {
+            addTranscript(MessageKind.ASSISTANT, ForegroundControlRequest.DONE_MESSAGE)
+            foregroundControlIndicator.showDone(ForegroundControlRequest.DONE_MESSAGE)
+        }
     }
 
     // ---- Helpers ----

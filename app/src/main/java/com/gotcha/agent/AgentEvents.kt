@@ -91,6 +91,20 @@ interface AgentEvents {
     /** Ask the user the agent's question; returns "" when unanswered. */
     suspend fun awaitQuestionAnswer(question: PendingQuestion): String
 
+    /**
+     * Ask before Gotcha first opens or controls another app in this request
+     * (issue #98). Asked at most once per request; the answer covers every later
+     * foreground step in it. Defaults to "can't ask here", which denies.
+     */
+    suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean = false
+
+    /**
+     * Gotcha started ([active] true) or stopped controlling another app. The
+     * host shows that it is in control, then that the user has their app back.
+     * [appLabel] names the app when known. Default no-op.
+     */
+    fun onForegroundControlChanged(active: Boolean, appLabel: String?) {}
+
     /** Gate a destructive action on explicit user approval. */
     suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean
 }

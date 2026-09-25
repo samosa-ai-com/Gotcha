@@ -23,6 +23,15 @@ class RecordingAgentEvents : AgentEvents {
     /** Runtime permissions the loop asked for, in order, via [awaitPermissionGrant]. */
     val permissionAsks = mutableListOf<String>()
 
+    /** Every foreground-control ask the loop raised (issue #98), in order. */
+    val foregroundControlRequests = mutableListOf<ForegroundControlRequest>()
+
+    /** What [awaitForegroundControl] should answer. Defaults to allowing. */
+    var foregroundControlAnswer: Boolean = true
+
+    /** [onForegroundControlChanged] calls, as (active, app label). */
+    val foregroundControlChanges = mutableListOf<Pair<Boolean, String?>>()
+
     /** What [awaitConfirmation] should answer. Defaults to approving. */
     var confirmationAnswer: Boolean = true
 
@@ -84,6 +93,15 @@ class RecordingAgentEvents : AgentEvents {
     }
 
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String = questionAnswer
+
+    override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean {
+        foregroundControlRequests += request
+        return foregroundControlAnswer
+    }
+
+    override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
+        foregroundControlChanges += active to appLabel
+    }
 
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
         confirmationRequests += "${toolNames.joinToString(",")}: $description"

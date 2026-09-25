@@ -84,6 +84,7 @@ import com.gotcha.R
 import com.gotcha.agent.ATTACHMENT_PLACEHOLDERS
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.ComposerAttachment
+import com.gotcha.agent.ForegroundControlRequest
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
@@ -101,6 +102,7 @@ fun ChatScreen(
     onStop: () -> Unit,
     onConfirm: (Boolean) -> Unit,
     onAnswer: (String?) -> Unit,
+    onAnswerForegroundControl: (Boolean) -> Unit = {},
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     sessionTitle: String? = null,
@@ -453,6 +455,27 @@ fun ChatScreen(
                 }
             }
 
+            // Issue #98: that Gotcha is controlling another app, then that it has let go.
+            if (state.foregroundControlStatus != null && !otherChatRunning) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        state.foregroundControlStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             if (state.subAgentRunning != null) {
                 Column(
                     modifier = Modifier
@@ -781,6 +804,24 @@ fun ChatScreen(
             },
             dismissButton = {
                 TextButton(onClick = { onConfirm(false) }) { Text("Deny") }
+            }
+        )
+    }
+
+    state.pendingForegroundControl?.let { pending ->
+        SkinAlertDialog(
+            onDismissRequest = { onAnswerForegroundControl(false) },
+            title = { Text(pending.title) },
+            text = { Text(pending.promptText(), style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                Button(onClick = { onAnswerForegroundControl(true) }) {
+                    Text(ForegroundControlRequest.ALLOW_LABEL)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onAnswerForegroundControl(false) }) {
+                    Text(ForegroundControlRequest.DENY_LABEL)
+                }
             }
         )
     }

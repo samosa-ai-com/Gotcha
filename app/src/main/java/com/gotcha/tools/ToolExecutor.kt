@@ -30,7 +30,13 @@ class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
     val onNavigateApp: (suspend (task: String) -> ToolResult)? = null,
-    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null
+    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null,
+    /**
+     * Consulted before every tool runs, from the engine and its sub-agents alike:
+     * null lets the tool run, anything else is returned in its place. The engine
+     * uses it to ask once per request before Gotcha controls another app (#98).
+     */
+    val onBeforeTool: (suspend (name: String, args: JsonObject) -> ToolResult?)? = null
 ) {
 
     private companion object {
@@ -134,6 +140,10 @@ class ToolExecutor(
             return ToolResult.error(
                 "Tool '$name' is not available to sub-agents (no recursive delegation)."
             )
+        }
+        onBeforeTool?.invoke(name, args)?.let { refused ->
+            actionLog.record(name, args.redactedForAudit(), refused)
+            return refused
         }
         val result = try {
             withContext(Dispatchers.IO) { dispatch(name, args, hiddenTools) }

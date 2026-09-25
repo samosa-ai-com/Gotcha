@@ -41,6 +41,22 @@ object ToolCategories {
         "notion_create_page", "notion_append_to_page"
     )
 
+    /**
+     * Tools that bring another app to the front or act on the screen of whatever
+     * app is there (issue #98). Gated behind one "may Gotcha control your apps?"
+     * ask per request. Narrower than [foregroundTools]: intent handoffs like
+     * dial_number open another app but leave the user in charge of it, and
+     * `task` is gated through the calls its sub-agent makes, not by itself.
+     */
+    private val foregroundControlTools = setOf(
+        "open_app", "open_setting", "navigate_app",
+        "tap", "tap_index", "long_press", "long_press_index",
+        "swipe", "input_text", "press_key", "global_action",
+        "read_screen", "read_screen_raw"
+    )
+
+    fun isForegroundControl(toolName: String): Boolean = toolName in foregroundControlTools
+
     fun classify(toolName: String): Category = when {
         foregroundTools.contains(toolName) -> Category.FOREGROUND
         backgroundTools.contains(toolName) -> Category.BACKGROUND
