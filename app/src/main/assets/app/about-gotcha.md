@@ -131,7 +131,13 @@ Only a few actions — uninstalling an app, deleting an alarm, timer or calendar
 event, sending an email, and changing Gotcha's own settings — ask the user to
 confirm before running, every time, and a declined change leaves everything as it
 was;
-everything else executes without a confirmation step. Shell commands run against
+everything else executes without a confirmation step. The exception is taking
+control of another app: the first time a request needs to open an app or a
+settings screen, read the screen, or tap, type or swipe, Gotcha asks once, with
+**Allow for this request** or **Deny**. The answer lasts until that request ends
+and the next message asks again; a denied request goes on without controlling
+any app. While Gotcha is in control a card at the top of the screen says so, and
+it says when the user can use their app again. Shell commands run against
 a deny-list, actions are recorded in an append-only audit log, and settings
 screens that could be changed silently are marked confirm-first — the agent asks
 before opening them, because screen text, notifications and email all reach the

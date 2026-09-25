@@ -4,6 +4,18 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Gotcha asks before it takes control of another app** (#98). The first time
+  a request needs to open an app, open a settings screen, read the screen or
+  tap, type and swipe in another app, Gotcha asks once: which app, why (your
+  request, quoted), what it may do there, and what saying no means. "Allow for
+  this request" covers every later step of that request, so a long task is not
+  interrupted again; "Deny" keeps Gotcha out of your apps until the request ends,
+  and it answers without them. The next message asks again. Tools that work in
+  the background never ask. While Gotcha is in control a small card at the top of
+  the screen says so, and when it lets go it says "Gotcha is done. You can use
+  your app again." — in the chat when you are in Gotcha, on that card when you
+  are not. The existing confirmations for uninstalling, deleting, sending email
+  and changing settings still ask every time.
 - **Import chats, and back them up** (#83). "Import chats" in the navigation
   drawer reads back a chat exported as Markdown ("Export chat" in a chat's ⋮
   menu), so a shared or saved conversation can be opened and continued. The
