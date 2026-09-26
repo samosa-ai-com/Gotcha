@@ -47,7 +47,6 @@ object TestSeed {
             )
         )
         repository.prefs.edit()
-            .putBoolean(MainActivity.KEY_FIRST_LAUNCH_DONE, true)
             .putBoolean(MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, true)
             .putBoolean(SUPPRESS_TOUR_KEY, true)
             .apply()

@@ -72,7 +72,7 @@ AI-PCP, ConsensusAI, Listener, and Watcher are announced but not yet released.
 
 Gotcha ships three legal documents in the app: Terms and Conditions, a Disclaimer and Declaration, and a Data Retention and Privacy Policy. In short: the assistant is powered by a generative AI model, so its output can be wrong and should be verified before you act on it — especially for actions with real-world consequences. You are responsible for the instructions you give the agent and the actions it takes on your behalf, and the app must only be used lawfully. Gotcha is privacy-first and runs on-device wherever it can.
 
-These summaries are not the agreements themselves. The full, authoritative text is bundled in the app under Settings > About Us > Legal. Read it there before relying on any summary.
+These summaries are not the agreements themselves. The full, authoritative text is bundled in the app under Settings > About > Legal. Read it there before relying on any summary.
 
 ## Pricing
 

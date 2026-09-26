@@ -55,6 +55,21 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val aboutGotcha = tool(
+        "about_gotcha",
+        "Get information about Gotcha — this app — from its bundled handbook: what it can do, " +
+            "Monitor vs Operator mode, the exact path to every setting (AI models and API keys, " +
+            "speech, language, permissions, Termux, skills, proactive assistance, the assistive " +
+            "ball and wake word, appearance, notifications), which permission or capability each " +
+            "group of tools needs and where the user turns it on, and the safety model. Call this " +
+            "for ANY question about the app's own features, limits or settings — 'what can you " +
+            "do', 'which setting do I change to…', 'why can't you do that', 'how do I set up a " +
+            "model / the wake word / Termux'. Answer from this rather than guessing from memory, " +
+            "and rather than reading or driving the Settings screens to rediscover a path. " +
+            "For the company, its other products, pricing or contact details, use about_samosa_ai.",
+        schema { putJsonObject("properties") {} }
+    )
+
     val updateUserProfile = tool(
         "update_user_profile",
         "Update the user's stored personal profile in Settings (occupation, background, " +
@@ -88,6 +103,33 @@ object ToolDefinitions {
                     )
                 }
             }
+        }
+    )
+
+    val updateGotchaSettings = tool(
+        "update_gotcha_settings",
+        "Change Gotcha's own settings when the user asks you to — notifications, reply and " +
+            "speech language, reading replies aloud, the skin, proactive assistance, the wake " +
+            "word's listening mode and sensitivity, and turning connectors or skills on or off. " +
+            "Only the settings in `changes` can be set; API keys, sign-in, the model and " +
+            "permissions cannot, so send the user to Settings for those (about_gotcha has the " +
+            "path). The user is shown every change with its current and new value and must " +
+            "approve it, every time; if they decline, nothing changes — do not retry unless " +
+            "they ask again. Change only what the user asked for.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("changes") {
+                    put("type", "object")
+                    put("description", "The settings to change and their new values. Include only these.")
+                    put("properties", GotchaSettingsUpdate.schemaProperties(staticSettingsCatalog()))
+                    put("additionalProperties", false)
+                }
+                putJsonObject("reason") {
+                    put("type", "string")
+                    put("description", "One short sentence shown to the user on the approval prompt: why.")
+                }
+            }
+            putJsonArray("required") { add("changes") }
         }
     )
 
@@ -2945,7 +2987,9 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         aboutSamosaAi,
+        aboutGotcha,
         updateUserProfile,
+        updateGotchaSettings,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
         openApp, setBrightness, toggleWifi, openSetting,
         setWallpaper, runCommand,

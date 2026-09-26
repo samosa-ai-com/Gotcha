@@ -47,6 +47,11 @@ data class ChatMessage(
     /** True when this message carries an image (vision) part. */
     val hasImage: Boolean get() = imageUrl() != null
 
+    /** How many image (vision) parts this message carries. */
+    val imageCount: Int get() = (content as? JsonArray)?.count { part ->
+        ((part as? JsonObject)?.get("type") as? JsonPrimitive)?.content == "image_url"
+    } ?: 0
+
     /**
      * The data URI of this message's first image part (e.g.
      * "data:image/jpeg;base64,…"), or null when there is no image part.
@@ -64,6 +69,13 @@ data class ChatMessage(
     }
 }
 
+/**
+ * The text part of an image-only message. Multimodal APIs require a text part,
+ * but inventing a prompt (e.g. "What is in this image?") would change what the
+ * user asked, so a single space stands in for "no text".
+ */
+const val IMAGE_ONLY_TEXT = " "
+
 /** Build a vision-content ChatMessage with text + an image. */
 fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "png"): ChatMessage {
     val dataUri = "data:image/$imageFormat;base64,$imageBase64"
@@ -73,7 +85,7 @@ fun visionUserMessage(text: String, imageBase64: String, imageFormat: String = "
             add(
                 buildJsonObject {
                     put("type", "text")
-                    put("text", text.ifBlank { "What is in this image?" })
+                    put("text", text.ifBlank { IMAGE_ONLY_TEXT })
                 }
             )
             add(
@@ -102,19 +114,9 @@ fun documentUserMessage(
     extractedText: String,
     pageCount: Int? = null
 ): ChatMessage {
-    val header = buildString {
-        append("[Attached file: $fileName")
-        append(if (mimeType.isNotBlank()) " ($mimeType" else " (document")
-        pageCount?.let { append(", $it pages") }
-        append(")]")
-    }
-    val body = extractedText.ifBlank {
-        "(The document could not be read — ask the user for the details.)"
-    }
     val text = listOf(
         userText.ifBlank { "Answer questions about the attached file." },
-        header,
-        body
+        documentSection(DocumentPart(fileName, mimeType, extractedText, pageCount))
     ).joinToString("\n\n")
     return ChatMessage(
         role = "user",
@@ -125,6 +127,68 @@ fun documentUserMessage(
                     put("text", text)
                 }
             )
+        }
+    )
+}
+
+/** A document to inline into a user message: its name, type and extracted text. */
+data class DocumentPart(
+    val fileName: String,
+    val mimeType: String,
+    val extractedText: String,
+    val pageCount: Int? = null
+)
+
+/** The `[Attached file: …]` header and extracted body for one document. */
+private fun documentSection(doc: DocumentPart): String {
+    val header = buildString {
+        append("[Attached file: ${doc.fileName}")
+        append(if (doc.mimeType.isNotBlank()) " (${doc.mimeType}" else " (document")
+        doc.pageCount?.let { append(", $it pages") }
+        append(")]")
+    }
+    val body = doc.extractedText.ifBlank {
+        "(The document could not be read — ask the user for the details.)"
+    }
+    return "$header\n\n$body"
+}
+
+/**
+ * Build a user message carrying any number of documents and images, in the
+ * order the user picked them within each kind.
+ *
+ * The prompt and every document's header + body share the FIRST text part, for
+ * the same reason as [documentUserMessage]: [ChatMessage.textContent] only reads
+ * that part. Each image then follows as its own `image_url` part, so the model
+ * receives every image separately.
+ */
+fun attachmentsUserMessage(
+    userText: String,
+    documents: List<DocumentPart>,
+    imagesBase64: List<String>,
+    imageFormat: String = "jpeg"
+): ChatMessage {
+    val prompt = userText.ifBlank {
+        if (documents.isNotEmpty()) "Answer questions about the attached files." else IMAGE_ONLY_TEXT
+    }
+    val text = (listOf(prompt) + documents.map(::documentSection)).joinToString("\n\n")
+    return ChatMessage(
+        role = "user",
+        content = buildJsonArray {
+            add(
+                buildJsonObject {
+                    put("type", "text")
+                    put("text", text)
+                }
+            )
+            for (base64 in imagesBase64) {
+                add(
+                    buildJsonObject {
+                        put("type", "image_url")
+                        putJsonObject("image_url") { put("url", "data:image/$imageFormat;base64,$base64") }
+                    }
+                )
+            }
         }
     )
 }

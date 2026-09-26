@@ -217,6 +217,16 @@ class GotchaAccessibilityService : AccessibilityService() {
         return best ?: rootInActiveWindow
     }
 
+    /** Package of the app on screen, looked up the same way as [hostRoot]; null when unknown. */
+    fun activeAppPackage(): String? {
+        val root = hostRoot() ?: return null
+        return try {
+            root.packageName?.toString()
+        } finally {
+            root.recycle()
+        }
+    }
+
     /** Recursively collect visible, non-blank text/content-descriptions from the active window. */
     fun dumpScreenText(limit: Int = 200): List<String> {
         val root = hostRoot() ?: return emptyList()

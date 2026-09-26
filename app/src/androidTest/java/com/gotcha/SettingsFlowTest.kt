@@ -1,5 +1,9 @@
 package com.gotcha
 
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -10,6 +14,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
+import com.gotcha.ui.SettingsHighlighted
 import com.gotcha.testutil.TestSeed
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -70,7 +76,10 @@ class SettingsFlowTest {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
 
-        // First run opens on AI Configuration; Back reaches the category list.
+        // First run opens on AI Configuration, which sits inside the AI hub, so
+        // reaching the category list takes two Backs.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_personal_info_row").performScrollTo().performClick()
@@ -91,6 +100,51 @@ class SettingsFlowTest {
     }
 
     @Test
+    fun languagePage_showsTheThreeLanguagesApartAndPersistsThem() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_language_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        // The point of the page (issue #74): all three named and visible at once.
+        composeRule.onNodeWithText("App display language").assertExists()
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_reply_language").performScrollTo().assertExists()
+
+        // Untouched, the voice follows the reply language — what a pre-#74 install did.
+        composeRule.onNodeWithText("Same as AI reply language").assertExists()
+
+        // The whole point of the split: answers written in one language, spoken in
+        // another. Pick Hindi for the voice and leave the reply language English.
+        composeRule.onNodeWithTag("settings_voice_language").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Hindi").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_save_language").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        scenario?.close()
+
+        // Round-trips through EncryptedSharedPreferences, which no JVM test reaches.
+        val persisted = SettingsRepository(context).load()
+        assertEquals("Hindi", persisted.voiceLanguage)
+        assertEquals("English", persisted.preferredLanguage)
+        // TTS and STT follow the voice; the prompt still follows preferredLanguage.
+        assertEquals(Language.HINDI, persisted.effectiveVoiceLanguage)
+        assertEquals("hi-IN", persisted.effectiveVoiceLanguage.bcp47)
+        assertEquals("hi", persisted.effectiveVoiceLanguage.iso639)
+    }
+
+    @Test
     fun settingsSubPage_opensFromTheListAndBackReturnsToIt() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedUnconfigured(context)
@@ -99,16 +153,183 @@ class SettingsFlowTest {
         composeRule.waitForIdle()
 
         // First run opens on AI Configuration; Back from a sub-page lands on the
-        // category list rather than leaving Settings.
+        // hub it hangs off rather than leaving Settings...
         composeRule.onNodeWithTag("settings_base_url").assertExists()
         composeRule.onNodeWithTag("settings_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
 
-        // Opening another category replaces the list with that page.
+        // ...and Back again from the hub lands on the category list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_row").assertExists()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
+
+        // Opening a category replaces the list with that page.
+        composeRule.onNodeWithTag("settings_ai_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("settings_ai_config_row").assertDoesNotExist()
         composeRule.onNodeWithText("TTS Provider").assertExists()
+    }
+
+    @Test
+    fun settingsSearch_findsAPageByAControlInsideIt() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration inside the AI hub — two Backs to the list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // "wake word" is a control inside the ball's page, not a row on the list.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("wake word")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_assistive_ball_row").assertExists()
+        composeRule.onNodeWithTag("settings_termux_row").assertDoesNotExist()
+        // The tour and feedback rows are not pages, so they drop out of a search.
+        composeRule.onNodeWithTag("settings_feature_tour_row").assertDoesNotExist()
+
+        // Nothing matching says so rather than showing an empty list.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("qwertyuiop")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_search_empty").assertExists()
+        composeRule.onNodeWithTag("settings_assistive_ball_row").assertDoesNotExist()
+
+        // Clearing restores the full list, tour row included.
+        composeRule.onNodeWithTag("settings_search_clear").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_search_empty").assertDoesNotExist()
+        composeRule.onNodeWithTag("settings_feature_tour_row").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun settingsSearch_opensAPageNestedInsideAHub() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // Speech lives inside the AI hub, so the home list never shows this row —
+        // the search result is the only way to reach it in one tap.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("read aloud")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_speech_row").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("TTS Provider").assertExists()
+
+        // Back from a nested page lands on its hub, and the query is gone: the
+        // list that comes back is the whole list.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_config_row").assertExists()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_termux_row").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun aiConfig_keepsTheAdvancedKnobsCollapsedUntilAsked() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // First run opens on AI Configuration. The agent-loop limits are one tap
+        // away, not in the way of the fields that make the app work.
+        composeRule.onNodeWithTag("settings_model").assertExists()
+        composeRule.onNodeWithText("Max tool rounds").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("settings_ai_advanced").performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Max tool rounds").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun settingsSearch_opensOnTheMatchedFieldInsideACollapsedSection() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // The result says where it will land, down to the field.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("max tool rounds")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("AI › AI Configuration › Max tool rounds").assertExists()
+
+        // Hold the clock, so the highlight can be caught before it fades.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
+        composeRule.mainClock.advanceTimeBy(HIGHLIGHT_CHECK_MS)
+
+        // Advanced opened by itself, and the field is on screen and marked —
+        // no performScrollTo: the page did the scrolling.
+        composeRule.onNodeWithTag("settings_max_tool_rounds")
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SettingsHighlighted, true))
+
+        // The tint fades and the highlight is spent; the field stays where it is.
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_max_tool_rounds")
+            .assert(SemanticsMatcher.keyNotDefined(SettingsHighlighted))
+
+        // Back to the hub and in again is an ordinary visit: nothing highlighted,
+        // and Advanced folded as it always starts.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_max_tool_rounds").assertDoesNotExist()
+    }
+
+    @Test
+    fun settingsSearch_aPagesOwnTitleOpensItWithNothingHighlighted() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("AI Configuration")
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
+        composeRule.mainClock.advanceTimeBy(HIGHLIGHT_CHECK_MS)
+
+        composeRule.onNodeWithTag("settings_model").assertExists()
+        composeRule.onNodeWithTag("settings_max_tool_rounds").assertDoesNotExist()
+        composeRule.onAllNodes(SemanticsMatcher.keyIsDefined(SettingsHighlighted)).assertCountEquals(0)
+        composeRule.mainClock.autoAdvance = true
+    }
+
+    private companion object {
+        /** Long enough for the page to open and scroll, well short of the fade. */
+        const val HIGHLIGHT_CHECK_MS = 700L
     }
 }

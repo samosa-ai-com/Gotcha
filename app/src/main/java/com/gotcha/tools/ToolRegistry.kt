@@ -92,7 +92,7 @@ object ToolRegistry {
         "check_root", "search_skills",
         "get_health_summary", "get_health_records",
         "get_now_playing",
-        "about_samosa_ai"
+        "about_samosa_ai", "about_gotcha"
     )
 
     /**
@@ -107,14 +107,16 @@ object ToolRegistry {
     /**
      * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
      * further), minus finish_task, which ends the *top-level* run — a sub-agent
-     * reports back with ask_final_answer instead — and minus update_user_profile,
-     * whose modify-and-extend directive lives only in the top-level Operator prompt.
+     * reports back with ask_final_answer instead — minus update_user_profile,
+     * whose modify-and-extend directive lives only in the top-level Operator prompt,
+     * and minus update_gotcha_settings, whose approval prompt belongs to the run the
+     * user is watching, not to a delegated one.
      * Dynamic tools are included while registered; they are hidden by the
      * hidden-tools mechanism when their connector is not active.
      */
     val subAgentTools: Set<String>
         get() = definitions.keys + dynamicSet.definitions.keys -
-            setOf("task", "navigate_app", "finish_task", "update_user_profile")
+            setOf("task", "navigate_app", "finish_task", "update_user_profile", "update_gotcha_settings")
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
@@ -459,7 +461,7 @@ object ToolRegistry {
     fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> {
         val dynamic = dynamicSet
         val allowed = definitions.keys + dynamic.definitions.keys -
-            setOf("task", "navigate_app", "finish_task", "update_user_profile")
+            setOf("task", "navigate_app", "finish_task", "update_user_profile", "update_gotcha_settings")
         return (definitions + dynamic.definitions)
             .filterKeys { it in allowed && it !in hiddenTools }
             .values.toList()

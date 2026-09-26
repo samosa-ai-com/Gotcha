@@ -85,12 +85,13 @@ class AgentPromptTest {
 
     private suspend fun requestBodyFor(
         mode: AgentMode,
-        settings: Settings = testSettings()
+        settings: Settings = testSettings(),
+        personaId: String? = null
     ): String {
         server.enqueue(
             MockResponse().setBody("""{"choices":[{"message":{"role":"assistant","content":"ok"}}]}""")
         )
-        buildEngine(mode, settings).run(mode)
+        buildEngine(mode, settings).apply { sessionPersonaId = personaId }.run(mode)
         return server.takeRequest().body.readUtf8()
     }
 
@@ -109,11 +110,27 @@ class AgentPromptTest {
     }
 
     @Test
-    fun `user profile block carries preferred language and currency facts`() = runTest {
+    fun `user profile block carries reply language and currency facts`() = runTest {
         val body = requestBodyFor(AgentMode.OPERATOR)
         assertTrue(body.contains("<user_profile>"))
-        assertTrue(body.contains("Preferred language: Hindi"))
+        assertTrue(body.contains("Reply language: Hindi"))
         assertTrue(body.contains("Preferred currency:"))
+    }
+
+    @Test
+    fun `voice language does not affect the written reply language`() = runTest {
+        // Issue #74 split the two: voiceLanguage drives TTS and STT only, so a
+        // German voice must not leak into the directive or the profile block.
+        val body = requestBodyFor(
+            AgentMode.OPERATOR,
+            testSettings { copy(voiceLanguage = "German") }
+        )
+        assertTrue(body.contains("Respond to the user in Hindi"))
+        assertTrue(body.contains("Reply language: Hindi"))
+        // Only the messages: the tool schemas list every language as an allowed value.
+        val messages = kotlinx.serialization.json.Json.parseToJsonElement(body)
+            .let { it as kotlinx.serialization.json.JsonObject }["messages"].toString()
+        assertFalse(messages.contains("German"))
     }
 
     @Test
@@ -158,5 +175,35 @@ class AgentPromptTest {
     fun `no reply style preference adds no directive`() = runTest {
         val body = requestBodyFor(AgentMode.OPERATOR)
         assertFalse(body.contains("how they want replies written"))
+    }
+
+    @Test
+    fun `chosen persona reaches the system prompt`() = runTest {
+        val body = requestBodyFor(AgentMode.MONITOR, personaId = "doctor")
+        assertTrue(body.contains("has chosen the Doctor persona"))
+        // Not the costume alone: the disclaimer the persona carries has to land too.
+        assertTrue(body.contains("you are not making a diagnosis"))
+    }
+
+    @Test
+    fun `no persona adds no directive`() = runTest {
+        val body = requestBodyFor(AgentMode.MONITOR)
+        assertFalse(body.contains("has chosen the"))
+    }
+
+    @Test
+    fun `an unknown persona id is ignored rather than failing the turn`() = runTest {
+        val body = requestBodyFor(AgentMode.MONITOR, personaId = "no-such-persona")
+        assertFalse(body.contains("has chosen the"))
+    }
+
+    @Test
+    fun `the mode reminder still follows the persona directive`() = runTest {
+        // The role must never be able to talk the agent out of its mode limits,
+        // so the read-only reminder stays the last word in the system message.
+        val body = requestBodyFor(AgentMode.MONITOR, personaId = "doctor")
+        val persona = body.indexOf("has chosen the Doctor persona")
+        val reminder = body.indexOf("You are in MONITOR (read-only) mode")
+        assertTrue(persona in 0 until reminder)
     }
 }

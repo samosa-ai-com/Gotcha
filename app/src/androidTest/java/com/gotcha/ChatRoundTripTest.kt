@@ -1,5 +1,6 @@
 package com.gotcha
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
@@ -17,7 +18,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.testutil.MOCK_REPLY_OK
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.TestSeed
+import com.gotcha.ui.STARTER_PROMPTS
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -86,6 +89,40 @@ class ChatRoundTripTest {
         val request = mockLlm.server.takeRequest()
         assertTrue(request.path?.endsWith("/chat/completions") == true)
         assertTrue(request.body.readUtf8().contains("test-model"))
+    }
+
+    @Test
+    fun starterPrompt_fillsComposerWithoutSending() {
+        mockLlm.start()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl, model = "test-model")
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // Which three are on offer is drawn per session, so the test follows the
+        // screen rather than assuming a particular chip is there.
+        composeRule.onNodeWithTag("starter_prompts").assertExists()
+        val shown = STARTER_PROMPTS.first { prompt ->
+            composeRule.onAllNodes(hasTestTag("starter_prompt_${prompt.label}"))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithTag("starter_prompt_${shown.label}").performClick()
+        composeRule.waitForIdle()
+
+        // Filled, not sent: the template is in the composer, the transcript is
+        // still empty, and nothing went to the LLM.
+        composeRule.onNodeWithTag("chat_input").assert(hasText(shown.template))
+        assertTrue(
+            "tapping a starter must not open the transcript",
+            composeRule.onAllNodes(hasTestTag("message_list")).fetchSemanticsNodes().isEmpty()
+        )
+        assertEquals(
+            "tapping a starter must not send anything to the LLM",
+            0,
+            mockLlm.server.requestCount
+        )
     }
 
     @Test

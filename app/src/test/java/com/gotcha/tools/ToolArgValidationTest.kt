@@ -128,7 +128,10 @@ class ToolArgValidationTest {
          * - the connector-backed tools report "X is not connected" before looking at args;
          * - `set_timer` reports the domain rule ("must be at least 1 second");
          * - `finish_task` ends the *top-level* turn, so the sub-agent harness this test uses
-         *   refuses it outright — which is the more important thing to say.
+         *   refuses it outright — which is the more important thing to say;
+         * - `update_gotcha_settings` is likewise refused to sub-agents: its approval prompt
+         *   belongs to the run the user is watching. `GotchaSettingsUpdateTest` and
+         *   `SettingsUpdateLoopTest` cover its argument checks at the top level.
          */
         val NOT_PARAMETER_NAMED = setOf(
             "create_task",
@@ -139,7 +142,8 @@ class ToolArgValidationTest {
             "notion_update_page",
             "notion_mark_todo",
             "notion_delete_item",
-            "set_timer"
+            "set_timer",
+            "update_gotcha_settings"
         )
     }
 }

@@ -30,7 +30,13 @@ class ToolExecutor(
     context: Context,
     val onTask: (suspend (description: String, prompt: String) -> ToolResult)? = null,
     val onNavigateApp: (suspend (task: String) -> ToolResult)? = null,
-    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null
+    val onUpdateUserProfile: (suspend (update: ProfileUpdate) -> ToolResult)? = null,
+    /**
+     * Consulted before every tool runs, from the engine and its sub-agents alike:
+     * null lets the tool run, anything else is returned in its place. The engine
+     * uses it to ask once per request before Gotcha controls another app (#98).
+     */
+    val onBeforeTool: (suspend (name: String, args: JsonObject) -> ToolResult?)? = null
 ) {
 
     private companion object {
@@ -62,6 +68,7 @@ class ToolExecutor(
     private val clipboardTool = ClipboardTool(appContext)
     private val mediaCaptureTool = MediaCaptureTool(appContext)
     private val companyInfoTool = CompanyInfoTool(appContext)
+    private val appInfoTool = AppInfoTool(appContext)
 
     // Tier 3 tools
     private val webSearchTool = WebSearchTool()
@@ -93,7 +100,9 @@ class ToolExecutor(
     private val rootTool = RootTool()
     private val termuxTool = TermuxTool(appContext)
     private val healthTool = HealthTool(appContext)
-    private val actionLog = ActionLog(appContext)
+
+    /** The audit log; the engine also writes the answers to its confirmation prompts here. */
+    val actionLog = ActionLog(appContext)
 
     init {
         com.gotcha.connectors.ConnectorRegistry.init(appContext)
@@ -119,7 +128,7 @@ class ToolExecutor(
             return ToolResult.error("Unknown tool '$name'. Only the fixed tool catalog is available.")
         }
         if (name in hiddenTools) {
-            return ToolResult.error(unavailableMessage(name))
+            return unavailableResult(name)
         }
         if (!isSubAgent && !ToolRegistry.isAllowedForAgent(name, agent)) {
             return ToolResult.error(
@@ -131,6 +140,10 @@ class ToolExecutor(
             return ToolResult.error(
                 "Tool '$name' is not available to sub-agents (no recursive delegation)."
             )
+        }
+        onBeforeTool?.invoke(name, args)?.let { refused ->
+            actionLog.record(name, args.redactedForAudit(), refused)
+            return refused
         }
         val result = try {
             withContext(Dispatchers.IO) { dispatch(name, args, hiddenTools) }
@@ -215,6 +228,7 @@ class ToolExecutor(
             "get_storage_info" -> storageTool.getStorageInfo()
             "get_battery_info" -> systemTool.getBatteryInfo()
             "about_samosa_ai" -> companyInfoTool.aboutSamosaAi()
+            "about_gotcha" -> appInfoTool.aboutGotcha()
             "edit" -> editTool.edit(
                 path = args.requireString("path") ?: return missing("path"),
                 oldString = args.requireString("oldString") ?: return missing("oldString"),
@@ -505,6 +519,21 @@ class ToolExecutor(
                     )
                 }
             }
+            "update_gotcha_settings" -> {
+                val requested = args["changes"] as? JsonObject ?: return missing("changes")
+                // Validated here, before the user is asked anything: an unsupported key or
+                // bad value never reaches a prompt, let alone SettingsRepository.
+                val changes = GotchaSettingsUpdate.parse(requested, liveSettingsCatalog()).getOrElse {
+                    return ToolResult.error(
+                        "No settings were changed: ${it.message}. Only the settings listed in " +
+                            "this tool's schema can be changed, and only to the values it lists."
+                    )
+                }
+                ToolResult.ok(
+                    GotchaSettingsUpdate.CONFIRM_PREFIX +
+                        GotchaSettingsUpdate.encodePayload(changes, args.requireString("reason"))
+                )
+            }
             "sleep" -> {
                 val secs = args.requireInt("duration_seconds")?.coerceIn(1, 86400)
                     ?: return missing("duration_seconds")
@@ -653,12 +682,31 @@ class ToolExecutor(
         }
     }
 
-    /** Names what would make [name] work, so the model can steer the user there. */
-    private fun unavailableMessage(name: String): String {
+    /**
+     * What to hand back for a tool that was withheld this turn: a message naming
+     * what would make it work, plus — for a capability the user can actually
+     * grant — the special-access marker that opens the right settings screen.
+     *
+     * The marker is the point. A gated tool is hidden from the model, so its own
+     * `permissionNeeded` result never runs, and before this the user's only hope
+     * was that the model would read the `<env>` block and explain the gap in
+     * prose. It usually did; when it did not, the failure surfaced as whatever
+     * unrelated thing it tried instead (issue #76). Emitting the marker here
+     * makes the deep-link fire whether or not the model words it well.
+     */
+    private fun unavailableResult(name: String): ToolResult {
         CapabilityCatalog.ownerOf(name)?.let { capability ->
-            return "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
+            val message = "Tool '$name' is unavailable: it needs ${capability.label}, which is not " +
                 "available on this device right now. Tell the user what to enable; do not retry."
+            return capability.permissionMarker
+                ?.let { ToolResult.permissionNeeded(it, message) }
+                ?: ToolResult.error(message)
         }
+        return ToolResult.error(connectorUnavailableMessage(name))
+    }
+
+    /** The connector half of [unavailableResult] — no device grant to deep-link to. */
+    private fun connectorUnavailableMessage(name: String): String {
         // Dynamic tools (e.g. Home Assistant MCP) are registered at runtime, so the
         // compile-time catalog cannot know them; name the owning connector explicitly.
         if (name in ToolRegistry.dynamicTools) {

@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,28 +14,42 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
+import com.gotcha.data.ChatArchive
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.ChatImporter
+import com.gotcha.data.ChatMarkdown
 import com.gotcha.data.ChatSession
+import com.gotcha.data.DuplicateStrategy
+import com.gotcha.data.ImportParseResult
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.documentPromptText
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
+import com.gotcha.llm.DocumentPart
 import com.gotcha.llm.LLMClient
-import com.gotcha.llm.documentUserMessage
-import com.gotcha.llm.visionUserMessage
+import com.gotcha.llm.attachmentsUserMessage
 import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
+import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.notifications.LocalNotificationStore
+import com.gotcha.notifications.NotificationCategory
+import com.gotcha.notifications.NotificationTarget
+import com.gotcha.notifications.RunOutcome
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.DocumentError
 import com.gotcha.tools.DocumentParser
+import com.gotcha.tools.GotchaSettingsUpdate
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.ForegroundControlIndicator
+import com.gotcha.ui.Persona
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -51,7 +66,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
@@ -69,10 +83,74 @@ data class Attachment(
     val truncated: Boolean = false
 )
 
-/** Result of the composer's picker: routed to either the image or the document pipeline. */
-sealed class PickedFile {
-    data class Image(val base64: String) : PickedFile()
-    data class Document(val attachment: Attachment) : PickedFile()
+/**
+ * One file queued in the composer, or carried by a sent user message. Images are
+ * already downscaled to JPEG base64; documents carry their extracted text. The
+ * [id] is stable for the life of the attachment, so one can be removed from the
+ * composer without disturbing the order of the rest.
+ */
+@kotlinx.serialization.Serializable
+sealed class ComposerAttachment {
+    abstract val id: String
+    abstract val name: String
+
+    @kotlinx.serialization.Serializable
+    @kotlinx.serialization.SerialName("image")
+    data class Image(
+        override val id: String,
+        override val name: String,
+        val base64: String
+    ) : ComposerAttachment()
+
+    @kotlinx.serialization.Serializable
+    @kotlinx.serialization.SerialName("document")
+    data class Document(
+        override val id: String,
+        val attachment: Attachment
+    ) : ComposerAttachment() {
+        override val name: String get() = attachment.name
+    }
+
+    companion object {
+        /**
+         * Files per message. Images are downscaled to ~1024 px JPEG, so ten stay
+         * far below every provider's request-size cap; the tighter per-request
+         * image caps some providers apply (e.g. Groq's 3) surface as a readable
+         * error from [HumanReadableError] instead of being guessed here.
+         */
+        const val MAX_PER_MESSAGE = 10
+
+        /**
+         * Extracted document text across one message. Each document is already
+         * capped at [DocumentParser.MAX_EXTRACTED_CHARS]; this keeps several of
+         * them from crowding the model's context window.
+         */
+        const val MAX_TOTAL_DOCUMENT_CHARS = 2 * DocumentParser.MAX_EXTRACTED_CHARS
+    }
+}
+
+/**
+ * Transcript labels for a prompt that was only attachments. The composer treats
+ * these as empty when a message is edited, so they never become the new prompt.
+ */
+internal val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(document attached)", "(files attached)")
+
+/**
+ * The "you can leave Gotcha" hint shown while a run works. It only promises the
+ * signal the user will actually get: [notify] is true only when a task-finished
+ * notification is switched on and Android allows it (issue #97); otherwise the
+ * opt-in buzz and chime are all there is.
+ */
+internal fun backgroundHintText(vibrate: Boolean, chime: Boolean, notify: Boolean = false): String {
+    val base = "Gotcha is working in the background. You can use another app while it works"
+    val signal = when {
+        notify -> "Gotcha will notify you when the task is finished"
+        vibrate && chime -> "your phone will buzz and chime when it's done"
+        vibrate -> "your phone will buzz when it's done"
+        chime -> "your phone will chime when it's done"
+        else -> null
+    }
+    return if (signal == null) "$base." else "$base — $signal."
 }
 
 @kotlinx.serialization.Serializable
@@ -84,7 +162,8 @@ data class UiMessage(
     val subAgentSteps: List<String> = emptyList(),
     val subAgentCollapsed: Boolean = true,
     val reasoningContent: String? = null,
-    val attachment: Attachment? = null
+    /** Files the user sent with this message, in the order they were picked. */
+    val attachments: List<ComposerAttachment> = emptyList()
 )
 
 data class SubAgentStepUi(
@@ -100,14 +179,52 @@ data class ChatUiState(
     val subAgentRunning: String? = null,
     val subAgentCurrentAction: String? = null,
     val pendingConfirmation: PendingConfirmation? = null,
+    /** The once-per-request "may Gotcha control your apps?" ask on screen (issue #98). */
+    val pendingForegroundControl: ForegroundControlRequest? = null,
+    /**
+     * "Gotcha is controlling …" while the run controls another app, then "Gotcha
+     * is done…" once it has let go (issue #98). Cleared when the next run starts.
+     */
+    val foregroundControlStatus: String? = null,
     val pendingQuestion: PendingQuestion? = null,
+    /**
+     * Runtime permission a tool is waiting on, asked for at the moment it is
+     * needed (issue #79). Held in the state rather than fired as a one-shot
+     * event so the dialog comes back with the activity — a rotation while it is
+     * open must not leave the agent blocked on an answer nobody can give.
+     */
+    val pendingPermission: String? = null,
     val isConfigured: Boolean = false,
     val activeSessionId: String? = null,
     val activeAgent: AgentMode = AgentMode.MONITOR,
+    /**
+     * Id of the persona the open chat was started with, or null for a plain one.
+     * Chosen on the home screen before the first message and fixed from there:
+     * the picker is only shown while the chat is empty.
+     */
+    val activePersonaId: String? = null,
+    /**
+     * True while the open chat is one of the samples seeded on first run, so the
+     * transcript can say so above the first bubble. Nothing else depends on it:
+     * a sample is continued, renamed and deleted like any other chat.
+     */
+    val viewingSample: Boolean = false,
     /** Id of the session with an in-progress run, or null when nothing is running. */
     val runningSessionId: String? = null,
     /** Title of the running session, for the "return to running chat" banner. */
     val runningSessionTitle: String? = null,
+    /**
+     * Informational hint that the user may leave Gotcha while the run works
+     * (issue #96), or null when nothing is running. Lives only as long as the
+     * run, never in the transcript, so returning to the app can't repeat it.
+     */
+    val backgroundHint: String? = null,
+    /**
+     * True while the one-time "allow notifications?" ask is on screen. Asked the
+     * first time a request is sent without the permission, so the user learns a
+     * task can notify them; the run does not wait on the answer.
+     */
+    val askNotificationPermission: Boolean = false,
     val contextUsagePercent: Float = 0f,
     val tokenCount: Int = 0,
     val maxContextTokens: Int = 0,
@@ -117,7 +234,19 @@ data class ChatUiState(
     val isTranscribing: Boolean = false,
     val isSpeaking: Boolean = false,
     val ttsModels: List<AudioModel> = emptyList(),
-    val sttModels: List<AudioModel> = emptyList()
+    val sttModels: List<AudioModel> = emptyList(),
+    /**
+     * Files queued in the composer until the user taps Send. Held here rather
+     * than in the composer's saved state: several base64 images would overflow
+     * the saved-instance Bundle.
+     */
+    val pendingAttachments: List<ComposerAttachment> = emptyList(),
+    /**
+     * Text to put in the composer once, e.g. a tapped daily tip's prompt (issue
+     * #101). The composer owns its text, so this is a hand-off: the screen copies
+     * it in and calls [ChatViewModel.consumeComposerDraft]. Never sent by itself.
+     */
+    val composerDraft: String? = null
 )
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
@@ -128,6 +257,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val settingsRepository = SettingsRepository(application)
     private val historyRepository = ChatHistoryRepository(application)
     private val confirmationOverlay = ConfirmationOverlay(application)
+    private val foregroundControlIndicator = ForegroundControlIndicator(application)
+    private val completionNotifier = ChatCompletionNotifier(application)
+    private val localNotificationStore = LocalNotificationStore(application)
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
@@ -187,6 +319,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     "The new value will be used from the next message."
             )
         },
+        onUpdateGotchaSettings = { plan ->
+            // Only reached after the user approved this exact change. Apply it onto a
+            // fresh load so a concurrent write elsewhere (the Settings screen, the
+            // assistive ball) is not clobbered by the snapshot the prompt was built from.
+            settingsRepository.save(plan.applyTo(settingsRepository.load()))
+            withContext(Dispatchers.Main) {
+                // Rebuilds the cached settings the engine reads next round, and the
+                // speech engines; the skin and services follow settingsChangeNotifier.
+                refreshSettings()
+                appendEngineUi(
+                    MessageKind.TOOL,
+                    "Assistant changed settings: " + plan.lines().joinToString("; ") + "."
+                )
+            }
+            ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
+        },
         // Persist the ENGINE session's own data, never the viewed session's —
         // the user may be browsing another chat while this run continues.
         displayMessagesProvider = { engineTranscript },
@@ -196,6 +344,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private var nextId = 0L
     private var confirmationGate: CompletableDeferred<Boolean>? = null
     private var questionGate: CompletableDeferred<String>? = null
+    private var permissionGate: CompletableDeferred<Boolean>? = null
+    private var foregroundControlGate: CompletableDeferred<Boolean>? = null
     private var agentJob: Job? = null
 
     /**
@@ -235,6 +385,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return title.isBlank() || title == fallback
     }
 
+    /**
+     * Startup: the fresh session, the chat-directory migration and the sample
+     * seeding. Anything that loads a saved chat on the user's behalf before the
+     * UI is up (a notification tap) waits for it, or the migration could move
+     * the chat out from under the load.
+     */
+    private val initJob: Job
+
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -250,7 +408,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val _liveTokenBySession = MutableStateFlow<Map<String, Int>>(emptyMap())
     val liveTokenBySession: StateFlow<Map<String, Int>> = _liveTokenBySession.asStateFlow()
 
-    /** Permission names (or ToolResult.WRITE_SETTINGS) the Activity should request. */
+    /**
+     * Special-access markers ("special:*") the Activity should deep-link to.
+     * Runtime permissions travel as [ChatUiState.pendingPermission] instead —
+     * they need an answer, and this is a fire-and-forget signal.
+     */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
 
@@ -262,7 +424,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         ScreenPerception.appContext = application
         com.gotcha.agent.skills.SkillRegistry.init(application)
         refreshSettings()
-        viewModelScope.launch {
+        initJob = viewModelScope.launch {
             // Always start on a fresh session so the home screen greets with an
             // empty chat; past sessions remain one tap away in the drawer.
             agentEngine.sessionId = java.util.UUID.randomUUID().toString()
@@ -272,6 +434,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
             updateContextUsage()
             migrateChatDirsIfNeeded()
+            com.gotcha.data.SampleChatSeeder.seedIfNeeded(historyRepository, settingsRepository.prefs)
             refreshSessions()
         }
     }
@@ -331,6 +494,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _permissionRequests.tryEmit(marker)
     }
 
+    /**
+     * A tool needs a runtime permission right now. The Activity collecting
+     * [permissionRequests] explains why and raises the system dialog, then
+     * answers through [onPermissionResult].
+     *
+     * A runtime dialog can only be raised by a foreground Activity, so a
+     * backgrounded run says "not granted" immediately rather than stalling the
+     * agent behind a prompt nobody can see — the tool's own error message
+     * already tells the model (and, on screen, the user) what is missing.
+     */
+    override suspend fun awaitPermissionGrant(permission: String): Boolean {
+        if (!appInForeground) return false
+        val gate = CompletableDeferred<Boolean>()
+        permissionGate = gate
+        _uiState.update { it.copy(activity = null, pendingPermission = permission) }
+
+        val granted = withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
+
+        _uiState.update { it.copy(pendingPermission = null) }
+        permissionGate = null
+        return granted
+    }
+
+    /** The Activity's answer to [awaitPermissionGrant]: the system dialog's outcome. */
+    fun onPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(pendingPermission = null) }
+        permissionGate?.complete(granted)
+        permissionGate = null
+    }
+
     /** Compaction dropped the LLM history; clear the engine transcript to match. */
     override fun onHistoryReset() {
         engineTranscript = emptyList()
@@ -364,6 +557,61 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update { it.copy(pendingConfirmation = null) }
         confirmationGate = null
         return approved
+    }
+
+    /**
+     * The once-per-request ask before Gotcha controls another app (issue #98).
+     * Out of the app the in-app dialog can't be seen, so the same question is
+     * also drawn over whatever is on screen; either answer counts.
+     */
+    override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean {
+        val gate = CompletableDeferred<Boolean>()
+        foregroundControlGate = gate
+        _uiState.update { it.copy(activity = null, pendingForegroundControl = request) }
+        if (!appInForeground && confirmationOverlay.canShow()) {
+            confirmationOverlay.show(
+                summary = request.promptText(),
+                onAllow = { gate.complete(true) },
+                onDeny = { gate.complete(false) },
+                title = request.title,
+                allowLabel = ForegroundControlRequest.ALLOW_LABEL,
+                denyLabel = ForegroundControlRequest.DENY_LABEL
+            )
+        }
+        return try {
+            withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
+        } finally {
+            confirmationOverlay.dismiss()
+            _uiState.update { it.copy(pendingForegroundControl = null) }
+            foregroundControlGate = null
+        }
+    }
+
+    /** The in-app dialog's answer to [awaitForegroundControl]. */
+    fun answerForegroundControl(allowed: Boolean) {
+        _uiState.update { it.copy(pendingForegroundControl = null) }
+        foregroundControlGate?.complete(allowed)
+        foregroundControlGate = null
+    }
+
+    override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
+        if (active) {
+            val text = ForegroundControlRequest.controllingMessage(appLabel)
+            _uiState.update { it.copy(foregroundControlStatus = text) }
+            foregroundControlIndicator.showControlling(text)
+        } else {
+            _uiState.update { it.copy(foregroundControlStatus = ForegroundControlRequest.DONE_MESSAGE) }
+            // In the app the status line says it; outside, the card over their app does.
+            if (appInForeground) {
+                foregroundControlIndicator.dismiss()
+            } else {
+                foregroundControlIndicator.showDone(ForegroundControlRequest.DONE_MESSAGE)
+            }
+        }
+    }
+
+    override fun onScreenCaptureChrome(hide: Boolean) {
+        foregroundControlIndicator.setCaptureHidden(hide)
     }
 
     // ---- Settings / models ----
@@ -436,12 +684,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     fun sendMessage(
         text: String,
-        imageBase64: String? = null,
-        attachment: Attachment? = null,
+        attachments: List<ComposerAttachment> = emptyList(),
         isVoiceInput: Boolean = false
     ) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty() && imageBase64 == null && attachment == null) return
+        if (trimmed.isEmpty() && attachments.isEmpty()) return
         // One agent runs at a time. Block sending while any run is in flight —
         // the user can browse other chats but must let the current run finish.
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
@@ -449,25 +696,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        val msg = buildUserMessage(trimmed, imageBase64, attachment)
-        launchUserRun(msg, imageBase64, attachment, trimmed, isVoiceInput)
+        val msg = buildUserMessage(trimmed, attachments)
+        launchUserRun(msg, attachments, trimmed, isVoiceInput)
     }
 
     /**
-     * Builds the LLM user message for the given prompt and optional attachments.
-     * A document takes precedence over an image (v1 limitation: an attachment is
-     * one kind per message).
+     * Builds the LLM user message for the given prompt and attachments: every
+     * document's text joins the prompt in the first text part, and every image
+     * follows as its own image part.
      */
-    private fun buildUserMessage(text: String, imageBase64: String?, attachment: Attachment?): ChatMessage = when {
-        attachment != null -> documentUserMessage(
-            userText = text,
-            fileName = attachment.name,
-            mimeType = attachment.mimeType,
-            extractedText = attachment.text,
-            pageCount = attachment.pageCount
-        )
-        imageBase64 != null -> visionUserMessage(text, imageBase64, "jpeg")
-        else -> ChatMessage(role = "user", content = JsonPrimitive(text))
+    private fun buildUserMessage(text: String, attachments: List<ComposerAttachment>): ChatMessage {
+        if (attachments.isEmpty()) return ChatMessage(role = "user", content = JsonPrimitive(text))
+        val documents = attachments.filterIsInstance<ComposerAttachment.Document>().map {
+            DocumentPart(it.attachment.name, it.attachment.mimeType, it.attachment.text, it.attachment.pageCount)
+        }
+        val images = attachments.filterIsInstance<ComposerAttachment.Image>().map { it.base64 }
+        return attachmentsUserMessage(text, documents, images, imageFormat = "jpeg")
     }
 
     /**
@@ -477,8 +721,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      */
     private fun launchUserRun(
         msg: ChatMessage,
-        imageBase64: String?,
-        attachment: Attachment?,
+        attachments: List<ComposerAttachment>,
         userText: String,
         isVoiceInput: Boolean
     ) {
@@ -494,9 +737,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             agentEngine.history += msg
             appendEngineUi(
                 MessageKind.USER,
-                userDisplayText(userText, msg, attachment),
-                imageBase64,
-                attachment = attachment
+                userDisplayText(userText, msg, attachments),
+                attachments = attachments
             )
 
             val runningId = agentEngine.sessionId ?: return@launch
@@ -506,26 +748,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     /**
      * The transcript label for a sent message: the prompt text, or a placeholder
-     * when the message is attachment-only. Document messages show the prompt
-     * rather than the extracted body; images keep their historical behavior
-     * (the message's text part, default prompt when blank).
+     * when the message is attachment-only. Messages with documents show the
+     * prompt rather than the extracted bodies; image-only messages show a
+     * placeholder, never the whitespace text part sent to the model.
      */
-    private fun userDisplayText(userText: String, msg: ChatMessage, attachment: Attachment?): String = when {
-        attachment != null -> userText.ifEmpty { "(document attached)" }
-        else -> msg.textContent
-    }
-
-    /**
-     * The user's prompt portion of a document message's text part, or null when
-     * [content] is not a document message. Document messages put
-     * `[Attached file: …]` on its own line, so everything before that marker is
-     * the user's own words.
-     */
-    private fun documentPromptText(content: String): String? {
-        val marker = "\n[Attached file:"
-        val index = content.indexOf(marker)
-        return if (index >= 0) content.substring(0, index).trim() else null
-    }
+    private fun userDisplayText(userText: String, msg: ChatMessage, attachments: List<ComposerAttachment>): String =
+        when {
+            attachments.isEmpty() -> msg.textContent
+            attachments.none { it is ComposerAttachment.Document } -> userText.ifEmpty {
+                if (attachments.size == 1) "(image attached)" else "(files attached)"
+            }
+            else -> userText.ifEmpty {
+                if (attachments.size == 1) "(document attached)" else "(files attached)"
+            }
+        }
 
     /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
     private suspend fun executeRun(agent: AgentMode, runningId: String) {
@@ -535,13 +771,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             it.copy(
                 isBusy = true,
                 runningSessionId = runningId,
-                runningSessionTitle = runningTitle
+                runningSessionTitle = runningTitle,
+                backgroundHint = currentBackgroundHint(),
+                foregroundControlStatus = null,
+                askNotificationPermission = it.askNotificationPermission || claimNotificationPermissionAsk()
             )
         }
         runHadError = false
+        var stopped = false
         try {
             agentEngine.run(agent)
         } catch (_: CancellationException) {
+            stopped = true
             appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
             // The interrupt may have orphaned an assistant with tool_calls but no
             // matching tool results. Repair it in NonCancellable before the next
@@ -557,11 +798,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 // own sanitize still gets repaired here before persisting.
                 agentEngine.sanitizeLastOrphanedAssistant()
                 agentEngine.saveCurrentSession()
+                notifyRunFinished(
+                    sessionId = runningId,
+                    outcome = when {
+                        stopped -> RunOutcome.STOPPED
+                        runHadError -> RunOutcome.FAILED
+                        else -> RunOutcome.DONE
+                    }
+                )
                 _uiState.update {
                     it.copy(
                         isBusy = false,
                         runningSessionId = null,
                         runningSessionTitle = null,
+                        backgroundHint = null,
                         activity = if (viewingEngineSession()) null else it.activity,
                         subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
                         subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
@@ -572,16 +822,136 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
+    private fun currentBackgroundHint(): String = backgroundHintText(
+        vibrate = settings.notifyVibrationEnabled,
+        chime = settings.notifyChimeEnabled,
+        notify = settings.chatCompletionNotificationsEnabled && completionNotifier.canPost()
+    )
+
     /**
-     * Replaces the user message [targetId] with [newText], keeping the original
-     * image attachment unless a new one was picked. The target's whole turn and
+     * The run in [sessionId] just ended. Posts the task-finished notification
+     * when the user is away from Gotcha; in the foreground the reply buzz is
+     * enough. Called once per run, from [executeRun]'s cleanup, so a run never
+     * produces two — the engine reports text mid-run too, which is why this is
+     * not driven by [onAssistantReply].
+     */
+    private fun notifyRunFinished(sessionId: String, outcome: RunOutcome) {
+        if (appInForeground || !settings.chatCompletionNotificationsEnabled) return
+        if (!completionNotifier.canPost()) return
+        val reply = engineTranscript.lastOrNull {
+            it.kind == MessageKind.ASSISTANT || it.kind == MessageKind.ERROR
+        }?.text
+        // Issue #100: a chat kept out of notifications, or chats not to be named
+        // at all, get a notification that says only that a task finished.
+        val named = settings.notificationsMentionChats &&
+            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+        val title = if (named) {
+            ChatCompletionNotifier.notificationTitle(agentEngine.currentTitle(), outcome)
+        } else {
+            ChatCompletionNotifier.anonymousTitle(outcome)
+        }
+        val entryId = localNotificationStore.addEntry(
+            category = NotificationCategory.TASK_FINISHED,
+            title = title,
+            body = ChatCompletionNotifier.defaultBody(outcome),
+            target = NotificationTarget.Chat(sessionId)
+        )
+        completionNotifier.notify(
+            sessionId = sessionId,
+            chatTitle = agentEngine.currentTitle(),
+            outcome = outcome,
+            reply = reply,
+            preview = settings.chatCompletionPreview,
+            named = named,
+            inboxEntryId = entryId
+        )
+    }
+
+    /**
+     * True, once per install, when the user should be asked for notification
+     * permission: they want task-finished notifications, Android 13+ blocks
+     * them, and they are here to see the ask. Claimed as it is shown, so
+     * "Not now" is final — the Notifications settings page can still ask.
+     */
+    private fun claimNotificationPermissionAsk(): Boolean {
+        if (!appInForeground || !settings.chatCompletionNotificationsEnabled) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        if (completionNotifier.canPost()) return false
+        val prefs = settingsRepository.prefs
+        if (prefs.getBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, false)) return false
+        prefs.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, true).apply()
+        return true
+    }
+
+    /**
+     * The answer to [ChatUiState.askNotificationPermission]. A grant mid-run
+     * upgrades the hint on screen to the notification promise it can now keep.
+     */
+    fun onNotificationPermissionResult(granted: Boolean) {
+        _uiState.update {
+            it.copy(
+                askNotificationPermission = false,
+                backgroundHint = if (granted && it.backgroundHint != null) currentBackgroundHint() else it.backgroundHint
+            )
+        }
+    }
+
+    /**
+     * Opens [id] from a tapped task-finished notification. Waits for startup,
+     * which would otherwise replace the chat with the fresh one it opens.
+     */
+    fun openSessionFromNotification(id: String) {
+        viewModelScope.launch {
+            initJob.join()
+            openSession(id)
+        }
+    }
+
+    /**
+     * Opens a new chat for a tapped daily tip (issue #101): in the tip's mode —
+     * a fresh chat has no earlier choice of mode to override — and with its
+     * prompt in the composer for the user to edit or send. Waits for startup
+     * like [openSessionFromNotification]. Without an API key the composer is
+     * disabled, so the chat opens without the draft.
+     */
+    fun startChatFromTip(prompt: String, mode: AgentMode) {
+        viewModelScope.launch {
+            initJob.join()
+            clearChat(mode)
+            if (_uiState.value.isConfigured) {
+                _uiState.update { it.copy(composerDraft = prompt) }
+            }
+        }
+    }
+
+    /**
+     * Whether chat [sessionId] is kept out of notifications (issue #100): the
+     * user's own choice, else true for a Doctor-persona chat.
+     */
+    fun isChatKeptOutOfNotifications(sessionId: String, personaId: String?): Boolean =
+        localNotificationStore.isChatSensitive(sessionId, personaId)
+
+    fun setChatKeptOutOfNotifications(sessionId: String, keptOut: Boolean) {
+        localNotificationStore.setChatKeptOut(sessionId, keptOut)
+        // A notification already in the tray may name the chat.
+        if (keptOut) completionNotifier.cancel(sessionId)
+    }
+
+    /** The composer has taken [ChatUiState.composerDraft]. */
+    fun consumeComposerDraft() {
+        _uiState.update { it.copy(composerDraft = null) }
+    }
+
+    /**
+     * Replaces the user message [targetId] with [newText] and [attachments]; a
+     * null [attachments] keeps the ones the original message was sent with. The target's whole turn and
      * everything after it are dropped from both the LLM history and the on-screen
      * transcript, then the agent re-runs immediately so a fresh reply is
      * generated from the edited history.
      */
-    fun editMessage(targetId: Long, newText: String, imageBase64: String?, attachment: Attachment? = null) {
+    fun editMessage(targetId: Long, newText: String, attachments: List<ComposerAttachment>? = null) {
         val trimmed = newText.trim()
-        if (trimmed.isEmpty() && imageBase64 == null && attachment == null) return
+        if (trimmed.isEmpty() && attachments.isNullOrEmpty()) return
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         if (client == null) {
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
@@ -620,17 +990,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
             // Never promote undone work on the share card.
             agentEngine.restoreRunSummaries(emptyList())
-            val editImage = imageBase64 ?: target.imageBase64
             // A previously-sent document keeps its extracted text (the file grant is
             // long gone); a newly-picked one carries its own.
-            val editAttachment = attachment ?: target.attachment
-            val msg = buildUserMessage(trimmed, editImage, editAttachment)
+            val editAttachments = attachments ?: target.attachments
+            val msg = buildUserMessage(trimmed, editAttachments)
             agentEngine.history += msg
             appendEngineUi(
                 MessageKind.USER,
-                userDisplayText(trimmed, msg, editAttachment),
-                editImage,
-                attachment = editAttachment
+                userDisplayText(trimmed, msg, editAttachments),
+                attachments = editAttachments
             )
             executeRun(engineAgent, agentEngine.sessionId ?: return@launch)
         }
@@ -712,8 +1080,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * operates on it. Only called from [sendMessage], which is gated on nothing
      * else running, so re-pointing the engine here is safe. Reloads the session's
      * LLM history from disk when the engine had drifted to another session.
+     *
+     * `internal` rather than private so the handoff can be tested directly: it is
+     * where a persona picked while another chat was running finally reaches the
+     * engine, and [sendMessage] itself can't be driven from a JVM test.
      */
-    private suspend fun bindEngineToViewedSession(viewedId: String?) {
+    internal suspend fun bindEngineToViewedSession(viewedId: String?) {
         if (viewedId != null && agentEngine.sessionId != viewedId) {
             val saved = historyRepository.loadSession(viewedId)
             agentEngine.history.clear()
@@ -723,15 +1095,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.tokenCount = saved.tokenCount
                 agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
                 agentEngine.restoreRunSummaries(saved.runSummaries)
+                agentEngine.sessionIsSample = saved.isSample
             } else {
                 agentEngine.tokenCount = 0
                 agentEngine.restoreTitle(null)
                 agentEngine.restoreRunSummaries(emptyList())
+                agentEngine.sessionIsSample = false
             }
             agentEngine.setupWorkingDir()
         }
         engineTranscript = _uiState.value.messages
         engineAgent = _uiState.value.activeAgent
+        agentEngine.sessionPersonaId = _uiState.value.activePersonaId
     }
 
     /** Load an image from a content:// URI, downscale, and return base64. */
@@ -756,48 +1131,96 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /**
-     * Result of the composer's "+" pick, delivered asynchronously once the file
-     * has been read and parsed off the main thread. `null` means a failed pick
-     * (an ERROR bubble is appended first).
+     * Entry point for the composer's "+" button. Each picked file is read and
+     * parsed on [Dispatchers.IO] in the order it was picked, then appended to
+     * [ChatUiState.pendingAttachments] — nothing already queued is replaced, and
+     * nothing is sent until the user taps Send. Images reuse the image pipeline;
+     * anything else goes through [loadDocument]. Files that fail to load, or that
+     * would go past [ComposerAttachment.MAX_PER_MESSAGE] or
+     * [ComposerAttachment.MAX_TOTAL_DOCUMENT_CHARS], are skipped with an ERROR
+     * bubble saying why; the rest are still added.
      */
-    private val _pickResults = MutableSharedFlow<PickedFile?>(extraBufferCapacity = 1)
-    val pickResults: SharedFlow<PickedFile?> = _pickResults.asSharedFlow()
+    fun addAttachments(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            val room = ComposerAttachment.MAX_PER_MESSAGE - _uiState.value.pendingAttachments.size
+            val toLoad = uris.take(room.coerceAtLeast(0))
+            val loaded = withContext(Dispatchers.IO) { toLoad.map { loadAttachment(it) } }
+            // Back on the main dispatcher. Re-check against the queue as it is now,
+            // since another pick may have landed while these were loading.
+            val errors = loaded.mapNotNull { it.exceptionOrNull()?.message }.toMutableList()
+            var overCount = 0
+            var overText = 0
+            _uiState.update { state ->
+                // update may retry this block, so the counts start over each time.
+                overCount = uris.size - toLoad.size
+                overText = 0
+                val queue = state.pendingAttachments.toMutableList()
+                var docChars = queue.documentChars()
+                for (attachment in loaded.mapNotNull { it.getOrNull() }) {
+                    val chars = (attachment as? ComposerAttachment.Document)?.attachment?.text?.length ?: 0
+                    when {
+                        queue.size >= ComposerAttachment.MAX_PER_MESSAGE -> overCount++
+                        docChars + chars > ComposerAttachment.MAX_TOTAL_DOCUMENT_CHARS -> overText++
+                        else -> {
+                            queue += attachment
+                            docChars += chars
+                        }
+                    }
+                }
+                state.copy(pendingAttachments = queue)
+            }
+            if (overCount > 0) {
+                errors += "You can attach up to ${ComposerAttachment.MAX_PER_MESSAGE} files per message — " +
+                    "skipped ${plural(overCount, "file")}."
+            }
+            if (overText > 0) {
+                errors += "The attached documents are too long to send together — " +
+                    "skipped ${plural(overText, "document")}. Send them in separate messages."
+            }
+            errors.forEach { appendUi(MessageKind.ERROR, it) }
+        }
+    }
+
+    /** Removes one queued attachment from the composer. */
+    fun removeAttachment(id: String) {
+        _uiState.update { state -> state.copy(pendingAttachments = state.pendingAttachments.filterNot { it.id == id }) }
+    }
+
+    /** Replaces the composer's queue, e.g. with a message's attachments when it is edited. */
+    fun setAttachments(attachments: List<ComposerAttachment>) {
+        _uiState.update { it.copy(pendingAttachments = attachments) }
+    }
+
+    fun clearAttachments() = setAttachments(emptyList())
+
+    private fun List<ComposerAttachment>.documentChars(): Int =
+        sumOf { (it as? ComposerAttachment.Document)?.attachment?.text?.length ?: 0 }
+
+    private fun plural(count: Int, noun: String): String = if (count == 1) "1 $noun" else "$count ${noun}s"
 
     /**
-     * Entry point for the composer's "+" button. Routes by content type: images
-     * reuse the image pipeline; anything else goes through [loadDocument]. The
-     * read + parse runs on [Dispatchers.IO] so a large document never blocks the
-     * main thread; a failure surfaces as an ERROR bubble and the result (or
-     * null) is delivered on [pickResults].
+     * Reads one picked file into an attachment. A failure carries the message to
+     * show the user, so one unreadable file never costs the rest of the pick.
      */
-    fun pickContent(uri: Uri) {
-        viewModelScope.launch {
-            val (picked, error) = withContext(Dispatchers.IO) {
-                try {
-                    val resolver = getApplication<Application>().contentResolver
-                    val mime = resolver.getType(uri)
-                    val picked = if (mime?.startsWith("image/") == true) {
-                        loadImageBase64(uri)?.let { PickedFile.Image(it) }
-                    } else {
-                        loadDocument(uri)?.let { PickedFile.Document(it) }
-                    }
-                    // Both loaders return null when the stream cannot be opened;
-                    // treat that like any other failed pick so the user gets a
-                    // visible error instead of a silent no-op.
-                    if (picked != null) picked to null else null to "Could not read that file."
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: DocumentError) {
-                    null to (e.message ?: "Could not read that file.")
-                } catch (e: Exception) {
-                    null to "Could not read that file: ${HumanReadableError.format(e)}"
-                }
-            }
-            // Back on the main dispatcher: the error bubble lands before the pick
-            // result so a failed attachment explains itself in the transcript.
-            if (error != null) appendUi(MessageKind.ERROR, error)
-            _pickResults.tryEmit(picked)
+    private fun loadAttachment(uri: Uri): Result<ComposerAttachment> = try {
+        val resolver = getApplication<Application>().contentResolver
+        val id = java.util.UUID.randomUUID().toString()
+        val attachment = if (resolver.getType(uri)?.startsWith("image/") == true) {
+            loadImageBase64(uri)?.let { ComposerAttachment.Image(id, queryDisplayName(resolver, uri, "image"), it) }
+        } else {
+            loadDocument(uri)?.let { ComposerAttachment.Document(id, it) }
         }
+        // Both loaders return null when the stream cannot be opened; treat that
+        // like any other failed pick so the user gets a visible error instead of
+        // a silent no-op.
+        if (attachment != null) Result.success(attachment) else Result.failure(Exception("Could not read that file."))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: DocumentError) {
+        Result.failure(Exception(e.message ?: "Could not read that file."))
+    } catch (e: Exception) {
+        Result.failure(Exception("Could not read that file: ${HumanReadableError.format(e)}"))
     }
 
     /**
@@ -806,7 +1229,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * [Attachment], so the transient picker read grant is never needed again and
      * nothing is copied into the app cache. Returns null only when the stream
      * cannot be opened; unreadable/unsupported content throws [DocumentError],
-     * which [pickContent] surfaces as an ERROR bubble on the main thread.
+     * which [addAttachments] surfaces as an ERROR bubble on the main thread.
      */
     private fun loadDocument(uri: Uri): Attachment? {
         val app = getApplication<Application>()
@@ -824,7 +1247,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         )
     }
 
-    private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String {
+    private fun queryDisplayName(resolver: ContentResolver, uri: Uri, fallback: String = "document"): String {
         return try {
             resolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst()) return@use null
@@ -833,7 +1256,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
         } catch (_: Exception) {
             null
-        }?.takeIf { it.isNotBlank() } ?: "document"
+        }?.takeIf { it.isNotBlank() } ?: fallback
     }
 
     fun stopAgent() {
@@ -855,6 +1278,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
     fun setForeground(foreground: Boolean) {
         appInForeground = foreground
+        // Back in the app on a chat whose task finished: that chat's
+        // notification has done its job.
+        if (foreground) _uiState.value.activeSessionId?.let(completionNotifier::cancel)
     }
 
     /** Speak the given text aloud using the configured TTS provider. */
@@ -864,7 +1290,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             ttsEngine.stop()
             _uiState.update { it.copy(isSpeaking = true) }
             try {
-                val language = Language.fromLabel(settings.preferredLanguage)
+                val language = settings.effectiveVoiceLanguage
                 val defaultVoice = _uiState.value.ttsModels
                     .firstOrNull { it.id == settings.ttsApiModel }
                     ?.defaultVoiceFor(language) ?: "af_heart"
@@ -925,7 +1351,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening(Language.fromLabel(settings.preferredLanguage))
+                val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage)
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
@@ -978,7 +1404,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                             return@launch
                         }
                         val sttLanguage = settings.sttLanguage.ifBlank {
-                            Language.fromLabel(settings.preferredLanguage).iso639
+                            settings.effectiveVoiceLanguage.iso639
                         }
                         transcript = sttEngine.transcribeApi(
                             audioFile, settings.sttApiModel, sttLanguage
@@ -999,7 +1425,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     // cleanText is redundant there and would cost an extra LLM round-trip.
                     val cleaned = if (provider == AudioProvider.ANDROID) {
                         val navModel = settings.navigatorModel.ifEmpty { settings.model }
-                        client?.cleanText(transcript, navModel, Language.fromLabel(settings.preferredLanguage))
+                        client?.cleanText(transcript, navModel, settings.effectiveVoiceLanguage)
                             ?: transcript
                     } else {
                         transcript
@@ -1078,8 +1504,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update { it.copy(activeAgent = mode) }
     }
 
+    /**
+     * Put the chat about to start into [persona]'s role, or back to a plain chat
+     * when null. Creation-time only: the picker is only drawn on an empty chat,
+     * and a persona arriving mid-conversation would rewrite the system message
+     * the provider has already cached for this session — so a chat that has
+     * messages ignores this.
+     *
+     * The persona's own default mode is applied through [setAgent] (silently,
+     * like the selector itself), so the user sees where the persona put them and
+     * can still move. Clearing a persona leaves the mode where it is.
+     */
+    fun setPersona(persona: Persona?) {
+        if (_uiState.value.messages.isNotEmpty()) return
+        if (_uiState.value.activePersonaId == persona?.id) return
+        // While another chat is running the engine stays bound to it; the picked
+        // persona rides in UI state and reaches the engine at send time, through
+        // bindEngineToViewedSession.
+        if (_uiState.value.runningSessionId == null) {
+            agentEngine.sessionPersonaId = persona?.id
+        }
+        _uiState.update { it.copy(activePersonaId = persona?.id) }
+        persona?.let { setAgent(it.defaultAgent) }
+    }
+
     override fun onCleared() {
         confirmationOverlay.dismiss()
+        foregroundControlIndicator.dismiss()
         super.onCleared()
     }
 
@@ -1107,6 +1558,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             // and saveCurrentSession() would persist the stale list into the
             // new chat file.
             agentEngine.restoreRunSummaries(emptyList())
+            agentEngine.sessionIsSample = false
+            // A new chat never inherits the previous one's persona: it is picked
+            // per chat, on the home screen this call is about to show.
+            agentEngine.sessionPersonaId = null
             agentEngine.setupWorkingDir(create = false)
             engineTranscript = emptyList()
             engineAgent = defaultAgent
@@ -1115,7 +1570,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             it.copy(
                 messages = emptyList(),
                 activeSessionId = newId,
-                activeAgent = defaultAgent
+                activeAgent = defaultAgent,
+                activePersonaId = null,
+                viewingSample = false
             )
         }
         applyContextUsage(0)
@@ -1163,6 +1620,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun openSession(id: String?) {
+        id?.let(completionNotifier::cancel)
         lastInputWasVoice = false
         currentRunIsVoice = false
         viewModelScope.launch {
@@ -1177,7 +1635,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = id,
                         activeAgent = engineAgent,
-                        messages = engineTranscript
+                        activePersonaId = agentEngine.sessionPersonaId,
+                        messages = engineTranscript,
+                        viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample
+                            ?: agentEngine.sessionIsSample
                     )
                 }
                 applyContextUsage(agentEngine.tokenCount)
@@ -1197,6 +1658,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 agentEngine.tokenCount = session.tokenCount
                 agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
                 agentEngine.restoreRunSummaries(session.runSummaries)
+                agentEngine.sessionIsSample = session.isSample
+                agentEngine.sessionPersonaId = session.personaId
                 agentEngine.setupWorkingDir()
                 engineTranscript = session.displayMessages
                 engineAgent = restoredAgent
@@ -1210,6 +1673,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = session.id,
                         activeAgent = restoredAgent,
+                        activePersonaId = session.personaId,
+                        viewingSample = session.isSample,
                         messages = session.displayMessages,
                         // Clear engine-scoped transient UI for the viewed (non-running) chat.
                         activity = null,
@@ -1224,6 +1689,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     it.copy(
                         activeSessionId = session.id,
                         activeAgent = restoredAgent,
+                        activePersonaId = session.personaId,
+                        viewingSample = session.isSample,
                         activity = null,
                         subAgentRunning = null,
                         subAgentCurrentAction = null
@@ -1241,6 +1708,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 com.gotcha.data.GotchaStorage.archiveChatDir(id)
             }
             historyRepository.deleteSession(id)
+            localNotificationStore.forgetChat(id)
             if (agentEngine.sessionId == id) {
                 clearChat()
             }
@@ -1278,7 +1746,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         kind: MessageKind,
         text: String,
         imageBase64: String? = null,
-        attachment: Attachment? = null,
+        attachments: List<ComposerAttachment> = emptyList(),
         subAgentSteps: List<String> = emptyList(),
         reasoningContent: String? = null
     ) {
@@ -1293,7 +1761,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             subAgentSteps = subAgentSteps,
             subAgentCollapsed = true,
             reasoningContent = reasoningContent,
-            attachment = attachment
+            attachments = attachments
         )
         engineTranscript = engineTranscript + message
         if (viewing) {
@@ -1323,7 +1791,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         if (docPrompt != null) {
                             docPrompt.ifEmpty { "(document attached)" }
                         } else {
-                            text.ifEmpty { "(image attached)" }
+                            text.ifBlank { "(image attached)" }
                         }
                     )
                 }
@@ -1374,69 +1842,147 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     fun exportChat() {
-        val sessionId = agentEngine.sessionId ?: "unknown"
-        val sb = StringBuilder()
-        sb.appendLine("# Gotcha Chat Export")
-        sb.appendLine("**Session:** $sessionId")
-        sb.appendLine(
-            "**Date:** ${java.text.SimpleDateFormat(
-                "yyyy-MM-dd HH:mm:ss",
-                java.util.Locale.US
-            ).format(java.util.Date())}"
+        val markdown = ChatMarkdown.export(
+            history = agentEngine.history.toList(),
+            sessionId = agentEngine.sessionId ?: "unknown",
+            title = agentEngine.currentTitle()
         )
-        sb.appendLine("**Messages:** ${agentEngine.history.size}")
-        sb.appendLine()
-        sb.appendLine("---")
-        sb.appendLine()
+        _exportContent.tryEmit(markdown)
+    }
 
-        for (msg in agentEngine.history) {
-            val role = msg.role
-            val text = msg.textContent
+    // ---- Chat backup and import (issue #83) ----
 
-            when (role) {
-                "user" -> {
-                    val docPrompt = documentPromptText(text)
-                    sb.appendLine("### User")
-                    if (docPrompt != null) {
-                        if (docPrompt.isNotBlank()) sb.appendLine(docPrompt)
-                        sb.appendLine("*(Document attached)*")
-                    } else {
-                        if (text.isNotBlank()) sb.appendLine(text)
-                        if (msg.content is JsonArray) sb.appendLine("*(Image attached)*")
-                    }
-                    sb.appendLine()
+    private val chatImporter = ChatImporter(historyRepository)
+
+    private val _chatTransfer = MutableStateFlow<ChatTransferState>(ChatTransferState.Idle)
+    val chatTransfer: StateFlow<ChatTransferState> = _chatTransfer.asStateFlow()
+
+    /** Set just before the "save backup" picker opens, consumed by [writeBackup]. */
+    private var pendingBackup: BackupRequest? = null
+
+    /**
+     * Holds [request] for the file picker the caller is about to open, and
+     * returns the file name to suggest in it.
+     */
+    fun prepareBackup(request: BackupRequest): String {
+        pendingBackup = request
+        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        val name = request.sessionId
+            ?.let { id -> _sessions.value.firstOrNull { it.id == id }?.title }
+            ?.let { title -> title.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(40) }
+            ?.takeIf { it.isNotEmpty() }
+            ?: if (request.sessionId == null) "chats" else "chat"
+        return "gotcha-$name-$date${ChatArchive.FILE_SUFFIX}"
+    }
+
+    /** Writes the [prepareBackup] request to [uri]; a null [uri] means the picker was cancelled. */
+    fun writeBackup(uri: Uri?) {
+        val request = pendingBackup ?: return
+        pendingBackup = null
+        if (uri == null) return
+        _chatTransfer.value = ChatTransferState.Working("Saving backup…")
+        viewModelScope.launch {
+            val outcome = runCatching {
+                withContext(Dispatchers.IO) {
+                    val sessions = request.sessionId
+                        ?.let { listOfNotNull(historyRepository.loadSession(it)) }
+                        ?: historyRepository.listSessions()
+                    check(sessions.isNotEmpty()) { "There are no saved chats to back up yet." }
+                    val archive = ChatArchive(
+                        exportedAt = System.currentTimeMillis(),
+                        appVersion = com.gotcha.BuildConfig.VERSION_NAME,
+                        includesImages = request.includeImages,
+                        sessions = if (request.includeImages) sessions else sessions.map(ChatArchive::withoutImages)
+                    )
+                    val stream = getApplication<Application>().contentResolver.openOutputStream(uri, "wt")
+                        ?: error("The chosen location can't be written to.")
+                    stream.use { it.write(ChatArchive.encode(archive).toByteArray(Charsets.UTF_8)) }
+                    sessions.size
                 }
-                "assistant" -> {
-                    sb.appendLine("### Assistant")
-                    if (text.isNotBlank()) sb.appendLine(text)
-                    val calls = msg.toolCalls
-                    if (!calls.isNullOrEmpty()) {
-                        sb.appendLine()
-                        sb.appendLine("**Called tools:**")
-                        for (call in calls) {
-                            sb.appendLine("- `${call.function.name}(${call.function.arguments.take(200)})`")
-                        }
-                    }
-                    sb.appendLine()
+            }
+            _chatTransfer.value = outcome.fold(
+                onSuccess = { count ->
+                    ChatTransferState.Report(
+                        "Backup saved",
+                        if (count == 1) "Saved 1 chat." else "Saved $count chats."
+                    )
+                },
+                onFailure = { e ->
+                    ChatTransferState.Report("Backup failed", e.message ?: "The backup couldn't be saved.")
                 }
-                "tool" -> {
-                    if (text.startsWith("SUBAGENT_STEPS:")) {
-                        appendSubAgentExport(sb, text)
-                    } else {
-                        sb.appendLine("### Tool Result")
-                        sb.appendLine(text.ifEmpty { "(no result)" })
-                    }
-                    sb.appendLine()
-                }
-                "system" -> {
-                    sb.appendLine("### System")
-                    sb.appendLine(text.ifEmpty { "(system message)" })
-                    sb.appendLine()
+            )
+        }
+    }
+
+    /** Reads the file the user picked to import and shows what it holds; null means the picker was cancelled. */
+    fun readImport(uri: Uri?) {
+        if (uri == null) return
+        _chatTransfer.value = ChatTransferState.Working("Reading file…")
+        viewModelScope.launch {
+            val bytes = runCatching {
+                withContext(Dispatchers.IO) { readAtMost(uri, ChatImporter.MAX_BYTES) }
+            }.getOrNull()
+            _chatTransfer.value = when {
+                bytes == null -> ChatTransferState.Report("Import failed", "The file couldn't be opened.")
+                bytes.size > ChatImporter.MAX_BYTES -> ChatTransferState.Report(
+                    "Import failed",
+                    "The file is larger than ${ChatImporter.MAX_BYTES / (1024 * 1024)} MB, the most Gotcha imports at once."
+                )
+                else -> when (val read = chatImporter.preview(bytes)) {
+                    is ImportParseResult.Ready -> ChatTransferState.Previewing(read.preview)
+                    is ImportParseResult.Failed -> ChatTransferState.Report("Import failed", read.message)
                 }
             }
         }
+    }
 
-        _exportContent.tryEmit(sb.toString())
+    /** Imports the previewed file, resolving clashes with existing chats by [strategy]. */
+    fun confirmImport(strategy: DuplicateStrategy) {
+        val preview = (_chatTransfer.value as? ChatTransferState.Previewing)?.preview ?: return
+        _chatTransfer.value = ChatTransferState.Working("Importing…")
+        viewModelScope.launch {
+            val result = chatImporter.commit(
+                preview,
+                strategy,
+                protectedIds = setOfNotNull(_uiState.value.runningSessionId)
+            )
+            refreshSessions()
+            // An open chat that was just replaced would otherwise keep showing,
+            // and on the next turn saving, the copy that was imported over.
+            val open = _uiState.value.activeSessionId
+            if (open != null && open in result.writtenIds) openSession(open)
+
+            val counts = listOfNotNull(
+                "Imported ${result.imported}",
+                result.replaced.takeIf { it > 0 }?.let { "replaced $it" },
+                result.skipped.takeIf { it > 0 }?.let { "skipped $it" },
+                result.failed.size.takeIf { it > 0 }?.let { "$it failed" }
+            )
+            _chatTransfer.value = ChatTransferState.Report(
+                title = if (result.imported + result.replaced > 0) "Import finished" else "Nothing imported",
+                summary = counts.joinToString(" · ") + ".",
+                details = result.failed.map { "${it.title}: ${it.reason}" } + preview.warnings
+            )
+        }
+    }
+
+    fun dismissChatTransfer() {
+        _chatTransfer.value = ChatTransferState.Idle
+    }
+
+    /** Up to [limit] + 1 bytes of [uri], so an oversized file is caught without reading all of it. */
+    private fun readAtMost(uri: Uri, limit: Int): ByteArray? {
+        val input = getApplication<Application>().contentResolver.openInputStream(uri) ?: return null
+        return input.use { stream ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            while (out.size() <= limit) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                out.write(buffer, 0, read)
+            }
+            out.toByteArray()
+        }
     }
 
     /**
@@ -1480,40 +2026,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
     }
 
-    /** Formats a SUBAGENT_STEPS tool message (description, steps, result) for chat export. */
-    private fun appendSubAgentExport(sb: StringBuilder, text: String) {
-        val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
-        val desc = if (descEnd > 0) {
-            text.substring("SUBAGENT_STEPS:".length, descEnd)
-        } else {
-            text.substring("SUBAGENT_STEPS:".length)
-        }
-        sb.appendLine("### Sub-Agent: $desc")
-        val rest = if (descEnd > 0) text.substring(descEnd + 1) else ""
-        val stepsMarker = "── Steps ──\n"
-        val resultMarker = "\n── Result ──\n"
-        if (!rest.startsWith(stepsMarker)) {
-            sb.appendLine(rest)
-            return
-        }
-        val afterSteps = rest.removePrefix(stepsMarker)
-        val resIdx = afterSteps.indexOf(resultMarker)
-        if (resIdx < 0) {
-            sb.appendLine(afterSteps)
-            return
-        }
-        val steps = afterSteps.substring(0, resIdx).split("\n").filter { it.isNotBlank() }
-        val answer = afterSteps.substring(resIdx + resultMarker.length)
-        sb.appendLine()
-        sb.appendLine("**Steps:**")
-        for (s in steps) sb.appendLine("- $s")
-        sb.appendLine()
-        sb.appendLine("**Result:**")
-        sb.appendLine(answer)
-    }
-
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+
+        /** Set once the one-time notification-permission ask has been shown. */
+        const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
+
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
     }
 }

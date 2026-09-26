@@ -3,8 +3,11 @@ package com.gotcha.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -36,15 +41,22 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -82,8 +94,9 @@ import kotlin.math.round
  *
  * Most pages hang directly off the home list. The exceptions declare a [parent]:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. [ABOUT] is the only such hub today,
- * collecting "who made this app and what did I agree to" into one row.
+ * that parent instead of from the home list. Two hubs exist: [AI], which collects
+ * everything the assistant thinks, hears and speaks with, and [ABOUT], which
+ * collects "who made this app and what did I agree to".
  */
 enum class SettingsPage(
     val title: String,
@@ -99,18 +112,30 @@ enum class SettingsPage(
 ) {
     PERSONAL_INFO(
         "Personal Info",
-        "Who you are, language, currency, reply style",
+        "Who you are, currency, reply style",
         "settings_personal_info_row"
+    ),
+    LANGUAGE(
+        "Language",
+        "App display, voice, and AI reply language",
+        "settings_language_row"
+    ),
+    AI(
+        "AI",
+        "Model, provider, voice and transcription",
+        "settings_ai_row"
     ),
     AI_CONFIG(
         "AI Configuration",
         "Provider, models, agent limits",
-        "settings_ai_config_row"
+        "settings_ai_config_row",
+        { AI }
     ),
     SPEECH(
         "Speech (TTS / STT)",
         "Voices, transcription, read replies aloud",
-        "settings_speech_row"
+        "settings_speech_row",
+        { AI }
     ),
     PERMISSIONS(
         "Permissions",
@@ -133,8 +158,10 @@ enum class SettingsPage(
         "settings_proactive_row"
     ),
     ASSISTIVE_BALL(
-        "Assistive Ball",
-        "Floating ball over other apps, hands-free calls",
+        // The wake word listens from inside the ball's service, so it is not a
+        // page of its own — the title says so to make it findable.
+        "Assistive Ball and Wake Word",
+        "Floating ball over other apps, hands-free calls, \"Hey Gotcha\"",
         "settings_assistive_ball_row"
     ),
     APPEARANCE(
@@ -144,11 +171,11 @@ enum class SettingsPage(
     ),
     NOTIFICATIONS(
         "Notifications",
-        "How you're alerted when a reply arrives",
+        "Replies, finished tasks, reminders and tips",
         "settings_notifications_row"
     ),
     ABOUT(
-        "About Us",
+        "About",
         "Samosa AI, other products, legal, contact",
         "settings_about_row"
     ),
@@ -179,7 +206,9 @@ enum class SettingsPage(
 fun SettingsNavRow(
     page: SettingsPage,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Overrides the row label. Search results pass the "hub › page" path. */
+    title: String = page.title
 ) {
     Row(
         modifier = modifier
@@ -190,7 +219,7 @@ fun SettingsNavRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = page.title,
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
@@ -250,6 +279,10 @@ fun rememberSettingsOverlayState(): SettingsOverlayState {
 /**
  * The frame every settings page shares: a titled top bar with a back action, a
  * scrolling content column, and the overlay anchored on top of it.
+ *
+ * [header] is the one thing that sits outside the scrolling column, pinned
+ * between the top bar and the content — the settings home list puts its search
+ * field there so it stays reachable however far the list has scrolled.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,6 +290,7 @@ fun SettingsScaffold(
     title: String,
     onBack: () -> Unit,
     overlay: SettingsOverlayState,
+    header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Scaffold(
@@ -278,14 +312,20 @@ fun SettingsScaffold(
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                content = content
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                header?.let {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { it() }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = content
+                )
+            }
 
             // Centered rather than bottom-aligned: under the keyboard area BottomCenter
             // reads as a stray toast instead of feedback attached to the field that
@@ -733,6 +773,124 @@ fun SamosaAuthSection(
 }
 
 /**
+ * The field a settings search result asked the open page to point at (#92),
+ * and how the page says it has done so. [SettingsScreen] provides it; each
+ * field opts in through [settingsField] or [settingsHighlight], so no page
+ * needs a parameter for it.
+ */
+@Stable
+class SettingsHighlight(val field: SettingsField?, val onConsumed: () -> Unit)
+
+val LocalSettingsHighlight = compositionLocalOf { SettingsHighlight(field = null, onConsumed = {}) }
+
+/** Set on a field while a search result is pointing at it — what tests read. */
+val SettingsHighlighted = SemanticsPropertyKey<Boolean>("SettingsHighlighted")
+var SemanticsPropertyReceiver.settingsHighlighted by SettingsHighlighted
+
+private const val HIGHLIGHT_FADE_MS = 1_500
+private const val HIGHLIGHT_ALPHA = 0.24f
+private val HighlightCorner = 8.dp
+
+/**
+ * Makes this node a place a settings search can land: when [tag] is the
+ * highlighted field, it scrolls into view and wears a tint that fades out, then
+ * the highlight is consumed so Back or a rotation can't replay it. Does not tag
+ * the node — see [settingsField] for the usual case.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.settingsHighlight(tag: String): Modifier {
+    val highlight = LocalSettingsHighlight.current
+    val isTarget = highlight.field?.testTag == tag
+    val requester = remember { BringIntoViewRequester() }
+    val tint = remember { Animatable(0f) }
+    if (isTarget) {
+        LaunchedEffect(highlight) {
+            tint.snapTo(1f)
+            // A frame first, so the field has been laid out — it may sit in a
+            // section that opened in this same composition.
+            withFrameNanos { }
+            requester.bringIntoView()
+            tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS))
+            highlight.onConsumed()
+        }
+    }
+    val color = MaterialTheme.colorScheme.primary
+    return this
+        .bringIntoViewRequester(requester)
+        .semantics { if (isTarget) settingsHighlighted = true }
+        .drawBehind {
+            if (tint.value > 0f) {
+                drawRoundRect(
+                    color = color.copy(alpha = HIGHLIGHT_ALPHA * tint.value),
+                    cornerRadius = CornerRadius(HighlightCorner.toPx())
+                )
+            }
+        }
+}
+
+/** Tags a settings control and makes it a search landing spot, under one name. */
+@Composable
+fun Modifier.settingsField(tag: String): Modifier = testTag(tag).settingsHighlight(tag)
+
+/**
+ * A collapsed-by-default disclosure for the knobs a page has but most people
+ * never touch — model overrides, loop limits, timeouts. Keeps them one tap away
+ * without letting them crowd out the two or three controls that actually decide
+ * whether the app works.
+ *
+ * Uses the same text triangle as the permission groups rather than an icon font,
+ * so the settings pages keep one disclosure idiom.
+ *
+ * [testTag] tags the header row, which is the part a test clicks to expand.
+ * Expansion is remembered per page visit (`rememberSaveable`), so a rotation or
+ * a trip to Android Settings doesn't fold the section back up mid-edit. The
+ * fields inside stay hoisted in the calling screen, so collapsing the section
+ * never discards what was typed into it.
+ *
+ * A search result pointing at a field inside opens the section on arrival — the
+ * field isn't composed while folded, so there would be nothing to scroll to.
+ * It starts open rather than animating open, so the scroll lands on where the
+ * field will stay, not where it is halfway through the expansion.
+ */
+@Composable
+fun SettingsAdvancedSection(
+    testTag: String,
+    title: String = "Advanced settings",
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val holdsHighlight = LocalSettingsHighlight.current.field?.section == testTag
+    var expanded by rememberSaveable { mutableStateOf(holdsHighlight) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .padding(vertical = 8.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (expanded) "▼ " else "▶ ",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+    AnimatedVisibility(visible = expanded) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
+    }
+}
+
+/**
  * A label with a trailing switch — the settings screens' standard boolean row.
  *
  * [switchTestTag] tags the `Switch` rather than the row, so a test that clicks
@@ -740,6 +898,9 @@ fun SamosaAuthSection(
  * toggleable and no-op silently. [switchContentDescription] names the `Switch`
  * for the same reason — it is what a UiAutomator/Maestro flow, which cannot see
  * test tags, has to aim at.
+ *
+ * [switchTestTag] is also the name a settings search result uses for the row;
+ * the whole row is what scrolls into view and tints (see [settingsHighlight]).
  *
  * [enabled] disables the `Switch` (greyed out, no tap effect) for a row whose
  * action depends on a prerequisite the user has not met yet; the caller should
@@ -757,7 +918,10 @@ fun SettingsToggleRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // The tint covers the label as well as the switch it names.
+            .then(if (switchTestTag != null) Modifier.settingsHighlight(switchTestTag) else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

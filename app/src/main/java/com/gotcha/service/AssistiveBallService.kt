@@ -23,7 +23,6 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.data.settingsChangeNotifier
-import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import com.gotcha.util.GotchaLog
@@ -807,7 +806,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
+                if (sttEngine.startAndroidListening(s.effectiveVoiceLanguage)) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError("Failed to start speech recognition.")
@@ -861,7 +860,7 @@ class AssistiveBallService : Service() {
         }
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         scope.launch {
-            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val sttLanguage = s.sttLanguage.ifBlank { s.effectiveVoiceLanguage.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
@@ -885,7 +884,7 @@ class AssistiveBallService : Service() {
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
                 voice = s.ttsVoice,
-                language = Language.fromLabel(s.preferredLanguage)
+                language = s.effectiveVoiceLanguage
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)

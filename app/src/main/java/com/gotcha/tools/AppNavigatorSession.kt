@@ -22,7 +22,16 @@ import kotlinx.serialization.json.putJsonObject
 data class AppNavigatorOutput(
     val finalAnswer: String,
     val steps: List<String>,
-    val success: Boolean = true
+    val success: Boolean = true,
+    /**
+     * A [ToolResult] special-access marker when the run ended because something
+     * needs granting, so the host can open that screen.
+     *
+     * Without it the marker raised inside the session died here and the caller
+     * saw only prose — which is how a disabled accessibility service surfaced as
+     * "reached N steps without completing the task" (issue #76).
+     */
+    val needsPermission: String? = null
 )
 
 class AppNavigatorSession(
@@ -40,6 +49,7 @@ class AppNavigatorSession(
     private val actionLog = mutableListOf<String>()
 
     suspend fun run(): AppNavigatorOutput {
+        blockedOnAccessibility()?.let { return it }
         val model = settings.navigatorModel.ifEmpty { settings.model }
         val llmClient = LLMClient(
             apiKey = settings.effectiveApiKey,
@@ -233,6 +243,44 @@ class AppNavigatorSession(
         }
     }
 
+    /**
+     * The refusal to run at all when the accessibility service cannot serve a
+     * call, or null to proceed.
+     *
+     * Every step of the loop reads the screen and taps through that service.
+     * Without it each observation comes back as "(accessibility service not
+     * available)" and each action fails, yet the session still burns maxSteps
+     * LLM round-trips before reporting that it ran out of steps — the unrelated
+     * error of issue #76, arrived at slowly and expensively.
+     */
+    private fun blockedOnAccessibility(): AppNavigatorOutput? {
+        val state = DeviceCapabilities.accessibilityState(appContext)
+        if (state == AccessibilityState.AVAILABLE) return null
+        val reason = if (state == AccessibilityState.ENABLED_BUT_NOT_BOUND) {
+            "the Gotcha accessibility service is switched on but is not running"
+        } else {
+            "the Gotcha accessibility service is switched off"
+        }
+        return AppNavigatorOutput(
+            finalAnswer = "Task failed: app navigation needs the accessibility service, and " +
+                "$reason. I have opened Accessibility settings — tell the user to enable Gotcha " +
+                "there (toggling it off and on if it is already listed), then ask again. " +
+                "Do not retry.",
+            steps = emptyList(),
+            success = false,
+            needsPermission = ToolResult.ACCESSIBILITY_ACCESS
+        )
+    }
+
+    /**
+     * Tools withheld from the navigator this turn. Mirrors [SubAgentSession] —
+     * without it a tool whose capability went away mid-run reaches a router that
+     * cannot serve it and fails with something that does not name the cause.
+     */
+    private fun hiddenTools(): Set<String> =
+        com.gotcha.connectors.ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
+            DeviceCapabilities.hiddenToolNames(appContext)
+
     private suspend fun executeWithRetry(call: ToolCall): ToolResult {
         var lastResult: ToolResult = ToolResult.error("Exhausted retries")
         val args: JsonObject = try {
@@ -245,10 +293,15 @@ class AppNavigatorSession(
             try {
                 lastResult = toolExecutor.execute(
                     call.function.name, args,
-                    AgentMode.OPERATOR, isSubAgent = true
+                    AgentMode.OPERATOR, isSubAgent = true,
+                    hiddenTools = hiddenTools()
                 )
                 kotlinx.coroutines.delay(300)
                 if (lastResult.success) return lastResult
+                // A missing grant is not a transient failure: retrying spends two
+                // more rounds to produce the identical message and buries the
+                // marker the user needs under a retry log.
+                if (lastResult.needsPermission != null) return lastResult
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {

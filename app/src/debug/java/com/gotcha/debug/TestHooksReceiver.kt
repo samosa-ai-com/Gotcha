@@ -67,7 +67,6 @@ class TestHooksReceiver : BroadcastReceiver() {
         )
 
         repository.prefs.edit()
-            .putBoolean(MainActivity.KEY_FIRST_LAUNCH_DONE, true)
             // Suppressed by default so automated runs never meet the system dialog;
             // pass --ez suppress_projection false to exercise the consent flow by hand.
             .putBoolean(
@@ -113,7 +112,6 @@ fun seedTestSettings(
         )
     )
     repository.prefs.edit()
-        .putBoolean(MainActivity.KEY_FIRST_LAUNCH_DONE, true)
         .putBoolean(MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, true)
         .putBoolean(SUPPRESS_TOUR_KEY, true)
         .apply()

@@ -250,6 +250,30 @@
             </intent-filter>
         </receiver>
 
+        <!-- Gotcha's own proactive notifications (issues #100, #101). The daily tip alarm and
+             the periodic reminder check post them; neither is exported, as only Gotcha's own
+             PendingIntents fire them. -->
+        <receiver
+            android:name=".notifications.DailyTipAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notifications.ReminderCheckReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms those alarms, which a reboot, an app update or a clock change would
+             otherwise lose or misplace. All four broadcasts are protected and exempt from the
+             implicit-broadcast limits. -->
+        <receiver
+            android:name=".notifications.NotificationRescheduleReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".tools.WakeWordBootReceiver"
             android:exported="true">

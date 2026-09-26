@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
+import com.gotcha.i18n.Language
 
 /**
  * When the wake-word listener is allowed to run, relative to the screen state.
@@ -13,6 +14,18 @@ import com.gotcha.audio.AudioProvider
  * inference. These modes trade how much of the day that happens for where the
  * user is most likely to want a hands-free trigger.
  */
+/** How much of the reply a task-finished notification shows (issue #97). */
+enum class CompletionPreview {
+    /** Only the chat title and whether the task finished, failed or stopped. */
+    NONE,
+
+    /** The first lines of the reply. */
+    SHORT,
+
+    /** The whole reply, readable by expanding the notification. */
+    FULL
+}
+
 enum class WakeWordListeningMode {
     /** Listen regardless of screen state — the original always-on behaviour. */
     ALWAYS,
@@ -35,6 +48,19 @@ enum class WakeWordListeningMode {
  * Chat context budget, in tokens, for a fresh install.
  */
 const val DEFAULT_MAX_CONTEXT_TOKENS = 256_000
+
+/** Daily tip time for a fresh install: 10:00, in minutes after midnight. */
+const val DEFAULT_DAILY_TIP_MINUTE = 10 * 60
+
+/** Days without opening Gotcha before the inactivity reminder, as the issue (#100) suggests. */
+const val DEFAULT_INACTIVITY_DAYS = 4
+
+/** Quiet hours for a fresh install: 22:00 to 08:00. */
+const val DEFAULT_QUIET_START_MINUTE = 22 * 60
+const val DEFAULT_QUIET_END_MINUTE = 8 * 60
+
+/** Proactive notifications a day: room for the tip and one reminder. */
+const val DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY = 2
 
 /**
  * The budget before [DEFAULT_MAX_CONTEXT_TOKENS] was raised. A stored copy of
@@ -112,6 +138,45 @@ data class Settings(
     val notifyVibrationEnabled: Boolean = true,
     /** Chime when a reply arrives. Off by default — audible in a way a buzz is not. */
     val notifyChimeEnabled: Boolean = false,
+    /**
+     * Post a system notification when a chat run ends while Gotcha is in the
+     * background (issue #97). On by default: without it a finished task is only
+     * a buzz the user may not feel.
+     */
+    val chatCompletionNotificationsEnabled: Boolean = true,
+    val chatCompletionPreview: CompletionPreview = CompletionPreview.SHORT,
+    /**
+     * A daily notification suggesting one thing to try, which opens a new chat
+     * with that prompt ready to send (issue #101). On by default; off in
+     * Settings → Notifications.
+     */
+    val dailyTipsEnabled: Boolean = true,
+    /** When the daily tip arrives, as minutes after local midnight. */
+    val dailyTipMinuteOfDay: Int = DEFAULT_DAILY_TIP_MINUTE,
+    /**
+     * Master switch for Gotcha's own proactive notifications (issue #100):
+     * reminders about unfinished chats, routines and quiet spells, and the daily
+     * tip. Task-finished notifications and server messages have their own.
+     */
+    val localNotificationsEnabled: Boolean = true,
+    /** Remind the user after [inactivityDays] without opening Gotcha. */
+    val inactivityRemindersEnabled: Boolean = true,
+    val inactivityDays: Int = DEFAULT_INACTIVITY_DAYS,
+    /** Remind about a chat whose task failed, was stopped or ended on a question. */
+    val unfinishedChatRemindersEnabled: Boolean = true,
+    /** Suggest a request the user makes regularly when it is due again. */
+    val routineSuggestionsEnabled: Boolean = true,
+    /** No proactive notification between these times (minutes after midnight). */
+    val quietHoursEnabled: Boolean = true,
+    val quietHoursStartMinute: Int = DEFAULT_QUIET_START_MINUTE,
+    val quietHoursEndMinute: Int = DEFAULT_QUIET_END_MINUTE,
+    /** At most this many proactive notifications a day. */
+    val maxLocalNotificationsPerDay: Int = DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY,
+    /**
+     * Whether notifications may name chats and requests. Off, they stay generic.
+     * Chats kept out of notifications are never named either way.
+     */
+    val notificationsMentionChats: Boolean = true,
     val assistiveBallEnabled: Boolean = false,
     val wakeWordEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.75f,
@@ -170,7 +235,22 @@ data class Settings(
      * directive rather than into the profile block.
      */
     val userResponseStyle: String = "",
+    /**
+     * The language the assistant *writes* its answers in — the reply directive
+     * and the `<user_profile>` fact in `AgentEngine`. Persisted as a
+     * [com.gotcha.i18n.Language] label; the value must stay stable.
+     */
     val preferredLanguage: String = "English",
+    /**
+     * The language speech is spoken and heard in, or blank to follow
+     * [preferredLanguage] — see [effectiveVoiceLanguage].
+     *
+     * Split out from [preferredLanguage] because the two are genuinely separate
+     * choices: plenty of people want answers written in English but read aloud
+     * (and dictated) in their own language. Blank by default so every install
+     * that predates the split keeps behaving exactly as it did.
+     */
+    val voiceLanguage: String = "",
     val preferredCurrency: String = "USD",
     val communitySkillHosts: Set<String> = setOf(BuildConfig.SAMOSA_SKILL_HOST),
     /**
@@ -280,6 +360,14 @@ data class Settings(
             AudioProvider.API -> sttApiKey.ifBlank { effectiveApiKey }
             else -> ""
         }
+
+    /**
+     * The language TTS speaks and STT listens in: the explicit [voiceLanguage]
+     * when one is set, otherwise the reply language. [sttLanguage] still wins
+     * for transcription specifically, since it is a per-model override.
+     */
+    val effectiveVoiceLanguage: Language
+        get() = Language.fromLabel(voiceLanguage.ifBlank { preferredLanguage })
 
     /** True when Samosa AI is selected and a session token exists. */
     val isSamosaAuthenticated: Boolean
@@ -476,6 +564,22 @@ class SettingsRepository(context: Context) : SettingsStore {
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
+        chatCompletionNotificationsEnabled = prefs.getBoolean(KEY_CHAT_COMPLETION_NOTIFICATIONS, true),
+        chatCompletionPreview = runCatching {
+            CompletionPreview.valueOf(string(KEY_CHAT_COMPLETION_PREVIEW, "SHORT"))
+        }.getOrDefault(CompletionPreview.SHORT),
+        dailyTipsEnabled = prefs.getBoolean(KEY_DAILY_TIPS, true),
+        dailyTipMinuteOfDay = prefs.getInt(KEY_DAILY_TIP_MINUTE, DEFAULT_DAILY_TIP_MINUTE),
+        localNotificationsEnabled = prefs.getBoolean(KEY_LOCAL_NOTIFICATIONS, true),
+        inactivityRemindersEnabled = prefs.getBoolean(KEY_INACTIVITY_REMINDERS, true),
+        inactivityDays = prefs.getInt(KEY_INACTIVITY_DAYS, DEFAULT_INACTIVITY_DAYS),
+        unfinishedChatRemindersEnabled = prefs.getBoolean(KEY_UNFINISHED_REMINDERS, true),
+        routineSuggestionsEnabled = prefs.getBoolean(KEY_ROUTINE_SUGGESTIONS, true),
+        quietHoursEnabled = prefs.getBoolean(KEY_QUIET_HOURS, true),
+        quietHoursStartMinute = prefs.getInt(KEY_QUIET_START, DEFAULT_QUIET_START_MINUTE),
+        quietHoursEndMinute = prefs.getInt(KEY_QUIET_END, DEFAULT_QUIET_END_MINUTE),
+        maxLocalNotificationsPerDay = prefs.getInt(KEY_MAX_LOCAL_PER_DAY, DEFAULT_MAX_LOCAL_NOTIFICATIONS_PER_DAY),
+        notificationsMentionChats = prefs.getBoolean(KEY_MENTION_CHATS, true),
         assistiveBallEnabled = prefs.getBoolean(KEY_ASSISTIVE_BALL, false),
         wakeWordEnabled = prefs.getBoolean(KEY_WAKE_WORD_ENABLED, false),
         wakeWordSensitivity = prefs.getFloat(KEY_WAKE_WORD_SENSITIVITY, 0.75f),
@@ -503,6 +607,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         userBackground = string(KEY_USER_BACKGROUND),
         userResponseStyle = string(KEY_USER_RESPONSE_STYLE),
         preferredLanguage = string(KEY_PREFERRED_LANGUAGE, "English"),
+        voiceLanguage = string(KEY_VOICE_LANGUAGE),
         preferredCurrency = string(KEY_PREFERRED_CURRENCY, "USD"),
         communitySkillHosts = stringSet(KEY_COMMUNITY_SKILL_HOSTS, defaultCommunitySkillHosts),
         legalAcceptedVersion = string(KEY_LEGAL_ACCEPTED_VERSION),
@@ -550,6 +655,20 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
+            .putBoolean(KEY_CHAT_COMPLETION_NOTIFICATIONS, settings.chatCompletionNotificationsEnabled)
+            .putString(KEY_CHAT_COMPLETION_PREVIEW, settings.chatCompletionPreview.name)
+            .putBoolean(KEY_DAILY_TIPS, settings.dailyTipsEnabled)
+            .putInt(KEY_DAILY_TIP_MINUTE, settings.dailyTipMinuteOfDay)
+            .putBoolean(KEY_LOCAL_NOTIFICATIONS, settings.localNotificationsEnabled)
+            .putBoolean(KEY_INACTIVITY_REMINDERS, settings.inactivityRemindersEnabled)
+            .putInt(KEY_INACTIVITY_DAYS, settings.inactivityDays)
+            .putBoolean(KEY_UNFINISHED_REMINDERS, settings.unfinishedChatRemindersEnabled)
+            .putBoolean(KEY_ROUTINE_SUGGESTIONS, settings.routineSuggestionsEnabled)
+            .putBoolean(KEY_QUIET_HOURS, settings.quietHoursEnabled)
+            .putInt(KEY_QUIET_START, settings.quietHoursStartMinute)
+            .putInt(KEY_QUIET_END, settings.quietHoursEndMinute)
+            .putInt(KEY_MAX_LOCAL_PER_DAY, settings.maxLocalNotificationsPerDay)
+            .putBoolean(KEY_MENTION_CHATS, settings.notificationsMentionChats)
             .putBoolean(KEY_ASSISTIVE_BALL, settings.assistiveBallEnabled)
             .putBoolean(KEY_WAKE_WORD_ENABLED, settings.wakeWordEnabled)
             .putFloat(KEY_WAKE_WORD_SENSITIVITY, settings.wakeWordSensitivity)
@@ -575,6 +694,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_USER_BACKGROUND, settings.userBackground)
             .putString(KEY_USER_RESPONSE_STYLE, settings.userResponseStyle)
             .putString(KEY_PREFERRED_LANGUAGE, settings.preferredLanguage)
+            .putString(KEY_VOICE_LANGUAGE, settings.voiceLanguage)
             .putString(KEY_PREFERRED_CURRENCY, settings.preferredCurrency)
             .putStringSet(KEY_COMMUNITY_SKILL_HOSTS, settings.communitySkillHosts)
             .putString(KEY_LEGAL_ACCEPTED_VERSION, settings.legalAcceptedVersion)
@@ -662,6 +782,20 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"
         const val KEY_NOTIFY_CHIME = "notify_chime"
+        const val KEY_CHAT_COMPLETION_NOTIFICATIONS = "chat_completion_notifications"
+        const val KEY_CHAT_COMPLETION_PREVIEW = "chat_completion_preview"
+        const val KEY_DAILY_TIPS = "daily_tips_enabled"
+        const val KEY_DAILY_TIP_MINUTE = "daily_tip_minute_of_day"
+        const val KEY_LOCAL_NOTIFICATIONS = "local_notifications_enabled"
+        const val KEY_INACTIVITY_REMINDERS = "inactivity_reminders_enabled"
+        const val KEY_INACTIVITY_DAYS = "inactivity_days"
+        const val KEY_UNFINISHED_REMINDERS = "unfinished_chat_reminders_enabled"
+        const val KEY_ROUTINE_SUGGESTIONS = "routine_suggestions_enabled"
+        const val KEY_QUIET_HOURS = "quiet_hours_enabled"
+        const val KEY_QUIET_START = "quiet_hours_start_minute"
+        const val KEY_QUIET_END = "quiet_hours_end_minute"
+        const val KEY_MAX_LOCAL_PER_DAY = "max_local_notifications_per_day"
+        const val KEY_MENTION_CHATS = "notifications_mention_chats"
         const val KEY_ASSISTIVE_BALL = "assistive_ball_enabled"
         const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
@@ -690,6 +824,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_USER_BACKGROUND = "user_background"
         const val KEY_USER_RESPONSE_STYLE = "user_response_style"
         const val KEY_PREFERRED_LANGUAGE = "preferred_language"
+        const val KEY_VOICE_LANGUAGE = "voice_language"
         const val KEY_PREFERRED_CURRENCY = "preferred_currency"
         const val KEY_COMMUNITY_SKILL_HOSTS = "community_skill_hosts"
         const val KEY_LEGAL_ACCEPTED_VERSION = "legal_accepted_version"

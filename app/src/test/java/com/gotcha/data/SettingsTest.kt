@@ -1,6 +1,7 @@
 package com.gotcha.data
 
 import com.gotcha.audio.AudioProvider
+import com.gotcha.i18n.Language
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -357,5 +358,29 @@ class SettingsTest {
         val screenOff = WakeWordListeningMode.SCREEN_OFF
         assertFalse(screenOff.allows(screenInteractive = true))
         assertTrue(screenOff.allows(screenInteractive = false))
+    }
+
+    @Test
+    fun `effectiveVoiceLanguage follows the reply language while voiceLanguage is blank`() {
+        val settings = Settings(preferredLanguage = "Hindi", voiceLanguage = "")
+        assertEquals(Language.HINDI, settings.effectiveVoiceLanguage)
+    }
+
+    @Test
+    fun `effectiveVoiceLanguage prefers an explicit voiceLanguage over the reply language`() {
+        val settings = Settings(preferredLanguage = "Hindi", voiceLanguage = "German")
+        assertEquals(Language.GERMAN, settings.effectiveVoiceLanguage)
+    }
+
+    @Test
+    fun `effectiveVoiceLanguage falls back to English when neither value resolves`() {
+        val settings = Settings(preferredLanguage = "Klingon", voiceLanguage = "Sindarin")
+        assertEquals(Language.ENGLISH, settings.effectiveVoiceLanguage)
+    }
+
+    @Test
+    fun `voiceLanguage defaults to blank so existing installs keep todays behaviour`() {
+        assertEquals("", Settings().voiceLanguage)
+        assertEquals(Language.ENGLISH, Settings().effectiveVoiceLanguage)
     }
 }

@@ -15,15 +15,19 @@ import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.llm.withValidToolCallArguments
+import com.gotcha.tools.AccessibilityState
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.GotchaSettingsUpdate
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
+import com.gotcha.tools.liveSettingsCatalog
+import com.gotcha.ui.personaById
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
@@ -32,6 +36,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -60,6 +65,11 @@ class AgentEngine(
     private val clientProvider: () -> LLMClient?,
     /** Persists agent-initiated profile changes; null disables the update_user_profile tool. */
     private val onUpdateUserProfile: (suspend (com.gotcha.tools.ProfileUpdate) -> com.gotcha.tools.ToolResult)? = null,
+    /**
+     * Writes a settings change the user approved and refreshes whatever reads it;
+     * null disables update_gotcha_settings. Only ever called after a confirmation.
+     */
+    private val onUpdateGotchaSettings: (suspend (com.gotcha.tools.SettingsChangePlan) -> ToolResult)? = null,
     private val workingDirRoot: String = GotchaStorage.chatsRoot().absolutePath,
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
@@ -71,6 +81,21 @@ class AgentEngine(
     val history = mutableListOf<ChatMessage>()
     var sessionId: String? = null
     var tokenCount: Int = 0
+
+    /**
+     * True while the bound session is one of the chats seeded on first run.
+     * Carried through every save so a sample the user carries on with stays
+     * labelled as one — its opening exchange is still not something they said.
+     */
+    var sessionIsSample: Boolean = false
+
+    /**
+     * Id of the persona the bound session was started with, or null for a plain
+     * chat. Read by [agentInstructionText] and persisted on every save. Fixed
+     * for the life of a session — the picker is only offered on an empty chat —
+     * so splicing it into the system message keeps index 0 cache-stable.
+     */
+    var sessionPersonaId: String? = null
 
     /**
      * Stable key for the provider's server-side prompt KV cache
@@ -100,6 +125,16 @@ class AgentEngine(
 
     lateinit var toolExecutor: ToolExecutor
         private set
+
+    /** The app named in this request's foreground-control ask, for the "controlling" status. */
+    @Volatile
+    private var foregroundControlApp: String? = null
+
+    /** Asks once per request before Gotcha opens or controls another app (issue #98). */
+    private val foregroundControl = ForegroundControlGate(
+        ask = { name, args -> askForegroundControl(name, args) },
+        onControlStarted = { events.onForegroundControlChanged(true, foregroundControlApp) }
+    )
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -145,6 +180,7 @@ class AgentEngine(
                 }
             },
             onUpdateUserProfile = onUpdateUserProfile,
+            onBeforeTool = { name, args -> foregroundControl.check(name, args) },
             onNavigateApp = { task ->
                 events.onSubAgentUpdate("App Navigation", "starting…")
                 val steps = mutableListOf<SubAgentStepUi>()
@@ -187,10 +223,16 @@ class AgentEngine(
                         appContext.startActivity(launchIntent)
                     }
                 } catch (_: Exception) { }
-                if (!output.success) {
-                    ToolResult.error(output.finalAnswer)
-                } else {
-                    ToolResult.ok("TASK_RESULT:App Navigation:$stepsEncoded\n|||\n${output.finalAnswer}")
+                when {
+                    // Carry the marker out so the host opens the settings screen.
+                    // Dropping it here left the user with prose about a failed
+                    // navigation and no way to act on it (issue #76).
+                    output.needsPermission != null ->
+                        ToolResult.permissionNeeded(output.needsPermission, output.finalAnswer)
+                    !output.success -> ToolResult.error(output.finalAnswer)
+                    else -> ToolResult.ok(
+                        "TASK_RESULT:App Navigation:$stepsEncoded\n|||\n${output.finalAnswer}"
+                    )
                 }
             }
         )
@@ -304,7 +346,9 @@ class AgentEngine(
                 tokenCount = tokenCount,
                 displayMessages = displayMessagesProvider(),
                 agentMode = agentModeProvider()?.name,
-                runSummaries = runSummaries.toList()
+                runSummaries = runSummaries.toList(),
+                isSample = sessionIsSample,
+                personaId = sessionPersonaId
             )
         )
         // Rename the chat dir in place now that the real title is known.
@@ -399,9 +443,27 @@ class AgentEngine(
         }
     }
 
+    /**
+     * Runs one top-level request. The foreground-control answer (issue #98) lives
+     * exactly as long as this call: however the run ends — reply, error, limit
+     * or cancellation — it is forgotten, and if Gotcha had taken control of
+     * another app the host is told that control is over.
+     */
+    suspend fun run(agent: AgentMode) {
+        foregroundControl.reset()
+        try {
+            runLoop(agent)
+        } finally {
+            if (foregroundControl.reset()) {
+                events.onForegroundControlChanged(false, foregroundControlApp)
+            }
+            foregroundControlApp = null
+        }
+    }
+
     // The core agent loop: LLM call → tool dispatch → confirmation gates → repeat.
     @Suppress("CyclomaticComplexMethod", "LongMethod")
-    suspend fun run(agent: AgentMode) {
+    private suspend fun runLoop(agent: AgentMode) {
         val llm = clientProvider() ?: return
         val sessionId = this.sessionId ?: "unknown"
         // KNOWN LIMITATION: WORKING_DIR_BASE is a process-wide global. We
@@ -555,7 +617,7 @@ class AgentEngine(
             var finishSummary: String? = null
             suspend fun executeToolCalls() {
                 for (call in toolCalls) {
-                    val result = when (decision) {
+                    val firstAttempt = when (decision) {
                         ConfirmDecision.APPROVED -> executeCall(call, agent)
                         ConfirmDecision.DENIED ->
                             ToolResult.error("The user declined to run '${call.function.name}'. Do not retry.")
@@ -564,15 +626,14 @@ class AgentEngine(
                                 "Do not retry automatically; tell the user to ask again when ready."
                         )
                     }
-                    recordTool(call, result)
-
-                    // Special-access markers: emit the marker and continue.
-                    // Runtime permissions are pre-configured in Settings — the tool
-                    // already returned an error message with guidance if one is missing.
-                    val perm = result.needsPermission
-                    if (perm != null && perm.startsWith("special:")) {
-                        events.onPermissionRequest(perm)
+                    // A missing permission is asked for here, at the moment the tool
+                    // reached for it, rather than in a burst at first launch.
+                    val result = if (decision == ConfirmDecision.APPROVED) {
+                        resolveMissingPermission(call, agent, firstAttempt)
+                    } else {
+                        firstAttempt
                     }
+                    recordTool(call, result)
 
                     if (result.success && result.message.startsWith("IMAGE_DATA:")) {
                         handleImageResult(call, result)
@@ -607,6 +668,10 @@ class AgentEngine(
                         handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_SEND_EMAIL:")) {
                         handleSendEmailConfirm(call, result)
+                    } else if (result.success &&
+                        result.message.startsWith(GotchaSettingsUpdate.CONFIRM_PREFIX)
+                    ) {
+                        handleSettingsUpdateConfirm(call, result)
                     } else {
                         history += ChatMessage(
                             role = "tool",
@@ -629,10 +694,6 @@ class AgentEngine(
                     // Also saves the raw bytes to the working directory as a file.
                     if (result.success && call.function.name == "read_screen_raw") {
                         injectFullResScreenshot(result)
-                    }
-                    // Special-access markers: emit and continue (no wait needed since they open Settings)
-                    if (perm != null && perm.startsWith("special:")) {
-                        events.onPermissionRequest(perm)
                     }
                 }
             }
@@ -735,6 +796,48 @@ class AgentEngine(
         events.onAssistantReply(exhausted)
         emitRunSummary(exhausted, succeeded = false)
     }
+
+    /**
+     * The one foreground-control ask of a request (issue #98): names the app,
+     * quotes what the user asked for as the reason, and records the answer in
+     * the audit log alongside the other confirmations.
+     */
+    private suspend fun askForegroundControl(toolName: String, args: JsonObject): Boolean {
+        val request = ForegroundControlRequest(
+            toolName = toolName,
+            appLabel = foregroundControlTarget(toolName, args),
+            userRequest = history.lastOrNull { it.role == "user" }?.textContent.orEmpty(),
+            task = if (toolName == "navigate_app") args["task"]?.jsonPrimitive?.contentOrNull else null
+        )
+        foregroundControlApp = request.appLabel
+        val allowed = events.awaitForegroundControl(request)
+        toolExecutor.actionLog.record(
+            "foreground_control",
+            "$toolName ${request.appLabel.orEmpty()}".trim(),
+            if (allowed) ToolResult.ok("Allowed for this request") else ToolResult.error("Denied")
+        )
+        return allowed
+    }
+
+    /**
+     * The app a foreground-control tool is about to open or act on: the one
+     * open_app names, Settings for open_setting, otherwise whatever is on
+     * screen. Null for navigate_app, which only knows its task, and when the
+     * app on screen is Gotcha itself.
+     */
+    private fun foregroundControlTarget(toolName: String, args: JsonObject): String? = when (toolName) {
+        "open_app" -> args["package_name"]?.jsonPrimitive?.contentOrNull?.let { appLabel(it) ?: it }
+        "open_setting" -> "Settings"
+        "navigate_app" -> null
+        else -> com.gotcha.service.GotchaAccessibilityService.instance?.activeAppPackage()
+            ?.takeIf { it != appContext.packageName }
+            ?.let { appLabel(it) ?: it }
+    }
+
+    private fun appLabel(packageName: String): String? = runCatching {
+        val pm = appContext.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+    }.getOrNull()
 
     /**
      * Sensitive-action confirmation is disabled. Permissions are pre-configured
@@ -915,6 +1018,61 @@ class AgentEngine(
         }
     }
 
+    /**
+     * Handles a tool result prefixed with CONFIRM_UPDATE_SETTINGS:base64(request).
+     *
+     * Every call asks — an earlier approval never carries over to the next change
+     * (issue #99). The dialog shows each setting's current and requested value and
+     * what the change touches; nothing is written unless the user allows it.
+     */
+    private suspend fun handleSettingsUpdateConfirm(call: ToolCall, result: ToolResult) {
+        val handler = onUpdateGotchaSettings
+        // A refusal is the user's answer, not a failure — show it like the other declines.
+        var declined = false
+        val request = GotchaSettingsUpdate.decodePayload(
+            result.message.removePrefix(GotchaSettingsUpdate.CONFIRM_PREFIX),
+            liveSettingsCatalog()
+        )
+        val outcome = when {
+            handler == null -> ToolResult.error("Changing Gotcha settings is not available here.")
+            request == null -> ToolResult.error("Failed to read the settings request. Nothing was changed.")
+            else -> {
+                val plan = GotchaSettingsUpdate.plan(request.changes, settingsProvider())
+                if (plan.changes.isEmpty()) {
+                    ToolResult.ok("No change — those settings already have the requested values.")
+                } else {
+                    val approved = events.awaitConfirmation(
+                        listOf("update_gotcha_settings"),
+                        GotchaSettingsUpdate.describe(plan, request.reason)
+                    )
+                    val decided = if (approved) {
+                        handler(plan)
+                    } else {
+                        declined = true
+                        ToolResult.error(
+                            "The user declined the settings change; nothing was changed. " +
+                                "Do not retry unless the user asks again."
+                        )
+                    }
+                    // The call itself was logged when it returned its marker; this entry says
+                    // what was asked for and the answer. Values are safe to log in full —
+                    // no credential is on the allowlist.
+                    toolExecutor.actionLog.record(
+                        "update_gotcha_settings",
+                        (if (approved) "(approved) " else "(denied) ") + plan.lines().joinToString("; "),
+                        decided
+                    )
+                    decided
+                }
+            }
+        }
+        history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)
+        events.onUi(
+            if (outcome.success || declined) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: ${outcome.message}"
+        )
+    }
+
     private suspend fun handleDeleteConfirm(confirmPrefix: String, kind: String, call: ToolCall, result: ToolResult) {
         val body = result.message.removePrefix(confirmPrefix)
         val parts = body.split(":", limit = 2)
@@ -986,6 +1144,35 @@ class AgentEngine(
             ),
             toolCallId = call.id
         )
+    }
+
+    /**
+     * Handles a tool result that failed for want of a permission, at the moment
+     * the tool reached for it (issue #79 — permissions used to be demanded in a
+     * burst at first launch, before the user had asked for anything).
+     *
+     * The two kinds of permission are answered differently. A special access
+     * ("special:*") lives on a Settings screen the host deep-links to; there is
+     * no result to wait for, so the marker is emitted and the tool's own error
+     * message stands as this turn's answer. A runtime permission can be granted
+     * then and there, so the host is asked to explain and request it, and the
+     * call is retried once when the user allows it — otherwise a grant would
+     * land a beat too late, after the model had already been told it failed.
+     *
+     * Anything other than a grant (declined, no Activity to ask from, a host
+     * that cannot ask at all) returns [result] untouched.
+     */
+    private suspend fun resolveMissingPermission(
+        call: ToolCall,
+        agent: AgentMode,
+        result: ToolResult
+    ): ToolResult {
+        val permission = result.needsPermission ?: return result
+        if (permission.startsWith("special:")) {
+            events.onPermissionRequest(permission)
+            return result
+        }
+        return if (events.awaitPermissionGrant(permission)) executeCall(call, agent) else result
     }
 
     private suspend fun executeCall(call: ToolCall, agent: AgentMode): ToolResult {
@@ -1088,6 +1275,18 @@ class AgentEngine(
                     "mode restrictions below, or with a format a tool requires."
             }
             .orEmpty()
+        // The role the user picked for this chat (home screen ▸ Persona). It
+        // sits ahead of the reply-style directive so the user's own words about
+        // how they want to be answered win on a conflict, and ahead of the mode
+        // <system-reminder>, which stays the last word on what may be done.
+        val personaDirective = personaById(sessionPersonaId)
+            ?.let {
+                "\n\nFor this conversation the user has chosen the ${it.label} persona:\n" +
+                    "${it.systemPrompt}\n" +
+                    "Adopt that role's voice and expertise. It never overrides a safety constraint, " +
+                    "the mode restrictions below, or a format a tool requires."
+            }
+            .orEmpty()
         // Default to HTML-on-port when the user wants something built but did not
         // say how to run it — make it runnable on this phone without a follow-up.
         // Operator-only and suppressed in voice-call brevity mode. The skill
@@ -1138,7 +1337,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return core + serveDirective + languageDirective + styleDirective + reminder
+        return core + serveDirective + languageDirective + personaDirective + styleDirective + reminder
     }
 
     /** The Monitor-mode core instruction block; split out so [agentInstructionText] stays readable. */
@@ -1234,7 +1433,7 @@ class AgentEngine(
 
         // Same probes that decide tool exposure, so the status the model reads can
         // never disagree with the tools it was offered.
-        val accEnabled = DeviceCapabilities.accessibilityEnabled(app)
+        val accState = DeviceCapabilities.accessibilityState(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
         val termux = com.gotcha.tools.TermuxTool(app).status()
@@ -1256,7 +1455,22 @@ class AgentEngine(
                 "  Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})"
             )
             appendLine("  Active agent: ${agent.name}")
-            appendLine("  Accessibility service enabled: ${if (accEnabled) "yes" else "no"}")
+            // Three states, not two: "switched on but not bound" needs different
+            // advice from "switched off", and telling a user to enable something
+            // already enabled is the wrong-error half of issue #76.
+            appendLine(
+                when (accState) {
+                    AccessibilityState.AVAILABLE -> "  Accessibility service: enabled and running"
+                    AccessibilityState.ENABLED_BUT_NOT_BOUND ->
+                        "  Accessibility service: switched on but NOT running, so every tool that " +
+                            "needs it is withheld. Tell the user to toggle Gotcha off and on in " +
+                            "Settings ▸ Accessibility; do not tell them to enable it, it is already on."
+                    AccessibilityState.OFF ->
+                        "  Accessibility service: off (so screen reading, tapping, typing and " +
+                            "navigate_app are all unavailable — tell the user to enable Gotcha in " +
+                            "Settings ▸ Accessibility)"
+                }
+            )
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
             // run_termux_command is withheld unless Termux is installed, and refuses until its
@@ -1362,7 +1576,7 @@ class AgentEngine(
             fact("Location", s.userLocation)
             fact("Occupation", s.userOccupation)
             fact("Background", s.userBackground)
-            fact("Preferred language", s.preferredLanguage)
+            fact("Reply language", s.preferredLanguage)
             fact("Preferred currency", s.preferredCurrency)
         }
         return buildString {

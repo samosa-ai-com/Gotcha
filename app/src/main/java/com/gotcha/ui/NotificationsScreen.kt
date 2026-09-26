@@ -1,11 +1,23 @@
 package com.gotcha.ui
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,19 +25,25 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.gotcha.BuildConfig
 import com.gotcha.audio.CompletionFeedback
+import com.gotcha.data.CompletionPreview
 import com.gotcha.data.Settings
+import com.gotcha.notifications.ChatCompletionNotifier
 import kotlinx.coroutines.launch
+import android.provider.Settings as AndroidSettings
 
 /**
  * The Notifications page: what the phone does the moment a reply arrives
- * (vibration/chime) plus server-driven messages from the Samosa team
- * (updates, tips, maintenance).
+ * (vibration/chime), the task-finished notification, Gotcha's own reminders
+ * and tips ([LocalNotificationsSection]), and server-driven messages from the Samosa team (updates, tips, maintenance).
  *
  * The vibration/chime page has no Save button, and deliberately so —
  * switching one on plays it once, which is the whole point. A preview that
@@ -42,13 +60,23 @@ fun NotificationsScreen(
     val initial = remember { load() }
     var notifyVibration by remember { mutableStateOf(initial.notifyVibrationEnabled) }
     var notifyChime by remember { mutableStateOf(initial.notifyChimeEnabled) }
+    var taskFinished by remember { mutableStateOf(initial.chatCompletionNotificationsEnabled) }
+    var taskPreview by remember { mutableStateOf(initial.chatCompletionPreview) }
     var serverMessagesEnabled by remember { mutableStateOf(initial.serverMessagesEnabled) }
     var lastFetched by remember { mutableStateOf(initial.serverMessagesLastFetchedAt) }
     var isSyncing by remember { mutableStateOf(false) }
 
     val overlay = rememberSettingsOverlayState()
     val localContext = LocalContext.current
+    // Re-read after the permission prompt, so the "blocked" note clears on a grant.
+    var canPost by remember { mutableStateOf(ChatCompletionNotifier(localContext).canPost()) }
     val scope = rememberCoroutineScope()
+
+    // Asked for when server messages are switched on, not at first launch —
+    // a notification permission is only meaningful once something wants to post.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { canPost = ChatCompletionNotifier(localContext).canPost() }
 
     // Sync only when the user toggles server messages ON, not on the
     // initial composition — `onResume` already covers the first-arrival case.
@@ -91,6 +119,77 @@ fun NotificationsScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
+            "Task finished",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            "A notification when a chat task finishes while you are in another app. " +
+                "Tap it to open that chat. On the lock screen it only says a task finished.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        SettingsToggleRow(
+            label = "Notify when a task finishes",
+            checked = taskFinished,
+            onCheckedChange = {
+                taskFinished = it
+                onSave { s -> s.copy(chatCompletionNotificationsEnabled = it) }
+                if (it && !canPost && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            isLarge = true,
+            switchTestTag = "settings_task_finished_enabled"
+        )
+        if (taskFinished) {
+            Text("Show the reply", style = MaterialTheme.typography.bodyMedium)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .testTag("settings_task_finished_preview")
+            ) {
+                CompletionPreview.entries.forEach { preview ->
+                    CompletionPreviewRow(
+                        preview = preview,
+                        selected = taskPreview == preview,
+                        onSelect = {
+                            taskPreview = preview
+                            onSave { s -> s.copy(chatCompletionPreview = preview) }
+                        }
+                    )
+                }
+            }
+            if (!canPost) {
+                Text(
+                    "Notifications are blocked for Gotcha, so none will be shown.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(
+                    onClick = {
+                        localContext.startActivity(
+                            Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, localContext.packageName)
+                        )
+                    }
+                ) { Text("Open notification settings") }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        LocalNotificationsSection(
+            initial = initial,
+            onSave = onSave,
+            canPost = canPost,
+            requestPermission = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text(
             "Server messages",
             style = MaterialTheme.typography.titleMedium
         )
@@ -106,6 +205,16 @@ fun NotificationsScreen(
             onCheckedChange = {
                 serverMessagesEnabled = it
                 onSave { s -> s.copy(serverMessagesEnabled = it) }
+                // The one moment the permission is actually needed: a message
+                // that can't be posted is a setting that silently does nothing.
+                if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        localContext,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
             },
             isLarge = true,
             switchTestTag = "settings_server_messages_enabled"
@@ -128,6 +237,37 @@ fun NotificationsScreen(
         Text(
             "Last synced: ${formatRelative(lastFetched)}",
             style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+/** One selectable row of the "Show the reply" group. */
+@Composable
+private fun CompletionPreviewRow(
+    preview: CompletionPreview,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    val (label, summary) = when (preview) {
+        CompletionPreview.NONE -> "Don't show it" to "Only the chat's name and whether the task finished."
+        CompletionPreview.SHORT -> "A short preview" to "The first line or two of the reply."
+        CompletionPreview.FULL -> "The whole reply" to "Expand the notification to read all of it."
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .testTag("settings_task_finished_preview_${preview.name.lowercase()}")
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = selected, onClick = null)
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            summary,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 40.dp, bottom = 4.dp)
         )
     }
 }

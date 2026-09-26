@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.net.VpnService
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -50,24 +49,39 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.data.computeFeedbackStats
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.notifications.InboxEntry
+import com.gotcha.notifications.LocalNotificationScheduler
+import com.gotcha.notifications.LocalNotificationStore
+import com.gotcha.notifications.LocalNotifier
+import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationDispatcher
 import com.gotcha.notifications.NotificationPayload
+import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.ServerMessages
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
+import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatScreen
+import com.gotcha.ui.ChatTransferDialogs
 import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
+import com.gotcha.ui.InboxScreen
 import com.gotcha.ui.NotificationDetailDialog
+import com.gotcha.ui.PermissionAsk
+import com.gotcha.ui.PermissionBlockedDialog
+import com.gotcha.ui.PermissionRationaleDialog
 import com.gotcha.ui.ReferralInviteDialog
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
+import com.gotcha.ui.rememberChatTransfer
+import com.gotcha.ui.runtimePermissionAsk
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -84,7 +98,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS }
+enum class Route { HOME, SETTINGS, CONNECTORS, INBOX }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -96,6 +110,7 @@ private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean):
     route == Route.HOME -> TourPlace.CHAT
     route == Route.SETTINGS -> when (page) {
         null -> TourPlace.SETTINGS_HOME
+        SettingsPage.AI -> TourPlace.AI_HUB
         SettingsPage.AI_CONFIG -> TourPlace.AI_CONFIG
         SettingsPage.PERMISSIONS -> TourPlace.PERMISSIONS
         SettingsPage.PERSONAL_INFO -> TourPlace.PERSONAL_INFO
@@ -108,12 +123,13 @@ private fun tourPlaceOf(route: Route, page: SettingsPage?, drawerOpen: Boolean):
 private fun routeForTourPlace(place: TourPlace): Pair<Route, SettingsPage?> = when (place) {
     TourPlace.CHAT, TourPlace.CHAT_DRAWER -> Route.HOME to null
     TourPlace.SETTINGS_HOME -> Route.SETTINGS to null
+    TourPlace.AI_HUB -> Route.SETTINGS to SettingsPage.AI
     TourPlace.AI_CONFIG -> Route.SETTINGS to SettingsPage.AI_CONFIG
     TourPlace.PERMISSIONS -> Route.SETTINGS to SettingsPage.PERMISSIONS
     TourPlace.PERSONAL_INFO -> Route.SETTINGS to SettingsPage.PERSONAL_INFO
 }
 
-@Suppress("LargeClass")
+@Suppress("LargeClass", "TooManyFunctions")
 class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
@@ -125,6 +141,19 @@ class MainActivity : ComponentActivity() {
 
     /** Set when launched from the assistive ball's "Open Chat" option. */
     private var openChatRequested by mutableStateOf(false)
+
+    /** Chat to open, set when a task-finished notification is tapped (issue #97). */
+    private var openSessionRequested by mutableStateOf<String?>(null)
+
+    /**
+     * Prompt and mode a new chat should open with, set when a notification
+     * offering one is tapped: a daily tip (issue #101) or a routine (#100).
+     */
+    private var openDraftRequested by mutableStateOf<NotificationTarget.Draft?>(null)
+
+    /** Gotcha's own notification history: the inbox, its unread count, per-chat privacy (issue #100). */
+    private val localNotificationStore by lazy { LocalNotificationStore(applicationContext) }
+    private var inboxUnread by mutableStateOf(0)
 
     /** Set when brought to front by the assistive ball (Operator-origin chats). */
     private var openedFromBall by mutableStateOf(false)
@@ -157,6 +186,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun Settings.appearance() = Appearance(skinId = skinId)
+
+    /**
+     * Repaints when the skin is written from outside the Appearance screen — the
+     * assistant's update_gotcha_settings (issue #99) — without a restart. Held in a
+     * field: SharedPreferences keeps listeners weakly.
+     */
+    private val appearanceListener =
+        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> syncAppearance() }
+
+    private fun syncAppearance() {
+        val latest = settingsRepository.load().appearance()
+        if (latest != appearance) {
+            appearance = latest
+            applyLaunchBackground()
+        }
+    }
 
     /** MediaProjection consent result — stores intent for screenshot capture. */
     private val mediaProjectionLauncher =
@@ -216,10 +261,40 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-    /** Requests all runtime permissions at once on first launch. */
-    private val firstLaunchLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
-            // No action needed; the Settings screen shows live permission state.
+    /** A permission Android will no longer prompt for; the user has to re-grant it in Settings. */
+    private var blockedPermissionAsk by mutableStateOf<PermissionAsk?>(null)
+
+    /** The permission [runtimePermissionLauncher] is currently resolving. */
+    private var requestedPermission: PermissionAsk? = null
+
+    /**
+     * On-demand runtime permission, requested the moment a tool needs it (issue
+     * #79). The engine is waiting on the answer through
+     * [ChatViewModel.onPermissionResult] and retries the tool call on a grant,
+     * so every path out of here — granted, denied, permanently denied — has to
+     * answer exactly once.
+     */
+    private val runtimePermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val ask = requestedPermission
+            requestedPermission = null
+            chatViewModel.onPermissionResult(granted)
+            // Two denials (or a denial in Settings) and Android stops showing the
+            // dialog at all: the request returns instantly and the user is left
+            // wondering why nothing happened. Say where the switch lives instead.
+            if (!granted && ask != null && !shouldShowRequestPermissionRationale(ask.permission)) {
+                blockedPermissionAsk = ask
+            }
+        }
+
+    /**
+     * The one-time notification ask raised when a request is sent (issue #97).
+     * Unlike [runtimePermissionLauncher] nothing waits on it: a denial only
+     * means the task-finished notification stays off.
+     */
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            chatViewModel.onNotificationPermissionResult(granted)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -234,9 +309,16 @@ class MainActivity : ComponentActivity() {
         openedFromBall = intent?.getBooleanExtra(EXTRA_FROM_ASSISTIVE_BALL, false) == true
         handleNotificationIntent(intent)
 
-        // Phase 7: tools report special-access markers; open Settings deep-links.
-        // Runtime permissions are no longer requested here — they are pre-configured
-        // in Settings → Permissions or auto-requested on first launch.
+        // A fresh install has had no boot or update broadcast yet, so the
+        // notification alarms are armed here too. Re-arming is idempotent.
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { LocalNotificationScheduler.scheduleAll(applicationContext) }
+        }
+
+        // Tools report what they need the moment they need it. A special-access
+        // marker opens the Settings screen that grants it; a runtime permission
+        // travels through the view model instead, as a pending ask the dialog in
+        // GotchaApp answers.
         lifecycleScope.launch {
             chatViewModel.permissionRequests.collect { permission ->
                 handlePermissionRequest(permission)
@@ -255,19 +337,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Auto-request runtime permissions on first launch
-        lifecycleScope.launch {
-            val prefs = settingsRepository.prefs
-            if (!prefs.getBoolean(KEY_FIRST_LAUNCH_DONE, false)) {
-                requestAllRuntimePermissions()
-                prefs.edit().putBoolean(KEY_FIRST_LAUNCH_DONE, true).apply()
-            }
-            // MediaProjection consent is deliberately NOT requested here. The token
-            // dies with the process and is single-use on API 34, so prompting at
-            // launch would re-fire the system dialog on every cold start for a
-            // capability the user hasn't asked for yet. It is requested on demand
-            // instead — see the "special:screenshot_consent" branch below.
-        }
+        // Nothing is requested at launch. Every runtime permission is asked for
+        // at the moment a tool reaches for it, with a sentence saying why, and
+        // can be pre-granted or taken back in Settings › Permissions. The
+        // MediaProjection token is on demand for a second reason: it dies with
+        // the process and is single-use on API 34, so a launch-time prompt would
+        // re-fire on every cold start — see "special:screenshot_consent" below.
 
         appearance = settingsRepository.load().appearance()
         applyLaunchBackground()
@@ -304,7 +379,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Opens the matching special-access Settings screen for a tool-reported marker. */
+    /**
+     * Opens the system screen that grants the special access a tool reported.
+     * Runtime permissions do not come through here — they are asked for in
+     * place, from the rationale dialog mounted in [GotchaApp].
+     */
     private fun handlePermissionRequest(permission: String) {
         when (permission) {
             ToolResult.WRITE_SETTINGS -> startActivity(
@@ -366,8 +445,30 @@ class MainActivity : ComponentActivity() {
             }
             ToolResult.HEALTH_CONNECT -> requestHealthConnect()
             ToolResult.TERMUX_ACCESS -> requestTermuxAccess()
-            // Runtime permissions are mapped in Settings → Permissions; skip here.
+            // Runtime permissions don't arrive here: they come through
+            // ChatViewModel's pendingPermission, which the dialog below reads,
+            // so the ask survives a rotation while it is on screen.
+            else -> Unit
         }
+    }
+
+    /** "Continue" on the rationale dialog: raise the system prompt for [ask]. */
+    private fun requestRuntimePermission(ask: PermissionAsk) {
+        // Already granted (the user may have switched it on in Settings while the
+        // dialog sat there): answer straight away, no system prompt needed.
+        if (ContextCompat.checkSelfPermission(this, ask.permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            chatViewModel.onPermissionResult(true)
+            return
+        }
+        requestedPermission = ask
+        runtimePermissionLauncher.launch(ask.permission)
+    }
+
+    /** "Not now": the tool's own error message stands, and nothing is asked again this turn. */
+    private fun declineRuntimePermission() {
+        chatViewModel.onPermissionResult(false)
     }
 
     /**
@@ -433,6 +534,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
+        intent?.getStringExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)?.let { id ->
+            openSessionRequested = id
+            // Consumed: a later recreation must not reopen this chat over the user's choice.
+            intent.removeExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)
+        }
+        intent?.getStringExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)?.let { prompt ->
+            val mode = runCatching {
+                AgentMode.valueOf(intent.getStringExtra(LocalNotifier.EXTRA_DRAFT_MODE).orEmpty())
+            }.getOrDefault(AgentMode.MONITOR)
+            openDraftRequested = NotificationTarget.Draft(prompt, mode)
+            // Consumed, as above: a recreation must not open another chat.
+            intent.removeExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)
+        }
+        intent?.getStringExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)?.let { entryId ->
+            intent.removeExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)
+            lifecycleScope.launch(Dispatchers.IO) {
+                localNotificationStore.markRead(entryId)
+                inboxUnread = localNotificationStore.unreadCount()
+            }
+        }
         val title = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_TITLE)
         val body = intent?.getStringExtra(NotificationDispatcher.EXTRA_NOTIFICATION_BODY)
         if (!title.isNullOrBlank() || !body.isNullOrBlank()) {
@@ -453,10 +574,36 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         chatViewModel.setForeground(true)
+        // Catch up on a change made while stopped, then follow later ones.
+        syncAppearance()
+        com.gotcha.data.settingsChangeNotifier(this).registerOnSharedPreferenceChangeListener(appearanceListener)
+    }
+
+    /**
+     * Goes where an inbox entry points (issue #100): its chat, a new chat with
+     * its prompt drafted, or home. A server message reopens in the same dialog
+     * its system notification opens.
+     */
+    private fun openInboxEntry(entry: InboxEntry, goTo: (Route) -> Unit) {
+        goTo(Route.HOME)
+        if (entry.categoryOrNull == NotificationCategory.SERVER) {
+            notificationPayload = NotificationPayload(id = -1, title = entry.title, body = entry.body, url = entry.url)
+            return
+        }
+        when (val target = entry.target) {
+            is NotificationTarget.Chat -> openSessionRequested = target.sessionId
+            is NotificationTarget.Draft -> openDraftRequested = target
+            NotificationTarget.Home -> Unit
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        // What the inactivity reminder counts from, and the inbox badge (issue #100).
+        lifecycleScope.launch(Dispatchers.IO) {
+            localNotificationStore.setLastOpenedAt(System.currentTimeMillis())
+            inboxUnread = localNotificationStore.unreadCount()
+        }
         // Server-driven notifications — fetch fresh if the cached value is
         // older than 6h. The dispatcher itself no-ops when the user has the
         // toggle off, so calling it on every resume is safe.
@@ -551,6 +698,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         chatViewModel.setForeground(false)
+        com.gotcha.data.settingsChangeNotifier(this).unregisterOnSharedPreferenceChangeListener(appearanceListener)
     }
 
     @Composable
@@ -558,6 +706,8 @@ class MainActivity : ComponentActivity() {
         val state by chatViewModel.uiState.collectAsState()
         val sessions by chatViewModel.sessions.collectAsState()
         val liveTokenBySession by chatViewModel.liveTokenBySession.collectAsState()
+        val chatTransferState by chatViewModel.chatTransfer.collectAsState()
+        val chatTransfer = rememberChatTransfer(chatViewModel)
 
         val initial = remember { settingsRepository.load() }
 
@@ -572,6 +722,12 @@ class MainActivity : ComponentActivity() {
         var settingsPage by rememberSaveable {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
+        // The field a settings search result opened settingsPage on. Only that
+        // tap sets it; every other way of changing page clears it, so it can't
+        // outlive the visit it was meant for. Deliberately not saveable: after a
+        // rotation the page is back where it was, and a replayed highlight would
+        // point at something the user has already been shown.
+        var settingsHighlight by remember { mutableStateOf<String?>(null) }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         var showFeedbackSheet by remember { mutableStateOf(false) }
         var showReferralInviteDialog by remember { mutableStateOf(false) }
@@ -585,6 +741,7 @@ class MainActivity : ComponentActivity() {
             val (route, page) = routeForTourPlace(place)
             currentRoute = route
             settingsPage = page
+            settingsHighlight = null
             scope.launch {
                 if (place == TourPlace.CHAT_DRAWER) drawerState.open() else drawerState.close()
             }
@@ -616,6 +773,24 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(Unit) {
             AssistiveBallService.isRunning.collect { running ->
                 assistiveBallOn = running
+            }
+        }
+
+        // A tapped task-finished notification: show exactly that chat.
+        LaunchedEffect(openSessionRequested) {
+            openSessionRequested?.let { id ->
+                currentRoute = Route.HOME
+                chatViewModel.openSessionFromNotification(id)
+                openSessionRequested = null
+            }
+        }
+
+        // A tapped daily tip: a new chat, in the tip's mode, with its prompt drafted.
+        LaunchedEffect(openDraftRequested) {
+            openDraftRequested?.let { draft ->
+                currentRoute = Route.HOME
+                chatViewModel.startChatFromTip(draft.prompt, draft.mode)
+                openDraftRequested = null
             }
         }
 
@@ -663,6 +838,14 @@ class MainActivity : ComponentActivity() {
                     onOpenConnectors = {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.CONNECTORS
+                    },
+                    onImportChats = {
+                        scope.launch { drawerState.close() }
+                        chatTransfer.startImport()
+                    },
+                    onBackupAllChats = {
+                        scope.launch { drawerState.close() }
+                        chatTransfer.startBackupAll()
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -803,7 +986,29 @@ class MainActivity : ComponentActivity() {
                         onStartTour = { startTour() },
                         onSendFeedback = { showFeedbackSheet = true },
                         page = settingsPage,
-                        onPageChange = { settingsPage = it }
+                        onPageChange = {
+                            settingsPage = it
+                            settingsHighlight = null
+                        },
+                        highlightField = settingsHighlight,
+                        onHighlightConsumed = { settingsHighlight = null },
+                        onOpenSearchResult = { page, field ->
+                            settingsPage = page
+                            settingsHighlight = field
+                        }
+                    )
+                }
+                Route.INBOX -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    InboxScreen(
+                        load = { localNotificationStore.entries() },
+                        onOpened = {
+                            localNotificationStore.markAllRead()
+                            inboxUnread = 0
+                        },
+                        onClear = { localNotificationStore.clearHistory() },
+                        onOpenEntry = { entry -> openInboxEntry(entry) { currentRoute = it } },
+                        onBack = { currentRoute = Route.HOME }
                     )
                 }
                 Route.CONNECTORS -> {
@@ -823,34 +1028,53 @@ class MainActivity : ComponentActivity() {
                     BackHandler(enabled = state.messages.isNotEmpty() && !state.isBusy) {
                         chatViewModel.openSession(null)
                     }
+                    // Bumped when the user flips the switch, so the menu re-reads it.
+                    var privacyVersion by remember { mutableStateOf(0) }
+                    val chatKeptOut = remember(state.activeSessionId, state.activePersonaId, privacyVersion) {
+                        state.activeSessionId
+                            ?.let { chatViewModel.isChatKeptOutOfNotifications(it, state.activePersonaId) }
+                            ?: false
+                    }
                     ChatScreen(
                         state = state,
-                        onSend = { text, imageBase64, attachment, isVoiceInput ->
-                            chatViewModel.sendMessage(text, imageBase64, attachment, isVoiceInput)
+                        onSend = { text, attachments, isVoiceInput ->
+                            chatViewModel.sendMessage(text, attachments, isVoiceInput)
                         },
                         onStop = chatViewModel::stopAgent,
                         onConfirm = chatViewModel::confirmPendingActions,
                         onAnswer = chatViewModel::submitAnswer,
+                        onAnswerForegroundControl = chatViewModel::answerForegroundControl,
                         onOpenDrawer = { scope.launch { drawerState.open() } },
                         onOpenSettings = { currentRoute = Route.SETTINGS },
                         sessionTitle = sessions.firstOrNull { it.id == state.activeSessionId }?.title,
-                        onPickFile = chatViewModel::pickContent,
-                        pickResults = chatViewModel.pickResults,
+                        onPickFiles = chatViewModel::addAttachments,
+                        onRemoveAttachment = chatViewModel::removeAttachment,
+                        onSetAttachments = chatViewModel::setAttachments,
                         onSwitchAgent = chatViewModel::switchAgent,
                         onSetAgent = chatViewModel::setAgent,
+                        onSetPersona = chatViewModel::setPersona,
+                        unreadNotifications = inboxUnread,
+                        onOpenInbox = { currentRoute = Route.INBOX },
+                        chatKeptOutOfNotifications = chatKeptOut,
+                        onSetChatKeptOutOfNotifications = { keptOut ->
+                            state.activeSessionId?.let { chatViewModel.setChatKeptOutOfNotifications(it, keptOut) }
+                            privacyVersion++
+                        },
+                        onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
                         onStartListening = chatViewModel::startListening,
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
+                        onBackupChat = { state.activeSessionId?.let(chatTransfer::startBackup) },
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },
                         onCreateShareCard = {
                             sharePoster.open(chatViewModel.activeSessionRunSummaries())
                         },
-                        onEditMessage = { id, text, imageBase64, attachment ->
-                            chatViewModel.editMessage(id, text, imageBase64, attachment)
+                        onEditMessage = { id, text, attachments ->
+                            chatViewModel.editMessage(id, text, attachments)
                         },
                         onRevertMessage = { id -> chatViewModel.revertTo(id) }
                     )
@@ -876,6 +1100,13 @@ class MainActivity : ComponentActivity() {
                 onDismiss = { notificationPayload = null }
             )
         }
+
+        ChatTransferDialogs(
+            controller = chatTransfer,
+            state = chatTransferState,
+            onConfirmImport = chatViewModel::confirmImport,
+            onDismiss = chatViewModel::dismissChatTransfer
+        )
 
         sharePoster.runs?.let { runs ->
             SharePosterSheet(
@@ -949,6 +1180,36 @@ class MainActivity : ComponentActivity() {
                     showReferralInviteDialog = false
                     referralClaimError = null
                 }
+            )
+        }
+
+        // A tool just reached for a permission it doesn't have. Shown over
+        // whatever screen the user is on, for as long as the engine is waiting
+        // on the answer — including across a rotation, since the ask lives in
+        // the view model rather than here.
+        state.pendingPermission?.let { permission ->
+            val ask = remember(permission) { runtimePermissionAsk(permission) }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = { requestRuntimePermission(ask) },
+                onDeny = { declineRuntimePermission() }
+            )
+        }
+
+        if (state.askNotificationPermission) {
+            val ask = remember { runtimePermissionAsk(android.Manifest.permission.POST_NOTIFICATIONS) }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = { notificationPermissionLauncher.launch(ask.permission) },
+                onDeny = { chatViewModel.onNotificationPermissionResult(false) }
+            )
+        }
+
+        blockedPermissionAsk?.let { ask ->
+            PermissionBlockedDialog(
+                ask = ask,
+                packageName = packageName,
+                onDismiss = { blockedPermissionAsk = null }
             )
         }
 
@@ -1031,9 +1292,6 @@ class MainActivity : ComponentActivity() {
         /** Intent extra: brought to front by the assistive ball (Operator-origin). */
         const val EXTRA_FROM_ASSISTIVE_BALL = "com.gotcha.FROM_ASSISTIVE_BALL"
 
-        /** SharedPreferences key to track first-launch permission setup. */
-        const val KEY_FIRST_LAUNCH_DONE = "first_launch_setup_done"
-
         /**
          * SharedPreferences key: when true, skip the on-demand MediaProjection consent
          * prompt so instrumentation never faces the system dialog (test-only).
@@ -1044,27 +1302,5 @@ class MainActivity : ComponentActivity() {
         @Volatile
         var lifecycleOwner: androidx.lifecycle.LifecycleOwner? = null
             private set
-    }
-
-    /** Request all runtime permissions the app needs on first launch. */
-    private fun requestAllRuntimePermissions() {
-        val perms = mutableListOf<String>().apply {
-            add(android.Manifest.permission.CAMERA)
-            add(android.Manifest.permission.RECORD_AUDIO)
-            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            add(android.Manifest.permission.CALL_PHONE)
-            add(android.Manifest.permission.SEND_SMS)
-            add(android.Manifest.permission.READ_SMS)
-            add(android.Manifest.permission.READ_CALL_LOG)
-            add(android.Manifest.permission.READ_CONTACTS)
-            add(android.Manifest.permission.WRITE_CONTACTS)
-            add(android.Manifest.permission.READ_CALENDAR)
-            add(android.Manifest.permission.WRITE_CALENDAR)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(android.Manifest.permission.POST_NOTIFICATIONS)
-                add(android.Manifest.permission.READ_MEDIA_IMAGES)
-            }
-        }
-        firstLaunchLauncher.launch(perms.toTypedArray())
     }
 }
