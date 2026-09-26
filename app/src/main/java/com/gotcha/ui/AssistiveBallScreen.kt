@@ -187,7 +187,7 @@ fun AssistiveBallScreen(
                 valueRange = 0f..1f,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("settings_wake_word_sensitivity")
+                    .settingsField("settings_wake_word_sensitivity")
                     .semantics {
                         contentDescription = "Wake word sensitivity ${(wakeWordSensitivity * 100).toInt()} percent"
                     }

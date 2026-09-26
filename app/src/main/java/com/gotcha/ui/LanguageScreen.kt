@@ -115,7 +115,7 @@ fun LanguageScreen(
             onClick = { openLanguageSettings(localContext) },
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("settings_open_app_locale")
+                .settingsField("settings_open_app_locale")
         ) { Text("Open Android language settings") }
 
         HorizontalDivider(thickness = 1.dp)
@@ -148,7 +148,7 @@ fun LanguageScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
-                    .testTag("settings_voice_language")
+                    .settingsField("settings_voice_language")
             )
             SkinExposedDropdownMenu(
                 expanded = voiceExpanded,
@@ -262,7 +262,7 @@ fun LanguageScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
-                    .testTag("settings_reply_language")
+                    .settingsField("settings_reply_language")
             )
             SkinExposedDropdownMenu(
                 expanded = replyExpanded,

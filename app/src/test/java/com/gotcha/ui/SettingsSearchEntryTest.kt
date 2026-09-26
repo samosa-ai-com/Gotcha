@@ -1,6 +1,7 @@
 package com.gotcha.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -81,5 +82,54 @@ class SettingsSearchEntryTest {
 
         val termux = settingsSearchIndex.first { it.page == SettingsPage.TERMUX }
         assertEquals(SettingsPage.TERMUX.title, termux.breadcrumb)
+    }
+
+    private fun fieldFor(query: String, page: SettingsPage) =
+        filterSettings(query).first { it.page == page }.field
+
+    @Test
+    fun aQueryNamingAControlPointsAtThatControl() {
+        val maxRounds = fieldFor("max tool rounds", SettingsPage.AI_CONFIG)
+        assertEquals("settings_max_tool_rounds", maxRounds?.testTag)
+        // It sits in the collapsed Advanced block, which has to open for it.
+        assertEquals(AI_ADVANCED_SECTION, maxRounds?.section)
+
+        assertEquals("settings_proactive_otp", fieldFor("otp", SettingsPage.PROACTIVE)?.testTag)
+        assertEquals("settings_wake_word", fieldFor("wake word", SettingsPage.ASSISTIVE_BALL)?.testTag)
+        assertEquals("settings_auto_read_replies", fieldFor("read aloud", SettingsPage.SPEECH)?.testTag)
+    }
+
+    @Test
+    fun aPagesOwnTitleHighlightsNothing() {
+        SettingsPage.entries.forEach { page ->
+            assertNull("${page.title} highlights a field", fieldFor(page.title, page))
+        }
+    }
+
+    @Test
+    fun aPageLevelAliasHighlightsNothing() {
+        assertNull(fieldFor("privacy", SettingsPage.PROACTIVE))
+        assertNull(fieldFor("accessibility", SettingsPage.PERMISSIONS))
+    }
+
+    @Test
+    fun aFieldResultNamesTheFieldInItsLabel() {
+        val result = filterSettings("max tool rounds").first { it.page == SettingsPage.AI_CONFIG }
+        assertEquals("AI › AI Configuration › Max tool rounds", result.label)
+    }
+
+    @Test
+    fun fieldTagsAreUniqueAcrossTheIndex() {
+        val tags = settingsSearchIndex.flatMap { entry -> entry.fields.map { it.testTag } }
+        assertEquals(tags.size, tags.toSet().size)
+    }
+
+    @Test
+    fun fieldsAreFoundByTheirPageAndTag() {
+        assertEquals(
+            "Max tool rounds",
+            settingsFieldFor(SettingsPage.AI_CONFIG, "settings_max_tool_rounds")?.label
+        )
+        assertNull(settingsFieldFor(SettingsPage.SPEECH, "settings_max_tool_rounds"))
     }
 }

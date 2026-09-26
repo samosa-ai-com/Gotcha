@@ -1,5 +1,9 @@
 package com.gotcha
 
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -11,6 +15,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
+import com.gotcha.ui.SettingsHighlighted
 import com.gotcha.testutil.TestSeed
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -252,5 +257,79 @@ class SettingsFlowTest {
         composeRule.onNodeWithTag("settings_ai_advanced").performScrollTo().performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Max tool rounds").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun settingsSearch_opensOnTheMatchedFieldInsideACollapsedSection() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        // The result says where it will land, down to the field.
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("max tool rounds")
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("AI › AI Configuration › Max tool rounds").assertExists()
+
+        // Hold the clock, so the highlight can be caught before it fades.
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
+        composeRule.mainClock.advanceTimeBy(HIGHLIGHT_CHECK_MS)
+
+        // Advanced opened by itself, and the field is on screen and marked —
+        // no performScrollTo: the page did the scrolling.
+        composeRule.onNodeWithTag("settings_max_tool_rounds")
+            .assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SettingsHighlighted, true))
+
+        // The tint fades and the highlight is spent; the field stays where it is.
+        composeRule.mainClock.autoAdvance = true
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_max_tool_rounds")
+            .assert(SemanticsMatcher.keyNotDefined(SettingsHighlighted))
+
+        // Back to the hub and in again is an ordinary visit: nothing highlighted,
+        // and Advanced folded as it always starts.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_max_tool_rounds").assertDoesNotExist()
+    }
+
+    @Test
+    fun settingsSearch_aPagesOwnTitleOpensItWithNothingHighlighted() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedUnconfigured(context)
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("settings_search").performTextReplacement("AI Configuration")
+        composeRule.waitForIdle()
+        composeRule.mainClock.autoAdvance = false
+        composeRule.onNodeWithTag("settings_ai_config_row").performClick()
+        composeRule.mainClock.advanceTimeBy(HIGHLIGHT_CHECK_MS)
+
+        composeRule.onNodeWithTag("settings_model").assertExists()
+        composeRule.onNodeWithTag("settings_max_tool_rounds").assertDoesNotExist()
+        composeRule.onAllNodes(SemanticsMatcher.keyIsDefined(SettingsHighlighted)).assertCountEquals(0)
+        composeRule.mainClock.autoAdvance = true
+    }
+
+    private companion object {
+        /** Long enough for the page to open and scroll, well short of the fade. */
+        const val HIGHLIGHT_CHECK_MS = 700L
     }
 }

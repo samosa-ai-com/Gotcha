@@ -83,6 +83,12 @@ Everything below is reached from **Settings** in the navigation drawer.
 Two more rows sit on the Settings list itself: **Feature Tour**, which replays
 the guided setup one step at a time, and **Send Feedback**.
 
+A search field sits above the Settings list. Typing a control's everyday name
+("max tool rounds", "otp", "wake word") lists the pages that hold it; where the
+words name one control, tapping the result opens its page scrolled to that
+control and briefly highlighted, opening a folded "Advanced settings" section
+if needed.
+
 **Connectors are not in Settings.** They live in the navigation drawer next to
 Settings, on their own Connectors screen.
 

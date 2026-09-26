@@ -50,18 +50,21 @@ fun ProactiveScreen(
             label = "Master Proactive Offers",
             checked = proactiveEnabled,
             onCheckedChange = { proactiveEnabled = it },
-            isLarge = true
+            isLarge = true,
+            switchTestTag = "settings_proactive_enabled"
         )
         if (proactiveEnabled) {
             SettingsToggleRow(
                 label = "Scan Screen Content",
                 checked = proactiveScanScreen,
-                onCheckedChange = { proactiveScanScreen = it }
+                onCheckedChange = { proactiveScanScreen = it },
+                switchTestTag = "settings_proactive_scan_screen"
             )
             SettingsToggleRow(
                 label = "Scan Clipboard",
                 checked = proactiveScanClipboard,
-                onCheckedChange = { proactiveScanClipboard = it }
+                onCheckedChange = { proactiveScanClipboard = it },
+                switchTestTag = "settings_proactive_scan_clipboard"
             )
             SettingsToggleRow(
                 label = "Scan Notifications",
@@ -71,7 +74,8 @@ fun ProactiveScreen(
             SettingsToggleRow(
                 label = "Detect OTP / Codes",
                 checked = proactiveOtpEnabled,
-                onCheckedChange = { proactiveOtpEnabled = it }
+                onCheckedChange = { proactiveOtpEnabled = it },
+                switchTestTag = "settings_proactive_otp"
             )
             SettingsToggleRow(
                 label = "Auto-Copy OTP to Clipboard",

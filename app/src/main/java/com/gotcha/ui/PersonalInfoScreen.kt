@@ -98,7 +98,7 @@ fun PersonalInfoScreen(
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("settings_user_name")
+                .settingsField("settings_user_name")
                 .tourAnchor(TourAnchor.PERSONAL_NAME)
         )
         OutlinedTextField(
@@ -158,7 +158,7 @@ fun PersonalInfoScreen(
             minLines = 3,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("settings_user_response_style")
+                .settingsField("settings_user_response_style")
         )
 
         ExposedDropdownMenuBox(
@@ -176,6 +176,7 @@ fun PersonalInfoScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
+                    .settingsField("settings_user_currency")
             )
             SkinExposedDropdownMenu(
                 expanded = currencyExpanded,

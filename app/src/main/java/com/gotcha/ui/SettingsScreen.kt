@@ -17,8 +17,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,6 +36,7 @@ import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
+import kotlinx.coroutines.delay
 
 /**
  * Settings, shaped like the system Settings app: a home list of categories, each
@@ -43,6 +48,9 @@ import com.gotcha.ui.tour.tourAnchor
  *
  * Every page saves through [onSave]'s mutator, writing only the fields it owns.
  */
+/** How long a search highlight waits for its field before lapsing unshown. */
+private const val HIGHLIGHT_LAPSE_MS = 3_000L
+
 @Composable
 fun SettingsScreen(
     /** Reads the persisted settings. Each page calls it on entry, so a page always
@@ -115,7 +123,17 @@ fun SettingsScreen(
      * able to walk them to the next one.
      */
     page: SettingsPage? = null,
-    onPageChange: (SettingsPage?) -> Unit = {}
+    onPageChange: (SettingsPage?) -> Unit = {},
+    /**
+     * The [SettingsField.testTag] a search result opened [page] on, or null.
+     * Hoisted beside [page] because both change in the one tap; cleared through
+     * [onHighlightConsumed] once the page has shown it, and by the host on any
+     * other page change, so Back never returns to a stale highlight.
+     */
+    highlightField: String? = null,
+    onHighlightConsumed: () -> Unit = {},
+    /** Opens a page from a search result, pointed at the field the query named. */
+    onOpenSearchResult: (SettingsPage, String?) -> Unit = { target, _ -> onPageChange(target) }
 ) {
     // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
     // the home list otherwise. Only the list itself exits Settings.
@@ -123,101 +141,122 @@ fun SettingsScreen(
 
     if (page != null) BackHandler(onBack = backToHome)
 
-    when (page) {
-        SettingsPage.APPEARANCE -> AppearanceScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome,
-            onApply = onAppearanceChange
+    // A field the page never shows — the OTP switch while proactive offers are
+    // off, the API key while Samosa is the provider — has nothing to consume the
+    // highlight, so it lapses on its own rather than waiting for a later visit.
+    LaunchedEffect(page, highlightField) {
+        if (highlightField != null) {
+            delay(HIGHLIGHT_LAPSE_MS)
+            onHighlightConsumed()
+        }
+    }
+    // Leaving Settings altogether ends the visit the highlight belonged to.
+    DisposableEffect(Unit) { onDispose { onHighlightConsumed() } }
+    val highlight = remember(page, highlightField) {
+        SettingsHighlight(
+            field = page?.let { p -> highlightField?.let { settingsFieldFor(p, it) } },
+            onConsumed = onHighlightConsumed
         )
-        SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome,
-            onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
-        )
-        SettingsPage.LANGUAGE -> LanguageScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome,
-            onTestVoice = onTestVoice
-        )
-        SettingsPage.AI -> AiHubScreen(
-            onBack = backToHome,
-            onOpenPage = onPageChange
-        )
-        SettingsPage.AI_CONFIG -> AiConfigScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome,
-            onTestConnection = onTestConnection,
-            onRefreshChatModels = onRefreshChatModels,
-            onSamosaSignIn = onSamosaSignIn,
-            onSamosaSignOut = onSamosaSignOut,
-            onFetchSamosaProfile = onFetchSamosaProfile,
-            onClaimReferral = onClaimReferral,
-            onClearLlmCache = onClearLlmCache,
-            onClearDebugScreenshots = onClearDebugScreenshots
-        )
-        SettingsPage.SPEECH -> SpeechScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome,
-            onRefreshAudioModels = onRefreshAudioModels,
-            onSamosaSignIn = onSamosaSignIn,
-            onSamosaSignOut = onSamosaSignOut,
-            onFetchSamosaProfile = onFetchSamosaProfile,
-            onClaimReferral = onClaimReferral
-        )
-        SettingsPage.PERMISSIONS -> PermissionsScreen(
-            packageName = packageName,
-            onBack = backToHome,
-            onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
-        )
-        SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
-        SettingsPage.SKILLS -> SkillsScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome
-        )
-        SettingsPage.PROACTIVE -> ProactiveScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome
-        )
-        SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
-            load = load,
-            onSave = onSave,
-            enabled = assistiveBallEnabled,
-            onToggle = onToggleAssistiveBall,
-            onBack = backToHome
-        )
-        SettingsPage.NOTIFICATIONS -> NotificationsScreen(
-            load = load,
-            onSave = onSave,
-            onBack = backToHome,
-            onSyncServerMessages = onSyncServerMessages
-        )
-        SettingsPage.ABOUT -> AboutScreen(
-            onBack = backToHome,
-            onOpenPage = onPageChange
-        )
-        SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
-            context = androidx.compose.ui.platform.LocalContext.current,
-            onBack = backToHome
-        )
-        SettingsPage.LEGAL -> LegalScreen(
-            context = androidx.compose.ui.platform.LocalContext.current,
-            load = load,
-            onSave = onSave,
-            onBack = backToHome
-        )
-        null -> SettingsHome(
-            onBack = onBack,
-            onOpenPage = onPageChange,
-            onStartTour = onStartTour,
-            onSendFeedback = onSendFeedback
-        )
+    }
+
+    CompositionLocalProvider(LocalSettingsHighlight provides highlight) {
+        when (page) {
+            SettingsPage.APPEARANCE -> AppearanceScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome,
+                onApply = onAppearanceChange
+            )
+            SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome,
+                onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+            )
+            SettingsPage.LANGUAGE -> LanguageScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome,
+                onTestVoice = onTestVoice
+            )
+            SettingsPage.AI -> AiHubScreen(
+                onBack = backToHome,
+                onOpenPage = onPageChange
+            )
+            SettingsPage.AI_CONFIG -> AiConfigScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome,
+                onTestConnection = onTestConnection,
+                onRefreshChatModels = onRefreshChatModels,
+                onSamosaSignIn = onSamosaSignIn,
+                onSamosaSignOut = onSamosaSignOut,
+                onFetchSamosaProfile = onFetchSamosaProfile,
+                onClaimReferral = onClaimReferral,
+                onClearLlmCache = onClearLlmCache,
+                onClearDebugScreenshots = onClearDebugScreenshots
+            )
+            SettingsPage.SPEECH -> SpeechScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome,
+                onRefreshAudioModels = onRefreshAudioModels,
+                onSamosaSignIn = onSamosaSignIn,
+                onSamosaSignOut = onSamosaSignOut,
+                onFetchSamosaProfile = onFetchSamosaProfile,
+                onClaimReferral = onClaimReferral
+            )
+            SettingsPage.PERMISSIONS -> PermissionsScreen(
+                packageName = packageName,
+                onBack = backToHome,
+                onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
+            )
+            SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
+            SettingsPage.SKILLS -> SkillsScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome
+            )
+            SettingsPage.PROACTIVE -> ProactiveScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome
+            )
+            SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
+                load = load,
+                onSave = onSave,
+                enabled = assistiveBallEnabled,
+                onToggle = onToggleAssistiveBall,
+                onBack = backToHome
+            )
+            SettingsPage.NOTIFICATIONS -> NotificationsScreen(
+                load = load,
+                onSave = onSave,
+                onBack = backToHome,
+                onSyncServerMessages = onSyncServerMessages
+            )
+            SettingsPage.ABOUT -> AboutScreen(
+                onBack = backToHome,
+                onOpenPage = onPageChange
+            )
+            SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
+                context = androidx.compose.ui.platform.LocalContext.current,
+                onBack = backToHome
+            )
+            SettingsPage.LEGAL -> LegalScreen(
+                context = androidx.compose.ui.platform.LocalContext.current,
+                load = load,
+                onSave = onSave,
+                onBack = backToHome
+            )
+            null -> SettingsHome(
+                onBack = onBack,
+                onOpenPage = onPageChange,
+                onOpenSearchResult = onOpenSearchResult,
+                onStartTour = onStartTour,
+                onSendFeedback = onSendFeedback
+            )
+        }
     }
 }
 
@@ -234,6 +273,7 @@ fun SettingsScreen(
 private fun SettingsHome(
     onBack: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
+    onOpenSearchResult: (SettingsPage, String?) -> Unit,
     onStartTour: () -> Unit,
     onSendFeedback: () -> Unit
 ) {
@@ -245,6 +285,10 @@ private fun SettingsHome(
     val openPage = { page: SettingsPage ->
         query = ""
         onOpenPage(page)
+    }
+    val openResult = { result: SettingsSearchResult ->
+        query = ""
+        onOpenSearchResult(result.page, result.field?.testTag)
     }
 
     SettingsScaffold(
@@ -260,7 +304,7 @@ private fun SettingsHome(
                 onSendFeedback = onSendFeedback
             )
         } else {
-            SettingsSearchResults(query = query, onOpenPage = openPage)
+            SettingsSearchResults(query = query, onOpenResult = openResult)
         }
     }
 }
@@ -323,10 +367,11 @@ private fun ColumnScope.SettingsHomeRows(
  * Pages matching the query. Rows keep their home-list [SettingsPage.testTag] so
  * a result is the same row by every name the tour and the tests know it by; a
  * nested page shows its hub in the label instead of a tour anchor it would be
- * spotlighting in the wrong place.
+ * spotlighting in the wrong place, and a result that named one control ends
+ * its label with that control — which is where the page will open.
  */
 @Composable
-private fun SettingsSearchResults(query: String, onOpenPage: (SettingsPage) -> Unit) {
+private fun SettingsSearchResults(query: String, onOpenResult: (SettingsSearchResult) -> Unit) {
     val results = filterSettings(query)
     if (results.isEmpty()) {
         Text(
@@ -344,9 +389,9 @@ private fun SettingsSearchResults(query: String, onOpenPage: (SettingsPage) -> U
         HorizontalDivider(thickness = 1.dp)
         SettingsNavRow(
             page = result.page,
-            onClick = { onOpenPage(result.page) },
+            onClick = { onOpenResult(result) },
             modifier = Modifier.testTag(result.page.testTag),
-            title = result.breadcrumb
+            title = result.label
         )
     }
 }

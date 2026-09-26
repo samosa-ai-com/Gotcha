@@ -722,6 +722,12 @@ class MainActivity : ComponentActivity() {
         var settingsPage by rememberSaveable {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
+        // The field a settings search result opened settingsPage on. Only that
+        // tap sets it; every other way of changing page clears it, so it can't
+        // outlive the visit it was meant for. Deliberately not saveable: after a
+        // rotation the page is back where it was, and a replayed highlight would
+        // point at something the user has already been shown.
+        var settingsHighlight by remember { mutableStateOf<String?>(null) }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         var showFeedbackSheet by remember { mutableStateOf(false) }
         var showReferralInviteDialog by remember { mutableStateOf(false) }
@@ -735,6 +741,7 @@ class MainActivity : ComponentActivity() {
             val (route, page) = routeForTourPlace(place)
             currentRoute = route
             settingsPage = page
+            settingsHighlight = null
             scope.launch {
                 if (place == TourPlace.CHAT_DRAWER) drawerState.open() else drawerState.close()
             }
@@ -979,7 +986,16 @@ class MainActivity : ComponentActivity() {
                         onStartTour = { startTour() },
                         onSendFeedback = { showFeedbackSheet = true },
                         page = settingsPage,
-                        onPageChange = { settingsPage = it }
+                        onPageChange = {
+                            settingsPage = it
+                            settingsHighlight = null
+                        },
+                        highlightField = settingsHighlight,
+                        onHighlightConsumed = { settingsHighlight = null },
+                        onOpenSearchResult = { page, field ->
+                            settingsPage = page
+                            settingsHighlight = field
+                        }
                     )
                 }
                 Route.INBOX -> {

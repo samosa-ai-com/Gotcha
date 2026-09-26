@@ -187,6 +187,7 @@ fun AiConfigScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
+                    .settingsField("settings_llm_provider")
                     .tourAnchor(TourAnchor.AI_PROVIDER)
             )
             SkinExposedDropdownMenu(
@@ -288,14 +289,14 @@ fun AiConfigScreen(
                         Text(if (showKey) "Hide" else "Show")
                     }
                 },
-                modifier = Modifier.fillMaxWidth().testTag("settings_api_key")
+                modifier = Modifier.fillMaxWidth().settingsField("settings_api_key")
             )
             OutlinedTextField(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
                 label = { Text("Base URL (OpenAI-compatible)") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("settings_base_url")
+                modifier = Modifier.fillMaxWidth().settingsField("settings_base_url")
             )
         }
         ExposedDropdownMenuBox(
@@ -312,7 +313,7 @@ fun AiConfigScreen(
                 label = { Text("Main model") },
                 placeholder = { Text("(select model)") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor().testTag("settings_model")
+                modifier = Modifier.fillMaxWidth().menuAnchor().settingsField("settings_model")
             )
             SkinExposedDropdownMenu(
                 expanded = modelExpanded,
@@ -351,7 +352,7 @@ fun AiConfigScreen(
         // Collapsed by default. The fields' state lives at the top of this
         // composable and `applyAiConfig` reads it either way, so folding the
         // section away never drops an edit or changes what Save writes.
-        SettingsAdvancedSection(testTag = "settings_ai_advanced") {
+        SettingsAdvancedSection(testTag = AI_ADVANCED_SECTION) {
             ExposedDropdownMenuBox(
                 expanded = subAgentModelExpanded,
                 onExpandedChange = {
@@ -454,7 +455,7 @@ fun AiConfigScreen(
                 label = { Text("Max tool rounds") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().settingsField("settings_max_tool_rounds")
             )
             OutlinedTextField(
                 value = maxRepeatedToolCalls,
@@ -494,7 +495,7 @@ fun AiConfigScreen(
                 label = { Text("API Timeout (seconds, 0 for infinite)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().settingsField("settings_api_timeout")
             )
             OutlinedButton(
                 onClick = {

@@ -3,8 +3,11 @@ package com.gotcha.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -36,16 +41,22 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -762,6 +773,67 @@ fun SamosaAuthSection(
 }
 
 /**
+ * The field a settings search result asked the open page to point at (#92),
+ * and how the page says it has done so. [SettingsScreen] provides it; each
+ * field opts in through [settingsField] or [settingsHighlight], so no page
+ * needs a parameter for it.
+ */
+@Stable
+class SettingsHighlight(val field: SettingsField?, val onConsumed: () -> Unit)
+
+val LocalSettingsHighlight = compositionLocalOf { SettingsHighlight(field = null, onConsumed = {}) }
+
+/** Set on a field while a search result is pointing at it — what tests read. */
+val SettingsHighlighted = SemanticsPropertyKey<Boolean>("SettingsHighlighted")
+var SemanticsPropertyReceiver.settingsHighlighted by SettingsHighlighted
+
+private const val HIGHLIGHT_FADE_MS = 1_500
+private const val HIGHLIGHT_ALPHA = 0.24f
+private val HighlightCorner = 8.dp
+
+/**
+ * Makes this node a place a settings search can land: when [tag] is the
+ * highlighted field, it scrolls into view and wears a tint that fades out, then
+ * the highlight is consumed so Back or a rotation can't replay it. Does not tag
+ * the node — see [settingsField] for the usual case.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.settingsHighlight(tag: String): Modifier {
+    val highlight = LocalSettingsHighlight.current
+    val isTarget = highlight.field?.testTag == tag
+    val requester = remember { BringIntoViewRequester() }
+    val tint = remember { Animatable(0f) }
+    if (isTarget) {
+        LaunchedEffect(highlight) {
+            tint.snapTo(1f)
+            // A frame first, so the field has been laid out — it may sit in a
+            // section that opened in this same composition.
+            withFrameNanos { }
+            requester.bringIntoView()
+            tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS))
+            highlight.onConsumed()
+        }
+    }
+    val color = MaterialTheme.colorScheme.primary
+    return this
+        .bringIntoViewRequester(requester)
+        .semantics { if (isTarget) settingsHighlighted = true }
+        .drawBehind {
+            if (tint.value > 0f) {
+                drawRoundRect(
+                    color = color.copy(alpha = HIGHLIGHT_ALPHA * tint.value),
+                    cornerRadius = CornerRadius(HighlightCorner.toPx())
+                )
+            }
+        }
+}
+
+/** Tags a settings control and makes it a search landing spot, under one name. */
+@Composable
+fun Modifier.settingsField(tag: String): Modifier = testTag(tag).settingsHighlight(tag)
+
+/**
  * A collapsed-by-default disclosure for the knobs a page has but most people
  * never touch — model overrides, loop limits, timeouts. Keeps them one tap away
  * without letting them crowd out the two or three controls that actually decide
@@ -775,6 +847,11 @@ fun SamosaAuthSection(
  * a trip to Android Settings doesn't fold the section back up mid-edit. The
  * fields inside stay hoisted in the calling screen, so collapsing the section
  * never discards what was typed into it.
+ *
+ * A search result pointing at a field inside opens the section on arrival — the
+ * field isn't composed while folded, so there would be nothing to scroll to.
+ * It starts open rather than animating open, so the scroll lands on where the
+ * field will stay, not where it is halfway through the expansion.
  */
 @Composable
 fun SettingsAdvancedSection(
@@ -782,7 +859,8 @@ fun SettingsAdvancedSection(
     title: String = "Advanced settings",
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    val holdsHighlight = LocalSettingsHighlight.current.field?.section == testTag
+    var expanded by rememberSaveable { mutableStateOf(holdsHighlight) }
 
     Row(
         modifier = Modifier
@@ -821,6 +899,9 @@ fun SettingsAdvancedSection(
  * for the same reason — it is what a UiAutomator/Maestro flow, which cannot see
  * test tags, has to aim at.
  *
+ * [switchTestTag] is also the name a settings search result uses for the row;
+ * the whole row is what scrolls into view and tints (see [settingsHighlight]).
+ *
  * [enabled] disables the `Switch` (greyed out, no tap effect) for a row whose
  * action depends on a prerequisite the user has not met yet; the caller should
  * also explain the prerequisite nearby.
@@ -837,7 +918,10 @@ fun SettingsToggleRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // The tint covers the label as well as the switch it names.
+            .then(if (switchTestTag != null) Modifier.settingsHighlight(switchTestTag) else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
