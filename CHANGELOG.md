@@ -94,7 +94,11 @@ All notable changes to Gotcha are documented here.
   ("read aloud", "dark mode", "otp", "accessibility"). Pages that live inside a
   hub — Speech, AI Configuration, Legal — show up too, named with the hub they
   sit in and opened in one tap, which the list itself can't do. Clearing the
-  field brings the whole list back.
+  field brings the whole list back. When the words name one control — "max
+  tool rounds", "otp", "wake word" — the result says so ("AI › AI
+  Configuration › Max tool rounds") and the page opens scrolled to it, briefly
+  highlighted, with a folded "Advanced settings" section opened if that is where
+  it sits (#92). Searching a page by its own name opens it at the top as before.
 - **Voice and language pickers name the language.** The Speech page listed raw
   codes — `hi`, `en-us`, `af_heart` — with nothing saying which language each
   one is. Transcription language entries now read like `hi — Hindi`, the field
