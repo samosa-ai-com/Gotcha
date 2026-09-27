@@ -24,6 +24,14 @@ class SettingsSearchEntryTest {
     }
 
     @Test
+    fun nightLightFindsTheScreenshotSwitch() {
+        for (query in listOf("night light", "night mode", "yellow tint")) {
+            val result = filterSettings(query).single { it.page == SettingsPage.ASSISTIVE_BALL }
+            assertEquals(query, "settings_pause_night_light", result.field?.testTag)
+        }
+    }
+
+    @Test
     fun matchingIsCaseInsensitive() {
         assertEquals(pagesFor("api key"), pagesFor("API KEY"))
         assertEquals(pagesFor("termux"), pagesFor("TeRmUx"))

@@ -55,6 +55,11 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Never granted at install: the user runs `adb shell pm grant` once so Gotcha can
+         switch Night Light off around the screenshots they take (#78). -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Tier 3: component-based / device-wide special access -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />

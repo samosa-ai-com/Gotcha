@@ -181,6 +181,12 @@ data class Settings(
     val wakeWordEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.75f,
     val wakeWordListeningMode: WakeWordListeningMode = WakeWordListeningMode.ALWAYS,
+    /**
+     * Switch Night Light off for screenshots the user takes from the ball or Screen
+     * Lens, then back on (#78). Off by default: the screen visibly loses its tint
+     * for a few seconds, and it only works with the secure-settings grant or root.
+     */
+    val pauseNightLightForScreenshots: Boolean = false,
     /** Server-driven notifications from `<SAMOSA_API_URL>/v1/gotcha/notifications`. */
     val serverMessagesEnabled: Boolean = true,
     /** Epoch millis of the last successful server-messages fetch. 0 = never. */
@@ -586,6 +592,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         wakeWordListeningMode = runCatching {
             WakeWordListeningMode.valueOf(string(KEY_WAKE_WORD_LISTENING_MODE, "ALWAYS"))
         }.getOrDefault(WakeWordListeningMode.ALWAYS),
+        pauseNightLightForScreenshots = prefs.getBoolean(KEY_PAUSE_NIGHT_LIGHT, false),
         serverMessagesEnabled = prefs.getBoolean(KEY_SERVER_MESSAGES_ENABLED, true),
         serverMessagesLastFetchedAt = prefs.getLong(KEY_SERVER_MESSAGES_LAST_FETCHED, 0L),
         serverMessagesEtag = string(KEY_SERVER_MESSAGES_ETAG),
@@ -673,6 +680,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putBoolean(KEY_WAKE_WORD_ENABLED, settings.wakeWordEnabled)
             .putFloat(KEY_WAKE_WORD_SENSITIVITY, settings.wakeWordSensitivity)
             .putString(KEY_WAKE_WORD_LISTENING_MODE, settings.wakeWordListeningMode.name)
+            .putBoolean(KEY_PAUSE_NIGHT_LIGHT, settings.pauseNightLightForScreenshots)
             .putBoolean(KEY_SERVER_MESSAGES_ENABLED, settings.serverMessagesEnabled)
             .putLong(KEY_SERVER_MESSAGES_LAST_FETCHED, settings.serverMessagesLastFetchedAt)
             .putString(KEY_SERVER_MESSAGES_ETAG, settings.serverMessagesEtag)
@@ -800,6 +808,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
         const val KEY_WAKE_WORD_SENSITIVITY = "wake_word_sensitivity"
         const val KEY_WAKE_WORD_LISTENING_MODE = "wake_word_listening_mode"
+        const val KEY_PAUSE_NIGHT_LIGHT = "pause_night_light_for_screenshots"
         const val KEY_SERVER_MESSAGES_ENABLED = "server_messages_enabled"
         const val KEY_SERVER_MESSAGES_LAST_FETCHED = "server_messages_last_fetched"
         const val KEY_SERVER_MESSAGES_ETAG = "server_messages_etag"

@@ -320,6 +320,11 @@ class SettingsTest {
     }
 
     @Test
+    fun `Night Light is left alone for screenshots unless the user opts in`() {
+        assertEquals(false, Settings().pauseNightLightForScreenshots)
+    }
+
+    @Test
     fun `wake word settings are independent fields on copy`() {
         val defaults = Settings()
         val enabled = defaults.copy(wakeWordEnabled = true, wakeWordSensitivity = 0.35f)

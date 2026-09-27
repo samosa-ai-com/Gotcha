@@ -320,10 +320,12 @@ class AssistiveBallService : Service() {
                 // capture returns null and the prompt is left to the chat flow.
                 val compressed = if (attachScreenshot) {
                     showingActivity(com.gotcha.ui.BallActivity.ACTING) {
-                        com.gotcha.tools.ScreenPerception.compressScreenshot(
-                            maxDimension = 1024,
-                            quality = 85
-                        )
+                        DisplayTintGuard.get(applicationContext).withTintSuspended {
+                            com.gotcha.tools.ScreenPerception.compressScreenshot(
+                                maxDimension = 1024,
+                                quality = 85
+                            )
+                        }
                     }
                 } else {
                     null
@@ -1046,11 +1048,12 @@ class AssistiveBallService : Service() {
                     chatWindow.setVisibleForCapture(false)
                     screenCompanionPanel.setVisibleForCapture(false)
                 }
-                delay(250L)
-                var bitmap = service.takeScreenshotBitmap()
-                if (bitmap == null) {
-                    delay(800L)
-                    bitmap = service.takeScreenshotBitmap()
+                val bitmap = DisplayTintGuard.get(applicationContext).withTintSuspended {
+                    delay(250L)
+                    service.takeScreenshotBitmap() ?: run {
+                        delay(800L)
+                        service.takeScreenshotBitmap()
+                    }
                 }
                 withContext(Dispatchers.Main) {
                     overlay.showChromeAfterCapture()

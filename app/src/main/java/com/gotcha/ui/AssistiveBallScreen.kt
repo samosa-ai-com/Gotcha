@@ -1,5 +1,7 @@
 package com.gotcha.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -30,9 +32,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
 import com.gotcha.data.WakeWordListeningMode
+import com.gotcha.service.DisplayTintGuard
 import android.provider.Settings as AndroidSettings
 
 /**
@@ -62,6 +66,7 @@ fun AssistiveBallScreen(
     var wakeWordEnabled by remember { mutableStateOf(initial.wakeWordEnabled) }
     var wakeWordSensitivity by remember { mutableStateOf(initial.wakeWordSensitivity) }
     var wakeWordListeningMode by remember { mutableStateOf(initial.wakeWordListeningMode) }
+    var pauseNightLight by remember { mutableStateOf(initial.pauseNightLightForScreenshots) }
 
     // The wake word runs inside the ball service, so it cannot be on while the
     // ball is off. When the ball is switched off here (or this screen is opened
@@ -95,6 +100,21 @@ fun AssistiveBallScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        SettingsToggleRow(
+            label = "Night Light off for screenshots",
+            checked = pauseNightLight,
+            onCheckedChange = {
+                pauseNightLight = it
+                onSave { settings -> settings.copy(pauseNightLightForScreenshots = it) }
+            },
+            switchTestTag = "settings_pause_night_light",
+            switchContentDescription = if (pauseNightLight) {
+                "Stop turning Night Light off for screenshots"
+            } else {
+                "Turn Night Light off for screenshots"
+            }
+        )
+        NightLightGrantHint()
         SettingsToggleRow(
             label = "Wake word: Hey Gotcha",
             checked = wakeWordEnabled,
@@ -207,6 +227,51 @@ fun AssistiveBallScreen(
                 "first time takes you there to grant it.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * What "Night Light off for screenshots" does, and how to let it. The grant is
+ * an adb command because no Settings screen can hand out WRITE_SECURE_SETTINGS;
+ * tapping the command copies it. Root works too, so the switch is never locked.
+ */
+@Composable
+private fun NightLightGrantHint() {
+    val context = LocalContext.current
+    val granted = remember(context) { DisplayTintGuard.hasSecureSettingsGrant(context) }
+    Text(
+        "Some phones keep the Night Light tint in screenshots. With this on, a " +
+            "screenshot or Screen Lens capture from the ball turns Night Light off, " +
+            "waits a few seconds for the colours to settle, captures, and turns it " +
+            "back on. The screen shows its normal colours meanwhile.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (granted) {
+        Text(
+            "Gotcha has permission to switch Night Light.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        Text(
+            "Needs a one-time grant from a computer (or root). Connect with adb and " +
+                "run this — tap to copy:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            DisplayTintGuard.GRANT_COMMAND,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    context.getSystemService(ClipboardManager::class.java)
+                        ?.setPrimaryClip(ClipData.newPlainText("adb command", DisplayTintGuard.GRANT_COMMAND))
+                }
+                .padding(vertical = 4.dp)
+                .testTag("settings_pause_night_light_command")
         )
     }
 }

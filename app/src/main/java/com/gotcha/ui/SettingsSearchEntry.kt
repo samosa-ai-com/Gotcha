@@ -200,6 +200,11 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         words("overlay, hands free, hands-free"),
         listOf(
             field("settings_assistive_ball", "Show assistive ball", "floating ball, bubble"),
+            field(
+                "settings_pause_night_light",
+                "Night Light off for screenshots",
+                "night mode, blue light, yellow tint, eye comfort, screenshot colours, screenshot colors"
+            ),
             field("settings_wake_word", "Wake word: Hey Gotcha", "always listening"),
             field("settings_wake_word_sensitivity", "Wake word sensitivity", "sensitivity")
         )
