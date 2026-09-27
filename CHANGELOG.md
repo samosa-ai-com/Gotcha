@@ -4,6 +4,13 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Commands in a box you can copy** (#109). A code block in a reply, or in a
+  question Gotcha asks, now sits in its own box: monospace, set apart from the
+  text around it, labelled with its language, and with a Copy button that copies
+  exactly the code and nothing else. A long command scrolls sideways instead of
+  breaking in the middle of a word, so a step like adding
+  `allow-external-apps=true` to Termux's settings can be copied and pasted
+  rather than retyped on a phone keyboard.
 - **Gotcha asks before it takes control of another app** (#98). The first time
   a request needs to open an app, open a settings screen, read the screen or
   tap, type and swipe in another app, Gotcha asks once: which app, why (your
@@ -184,6 +191,13 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **Questions from Gotcha fit the screen** (#107). When Gotcha stopped to ask
+  something, the whole question was used as the dialog's title: a question with
+  a few steps filled the dialog in headline-sized type, couldn't be scrolled,
+  and pushed its answer button over the answer field. The dialog is now titled
+  "Gotcha has a question", and the question sits below as formatted text, with
+  lists, bold and commands in copyable boxes, scrolling when it is long. The
+  answer buttons and field are spaced out beneath it, and Skip is always there.
 - **Screenshots without the Night Light tint** (#78). On some phones a
   screenshot taken from the Assistive Ball, or a Screen Lens capture, kept the
   yellow Night Light tint, so the saved image and what the assistant saw both

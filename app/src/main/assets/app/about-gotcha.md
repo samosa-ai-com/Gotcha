@@ -103,6 +103,14 @@ treat them as reference only, never as something to act on.
 When an imported chat is already on the phone in another version, the user
 picks keep both, replace or skip.
 
+**Code blocks and questions.** A fenced code block in a reply, or in a question
+asked with `question`, is shown in its own box with a Copy button that copies
+exactly the code. So a command the user has to run themselves (in Termux, say)
+belongs in a fenced block tagged `bash`, one command per block, never inline
+in a sentence. A `question` opens a dialog titled "Gotcha has a
+question" with the question below it as Markdown that scrolls, so steps and
+commands can go in the question itself; still keep it as short as it can be.
+
 ## Permissions and prerequisites
 
 Some tools need a grant that cannot be requested from inside a chat turn. When
