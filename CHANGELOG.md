@@ -183,6 +183,21 @@ All notable changes to Gotcha are documented here.
   itself off. The row now names both, and the page states the dependency whether
   the ball is on or off instead of only once it is already too late.
 
+### Fixed
+- **Screenshots without the Night Light tint** (#78). On some phones a
+  screenshot taken from the Assistive Ball, or a Screen Lens capture, kept the
+  yellow Night Light tint, so the saved image and what the assistant saw both
+  had the wrong colours. A new switch on Settings › Assistive Ball and Wake
+  Word, "Night Light off for screenshots", turns Night Light off for a moment,
+  waits a few seconds for the colours to settle, captures, and turns it back on.
+  The screen shows its normal colours meanwhile, so the switch starts off. It
+  needs a one-time grant from a computer, `adb shell pm grant com.gotcha
+  android.permission.WRITE_SECURE_SETTINGS` (the page copies the command), or
+  root; without either, screenshots work as before. If Gotcha is closed in the
+  middle of a capture, Night Light comes back on the next time it starts.
+  Captures Gotcha takes on its own, such as scanning the screen for QR codes,
+  never touch Night Light.
+
 ## [1.2.0]
 ### Added
 - **Podcast generation.** Gotcha can now turn text into listenable audio. Ask
