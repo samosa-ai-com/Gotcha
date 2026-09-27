@@ -1310,6 +1310,19 @@ class AgentEngine(
         } else {
             ""
         }
+        // A command the user runs by hand has to be copied exactly; the chat and the
+        // question dialog draw fenced blocks with a Copy button (issue #109), inline
+        // code gets none. Not in a voice call, where nothing is shown.
+        val commandsDirective = if (callMode) {
+            ""
+        } else {
+            "\n\nWhen the user has to run a command themselves (in Termux, a terminal, adb), " +
+                "put it in a fenced code block tagged with its shell (```bash), never inline in a " +
+                "sentence — the app shows each block with a Copy button that copies all of it, so " +
+                "put only the lines to paste inside, and separate commands that are run at " +
+                "different steps into separate blocks. " +
+                "The same goes for a command inside a question you ask with the question tool."
+        }
         val core = when (agent) {
             AgentMode.MONITOR -> monitorCore()
             AgentMode.OPERATOR -> operatorCore()
@@ -1337,7 +1350,7 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return core + serveDirective + languageDirective + personaDirective + styleDirective + reminder
+        return core + serveDirective + commandsDirective + languageDirective + personaDirective + styleDirective + reminder
     }
 
     /** The Monitor-mode core instruction block; split out so [agentInstructionText] stays readable. */

@@ -137,6 +137,10 @@ class TermuxToolTest {
             "must name the property the user has to set: ${result.message}",
             result.message.contains("allow-external-apps")
         )
+        assertTrue(
+            "the setup commands go to the model as a fenced block: ${result.message}",
+            result.message.contains("```bash\n${TermuxTool.SETUP_COMMANDS}\n```")
+        )
     }
 
     @Test
@@ -643,6 +647,10 @@ class TermuxToolTest {
         assertTrue(result.message.contains("failed"))
         assertTrue("the actionable part must survive", result.message.contains("allow-external-apps"))
         assertTrue(result.message.contains("termux.properties"))
+        assertTrue(
+            "the fix is handed over as a fenced block, which the chat shows with a Copy button",
+            result.message.contains("```bash\n${TermuxTool.SETUP_COMMANDS}\n```")
+        )
     }
 
     @Test

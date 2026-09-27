@@ -254,7 +254,8 @@ class TermuxTool(
         if (err != ERRNO_SUCCESS) {
             return ToolResult.error(
                 "Termux refused or could not run the command (${TermuxMessages.errnoLabel(err)})" +
-                    if (errmsg.isEmpty()) "." else ": ${cap(errmsg)}"
+                    (if (errmsg.isEmpty()) "." else ": ${cap(errmsg)}") +
+                    if ("allow-external-apps" in errmsg) TermuxMessages.externalAppsFix() else ""
             )
         }
         val exit = bundle.numeric(RESULT_EXIT_CODE) ?: -1
@@ -402,6 +403,15 @@ class TermuxTool(
          * RUN_COMMAND plugin API wholesale, so it can never be made to work with Gotcha.
          */
         const val TERMUX_FDROID_URL = "https://f-droid.org/en/packages/com.termux/"
+
+        /**
+         * The two lines the user runs in Termux to let other apps send it commands: the setup
+         * screen's Copy button shares them, and the tool messages hand them to the model as a
+         * fenced block so the reply shows them with a Copy button too (issue #109).
+         */
+        const val SETUP_COMMANDS =
+            "echo 'allow-external-apps=true' >> ~/.termux/termux.properties\n" +
+                "termux-reload-settings"
 
         /** An `allow-external-apps` failure returns within a second; this is a generous ceiling. */
         private const val PROBE_TIMEOUT_SECONDS = 5

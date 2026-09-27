@@ -1810,12 +1810,14 @@ object ToolDefinitions {
     val question = tool(
         "question",
         "Ask the user for a decision or clarification instead of guessing their intent. " +
-            "Offer concise options where you can.",
+            "Offer concise options where you can. The question is shown as Markdown under the " +
+            "title \"Gotcha has a question\": keep it short, and put any command the user must " +
+            "run in a fenced ```bash block so it gets a Copy button.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("question") {
                     put("type", "string")
-                    put("description", "The question to ask the user.")
+                    put("description", "The question to ask the user, as Markdown.")
                 }
                 putJsonObject("options") {
                     put("type", "array")

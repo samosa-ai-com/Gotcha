@@ -40,11 +40,6 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.launch
 
-/** The two lines the user runs in Termux to enable external apps; also what the Copy button shares. */
-private const val TERMUX_SETUP_COMMANDS =
-    "echo 'allow-external-apps=true' >> ~/.termux/termux.properties\n" +
-        "termux-reload-settings"
-
 /**
  * Guided Termux setup: a live checklist of the four things that must be true for
  * `run_termux_command` to work, each with the action to fix it. The cheap checks
@@ -202,7 +197,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    TERMUX_SETUP_COMMANDS,
+                    TermuxTool.SETUP_COMMANDS,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = GotchaMono),
                     modifier = Modifier.padding(12.dp)
                 )
@@ -211,7 +206,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = {
                         clipboard?.setPrimaryClip(
-                            ClipData.newPlainText("Termux setup", TERMUX_SETUP_COMMANDS)
+                            ClipData.newPlainText("Termux setup", TermuxTool.SETUP_COMMANDS)
                         )
                         overlay.show("Copied to clipboard.")
                     },

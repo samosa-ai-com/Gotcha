@@ -32,10 +32,20 @@ internal object TermuxMessages {
     fun permissionNeeded() = ToolResult.permissionNeeded(
         ToolResult.TERMUX_ACCESS,
         "Running commands in Termux needs Termux's \"Run commands\" permission, which has not been granted. " +
-            "I have asked for it — please allow it, then in Termux add the line `allow-external-apps=true` to " +
-            "`~/.termux/termux.properties` and restart Termux, and ask again. (If no permission dialog appeared, " +
-            "Termux was installed after Gotcha — reinstall or update Gotcha so Android can grant it.)"
+            "I have asked for it — please allow it, then in Termux run these two lines, and ask again." +
+            externalAppsFix() +
+            "\n(If no permission dialog appeared, Termux was installed after Gotcha — reinstall or update " +
+            "Gotcha so Android can grant it.)"
     )
+
+    /**
+     * The commands that set `allow-external-apps`, as a fenced block with the instruction to keep
+     * them in one when passing them on: the user types them into Termux, and a fenced block is
+     * what the chat shows with a Copy button (issue #109).
+     */
+    fun externalAppsFix(): String =
+        "\n\nThe user runs this in Termux:\n\n```bash\n${TermuxTool.SETUP_COMMANDS}\n```\n\n" +
+            "When you tell the user, give them exactly this fenced block, not the commands inline."
 
     /**
      * Seen on-device as `Not allowed to start service … app is in background`: from Android 12,
