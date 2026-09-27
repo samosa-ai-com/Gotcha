@@ -58,8 +58,6 @@ import com.gotcha.agent.UiMessage
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinDropdownMenu
-import com.halilibo.richtext.markdown.Markdown
-import com.halilibo.richtext.ui.material3.Material3RichText
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -230,9 +228,7 @@ fun MessageBubble(
                             expanded = expanded
                         )
                     } else {
-                        Material3RichText {
-                            Markdown(displayText)
-                        }
+                        RichMarkdown(displayText)
                     }
                 }
                 if (isAssistant && message.text.isNotEmpty()) {
@@ -474,9 +470,7 @@ private fun SubAgentContent(
 
         // Final answer with markdown rendering
         if (answer.isNotBlank()) {
-            Material3RichText {
-                Markdown(answer)
-            }
+            RichMarkdown(answer)
         }
     }
 }
