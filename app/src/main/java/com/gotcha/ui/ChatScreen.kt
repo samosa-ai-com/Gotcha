@@ -826,36 +826,8 @@ fun ChatScreen(
         )
     }
 
-    if (state.pendingQuestion != null) {
-        val pending = state.pendingQuestion!!
-        var customAnswer by remember { mutableStateOf("") }
-        SkinAlertDialog(
-            onDismissRequest = { onAnswer(null) },
-            title = { Text(pending.question) },
-            text = {
-                Column {
-                    if (pending.options.isNotEmpty()) {
-                        pending.options.forEach { option ->
-                            Button(onClick = { onAnswer(option) }, modifier = Modifier.fillMaxWidth()) {
-                                Text(option)
-                            }
-                        }
-                    }
-                    if (pending.allowCustom || pending.options.isEmpty()) {
-                        OutlinedTextField(
-                            value = customAnswer,
-                            onValueChange = { customAnswer = it },
-                            label = { Text("Your answer") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Button(onClick = { onAnswer(customAnswer.trim()) }, enabled = customAnswer.isNotBlank()) {
-                            Text("Submit")
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
-        )
+    state.pendingQuestion?.let { pending ->
+        QuestionDialog(pending = pending, onAnswer = onAnswer)
     }
 
     val pendingRevert = pendingRevertId?.let { id -> state.messages.firstOrNull { it.id == id } }
