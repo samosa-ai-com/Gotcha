@@ -4,6 +4,16 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **A notification when Gotcha is waiting on you** (#108). When Gotcha pauses a
+  task to ask you something, or to ask "Allow these actions?", and you are not in
+  Gotcha to see it (you went to Termux to do what it asked, say, or the screen
+  went off), a notification now says so: "Gotcha has a question", with the chat
+  and the start of the question, following the same preview and naming settings
+  as the task-finished notification. Tapping it opens the chat with the question
+  waiting; answering, skipping, stopping the task or coming back to Gotcha clears
+  it. It has its own channel, "Waiting for your answer", so it can be silenced
+  apart from the others. A question now also waits ten minutes for an answer
+  instead of two, so there is time to go and do what it asked first.
 - **Commands in a box you can copy** (#109). A code block in a reply, or in a
   question Gotcha asks, now sits in its own box: monospace, set apart from the
   text around it, labelled with its language, and with a Copy button that copies

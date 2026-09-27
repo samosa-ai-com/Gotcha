@@ -75,7 +75,7 @@ Everything below is reached from **Settings** in the navigation drawer.
 | Proactive Assistance | Master switch for proactive offers, OTP/code detection, auto-copy OTP, and what may be scanned (screen content, notifications, clipboard) |
 | Assistive Ball and Wake Word | The floating ball over other apps, hands-free voice calls, turning Night Light off for screenshots, the "Hey Gotcha" wake word, when it listens, and detection sensitivity |
 | Appearance | Theme |
-| Notifications | Reply chime and vibration; the task-finished notification and its reply preview; Gotcha notifications (reminders about unfinished chats, routines that are due and quiet spells, the daily tip, quiet hours, a daily cap, whether chats may be named, clearing the history); and server messages. The bell on the chat screen opens the list of recent notifications, and a chat's ⋮ menu keeps that chat out of notifications |
+| Notifications | Reply chime and vibration; the task-finished notification and its reply preview; Gotcha notifications (reminders about unfinished chats, routines that are due and quiet spells, the daily tip, quiet hours, a daily cap, whether chats may be named, clearing the history); and server messages. The "Waiting for your answer" notification, for a paused task, has no switch here: it is its own channel in Android's notification settings for Gotcha. The bell on the chat screen opens the list of recent notifications, and a chat's ⋮ menu keeps that chat out of notifications |
 | About | Samosa AI, other products, legal, contact |
 | About > About Samosa AI | Mission, products, pricing, developers |
 | About > Legal | Terms, disclaimer, data retention |
@@ -110,6 +110,9 @@ belongs in a fenced block tagged `bash`, one command per block, never inline
 in a sentence. A `question` opens a dialog titled "Gotcha has a
 question" with the question below it as Markdown that scrolls, so steps and
 commands can go in the question itself; still keep it as short as it can be.
+A question waits up to ten minutes for an answer, so the user can leave Gotcha
+to do what it asks; while they are away, a "Gotcha has a question" notification
+(and "Gotcha is waiting for your OK" for a confirmation) brings them back to it.
 
 ## Permissions and prerequisites
 
