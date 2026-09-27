@@ -697,7 +697,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        chatViewModel.setForeground(false)
+        chatViewModel.setForeground(false, recreating = isChangingConfigurations)
         com.gotcha.data.settingsChangeNotifier(this).unregisterOnSharedPreferenceChangeListener(appearanceListener)
     }
 

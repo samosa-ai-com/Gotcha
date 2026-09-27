@@ -35,6 +35,8 @@ import com.gotcha.llm.attachmentsUserMessage
 import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
+import com.gotcha.notifications.AttentionKind
+import com.gotcha.notifications.AttentionNotifier
 import com.gotcha.notifications.ChatCompletionNotifier
 import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.notifications.NotificationCategory
@@ -259,6 +261,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val confirmationOverlay = ConfirmationOverlay(application)
     private val foregroundControlIndicator = ForegroundControlIndicator(application)
     private val completionNotifier = ChatCompletionNotifier(application)
+    private val attentionNotifier = AttentionNotifier(application)
     private val localNotificationStore = LocalNotificationStore(application)
 
     private var settings: Settings = Settings()
@@ -533,16 +536,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
+    /**
+     * Pauses the run on the agent's question. Answering often means leaving
+     * Gotcha first (to run a command in Termux, say), so the question waits
+     * [QUESTION_TIMEOUT_MS] rather than the other gates' two minutes, and a
+     * notification says so whenever Gotcha is out of sight (issue #108).
+     */
     override suspend fun awaitQuestionAnswer(question: PendingQuestion): String {
         val gate = CompletableDeferred<String>()
         questionGate = gate
         _uiState.update { it.copy(activity = null, pendingQuestion = question) }
-
-        val answer = withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: ""
-
-        _uiState.update { it.copy(pendingQuestion = null) }
-        questionGate = null
-        return answer
+        if (!appInForeground) notifyNeedsInput()
+        return try {
+            withTimeoutOrNull(QUESTION_TIMEOUT_MS) { gate.await() } ?: ""
+        } finally {
+            attentionNotifier.cancel()
+            _uiState.update { it.copy(pendingQuestion = null) }
+            questionGate = null
+        }
     }
 
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
@@ -551,12 +562,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         _uiState.update {
             it.copy(activity = null, pendingConfirmation = PendingConfirmation(toolNames, description))
         }
+        if (!appInForeground) notifyNeedsInput()
+        return try {
+            withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
+        } finally {
+            attentionNotifier.cancel()
+            confirmationOverlay.dismiss()
+            _uiState.update { it.copy(pendingConfirmation = null) }
+            confirmationGate = null
+        }
+    }
 
-        val approved = withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
-        confirmationOverlay.dismiss()
-        _uiState.update { it.copy(pendingConfirmation = null) }
-        confirmationGate = null
-        return approved
+    /**
+     * Tells the user, out of the app, that the run is paused on a question or
+     * confirmation they can't see (issue #108). The foreground-control ask
+     * needs none: it is drawn over whatever app is in front.
+     */
+    private fun notifyNeedsInput() {
+        val state = _uiState.value
+        val kind = when {
+            state.pendingQuestion != null -> AttentionKind.QUESTION
+            state.pendingConfirmation != null -> AttentionKind.CONFIRMATION
+            else -> return
+        }
+        val sessionId = state.runningSessionId ?: agentEngine.sessionId ?: return
+        // Issue #100: a chat kept out of notifications is not named, nor is its question.
+        val named = settings.notificationsMentionChats &&
+            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+        attentionNotifier.notify(
+            sessionId = sessionId,
+            kind = kind,
+            chatTitle = agentEngine.currentTitle(),
+            question = state.pendingQuestion?.question,
+            preview = settings.chatCompletionPreview,
+            named = named
+        )
     }
 
     /**
@@ -1275,12 +1315,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         questionGate = null
     }
 
-    /** Called from the Activity's onStart/onStop so confirmations know if they'd be hidden. */
-    fun setForeground(foreground: Boolean) {
+    /**
+     * Called from the Activity's onStart/onStop so confirmations know if they'd be hidden.
+     * [recreating] is an onStop for a rotation or other configuration change, which is
+     * back within a moment and should not raise a notification.
+     */
+    fun setForeground(foreground: Boolean, recreating: Boolean = false) {
         appInForeground = foreground
         // Back in the app on a chat whose task finished: that chat's
         // notification has done its job.
         if (foreground) _uiState.value.activeSessionId?.let(completionNotifier::cancel)
+        // A question or confirmation left on screen is out of sight now; back
+        // in the app, its dialog is showing again.
+        when {
+            foreground -> attentionNotifier.cancel()
+            !recreating -> notifyNeedsInput()
+        }
     }
 
     /** Speak the given text aloud using the configured TTS provider. */
@@ -2028,6 +2078,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
 
     private companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+
+        /** How long a question waits; see [awaitQuestionAnswer]. */
+        const val QUESTION_TIMEOUT_MS = 600_000L
 
         /** Set once the one-time notification-permission ask has been shown. */
         const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
