@@ -219,6 +219,15 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **A model that never answers no longer leaves the chat on "Thinking…"** (#104).
+  The API timeout used to default to 0, which meant never give up, so a model
+  server that accepted a request and then sent nothing kept the chat on
+  "Thinking…" until you pressed Stop. It now defaults to 3 minutes of silence:
+  after that the task ends with "The model didn't respond in time" and the
+  task-finished notification reports it as failed. A long reply that is still
+  arriving is never cut off. If you were on the old default of 0, the update
+  moves you to 3 minutes once; a timeout you set yourself is kept, and you can
+  still set 0 in Settings → AI → AI Configuration for no timeout.
 - **Gotcha remembers what you asked about an earlier photo** (#102). To save
   space, Gotcha drops older images from what it sends the model. It used to
   drop the whole message with them, so a question you sent with a photo, or the
