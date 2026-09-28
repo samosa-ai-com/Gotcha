@@ -211,6 +211,18 @@
                 android:value="floating_assistant_overlay" />
         </service>
 
+        <!-- Keeps the process alive while a chat run is in progress, so leaving Gotcha
+             mid-task does not let Android reclaim it (issue #105). specialUse: the run
+             is an on-device agent task, which none of the other types describe. -->
+        <service
+            android:name=".service.ChatRunService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="agent_task_in_progress" />
+        </service>
+
         <!-- Screenshot capture via MediaProjection (foreground service, one-shot). -->
         <service
             android:name=".service.MediaProjectionService"

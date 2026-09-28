@@ -42,6 +42,8 @@ import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.RunOutcome
+import com.gotcha.service.ChatRunService
+import com.gotcha.service.RunningChat
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.DocumentError
 import com.gotcha.tools.DocumentParser
@@ -440,6 +442,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             com.gotcha.data.SampleChatSeeder.seedIfNeeded(historyRepository, settingsRepository.prefs)
             refreshSessions()
         }
+        // Stop on the ongoing "Gotcha is working…" notification (issue #105).
+        viewModelScope.launch { ChatRunService.stopRequests.collect { stopAgent() } }
     }
 
     // ---- AgentEvents (engine → UI) ----
@@ -589,8 +593,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
         val sessionId = state.runningSessionId ?: agentEngine.sessionId ?: return
         // Issue #100: a chat kept out of notifications is not named, nor is its question.
-        val named = settings.notificationsMentionChats &&
-            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+        val named = mayNameChat(sessionId)
         attentionNotifier.notify(
             sessionId = sessionId,
             kind = kind,
@@ -819,6 +822,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 askNotificationPermission = it.askNotificationPermission || claimNotificationPermissionAsk()
             )
         }
+        // Issue #105: hold a foreground slot for the run, so Android keeps the
+        // process alive if the user leaves mid-task. Started here, while the user
+        // who just sent the message is still in Gotcha.
+        ChatRunService.start(
+            getApplication(),
+            RunningChat(runningId, agentEngine.currentTitle().takeIf { mayNameChat(runningId) })
+        )
         runHadError = false
         var stopped = false
         try {
@@ -848,6 +858,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         else -> RunOutcome.DONE
                     }
                 )
+                // After the finished notification is up, so in the background the
+                // ongoing one is replaced by it rather than leaving a gap.
+                ChatRunService.stop()
                 _uiState.update {
                     it.copy(
                         isBusy = false,
@@ -863,6 +876,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
         }
     }
+
+    /** Issue #100: whether a notification about the engine's chat [sessionId] may name it. */
+    private fun mayNameChat(sessionId: String): Boolean =
+        settings.notificationsMentionChats &&
+            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
 
     private fun currentBackgroundHint(): String = backgroundHintText(
         vibrate = settings.notifyVibrationEnabled,
@@ -885,8 +903,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }?.text
         // Issue #100: a chat kept out of notifications, or chats not to be named
         // at all, get a notification that says only that a task finished.
-        val named = settings.notificationsMentionChats &&
-            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+        val named = mayNameChat(sessionId)
         val title = if (named) {
             ChatCompletionNotifier.notificationTitle(agentEngine.currentTitle(), outcome)
         } else {

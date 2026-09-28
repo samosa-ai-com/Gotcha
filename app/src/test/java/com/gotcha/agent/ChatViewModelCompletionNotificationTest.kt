@@ -9,9 +9,16 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.service.ChatRunService
+import com.gotcha.service.RunningChat
 import com.gotcha.testsupport.FakeAndroidKeyStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -55,6 +62,7 @@ class ChatViewModelCompletionNotificationTest {
     @Before
     fun clearTray() {
         manager.cancelAll()
+        ChatRunService.stop()
     }
 
     private fun waitForRunToFinish() {
@@ -164,5 +172,39 @@ class ChatViewModelCompletionNotificationTest {
         )
         assertFalse(viewModel.uiState.value.askNotificationPermission)
         waitForRunToFinish()
+    }
+
+    /** Every value [ChatRunService.running] takes, recorded as it is set. */
+    private fun recordRunning(): Pair<MutableList<RunningChat?>, Job> {
+        val seen = java.util.Collections.synchronizedList(mutableListOf<RunningChat?>())
+        val job = CoroutineScope(Dispatchers.Unconfined).launch { ChatRunService.running.collect { seen += it } }
+        return seen to job
+    }
+
+    @Test
+    fun `a run holds the keep-alive service until it ends`() {
+        start()
+        val (seen, job) = recordRunning()
+        viewModel.sendMessage("Hello")
+        waitForRunToFinish()
+        job.cancel()
+
+        val started = shadowOf(application).nextStartedService
+        assertEquals(ChatRunService::class.java.name, started?.component?.className)
+        assertEquals(viewModel.uiState.value.activeSessionId, seen.filterNotNull().single().sessionId)
+        assertNull(ChatRunService.running.value)
+    }
+
+    @Test
+    fun `the keep-alive notification does not name a chat when chats are not to be named`() {
+        start()
+        settingsRepository.save(settingsRepository.load().copy(notificationsMentionChats = false))
+        viewModel.refreshSettings()
+        val (seen, job) = recordRunning()
+        viewModel.sendMessage("Hello")
+        waitForRunToFinish()
+        job.cancel()
+
+        assertNull(seen.filterNotNull().single().chatTitle)
     }
 }
