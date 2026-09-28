@@ -92,9 +92,7 @@ class ChatViewModelAttachmentTest {
 
     /** Reads the live engine history without hitting the network. */
     private fun engineHistory(): List<ChatMessage> {
-        val field = ChatViewModel::class.java.getDeclaredField("agentEngine")
-            .apply { isAccessible = true }
-        return (field.get(viewModel) as AgentEngine).history.toList()
+        return viewModel.runner.engine.history.toList()
     }
 
     /**

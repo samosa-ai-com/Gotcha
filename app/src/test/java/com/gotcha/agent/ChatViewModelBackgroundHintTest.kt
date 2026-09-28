@@ -74,9 +74,7 @@ class ChatViewModelBackgroundHintTest {
     }
 
     private fun engineHistory(): List<ChatMessage> {
-        val field = ChatViewModel::class.java.getDeclaredField("agentEngine")
-            .apply { isAccessible = true }
-        return (field.get(viewModel) as AgentEngine).history.toList()
+        return viewModel.runner.engine.history.toList()
     }
 
     private val expectedHint = backgroundHintText(vibrate = true, chime = false)

@@ -24,7 +24,7 @@ import org.robolectric.annotation.Config
 
 /**
  * The chat host's half of asking for a permission when it is needed (issue #79):
- * the engine blocks on [ChatViewModel.awaitPermissionGrant] while the Activity
+ * the engine blocks on [ChatRunner.awaitPermissionGrant] while the Activity
  * puts the reason on screen and raises the system dialog.
  *
  * Two things must hold or the agent hangs. The ask has to be visible in the UI
@@ -55,7 +55,7 @@ class ChatViewModelPermissionGateTest {
 
     @Test
     fun `the ask is published to the UI state until it is answered`() = runTest(dispatcher) {
-        val gate = async { viewModel.awaitPermissionGrant(android.Manifest.permission.CAMERA) }
+        val gate = async { viewModel.runner.awaitPermissionGrant(android.Manifest.permission.CAMERA) }
         runCurrent()
 
         assertEquals(
@@ -73,7 +73,7 @@ class ChatViewModelPermissionGateTest {
 
     @Test
     fun `declining answers the engine without leaving the ask on screen`() = runTest(dispatcher) {
-        val gate = async { viewModel.awaitPermissionGrant(android.Manifest.permission.SEND_SMS) }
+        val gate = async { viewModel.runner.awaitPermissionGrant(android.Manifest.permission.SEND_SMS) }
         runCurrent()
 
         viewModel.onPermissionResult(false)
@@ -90,7 +90,7 @@ class ChatViewModelPermissionGateTest {
         // timeout with the agent frozen behind it.
         viewModel.setForeground(false)
 
-        val granted = viewModel.awaitPermissionGrant(android.Manifest.permission.READ_CONTACTS)
+        val granted = viewModel.runner.awaitPermissionGrant(android.Manifest.permission.READ_CONTACTS)
 
         assertFalse(granted)
         assertNull("nothing should be queued for a screen that isn't there", viewModel.uiState.value.pendingPermission)

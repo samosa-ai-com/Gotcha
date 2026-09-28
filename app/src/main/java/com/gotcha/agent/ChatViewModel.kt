@@ -11,55 +11,33 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
-import com.gotcha.audio.CompletionFeedback
 import com.gotcha.audio.SttEngine
-import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatArchive
-import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatImporter
 import com.gotcha.data.ChatMarkdown
 import com.gotcha.data.ChatSession
 import com.gotcha.data.DuplicateStrategy
 import com.gotcha.data.ImportParseResult
-import com.gotcha.data.LlmProvider
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
-import com.gotcha.data.SettingsRepository
 import com.gotcha.data.documentPromptText
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
 import com.gotcha.llm.ChatMessage
-import com.gotcha.llm.DocumentPart
 import com.gotcha.llm.LLMClient
-import com.gotcha.llm.attachmentsUserMessage
 import com.gotcha.marketing.PosterRenderer
 import com.gotcha.marketing.PosterStatsBuilder
 import com.gotcha.marketing.ShareCardClient
-import com.gotcha.notifications.AttentionKind
-import com.gotcha.notifications.AttentionNotifier
 import com.gotcha.notifications.ChatCompletionNotifier
 import com.gotcha.notifications.LocalNotificationStore
-import com.gotcha.notifications.NotificationCategory
-import com.gotcha.notifications.NotificationTarget
-import com.gotcha.notifications.RunOutcome
-import com.gotcha.service.ChatRunService
-import com.gotcha.service.RunningChat
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.DocumentError
 import com.gotcha.tools.DocumentParser
-import com.gotcha.tools.GotchaSettingsUpdate
-import com.gotcha.tools.ScreenPerception
-import com.gotcha.tools.ToolResult
-import com.gotcha.tools.mergeProfileUpdate
-import com.gotcha.ui.ConfirmationOverlay
-import com.gotcha.ui.ForegroundControlIndicator
 import com.gotcha.ui.Persona
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -69,7 +47,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
@@ -264,147 +241,49 @@ data class ChatUiState(
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
 // loop itself lives in AgentEngine and reports back through AgentEvents.
+/**
+ * The chat screen's state. The agent and the run in progress belong to the
+ * app-scoped [ChatRunner] (issue #111), so a run outlives this ViewModel when
+ * the Activity finishes; this binds the runner to the chat being viewed, starts
+ * runs on it and mirrors its [RunState] into [uiState].
+ */
 @Suppress("TooManyFunctions", "LargeClass")
-class ChatViewModel(application: Application) : AndroidViewModel(application), AgentEvents {
+class ChatViewModel(application: Application) : AndroidViewModel(application), ChatRunObserver {
 
-    private val settingsRepository = SettingsRepository(application)
-    private val historyRepository = ChatHistoryRepository(application)
-    private val confirmationOverlay = ConfirmationOverlay(application)
-    private val foregroundControlIndicator = ForegroundControlIndicator(application)
+    /** `internal` so tests can drive the engine's side of a run directly. */
+    internal val runner = ChatRunner.of(application)
+
+    private val settingsRepository = runner.settingsRepository
+    private val historyRepository = runner.historyRepository
     private val completionNotifier = ChatCompletionNotifier(application)
-    private val attentionNotifier = AttentionNotifier(application)
     private val localNotificationStore = LocalNotificationStore(application)
-    private val runMarker = RunInProgressMarker(settingsRepository.prefs)
 
-    private var settings: Settings = Settings()
-    private var client: LLMClient? = null
+    private val settings: Settings get() = runner.settings
+    private val client: LLMClient? get() = runner.client
 
     /** True when the most recent user message was sent via voice (STT). */
     @Volatile
     private var lastInputWasVoice = false
 
-    /** True when the active LLM run was initiated by voice dictation. */
-    @Volatile
-    private var currentRunIsVoice = false
-
-    private val ttsEngine: TtsEngine = TtsEngine(
-        getApplication(),
-        settings.effectiveTtsBaseUrl,
-        settings.effectiveTtsApiKey,
-        onUnauthorized = { viewModelScope.launch { onSamosaUnauthorized() } }
-    )
     private val sttEngine: SttEngine = SttEngine(
         getApplication(),
         settings.effectiveSttBaseUrl,
         settings.effectiveSttApiKey,
-        onUnauthorized = { viewModelScope.launch { onSamosaUnauthorized() } }
+        onUnauthorized = { viewModelScope.launch { runner.onSamosaUnauthorized() } }
     )
 
-    /** Set by the Activity in onStart/onStop; drives whether confirmations use the overlay. */
-    @Volatile
-    private var appInForeground = true
-
-    private val agentEngine = AgentEngine(
-        appContext = application,
-        events = this,
-        historyRepository = historyRepository,
-        settingsProvider = { settings },
-        clientProvider = { client },
-        onUpdateUserProfile = { update ->
-            // Reload so a manual Personal Info edit isn't clobbered by a stale snapshot,
-            // then persist and refresh the cached settings the engine reads next turn.
-            val merged = mergeProfileUpdate(settingsRepository.load(), update)
-                ?: return@AgentEngine ToolResult.ok("No material change — profile left as is.")
-            settingsRepository.save(merged.updated)
-            settings = merged.updated
-            // Surface the change to the user: the profile is silently re-injected into every
-            // future prompt, so a prompt-injected update_user_profile call must not go
-            // unnoticed. A TOOL bubble in the transcript gives the user a chance to catch
-            // and revert a poisoned update. Dispatched to Main because this handler runs
-            // inside the tool executor's IO context while appendEngineUi touches UI state.
-            withContext(Dispatchers.Main) {
-                appendEngineUi(
-                    MessageKind.TOOL,
-                    "Assistant updated your profile: " +
-                        merged.changedFields.joinToString(", ") + "."
-                )
-            }
-            ToolResult.ok(
-                "Updated " + merged.changedFields.joinToString(", ") + ". " +
-                    "The new value will be used from the next message."
-            )
-        },
-        onUpdateGotchaSettings = { plan ->
-            // Only reached after the user approved this exact change. Apply it onto a
-            // fresh load so a concurrent write elsewhere (the Settings screen, the
-            // assistive ball) is not clobbered by the snapshot the prompt was built from.
-            settingsRepository.save(plan.applyTo(settingsRepository.load()))
-            withContext(Dispatchers.Main) {
-                // Rebuilds the cached settings the engine reads next round, and the
-                // speech engines; the skin and services follow settingsChangeNotifier.
-                refreshSettings()
-                appendEngineUi(
-                    MessageKind.TOOL,
-                    "Assistant changed settings: " + plan.lines().joinToString("; ") + "."
-                )
-            }
-            ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
-        },
-        // Persist the ENGINE session's own data, never the viewed session's —
-        // the user may be browsing another chat while this run continues.
-        displayMessagesProvider = { engineTranscript },
-        agentModeProvider = { engineAgent }
-    )
-
+    /** Next UiMessage id for a chat shown while the engine is bound to another one. */
     private var nextId = 0L
-    private var confirmationGate: CompletableDeferred<Boolean>? = null
-    private var questionGate: CompletableDeferred<String>? = null
-    private var permissionGate: CompletableDeferred<Boolean>? = null
-    private var foregroundControlGate: CompletableDeferred<Boolean>? = null
-    private var agentJob: Job? = null
-
-    /**
-     * Live on-screen transcript of the session currently bound to [agentEngine]
-     * (the one that runs). Kept separate from [_uiState].messages so the user
-     * can browse to another chat while a run continues in the background without
-     * the engine's output overwriting — or being overwritten by — the viewed chat.
-     */
-    private var engineTranscript: List<UiMessage> = emptyList()
-
-    /** Monotonic UiMessage id for engine bubbles while browsing a different chat. */
-    private var engineNextId: Long = 1_000_000_000L
-
-    /** Agent mode of the session currently bound to [agentEngine]. */
-    private var engineAgent: AgentMode = AgentMode.MONITOR
-
-    /**
-     * True when the run in flight has surfaced an error bubble (LLM failure,
-     * user interruption, …). Decides whether an arriving reply gets the normal
-     * alert or the error buzz, since the engine reports both outcomes through
-     * the same `onAssistantReply` path.
-     */
-    @Volatile
-    private var runHadError = false
 
     /** True when the session the user is viewing is the one bound to the engine. */
     private fun viewingEngineSession(): Boolean =
-        _uiState.value.activeSessionId == agentEngine.sessionId
+        _uiState.value.activeSessionId == runner.state.value.boundSessionId
 
     /**
-     * True when [ChatSession.title] is still the legacy truncated-first-message
-     * fallback rather than an LLM-generated title, so it's eligible to be
-     * (re)generated next time the session is saved.
-     */
-    private fun ChatSession.isFallbackTitle(): Boolean {
-        val fallback = messages.firstOrNull { it.role == "user" }?.textContent?.take(30)
-        return title.isBlank() || title == fallback
-    }
-
-    /**
-     * Startup: the fresh session, the chat-directory migration and the sample
-     * seeding. Anything that loads a saved chat on the user's behalf before the
-     * UI is up (a notification tap) waits for it, or the migration could move
-     * the chat out from under the load.
+     * Startup: waits for the runner's once-per-process startup (the migration,
+     * the sample seeding) before the drawer lists chats. Anything that loads a
+     * saved chat on the user's behalf before the UI is up (a notification tap)
+     * waits for it too.
      */
     private val initJob: Job
 
@@ -414,271 +293,109 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val _sessions = MutableStateFlow<List<ChatSession>>(emptyList())
     val sessions: StateFlow<List<ChatSession>> = _sessions.asStateFlow()
 
-    /**
-     * Live per-session token counts. Updated on every [onTokenCount] so the
-     * drawer's per-row readout doesn't lag one round behind the running
-     * session. The persisted [ChatSession.tokenCount] on disk catches up
-     * through [saveCurrentSession], so this overlay is read-first, disk-second.
-     */
-    private val _liveTokenBySession = MutableStateFlow<Map<String, Int>>(emptyMap())
-    val liveTokenBySession: StateFlow<Map<String, Int>> = _liveTokenBySession.asStateFlow()
+    /** See [ChatRunner.liveTokenBySession]. */
+    val liveTokenBySession: StateFlow<Map<String, Int>> = runner.liveTokenBySession
 
-    /**
-     * Special-access markers ("special:*") the Activity should deep-link to.
-     * Runtime permissions travel as [ChatUiState.pendingPermission] instead —
-     * they need an answer, and this is a fire-and-forget signal.
-     */
-    private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
-    val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
+    /** See [ChatRunner.permissionRequests]. */
+    val permissionRequests: SharedFlow<String> = runner.permissionRequests
+
+    /** See [ChatRunner.inboxChanges]. */
+    val inboxChanges: StateFlow<Int> = runner.inboxChanges
 
     /** Exported chat markdown content the Activity should share. */
-    /**
-     * Bumped when the view model adds an inbox entry of its own (an interrupted
-     * run, issue #105), so the bell re-reads its unread count: the Activity's
-     * read in onResume can come before the entry exists.
-     */
-    private val _inboxChanges = MutableStateFlow(0)
-    val inboxChanges: StateFlow<Int> = _inboxChanges.asStateFlow()
-
     private val _exportContent = MutableSharedFlow<String>(extraBufferCapacity = 2)
     val exportContent: SharedFlow<String> = _exportContent.asSharedFlow()
 
     init {
-        ScreenPerception.appContext = application
-        com.gotcha.agent.skills.SkillRegistry.init(application)
-        refreshSettings()
-        initJob = viewModelScope.launch {
+        runner.addObserver(this)
+        onSettingsChanged()
+        val run = runner.state.value
+        if (runner.isRunning && run.boundSessionId != null) {
+            // Issue #111: the run outlived the screen that started it; show it.
+            showBoundSession(run.boundSessionId)
+        } else {
             // Always start on a fresh session so the home screen greets with an
             // empty chat; past sessions remain one tap away in the drawer.
-            agentEngine.sessionId = java.util.UUID.randomUUID().toString()
-            agentEngine.tokenCount = 0
-            agentEngine.restoreTitle(null)
-            agentEngine.setupWorkingDir(create = false)
-            _uiState.update { it.copy(activeSessionId = agentEngine.sessionId) }
-            updateContextUsage()
-            migrateChatDirsIfNeeded()
-            com.gotcha.data.SampleChatSeeder.seedIfNeeded(historyRepository, settingsRepository.prefs)
-            reportInterruptedRun()
+            val newId = java.util.UUID.randomUUID().toString()
+            runner.bindFresh(newId, AgentMode.MONITOR)
+            _uiState.update { it.copy(activeSessionId = newId) }
+        }
+        applyRunState(runner.state.value, initial = true)
+        updateContextUsage()
+        initJob = viewModelScope.launch {
+            runner.startup.join()
             refreshSessions()
         }
-        // Stop on the ongoing "Gotcha is working…" notification (issue #105).
-        viewModelScope.launch { ChatRunService.stopRequests.collect { stopAgent() } }
     }
 
-    // ---- AgentEvents (engine → UI) ----
+    // ---- ChatRunObserver (runner → screen) ----
 
-    override fun onUi(
-        kind: MessageKind,
-        text: String,
-        imageBase64: String?,
-        subAgentSteps: List<String>,
-        reasoningContent: String?
-    ) {
-        appendEngineUi(
-            kind = kind,
-            text = text,
-            imageBase64 = imageBase64,
-            subAgentSteps = subAgentSteps,
-            reasoningContent = reasoningContent
-        )
-    }
-
-    override fun onActivity(activity: String?) {
-        if (viewingEngineSession()) {
-            _uiState.update { it.copy(activity = activity) }
-        }
-        // Once per round: picks up the chat's title when the first save generates it.
-        _uiState.value.runningSessionId?.let { ChatRunService.update(runningChat(it)) }
-    }
-
-    override fun onTokenCount(totalTokens: Int) {
-        val engineId = agentEngine.sessionId ?: return
-        // Publish live to the drawer so the running session's row updates in
-        // the same frame, without waiting for the disk save at end-of-round.
-        _liveTokenBySession.update { it + (engineId to totalTokens) }
-        // Pass the new count explicitly: updateContextUsage() re-applies the
-        // count already on screen, so the meter would never move mid-run (#71).
-        if (viewingEngineSession()) applyContextUsage(totalTokens)
-        // Best-effort disk write so a crash mid-run doesn't lose the count.
-        viewModelScope.launch { agentEngine.saveCurrentSession() }
-    }
-
-    override fun onAssistantReply(text: String) {
-        signalReplyArrived()
-        val shouldRead = lastInputWasVoice || currentRunIsVoice ||
-            (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
-        if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
-            speak(text)
-        }
-        lastInputWasVoice = false
-        currentRunIsVoice = false
-    }
-
-    override fun onSubAgentUpdate(running: String?, currentAction: String?) {
-        if (viewingEngineSession()) {
-            _uiState.update { it.copy(subAgentRunning = running, subAgentCurrentAction = currentAction) }
-        }
-    }
-
-    override fun onPermissionRequest(marker: String) {
-        _permissionRequests.tryEmit(marker)
+    override fun onRunStateChanged(old: RunState, new: RunState) {
+        applyRunState(new, old)
     }
 
     /**
-     * A tool needs a runtime permission right now. The Activity collecting
-     * [permissionRequests] explains why and raises the system dialog, then
-     * answers through [onPermissionResult].
-     *
-     * A runtime dialog can only be raised by a foreground Activity, so a
-     * backgrounded run says "not granted" immediately rather than stalling the
-     * agent behind a prompt nobody can see — the tool's own error message
-     * already tells the model (and, on screen, the user) what is missing.
+     * Mirrors [run] into [uiState]. The run and its gates show whichever chat
+     * is viewed; the bound chat's transcript, activity and token count only
+     * while it is the one on screen.
      */
-    override suspend fun awaitPermissionGrant(permission: String): Boolean {
-        if (!appInForeground) return false
-        val gate = CompletableDeferred<Boolean>()
-        permissionGate = gate
-        _uiState.update { it.copy(activity = null, pendingPermission = permission) }
-
-        val granted = withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
-
-        _uiState.update { it.copy(pendingPermission = null) }
-        permissionGate = null
-        return granted
-    }
-
-    /** The Activity's answer to [awaitPermissionGrant]: the system dialog's outcome. */
-    fun onPermissionResult(granted: Boolean) {
-        _uiState.update { it.copy(pendingPermission = null) }
-        permissionGate?.complete(granted)
-        permissionGate = null
-    }
-
-    /** Compaction dropped the LLM history; clear the engine transcript to match. */
-    override fun onHistoryReset() {
-        engineTranscript = emptyList()
-        if (viewingEngineSession()) {
-            nextId = 0
-            _uiState.update { it.copy(messages = emptyList()) }
-        }
-    }
-
-    /**
-     * Pauses the run on the agent's question. Answering often means leaving
-     * Gotcha first (to run a command in Termux, say), so the question waits
-     * [QUESTION_TIMEOUT_MS] rather than the other gates' two minutes, and a
-     * notification says so whenever Gotcha is out of sight (issue #108).
-     */
-    override suspend fun awaitQuestionAnswer(question: PendingQuestion): String {
-        val gate = CompletableDeferred<String>()
-        questionGate = gate
-        _uiState.update { it.copy(activity = null, pendingQuestion = question) }
-        if (!appInForeground) notifyNeedsInput()
-        return try {
-            withTimeoutOrNull(QUESTION_TIMEOUT_MS) { gate.await() } ?: ""
-        } finally {
-            attentionNotifier.cancel()
-            _uiState.update { it.copy(pendingQuestion = null) }
-            questionGate = null
-        }
-    }
-
-    override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
-        val gate = CompletableDeferred<Boolean>()
-        confirmationGate = gate
+    private fun applyRunState(run: RunState, old: RunState? = null, initial: Boolean = false) {
+        val viewing = _uiState.value.activeSessionId == run.boundSessionId
         _uiState.update {
-            it.copy(activity = null, pendingConfirmation = PendingConfirmation(toolNames, description))
-        }
-        if (!appInForeground) notifyNeedsInput()
-        return try {
-            withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
-        } finally {
-            attentionNotifier.cancel()
-            confirmationOverlay.dismiss()
-            _uiState.update { it.copy(pendingConfirmation = null) }
-            confirmationGate = null
-        }
-    }
-
-    /**
-     * Tells the user, out of the app, that the run is paused on a question or
-     * confirmation they can't see (issue #108). The foreground-control ask
-     * needs none: it is drawn over whatever app is in front.
-     */
-    private fun notifyNeedsInput() {
-        val state = _uiState.value
-        val kind = when {
-            state.pendingQuestion != null -> AttentionKind.QUESTION
-            state.pendingConfirmation != null -> AttentionKind.CONFIRMATION
-            else -> return
-        }
-        val sessionId = state.runningSessionId ?: agentEngine.sessionId ?: return
-        // Issue #100: a chat kept out of notifications is not named, nor is its question.
-        val named = mayNameChat(sessionId)
-        attentionNotifier.notify(
-            sessionId = sessionId,
-            kind = kind,
-            chatTitle = agentEngine.currentTitle(),
-            question = state.pendingQuestion?.question,
-            preview = settings.chatCompletionPreview,
-            named = named
-        )
-    }
-
-    /**
-     * The once-per-request ask before Gotcha controls another app (issue #98).
-     * Out of the app the in-app dialog can't be seen, so the same question is
-     * also drawn over whatever is on screen; either answer counts.
-     */
-    override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean {
-        val gate = CompletableDeferred<Boolean>()
-        foregroundControlGate = gate
-        _uiState.update { it.copy(activity = null, pendingForegroundControl = request) }
-        if (!appInForeground && confirmationOverlay.canShow()) {
-            confirmationOverlay.show(
-                summary = request.promptText(),
-                onAllow = { gate.complete(true) },
-                onDeny = { gate.complete(false) },
-                title = request.title,
-                allowLabel = ForegroundControlRequest.ALLOW_LABEL,
-                denyLabel = ForegroundControlRequest.DENY_LABEL
+            it.copy(
+                isBusy = run.isBusy,
+                runningSessionId = run.runningSessionId,
+                runningSessionTitle = run.runningSessionTitle,
+                backgroundHint = run.backgroundHint,
+                pendingConfirmation = run.pendingConfirmation,
+                pendingForegroundControl = run.pendingForegroundControl,
+                foregroundControlStatus = run.foregroundControlStatus,
+                pendingQuestion = run.pendingQuestion,
+                pendingPermission = run.pendingPermission,
+                isConfigured = run.isConfigured,
+                isSpeaking = run.isSpeaking,
+                messages = if (viewing && (initial || old?.transcript !== run.transcript)) {
+                    run.transcript
+                } else {
+                    it.messages
+                },
+                activity = if (viewing) run.activity else it.activity,
+                subAgentRunning = if (viewing) run.subAgentRunning else it.subAgentRunning,
+                subAgentCurrentAction = if (viewing) run.subAgentCurrentAction else it.subAgentCurrentAction
             )
         }
-        return try {
-            withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
-        } finally {
-            confirmationOverlay.dismiss()
-            _uiState.update { it.copy(pendingForegroundControl = null) }
-            foregroundControlGate = null
+        // Pass the new count explicitly: updateContextUsage() re-applies the
+        // count already on screen, so the meter would never move mid-run (#71).
+        if (viewing && old != null && old.tokenCount != run.tokenCount) applyContextUsage(run.tokenCount)
+    }
+
+    override fun onSettingsChanged() {
+        sttEngine.configureApi(settings.effectiveSttBaseUrl, settings.effectiveSttApiKey)
+        updateContextUsage()
+    }
+
+    /** Shows the chat bound to the engine, live: the running one, typically. */
+    private fun showBoundSession(id: String) {
+        val run = runner.state.value
+        _uiState.update {
+            it.copy(
+                activeSessionId = id,
+                activeAgent = runner.engineAgent,
+                activePersonaId = runner.engine.sessionPersonaId,
+                messages = run.transcript,
+                viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample
+                    ?: runner.engine.sessionIsSample,
+                activity = run.activity,
+                subAgentRunning = run.subAgentRunning,
+                subAgentCurrentAction = run.subAgentCurrentAction
+            )
         }
+        applyContextUsage(runner.engine.tokenCount)
     }
 
-    /** The in-app dialog's answer to [awaitForegroundControl]. */
-    fun answerForegroundControl(allowed: Boolean) {
-        _uiState.update { it.copy(pendingForegroundControl = null) }
-        foregroundControlGate?.complete(allowed)
-        foregroundControlGate = null
-    }
+    fun onPermissionResult(granted: Boolean) = runner.onPermissionResult(granted)
 
-    override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
-        if (active) {
-            val text = ForegroundControlRequest.controllingMessage(appLabel)
-            _uiState.update { it.copy(foregroundControlStatus = text) }
-            foregroundControlIndicator.showControlling(text)
-        } else {
-            _uiState.update { it.copy(foregroundControlStatus = ForegroundControlRequest.DONE_MESSAGE) }
-            // In the app the status line says it; outside, the card over their app does.
-            if (appInForeground) {
-                foregroundControlIndicator.dismiss()
-            } else {
-                foregroundControlIndicator.showDone(ForegroundControlRequest.DONE_MESSAGE)
-            }
-        }
-    }
-
-    override fun onScreenCaptureChrome(hide: Boolean) {
-        foregroundControlIndicator.setCaptureHidden(hide)
-    }
+    fun answerForegroundControl(allowed: Boolean) = runner.answerForegroundControl(allowed)
 
     // ---- Settings / models ----
 
@@ -702,38 +419,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     }
 
     /** Re-reads settings; call after the settings screen saves. */
-    fun refreshSettings() {
-        settings = settingsRepository.load()
-        client = if (settings.isConfigured) {
-            LLMClient(
-                apiKey = settings.effectiveApiKey,
-                baseUrl = settings.effectiveBaseUrl,
-                model = settings.model,
-                context = getApplication(),
-                apiTimeoutSeconds = settings.apiTimeoutSeconds,
-                onUnauthorized = { onSamosaUnauthorized() }
-            )
-        } else {
-            null
-        }
-        ttsEngine.configureApi(settings.effectiveTtsBaseUrl, settings.effectiveTtsApiKey)
-        sttEngine.configureApi(settings.effectiveSttBaseUrl, settings.effectiveSttApiKey)
-        _uiState.update { it.copy(isConfigured = settings.isConfigured) }
-        updateContextUsage()
-    }
-
-    /**
-     * On a 401 while using Samosa AI, the JWT is expired/blacklisted: drop it so
-     * the app returns to the unauthenticated state and prompts sign-in again.
-     */
-    private fun onSamosaUnauthorized() {
-        val usingSamosa = settings.provider == LlmProvider.SAMOSA_AI
-        if (!usingSamosa) return
-        settingsRepository.clearSamosaSession()
-        settings = settingsRepository.load()
-        client = null
-        _uiState.update { it.copy(isConfigured = false) }
-    }
+    fun refreshSettings() = runner.refreshSettings()
 
     suspend fun refreshChatModels(): Result<List<String>> {
         val cfg = settings
@@ -762,234 +448,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        val msg = buildUserMessage(trimmed, attachments)
-        launchUserRun(msg, attachments, trimmed, isVoiceInput)
-    }
-
-    /**
-     * Builds the LLM user message for the given prompt and attachments: every
-     * document's text joins the prompt in the first text part, and every image
-     * follows as its own image part.
-     */
-    private fun buildUserMessage(text: String, attachments: List<ComposerAttachment>): ChatMessage {
-        if (attachments.isEmpty()) return ChatMessage(role = "user", content = JsonPrimitive(text))
-        val documents = attachments.filterIsInstance<ComposerAttachment.Document>().map {
-            DocumentPart(it.attachment.name, it.attachment.mimeType, it.attachment.text, it.attachment.pageCount)
-        }
-        val images = attachments.filterIsInstance<ComposerAttachment.Image>().map { it.base64 }
-        return attachmentsUserMessage(text, documents, images, imageFormat = "jpeg")
-    }
-
-    /**
-     * Appends [msg] to the viewed session's LLM history, shows the USER bubble,
-     * and starts an agent run. Shared by [sendMessage] and [editMessage], so both
-     * paths go through the same busy-marking, run, and NonCancellable cleanup.
-     */
-    private fun launchUserRun(
-        msg: ChatMessage,
-        attachments: List<ComposerAttachment>,
-        userText: String,
-        isVoiceInput: Boolean
-    ) {
-        currentRunIsVoice = isVoiceInput || lastInputWasVoice
+        val isVoice = isVoiceInput || lastInputWasVoice
         lastInputWasVoice = false
-        val viewedId = _uiState.value.activeSessionId
-        agentJob = viewModelScope.launch {
-            // Ensure the engine is bound to the session being viewed. After a
-            // previous run finished while the user browsed elsewhere, the engine
-            // may still point at that older session — reload the viewed one.
-            bindEngineToViewedSession(viewedId)
-
-            agentEngine.history += msg
-            appendEngineUi(
-                MessageKind.USER,
-                userDisplayText(userText, msg, attachments),
-                attachments = attachments
-            )
-
-            val runningId = agentEngine.sessionId ?: return@launch
-            executeRun(engineAgent, runningId)
-        }
+        claimNotificationPermissionAskForRun()
+        runner.send(viewedChat(), trimmed, attachments, isVoice)
     }
 
-    /**
-     * The transcript label for a sent message: the prompt text, or a placeholder
-     * when the message is attachment-only. Messages with documents show the
-     * prompt rather than the extracted bodies; image-only messages show a
-     * placeholder, never the whitespace text part sent to the model.
-     */
-    private fun userDisplayText(userText: String, msg: ChatMessage, attachments: List<ComposerAttachment>): String =
-        when {
-            attachments.isEmpty() -> msg.textContent
-            attachments.none { it is ComposerAttachment.Document } -> userText.ifEmpty {
-                if (attachments.size == 1) "(image attached)" else "(files attached)"
-            }
-            else -> userText.ifEmpty {
-                if (attachments.size == 1) "(document attached)" else "(files attached)"
-            }
-        }
+    /** What a run started now binds the engine to. */
+    private fun viewedChat(): ViewedChat = _uiState.value.let {
+        ViewedChat(it.activeSessionId, it.messages, it.activeAgent, it.activePersonaId)
+    }
 
-    /** Busy-marking + agent run + NonCancellable cleanup, from the old sendMessage body. */
-    private suspend fun executeRun(agent: AgentMode, runningId: String) {
-        val runningTitle = engineTranscript.firstOrNull { it.kind == MessageKind.USER }
-            ?.text?.take(30) ?: "New Chat"
+    /** Raises the one-time notification-permission ask as a run starts, if it is due. */
+    private fun claimNotificationPermissionAskForRun() {
         _uiState.update {
-            it.copy(
-                isBusy = true,
-                runningSessionId = runningId,
-                runningSessionTitle = runningTitle,
-                backgroundHint = currentBackgroundHint(),
-                foregroundControlStatus = null,
-                askNotificationPermission = it.askNotificationPermission || claimNotificationPermissionAsk()
-            )
+            it.copy(askNotificationPermission = it.askNotificationPermission || claimNotificationPermissionAsk())
         }
-        // Issue #105: hold a foreground slot for the run, so Android keeps the
-        // process alive if the user leaves mid-task. Started here, while the user
-        // who just sent the message is still in Gotcha.
-        ChatRunService.start(getApplication(), runningChat(runningId))
-        // Survives the process: if Android kills it mid-run, the next start says so.
-        withContext(Dispatchers.IO) { runMarker.mark(runningId) }
-        runHadError = false
-        var stopped = false
-        try {
-            agentEngine.run(agent)
-        } catch (_: CancellationException) {
-            stopped = true
-            appendEngineUi(MessageKind.ERROR, "Agent was interrupted by the user.")
-            // The interrupt may have orphaned an assistant with tool_calls but no
-            // matching tool results. Repair it in NonCancellable before the next
-            // turn is built — otherwise the provider 400s every later request.
-            withContext(NonCancellable) {
-                agentEngine.sanitizeLastOrphanedAssistant()
-            }
-        } finally {
-            withContext(NonCancellable) {
-                currentRunIsVoice = false
-                lastInputWasVoice = false
-                // Belt-and-suspenders: an interrupt that slipped past the engine's
-                // own sanitize still gets repaired here before persisting.
-                agentEngine.sanitizeLastOrphanedAssistant()
-                agentEngine.saveCurrentSession()
-                notifyRunFinished(
-                    sessionId = runningId,
-                    outcome = when {
-                        stopped -> RunOutcome.STOPPED
-                        runHadError -> RunOutcome.FAILED
-                        else -> RunOutcome.DONE
-                    }
-                )
-                // After the finished notification is up, so in the background the
-                // ongoing one is replaced by it rather than leaving a gap.
-                ChatRunService.stop()
-                withContext(Dispatchers.IO) { runMarker.clear() }
-                _uiState.update {
-                    it.copy(
-                        isBusy = false,
-                        runningSessionId = null,
-                        runningSessionTitle = null,
-                        backgroundHint = null,
-                        activity = if (viewingEngineSession()) null else it.activity,
-                        subAgentRunning = if (viewingEngineSession()) null else it.subAgentRunning,
-                        subAgentCurrentAction = if (viewingEngineSession()) null else it.subAgentCurrentAction
-                    )
-                }
-                agentJob = null
-            }
-        }
-    }
-
-    /** Issue #100: whether a notification about the engine's chat [sessionId] may name it. */
-    private fun mayNameChat(sessionId: String): Boolean =
-        settings.notificationsMentionChats &&
-            !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
-
-    /**
-     * Issue #105: the last run died with the process, most likely killed by
-     * Android while Gotcha was in the background. Its chat gets a notice at the
-     * end, its history is repaired so the chat can go on, and the inbox gets an
-     * entry that opens it. Gotcha still starts on a fresh chat, as always.
-     */
-    private suspend fun reportInterruptedRun() {
-        val sessionId = runMarker.interruptedSession() ?: return
-        historyRepository.loadSession(sessionId)?.let { session ->
-            // A legacy chat without a saved transcript is rebuilt from its history on
-            // open; a lone notice would replace all of it.
-            val shown = if (session.displayMessages.isEmpty()) {
-                session.displayMessages
-            } else {
-                val nextId = session.displayMessages.maxOf { it.id } + 1
-                session.displayMessages + UiMessage(nextId, MessageKind.ERROR, INTERRUPTED_NOTICE)
-            }
-            historyRepository.saveSession(
-                session.copy(messages = closeOrphanedToolCalls(session.messages), displayMessages = shown),
-                touch = false
-            )
-            val named = settings.notificationsMentionChats &&
-                !localNotificationStore.isChatSensitive(sessionId, session.personaId)
-            localNotificationStore.addEntry(
-                category = NotificationCategory.TASK_FINISHED,
-                title = if (named) "Interrupted: ${session.title}" else "Task interrupted",
-                body = INTERRUPTED_INBOX_BODY,
-                target = NotificationTarget.Chat(sessionId)
-            )
-            _inboxChanges.update { it + 1 }
-        }
-        withContext(Dispatchers.IO) { runMarker.clear() }
-    }
-
-    /**
-     * The run in [sessionId] as its ongoing notification shows it: the chat's
-     * title once one is generated, until then the start of the first message,
-     * cut at a word.
-     */
-    private fun runningChat(sessionId: String): RunningChat {
-        val title = agentEngine.generatedTitle
-            ?: agentEngine.history.firstOrNull { it.role == "user" }?.textContent?.let(::shortTitle)
-        return RunningChat(sessionId, title.takeIf { mayNameChat(sessionId) })
-    }
-
-    private fun currentBackgroundHint(): String = backgroundHintText(
-        vibrate = settings.notifyVibrationEnabled,
-        chime = settings.notifyChimeEnabled,
-        notify = settings.chatCompletionNotificationsEnabled && completionNotifier.canPost()
-    )
-
-    /**
-     * The run in [sessionId] just ended. Posts the task-finished notification
-     * when the user is away from Gotcha; in the foreground the reply buzz is
-     * enough. Called once per run, from [executeRun]'s cleanup, so a run never
-     * produces two — the engine reports text mid-run too, which is why this is
-     * not driven by [onAssistantReply].
-     */
-    private fun notifyRunFinished(sessionId: String, outcome: RunOutcome) {
-        if (appInForeground || !settings.chatCompletionNotificationsEnabled) return
-        if (!completionNotifier.canPost()) return
-        val reply = engineTranscript.lastOrNull {
-            it.kind == MessageKind.ASSISTANT || it.kind == MessageKind.ERROR
-        }?.text
-        // Issue #100: a chat kept out of notifications, or chats not to be named
-        // at all, get a notification that says only that a task finished.
-        val named = mayNameChat(sessionId)
-        val title = if (named) {
-            ChatCompletionNotifier.notificationTitle(agentEngine.currentTitle(), outcome)
-        } else {
-            ChatCompletionNotifier.anonymousTitle(outcome)
-        }
-        val entryId = localNotificationStore.addEntry(
-            category = NotificationCategory.TASK_FINISHED,
-            title = title,
-            body = ChatCompletionNotifier.defaultBody(outcome),
-            target = NotificationTarget.Chat(sessionId)
-        )
-        completionNotifier.notify(
-            sessionId = sessionId,
-            chatTitle = agentEngine.currentTitle(),
-            outcome = outcome,
-            reply = reply,
-            preview = settings.chatCompletionPreview,
-            named = named,
-            inboxEntryId = entryId
-        )
     }
 
     /**
@@ -999,7 +473,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * "Not now" is final — the Notifications settings page can still ask.
      */
     private fun claimNotificationPermissionAsk(): Boolean {
-        if (!appInForeground || !settings.chatCompletionNotificationsEnabled) return false
+        if (!runner.appInForeground || !settings.chatCompletionNotificationsEnabled) return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
         if (completionNotifier.canPost()) return false
         val prefs = settingsRepository.prefs
@@ -1013,12 +487,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * upgrades the hint on screen to the notification promise it can now keep.
      */
     fun onNotificationPermissionResult(granted: Boolean) {
-        _uiState.update {
-            it.copy(
-                askNotificationPermission = false,
-                backgroundHint = if (granted && it.backgroundHint != null) currentBackgroundHint() else it.backgroundHint
-            )
-        }
+        _uiState.update { it.copy(askNotificationPermission = false) }
+        if (granted) runner.refreshBackgroundHint()
     }
 
     /**
@@ -1082,51 +552,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
             return
         }
-        currentRunIsVoice = false
         lastInputWasVoice = false
-        val viewedId = _uiState.value.activeSessionId
-        // Cancel any in-flight edit/run before overwriting the reference, so a
-        // rapid second tap can't leave two coroutines truncating the same history.
-        agentJob?.cancel()
-        agentJob = viewModelScope.launch {
-            // Re-check the busy guard inside the coroutine: a second invocation can
-            // slip past the synchronous check above (isBusy only becomes true once
-            // executeRun runs), so refuse rather than interleave two truncations.
-            if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return@launch
-            bindEngineToViewedSession(viewedId)
-            val transcript = engineTranscript
-            val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
-                ?: return@launch
-            val k = transcript.takeWhile { it.id != targetId }.count { it.kind == MessageKind.USER }
-            // History/transcript desync guard (e.g. after compaction the transcript
-            // is reset), so a stale target id bails without partial truncation.
-            if (k >= userTurnStarts(agentEngine.history).size) return@launch
-            val kept = truncateHistoryAtTurn(agentEngine.history, k, dropTurn = true)
-            agentEngine.history.clear()
-            agentEngine.history.addAll(kept)
-            engineTranscript = transcript.take(transcript.indexOf(target))
-            _uiState.update {
-                it.copy(
-                    messages = engineTranscript,
-                    activity = null,
-                    subAgentRunning = null,
-                    subAgentCurrentAction = null
-                )
-            }
-            // Never promote undone work on the share card.
-            agentEngine.restoreRunSummaries(emptyList())
-            // A previously-sent document keeps its extracted text (the file grant is
-            // long gone); a newly-picked one carries its own.
-            val editAttachments = attachments ?: target.attachments
-            val msg = buildUserMessage(trimmed, editAttachments)
-            agentEngine.history += msg
-            appendEngineUi(
-                MessageKind.USER,
-                userDisplayText(trimmed, msg, editAttachments),
-                attachments = editAttachments
-            )
-            executeRun(engineAgent, agentEngine.sessionId ?: return@launch)
-        }
+        claimNotificationPermissionAskForRun()
+        runner.edit(viewedChat(), targetId, trimmed, attachments)
     }
 
     /**
@@ -1137,101 +565,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      */
     fun revertTo(targetId: Long) {
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
-        val viewedId = _uiState.value.activeSessionId
-        // Cancel any in-flight edit/run first so a revert can't interleave with a
-        // coroutine that is mid-truncation on the same engine history.
-        agentJob?.cancel()
+        val view = viewedChat()
         viewModelScope.launch {
-            // Re-check the busy guard inside the coroutine (mirrors editMessage):
-            // the synchronous check above can be raced by a second dispatch before
-            // isBusy is set, so refuse rather than truncate concurrently.
-            if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return@launch
-            bindEngineToViewedSession(viewedId)
-            val transcript = engineTranscript
-            val target = transcript.firstOrNull { it.id == targetId && it.kind == MessageKind.USER }
-                ?: return@launch
-            val k = transcript.takeWhile { it.id != targetId }.count { it.kind == MessageKind.USER }
-            // History/transcript desync guard (e.g. after compaction the transcript
-            // is reset), so a stale target id bails without partial truncation.
-            if (k >= userTurnStarts(agentEngine.history).size) return@launch
-            val kept = truncateHistoryAtTurn(agentEngine.history, k, dropTurn = false)
-            agentEngine.history.clear()
-            agentEngine.history.addAll(kept)
-            engineTranscript = transcript.take(transcript.indexOf(target) + 1)
-            _uiState.update {
-                it.copy(
-                    messages = engineTranscript,
-                    activity = null,
-                    subAgentRunning = null,
-                    subAgentCurrentAction = null
-                )
-            }
-            // Re-derive the context readout from the truncated history, matching
-            // the engine's own estimate units so the meter doesn't lie after revert.
-            val tokens = kept.sumOf { it.textContent.length / 4 } + AgentEngine.PROMPT_OVERHEAD_TOKENS
-            agentEngine.tokenCount = tokens
-            applyContextUsage(tokens)
-            // Keep the drawer's live overlay in sync so the reverted session's
-            // row doesn't keep showing the pre-truncation count.
-            agentEngine.sessionId?.let { sid ->
-                _liveTokenBySession.update { it + (sid to tokens) }
-            }
-            // Never promote undone work on the share card.
-            agentEngine.restoreRunSummaries(emptyList())
-            agentEngine.saveCurrentSession()
-            refreshSessions()
+            if (runner.revertTo(view, targetId)) refreshSessions()
         }
     }
 
     /**
-     * Buzz/chime as a reply lands. The chat screen has no spoken "I'm done"
-     * unless auto-read is on, so without this a reply that arrives while the
-     * user is elsewhere goes unnoticed.
-     */
-    private fun signalReplyArrived() {
-        if (runHadError) {
-            CompletionFeedback.error(getApplication())
-        } else {
-            CompletionFeedback.replyArrived(
-                context = getApplication(),
-                vibrate = settings.notifyVibrationEnabled,
-                chime = settings.notifyChimeEnabled
-            )
-        }
-    }
-
-    /**
-     * Point [agentEngine] at [viewedId] (the session being viewed) so a run
-     * operates on it. Only called from [sendMessage], which is gated on nothing
-     * else running, so re-pointing the engine here is safe. Reloads the session's
-     * LLM history from disk when the engine had drifted to another session.
+     * Point the engine at [viewedId] (the session being viewed) so a run
+     * operates on it; see [ChatRunner.bindForSend].
      *
-     * `internal` rather than private so the handoff can be tested directly: it is
-     * where a persona picked while another chat was running finally reaches the
-     * engine, and [sendMessage] itself can't be driven from a JVM test.
+     * `internal` so the handoff can be tested directly: it is where a persona
+     * picked while another chat was running finally reaches the engine, and
+     * [sendMessage] itself can't be driven from a JVM test.
      */
     internal suspend fun bindEngineToViewedSession(viewedId: String?) {
-        if (viewedId != null && agentEngine.sessionId != viewedId) {
-            val saved = historyRepository.loadSession(viewedId)
-            agentEngine.history.clear()
-            agentEngine.sessionId = viewedId
-            if (saved != null) {
-                agentEngine.history.addAll(saved.messages)
-                agentEngine.tokenCount = saved.tokenCount
-                agentEngine.restoreTitle(if (saved.isFallbackTitle()) null else saved.title)
-                agentEngine.restoreRunSummaries(saved.runSummaries)
-                agentEngine.sessionIsSample = saved.isSample
-            } else {
-                agentEngine.tokenCount = 0
-                agentEngine.restoreTitle(null)
-                agentEngine.restoreRunSummaries(emptyList())
-                agentEngine.sessionIsSample = false
-            }
-            agentEngine.setupWorkingDir()
-        }
-        engineTranscript = _uiState.value.messages
-        engineAgent = _uiState.value.activeAgent
-        agentEngine.sessionPersonaId = _uiState.value.activePersonaId
+        runner.bindForSend(viewedChat().copy(sessionId = viewedId))
     }
 
     /** Load an image from a content:// URI, downscale, and return base64. */
@@ -1384,21 +733,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }?.takeIf { it.isNotBlank() } ?: fallback
     }
 
-    fun stopAgent() {
-        agentJob?.cancel()
-    }
+    fun stopAgent() = runner.stop()
 
-    fun confirmPendingActions(approved: Boolean) {
-        _uiState.update { it.copy(pendingConfirmation = null) }
-        confirmationGate?.complete(approved)
-        confirmationGate = null
-    }
+    fun confirmPendingActions(approved: Boolean) = runner.confirmPendingActions(approved)
 
-    fun submitAnswer(answer: String?) {
-        _uiState.update { it.copy(pendingQuestion = null) }
-        questionGate?.complete(answer ?: "")
-        questionGate = null
-    }
+    fun submitAnswer(answer: String?) = runner.submitAnswer(answer)
 
     /**
      * Called from the Activity's onStart/onStop so confirmations know if they'd be hidden.
@@ -1406,48 +745,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * back within a moment and should not raise a notification.
      */
     fun setForeground(foreground: Boolean, recreating: Boolean = false) {
-        appInForeground = foreground
+        runner.setForeground(foreground, recreating)
         // Back in the app on a chat whose task finished: that chat's
         // notification has done its job.
         if (foreground) _uiState.value.activeSessionId?.let(completionNotifier::cancel)
-        // A question or confirmation left on screen is out of sight now; back
-        // in the app, its dialog is showing again.
-        when {
-            foreground -> attentionNotifier.cancel()
-            !recreating -> notifyNeedsInput()
-        }
     }
 
     /** Speak the given text aloud using the configured TTS provider. */
-    fun speak(text: String) {
-        if (settings.ttsProvider == AudioProvider.NONE) return
-        viewModelScope.launch {
-            ttsEngine.stop()
-            _uiState.update { it.copy(isSpeaking = true) }
-            try {
-                val language = settings.effectiveVoiceLanguage
-                val defaultVoice = _uiState.value.ttsModels
-                    .firstOrNull { it.id == settings.ttsApiModel }
-                    ?.defaultVoiceFor(language) ?: "af_heart"
-                val voice = settings.ttsVoice.ifBlank { defaultVoice }
-                ttsEngine.speak(
-                    text = text,
-                    provider = settings.ttsProvider,
-                    apiModel = settings.ttsApiModel,
-                    voice = voice,
-                    language = language
-                )
-            } finally {
-                _uiState.update { it.copy(isSpeaking = false) }
-            }
-        }
-    }
+    fun speak(text: String) = runner.speak(text)
 
     /** Stop any ongoing TTS speech output. */
-    fun stopSpeaking() {
-        ttsEngine.stop()
-        _uiState.update { it.copy(isSpeaking = false) }
-    }
+    fun stopSpeaking() = runner.stopSpeaking()
 
     /**
      * Speak [language]'s call-started phrase through the shared Android TTS
@@ -1460,6 +768,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      */
     suspend fun testAndroidTts(language: Language): Boolean? {
         if (settings.ttsProvider == AudioProvider.NONE) return null
+        val ttsEngine = runner.ttsEngine
         ttsEngine.stop()
         ttsEngine.speak(
             text = SpokenPhrases.callStarted(language),
@@ -1576,8 +885,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     /** Refresh available TTS/STT models from the API. */
     fun refreshAudioModels() {
         viewModelScope.launch {
-            val ttsModels = ttsEngine.refreshApiModels()
+            val ttsModels = runner.ttsEngine.refreshApiModels()
             val sttModels = sttEngine.refreshApiModels()
+            runner.ttsModels = ttsModels
             _uiState.update { it.copy(ttsModels = ttsModels, sttModels = sttModels) }
         }
     }
@@ -1624,8 +934,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // Only inject into the LLM history when the viewed chat is the engine's;
         // otherwise the mode is applied at the next send (run(engineAgent)).
         if (viewingEngineSession()) {
-            agentEngine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
-            engineAgent = next
+            runner.engine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
+            runner.engineAgent = next
         }
         appendUi(MessageKind.ASSISTANT, uiMsg)
     }
@@ -1657,15 +967,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // persona rides in UI state and reaches the engine at send time, through
         // bindEngineToViewedSession.
         if (_uiState.value.runningSessionId == null) {
-            agentEngine.sessionPersonaId = persona?.id
+            runner.engine.sessionPersonaId = persona?.id
         }
         _uiState.update { it.copy(activePersonaId = persona?.id) }
         persona?.let { setAgent(it.defaultAgent) }
     }
 
+    /**
+     * The Activity is gone for good (issue #111). The run, if any, goes on in
+     * [runner]; only what needs this screen is let go.
+     */
     override fun onCleared() {
-        confirmationOverlay.dismiss()
-        foregroundControlIndicator.dismiss()
+        runner.removeObserver(this)
+        runner.onUiDetached()
         super.onCleared()
     }
 
@@ -1679,73 +993,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      */
     fun clearChat(defaultAgent: AgentMode = AgentMode.MONITOR) {
         lastInputWasVoice = false
-        currentRunIsVoice = false
+        runner.clearVoiceFlag()
         val newId = java.util.UUID.randomUUID().toString()
         val runInProgress = _uiState.value.runningSessionId != null
         nextId = 0
-        if (!runInProgress) {
-            agentEngine.history.clear()
-            agentEngine.sessionId = newId
-            agentEngine.tokenCount = 0
-            agentEngine.restoreTitle(null)
-            // Without this the previous chat's run summaries survive into the
-            // new session: the share card would promote the old conversation
-            // and saveCurrentSession() would persist the stale list into the
-            // new chat file.
-            agentEngine.restoreRunSummaries(emptyList())
-            agentEngine.sessionIsSample = false
-            // A new chat never inherits the previous one's persona: it is picked
-            // per chat, on the home screen this call is about to show.
-            agentEngine.sessionPersonaId = null
-            agentEngine.setupWorkingDir(create = false)
-            engineTranscript = emptyList()
-            engineAgent = defaultAgent
-        }
+        if (!runInProgress) runner.bindFresh(newId, defaultAgent)
         _uiState.update {
             it.copy(
                 messages = emptyList(),
                 activeSessionId = newId,
                 activeAgent = defaultAgent,
                 activePersonaId = null,
-                viewingSample = false
+                viewingSample = false,
+                activity = null,
+                subAgentRunning = null,
+                subAgentCurrentAction = null
             )
         }
         applyContextUsage(0)
-    }
-
-    /**
-     * One-time migration: rename any pre-existing UUID-named chat working dirs
-     * to the readable "Slug_shortId" scheme. The "done" flag is only persisted
-     * once every session was handled, so a partial migration (a rename blocked by
-     * a missing storage grant, say) is retried on the next launch instead of
-     * leaving UUID-named dirs stranded forever.
-     */
-    private suspend fun migrateChatDirsIfNeeded() {
-        val prefs = settingsRepository.prefs
-        if (prefs.getBoolean(MIGRATED_CHAT_DIRS_KEY, false)) return
-        val sessions = historyRepository.listSessions()
-        val chatsRoot = com.gotcha.data.GotchaStorage.chatsRoot()
-        var allMigrated = true
-        for (session in sessions) {
-            try {
-                val rawDir = java.io.File(chatsRoot, session.id)
-                if (!rawDir.exists() || !rawDir.isDirectory) continue
-                val target = java.io.File(
-                    chatsRoot,
-                    com.gotcha.data.GotchaStorage.chatDirName(session.title, session.id)
-                )
-                // An already-migrated target is not a failure: keep the raw dir
-                // out of the way rather than clobbering the renamed one.
-                if (!rawDir.renameTo(target) && !target.isDirectory) {
-                    allMigrated = false
-                    android.util.Log.w("Gotcha", "migrateChatDirsIfNeeded: rename failed for ${session.id}")
-                }
-            } catch (e: Exception) {
-                allMigrated = false
-                android.util.Log.w("Gotcha", "migrateChatDirsIfNeeded: failed for ${session.id}", e)
-            }
-        }
-        if (allMigrated) prefs.edit().putBoolean(MIGRATED_CHAT_DIRS_KEY, true).apply()
     }
 
     fun refreshSessions() {
@@ -1757,83 +1022,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     fun openSession(id: String?) {
         id?.let(completionNotifier::cancel)
         lastInputWasVoice = false
-        currentRunIsVoice = false
+        runner.clearVoiceFlag()
         viewModelScope.launch {
             if (id == null) {
                 clearChat()
                 return@launch
             }
-            // Re-viewing the running session: just show its live engine transcript.
-            if (id == agentEngine.sessionId && _uiState.value.runningSessionId == id) {
-                nextId = (engineTranscript.maxOfOrNull { it.id }?.plus(1)) ?: 0
-                _uiState.update {
-                    it.copy(
-                        activeSessionId = id,
-                        activeAgent = engineAgent,
-                        activePersonaId = agentEngine.sessionPersonaId,
-                        messages = engineTranscript,
-                        viewingSample = _sessions.value.firstOrNull { s -> s.id == id }?.isSample
-                            ?: agentEngine.sessionIsSample
-                    )
-                }
-                applyContextUsage(agentEngine.tokenCount)
+            // Re-viewing the running session: just show its live transcript.
+            val run = runner.state.value
+            if (id == run.boundSessionId && run.runningSessionId == id) {
+                showBoundSession(id)
                 return@launch
             }
             val session = historyRepository.loadSession(id) ?: return@launch
             val restoredAgent = session.agentMode
                 ?.let { runCatching { AgentMode.valueOf(it) }.getOrNull() }
                 ?: AgentMode.MONITOR
-            val runInProgress = _uiState.value.runningSessionId != null
-            // Only rebind the engine when idle. While a run is active this is a
-            // view-only switch so the running session is never disturbed.
-            if (!runInProgress) {
-                agentEngine.history.clear()
-                agentEngine.history.addAll(session.messages)
-                agentEngine.sessionId = session.id
-                agentEngine.tokenCount = session.tokenCount
-                agentEngine.restoreTitle(if (session.isFallbackTitle()) null else session.title)
-                agentEngine.restoreRunSummaries(session.runSummaries)
-                agentEngine.sessionIsSample = session.isSample
-                agentEngine.sessionPersonaId = session.personaId
-                agentEngine.setupWorkingDir()
-                engineTranscript = session.displayMessages
-                engineAgent = restoredAgent
-            }
             // Restore the verbatim on-screen transcript so what's shown on reopen
             // matches exactly what was shown live. Fall back to a lossy rebuild
             // only for legacy sessions saved before display messages existed.
-            if (session.displayMessages.isNotEmpty()) {
-                nextId = (session.displayMessages.maxOf { it.id } + 1)
-                _uiState.update {
-                    it.copy(
-                        activeSessionId = session.id,
-                        activeAgent = restoredAgent,
-                        activePersonaId = session.personaId,
-                        viewingSample = session.isSample,
-                        messages = session.displayMessages,
-                        // Clear engine-scoped transient UI for the viewed (non-running) chat.
-                        activity = null,
-                        subAgentRunning = null,
-                        subAgentCurrentAction = null
-                    )
-                }
-                applyContextUsage(session.tokenCount)
-            } else {
-                nextId = 0
-                _uiState.update {
-                    it.copy(
-                        activeSessionId = session.id,
-                        activeAgent = restoredAgent,
-                        activePersonaId = session.personaId,
-                        viewingSample = session.isSample,
-                        activity = null,
-                        subAgentRunning = null,
-                        subAgentCurrentAction = null
-                    )
-                }
-                applyContextUsage(session.tokenCount)
-                rebuildUiMessagesFrom(session.messages)
+            val shown = session.displayMessages.ifEmpty { rebuildUiMessagesFrom(session.messages) }
+            // Only rebind the engine when idle. While a run is active this is a
+            // view-only switch so the running session is never disturbed.
+            if (_uiState.value.runningSessionId == null) runner.bindSaved(session, restoredAgent, shown)
+            nextId = shown.maxOfOrNull { it.id }?.plus(1) ?: 0
+            _uiState.update {
+                it.copy(
+                    activeSessionId = session.id,
+                    activeAgent = restoredAgent,
+                    activePersonaId = session.personaId,
+                    viewingSample = session.isSample,
+                    messages = shown,
+                    // Clear engine-scoped transient UI for the viewed (non-running) chat.
+                    activity = null,
+                    subAgentRunning = null,
+                    subAgentCurrentAction = null
+                )
             }
+            applyContextUsage(session.tokenCount)
         }
     }
 
@@ -1844,17 +1070,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             }
             historyRepository.deleteSession(id)
             localNotificationStore.forgetChat(id)
-            if (agentEngine.sessionId == id) {
+            if (runner.engine.sessionId == id) {
                 clearChat()
             }
             // Drop any live overlay entry for the deleted session so the
             // drawer doesn't keep showing a token count for a chat that no
             // longer exists.
-            _liveTokenBySession.update { it - id }
+            runner.forgetLiveTokens(id)
             refreshSessions()
         }
     }
 
+    /**
+     * Shows a notice from the screen itself. In the chat bound to the engine it
+     * joins the runner's transcript, so it is saved with the chat and outlives
+     * this ViewModel like the agent's own bubbles.
+     */
     private fun appendUi(
         kind: MessageKind,
         text: String,
@@ -1862,6 +1093,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         subAgentSteps: List<String> = emptyList(),
         reasoningContent: String? = null
     ) {
+        if (viewingEngineSession()) {
+            runner.appendTranscript(
+                kind = kind,
+                text = text,
+                imageBase64 = imageBase64,
+                subAgentSteps = subAgentSteps,
+                reasoningContent = reasoningContent
+            )
+            return
+        }
         _uiState.update {
             it.copy(
                 messages = it.messages + UiMessage(
@@ -1871,41 +1112,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         }
     }
 
-    /**
-     * Append a bubble authored by the ENGINE (agent output). Always records it on
-     * [engineTranscript] so the running session's transcript stays complete even
-     * while the user browses another chat; mirrors into the visible [_uiState]
-     * only when that running session is the one being viewed.
-     */
-    private fun appendEngineUi(
-        kind: MessageKind,
-        text: String,
-        imageBase64: String? = null,
-        attachments: List<ComposerAttachment> = emptyList(),
-        subAgentSteps: List<String> = emptyList(),
-        reasoningContent: String? = null
-    ) {
-        val viewing = viewingEngineSession()
-        val id = if (viewing) nextId++ else engineNextId++
-        if (kind == MessageKind.ERROR) runHadError = true
-        val message = UiMessage(
-            id = id,
-            kind = kind,
-            text = text,
-            imageBase64 = imageBase64,
-            subAgentSteps = subAgentSteps,
-            subAgentCollapsed = true,
-            reasoningContent = reasoningContent,
-            attachments = attachments
-        )
-        engineTranscript = engineTranscript + message
-        if (viewing) {
-            _uiState.update { it.copy(messages = it.messages + message) }
-        }
-    }
-
-    private fun rebuildUiMessagesFrom(source: List<ChatMessage>) {
-        val rebuilt = source.mapNotNull { msg ->
+    /** A legacy chat saved without its on-screen transcript, rebuilt from its history. */
+    private fun rebuildUiMessagesFrom(source: List<ChatMessage>): List<UiMessage> {
+        var rebuiltId = 0L
+        return source.mapNotNull { msg ->
             val text = msg.textContent
             when {
                 msg.role == "user" && (text.startsWith("[Screen State]") || text.startsWith("Screen text:")) -> {
@@ -1915,13 +1125,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     } else {
                         "[Screenshot captured for visual context]"
                     }
-                    UiMessage(nextId++, MessageKind.ASSISTANT, msgText)
+                    UiMessage(rebuiltId++, MessageKind.ASSISTANT, msgText)
                 }
                 msg.role == "user" -> {
                     val text = msg.textContent
                     val docPrompt = documentPromptText(text)
                     UiMessage(
-                        nextId++,
+                        rebuiltId++,
                         MessageKind.USER,
                         if (docPrompt != null) {
                             docPrompt.ifEmpty { "(document attached)" }
@@ -1931,9 +1141,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                     )
                 }
                 msg.role == "assistant" && text.isNotBlank() ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, text, reasoningContent = msg.reasoningContent)
+                    UiMessage(rebuiltId++, MessageKind.ASSISTANT, text, reasoningContent = msg.reasoningContent)
                 msg.role == "assistant" && !msg.reasoningContent.isNullOrBlank() ->
-                    UiMessage(nextId++, MessageKind.ASSISTANT, "", reasoningContent = msg.reasoningContent)
+                    UiMessage(rebuiltId++, MessageKind.ASSISTANT, "", reasoningContent = msg.reasoningContent)
                 msg.role == "tool" && text.startsWith("SUBAGENT_STEPS:") -> {
                     val descEnd = text.indexOf('\n', "SUBAGENT_STEPS:".length)
                     val rest = if (descEnd > 0) {
@@ -1962,25 +1172,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                         answer = rest
                     }
                     UiMessage(
-                        nextId++,
+                        rebuiltId++,
                         MessageKind.SUBAGENT,
                         answer,
                         subAgentSteps = steps,
                         reasoningContent = msg.reasoningContent
                     )
                 }
-                msg.role == "tool" -> UiMessage(nextId++, MessageKind.TOOL, text.ifEmpty { "(no result)" })
+                msg.role == "tool" -> UiMessage(rebuiltId++, MessageKind.TOOL, text.ifEmpty { "(no result)" })
                 else -> null
             }
         }
-        _uiState.update { it.copy(messages = rebuilt) }
     }
 
     fun exportChat() {
         val markdown = ChatMarkdown.export(
-            history = agentEngine.history.toList(),
-            sessionId = agentEngine.sessionId ?: "unknown",
-            title = agentEngine.currentTitle()
+            history = runner.engine.history.toList(),
+            sessionId = runner.engine.sessionId ?: "unknown",
+            title = runner.engine.currentTitle()
         )
         _exportContent.tryEmit(markdown)
     }
@@ -2153,30 +1362,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
      * than fingerprinting the history (which would hash vision base64 payloads).
      */
     fun activeSessionRunSummaries(): List<RunSummary> {
-        val recorded = agentEngine.runSummaries
+        val recorded = runner.engine.runSummaries
         if (recorded.isNotEmpty()) return recorded.toList()
         // Snapshot the history before iterating: the engine coroutine mutates it
         // as it runs, and this is read from the UI thread.
-        val snapshot = agentEngine.history.toList()
-        return synthesizeRunSummariesFromHistory(snapshot, settings.model, engineAgent.name)
+        val snapshot = runner.engine.history.toList()
+        return synthesizeRunSummariesFromHistory(snapshot, settings.model, runner.engineAgent.name)
     }
 
     private companion object {
-        const val GATE_TIMEOUT_MS = 120_000L
-
-        /** How long a question waits; see [awaitQuestionAnswer]. */
-        const val QUESTION_TIMEOUT_MS = 600_000L
-
         /** Set once the one-time notification-permission ask has been shown. */
         const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
-
-        const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
-
-        /** Ends the chat of a run that died with the process; see [reportInterruptedRun]. */
-        const val INTERRUPTED_NOTICE = "This task was interrupted: Android closed Gotcha while it was " +
-            "working, usually to free memory. Send a message to pick up where it left off."
-        const val INTERRUPTED_INBOX_BODY = "Android closed Gotcha while it was working on this task. " +
-            "Tap to open the chat and pick up where it left off."
     }
 }
 

@@ -31,7 +31,7 @@ data class RunningChat(val sessionId: String, val chatTitle: String?)
 
 /**
  * Keeps Gotcha's process alive while a chat run is in progress (issue #105).
- * The run itself stays in `ChatViewModel`; this service only holds a foreground
+ * The run itself lives in `ChatRunner` (issue #111); this service only holds a foreground
  * slot, with an ongoing "Gotcha is working…" notification, so Android does not
  * reclaim the process once the user leaves the app mid-task.
  *

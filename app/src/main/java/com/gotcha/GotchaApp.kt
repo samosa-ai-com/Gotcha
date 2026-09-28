@@ -2,6 +2,7 @@ package com.gotcha
 
 import android.app.Application
 import android.util.Log
+import com.gotcha.agent.ChatRunner
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -20,6 +21,13 @@ import java.util.Locale
  * entries to bound its size.
  */
 class GotchaApp : Application() {
+
+    /**
+     * The chat agent and the run in progress (issue #111). Held here rather
+     * than by the chat screen's ViewModel, so a run goes on after MainActivity
+     * finishes; created by the first chat screen.
+     */
+    val chatRunner: ChatRunner by lazy { ChatRunner(this) }
 
     override fun onCreate() {
         super.onCreate()

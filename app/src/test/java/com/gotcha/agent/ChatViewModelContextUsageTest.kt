@@ -26,7 +26,7 @@ import org.robolectric.shadows.ShadowLooper
  * The init coroutine of [ChatViewModel] runs on Robolectric's main looper,
  * which is drained in [setUp] so each test starts from a clean baseline.
  * Tests deliberately exercise only the synchronous entry points
- * ([ChatViewModel.clearChat], [ChatViewModel.onTokenCount],
+ * ([ChatViewModel.clearChat], [ChatRunner.onTokenCount],
  * [ChatViewModel.refreshSettings], [ChatViewModel.deleteSession]) because
  * `viewModelScope.launch` posts continuations back to Main after a real
  * `Dispatchers.IO` suspension, and that handoff is not observable from
@@ -39,7 +39,7 @@ import org.robolectric.shadows.ShadowLooper
  *    read [com.gotcha.agent.AgentEngine.tokenCount] unconditionally, so
  *    saving settings while a background run was in another chat would
  *    overwrite the viewed session's bar)
- *  - [ChatViewModel.onTokenCount] publishes a live overlay so the drawer
+ *  - [ChatRunner.onTokenCount] publishes a live overlay so the drawer
  *    updates in-frame (Bug 4)
  *  - [ChatViewModel.deleteSession] cleans up the overlay entry
  */
@@ -154,7 +154,7 @@ class ChatViewModelContextUsageTest {
         val engineId = viewModel.uiState.value.activeSessionId
         assertNotNull(engineId)
 
-        viewModel.onTokenCount(555)
+        viewModel.runner.onTokenCount(555)
 
         assertEquals(555, viewModel.liveTokenBySession.value[engineId])
     }
@@ -166,7 +166,7 @@ class ChatViewModelContextUsageTest {
      */
     @Test
     fun `onTokenCount moves the meter of the viewed engine session`() {
-        viewModel.onTokenCount(7_000)
+        viewModel.runner.onTokenCount(7_000)
 
         val limit = settingsRepository.load().maxContextTokens.toFloat()
         assertEquals(7_000, viewModel.uiState.value.tokenCount)
@@ -184,7 +184,7 @@ class ChatViewModelContextUsageTest {
         flow.value = flow.value.copy(activeSessionId = "session-B")
         val percent = viewModel.uiState.value.contextUsagePercent
 
-        viewModel.onTokenCount(9_999)
+        viewModel.runner.onTokenCount(9_999)
 
         assertEquals(3_000, viewModel.uiState.value.tokenCount)
         assertEquals(percent, viewModel.uiState.value.contextUsagePercent, 0.0001f)

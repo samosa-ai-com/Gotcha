@@ -63,8 +63,7 @@ class ChatViewModelPersonaTest {
 
     /** The engine is private; its persona is what the system prompt is built from. */
     private fun engine(): AgentEngine {
-        val field = ChatViewModel::class.java.getDeclaredField("agentEngine").apply { isAccessible = true }
-        return field.get(viewModel) as AgentEngine
+        return viewModel.runner.engine
     }
 
     private fun enginePersonaId(): String? = engine().sessionPersonaId

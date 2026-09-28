@@ -11,9 +11,9 @@ import kotlinx.serialization.json.JsonPrimitive
  * with no explanation (issue #105). Written synchronously, because the process
  * can die right after.
  *
- * Tagged with the process that wrote it: a run whose ViewModel was cleared while
- * the process lives on is ended, and its marker cleared, by the run's own
- * cleanup, so only a marker left by another process means one was killed.
+ * Tagged with the process that wrote it: a run in this process clears its
+ * marker in its own cleanup, so only a marker left by another process means
+ * one was killed.
  */
 class RunInProgressMarker(
     private val prefs: SharedPreferences,
