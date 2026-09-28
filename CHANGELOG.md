@@ -201,6 +201,12 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **Termux commands work when Termux is closed.** Running a command in Termux
+  failed with "app is in background" whenever Termux wasn't already running
+  (after swiping it away, say), even with Gotcha open on screen, and the
+  assistant then wrongly told you Gotcha was in the background. Gotcha now
+  starts Termux's command service in a way Android allows while Gotcha is open,
+  so the command runs and Termux starts on its own.
 - **Questions from Gotcha fit the screen** (#107). When Gotcha stopped to ask
   something, the whole question was used as the dialog's title: a question with
   a few steps filled the dialog in headline-sized type, couldn't be scrolled,
