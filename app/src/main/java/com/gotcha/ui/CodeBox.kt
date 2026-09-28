@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.material3.Material3RichText
 
 /**
@@ -35,11 +36,11 @@ import com.halilibo.richtext.ui.material3.Material3RichText
  * user has to run can be copied exactly (issue #109).
  */
 @Composable
-fun RichMarkdown(markdown: String, modifier: Modifier = Modifier) {
+fun RichMarkdown(markdown: String, modifier: Modifier = Modifier, style: RichTextStyle? = null) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         splitFencedBlocks(markdown).forEach { segment ->
             when (segment) {
-                is MarkdownSegment.Prose -> Material3RichText { Markdown(segment.markdown) }
+                is MarkdownSegment.Prose -> Material3RichText(style = style) { Markdown(segment.markdown) }
                 is MarkdownSegment.Code -> CodeBox(code = segment.code, language = segment.language)
             }
         }

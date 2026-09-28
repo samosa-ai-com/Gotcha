@@ -210,12 +210,6 @@ fun AppUpdateSection() {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
-                        Text(
-                            text = currentStatus.info.releaseNotes,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
                     Button(onClick = {
                         if (busy) return@Button
                         busy = true
@@ -239,6 +233,9 @@ fun AppUpdateSection() {
                         }
                     }) {
                         Text("Download Update")
+                    }
+                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
+                        ReleaseNotes(currentStatus.info.releaseNotes)
                     }
                 }
             }

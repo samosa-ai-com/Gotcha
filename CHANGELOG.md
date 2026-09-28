@@ -207,6 +207,12 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **Readable release notes in the update check** (#70). When Settings → About
+  found a new version, its notes were shown as raw Markdown, with `###`, `**`
+  and backticks spelled out and lines broken mid-sentence. They are now
+  formatted like a chat reply, the Download button sits above them, and long
+  notes open as a list of their headlines with "Show all release notes" for
+  the rest.
 - **The context meter keeps up with the chat** (#71). The row of bars under a
   chat's title, showing how much of the model's context the chat has used, only
   moved when you left the chat and came back; during a reply it stayed where it
