@@ -145,6 +145,15 @@ internal val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(document atta
  * notification is switched on and Android allows it (issue #97); otherwise the
  * opt-in buzz and chime are all there is.
  */
+/** [text] on one line, cut at a word to at most [max] characters, with "…" when cut. */
+internal fun shortTitle(text: String, max: Int = 40): String {
+    val line = text.trim().replace(Regex("\\s+"), " ")
+    if (line.length <= max) return line
+    val cut = line.take(max)
+    val atWord = cut.substringBeforeLast(' ').takeIf { it.length >= max / 2 } ?: cut
+    return atWord.trimEnd(',', '.', ';', ':', ' ') + "…"
+}
+
 internal fun backgroundHintText(vibrate: Boolean, chime: Boolean, notify: Boolean = false): String {
     val base = "Gotcha is working in the background. You can use another app while it works"
     val signal = when {
@@ -468,6 +477,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         if (viewingEngineSession()) {
             _uiState.update { it.copy(activity = activity) }
         }
+        // Once per round: picks up the chat's title when the first save generates it.
+        _uiState.value.runningSessionId?.let { ChatRunService.update(runningChat(it)) }
     }
 
     override fun onTokenCount(totalTokens: Int) {
@@ -825,10 +836,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // Issue #105: hold a foreground slot for the run, so Android keeps the
         // process alive if the user leaves mid-task. Started here, while the user
         // who just sent the message is still in Gotcha.
-        ChatRunService.start(
-            getApplication(),
-            RunningChat(runningId, agentEngine.currentTitle().takeIf { mayNameChat(runningId) })
-        )
+        ChatRunService.start(getApplication(), runningChat(runningId))
         runHadError = false
         var stopped = false
         try {
@@ -881,6 +889,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private fun mayNameChat(sessionId: String): Boolean =
         settings.notificationsMentionChats &&
             !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+
+    /**
+     * The run in [sessionId] as its ongoing notification shows it: the chat's
+     * title once one is generated, until then the start of the first message,
+     * cut at a word.
+     */
+    private fun runningChat(sessionId: String): RunningChat {
+        val title = agentEngine.generatedTitle
+            ?: agentEngine.history.firstOrNull { it.role == "user" }?.textContent?.let(::shortTitle)
+        return RunningChat(sessionId, title.takeIf { mayNameChat(sessionId) })
+    }
 
     private fun currentBackgroundHint(): String = backgroundHintText(
         vibrate = settings.notifyVibrationEnabled,

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** The chat run the ongoing notification is about. [chatTitle] null: the chat may not be named (issue #100). */
@@ -127,6 +128,14 @@ class ChatRunService : Service() {
             }
         }
 
+        /**
+         * Updates the notification of the run in progress, e.g. once its chat has a
+         * title. Never starts the service: a run that has none keeps going without.
+         */
+        fun update(chat: RunningChat) {
+            _running.update { current -> if (current?.sessionId == chat.sessionId) chat else current }
+        }
+
         /** The run has ended: the service removes its notification and stops. */
         fun stop() {
             _running.value = null
@@ -134,7 +143,8 @@ class ChatRunService : Service() {
 
         internal fun title(chat: RunningChat?): String {
             val name = chat?.chatTitle?.takeIf { it.isNotBlank() } ?: return PUBLIC_TITLE
-            return "Gotcha is working on “$name”…"
+            // A name already cut short with "…" doesn't need a second one.
+            return if (name.endsWith("…")) "Gotcha is working on “$name”" else "Gotcha is working on “$name”…"
         }
 
         internal fun buildNotification(context: Context, chat: RunningChat?): android.app.Notification {

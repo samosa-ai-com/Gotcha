@@ -135,4 +135,36 @@ class ChatRunServiceTest {
         request.await()
         assertEquals(ChatRunService.ACTION_STOP_RUN, shadowOf(stopAction.actionIntent).savedIntent.action)
     }
+
+    @Test
+    fun `update changes the notification of the run in progress`() {
+        val controller = startedService()
+
+        ChatRunService.update(chat.copy(chatTitle = "Trip to Lisbon"))
+        ShadowLooper.idleMainLooper()
+
+        assertEquals(
+            "Gotcha is working on “Trip to Lisbon”…",
+            controller.notification().extras.getString(NotificationCompat.EXTRA_TITLE)
+        )
+    }
+
+    @Test
+    fun `update never starts a run, nor touches another chat's`() {
+        ChatRunService.update(chat)
+        assertNull(ChatRunService.running.value)
+        assertNull(shadowOf(application).nextStartedService)
+
+        ChatRunService.start(application, chat)
+        ChatRunService.update(RunningChat("other", "Other"))
+        assertEquals(chat, ChatRunService.running.value)
+    }
+
+    @Test
+    fun `a name cut short keeps a single ellipsis`() {
+        assertEquals(
+            "Gotcha is working on “Find the largest files in my…”",
+            ChatRunService.title(chat.copy(chatTitle = "Find the largest files in my…"))
+        )
+    }
 }
