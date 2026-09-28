@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
@@ -42,6 +44,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Badge
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -217,10 +220,12 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    // The inbox (issue #100) is the one action on the home screen
-                    // too; everything after it belongs to an open chat.
-                    InboxButton(unread = unreadNotifications, onClick = onOpenInbox)
-                    if (!isHome) {
+                    // The inbox bell (issue #100) is the one action on the home
+                    // screen. An open chat reaches the inbox from its ⋮ menu
+                    // instead, so the bell doesn't crowd the title (issue #110).
+                    if (isHome) {
+                        InboxButton(unread = unreadNotifications, onClick = onOpenInbox)
+                    } else {
                         // Operator can change the device, Monitor cannot. Both
                         // badges name their own mode so that distinction is never
                         // left to icon shape alone.
@@ -289,7 +294,9 @@ fun ChatScreen(
                             onCreateShareCard = onCreateShareCard,
                             shareEnabled = !state.isBusy,
                             keptOutOfNotifications = chatKeptOutOfNotifications,
-                            onSetKeptOutOfNotifications = onSetChatKeptOutOfNotifications
+                            onSetKeptOutOfNotifications = onSetChatKeptOutOfNotifications,
+                            unreadNotifications = unreadNotifications,
+                            onOpenInbox = onOpenInbox
                         )
                     }
                 }
@@ -859,21 +866,45 @@ fun ChatScreen(
 }
 
 /**
- * The inbox bell (issue #100), with the number of unread notifications on it.
+ * The inbox bell (issue #100). It fills in while something is unread and wears
+ * a badge in the brand colour, not the default error red (issue #110): a dot
+ * for one notification, the count from two up.
  */
 @Composable
 private fun InboxButton(unread: Int, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.testTag("inbox_button")) {
         BadgedBox(
             badge = {
-                if (unread > 0) Badge { Text(if (unread > 9) "9+" else unread.toString()) }
+                if (unread > 0) {
+                    UnreadBadge(
+                        count = unread,
+                        showCount = unread > 1,
+                        modifier = Modifier.offset(x = (-4).dp, y = 2.dp)
+                    )
+                }
             }
         ) {
             Icon(
-                Icons.Outlined.Notifications,
-                contentDescription = if (unread > 0) "Notifications, $unread unread" else "Notifications"
+                if (unread > 0) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+                contentDescription = if (unread > 0) "Notifications, $unread unread" else "Notifications",
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
+    }
+}
+
+/**
+ * The unread marker shared by the inbox bell and the chat menu: the count
+ * (capped at 9+), or a plain dot where [showCount] says the count isn't wanted.
+ */
+@Composable
+private fun UnreadBadge(count: Int, showCount: Boolean, modifier: Modifier = Modifier) {
+    Badge(
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        modifier = modifier
+    ) {
+        if (showCount) Text(if (count > 9) "9+" else count.toString())
     }
 }
 
@@ -881,7 +912,9 @@ private fun InboxButton(unread: Int, onClick: () -> Unit) {
  * The open chat's menu: the markdown chat export, the full backup a chat can be
  * imported back from (issue #83), the "Create share card"
  * (whole-chat aggregation) entry point for the marketing poster, plus whether
- * Gotcha's notifications may use this chat (issue #100).
+ * Gotcha's notifications may use this chat (issue #100). It is also the way to
+ * the inbox from an open chat, with a dot on ⋮ while something is unread
+ * (issue #110).
  */
 @Composable
 private fun ChatOptionsMenu(
@@ -890,14 +923,49 @@ private fun ChatOptionsMenu(
     onCreateShareCard: () -> Unit,
     shareEnabled: Boolean,
     keptOutOfNotifications: Boolean,
-    onSetKeptOutOfNotifications: (Boolean) -> Unit
+    onSetKeptOutOfNotifications: (Boolean) -> Unit,
+    unreadNotifications: Int,
+    onOpenInbox: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("chat_options")) {
-            Icon(Icons.Default.MoreVert, contentDescription = "Chat options")
+            BadgedBox(
+                badge = {
+                    if (unreadNotifications > 0) {
+                        UnreadBadge(count = unreadNotifications, showCount = false, modifier = Modifier.offset(x = (-2).dp, y = 2.dp))
+                    }
+                }
+            ) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = if (unreadNotifications > 0) {
+                        "Chat options, $unreadNotifications unread notifications"
+                    } else {
+                        "Chat options"
+                    }
+                )
+            }
         }
         SkinDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Notifications") },
+                leadingIcon = {
+                    Icon(
+                        if (unreadNotifications > 0) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+                        contentDescription = null
+                    )
+                },
+                trailingIcon = {
+                    if (unreadNotifications > 0) UnreadBadge(count = unreadNotifications, showCount = true)
+                },
+                onClick = {
+                    expanded = false
+                    onOpenInbox()
+                },
+                modifier = Modifier.testTag("chat_open_inbox")
+            )
+            HorizontalDivider()
             DropdownMenuItem(
                 text = { Text("Export chat") },
                 enabled = shareEnabled,
