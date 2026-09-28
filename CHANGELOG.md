@@ -219,6 +219,14 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **Gotcha remembers what you asked about an earlier photo** (#102). To save
+  space, Gotcha drops older images from what it sends the model. It used to
+  drop the whole message with them, so a question you sent with a photo, or the
+  text of a file you attached next to it, disappeared too. Now only the images
+  go, replaced by a short note, and your words and the file's text stay. Your
+  own images also no longer compete with the screenshots Gotcha takes while it
+  works: your 4 most recent image messages keep their images however many
+  screenshots come after them.
 - **Readable release notes in the update check** (#70). When Settings → About
   found a new version, its notes were shown as raw Markdown, with `###`, `**`
   and backticks spelled out and lines broken mid-sentence. They are now

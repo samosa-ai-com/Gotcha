@@ -37,7 +37,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /** Outcome of the sensitive-action confirmation step. */
@@ -1779,8 +1778,7 @@ class AgentEngine(
         }
         val pathNote = if (savedPath != null) "\n\nSaved to: $savedPath" else ""
         val visionMsg = visionUserMessage(
-            "Screen text:\n$screenText\n\nThe assistant captured a " +
-                "full-resolution screenshot for visual detail.$pathNote",
+            "Screen text:\n$screenText\n\n$FULL_RES_SCREENSHOT_NOTE for visual detail.$pathNote",
             screenshot.base64,
             screenshot.format
         )
@@ -1793,38 +1791,83 @@ class AgentEngine(
 
     companion object {
         /**
-         * Returns a copy of [messages] with old vision images and bulky UI hierarchy
-         * screen observations replaced by text-only summaries.
-         * Retains full content for the 4 most recent screen perception turns.
-         * The original list (and [history]) is NOT modified.
+         * Returns a copy of [messages] with old screen observations and old images
+         * culled. The original list (and [history]) is NOT modified.
+         *
+         * Two separate windows, so an agent loop that screenshots every step never
+         * pushes out an image the user is still asking about:
+         *  - screen observations (screenshots + UI dumps the agent captured): the
+         *    [OBSERVATION_WINDOW] newest keep full content; older ones are replaced
+         *    by a one-line note.
+         *  - any other message with images (user attachments, voice-call turns,
+         *    image files the agent read): the [IMAGE_MESSAGE_WINDOW] newest keep
+         *    their images; older ones lose only the images and keep their text —
+         *    the user's prompt and any `[Attached file: …]` bodies.
          */
         internal fun cullOldObservations(messages: List<ChatMessage>): List<ChatMessage> {
-            val observationMsgIndices = messages.indices.filter { i ->
-                val msg = messages[i]
-                val content = msg.content
-                val isVisionArray = content is JsonArray && content.any { part ->
-                    part.jsonObject["type"]?.jsonPrimitive?.content == "image_url"
-                }
-                val text = msg.textContent
-                val isScreenObservation = text.contains("[Screen State]") ||
-                    text.contains("── UI Elements ──") ||
-                    text.contains("read_screen_raw:")
-                isVisionArray || isScreenObservation
+            val observations = messages.indices.filter { isScreenObservation(messages[it]) }
+            val imageMessages = messages.indices.filter { i ->
+                messages[i].imageCount > 0 && !isScreenObservation(messages[i])
             }
-            val toCull = observationMsgIndices.dropLast(4).toSet()
-            if (toCull.isEmpty()) return messages
+            val cullObservation = observations.dropLast(OBSERVATION_WINDOW).toSet()
+            val stripImages = imageMessages.dropLast(IMAGE_MESSAGE_WINDOW).toSet()
+            if (cullObservation.isEmpty() && stripImages.isEmpty()) return messages
 
             return messages.mapIndexed { idx, msg ->
-                if (idx in toCull) {
-                    msg.copy(
+                when (idx) {
+                    in cullObservation -> msg.copy(
                         content = JsonPrimitive(
                             "[Previous screen observation removed to save context. Only the 4 most recent are retained.]"
                         )
                     )
-                } else {
-                    msg
+                    in stripImages -> withoutImages(msg)
+                    else -> msg
                 }
             }
+        }
+
+        /** How many of the newest screen observations keep their full content. */
+        private const val OBSERVATION_WINDOW = 4
+
+        /** How many of the newest non-observation image messages keep their images. */
+        private const val IMAGE_MESSAGE_WINDOW = 4
+
+        /**
+         * Text of the full-resolution `read_screen_raw` screenshot message, so it is
+         * recognised as a screen observation (its text carries none of the other markers).
+         */
+        internal const val FULL_RES_SCREENSHOT_NOTE = "The assistant captured a full-resolution screenshot"
+
+        /** True for a message the agent captured of the screen (screenshot and/or UI dump). */
+        internal fun isScreenObservation(msg: ChatMessage): Boolean {
+            val text = msg.textContent
+            return text.contains("[Screen State]") ||
+                text.contains("── UI Elements ──") ||
+                text.contains("read_screen_raw:") ||
+                text.contains(FULL_RES_SCREENSHOT_NOTE)
+        }
+
+        /**
+         * [msg] with its `image_url` parts dropped and a note saying how many were
+         * removed. Every other part is kept in order, so the prompt stays the first
+         * part ([ChatMessage.textContent] reads only that one).
+         */
+        private fun withoutImages(msg: ChatMessage): ChatMessage {
+            val parts = msg.content as? JsonArray ?: return msg
+            val kept = parts.filterNot { part ->
+                ((part as? JsonObject)?.get("type") as? JsonPrimitive)?.content == "image_url"
+            }
+            val removed = parts.size - kept.size
+            val note = if (removed == 1) {
+                "[1 earlier image removed to save context]"
+            } else {
+                "[$removed earlier images removed to save context]"
+            }
+            return msg.copy(
+                content = JsonArray(
+                    kept + JsonObject(mapOf("type" to JsonPrimitive("text"), "text" to JsonPrimitive(note)))
+                )
+            )
         }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L

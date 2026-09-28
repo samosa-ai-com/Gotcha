@@ -284,6 +284,87 @@ class PromptCacheAndTokenOptimizationTest {
         assertTrue(culled[5].textContent.contains("Turn 6"))
     }
 
+    private fun screenObservation(i: Int) = com.gotcha.llm.visionUserMessage(
+        "[Screen State]\nTurn $i observation\n── UI Elements ──",
+        "abc$i",
+        "jpeg"
+    )
+
+    private fun imageParts(msg: ChatMessage) =
+        (msg.content as kotlinx.serialization.json.JsonArray).filter {
+            (it as kotlinx.serialization.json.JsonObject)["type"].toString().contains("image_url")
+        }
+
+    private fun allText(msg: ChatMessage) =
+        (msg.content as kotlinx.serialization.json.JsonArray).joinToString("\n") {
+            (it as kotlinx.serialization.json.JsonObject)["text"]?.toString().orEmpty()
+        }
+
+    @Test
+    fun `AgentEngine cullOldObservations keeps the text of a culled user image message`() {
+        val userImages = (1..5).map { com.gotcha.llm.visionUserMessage("What is in photo $it?", "img$it", "jpeg") }
+
+        val culled = AgentEngine.cullOldObservations(userImages)
+
+        // The oldest falls outside the 4-message window: images gone, prompt kept.
+        assertEquals("What is in photo 1?", culled[0].textContent)
+        assertTrue(imageParts(culled[0]).isEmpty())
+        assertTrue(allText(culled[0]).contains("[1 earlier image removed to save context]"))
+        // The 4 newest are untouched.
+        for (i in 1..4) assertEquals(userImages[i], culled[i])
+    }
+
+    @Test
+    fun `AgentEngine cullOldObservations keeps document text of a culled mixed attachment message`() {
+        val mixed = com.gotcha.llm.attachmentsUserMessage(
+            "Compare the report with these photos",
+            listOf(com.gotcha.llm.DocumentPart("report.pdf", "application/pdf", "Quarterly revenue rose 12%.")),
+            listOf("imgA", "imgB")
+        )
+        val later = (1..4).map { com.gotcha.llm.visionUserMessage("Photo $it", "img$it", "jpeg") }
+
+        val culled = AgentEngine.cullOldObservations(listOf(mixed) + later)
+
+        assertEquals(mixed.textContent, culled[0].textContent)
+        assertTrue(culled[0].textContent.contains("[Attached file: report.pdf"))
+        assertTrue(culled[0].textContent.contains("Quarterly revenue rose 12%."))
+        assertTrue(imageParts(culled[0]).isEmpty())
+        assertTrue(allText(culled[0]).contains("[2 earlier images removed to save context]"))
+    }
+
+    @Test
+    fun `AgentEngine cullOldObservations fully replaces a culled full-resolution screenshot`() {
+        val fullRes = com.gotcha.llm.visionUserMessage(
+            "Screen text:\nInbox\n\n${AgentEngine.FULL_RES_SCREENSHOT_NOTE} for visual detail.",
+            "raw",
+            "png"
+        )
+        val culled = AgentEngine.cullOldObservations(listOf(fullRes) + (1..4).map(::screenObservation))
+
+        assertEquals(
+            "[Previous screen observation removed to save context. Only the 4 most recent are retained.]",
+            culled[0].textContent
+        )
+        assertTrue(culled[0].content is kotlinx.serialization.json.JsonPrimitive)
+    }
+
+    @Test
+    fun `AgentEngine cullOldObservations keeps user images and screen observations in separate windows`() {
+        val userImage = com.gotcha.llm.visionUserMessage("Fix the colour of this", "photo", "jpeg")
+        val messages = listOf(userImage) + (1..6).map(::screenObservation)
+        val before = messages.toList()
+
+        val culled = AgentEngine.cullOldObservations(messages)
+
+        // Six newer screenshots do not push out the user's image.
+        assertEquals(userImage, culled[0])
+        assertTrue(culled[1].textContent.contains("[Previous screen observation removed"))
+        assertTrue(culled[2].textContent.contains("[Previous screen observation removed"))
+        assertEquals(messages.drop(3), culled.drop(3))
+        // The input list is never mutated.
+        assertEquals(before, messages)
+    }
+
     @Test
     fun `AgentEngine systemPromptMessage combines instructions and environment into Index 0 System message`() {
         com.gotcha.testsupport.FakeAndroidKeyStore.setUp()
