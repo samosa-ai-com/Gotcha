@@ -274,6 +274,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private val completionNotifier = ChatCompletionNotifier(application)
     private val attentionNotifier = AttentionNotifier(application)
     private val localNotificationStore = LocalNotificationStore(application)
+    private val runMarker = RunInProgressMarker(settingsRepository.prefs)
 
     private var settings: Settings = Settings()
     private var client: LLMClient? = null
@@ -449,6 +450,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
             updateContextUsage()
             migrateChatDirsIfNeeded()
             com.gotcha.data.SampleChatSeeder.seedIfNeeded(historyRepository, settingsRepository.prefs)
+            reportInterruptedRun()
             refreshSessions()
         }
         // Stop on the ongoing "Gotcha is working…" notification (issue #105).
@@ -837,6 +839,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // process alive if the user leaves mid-task. Started here, while the user
         // who just sent the message is still in Gotcha.
         ChatRunService.start(getApplication(), runningChat(runningId))
+        // Survives the process: if Android kills it mid-run, the next start says so.
+        withContext(Dispatchers.IO) { runMarker.mark(runningId) }
         runHadError = false
         var stopped = false
         try {
@@ -869,6 +873,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 // After the finished notification is up, so in the background the
                 // ongoing one is replaced by it rather than leaving a gap.
                 ChatRunService.stop()
+                withContext(Dispatchers.IO) { runMarker.clear() }
                 _uiState.update {
                     it.copy(
                         isBusy = false,
@@ -889,6 +894,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     private fun mayNameChat(sessionId: String): Boolean =
         settings.notificationsMentionChats &&
             !localNotificationStore.isChatSensitive(sessionId, agentEngine.sessionPersonaId)
+
+    /**
+     * Issue #105: the last run died with the process, most likely killed by
+     * Android while Gotcha was in the background. Its chat gets a notice at the
+     * end, its history is repaired so the chat can go on, and the inbox gets an
+     * entry that opens it. Gotcha still starts on a fresh chat, as always.
+     */
+    private suspend fun reportInterruptedRun() {
+        val sessionId = runMarker.interruptedSession() ?: return
+        historyRepository.loadSession(sessionId)?.let { session ->
+            // A legacy chat without a saved transcript is rebuilt from its history on
+            // open; a lone notice would replace all of it.
+            val shown = if (session.displayMessages.isEmpty()) {
+                session.displayMessages
+            } else {
+                val nextId = session.displayMessages.maxOf { it.id } + 1
+                session.displayMessages + UiMessage(nextId, MessageKind.ERROR, INTERRUPTED_NOTICE)
+            }
+            historyRepository.saveSession(
+                session.copy(messages = closeOrphanedToolCalls(session.messages), displayMessages = shown),
+                touch = false
+            )
+            val named = settings.notificationsMentionChats &&
+                !localNotificationStore.isChatSensitive(sessionId, session.personaId)
+            localNotificationStore.addEntry(
+                category = NotificationCategory.TASK_FINISHED,
+                title = if (named) "Interrupted: ${session.title}" else "Task interrupted",
+                body = INTERRUPTED_INBOX_BODY,
+                target = NotificationTarget.Chat(sessionId)
+            )
+        }
+        withContext(Dispatchers.IO) { runMarker.clear() }
+    }
 
     /**
      * The run in [sessionId] as its ongoing notification shows it: the chat's
@@ -2124,6 +2162,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
 
         const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
+
+        /** Ends the chat of a run that died with the process; see [reportInterruptedRun]. */
+        const val INTERRUPTED_NOTICE = "This task was interrupted: Android closed Gotcha while it was " +
+            "working, usually to free memory. Send a message to pick up where it left off."
+        const val INTERRUPTED_INBOX_BODY = "Android closed Gotcha while it was working on this task. " +
+            "Tap to open the chat and pick up where it left off."
     }
 }
 
