@@ -4,6 +4,14 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Tasks keep running when you leave Gotcha** (#105). While Gotcha works on a
+  task, a quiet "Gotcha is working on …" notification now keeps it running, so
+  Android no longer closes it to free memory when you switch to another app mid
+  task — which could stop the task halfway and lose its task-finished
+  notification. Tapping it opens the chat; its Stop button stops the task. It
+  goes away as soon as the task ends, replaced by the task-finished notification
+  if you are elsewhere. It follows the same naming settings as the others, and has
+  its own channel, "Task in progress".
 - **A notification when Gotcha is waiting on you** (#108). When Gotcha pauses a
   task to ask you something, or to ask "Allow these actions?", and you are not in
   Gotcha to see it (you went to Termux to do what it asked, say, or the screen
