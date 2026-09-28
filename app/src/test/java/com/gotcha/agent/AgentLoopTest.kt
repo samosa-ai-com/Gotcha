@@ -13,6 +13,7 @@ import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.mockwebserver.MockResponse
@@ -647,6 +648,33 @@ class AgentLoopTest {
 
         assertEquals(1, events.runSummaries.size)
         assertFalse(events.runSummaries.single().succeeded)
+    }
+
+    /**
+     * Saving the chat at the end of a run asks the same server for a title, and the
+     * run is not marked finished until that returns. After the model request has
+     * just failed (a timeout, #104), asking again would hold the chat on "Thinking…"
+     * for a second full timeout; the title waits for a run that reaches the model.
+     */
+    // runBlocking, not runTest: the title request's own timeout would expire at
+    // once in runTest's virtual time while the request waits on real network I/O.
+    @Test
+    fun `no title is requested after the model request failed, and the next good run makes one`() = runBlocking {
+        addUserMessage("Fix my wifi please")
+        server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
+
+        engine.run(AgentMode.OPERATOR)
+        engine.saveCurrentSession()
+
+        assertEquals("only the failed model request, no title request", 1, server.requestCount)
+        assertEquals(null, engine.generatedTitle)
+
+        enqueueToolCall("finish_task", """{"summary":"Done."}""")
+        enqueueTextReply("Wifi fix")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("Wifi fix", engine.generatedTitle)
     }
 
     @Test

@@ -32,6 +32,7 @@ import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -286,6 +287,14 @@ class AgentEngine(
         private set
     private var titleGenerationAttempted = false
 
+    /**
+     * Whether the last main-model request failed. The title request goes to the
+     * same server, and saving the chat waits for it before the run is marked
+     * finished, so asking a server that just timed out would hold the chat on
+     * "Thinking…" for a second full API timeout (#104).
+     */
+    private var lastModelRequestFailed = false
+
     /** Falls back to the truncated first user message until [generatedTitle] is set. */
     fun currentTitle(): String =
         generatedTitle ?: history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
@@ -307,6 +316,8 @@ class AgentEngine(
      */
     private suspend fun generateTitleIfNeeded(llm: LLMClient) {
         if (titleGenerationAttempted) return
+        // Not marked attempted: the next run that reaches the model titles the chat.
+        if (lastModelRequestFailed) return
         val firstUserText = history.firstOrNull { it.role == "user" }?.textContent?.trim()
         if (firstUserText.isNullOrBlank()) return
         titleGenerationAttempted = true
@@ -334,7 +345,11 @@ class AgentEngine(
                 )
             )
             val titleModel = settings.subAgentModel.ifBlank { settings.model }
-            val response = llm.chat(messages = messages, temperature = 0f, modelOverride = titleModel)
+            // Capped on its own: the title is a nicety, and the run is not marked
+            // finished until it returns.
+            val response = withTimeoutOrNull(TITLE_TIMEOUT_MS) {
+                llm.chat(messages = messages, temperature = 0f, modelOverride = titleModel)
+            } ?: return
             ChatTitle.sanitize(response.choices.firstOrNull()?.message?.textContent)?.let {
                 generatedTitle = it
             }
@@ -549,10 +564,11 @@ class AgentEngine(
                     messages,
                     ToolRegistry.toolsForAgent(agent, hiddenTools()),
                     sessionId = promptCacheKey ?: sessionId
-                )
+                ).also { lastModelRequestFailed = false }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                lastModelRequestFailed = true
                 // Also spoken: on a voice call an unannounced return is silence.
                 val error = friendlyModelError(e)
                 events.onUi(MessageKind.ERROR, error)
@@ -1884,6 +1900,9 @@ class AgentEngine(
         }
         private const val TAG = "Gotcha"
         private const val INTER_CALL_DELAY_MS = 400L
+
+        /** Longest the best-effort chat-title request may hold up the end of a run. */
+        private const val TITLE_TIMEOUT_MS = 20_000L
 
         /** Upper bound on persisted [RunSummary]s per session (newest wins). */
         private const val MAX_RUN_SUMMARIES = 20
