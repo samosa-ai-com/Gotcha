@@ -471,7 +471,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
         // Publish live to the drawer so the running session's row updates in
         // the same frame, without waiting for the disk save at end-of-round.
         _liveTokenBySession.update { it + (engineId to totalTokens) }
-        if (viewingEngineSession()) updateContextUsage()
+        // Pass the new count explicitly: updateContextUsage() re-applies the
+        // count already on screen, so the meter would never move mid-run (#71).
+        if (viewingEngineSession()) applyContextUsage(totalTokens)
         // Best-effort disk write so a crash mid-run doesn't lose the count.
         viewModelScope.launch { agentEngine.saveCurrentSession() }
     }

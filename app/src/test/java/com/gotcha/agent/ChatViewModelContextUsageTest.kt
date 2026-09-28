@@ -158,4 +158,35 @@ class ChatViewModelContextUsageTest {
 
         assertEquals(555, viewModel.liveTokenBySession.value[engineId])
     }
+
+    /**
+     * Regression test for #71: onTokenCount re-applied the count already on
+     * screen, so the meter stayed put for the whole run and only caught up
+     * when the chat was reopened.
+     */
+    @Test
+    fun `onTokenCount moves the meter of the viewed engine session`() {
+        viewModel.onTokenCount(7_000)
+
+        val limit = settingsRepository.load().maxContextTokens.toFloat()
+        assertEquals(7_000, viewModel.uiState.value.tokenCount)
+        assertEquals(7_000f / limit, viewModel.uiState.value.contextUsagePercent, 0.0001f)
+    }
+
+    @Test
+    fun `onTokenCount leaves the meter alone while another chat is viewed`() {
+        seedUiTokenCount(3_000)
+        val stateField = ChatViewModel::class.java.getDeclaredField("_uiState")
+            .apply { isAccessible = true }
+
+        @Suppress("UNCHECKED_CAST")
+        val flow = stateField.get(viewModel) as kotlinx.coroutines.flow.MutableStateFlow<ChatUiState>
+        flow.value = flow.value.copy(activeSessionId = "session-B")
+        val percent = viewModel.uiState.value.contextUsagePercent
+
+        viewModel.onTokenCount(9_999)
+
+        assertEquals(3_000, viewModel.uiState.value.tokenCount)
+        assertEquals(percent, viewModel.uiState.value.contextUsagePercent, 0.0001f)
+    }
 }

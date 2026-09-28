@@ -207,6 +207,12 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **The context meter keeps up with the chat** (#71). The row of bars under a
+  chat's title, showing how much of the model's context the chat has used, only
+  moved when you left the chat and came back; during a reply it stayed where it
+  was. It now moves after every step of a reply, and after the chat is
+  compacted. The bar being filled now fills gradually rather than in whole
+  twelfths, so a short exchange still shows up.
 - **Termux commands work when Termux is closed.** Running a command in Termux
   failed with "app is in background" whenever Termux wasn't already running
   (after swiping it away, say), even with Gotcha open on screen, and the
