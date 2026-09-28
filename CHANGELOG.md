@@ -219,6 +219,17 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **A task keeps running when you swipe Gotcha away** (#111). Swiping Gotcha out
+  of your recent apps while it worked on a task, or pressing Back on its home
+  screen mid-task on Android 11, used to stop the task as if you had pressed
+  Stop. The task now goes on for as long as Android keeps Gotcha running, with
+  its "Gotcha is working on …" notification and its Stop button, and ends with
+  the usual task-finished notification. Opening Gotcha again mid-task, from its
+  icon or a notification, shows the running chat. A question or an "Allow these
+  actions?" it asks meanwhile still gets its "Gotcha has a question"
+  notification, and tapping it brings the question back; a request for an
+  Android permission, which needs Gotcha on screen, is answered "not allowed"
+  so the task can go on without it.
 - **A model that never answers no longer leaves the chat on "Thinking…"** (#104).
   The API timeout used to default to 0, which meant never give up, so a model
   server that accepted a request and then sent nothing kept the chat on
