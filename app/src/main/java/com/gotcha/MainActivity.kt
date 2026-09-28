@@ -325,6 +325,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // An inbox entry added after onResume read the badge (issue #105).
+        lifecycleScope.launch {
+            chatViewModel.inboxChanges.collect {
+                inboxUnread = withContext(Dispatchers.IO) { localNotificationStore.unreadCount() }
+            }
+        }
+
         // Collect exported chat content and launch a share sheet
         lifecycleScope.launch {
             chatViewModel.exportContent.collect { markdown ->

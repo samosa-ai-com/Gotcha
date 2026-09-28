@@ -91,8 +91,10 @@ class ChatViewModelInterruptedRunTest {
         saveHalfFinishedChat()
         anotherProcess().mark(sessionId)
 
-        startGotcha()
+        val viewModel = startGotcha()
 
+        // The bell re-reads its badge: the entry arrives after onResume read it.
+        assertEquals(1, viewModel.inboxChanges.value)
         val session = runBlocking { historyRepository.loadSession(sessionId) }!!
         assertEquals(MessageKind.ERROR, session.displayMessages.last().kind)
         assertTrue(session.displayMessages.last().text.startsWith("This task was interrupted"))

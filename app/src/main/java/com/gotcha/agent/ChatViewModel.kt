@@ -432,6 +432,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
 
     /** Exported chat markdown content the Activity should share. */
+    /**
+     * Bumped when the view model adds an inbox entry of its own (an interrupted
+     * run, issue #105), so the bell re-reads its unread count: the Activity's
+     * read in onResume can come before the entry exists.
+     */
+    private val _inboxChanges = MutableStateFlow(0)
+    val inboxChanges: StateFlow<Int> = _inboxChanges.asStateFlow()
+
     private val _exportContent = MutableSharedFlow<String>(extraBufferCapacity = 2)
     val exportContent: SharedFlow<String> = _exportContent.asSharedFlow()
 
@@ -924,6 +932,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), A
                 body = INTERRUPTED_INBOX_BODY,
                 target = NotificationTarget.Chat(sessionId)
             )
+            _inboxChanges.update { it + 1 }
         }
         withContext(Dispatchers.IO) { runMarker.clear() }
     }
