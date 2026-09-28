@@ -11,7 +11,11 @@ All notable changes to Gotcha are documented here.
   notification. Tapping it opens the chat; its Stop button stops the task. It
   goes away as soon as the task ends, replaced by the task-finished notification
   if you are elsewhere. It follows the same naming settings as the others, and has
-  its own channel, "Task in progress".
+  its own channel, "Task in progress". It names the chat by its title as soon as
+  Gotcha has made one. And if Android closes Gotcha mid-task anyway, the next
+  time you open it the chat ends with a note that the task was interrupted, and
+  the notification list has an "Interrupted" entry that opens it; send a message
+  there to pick up where it left off.
 - **A notification when Gotcha is waiting on you** (#108). When Gotcha pauses a
   task to ask you something, or to ask "Allow these actions?", and you are not in
   Gotcha to see it (you went to Termux to do what it asked, say, or the screen
