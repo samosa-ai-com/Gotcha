@@ -160,6 +160,12 @@ All notable changes to Gotcha are documented here.
   Monitor, and which mode you're in stays the selector's business.
 
 ### Changed
+- **A calmer notifications bell** (#110). The bell's badge is now in Gotcha's
+  own colour instead of alarm red, the bell matches the other top-bar icons and
+  fills in while something is unread, and one unread notification shows as a dot
+  (a number from two up). In an open chat the bell has moved into the ⋮ menu as
+  "Notifications", with a dot on ⋮ while something is unread, so the chat's title
+  has room again.
 - **Permissions are asked for when they're needed, not at startup.** A fresh
   install used to open with thirteen system permission dialogs in a row —
   contacts, SMS, call log, camera, microphone, location — before you had asked
