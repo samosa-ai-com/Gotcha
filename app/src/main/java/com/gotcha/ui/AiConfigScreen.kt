@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
 import com.gotcha.data.DEFAULT_MAX_CONTEXT_TOKENS
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
@@ -137,7 +138,7 @@ fun AiConfigScreen(
         maxNavigationToolCalls = maxNavigationToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxConsecutiveDelegations = maxConsecutiveDelegations.toIntOrNull()?.takeIf { it > 0 } ?: 3,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: DEFAULT_MAX_CONTEXT_TOKENS,
-        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
+        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: DEFAULT_API_TIMEOUT_SECONDS
     )
 
     /**
@@ -492,7 +493,10 @@ fun AiConfigScreen(
             OutlinedTextField(
                 value = apiTimeoutSeconds,
                 onValueChange = { apiTimeoutSeconds = it },
-                label = { Text("API Timeout (seconds, 0 for infinite)") },
+                label = { Text("API timeout (seconds)") },
+                supportingText = {
+                    Text("Default $DEFAULT_API_TIMEOUT_SECONDS. 0 = never time out (not recommended).")
+                },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().settingsField("settings_api_timeout")

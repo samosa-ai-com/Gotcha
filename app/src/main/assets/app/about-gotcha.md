@@ -67,7 +67,7 @@ Everything below is reached from **Settings** in the navigation drawer.
 | Personal Info | Name, occupation, background, reply style, location, preferred currency and language |
 | Language | App display language, AI reply language, voice language, STT language |
 | AI | Hub for the two pages below |
-| AI > AI Configuration | LLM provider, API key, Base URL, main and navigator models, API timeout, max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
+| AI > AI Configuration | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |
 | AI > Speech (TTS / STT) | TTS and STT provider, base URL, key and model, voice selection, podcast host voices, auto-read replies aloud, transcription language override |
 | Permissions | Every runtime and special-access permission, grouped: Communications, Contacts, Calendar, Media & Storage, Location, Device Control, Notifications, System Access, Health |
 | Termux (Linux shell) | Guided setup for the Linux shell used by `run_termux_command` and audio conversion |

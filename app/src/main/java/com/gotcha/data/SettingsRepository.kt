@@ -49,6 +49,13 @@ enum class WakeWordListeningMode {
  */
 const val DEFAULT_MAX_CONTEXT_TOKENS = 256_000
 
+/**
+ * How long a model request may go without the server sending anything, in
+ * seconds, for a fresh install. Requests are not streamed, so this has to cover
+ * the model writing its whole reply (#104). 0 means never time out.
+ */
+const val DEFAULT_API_TIMEOUT_SECONDS = 180L
+
 /** Daily tip time for a fresh install: 10:00, in minutes after midnight. */
 const val DEFAULT_DAILY_TIP_MINUTE = 10 * 60
 
@@ -87,6 +94,23 @@ internal fun liftMaxContextTokens(stored: Int, alreadyLifted: Boolean): MaxConte
     else -> MaxContextTokensLift(stored, writeBack = false)
 }
 
+/** What the one-shot API-timeout lift decided: the value to use, and whether to store it. */
+internal data class ApiTimeoutLift(val value: Long, val writeBack: Boolean)
+
+/**
+ * Decides whether a stored API timeout should be lifted to [DEFAULT_API_TIMEOUT_SECONDS].
+ *
+ * 0 ("never time out") was the old default, so a stored 0 cannot be told apart
+ * from never having chosen; it is lifted once, while [alreadyLifted] is false.
+ * Any other value was typed in and is kept, and so is a 0 set after the lift.
+ * Pure for the same reason as [liftMaxContextTokens].
+ */
+internal fun liftApiTimeout(stored: Long, alreadyLifted: Boolean): ApiTimeoutLift = when {
+    alreadyLifted -> ApiTimeoutLift(stored, writeBack = false)
+    stored == 0L -> ApiTimeoutLift(DEFAULT_API_TIMEOUT_SECONDS, writeBack = true)
+    else -> ApiTimeoutLift(stored, writeBack = false)
+}
+
 data class Settings(
     // Which LLM backend is active. Defaults to the Samosa AI flow.
     val provider: LlmProvider = LlmProvider.SAMOSA_AI,
@@ -112,7 +136,7 @@ data class Settings(
      */
     val maxConsecutiveDelegations: Int = 3,
     val maxContextTokens: Int = DEFAULT_MAX_CONTEXT_TOKENS,
-    val apiTimeoutSeconds: Long = 0L,
+    val apiTimeoutSeconds: Long = DEFAULT_API_TIMEOUT_SECONDS,
     // TTS / STT settings
     val ttsProvider: AudioProvider = AudioProvider.ANDROID,
     val ttsApiBaseUrl: String = "",
@@ -536,6 +560,28 @@ class SettingsRepository(context: Context) : SettingsStore {
         return lift.value
     }
 
+    /**
+     * The stored API timeout, with 0 lifted to [DEFAULT_API_TIMEOUT_SECONDS] the
+     * first time this build loads settings (#104). 0 used to be the default, and
+     * with it a model server that never replied left the chat on "Thinking…"
+     * forever. Like [resolvedMaxContextTokens], it runs once, tracked by its own
+     * flag, so a user can set 0 again afterwards and keep it.
+     */
+    private fun resolvedApiTimeoutSeconds(): Long {
+        val alreadyLifted = prefs.getBoolean(KEY_API_TIMEOUT_LIFTED, false)
+        val lift = liftApiTimeout(
+            stored = prefs.getLong(KEY_API_TIMEOUT, DEFAULT_API_TIMEOUT_SECONDS),
+            alreadyLifted = alreadyLifted
+        )
+        if (!alreadyLifted) {
+            prefs.edit().apply {
+                putBoolean(KEY_API_TIMEOUT_LIFTED, true)
+                if (lift.writeBack) putLong(KEY_API_TIMEOUT, lift.value)
+            }.apply()
+        }
+        return lift.value
+    }
+
     override fun load(): Settings = Settings(
         provider = LlmProvider.fromName(prefs.getString(KEY_PROVIDER, null)),
         apiKey = string(KEY_API_KEY),
@@ -550,7 +596,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         maxNavigationToolCalls = prefs.getInt(KEY_MAX_NAVIGATION_TOOL_CALLS, 30),
         maxConsecutiveDelegations = prefs.getInt(KEY_MAX_CONSECUTIVE_DELEGATIONS, 3),
         maxContextTokens = resolvedMaxContextTokens(),
-        apiTimeoutSeconds = prefs.getLong(KEY_API_TIMEOUT, 0L),
+        apiTimeoutSeconds = resolvedApiTimeoutSeconds(),
         ttsProvider = runCatching {
             AudioProvider.valueOf(string(KEY_TTS_PROVIDER, "ANDROID"))
         }.getOrDefault(AudioProvider.ANDROID),
@@ -775,6 +821,9 @@ class SettingsRepository(context: Context) : SettingsStore {
         /** Whether the one-shot 70k -> 256k lift has already run. */
         const val KEY_MAX_CONTEXT_TOKENS_RAISED = "max_context_tokens_raised"
         const val KEY_API_TIMEOUT = "api_timeout"
+
+        /** Whether the one-shot 0 -> [DEFAULT_API_TIMEOUT_SECONDS] lift has already run (#104). */
+        const val KEY_API_TIMEOUT_LIFTED = "api_timeout_lifted"
         const val KEY_TTS_PROVIDER = "tts_provider"
         const val KEY_TTS_API_URL = "tts_api_url"
         const val KEY_TTS_API_KEY = "tts_api_key"

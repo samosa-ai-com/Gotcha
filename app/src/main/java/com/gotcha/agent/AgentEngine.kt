@@ -38,6 +38,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import java.net.SocketTimeoutException
 
 /** Outcome of the sensitive-action confirmation step. */
 private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
@@ -47,6 +48,18 @@ private val WHITESPACE = Regex("\\s+")
 
 /** Maps API/network failures to a short, user-readable message. */
 internal fun friendlyAgentError(e: Exception): String = HumanReadableError.format(e)
+
+/** Shown when the model server sends nothing back within the API timeout (#104). */
+internal const val MODEL_TIMEOUT_MESSAGE =
+    "The model didn't respond in time. Try again, or raise the API timeout in Settings → AI → AI Configuration."
+
+/**
+ * [friendlyAgentError] for a failed model request. A timeout here means the model
+ * never answered, which the generic network wording ("try a smaller request")
+ * does not say; the generic one stays for speech-to-text and the rest.
+ */
+internal fun friendlyModelError(e: Exception): String =
+    if (e is SocketTimeoutException) MODEL_TIMEOUT_MESSAGE else friendlyAgentError(e)
 
 /**
  * The core agent loop, extracted from ChatViewModel so it can run both inside
@@ -541,7 +554,7 @@ class AgentEngine(
                 throw e
             } catch (e: Exception) {
                 // Also spoken: on a voice call an unannounced return is silence.
-                val error = friendlyAgentError(e)
+                val error = friendlyModelError(e)
                 events.onUi(MessageKind.ERROR, error)
                 events.onAssistantReply(error)
                 emitRunSummary(error, succeeded = false)
