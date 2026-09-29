@@ -777,7 +777,7 @@ class ToolExecutor(
     private fun parseTodoStatus(s: String): TodoStatus = when (s.lowercase().trim()) {
         "in_progress", "in progress", "inprogress" -> TodoStatus.IN_PROGRESS
         "completed", "done", "complete" -> TodoStatus.COMPLETED
-        "cancelled", "canceled", "cancelled" -> TodoStatus.CANCELLED
+        "cancelled", "canceled" -> TodoStatus.CANCELLED
         else -> TodoStatus.PENDING
     }
 }

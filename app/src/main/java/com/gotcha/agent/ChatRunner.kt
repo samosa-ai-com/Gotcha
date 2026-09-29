@@ -417,6 +417,11 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     /** Sends [text] with [attachments] in [view] and runs the agent on it. */
     internal fun send(view: ViewedChat, text: String, attachments: List<ComposerAttachment>, isVoice: Boolean) {
+        // The caller checked isRunning, but a run only shows as busy once
+        // executeRun starts, after the viewed chat is loaded from disk. Until then
+        // the job itself is the claim, so a second send (a double tap) is refused
+        // rather than appended to the same history and run alongside it.
+        if (isRunning || agentJob?.isActive == true) return
         currentRunIsVoice = isVoice
         agentJob = scope.launch {
             // Ensure the engine is bound to the session being viewed. After a

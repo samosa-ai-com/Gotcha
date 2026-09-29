@@ -10,10 +10,12 @@ import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.GotchaApp
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.service.ChatRunService
+import com.gotcha.tools.AgentMode
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -216,5 +218,28 @@ class ChatRunnerLifecycleTest {
 
         assertEquals("Downloads", runBlocking { gate.await() })
         assertNull(second.uiState.value.pendingQuestion)
+    }
+
+    @Test
+    fun `a second send before the first run starts is refused`() {
+        // Saved, and not the chat the engine is on, so the first send suspends
+        // loading it from disk before the run shows as busy.
+        runBlocking {
+            historyRepository.saveSession(ChatSession(id = "double-tap", title = "Saved", lastModified = 0L, messages = emptyList()))
+        }
+        runner().bindFresh("elsewhere", AgentMode.MONITOR)
+        val view = ViewedChat("double-tap", emptyList(), AgentMode.MONITOR, personaId = null)
+
+        runner().send(view, "first", emptyList(), isVoice = false)
+        runner().send(view, "second", emptyList(), isVoice = false)
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline && !runner().isRunning) {
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(10)
+        }
+        waitForRunToFinish()
+
+        val userTexts = savedTranscript("double-tap").filter { it.kind == MessageKind.USER }.map { it.text }
+        assertEquals(listOf("first"), userTexts)
     }
 }

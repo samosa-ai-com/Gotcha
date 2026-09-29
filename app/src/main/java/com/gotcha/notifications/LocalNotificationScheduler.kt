@@ -144,16 +144,21 @@ internal suspend fun runLocalNotificationCheck(
     val store = LocalNotificationStore(context)
     val zone = ZoneId.systemDefault()
 
-    // Seeded samples are demos, not the user's own use.
-    val sessions = ChatHistoryRepository(context).listSessions().filterNot { it.isSample }
-    val chats = sessions.map { session ->
-        ChatDigest(
-            id = session.id,
-            title = session.title,
-            sensitive = store.isChatSensitive(session.id, session.personaId),
-            runs = session.runSummaries
-        )
-    }
+    // Seeded samples are demos, not the user's own use. Only the digest of each
+    // chat is kept, so a phone full of image-heavy chats isn't read into memory
+    // all at once by a receiver running in the background.
+    val chats = ChatHistoryRepository(context).mapSessions { session ->
+        if (session.isSample) {
+            null
+        } else {
+            ChatDigest(
+                id = session.id,
+                title = session.title,
+                sensitive = store.isChatSensitive(session.id, session.personaId),
+                runs = session.runSummaries
+            )
+        }
+    }.filterNotNull()
     val lastOpenedAt = store.lastOpenedAt()
 
     var tip: DailyTip? = null
@@ -172,9 +177,9 @@ internal suspend fun runLocalNotificationCheck(
             )
         }
         // Nor, on a day they have already used it, a tip.
-        val lastRun = sessions.flatMap { it.runSummaries }.maxOfOrNull { it.endedAt }
+        val lastRun = chats.flatMap { it.runs }.maxOfOrNull { it.endedAt }
         if (includeTip && !usedToday(lastRun, now, zone)) {
-            val usedTools = sessions.flatMap { s -> s.runSummaries.flatMap { run -> run.toolCalls.map { it.name } } }
+            val usedTools = chats.flatMap { c -> c.runs.flatMap { run -> run.toolCalls.map { it.name } } }
             tip = pickDailyTip(DAILY_TIPS, recentTips(repo), usedTools.toSet())
             tip?.let { add(tipCandidate(it, now, zone)) }
         }

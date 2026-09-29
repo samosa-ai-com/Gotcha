@@ -80,6 +80,28 @@ class ChatHistoryRepository internal constructor(private val chatsDir: File) {
             ?: emptyList()
     }
 
+    /**
+     * [transform] of every saved session, newest first, decoding one file at a
+     * time and keeping only what [transform] returns. For a caller that needs a
+     * few fields of every chat, such as the background reminder check, without
+     * holding every transcript (images included) in memory at once.
+     */
+    suspend fun <T> mapSessions(transform: (ChatSession) -> T): List<T> = withContext(Dispatchers.IO) {
+        chatsDir.listFiles()
+            ?.filter { it.extension == "json" }
+            ?.mapNotNull { file ->
+                try {
+                    val session = json.decodeFromString(serializer, file.readText())
+                    session.lastModified to transform(session)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            ?.sortedByDescending { it.first }
+            ?.map { it.second }
+            ?: emptyList()
+    }
+
     suspend fun loadSession(id: String): ChatSession? = withContext(Dispatchers.IO) {
         val file = File(chatsDir, "$id.json")
         if (!file.exists()) return@withContext null
