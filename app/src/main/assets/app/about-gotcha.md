@@ -42,7 +42,7 @@ mid-conversation.
 - **Notifications** — read them, dismiss them, control media playback, report
   what is now playing.
 - **Device control** — Wi-Fi, torch, volume, ringer mode, Do Not Disturb,
-  brightness, wallpaper, vibration, clipboard, app launch and uninstall, app and
+  brightness, screen timeout, wallpaper, vibration, clipboard, app launch and uninstall, app and
   data usage, location.
 - **System access** — shell commands, root commands and secure-settings writes
   on a rooted device, and full Linux user-space through Termux.

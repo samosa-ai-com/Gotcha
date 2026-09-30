@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 29 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 30 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **117** | |
+| **Total** | **118** | |
 
-**53 of 117** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**54 of 118** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -85,6 +85,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `set_dnd` | `MANUAL_ONLY` | Needs NotificationPolicyManager access and a real notification shade to verify the DND icon; Robolectric's shadow does not faithfully reproduce the policy enforcement side-effects. |
 | `set_password_policy` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `set_ringer_mode` | `ROBOLECTRIC` | `DeviceToolTest` — normal/vibrate/silent plus the Do-Not-Disturb access gate |
+| `set_screen_timeout` | `ROBOLECTRIC` | `SystemToolTest` — range validation, seconds to milliseconds, previous value reported, WRITE_SETTINGS gate |
 | `set_timer` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `set_volume` | `ROBOLECTRIC` | `DeviceToolTest` — percentage-to-stream scaling, aliases, range and stream validation |
 | `set_wallpaper` | `MANUAL_ONLY` | Needs an Android Context and WallpaperManager; the platform wallpaper API has no usable emulator fake for the set-call callback. |

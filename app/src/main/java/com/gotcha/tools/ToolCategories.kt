@@ -23,7 +23,7 @@ object ToolCategories {
         "uninstall_app", "delete_calendar_event", "delete_alarm",
         "delete_timer", "edit_alarm",
         "toggle_wifi", "toggle_torch",
-        "set_volume", "set_ringer_mode", "set_dnd", "set_brightness",
+        "set_volume", "set_ringer_mode", "set_dnd", "set_brightness", "set_screen_timeout",
         "set_wallpaper", "set_clipboard",
         "call_number", "send_sms", "add_contact",
         "create_calendar_event", "edit_calendar_event",

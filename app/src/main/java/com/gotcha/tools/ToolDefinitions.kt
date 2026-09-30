@@ -265,6 +265,27 @@ object ToolDefinitions {
         }
     )
 
+    val setScreenTimeout = tool(
+        "set_screen_timeout",
+        "Set how long the screen stays on without a touch (the \"Screen timeout\" or, on some " +
+            "phones, \"Sleep\" setting). Changes it directly: no Settings page to find and no " +
+            "Accessibility needed. Requires the 'Modify system settings' special access, which the " +
+            "tool asks for when it is missing. Reports the previous value.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("seconds") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Timeout in seconds, ${SystemTool.MIN_SCREEN_TIMEOUT_S} to " +
+                            "${SystemTool.MAX_SCREEN_TIMEOUT_S} (30 minutes)."
+                    )
+                }
+            }
+            putJsonArray("required") { add("seconds") }
+        }
+    )
+
     val toggleWifi = tool(
         "toggle_wifi",
         "Turn Wi-Fi on or off. Android 10 and newer forbid apps from toggling the radio, so on " +
@@ -291,8 +312,9 @@ object ToolDefinitions {
             "battery_saver, display, sound, date_time, language, input_method, " +
             "storage, accessibility, default_apps, cast, developer_options, lock_screen, vpn, " +
             "device_admin. For anything not listed, use navigate_app instead. " +
-            "Prefer the direct tools where they exist — set_volume, set_brightness, set_dnd, " +
-            "set_ringer_mode and toggle_torch change those without leaving the app.",
+            "Prefer the direct tools where they exist — set_volume, set_brightness, " +
+            "set_screen_timeout, set_dnd, set_ringer_mode and toggle_torch change those without " +
+            "leaving the app.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("setting") {
@@ -2993,7 +3015,7 @@ object ToolDefinitions {
         updateUserProfile,
         updateGotchaSettings,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
-        openApp, setBrightness, toggleWifi, openSetting,
+        openApp, setBrightness, setScreenTimeout, toggleWifi, openSetting,
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,

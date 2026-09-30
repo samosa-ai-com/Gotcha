@@ -325,6 +325,9 @@ class ToolExecutor(
             "set_brightness" -> systemTool.setBrightness(
                 args["percent"]?.jsonPrimitive?.intOrNull ?: return missing("percent")
             )
+            "set_screen_timeout" -> systemTool.setScreenTimeout(
+                args["seconds"]?.jsonPrimitive?.intOrNull ?: return missing("seconds")
+            )
             "toggle_wifi" -> systemTool.toggleWifi(
                 args["enabled"]?.jsonPrimitive?.booleanOrNull ?: return missing("enabled")
             )

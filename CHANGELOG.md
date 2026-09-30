@@ -234,6 +234,14 @@ All notable changes to Gotcha are documented here.
   A chat started with an image and no text is called "Image chat" instead of
   having a blank name, and gets a proper title from the first message you write
   in it (#95).
+- **Gotcha can change the screen timeout itself.** Asked to keep the screen on
+  longer, it used to try a shell command, then open a settings page and describe
+  it as if it could see it — on a Redmi, the wrong page. It now sets the timeout
+  directly (15 seconds to 30 minutes) with the same "Modify system settings"
+  access it uses for brightness, asks for that access the first time, and says
+  what the timeout was before. When it opens a settings page, it now names the
+  screen your phone actually opened and says what to look for, instead of
+  claiming a control is in front of you.
 - **A task keeps running when you swipe Gotcha away** (#111). Swiping Gotcha out
   of your recent apps while it worked on a task, or pressing Back on its home
   screen mid-task on Android 11, used to stop the task as if you had pressed

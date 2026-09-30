@@ -99,6 +99,14 @@
       "notes": "range validation, value scaling, WRITE_SETTINGS gate"
     },
     {
+      "tool": "set_screen_timeout",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.SystemToolTest"
+      ],
+      "notes": "range validation, seconds to milliseconds, previous value reported, WRITE_SETTINGS gate"
+    },
+    {
       "tool": "toggle_wifi",
       "tier": "MANUAL_ONLY",
       "reason": "The permissive branch is covered by SystemToolTest, but Android 10+ makes setWifiEnabled a no-op and Robolectric's shadow honours it unconditionally, so the panel-fallback branch that actually runs on-device cannot be reproduced at that tier.",

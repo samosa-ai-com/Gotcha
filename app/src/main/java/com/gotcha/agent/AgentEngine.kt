@@ -1408,7 +1408,7 @@ class AgentEngine(
             "and dismiss them, manage the task list.\n" +
             "- Files & media: write and edit files, read images, take photos, record and " +
             "pause/stop audio, edit or convert media and PDFs, set the wallpaper.\n" +
-            "- Device settings: volume, brightness, ringer, Do Not Disturb, Wi-Fi, torch, " +
+            "- Device settings: volume, brightness, screen timeout, ringer, Do Not Disturb, Wi-Fi, torch, " +
             "vibrate, clipboard, lock the screen, open any Settings page, write secure " +
             "settings, uninstall apps, disable the camera and set password policy.\n" +
             "- Notifications: dismiss them.\n" +
