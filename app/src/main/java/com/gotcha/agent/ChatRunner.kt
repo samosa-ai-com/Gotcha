@@ -948,7 +948,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
      */
     private fun runningChat(sessionId: String): RunningChat {
         val title = engine.generatedTitle
-            ?: engine.history.firstOrNull { it.role == "user" }?.textContent?.let(::shortTitle)
+            ?: ChatTitle.openingText(engine.history)?.let(::shortTitle)
+            ?: ChatTitle.fallback(engine.history)
         return RunningChat(sessionId, title.takeIf { mayNameChat(sessionId) })
     }
 
@@ -1117,10 +1118,8 @@ private fun nextIdAfter(messages: List<UiMessage>): Long = messages.maxOfOrNull 
  * fallback rather than an LLM-generated title, so it's eligible to be
  * (re)generated next time the session is saved.
  */
-internal fun ChatSession.isFallbackTitle(): Boolean {
-    val fallback = messages.firstOrNull { it.role == "user" }?.textContent?.take(30)
-    return title.isBlank() || title == fallback
-}
+internal fun ChatSession.isFallbackTitle(): Boolean =
+    title.isBlank() || title == ChatTitle.fallback(messages)
 
 /**
  * Builds the LLM user message for the given prompt and attachments: every

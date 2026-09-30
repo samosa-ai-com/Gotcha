@@ -31,6 +31,13 @@ internal fun documentPromptText(content: String): String? {
     return if (index >= 0) content.substring(0, index).trim() else null
 }
 
+/**
+ * A screen capture the agent added to the history as a user message. The chat
+ * shows it as a capture, never as something the user said.
+ */
+internal fun isScreenCapture(content: String): Boolean =
+    content.startsWith("[Screen State]") || content.startsWith("Screen text:")
+
 /** How many `[Attached file: …]` sections a user message's text part carries. */
 internal fun countAttachedFiles(content: String): Int =
     content.split(ATTACHED_FILE_MARKER).size - 1

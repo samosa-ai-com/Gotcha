@@ -295,9 +295,8 @@ class AgentEngine(
      */
     private var lastModelRequestFailed = false
 
-    /** Falls back to the truncated first user message until [generatedTitle] is set. */
-    fun currentTitle(): String =
-        generatedTitle ?: history.firstOrNull { it.role == "user" }?.textContent?.take(30) ?: "New Chat"
+    /** Falls back to [ChatTitle.fallback] until [generatedTitle] is set. */
+    fun currentTitle(): String = generatedTitle ?: ChatTitle.fallback(history)
 
     /**
      * Restores title state when switching the engine to another session. Pass `null`
@@ -318,8 +317,9 @@ class AgentEngine(
         if (titleGenerationAttempted) return
         // Not marked attempted: the next run that reaches the model titles the chat.
         if (lastModelRequestFailed) return
-        val firstUserText = history.firstOrNull { it.role == "user" }?.textContent?.trim()
-        if (firstUserText.isNullOrBlank()) return
+        // A chat that opened with images alone has nothing to title yet: left
+        // unattempted, so the first message with words in it titles the chat.
+        val firstUserText = ChatTitle.openingText(history) ?: return
         titleGenerationAttempted = true
         try {
             val messages = listOf(

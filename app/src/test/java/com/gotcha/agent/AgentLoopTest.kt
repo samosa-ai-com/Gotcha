@@ -7,6 +7,7 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatRequest
 import com.gotcha.llm.LLMClient
+import com.gotcha.llm.visionUserMessage
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import com.gotcha.tools.AgentMode
@@ -675,6 +676,31 @@ class AgentLoopTest {
         engine.run(AgentMode.OPERATOR)
 
         assertEquals("Wifi fix", engine.generatedTitle)
+    }
+
+    /**
+     * An image sent with no text reaches the model as a single space (#95), so
+     * there is nothing to title yet: no title request, a name that isn't blank,
+     * and the first message with words in it titles the chat.
+     */
+    @Test
+    fun `a chat that opened with an image alone is titled by its first words`() = runBlocking {
+        engine.history += visionUserMessage("", "QUJD", "jpeg")
+        enqueueToolCall("finish_task", """{"summary":"A red box."}""")
+
+        engine.run(AgentMode.OPERATOR)
+        engine.saveCurrentSession()
+
+        assertEquals("only the model request, no title request", 1, server.requestCount)
+        assertEquals(ChatTitle.IMAGE_CHAT, engine.currentTitle())
+
+        addUserMessage("What colour is the box?")
+        enqueueToolCall("finish_task", """{"summary":"Red."}""")
+        enqueueTextReply("Box colour question")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("Box colour question", engine.generatedTitle)
     }
 
     @Test

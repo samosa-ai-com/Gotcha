@@ -1,5 +1,6 @@
 package com.gotcha.data
 
+import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.MessageKind
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.DOCUMENTS_ONLY_PROMPT
@@ -334,10 +335,6 @@ class ChatImporter(
         return if (prompt == DOCUMENT_ONLY_PROMPT || prompt == DOCUMENTS_ONLY_PROMPT) "" else prompt
     }
 
-    /** A screen capture the agent added as a user message; the transcript shows it as a capture, not a prompt. */
-    private fun isScreenCapture(content: String): Boolean =
-        content.startsWith("[Screen State]") || content.startsWith("Screen text:")
-
     /** [session] with its system messages as notes, saying so in [notes] when there were any. */
     private fun asNotes(session: ChatSession, notes: MutableList<String>): ChatSession {
         val count = session.messages.count { it.role == "system" }
@@ -378,8 +375,7 @@ class ChatImporter(
 
     /** The engine's own untitled fallback, so a title is still generated for it later. */
     private fun fallbackTitle(messages: List<ChatMessage>): String =
-        messages.firstOrNull { it.role == "user" }?.textContent?.take(30)?.takeIf { it.isNotBlank() }
-            ?: "Imported chat"
+        ChatTitle.openingText(messages)?.take(ChatTitle.FALLBACK_CHARS) ?: "Imported chat"
 
     companion object {
         /** A backup with every image in it can be large, but it is read into memory whole. */

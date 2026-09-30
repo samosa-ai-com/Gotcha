@@ -231,6 +231,9 @@ All notable changes to Gotcha are documented here.
   assistant reads is hidden from you; the import preview says when this happens
   (#83). And a setting opened from search stays on screen when the page above
   it finishes loading, such as the Samosa account card on AI Configuration (#92).
+  A chat started with an image and no text is called "Image chat" instead of
+  having a blank name, and gets a proper title from the first message you write
+  in it (#95).
 - **A task keeps running when you swipe Gotcha away** (#111). Swiping Gotcha out
   of your recent apps while it worked on a task, or pressing Back on its home
   screen mid-task on Android 11, used to stop the task as if you had pressed
