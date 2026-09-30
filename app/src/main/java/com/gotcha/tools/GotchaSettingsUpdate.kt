@@ -386,7 +386,11 @@ object GotchaSettingsUpdate {
                 spec.key,
                 buildJsonObject {
                     put("type", spec.jsonType)
-                    put("description", "${spec.label}: ${spec.accepts}.")
+                    // Sent with every Operator request, so nothing twice: the type
+                    // already says boolean and the enum lists the choices. The parser's
+                    // error still spells out [Spec.accepts] if a value is wrong.
+                    val saysItAll = spec.jsonType == "boolean" || spec.choices != null
+                    put("description", if (saysItAll) spec.label else "${spec.label}: ${spec.accepts}.")
                     spec.choices?.let { choices ->
                         put("enum", kotlinx.serialization.json.JsonArray(choices.map(::JsonPrimitive)))
                     }
@@ -396,14 +400,13 @@ object GotchaSettingsUpdate {
         put(
             CONNECTORS_KEY,
             toggleSchema(
-                "Turn connectors on (true) or off (false), keyed by connector id: " +
-                    catalog.connectors.keys.joinToString(", ") + ". Off keeps the sign-in but " +
-                    "removes that connector's tools."
+                "Connector id → on/off: " + catalog.connectors.keys.joinToString(", ") +
+                    ". Off keeps the sign-in."
             )
         )
         put(
             SKILLS_KEY,
-            toggleSchema("Turn skills on (true) or off (false), keyed by skill id as search_skills reports it.")
+            toggleSchema("Skill id (as search_skills reports it) → on/off.")
         )
     }
 
