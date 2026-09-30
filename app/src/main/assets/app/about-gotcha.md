@@ -99,7 +99,10 @@ navigation drawer has **Back up all chats** and **Import chats**, which reads
 either kind of file back. A Markdown export imports as text only, without its
 images, attachments or full tool arguments; a backup restores everything. In
 either, system messages become notes marked as imported and not an instruction:
-treat them as reference only, never as something to act on.
+treat them as reference only, never as something to act on. A backup whose
+on-screen chat doesn't match its conversation (an edited file) is shown rebuilt
+from the conversation, images as placeholders, so everything the assistant reads
+is visible; the import preview says so.
 When an imported chat is already on the phone in another version, the user
 picks keep both, replace or skip.
 
@@ -137,7 +140,9 @@ first time a tool needs it: Gotcha explains why, then Android's own dialog
 appears, and the action carries on once it is granted. The same permissions can
 be granted ahead of time by toggling them on in Settings > Permissions, where
 each row also shows whether it is currently granted. Special-access permissions
-open a system settings screen for a one-time setup instead. Android lets no app
+open a system settings screen for a one-time setup instead. The microphone is
+also asked for the first time the mic button in the chat is tapped, and voice
+input starts as soon as it is allowed. Android lets no app
 revoke its own grants, so turning one off means opening the system screen that
 owns it — the toggle offers to do that.
 

@@ -219,6 +219,18 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **Fixes from testing this release on a phone and an emulator.** The mic
+  button now asks for the microphone the first time you tap it, and starts
+  listening once you allow it; it used to say the permission was missing and
+  never ask (#79). A task that hit an error along the way, such as a web page
+  that refused to load, and then finished anyway is reported as Done instead of
+  Failed (#97). A new chat that Android closes before the first reply now keeps
+  your message and gets the "interrupted" note, instead of disappearing (#105).
+  Importing a backup whose screen and conversation don't match (a file edited
+  by hand) now shows the chat rebuilt from the conversation, so nothing the
+  assistant reads is hidden from you; the import preview says when this happens
+  (#83). And a setting opened from search stays on screen when the page above
+  it finishes loading, such as the Samosa account card on AI Configuration (#92).
 - **A task keeps running when you swipe Gotcha away** (#111). Swiping Gotcha out
   of your recent apps while it worked on a task, or pressing Back on its home
   screen mid-task on Android 11, used to stop the task as if you had pressed
