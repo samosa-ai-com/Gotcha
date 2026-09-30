@@ -69,6 +69,12 @@ data class ChatMessage(
     }
 }
 
+/** The prompt sent for a single document with no text of the user's own. */
+const val DOCUMENT_ONLY_PROMPT = "Answer questions about the attached file."
+
+/** The prompt sent for several documents with no text of the user's own. */
+const val DOCUMENTS_ONLY_PROMPT = "Answer questions about the attached files."
+
 /**
  * The text part of an image-only message. Multimodal APIs require a text part,
  * but inventing a prompt (e.g. "What is in this image?") would change what the
@@ -115,7 +121,7 @@ fun documentUserMessage(
     pageCount: Int? = null
 ): ChatMessage {
     val text = listOf(
-        userText.ifBlank { "Answer questions about the attached file." },
+        userText.ifBlank { DOCUMENT_ONLY_PROMPT },
         documentSection(DocumentPart(fileName, mimeType, extractedText, pageCount))
     ).joinToString("\n\n")
     return ChatMessage(
@@ -169,7 +175,7 @@ fun attachmentsUserMessage(
     imageFormat: String = "jpeg"
 ): ChatMessage {
     val prompt = userText.ifBlank {
-        if (documents.isNotEmpty()) "Answer questions about the attached files." else IMAGE_ONLY_TEXT
+        if (documents.isNotEmpty()) DOCUMENTS_ONLY_PROMPT else IMAGE_ONLY_TEXT
     }
     val text = (listOf(prompt) + documents.map(::documentSection)).joinToString("\n\n")
     return ChatMessage(

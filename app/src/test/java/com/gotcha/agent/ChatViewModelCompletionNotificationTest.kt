@@ -16,6 +16,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -27,6 +31,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 
 /**
  * Task-finished notifications from [ChatViewModel] (issue #97): one per run that
@@ -91,6 +96,40 @@ class ChatViewModelCompletionNotificationTest {
             viewModel.uiState.value.activeSessionId,
             tap.getStringExtra(ChatCompletionNotifier.EXTRA_OPEN_SESSION_ID)
         )
+    }
+
+    @Test
+    fun `a failed tool call the agent recovers from still finishes as Done`() {
+        // First the model calls a tool that fails; then, seeing the error, it replies.
+        val toolCall = """{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[""" +
+            """{"id":"call-1","type":"function","function":{"name":"no_such_tool","arguments":"{}"}}]},""" +
+            """"finish_reason":"tool_calls"}]}"""
+        val reply = """{"choices":[{"message":{"role":"assistant","content":"Here it is."},"finish_reason":"stop"}]}"""
+        val server = MockWebServer()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) =
+                MockResponse().setBody(if (server.requestCount == 1) toolCall else reply)
+        }
+        server.start()
+        try {
+            start()
+            settingsRepository.save(settingsRepository.load().copy(baseUrl = server.url("/v1/").toString()))
+            viewModel.refreshSettings()
+            viewModel.sendMessage("Hello")
+            viewModel.setForeground(false)
+            // The engine pauses between model calls on the main looper, whose clock
+            // only moves when the test moves it.
+            val deadline = System.currentTimeMillis() + 5_000
+            while (System.currentTimeMillis() < deadline && posted().isEmpty()) {
+                ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+                Thread.sleep(10)
+            }
+
+            val title = posted().single().extras.getString(NotificationCompat.EXTRA_TITLE)!!
+            assertTrue(title, title.startsWith("Done: "))
+        } finally {
+            server.shutdown()
+        }
     }
 
     @Test

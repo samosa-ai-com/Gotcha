@@ -15,6 +15,9 @@ import com.gotcha.notifications.NotificationTarget
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -117,6 +120,40 @@ class ChatViewModelInterruptedRunTest {
         val notices = runBlocking { historyRepository.loadSession(sessionId) }!!
             .displayMessages.count { it.kind == MessageKind.ERROR }
         assertEquals(1, notices)
+    }
+
+    @Test
+    fun `a new chat is on disk before its first reply, so a kill can be reported`() {
+        // A model that accepts the request and never answers: the run is still
+        // waiting on the first reply when Android would kill it.
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        server.start()
+        try {
+            settingsRepository.save(
+                Settings(
+                    provider = LlmProvider.OPENAI_COMPATIBLE,
+                    apiKey = "test-key",
+                    baseUrl = server.url("/v1/").toString()
+                )
+            )
+            val viewModel = startGotcha()
+            viewModel.sendMessage("Find big files")
+            val deadline = System.currentTimeMillis() + 5_000
+            while (System.currentTimeMillis() < deadline && server.requestCount == 0) {
+                ShadowLooper.idleMainLooper()
+                Thread.sleep(10)
+            }
+            val running = anotherProcess().interruptedSession()!!
+
+            val saved = runBlocking { historyRepository.loadSession(running) }!!
+            assertEquals("Find big files", saved.messages.single().textContent)
+            assertEquals(MessageKind.USER, saved.displayMessages.single().kind)
+            viewModel.stopAgent()
+            runBlocking { historyRepository.deleteSession(running) }
+        } finally {
+            server.shutdown()
+        }
     }
 
     @Test

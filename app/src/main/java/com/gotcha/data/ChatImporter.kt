@@ -1,6 +1,9 @@
 package com.gotcha.data
 
+import com.gotcha.agent.MessageKind
 import com.gotcha.llm.ChatMessage
+import com.gotcha.llm.DOCUMENTS_ONLY_PROMPT
+import com.gotcha.llm.DOCUMENT_ONLY_PROMPT
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -243,7 +246,10 @@ class ChatImporter(
                 return@forEachIndexed
             }
             when (val checked = validate(session, notes)) {
-                is Validated.Ok -> items += ImportItem(asNotes(checked.session, notes), ImportStatus.NEW)
+                is Validated.Ok -> items += ImportItem(
+                    asNotes(withTranscriptOfHistory(checked.session, notes), notes),
+                    ImportStatus.NEW
+                )
                 is Validated.Rejected -> rejected += ImportProblem(fallbackTitle, checked.reason)
             }
         }
@@ -279,6 +285,58 @@ class ChatImporter(
             is Validated.Rejected -> ImportParseResult.Failed("The export can't be imported: ${checked.reason}")
         }
     }
+
+    /**
+     * [session], shown as the model will read it. A backup carries the chat twice
+     * — [ChatSession.messages] for the model, [ChatSession.displayMessages] for the
+     * screen — and an edited file can make them disagree, so that a message the
+     * model acts on is never seen by the user: as good as an instruction slipped
+     * in. When they disagree the saved transcript is dropped, and the chat is shown
+     * rebuilt from its history on open, as a Markdown import is.
+     */
+    private fun withTranscriptOfHistory(session: ChatSession, notes: MutableList<String>): ChatSession {
+        if (session.displayMessages.isEmpty() || transcriptShowsHistory(session)) return session
+        notes += "\"${session.title}\": what it showed didn't match the conversation, so it is shown " +
+            "rebuilt from the conversation instead; images appear as placeholders."
+        return session.copy(displayMessages = emptyList())
+    }
+
+    /**
+     * Whether every user prompt and assistant reply in [session]'s history appears
+     * in its transcript, in order. The user's prompts must match one for one; the
+     * transcript may hold more replies than the history (notices, mode switches),
+     * never fewer. System messages are left out: an import turns them into
+     * labelled notes regardless ([asNotes]).
+     */
+    private fun transcriptShowsHistory(session: ChatSession): Boolean {
+        val shownPrompts = session.displayMessages.filter { it.kind == MessageKind.USER }.map { it.text.trim() }
+        val prompts = session.messages
+            .filter { it.role == "user" && !isScreenCapture(it.textContent) }
+            .map { promptOf(it.textContent) }
+        if (prompts.size != shownPrompts.size) return false
+        val promptsMatch = prompts.zip(shownPrompts).all { (prompt, shown) ->
+            prompt == shown || (prompt.isEmpty() && shown in ATTACHMENT_PLACEHOLDERS)
+        }
+        if (!promptsMatch) return false
+        val shownReplies = session.displayMessages.filter { it.kind == MessageKind.ASSISTANT }
+            .map { it.text.trim() }
+            .iterator()
+        return session.messages
+            .filter { it.role == "assistant" }
+            .map { it.textContent.trim() }
+            .filter { it.isNotEmpty() }
+            .all { reply -> shownReplies.asSequence().any { it == reply } }
+    }
+
+    /** What the transcript shows of a user message: its prompt, without attachment text or stand-in prompts. */
+    private fun promptOf(content: String): String {
+        val prompt = (documentPromptText(content) ?: content).trim()
+        return if (prompt == DOCUMENT_ONLY_PROMPT || prompt == DOCUMENTS_ONLY_PROMPT) "" else prompt
+    }
+
+    /** A screen capture the agent added as a user message; the transcript shows it as a capture, not a prompt. */
+    private fun isScreenCapture(content: String): Boolean =
+        content.startsWith("[Screen State]") || content.startsWith("Screen text:")
 
     /** [session] with its system messages as notes, saying so in [notes] when there were any. */
     private fun asNotes(session: ChatSession, notes: MutableList<String>): ChatSession {
@@ -329,6 +387,9 @@ class ChatImporter(
 
         private const val CLOCK_SKEW_MS = 24 * 60 * 60 * 1000L
         private val ROLES = setOf("user", "assistant", "tool", "system")
+
+        /** What the transcript shows for a message sent with attachments and no text ([com.gotcha.agent.userDisplayText]). */
+        private val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(files attached)", "(document attached)")
         private val SAFE_ID = Regex("[A-Za-z0-9_-]{1,100}")
         private const val NOT_RECOGNISED =
             "This isn't a Gotcha chat file. Choose a backup (.gotcha.json) or a chat exported as Markdown."

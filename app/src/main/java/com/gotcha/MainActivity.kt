@@ -37,6 +37,7 @@ import androidx.lifecycle.lifecycleScope
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.AudioModel
+import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.ModelCategory
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaAuthManager
@@ -297,6 +298,23 @@ class MainActivity : ComponentActivity() {
             chatViewModel.onNotificationPermissionResult(granted)
         }
 
+    /** Set while the microphone rationale is up, before the mic button's system prompt. */
+    private var askMicPermission by mutableStateOf(false)
+
+    /**
+     * The microphone, asked for the first time the mic button is tapped (issue
+     * #79). A grant starts listening straight away, so the tap that asked is the
+     * tap that records; a permanent denial says where the switch lives.
+     */
+    private val micPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                chatViewModel.startListening()
+            } else if (!shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+                blockedPermissionAsk = runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleOwner = this
@@ -471,6 +489,23 @@ class MainActivity : ComponentActivity() {
         }
         requestedPermission = ask
         runtimePermissionLauncher.launch(ask.permission)
+    }
+
+    /**
+     * The mic button. Every speech-to-text provider records through the
+     * microphone, so a missing grant is asked for here rather than failing
+     * inside the view model; with no provider set there's nothing to ask for
+     * and the view model says so.
+     */
+    private fun startListeningWithMic() {
+        val needsMic = settingsRepository.load().sttProvider != AudioProvider.NONE
+        val granted = ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (needsMic && !granted) {
+            askMicPermission = true
+        } else {
+            chatViewModel.startListening()
+        }
     }
 
     /** "Not now": the tool's own error message stands, and nothing is asked again this turn. */
@@ -1070,7 +1105,7 @@ class MainActivity : ComponentActivity() {
                         onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
-                        onStartListening = chatViewModel::startListening,
+                        onStartListening = ::startListeningWithMic,
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
                         onBackupChat = { state.activeSessionId?.let(chatTransfer::startBackup) },
@@ -1209,6 +1244,18 @@ class MainActivity : ComponentActivity() {
                 ask = ask,
                 onAllow = { notificationPermissionLauncher.launch(ask.permission) },
                 onDeny = { chatViewModel.onNotificationPermissionResult(false) }
+            )
+        }
+
+        if (askMicPermission) {
+            val ask = remember { runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO) }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = {
+                    askMicPermission = false
+                    micPermissionLauncher.launch(ask.permission)
+                },
+                onDeny = { askMicPermission = false }
             )
         }
 

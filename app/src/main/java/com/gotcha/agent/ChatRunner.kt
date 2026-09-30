@@ -213,13 +213,16 @@ class ChatRunner(private val app: Application) : AgentEvents {
     internal var engineAgent: AgentMode = AgentMode.MONITOR
 
     /**
-     * True when the run in flight has surfaced an error bubble (LLM failure,
-     * user interruption, …). Decides whether an arriving reply gets the normal
-     * alert or the error buzz, since the engine reports both outcomes through
-     * the same `onAssistantReply` path.
+     * True when the run in flight has so far ended on an error bubble (LLM
+     * failure, user interruption, …) rather than on a reply. A failed tool call
+     * the agent then recovers from is followed by a reply, which clears it, so a
+     * blocked web page along the way doesn't turn a finished task into "Failed".
+     * Decides whether an arriving reply gets the normal alert or the error buzz,
+     * since the engine reports both outcomes through the same `onAssistantReply`
+     * path, and whether the task-finished notification says Done or Failed.
      */
     @Volatile
-    private var runHadError = false
+    private var runEndedOnError = false
 
     private val _state = MutableStateFlow(RunState())
     val state: StateFlow<RunState> = _state.asStateFlow()
@@ -392,7 +395,11 @@ class ChatRunner(private val app: Application) : AgentEvents {
         subAgentSteps: List<String> = emptyList(),
         reasoningContent: String? = null
     ) {
-        if (kind == MessageKind.ERROR) runHadError = true
+        when (kind) {
+            MessageKind.ERROR -> runEndedOnError = true
+            MessageKind.ASSISTANT -> runEndedOnError = false
+            else -> Unit
+        }
         setState {
             val message = UiMessage(
                 id = nextTranscriptId++,
@@ -549,11 +556,17 @@ class ChatRunner(private val app: Application) : AgentEvents {
         // process alive if the user leaves mid-task. Started here, while the user
         // who just sent the message is still in Gotcha.
         ChatRunService.start(app, runningChat(runningId))
-        // Survives the process: if Android kills it mid-run, the next start says so.
-        withContext(Dispatchers.IO) { runMarker.mark(runningId) }
-        runHadError = false
+        runEndedOnError = false
         var stopped = false
+        // Everything from here is inside the try, so a Stop that lands during the
+        // setup still gets the cleanup below rather than leaving the run "busy".
         try {
+            // On disk before the marker: a new chat is otherwise first saved after
+            // the model's first reply, so one killed before it would leave the
+            // marker pointing at nothing and the request would vanish unreported.
+            engine.saveCurrentSession(generateTitle = false)
+            // Survives the process: if Android kills it mid-run, the next start says so.
+            withContext(Dispatchers.IO) { runMarker.mark(runningId) }
             engine.run(agent)
         } catch (_: CancellationException) {
             stopped = true
@@ -575,7 +588,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
                     sessionId = runningId,
                     outcome = when {
                         stopped -> RunOutcome.STOPPED
-                        runHadError -> RunOutcome.FAILED
+                        runEndedOnError -> RunOutcome.FAILED
                         else -> RunOutcome.DONE
                     }
                 )
@@ -951,7 +964,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * user is elsewhere goes unnoticed.
      */
     private fun signalReplyArrived() {
-        if (runHadError) {
+        if (runEndedOnError) {
             CompletionFeedback.error(app)
         } else {
             CompletionFeedback.replyArrived(

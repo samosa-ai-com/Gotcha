@@ -360,9 +360,14 @@ class AgentEngine(
         }
     }
 
-    suspend fun saveCurrentSession() {
+    /**
+     * Writes the chat to disk. [generateTitle] false skips the title request, for
+     * a save that must not wait on the model: the one at the start of a run, so
+     * a chat killed before its first reply still exists to be marked interrupted.
+     */
+    suspend fun saveCurrentSession(generateTitle: Boolean = true) {
         val id = sessionId ?: return
-        clientProvider()?.let { generateTitleIfNeeded(it) }
+        if (generateTitle) clientProvider()?.let { generateTitleIfNeeded(it) }
         val title = currentTitle()
         historyRepository.saveSession(
             ChatSession(

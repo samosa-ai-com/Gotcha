@@ -2,6 +2,7 @@ package com.gotcha.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -160,102 +163,115 @@ fun SettingsScreen(
     }
 
     CompositionLocalProvider(LocalSettingsHighlight provides highlight) {
-        when (page) {
-            SettingsPage.APPEARANCE -> AppearanceScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome,
-                onApply = onAppearanceChange
-            )
-            SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome,
-                onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
-            )
-            SettingsPage.LANGUAGE -> LanguageScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome,
-                onTestVoice = onTestVoice
-            )
-            SettingsPage.AI -> AiHubScreen(
-                onBack = backToHome,
-                onOpenPage = onPageChange
-            )
-            SettingsPage.AI_CONFIG -> AiConfigScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome,
-                onTestConnection = onTestConnection,
-                onRefreshChatModels = onRefreshChatModels,
-                onSamosaSignIn = onSamosaSignIn,
-                onSamosaSignOut = onSamosaSignOut,
-                onFetchSamosaProfile = onFetchSamosaProfile,
-                onClaimReferral = onClaimReferral,
-                onClearLlmCache = onClearLlmCache,
-                onClearDebugScreenshots = onClearDebugScreenshots
-            )
-            SettingsPage.SPEECH -> SpeechScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome,
-                onRefreshAudioModels = onRefreshAudioModels,
-                onSamosaSignIn = onSamosaSignIn,
-                onSamosaSignOut = onSamosaSignOut,
-                onFetchSamosaProfile = onFetchSamosaProfile,
-                onClaimReferral = onClaimReferral
-            )
-            SettingsPage.PERMISSIONS -> PermissionsScreen(
-                packageName = packageName,
-                onBack = backToHome,
-                onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
-            )
-            SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
-            SettingsPage.SKILLS -> SkillsScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome
-            )
-            SettingsPage.PROACTIVE -> ProactiveScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome
-            )
-            SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
-                load = load,
-                onSave = onSave,
-                enabled = assistiveBallEnabled,
-                onToggle = onToggleAssistiveBall,
-                onBack = backToHome
-            )
-            SettingsPage.NOTIFICATIONS -> NotificationsScreen(
-                load = load,
-                onSave = onSave,
-                onBack = backToHome,
-                onSyncServerMessages = onSyncServerMessages
-            )
-            SettingsPage.ABOUT -> AboutScreen(
-                onBack = backToHome,
-                onOpenPage = onPageChange
-            )
-            SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
-                context = androidx.compose.ui.platform.LocalContext.current,
-                onBack = backToHome
-            )
-            SettingsPage.LEGAL -> LegalScreen(
-                context = androidx.compose.ui.platform.LocalContext.current,
-                load = load,
-                onSave = onSave,
-                onBack = backToHome
-            )
-            null -> SettingsHome(
-                onBack = onBack,
-                onOpenPage = onPageChange,
-                onOpenSearchResult = onOpenSearchResult,
-                onStartTour = onStartTour,
-                onSendFeedback = onSendFeedback
-            )
+        // A touch hands the page back to the user: a highlighted field stops
+        // being pulled into view (see [settingsHighlight]).
+        Box(
+            Modifier.pointerInput(highlight) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        highlight.userTouched = true
+                    }
+                }
+            }
+        ) {
+            when (page) {
+                SettingsPage.APPEARANCE -> AppearanceScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome,
+                    onApply = onAppearanceChange
+                )
+                SettingsPage.PERSONAL_INFO -> PersonalInfoScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome,
+                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+                )
+                SettingsPage.LANGUAGE -> LanguageScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome,
+                    onTestVoice = onTestVoice
+                )
+                SettingsPage.AI -> AiHubScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange
+                )
+                SettingsPage.AI_CONFIG -> AiConfigScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome,
+                    onTestConnection = onTestConnection,
+                    onRefreshChatModels = onRefreshChatModels,
+                    onSamosaSignIn = onSamosaSignIn,
+                    onSamosaSignOut = onSamosaSignOut,
+                    onFetchSamosaProfile = onFetchSamosaProfile,
+                    onClaimReferral = onClaimReferral,
+                    onClearLlmCache = onClearLlmCache,
+                    onClearDebugScreenshots = onClearDebugScreenshots
+                )
+                SettingsPage.SPEECH -> SpeechScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome,
+                    onRefreshAudioModels = onRefreshAudioModels,
+                    onSamosaSignIn = onSamosaSignIn,
+                    onSamosaSignOut = onSamosaSignOut,
+                    onFetchSamosaProfile = onFetchSamosaProfile,
+                    onClaimReferral = onClaimReferral
+                )
+                SettingsPage.PERMISSIONS -> PermissionsScreen(
+                    packageName = packageName,
+                    onBack = backToHome,
+                    onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
+                )
+                SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
+                SettingsPage.SKILLS -> SkillsScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome
+                )
+                SettingsPage.PROACTIVE -> ProactiveScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome
+                )
+                SettingsPage.ASSISTIVE_BALL -> AssistiveBallScreen(
+                    load = load,
+                    onSave = onSave,
+                    enabled = assistiveBallEnabled,
+                    onToggle = onToggleAssistiveBall,
+                    onBack = backToHome
+                )
+                SettingsPage.NOTIFICATIONS -> NotificationsScreen(
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome,
+                    onSyncServerMessages = onSyncServerMessages
+                )
+                SettingsPage.ABOUT -> AboutScreen(
+                    onBack = backToHome,
+                    onOpenPage = onPageChange
+                )
+                SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
+                    context = androidx.compose.ui.platform.LocalContext.current,
+                    onBack = backToHome
+                )
+                SettingsPage.LEGAL -> LegalScreen(
+                    context = androidx.compose.ui.platform.LocalContext.current,
+                    load = load,
+                    onSave = onSave,
+                    onBack = backToHome
+                )
+                null -> SettingsHome(
+                    onBack = onBack,
+                    onOpenPage = onPageChange,
+                    onOpenSearchResult = onOpenSearchResult,
+                    onStartTour = onStartTour,
+                    onSendFeedback = onSendFeedback
+                )
+            }
         }
     }
 }

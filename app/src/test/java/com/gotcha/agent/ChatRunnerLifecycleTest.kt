@@ -36,6 +36,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
 import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
@@ -156,11 +158,13 @@ class ChatRunnerLifecycleTest {
     @Test
     fun `stop on the ongoing notification works with no screen`() {
         // A server that takes the run's request and never answers, so the run is
-        // still waiting on the model when Stop arrives, whatever the timing. Later
-        // requests (the chat title, made as the stopped run saves) are dropped.
+        // still waiting on the model when Stop arrives. Later requests (the chat
+        // title, made as the stopped run saves) are dropped.
+        val requestHeld = CountDownLatch(1)
         ServerSocket(0).use { silent ->
             thread(isDaemon = true) {
                 val held = runCatching { silent.accept() }.getOrNull()
+                requestHeld.countDown()
                 while (!silent.isClosed) runCatching { silent.accept().close() }
                 held?.close()
             }
@@ -177,6 +181,12 @@ class ChatRunnerLifecycleTest {
             screen.finish()
             ShadowLooper.idleMainLooper()
             assertTrue(runner().isRunning)
+            // The run saves the chat before it asks the model; Stop is meant for
+            // the wait on the model, not that moment.
+            val deadline = System.currentTimeMillis() + 5_000
+            while (System.currentTimeMillis() < deadline && !requestHeld.await(10, TimeUnit.MILLISECONDS)) {
+                ShadowLooper.idleMainLooper()
+            }
 
             Robolectric.buildService(ChatRunService::class.java, Intent().setAction(ChatRunService.ACTION_STOP_RUN))
                 .create()

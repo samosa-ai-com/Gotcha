@@ -43,16 +43,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -67,6 +71,8 @@ import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.time.Duration
 import java.time.Instant
@@ -779,7 +785,14 @@ fun SamosaAuthSection(
  * needs a parameter for it.
  */
 @Stable
-class SettingsHighlight(val field: SettingsField?, val onConsumed: () -> Unit)
+class SettingsHighlight(val field: SettingsField?, val onConsumed: () -> Unit) {
+    /**
+     * Set once the user touches the page. From then on the field is no longer
+     * kept in view, so a highlight never fights the user's own scrolling.
+     */
+    @Volatile
+    var userTouched = false
+}
 
 val LocalSettingsHighlight = compositionLocalOf { SettingsHighlight(field = null, onConsumed = {}) }
 
@@ -788,6 +801,13 @@ val SettingsHighlighted = SemanticsPropertyKey<Boolean>("SettingsHighlighted")
 var SemanticsPropertyReceiver.settingsHighlighted by SettingsHighlighted
 
 private const val HIGHLIGHT_FADE_MS = 1_500
+
+/**
+ * How long a highlighted field is kept in view as the page settles around it.
+ * Under the Settings screen's lapse, which ends the highlight regardless.
+ */
+private const val FOLLOW_MS = 2_500L
+
 private const val HIGHLIGHT_ALPHA = 0.24f
 private val HighlightCorner = 8.dp
 
@@ -804,6 +824,8 @@ fun Modifier.settingsHighlight(tag: String): Modifier {
     val isTarget = highlight.field?.testTag == tag
     val requester = remember { BringIntoViewRequester() }
     val tint = remember { Animatable(0f) }
+    // Where the field sits on screen, read only while it is the target.
+    var fieldTop by remember { mutableFloatStateOf(Float.NaN) }
     if (isTarget) {
         LaunchedEffect(highlight) {
             tint.snapTo(1f)
@@ -811,13 +833,32 @@ fun Modifier.settingsHighlight(tag: String): Modifier {
             // section that opened in this same composition.
             withFrameNanos { }
             requester.bringIntoView()
-            tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS))
+            var fade = launch { tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS)) }
+            // Content above the field can still arrive after the jump (the Samosa
+            // account card loads once AI Configuration is open) and push it back
+            // off screen. Bring it back and light it again each time it moves,
+            // until the user touches the page.
+            val follow = launch {
+                snapshotFlow { fieldTop }.drop(1).collect {
+                    if (highlight.userTouched) return@collect
+                    requester.bringIntoView()
+                    fade.cancel()
+                    fade = launch {
+                        tint.snapTo(1f)
+                        tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS))
+                    }
+                }
+            }
+            delay(FOLLOW_MS)
+            follow.cancel()
+            fade.join()
             highlight.onConsumed()
         }
     }
     val color = MaterialTheme.colorScheme.primary
     return this
         .bringIntoViewRequester(requester)
+        .onGloballyPositioned { if (isTarget) fieldTop = it.positionInRoot().y }
         .semantics { if (isTarget) settingsHighlighted = true }
         .drawBehind {
             if (tint.value > 0f) {
