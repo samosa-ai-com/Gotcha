@@ -2,10 +2,13 @@ package com.gotcha.service
 
 import android.app.Application
 import android.app.Notification
+import android.app.NotificationManager
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.R
 import com.gotcha.notifications.ChatCompletionNotifier
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -38,9 +41,13 @@ class ChatRunServiceTest {
         ChatRunService.stop()
     }
 
+    private val services = mutableListOf<ServiceController<ChatRunService>>()
+
     @After
     fun tearDown() {
         ChatRunService.stop()
+        // The service's foreground state is shared, as in the app: one left up would leak into the next test.
+        services.forEach { it.destroy() }
     }
 
     private fun startedService(): ServiceController<ChatRunService> {
@@ -49,6 +56,7 @@ class ChatRunServiceTest {
         val controller = Robolectric.buildService(ChatRunService::class.java, intent)
         controller.create().startCommand(0, 1)
         ShadowLooper.idleMainLooper()
+        services += controller
         return controller
     }
 
@@ -159,6 +167,107 @@ class ChatRunServiceTest {
         ChatRunService.update(RunningChat("other", "Other"))
         assertEquals(chat, ChatRunService.running.value)
     }
+
+    @Test
+    fun `the ongoing notification sits in its chat's slot with the running icon`() {
+        val controller = startedService()
+
+        assertEquals(
+            ChatCompletionNotifier.notificationId("session-1"),
+            shadowOf(controller.get()).lastForegroundNotificationId
+        )
+        assertEquals(R.drawable.ic_notification_running, controller.notification().smallIcon.resId)
+    }
+
+    @Test
+    fun `finish turns the ongoing notification into the finished one, in place`() {
+        val controller = startedService()
+        val slot = ChatCompletionNotifier.notificationId("session-1")
+
+        ChatRunService.finish(application, "session-1", finished("Done: Plan my trip"))
+        ShadowLooper.idleMainLooper()
+
+        // Detached, not removed. Posted only once Android has re-posted the
+        // detached notification, or that copy would cover the finished one.
+        assertTrue(shadowOf(controller.get()).isForegroundStopped)
+        assertFalse(shadowOf(controller.get()).notificationShouldRemoved)
+        assertEquals(controller.notification(), posted(slot))
+        androidDetaches(slot)
+        ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+        assertEquals("Done: Plan my trip", posted(slot)?.extras?.getString(NotificationCompat.EXTRA_TITLE))
+        assertTrue(shadowOf(controller.get()).isStoppedBySelf)
+        assertNull(ChatRunService.running.value)
+    }
+
+    @Test
+    fun `the finished notification still comes when Android is slow to detach`() {
+        startedService()
+
+        ChatRunService.finish(application, "session-1", finished("Done: Plan my trip"))
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+
+        assertEquals(
+            "Done: Plan my trip",
+            posted(ChatCompletionNotifier.notificationId("session-1"))?.extras?.getString(NotificationCompat.EXTRA_TITLE)
+        )
+    }
+
+    @Test
+    fun `finish without the service in the foreground posts the notification itself`() {
+        ChatRunService.start(application, chat)
+
+        ChatRunService.finish(application, "session-1", finished("Failed: Plan my trip"))
+
+        assertEquals(
+            "Failed: Plan my trip",
+            posted(ChatCompletionNotifier.notificationId("session-1"))?.extras?.getString(NotificationCompat.EXTRA_TITLE)
+        )
+        assertNull(ChatRunService.running.value)
+    }
+
+    @Test
+    fun `a finished run followed at once by one in another chat still leaves its notification`() {
+        val controller = startedService()
+
+        ChatRunService.finish(application, "session-1", finished("Done: Plan my trip"))
+        ChatRunService.start(application, RunningChat("session-2", "Second"))
+        controller.startCommand(0, 2)
+        ShadowLooper.idleMainLooper()
+        androidDetaches(ChatCompletionNotifier.notificationId("session-1"))
+        ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
+
+        assertEquals(
+            "Done: Plan my trip",
+            posted(ChatCompletionNotifier.notificationId("session-1"))?.extras?.getString(NotificationCompat.EXTRA_TITLE)
+        )
+        assertEquals(ChatCompletionNotifier.notificationId("session-2"), shadowOf(controller.get()).lastForegroundNotificationId)
+        assertFalse(shadowOf(controller.get()).isStoppedBySelf)
+    }
+
+    @Test
+    fun `opening the chat of the run in progress leaves its notification alone`() {
+        val controller = startedService()
+
+        ChatCompletionNotifier(application).cancel("session-1")
+
+        assertEquals(controller.notification(), posted(ChatCompletionNotifier.notificationId("session-1")))
+    }
+
+    private fun finished(title: String): Notification =
+        NotificationCompat.Builder(application, ChatCompletionNotifier.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_done)
+            .setContentTitle(title)
+            .build()
+
+    /** What Android does some time after stopForeground(DETACH), and Robolectric doesn't: the flag goes. */
+    private fun androidDetaches(id: Int) {
+        val detached = Notification.Builder.recoverBuilder(application, posted(id)).build()
+        detached.flags = detached.flags and Notification.FLAG_FOREGROUND_SERVICE.inv()
+        application.getSystemService(NotificationManager::class.java).notify(id, detached)
+    }
+
+    private fun posted(id: Int): Notification? =
+        shadowOf(application.getSystemService(NotificationManager::class.java)).getNotification(id)
 
     @Test
     fun `a name cut short keeps a single ellipsis`() {

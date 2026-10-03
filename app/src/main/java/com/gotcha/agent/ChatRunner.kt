@@ -1,6 +1,7 @@
 package com.gotcha.agent
 
 import android.app.Application
+import android.app.Notification
 import com.gotcha.GotchaApp
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
@@ -585,7 +586,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 // own sanitize still gets repaired here before persisting.
                 engine.sanitizeLastOrphanedAssistant()
                 engine.saveCurrentSession()
-                notifyRunFinished(
+                val finished = runFinishedNotification(
                     sessionId = runningId,
                     outcome = when {
                         stopped -> RunOutcome.STOPPED
@@ -593,9 +594,13 @@ class ChatRunner(private val app: Application) : AgentEvents {
                         else -> RunOutcome.DONE
                     }
                 )
-                // After the finished notification is up, so in the background the
-                // ongoing one is replaced by it rather than leaving a gap.
-                ChatRunService.stop()
+                // In the background the ongoing notification turns into the
+                // finished one, in the same slot (issue #115).
+                if (finished != null) {
+                    ChatRunService.finish(app, runningId, finished)
+                } else {
+                    ChatRunService.stop()
+                }
                 withContext(Dispatchers.IO) { runMarker.clear() }
                 setState {
                     it.copy(
@@ -986,15 +991,16 @@ class ChatRunner(private val app: Application) : AgentEvents {
     }
 
     /**
-     * The run in [sessionId] just ended. Posts the task-finished notification
-     * when the user is away from Gotcha; in the foreground the reply buzz is
-     * enough. Called once per run, from [executeRun]'s cleanup, so a run never
-     * produces two — the engine reports text mid-run too, which is why this is
-     * not driven by [onAssistantReply].
+     * The run in [sessionId] just ended. Returns the task-finished notification,
+     * with its inbox entry added, when the user is away from Gotcha; in the
+     * foreground the reply buzz is enough, and this returns null. Called once
+     * per run, from [executeRun]'s cleanup, so a run never produces two — the
+     * engine reports text mid-run too, which is why this is not driven by
+     * [onAssistantReply].
      */
-    private fun notifyRunFinished(sessionId: String, outcome: RunOutcome) {
-        if (appInForeground || !settings.chatCompletionNotificationsEnabled) return
-        if (!completionNotifier.canPost()) return
+    private fun runFinishedNotification(sessionId: String, outcome: RunOutcome): Notification? {
+        if (appInForeground || !settings.chatCompletionNotificationsEnabled) return null
+        if (!completionNotifier.canPost()) return null
         val reply = _state.value.transcript.lastOrNull {
             it.kind == MessageKind.ASSISTANT || it.kind == MessageKind.ERROR
         }?.text
@@ -1012,7 +1018,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
             body = ChatCompletionNotifier.defaultBody(outcome),
             target = NotificationTarget.Chat(sessionId)
         )
-        completionNotifier.notify(
+        return completionNotifier.build(
             sessionId = sessionId,
             chatTitle = engine.currentTitle(),
             outcome = outcome,

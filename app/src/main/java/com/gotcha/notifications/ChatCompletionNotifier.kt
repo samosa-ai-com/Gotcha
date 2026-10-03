@@ -1,6 +1,7 @@
 package com.gotcha.notifications
 
 import android.Manifest
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -11,7 +12,9 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.gotcha.R
 import com.gotcha.data.CompletionPreview
+import com.gotcha.service.ChatRunService
 
 /** How a chat run ended, as the task-finished notification reports it. */
 enum class RunOutcome { DONE, FAILED, STOPPED }
@@ -43,7 +46,7 @@ class ChatCompletionNotifier(private val context: Context) {
      * [inboxEntryId] is the inbox entry a tap marks read. Returns false when
      * nothing was posted.
      */
-    @Suppress("MissingPermission") // canPost() checks it.
+    @Suppress("MissingPermission") // build() checks canPost().
     fun notify(
         sessionId: String,
         chatTitle: String,
@@ -53,7 +56,27 @@ class ChatCompletionNotifier(private val context: Context) {
         named: Boolean = true,
         inboxEntryId: String? = null
     ): Boolean {
-        if (!canPost()) return false
+        val notification = build(sessionId, chatTitle, outcome, reply, preview, named, inboxEntryId) ?: return false
+        NotificationManagerCompat.from(context).notify(notificationId(sessionId), notification)
+        return true
+    }
+
+    /**
+     * The notification [notify] would post, without posting it, or null when
+     * Android would not show it. For a run that ended in the background,
+     * `ChatRunService` posts it in the slot of the ongoing notification, so one
+     * notification turns from "working" into "done" (issue #115).
+     */
+    fun build(
+        sessionId: String,
+        chatTitle: String,
+        outcome: RunOutcome,
+        reply: String?,
+        preview: CompletionPreview,
+        named: Boolean = true,
+        inboxEntryId: String? = null
+    ): Notification? {
+        if (!canPost()) return null
         ensureChannel()
         val notifyId = notificationId(sessionId)
         val title = if (named) notificationTitle(chatTitle, outcome) else anonymousTitle(outcome)
@@ -61,7 +84,7 @@ class ChatCompletionNotifier(private val context: Context) {
         val body = previewText(reply, shown) ?: defaultBody(outcome)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(com.gotcha.R.drawable.ic_notification)
+            .setSmallIcon(smallIcon(outcome))
             .setContentTitle(title)
             .setContentText(body)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
@@ -69,7 +92,7 @@ class ChatCompletionNotifier(private val context: Context) {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(com.gotcha.R.drawable.ic_notification)
+                    .setSmallIcon(smallIcon(outcome))
                     .setContentTitle(PUBLIC_TITLE)
                     .build()
             )
@@ -78,12 +101,16 @@ class ChatCompletionNotifier(private val context: Context) {
         if (shown == CompletionPreview.FULL) {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
         }
-        NotificationManagerCompat.from(context).notify(notifyId, builder.build())
-        return true
+        return builder.build()
     }
 
-    /** Clears [sessionId]'s notification, e.g. once the user has opened that chat. */
+    /**
+     * Clears [sessionId]'s notification, e.g. once the user has opened that chat.
+     * Not while a run in that chat is going: the slot then holds its ongoing
+     * notification, which only `ChatRunService` takes down.
+     */
     fun cancel(sessionId: String) {
+        if (ChatRunService.running.value?.sessionId == sessionId) return
         NotificationManagerCompat.from(context).cancel(notificationId(sessionId))
     }
 
@@ -119,7 +146,10 @@ class ChatCompletionNotifier(private val context: Context) {
         private const val PUBLIC_TITLE = "Gotcha finished a task"
         private const val SHORT_PREVIEW_CHARS = 140
 
-        /** Stable per chat, so a later run's notification replaces the earlier one. */
+        /**
+         * Stable per chat, so a later run's notification replaces the earlier one.
+         * The ongoing notification of a run in the chat uses it too (issue #115).
+         */
         internal fun notificationId(sessionId: String): Int = "chat:$sessionId".hashCode() and 0x7FFF_FFFF
 
         internal fun notificationTitle(chatTitle: String, outcome: RunOutcome): String {
@@ -129,6 +159,13 @@ class ChatCompletionNotifier(private val context: Context) {
                 RunOutcome.FAILED -> "Failed: $chat"
                 RunOutcome.STOPPED -> "Stopped: $chat"
             }
+        }
+
+        /** The status-bar icon, so the outcome shows without pulling down the shade (issue #115). */
+        internal fun smallIcon(outcome: RunOutcome): Int = when (outcome) {
+            RunOutcome.DONE -> R.drawable.ic_notification_done
+            RunOutcome.FAILED -> R.drawable.ic_notification_failed
+            RunOutcome.STOPPED -> R.drawable.ic_notification_stopped
         }
 
         /** The title when the chat may not be named. */

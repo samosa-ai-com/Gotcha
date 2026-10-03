@@ -5,6 +5,7 @@ import android.app.Application
 import android.app.NotificationManager
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.R
 import com.gotcha.data.CompletionPreview
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -111,5 +112,25 @@ class ChatCompletionNotifierTest {
 
         val text = posted().single().extras.getCharSequence(NotificationCompat.EXTRA_TEXT).toString()
         assertEquals(ChatCompletionNotifier.defaultBody(RunOutcome.FAILED), text)
+    }
+
+    @Test
+    fun `each outcome has its own status-bar icon, on the lock-screen version too`() {
+        val icons = RunOutcome.entries.map(ChatCompletionNotifier::smallIcon)
+        assertEquals(icons.size, icons.toSet().size)
+
+        notifier.notify("s1", "Chat", RunOutcome.FAILED, "oops", CompletionPreview.SHORT)
+        val notification = posted().single()
+        assertEquals(R.drawable.ic_notification_failed, notification.smallIcon.resId)
+        assertEquals(R.drawable.ic_notification_failed, notification.publicVersion.smallIcon.resId)
+        assertEquals("Gotcha finished a task", notification.publicVersion.extras.getString(NotificationCompat.EXTRA_TITLE))
+    }
+
+    @Test
+    fun `build makes the notification without posting it`() {
+        val notification = notifier.build("s1", "Chat", RunOutcome.DONE, "reply", CompletionPreview.SHORT)
+
+        assertEquals("Done: Chat", notification?.extras?.getString(NotificationCompat.EXTRA_TITLE))
+        assertTrue(posted().isEmpty())
     }
 }
