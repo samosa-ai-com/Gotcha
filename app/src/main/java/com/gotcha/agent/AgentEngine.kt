@@ -296,6 +296,16 @@ class AgentEngine(
     private var lastModelRequestFailed = false
 
     /** Falls back to [ChatTitle.fallback] until [generatedTitle] is set. */
+    /** Chats deleted while this engine could still save them; see [discardSession]. */
+    private val discardedSessionIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** Chat [id] is being deleted: [saveCurrentSession] leaves it alone from now on. */
+    fun discardSession(id: String) {
+        discardedSessionIds += id
+    }
+
+    fun isDiscarded(id: String): Boolean = id in discardedSessionIds
+
     fun currentTitle(): String = generatedTitle ?: ChatTitle.fallback(history)
 
     /**
@@ -367,6 +377,8 @@ class AgentEngine(
      */
     suspend fun saveCurrentSession(generateTitle: Boolean = true) {
         val id = sessionId ?: return
+        // A deleted chat is never written again, or a run's late save brings it back.
+        if (id in discardedSessionIds) return
         if (generateTitle) clientProvider()?.let { generateTitleIfNeeded(it) }
         val title = currentTitle()
         historyRepository.saveSession(

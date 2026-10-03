@@ -72,9 +72,11 @@ class ChatRunService : Service() {
             follower = serviceScope.launch {
                 _running.collect { chat ->
                     if (chat == null) {
-                        leaveForeground()
-                        // Only if no newer start arrived meanwhile.
-                        stopSelf(lastStartId)
+                        val startId = lastStartId
+                        // Stopped only once the finished notification is up: the
+                        // service keeps the process from being reclaimed until then.
+                        // stopSelf(startId) does nothing if a newer start arrived meanwhile.
+                        leaveForeground { stopSelf(startId) }
                     } else {
                         goForeground(chat)
                     }
@@ -115,18 +117,20 @@ class ChatRunService : Service() {
      * Gives up the foreground. With a [completion] waiting, the ongoing
      * notification is detached and replaced by it in place; otherwise removed.
      * Detached first, so the completion is posted as a plain notification and
-     * keeps no foreground-service flags.
+     * keeps no foreground-service flags. [then] runs once that is done, which
+     * for a completion can be up to two seconds later.
      */
-    private fun leaveForeground() {
+    private fun leaveForeground(then: () -> Unit = {}) {
         val id = foregroundId
         val pending = completion
         foregroundId = null
         completion = null
         if (id != null && pending != null) {
             stopForeground(STOP_FOREGROUND_DETACH)
-            postWhenDetached(applicationContext, id, pending, DETACH_POLLS)
+            postWhenDetached(applicationContext, id, pending, DETACH_POLLS, then)
         } else {
             stopForeground(STOP_FOREGROUND_REMOVE)
+            then()
         }
     }
 
@@ -190,23 +194,33 @@ class ChatRunService : Service() {
          * ongoing notification again without the foreground-service flag; posted
          * before that, the completion would be overwritten by it (seen on Android 16).
          * Gives up waiting after about two seconds, and drops [notification] if a
-         * new run has taken the slot meanwhile.
+         * new run has taken the slot meanwhile. [then] runs after, either way.
          */
         @Suppress("MissingPermission") // ChatCompletionNotifier.build checked it.
-        private fun postWhenDetached(context: Context, id: Int, notification: Notification, pollsLeft: Int) {
-            if (foregroundId == id) return
+        private fun postWhenDetached(
+            context: Context,
+            id: Int,
+            notification: Notification,
+            pollsLeft: Int,
+            then: () -> Unit
+        ) {
+            if (foregroundId == id) {
+                then()
+                return
+            }
             val manager = context.getSystemService(NotificationManager::class.java)
             val stillForeground = manager?.activeNotifications.orEmpty().any {
                 it.id == id && it.notification.flags and Notification.FLAG_FOREGROUND_SERVICE != 0
             }
             if (stillForeground && pollsLeft > 0) {
                 mainHandler.postDelayed(
-                    { postWhenDetached(context, id, notification, pollsLeft - 1) },
+                    { postWhenDetached(context, id, notification, pollsLeft - 1, then) },
                     DETACH_POLL_MS
                 )
                 return
             }
             NotificationManagerCompat.from(context).notify(id, notification)
+            then()
         }
 
         /** The run has ended: the service removes its notification and stops. */

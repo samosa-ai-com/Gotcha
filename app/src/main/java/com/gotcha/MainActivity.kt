@@ -1113,7 +1113,7 @@ class MainActivity : ComponentActivity() {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },
                         onCreateShareCard = {
-                            sharePoster.open(chatViewModel.activeSessionRunSummaries())
+                            lifecycleScope.launch { sharePoster.open(chatViewModel.activeSessionRunSummaries()) }
                         },
                         onEditMessage = { id, text, attachments ->
                             chatViewModel.editMessage(id, text, attachments)

@@ -11,6 +11,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.gotcha.GotchaApp
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
+import com.gotcha.data.RunSummary
+import com.gotcha.llm.ChatMessage
+import com.gotcha.notifications.AttentionNotifier
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
@@ -20,7 +23,9 @@ import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -155,11 +160,12 @@ class ChatRunnerLifecycleTest {
         assertTrue(state.messages.isEmpty())
     }
 
-    @Test
-    fun `stop on the ongoing notification works with no screen`() {
-        // A server that takes the run's request and never answers, so the run is
-        // still waiting on the model when Stop arrives. Later requests (the chat
-        // title, made as the stopped run saves) are dropped.
+    /**
+     * Runs [block] against a model that takes the run's request and never
+     * answers, so the run is still waiting on it. Later requests (the chat
+     * title, made as a stopped run saves) are dropped.
+     */
+    private fun withSilentModel(block: (requestHeld: CountDownLatch) -> Unit) {
         val requestHeld = CountDownLatch(1)
         ServerSocket(0).use { silent ->
             thread(isDaemon = true) {
@@ -175,27 +181,122 @@ class ChatRunnerLifecycleTest {
                     baseUrl = "http://127.0.0.1:${silent.localPort}/v1"
                 )
             )
-            val screen = Screen(application)
-            screen.viewModel.sendMessage("Hello")
-            val sessionId = screen.viewModel.uiState.value.runningSessionId!!
-            screen.finish()
-            ShadowLooper.idleMainLooper()
-            assertTrue(runner().isRunning)
-            // The run saves the chat before it asks the model; Stop is meant for
-            // the wait on the model, not that moment.
-            val deadline = System.currentTimeMillis() + 5_000
-            while (System.currentTimeMillis() < deadline && !requestHeld.await(10, TimeUnit.MILLISECONDS)) {
-                ShadowLooper.idleMainLooper()
-            }
-
-            Robolectric.buildService(ChatRunService::class.java, Intent().setAction(ChatRunService.ACTION_STOP_RUN))
-                .create()
-                .startCommand(0, 1)
-            waitForRunToFinish()
-
-            assertFalse(runner().isRunning)
-            assertEquals("Agent was interrupted by the user.", savedTranscript(sessionId).last().text)
+            block(requestHeld)
         }
+    }
+
+    /** The run saves the chat before it asks the model; waits for that ask. */
+    private fun awaitModelRequest(requestHeld: CountDownLatch) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline && !requestHeld.await(10, TimeUnit.MILLISECONDS)) {
+            ShadowLooper.idleMainLooper()
+        }
+    }
+
+    /** Lets the ViewModel's coroutines (opening a chat, deleting one) run to the end. */
+    private fun settle() {
+        repeat(20) {
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(10)
+        }
+    }
+
+    @Test
+    fun `stop on the ongoing notification works with no screen`() = withSilentModel { requestHeld ->
+        val screen = Screen(application)
+        screen.viewModel.sendMessage("Hello")
+        val sessionId = screen.viewModel.uiState.value.runningSessionId!!
+        screen.finish()
+        ShadowLooper.idleMainLooper()
+        assertTrue(runner().isRunning)
+        // Stop is meant for the wait on the model, not the save before it.
+        awaitModelRequest(requestHeld)
+
+        Robolectric.buildService(ChatRunService::class.java, Intent().setAction(ChatRunService.ACTION_STOP_RUN))
+            .create()
+            .startCommand(0, 1)
+        waitForRunToFinish()
+
+        assertFalse(runner().isRunning)
+        assertEquals("Agent was interrupted by the user.", savedTranscript(sessionId).last().text)
+    }
+
+    @Test
+    fun `deleting the running chat stops the run and the chat stays deleted`() = withSilentModel { requestHeld ->
+        val viewModel = Screen(application).viewModel
+        viewModel.setForeground(true)
+        viewModel.sendMessage("Hello")
+        val sessionId = viewModel.uiState.value.runningSessionId!!
+        awaitModelRequest(requestHeld)
+
+        viewModel.deleteSession(sessionId)
+        waitForRunToFinish()
+        settle()
+
+        assertFalse(runner().isRunning)
+        val saved = runBlocking { historyRepository.loadSession(sessionId) }
+        assertNull("the run's last save brought the chat back", saved)
+        assertNotEquals(sessionId, viewModel.uiState.value.activeSessionId)
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
+    }
+
+    @Test
+    fun `export and the share card read the chat on screen, not the running one`() = withSilentModel { requestHeld ->
+        val summary = RunSummary(
+            startedAt = 1L,
+            endedAt = 2L,
+            userPrompt = "Viewed request",
+            finalReply = "Viewed reply",
+            model = "m",
+            agentMode = "MONITOR",
+            delegated = false,
+            succeeded = true
+        )
+        runBlocking {
+            historyRepository.saveSession(
+                ChatSession(
+                    id = "viewed",
+                    title = "Viewed chat",
+                    lastModified = 0L,
+                    messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Viewed request"))),
+                    runSummaries = listOf(summary)
+                )
+            )
+        }
+        val viewModel = Screen(application).viewModel
+        viewModel.sendMessage("Running request")
+        awaitModelRequest(requestHeld)
+        viewModel.openSession("viewed")
+        settle()
+        assertEquals("viewed", viewModel.uiState.value.activeSessionId)
+
+        val exported = CoroutineScope(Dispatchers.Unconfined).async { viewModel.exportContent.first() }
+        viewModel.exportChat()
+        settle()
+        val markdown = runBlocking { exported.await() }
+
+        assertTrue(markdown, markdown.contains("Viewed request"))
+        assertFalse(markdown, markdown.contains("Running request"))
+        assertEquals(listOf(summary), runBlocking { viewModel.activeSessionRunSummaries() })
+        viewModel.stopAgent()
+        waitForRunToFinish()
+    }
+
+    @Test
+    fun `a control ask out of the app without the overlay says so in a notification`() {
+        val screen = Screen(application)
+        screen.viewModel.setForeground(true)
+        screen.viewModel.setForeground(false)
+        val gate = CoroutineScope(Dispatchers.Unconfined).async {
+            runner().awaitForegroundControl(ForegroundControlRequest("open_app", "Settings", "Turn on Wi-Fi"))
+        }
+
+        val attention = shadowOf(manager).allNotifications.single()
+        assertEquals(AttentionNotifier.CHANNEL_ID, attention.channelId)
+
+        runner().answerForegroundControl(false)
+        assertFalse(runBlocking { gate.await() })
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
     }
 
     @Test

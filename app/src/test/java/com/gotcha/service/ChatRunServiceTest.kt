@@ -192,6 +192,8 @@ class ChatRunServiceTest {
         assertTrue(shadowOf(controller.get()).isForegroundStopped)
         assertFalse(shadowOf(controller.get()).notificationShouldRemoved)
         assertEquals(controller.notification(), posted(slot))
+        // Still started until the finished notification is up, so the process lives to post it.
+        assertFalse(shadowOf(controller.get()).isStoppedBySelf)
         androidDetaches(slot)
         ShadowLooper.idleMainLooper(100, TimeUnit.MILLISECONDS)
         assertEquals("Done: Plan my trip", posted(slot)?.extras?.getString(NotificationCompat.EXTRA_TITLE))

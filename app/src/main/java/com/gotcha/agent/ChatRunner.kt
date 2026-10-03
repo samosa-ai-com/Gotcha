@@ -541,6 +541,20 @@ class ChatRunner(private val app: Application) : AgentEvents {
         agentJob?.cancel()
     }
 
+    /**
+     * Chat [sessionId] is being deleted. If it is the engine's chat, a run in it
+     * is stopped and waited for, and nothing of it is saved or notified after,
+     * so the run can't bring the deleted chat back or keep working in it.
+     */
+    internal suspend fun discard(sessionId: String) {
+        if (engine.sessionId != sessionId && _state.value.runningSessionId != sessionId) return
+        engine.discardSession(sessionId)
+        agentJob?.let {
+            it.cancel()
+            it.join()
+        }
+    }
+
     /** Busy-marking + agent run + NonCancellable cleanup. */
     private suspend fun executeRun(agent: AgentMode, runningId: String) {
         val runningTitle = _state.value.transcript.firstOrNull { it.kind == MessageKind.USER }
@@ -586,14 +600,19 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 // own sanitize still gets repaired here before persisting.
                 engine.sanitizeLastOrphanedAssistant()
                 engine.saveCurrentSession()
-                val finished = runFinishedNotification(
-                    sessionId = runningId,
-                    outcome = when {
-                        stopped -> RunOutcome.STOPPED
-                        runEndedOnError -> RunOutcome.FAILED
-                        else -> RunOutcome.DONE
-                    }
-                )
+                // A chat deleted mid-run gets no notification or inbox entry.
+                val finished = if (engine.isDiscarded(runningId)) {
+                    null
+                } else {
+                    runFinishedNotification(
+                        sessionId = runningId,
+                        outcome = when {
+                            stopped -> RunOutcome.STOPPED
+                            runEndedOnError -> RunOutcome.FAILED
+                            else -> RunOutcome.DONE
+                        }
+                    )
+                }
                 // In the background the ongoing notification turns into the
                 // finished one, in the same slot (issue #115).
                 if (finished != null) {
@@ -884,19 +903,11 @@ class ChatRunner(private val app: Application) : AgentEvents {
         val gate = CompletableDeferred<Boolean>()
         foregroundControlGate = gate
         setState { it.copy(activity = null, pendingForegroundControl = request) }
-        if (!appInForeground && confirmationOverlay.canShow()) {
-            confirmationOverlay.show(
-                summary = request.promptText(),
-                onAllow = { gate.complete(true) },
-                onDeny = { gate.complete(false) },
-                title = request.title,
-                allowLabel = ForegroundControlRequest.ALLOW_LABEL,
-                denyLabel = ForegroundControlRequest.DENY_LABEL
-            )
-        }
+        if (!appInForeground) notifyNeedsInput()
         return try {
             withTimeoutOrNull(GATE_TIMEOUT_MS) { gate.await() } ?: false
         } finally {
+            attentionNotifier.cancel()
             confirmationOverlay.dismiss()
             setState { it.copy(pendingForegroundControl = null) }
             foregroundControlGate = null
@@ -927,14 +938,30 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     /**
      * Tells the user, out of the app, that the run is paused on a question or
-     * confirmation they can't see (issue #108). The foreground-control ask
-     * needs none: it is drawn over whatever app is in front.
+     * confirmation they can't see (issue #108). The foreground-control ask is
+     * drawn over whatever app is in front instead; without "Display over other
+     * apps" it gets the notification too, or the run would sit out the gate's
+     * timeout with nothing on screen.
      */
     private fun notifyNeedsInput() {
         val state = _state.value
+        val foregroundControl = state.pendingForegroundControl
+        val gate = foregroundControlGate
+        if (foregroundControl != null && gate != null && confirmationOverlay.canShow()) {
+            confirmationOverlay.show(
+                summary = foregroundControl.promptText(),
+                onAllow = { gate.complete(true) },
+                onDeny = { gate.complete(false) },
+                title = foregroundControl.title,
+                allowLabel = ForegroundControlRequest.ALLOW_LABEL,
+                denyLabel = ForegroundControlRequest.DENY_LABEL
+            )
+            return
+        }
         val kind = when {
             state.pendingQuestion != null -> AttentionKind.QUESTION
             state.pendingConfirmation != null -> AttentionKind.CONFIRMATION
+            foregroundControl != null -> AttentionKind.CONFIRMATION
             else -> return
         }
         val sessionId = state.runningSessionId ?: engine.sessionId ?: return

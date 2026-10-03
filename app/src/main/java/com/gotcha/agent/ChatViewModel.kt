@@ -1071,13 +1071,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
 
     fun deleteSession(id: String) {
         viewModelScope.launch {
+            // First, so a run in this chat is over before its files and record go.
+            val wasBound = runner.engine.sessionId == id
+            runner.discard(id)
             withContext(Dispatchers.IO) {
                 com.gotcha.data.GotchaStorage.archiveChatDir(id)
             }
             historyRepository.deleteSession(id)
             localNotificationStore.forgetChat(id)
-            if (runner.engine.sessionId == id) {
+            if (_uiState.value.activeSessionId == id) {
                 clearChat()
+            } else if (wasBound) {
+                // Viewing another chat: the engine lets go of the deleted one
+                // without moving the screen.
+                runner.bindFresh(java.util.UUID.randomUUID().toString(), AgentMode.MONITOR)
             }
             // Drop any live overlay entry for the deleted session so the
             // drawer doesn't keep showing a token count for a chat that no
@@ -1192,12 +1199,52 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     }
 
     fun exportChat() {
-        val markdown = ChatMarkdown.export(
-            history = runner.engine.history.toList(),
-            sessionId = runner.engine.sessionId ?: "unknown",
-            title = runner.engine.currentTitle()
+        viewModelScope.launch {
+            val markdown = viewedSessionSnapshot()?.let { chat ->
+                ChatMarkdown.export(history = chat.history, sessionId = chat.id, title = chat.title)
+            } ?: return@launch
+            _exportContent.tryEmit(markdown)
+        }
+    }
+
+    /** What [exportChat] and the share card read: the chat on screen, as saved or live. */
+    private class ViewedSessionSnapshot(
+        val id: String,
+        val title: String,
+        val history: List<ChatMessage>,
+        val runSummaries: List<RunSummary>,
+        val agentName: String
+    )
+
+    /**
+     * The chat on screen, which is not always the one bound to the engine: while
+     * a run goes on, and after it until the next send, other chats are opened
+     * view-only. Reading the engine then would export or share the running chat
+     * instead of the one the user is looking at.
+     */
+    private suspend fun viewedSessionSnapshot(): ViewedSessionSnapshot? {
+        val id = _uiState.value.activeSessionId ?: return null
+        if (id == runner.engine.sessionId) {
+            // Snapshot the history before iterating: the engine coroutine mutates
+            // it as it runs, and this is read from the UI thread.
+            return ViewedSessionSnapshot(
+                id = id,
+                title = runner.engine.currentTitle(),
+                history = runner.engine.history.toList(),
+                runSummaries = runner.engine.runSummaries.toList(),
+                agentName = runner.engineAgent.name
+            )
+        }
+        // A chat opened view-only is on disk; one that isn't is a new, empty one.
+        val session = historyRepository.loadSession(id)
+            ?: return ViewedSessionSnapshot(id, "New Chat", emptyList(), emptyList(), _uiState.value.activeAgent.name)
+        return ViewedSessionSnapshot(
+            id = session.id,
+            title = session.title,
+            history = session.messages,
+            runSummaries = session.runSummaries,
+            agentName = session.agentMode ?: _uiState.value.activeAgent.name
         )
-        _exportContent.tryEmit(markdown)
     }
 
     // ---- Chat backup and import (issue #83) ----
@@ -1356,7 +1403,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     }
 
     /**
-     * Run summaries for the session currently bound to the engine.
+     * Run summaries for the chat on screen (see [viewedSessionSnapshot]).
      *
      * Returns the recorded summaries when present. Chats created before the
      * run-summary feature landed have none persisted, so fall back to
@@ -1367,13 +1414,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
      * recomposition, and the synthesis walk only trims text content — cheaper
      * than fingerprinting the history (which would hash vision base64 payloads).
      */
-    fun activeSessionRunSummaries(): List<RunSummary> {
-        val recorded = runner.engine.runSummaries
-        if (recorded.isNotEmpty()) return recorded.toList()
-        // Snapshot the history before iterating: the engine coroutine mutates it
-        // as it runs, and this is read from the UI thread.
-        val snapshot = runner.engine.history.toList()
-        return synthesizeRunSummariesFromHistory(snapshot, settings.model, runner.engineAgent.name)
+    suspend fun activeSessionRunSummaries(): List<RunSummary> {
+        val chat = viewedSessionSnapshot() ?: return emptyList()
+        if (chat.runSummaries.isNotEmpty()) return chat.runSummaries
+        return synthesizeRunSummariesFromHistory(chat.history, settings.model, chat.agentName)
     }
 
     private companion object {
