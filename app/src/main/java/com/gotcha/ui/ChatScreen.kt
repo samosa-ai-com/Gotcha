@@ -364,13 +364,17 @@ fun ChatScreen(
                         // key means typing is disabled, and a run in another chat
                         // blocks sending from here.
                         if (state.isConfigured && !otherChatRunning) {
-                            // Re-drawn per session rather than per recomposition, so
-                            // the three on offer don't reshuffle under a rotation.
+                            // Re-drawn per session and per persona rather than per
+                            // recomposition: picking or switching a persona swaps the
+                            // row for its own starters at once, while the three on
+                            // offer still don't reshuffle under a rotation.
+                            val starterPool = startersFor(personaById(state.activePersonaId))
                             val starters = rememberSaveable(
                                 state.activeSessionId,
-                                saver = StarterPromptLabelsSaver
+                                state.activePersonaId,
+                                saver = starterPromptLabelsSaver(starterPool)
                             ) {
-                                STARTER_PROMPTS.shuffled().take(STARTER_PROMPT_COUNT)
+                                starterPool.shuffled().take(STARTER_PROMPT_COUNT)
                             }
                             if (starters.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(24.dp))

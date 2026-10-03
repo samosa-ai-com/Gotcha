@@ -43,12 +43,18 @@ import com.gotcha.ui.theme.motionSpec
  * [defaultAgent] is the mode applied when the persona is picked. It is a
  * starting point, not a lock — the selector directly above the row stays live,
  * so the user can take a persona into Operator if they want it acting.
+ *
+ * [starters] replace the default [STARTER_PROMPTS] on the empty chat while the
+ * persona is picked. Leave it empty to keep the default list; a list shorter
+ * than [STARTER_PROMPT_COUNT] can't fill a row, so it falls back the same way
+ * (see [startersFor]).
  */
 data class Persona(
     val id: String,
     val label: String,
     val defaultAgent: AgentMode,
-    val systemPrompt: String
+    val systemPrompt: String,
+    val starters: List<StarterPrompt> = emptyList()
 )
 
 /**
@@ -63,6 +69,9 @@ data class Persona(
  * Where a role maps onto a regulated profession the prompt carries its own
  * disclaimer: these are not that professional, and the reply has to say so
  * rather than leaving the persona's costume to imply otherwise.
+ *
+ * Their starters are things to *ask* the role, never things for the device to
+ * do: they have to work in Monitor, where every one of these starts.
  */
 internal val PERSONAS = listOf(
     Persona(
@@ -77,7 +86,29 @@ internal val PERSONAS = listOf(
             "Tell the user to seek in-person care when the picture is unclear, when symptoms persist " +
             "or worsen, and immediately — before anything else in your reply — when anything suggests " +
             "an emergency (chest pain, trouble breathing, stroke signs, severe bleeding, suicidal " +
-            "thoughts). Never give dosing instructions for prescription medication."
+            "thoughts). Never give dosing instructions for prescription medication.",
+        starters = listOf(
+            StarterPrompt(
+                label = "Check a symptom",
+                template = "I've had … for … days. What could be causing it?"
+            ),
+            StarterPrompt(
+                label = "Is this urgent?",
+                template = "I have … — should I see a doctor today, or can it wait?"
+            ),
+            StarterPrompt(
+                label = "Explain a result",
+                template = "Can you explain what this test result means: …"
+            ),
+            StarterPrompt(
+                label = "Sleep better",
+                template = "I keep waking up in the night. What usually helps?"
+            ),
+            StarterPrompt(
+                label = "Cold or flu?",
+                template = "I have a sore throat and a temperature. Is it a cold or the flu?"
+            )
+        )
     ),
     Persona(
         id = "chef",
@@ -87,7 +118,29 @@ internal val PERSONAS = listOf(
             "and how much time they have, and give recipes as short numbered steps with real quantities " +
             "and pan temperatures. Offer substitutions for anything hard to find, call out the step where " +
             "a dish is usually ruined, and flag common allergens in what you suggest. Keep food safety " +
-            "advice (cooking temperatures, storage times, reheating) accurate rather than relaxed."
+            "advice (cooking temperatures, storage times, reheating) accurate rather than relaxed.",
+        starters = listOf(
+            StarterPrompt(
+                label = "Cook from my fridge",
+                template = "I have … in the fridge. What can I make in 30 minutes?"
+            ),
+            StarterPrompt(
+                label = "Plan a dinner",
+                template = "Plan a dinner for … people, one of them vegetarian"
+            ),
+            StarterPrompt(
+                label = "Swap an ingredient",
+                template = "What can I use instead of … in …?"
+            ),
+            StarterPrompt(
+                label = "Quick breakfast",
+                template = "Give me three breakfasts I can make in under 10 minutes"
+            ),
+            StarterPrompt(
+                label = "Fix a dish",
+                template = "My … came out too … — what went wrong?"
+            )
+        )
     ),
     Persona(
         id = "fitness_coach",
@@ -97,7 +150,29 @@ internal val PERSONAS = listOf(
             "any injuries before programming anything, then give concrete sessions — exercises, sets, " +
             "reps, rest, and how to progress week to week. Cue form in a sentence or two per lift. " +
             "You are not a doctor or a physiotherapist: say so when the user describes pain, and send " +
-            "them to a professional for anything that hurts rather than working around it."
+            "them to a professional for anything that hurts rather than working around it.",
+        starters = listOf(
+            StarterPrompt(
+                label = "Plan my week",
+                template = "Plan three workouts a week for a beginner with no equipment"
+            ),
+            StarterPrompt(
+                label = "Start running",
+                template = "Give me a plan to run 5 km without stopping"
+            ),
+            StarterPrompt(
+                label = "Check my form",
+                template = "How do I squat with good form?"
+            ),
+            StarterPrompt(
+                label = "Stretch routine",
+                template = "Give me a 10-minute stretch for after sitting all day"
+            ),
+            StarterPrompt(
+                label = "Build strength",
+                template = "I can go to a gym twice a week. Build me a strength plan"
+            )
+        )
     ),
     Persona(
         id = "tutor",
@@ -108,7 +183,29 @@ internal val PERSONAS = listOf(
             "next step themselves instead of finishing every problem for them, and when they are wrong " +
             "point at the specific move that went wrong rather than restating the whole solution. " +
             "If the work looks like homework being handed to you, help them solve it — do not just " +
-            "produce an answer to copy."
+            "produce an answer to copy.",
+        starters = listOf(
+            StarterPrompt(
+                label = "Explain a topic",
+                template = "Explain … to me like I'm new to it"
+            ),
+            StarterPrompt(
+                label = "Quiz me",
+                template = "Quiz me on … one question at a time"
+            ),
+            StarterPrompt(
+                label = "Help with a problem",
+                template = "I'm stuck on this problem: …"
+            ),
+            StarterPrompt(
+                label = "Check my answer",
+                template = "Here's my working for …. Where did I go wrong?"
+            ),
+            StarterPrompt(
+                label = "Make a study plan",
+                template = "I have an exam on … in two weeks. Help me plan my revision"
+            )
+        )
     ),
     Persona(
         id = "travel_planner",
@@ -119,7 +216,29 @@ internal val PERSONAS = listOf(
             "travel time between stops and the hours places actually keep. Name specific neighbourhoods " +
             "and options rather than generic advice, and say when something needs booking ahead. " +
             "Be explicit that prices, opening hours and entry requirements change, and that visas and " +
-            "travel advisories must be checked against official sources."
+            "travel advisories must be checked against official sources.",
+        starters = listOf(
+            StarterPrompt(
+                label = "Plan a weekend",
+                template = "Plan a weekend in … for two on a mid-range budget"
+            ),
+            StarterPrompt(
+                label = "Build an itinerary",
+                template = "Build a 5-day itinerary for … in …"
+            ),
+            StarterPrompt(
+                label = "Packing list",
+                template = "What should I pack for a week in … in …?"
+            ),
+            StarterPrompt(
+                label = "Best time to go",
+                template = "When is the best time of year to visit …?"
+            ),
+            StarterPrompt(
+                label = "Trip on a budget",
+                template = "Where can I go for a week from … on a budget of …?"
+            )
+        )
     ),
     Persona(
         id = "handyman",
@@ -129,7 +248,29 @@ internal val PERSONAS = listOf(
             "the thing actually is and what tools they own, then give ordered steps with the tools and " +
             "parts named. Lead with the safety step — power off at the breaker, water off at the valve, " +
             "eye protection — whenever one applies. Say plainly when a job belongs to a licensed " +
-            "electrician, plumber or gas fitter, and do not talk the user through it anyway."
+            "electrician, plumber or gas fitter, and do not talk the user through it anyway.",
+        starters = listOf(
+            StarterPrompt(
+                label = "Fix a leaky tap",
+                template = "My tap keeps dripping. How do I fix it?"
+            ),
+            StarterPrompt(
+                label = "Hang a shelf",
+                template = "How do I hang a heavy shelf on a … wall?"
+            ),
+            StarterPrompt(
+                label = "Unblock a drain",
+                template = "My sink drains slowly. How do I clear it?"
+            ),
+            StarterPrompt(
+                label = "Patch a wall",
+                template = "How do I fill a hole in plasterboard?"
+            ),
+            StarterPrompt(
+                label = "Squeaky door",
+                template = "How do I stop a door from squeaking?"
+            )
+        )
     )
 )
 

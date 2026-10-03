@@ -30,11 +30,14 @@ import androidx.compose.ui.unit.dp
  * a screen, while the template is a first draft of a real prompt. Tapping fills
  * the composer and stops there: the user edits and sends, so a template may
  * carry an unfilled `…` where a name or a message belongs.
+ *
+ * Public only because [Persona] carries its own list of them.
  */
-internal data class StarterPrompt(val label: String, val template: String)
+data class StarterPrompt(val label: String, val template: String)
 
 /**
- * The starters offered on an empty chat. Between them they demo the three things
+ * The default starters, offered on an empty chat with no persona picked (or a
+ * persona with no starters of its own — see [startersFor]). Between them they demo the three things
  * people most often don't realise Gotcha can do — drive the device, answer
  * questions about what's on screen or on disk, and handle messages.
  *
@@ -42,6 +45,10 @@ internal data class StarterPrompt(val label: String, val template: String)
  * so they answer in Monitor as well as Operator. The two device actions need
  * Operator; the chip does not switch mode on the user's behalf, the selector
  * directly above it does.
+ *
+ * A persona's own starters replace this list outright, and are held to a
+ * stricter rule: every one must be answerable in Monitor, the mode every
+ * persona starts in, so none of them leads with a device action.
  */
 internal val STARTER_PROMPTS = listOf(
     StarterPrompt(
@@ -74,22 +81,32 @@ internal val STARTER_PROMPTS = listOf(
     )
 )
 
-/** How many of [STARTER_PROMPTS] a single home screen offers. */
+/** How many starters a single home screen offers. */
 internal const val STARTER_PROMPT_COUNT = 3
 
 /**
- * rememberSaveable saver for the drawn starters. Only the labels are stored —
- * they are unique, and the prompts themselves are a compile-time list, so a
- * restore is a lookup. A label that no longer exists (the list changed across an
- * app update, with saved state from the old one) drops out, and the row is
- * refilled from the current list so a stale save never shows fewer than
- * [STARTER_PROMPT_COUNT] chips.
+ * The pool the home screen draws its starters from: [persona]'s own when it
+ * has enough to fill a row, otherwise [STARTER_PROMPTS]. A persona's starters
+ * replace the default list rather than mixing with it — a Doctor chat offering
+ * "Turn on Wi-Fi" is exactly the "the persona changed nothing" feeling they
+ * exist to avoid.
  */
-internal val StarterPromptLabelsSaver = listSaver<List<StarterPrompt>, String>(
+internal fun startersFor(persona: Persona?): List<StarterPrompt> =
+    persona?.starters?.takeIf { it.size >= STARTER_PROMPT_COUNT } ?: STARTER_PROMPTS
+
+/**
+ * rememberSaveable saver for the starters drawn from [pool]. Only the labels
+ * are stored — they are unique within a pool, and the prompts themselves are a
+ * compile-time list, so a restore is a lookup. A label that no longer exists
+ * (the list changed across an app update, with saved state from the old one)
+ * drops out, and the row is refilled from [pool] so a stale save never shows
+ * fewer than [STARTER_PROMPT_COUNT] chips.
+ */
+internal fun starterPromptLabelsSaver(pool: List<StarterPrompt>) = listSaver<List<StarterPrompt>, String>(
     save = { prompts -> prompts.map { it.label } },
     restore = { labels ->
-        val restored = labels.mapNotNull { label -> STARTER_PROMPTS.firstOrNull { it.label == label } }
-        val fill = STARTER_PROMPTS.filter { it !in restored }.shuffled()
+        val restored = labels.mapNotNull { label -> pool.firstOrNull { it.label == label } }
+        val fill = pool.filter { it !in restored }.shuffled()
         (restored + fill).take(STARTER_PROMPT_COUNT)
     }
 )

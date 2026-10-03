@@ -19,6 +19,8 @@ import com.gotcha.testutil.MOCK_REPLY_OK
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.TestSeed
 import com.gotcha.ui.STARTER_PROMPTS
+import com.gotcha.ui.StarterPrompt
+import com.gotcha.ui.personaById
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -123,6 +125,40 @@ class ChatRoundTripTest {
             0,
             mockLlm.server.requestCount
         )
+    }
+
+    @Test
+    fun starterPrompts_followTheSelectedPersona() {
+        mockLlm.start()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl, model = "test-model")
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        fun shownFrom(pool: List<StarterPrompt>) = pool.filter { prompt ->
+            composeRule.onAllNodes(hasTestTag("starter_prompt_${prompt.label}"))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        val doctor = requireNotNull(personaById("doctor")).starters
+        val chef = requireNotNull(personaById("chef")).starters
+
+        assertEquals("no persona: the default starters", 3, shownFrom(STARTER_PROMPTS).size)
+
+        composeRule.onNodeWithTag("persona_doctor").performClick()
+        composeRule.waitForIdle()
+        assertEquals("Doctor: its own starters", 3, shownFrom(doctor).size)
+        assertTrue("Doctor: none of the default ones", shownFrom(STARTER_PROMPTS).isEmpty())
+
+        composeRule.onNodeWithTag("persona_chef").performClick()
+        composeRule.waitForIdle()
+        assertEquals("Chef: its own starters", 3, shownFrom(chef).size)
+        assertTrue("Chef: none of Doctor's", shownFrom(doctor).isEmpty())
+
+        // Tapping the chosen persona clears it, and the default row comes back.
+        composeRule.onNodeWithTag("persona_chef").performClick()
+        composeRule.waitForIdle()
+        assertEquals("cleared: the default starters again", 3, shownFrom(STARTER_PROMPTS).size)
     }
 
     @Test

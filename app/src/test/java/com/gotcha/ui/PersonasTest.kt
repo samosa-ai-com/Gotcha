@@ -73,6 +73,19 @@ class PersonasTest {
     }
 
     @Test
+    fun `every seeded persona brings its own starters`() {
+        // The home screen falls back to the device-control starters for a
+        // persona without enough of its own, which is what made picking one
+        // look like it changed nothing (#117).
+        PERSONAS.forEach { persona ->
+            assertTrue(
+                "Persona '${persona.id}' needs at least $STARTER_PROMPT_COUNT starters to fill a row",
+                persona.starters.size >= STARTER_PROMPT_COUNT
+            )
+        }
+    }
+
+    @Test
     fun `lookup resolves known ids and tolerates the rest`() {
         assertNotNull(personaById(PERSONAS.first().id))
         // A persona dropped in an app update leaves its id behind on old chats.

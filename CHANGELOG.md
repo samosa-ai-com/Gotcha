@@ -114,6 +114,11 @@ All notable changes to Gotcha are documented here.
   what the agent is allowed to do — the mode restrictions remain the last word.
   Where a role shadows a regulated profession its prompt says so: the Doctor
   never presents itself as your doctor, and routes emergencies to real care.
+  Picking a persona also swaps the "Try" chips under it for the role's own
+  (#117) — the Doctor offers "Check a symptom" and "Is this urgent?", the Chef
+  "Cook from my fridge" — in place of the device-control ones, which come back
+  when the persona is cleared. Every role's starters are things to ask it, so
+  they all work in Monitor.
 - **Search the settings.** Fifteen settings pages hold well over a hundred
   controls between them, and finding one meant scrolling the list and guessing
   which page owned it — "wake word" is under Assistive Ball, "API key" under AI
