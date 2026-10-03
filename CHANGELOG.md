@@ -325,6 +325,9 @@ All notable changes to Gotcha are documented here.
   Captures Gotcha takes on its own, such as scanning the screen for QR codes,
   never touch Night Light.
 
+### Thanks
+- [Techynoob](https://youtube.com/@techynoo1818) for testing this release.
+
 ## [1.2.0]
 ### Added
 - **Podcast generation.** Gotcha can now turn text into listenable audio. Ask
