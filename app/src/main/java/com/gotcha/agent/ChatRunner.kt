@@ -250,8 +250,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     /**
      * Bumped when the runner adds an inbox entry of its own (an interrupted
-     * run, issue #105), so the bell re-reads its unread count: the Activity's
-     * read in onResume can come before the entry exists.
+     * run, issue #105) or marks a chat's entries read (issue #116), so the bell
+     * re-reads its unread count: the Activity's read in onResume can come
+     * before the change is written.
      */
     private val _inboxChanges = MutableStateFlow(0)
     val inboxChanges: StateFlow<Int> = _inboxChanges.asStateFlow()
@@ -626,6 +627,14 @@ class ChatRunner(private val app: Application) : AgentEvents {
         when {
             foreground -> attentionNotifier.cancel()
             !recreating -> notifyNeedsInput()
+        }
+    }
+
+    /** The user has seen chat [sessionId]: its inbox entries are read (issue #116). */
+    fun markChatRead(sessionId: String) {
+        scope.launch {
+            val changed = withContext(Dispatchers.IO) { localNotificationStore.markChatRead(sessionId) }
+            if (changed) _inboxChanges.update { it + 1 }
         }
     }
 

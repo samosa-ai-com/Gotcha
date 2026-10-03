@@ -9,6 +9,7 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.notifications.ChatCompletionNotifier
+import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.service.ChatRunService
 import com.gotcha.service.RunningChat
 import com.gotcha.testsupport.FakeAndroidKeyStore
@@ -162,6 +163,55 @@ class ChatViewModelCompletionNotificationTest {
         viewModel.setForeground(true)
 
         assertTrue(posted().isEmpty())
+    }
+
+    private val inbox by lazy { LocalNotificationStore(application) }
+
+    /** Marking a chat read is written off the main thread; waits for it. */
+    private fun waitForInbox(unread: Int) {
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline && inbox.unreadCount() != unread) {
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(10)
+        }
+        ShadowLooper.idleMainLooper()
+    }
+
+    @Test
+    fun `returning to the chat marks its inbox entry read and keeps it`() {
+        start()
+        viewModel.sendMessage("Hello")
+        viewModel.setForeground(false)
+        waitForRunToFinish()
+        assertEquals(1, inbox.unreadCount())
+        val changesBefore = viewModel.inboxChanges.value
+
+        viewModel.setForeground(true)
+        waitForInbox(unread = 0)
+
+        assertEquals(0, inbox.unreadCount())
+        assertTrue(inbox.entries().single().read)
+        assertTrue(viewModel.inboxChanges.value > changesBefore)
+    }
+
+    @Test
+    fun `opening the chat from elsewhere marks its inbox entry read`() {
+        start()
+        viewModel.sendMessage("Hello")
+        val runChat = viewModel.uiState.value.activeSessionId!!
+        viewModel.setForeground(false)
+        waitForRunToFinish()
+        // Back in the app on another chat: the finished one is still unseen.
+        viewModel.openSession(null)
+        viewModel.setForeground(true)
+        waitForInbox(unread = 0)
+        assertEquals(1, inbox.unreadCount())
+
+        viewModel.openSession(runChat)
+        waitForInbox(unread = 0)
+
+        assertEquals(0, inbox.unreadCount())
+        assertEquals(1, inbox.entries().size)
     }
 
     @Test

@@ -50,6 +50,21 @@ class LocalNotificationStoreTest {
     }
 
     @Test
+    fun `marking a chat read touches only that chat and keeps its entries`() {
+        store.addEntry(NotificationCategory.TASK_FINISHED, "a1", "b", NotificationTarget.Chat("a"), now = now)
+        store.addEntry(NotificationCategory.TASK_FINISHED, "a2", "b", NotificationTarget.Chat("a"), now = now + 1)
+        store.addEntry(NotificationCategory.TASK_FINISHED, "b", "b", NotificationTarget.Chat("b"), now = now + 2)
+        store.addEntry(NotificationCategory.SERVER, "home", "b", NotificationTarget.Home, now = now + 3)
+
+        assertTrue(store.markChatRead("a"))
+
+        assertEquals(4, store.entries().size)
+        assertEquals(setOf("b", "home"), store.entries().filterNot { it.read }.map { it.title }.toSet())
+        assertFalse(store.markChatRead("a"))
+        assertFalse(store.markChatRead("unknown"))
+    }
+
+    @Test
     fun `entries older than 30 days drop out`() {
         store.addEntry(NotificationCategory.SERVER, "old", "b", NotificationTarget.Home, now = now - 31 * DAY_MS)
         store.addEntry(NotificationCategory.SERVER, "new", "b", NotificationTarget.Home, now = now)

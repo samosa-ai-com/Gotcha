@@ -747,8 +747,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     fun setForeground(foreground: Boolean, recreating: Boolean = false) {
         runner.setForeground(foreground, recreating)
         // Back in the app on a chat whose task finished: that chat's
-        // notification has done its job.
-        if (foreground) _uiState.value.activeSessionId?.let(completionNotifier::cancel)
+        // notification and inbox entries have done their job.
+        if (foreground) _uiState.value.activeSessionId?.let(::markChatSeen)
+    }
+
+    /** The user has seen [sessionId]: its notification and inbox entries have done their job (issue #116). */
+    private fun markChatSeen(sessionId: String) {
+        completionNotifier.cancel(sessionId)
+        runner.markChatRead(sessionId)
     }
 
     /** Speak the given text aloud using the configured TTS provider. */
@@ -1020,7 +1026,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     }
 
     fun openSession(id: String?) {
-        id?.let(completionNotifier::cancel)
+        id?.let(::markChatSeen)
         lastInputWasVoice = false
         runner.clearVoiceFlag()
         viewModelScope.launch {

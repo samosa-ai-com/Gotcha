@@ -95,6 +95,17 @@ class LocalNotificationStore internal constructor(private val prefs: SharedPrefe
         encode(KEY_ENTRIES, entrySerializer, all.map { if (it.id == id) it.copy(read = true) else it })
     }
 
+    /**
+     * Marks every entry for chat [sessionId] read, once the user has seen that
+     * chat (issue #116). Entries stay listed. Returns true when any changed.
+     */
+    fun markChatRead(sessionId: String): Boolean {
+        val all = entries()
+        if (all.none { it.sessionId == sessionId && !it.read }) return false
+        encode(KEY_ENTRIES, entrySerializer, all.map { if (it.sessionId == sessionId) it.copy(read = true) else it })
+        return true
+    }
+
     fun markAllRead() {
         val all = entries()
         if (all.all { it.read }) return
