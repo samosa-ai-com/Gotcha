@@ -230,6 +230,12 @@ fun LanguageScreen(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold
         )
+        Text(
+            "The language Gotcha writes your speech down in, for voice input, calls " +
+                "and transcribing audio files.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         TranscriptionLanguagePicker(
             selectedModel = initial.sttApiModel,
             selectedLanguage = sttLanguage,
