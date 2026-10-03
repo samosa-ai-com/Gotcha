@@ -123,7 +123,7 @@ enum class SettingsPage(
     ),
     LANGUAGE(
         "Language",
-        "App display, voice, and AI reply language",
+        "App display, voice, transcription and AI reply language",
         "settings_language_row"
     ),
     AI(

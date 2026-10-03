@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.audio.AudioModel
+import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -41,7 +45,8 @@ import android.provider.Settings as AndroidSettings
 private const val FOLLOW_REPLY_LANGUAGE = "Same as AI reply language"
 
 /**
- * The Language page: the three language choices, told apart.
+ * The Language page: every language choice, told apart, and the only place any
+ * of them is set (issue #114).
  *
  * They used to be scattered and ambiguously named — "Preferred Language" sat in
  * Personal Info reading like an app-UI setting when it actually drove the LLM
@@ -55,8 +60,15 @@ private const val FOLLOW_REPLY_LANGUAGE = "Same as AI reply language"
  *     system screen rather than pretending to a picker that would do nothing.
  *  2. **Voice language** — what TTS speaks and STT listens in
  *     ([Settings.effectiveVoiceLanguage]). Blank follows the reply language.
+ *     Under it, the **transcription language override** ([Settings.sttLanguage]),
+ *     which wins over the voice language for API speech-to-text. It moved here
+ *     from the Speech page so the two can't disagree out of sight.
  *  3. **AI reply language** — what the model writes in
  *     ([Settings.preferredLanguage]).
+ *
+ * The voice section also warns when the voice language doesn't suit the speech
+ * models picked on the Speech page ([SpeechLanguageCheck], issue #113), which
+ * is why the page fetches the audio models when a speech provider is API based.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,14 +76,31 @@ fun LanguageScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
-    onTestVoice: suspend (Language) -> Boolean? = { null }
+    onTestVoice: suspend (Language) -> Boolean? = { null },
+    onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
+        Pair(emptyList(), emptyList())
+    }
 ) {
     val initial = remember { load() }
     var preferredLanguage by rememberSaveable { mutableStateOf(initial.preferredLanguage) }
     var voiceLanguage by rememberSaveable { mutableStateOf(initial.voiceLanguage) }
+    var sttLanguage by rememberSaveable { mutableStateOf(initial.sttLanguage) }
 
     var replyExpanded by rememberSaveable { mutableStateOf(false) }
     var voiceExpanded by rememberSaveable { mutableStateOf(false) }
+    var sttLanguageExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // The speech models, for the transcription codes and the mismatch warnings.
+    // Only API providers have models to fetch.
+    var ttsModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    var sttModels by remember { mutableStateOf<List<AudioModel>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        if (initial.ttsProvider.isApiBased() || initial.sttProvider.isApiBased()) {
+            val (tts, stt) = onRefreshAudioModels(initial)
+            ttsModels = tts
+            sttModels = stt
+        }
+    }
     var testingVoice by remember { mutableStateOf(false) }
 
     /** Last [Language] whose voice data was reported missing, or null when not shown. */
@@ -84,16 +113,33 @@ fun LanguageScreen(
     /** This page's fields, copied onto [base]. */
     fun applyLanguages(base: Settings) = base.copy(
         preferredLanguage = preferredLanguage,
-        voiceLanguage = voiceLanguage
+        voiceLanguage = voiceLanguage,
+        sttLanguage = sttLanguage.trim()
     )
 
     /** What the voice would actually use right now, without waiting for a save. */
     val resolvedVoiceLanguage = Language.fromLabel(voiceLanguage.ifBlank { preferredLanguage })
 
+    val speechWarnings = listOfNotNull(
+        SpeechLanguageCheck.ttsWarning(
+            initial.ttsProvider,
+            initial.ttsApiModel,
+            initial.ttsVoice,
+            ttsModels,
+            resolvedVoiceLanguage
+        )
+    ) + SpeechLanguageCheck.sttWarnings(
+        initial.sttProvider,
+        initial.sttApiModel,
+        sttLanguage,
+        sttModels,
+        resolvedVoiceLanguage
+    )
+
     SettingsScaffold(title = SettingsPage.LANGUAGE.title, onBack = onBack, overlay = overlay) {
         Text(
-            "Three separate choices: what the app's own screens are written in, " +
-                "what Gotcha speaks and hears, and what it writes its answers in.",
+            "Every language Gotcha uses, in one place: what the app's own screens are " +
+                "written in, what Gotcha speaks and hears, and what it writes its answers in.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -174,12 +220,39 @@ fun LanguageScreen(
             }
         }
         Text(
-            "Which voice reads it out is picked per model under Settings → AI → " +
-                "Speech, and the transcription language override on that page wins " +
-                "over this one when it is set.",
+            "Which model and voice read it out are picked under Settings → AI → Speech.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        Text(
+            "Transcription language",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+        TranscriptionLanguagePicker(
+            selectedModel = initial.sttApiModel,
+            selectedLanguage = sttLanguage,
+            availableModels = sttModels,
+            expanded = sttLanguageExpanded,
+            onExpandedChange = { sttLanguageExpanded = it },
+            onSelect = {
+                sttLanguage = it
+                sttLanguageExpanded = false
+            },
+            onClearLanguage = {
+                sttLanguage = ""
+                sttLanguageExpanded = false
+            }
+        )
+        Text(
+            transcriptionOverrideHint(initial.sttProvider),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        SpeechLanguageWarnings(speechWarnings)
+
         OutlinedButton(
             onClick = {
                 testingVoice = true
@@ -291,6 +364,17 @@ fun LanguageScreen(
                 .testTag("settings_save_language")
         ) { Text("Save Language Settings") }
     }
+}
+
+/** What the transcription override does with the speech-to-text [provider] in use. */
+internal fun transcriptionOverrideHint(provider: AudioProvider): String = when {
+    provider.isApiBased() ->
+        "Leave this empty and speech is transcribed in the voice language. Set it to " +
+            "force one language, which helps accuracy when the model tends to guess wrong."
+    provider == AudioProvider.ANDROID ->
+        "Only Samosa AI and external speech-to-text use this. Android Built-in " +
+            "always transcribes in the voice language."
+    else -> "Only Samosa AI and external speech-to-text use this. Speech-to-text is off."
 }
 
 /**

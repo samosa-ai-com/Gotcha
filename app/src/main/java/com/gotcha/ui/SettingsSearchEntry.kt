@@ -130,6 +130,11 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         listOf(
             field("settings_open_app_locale", "App language"),
             field("settings_voice_language", "Voice language"),
+            field(
+                "settings_stt_language",
+                "Transcription language",
+                "stt language, speech to text language, transcription override"
+            ),
             field("settings_reply_language", "AI reply language")
         )
     )

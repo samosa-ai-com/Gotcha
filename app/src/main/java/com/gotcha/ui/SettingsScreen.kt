@@ -192,7 +192,8 @@ fun SettingsScreen(
                     load = load,
                     onSave = onSave,
                     onBack = backToHome,
-                    onTestVoice = onTestVoice
+                    onTestVoice = onTestVoice,
+                    onRefreshAudioModels = onRefreshAudioModels
                 )
                 SettingsPage.AI -> AiHubScreen(
                     onBack = backToHome,
@@ -219,7 +220,8 @@ fun SettingsScreen(
                     onSamosaSignIn = onSamosaSignIn,
                     onSamosaSignOut = onSamosaSignOut,
                     onFetchSamosaProfile = onFetchSamosaProfile,
-                    onClaimReferral = onClaimReferral
+                    onClaimReferral = onClaimReferral,
+                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
                 )
                 SettingsPage.PERMISSIONS -> PermissionsScreen(
                     packageName = packageName,

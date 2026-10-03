@@ -177,6 +177,17 @@ All notable changes to Gotcha are documented here.
   Monitor, and which mode you're in stays the selector's business.
 
 ### Changed
+- **Every language setting on one page, with a warning when a speech model
+  doesn't fit** (#113, #114). The transcription language override has moved
+  from Settings → AI → Speech to Settings → Language, under the voice language
+  it overrides; the Speech page now shows it read-only, with a link to change
+  it. Both pages warn, and say what will happen, when the voice language and
+  the chosen speech models disagree: a text-to-speech model with no voice in
+  that language (Hindi replies read by an English voice), a hand-picked voice
+  in another language, a speech-to-text model that doesn't list the language,
+  or an override that forces transcription into a different one. Gotcha also
+  picks a voice in the voice language more often when the voice is left on
+  default: it now reads the language from Kokoro voice names like `hf_alpha`.
 - **A calmer notifications bell** (#110). The bell's badge is now in Gotcha's
   own colour instead of alarm red, the bell matches the other top-bar icons and
   fills in while something is unread, and one unread notification shows as a dot

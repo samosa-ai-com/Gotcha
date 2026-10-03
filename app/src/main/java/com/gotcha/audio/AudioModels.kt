@@ -61,8 +61,7 @@ data class VoiceInfo(
     val displayLabel: String
         get() {
             val guessFromId = language.isBlank() && gender.isBlank()
-            val languageCode =
-                if (guessFromId) AudioLanguageLabels.languageFromVoiceId(id).orEmpty() else language
+            val languageCode = if (guessFromId) languageCode.orEmpty() else language
             val genderLabel =
                 if (guessFromId) AudioLanguageLabels.genderFromVoiceId(id).orEmpty() else gender
             val details = listOfNotNull(
@@ -76,6 +75,13 @@ data class VoiceInfo(
                 "$id — ${details.joinToString(", ")}"
             }
         }
+
+    /**
+     * The language this voice speaks: the server's [language], or else the one
+     * a Kokoro-style id implies (`hf_alpha` → Hindi). Null when neither says.
+     */
+    val languageCode: String?
+        get() = language.trim().ifBlank { null } ?: AudioLanguageLabels.languageFromVoiceId(id)
 }
 
 /** A discovered audio model with its category, supported languages, and default voice (TTS only). */
@@ -89,9 +95,9 @@ data class AudioModel(
 ) {
     val defaultVoice: String get() = voices.firstOrNull()?.id ?: "af_heart"
 
-    /** Best voice for [language] (matched by [VoiceInfo.language]), falling back to [defaultVoice]. */
+    /** Best voice for [language] (matched by [VoiceInfo.languageCode]), falling back to [defaultVoice]. */
     fun defaultVoiceFor(language: Language): String =
-        voices.firstOrNull { it.language.startsWith(language.iso639, ignoreCase = true) }?.id
+        voices.firstOrNull { voice -> voice.languageCode?.let { language.matchesCode(it) } == true }?.id
             ?: defaultVoice
 
     companion object {
