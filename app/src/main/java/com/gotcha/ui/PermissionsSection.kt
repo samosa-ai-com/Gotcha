@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.net.VpnService
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -79,8 +78,10 @@ fun PermissionsSection(
 
     // No "Permissions" heading: PermissionsScreen's top bar already says it.
     Text(
-        "Configure permissions that the assistant needs. Runtime permissions show a system dialog " +
-            "when toggled on. Special-access permissions open a Settings screen for one-time setup.",
+        "Nothing here is required up front — the assistant asks for a permission when it first " +
+            "needs one, and says why. This page is for granting them ahead of time, seeing what " +
+            "is on, and turning anything back off. Runtime permissions show a system dialog when " +
+            "toggled on; special-access permissions open a Settings screen for one-time setup.",
         style = MaterialTheme.typography.bodySmall
     )
 
@@ -155,6 +156,7 @@ private fun PermissionRow(
     val context = LocalContext.current
     val isHealthConnect = item.specialMarker == ToolResult.HEALTH_CONNECT
     var showHealthConnectDialog by remember { mutableStateOf(false) }
+    var showRevokeDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -169,6 +171,17 @@ private fun PermissionRow(
                 item.description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            // The switch says granted or not; this says it in words, so a row
+            // read aloud by a screen reader still answers "is this on?".
+            Text(
+                if (granted) "Granted" else "Not granted — asked for when first needed",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (granted) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
             if (onOpenDetails != null) {
                 TextButton(
@@ -200,12 +213,47 @@ private fun PermissionRow(
                         }
                     }
                 } else {
-                    Toast.makeText(
-                        context,
-                        "Revoke this permission in System Settings → Apps → Gotcha → Permissions",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    // Android lets no app drop its own grants; the switch can
+                    // only walk the user to the screen that can. A dialog, not
+                    // a toast — a toast naming a four-level path is gone before
+                    // it can be followed.
+                    showRevokeDialog = true
                 }
+            }
+        )
+    }
+
+    if (showRevokeDialog) {
+        SkinAlertDialog(
+            onDismissRequest = { showRevokeDialog = false },
+            title = { Text("Turn off ${item.name}?") },
+            text = {
+                Text(
+                    if (item.specialMarker != null) {
+                        "${item.name} is switched on in the system's own settings screen, and " +
+                            "only that screen can switch it back off. Gotcha stops using it the " +
+                            "moment you do."
+                    } else {
+                        "Only Android can take a permission back. Open Gotcha's app settings, " +
+                            "go to Permissions, and deny ${item.name} there — anything that " +
+                            "needs it will ask again next time."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRevokeDialog = false
+                        if (item.specialMarker != null) {
+                            openSpecialAccess(context, item.specialMarker, packageName)
+                        } else {
+                            openAppPermissionSettings(context, packageName)
+                        }
+                    }
+                ) { Text(if (item.specialMarker != null) "Open settings screen" else "Open app settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRevokeDialog = false }) { Text("Cancel") }
             }
         )
     }

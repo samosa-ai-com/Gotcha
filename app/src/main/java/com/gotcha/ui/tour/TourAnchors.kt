@@ -25,6 +25,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 enum class TourAnchor {
     DRAWER_SETTINGS,
     SETTINGS_PERSONAL_INFO,
+
+    /** The AI hub's row on the settings home list. */
+    SETTINGS_AI,
+
+    /** The AI Configuration row, which lives inside the AI hub. */
     SETTINGS_AI_CONFIG,
     SETTINGS_PERMISSIONS,
     AI_PROVIDER,

@@ -41,25 +41,25 @@ class ChatViewModelAutoReadTest {
     @Test
     fun `typed message when autoReadReplies is false does not speak reply`() {
         viewModel.sendMessage("Hello", isVoiceInput = false)
-        viewModel.onAssistantReply("Hello back!")
+        viewModel.runner.onAssistantReply("Hello back!")
         assertFalse(viewModel.uiState.value.isSpeaking)
     }
 
     @Test
     fun `voice message when autoReadReplies is false speaks reply for that turn`() {
         viewModel.sendMessage("Hello", isVoiceInput = true)
-        viewModel.onAssistantReply("Hello back!")
+        viewModel.runner.onAssistantReply("Hello back!")
         assertTrue(viewModel.uiState.value.isSpeaking)
     }
 
     @Test
     fun `subsequent typed message after voice message does not speak reply when autoReadReplies is false`() {
         viewModel.sendMessage("Hello", isVoiceInput = true)
-        viewModel.onAssistantReply("Hello back!")
+        viewModel.runner.onAssistantReply("Hello back!")
         viewModel.stopSpeaking()
 
         viewModel.sendMessage("Second message", isVoiceInput = false)
-        viewModel.onAssistantReply("Second reply")
+        viewModel.runner.onAssistantReply("Second reply")
         assertFalse(viewModel.uiState.value.isSpeaking)
     }
 
@@ -69,7 +69,7 @@ class ChatViewModelAutoReadTest {
         viewModel.openSession("new-session-id")
 
         viewModel.sendMessage("Session message", isVoiceInput = false)
-        viewModel.onAssistantReply("Session reply")
+        viewModel.runner.onAssistantReply("Session reply")
         assertFalse(viewModel.uiState.value.isSpeaking)
     }
 }

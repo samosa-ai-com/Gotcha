@@ -17,8 +17,22 @@ import java.net.UnknownHostException
  */
 object HumanReadableError {
 
-    /** Maps HTTP status codes to human-readable explanations. */
-    fun fromHttpCode(code: Int, rawMessage: String? = null): String = when (code) {
+    /**
+     * Maps HTTP status codes to human-readable explanations. A rejection that
+     * names images (e.g. a provider allowing fewer images per request than the
+     * user attached) gets its own explanation, since the fix is on the user's side.
+     */
+    fun fromHttpCode(code: Int, rawMessage: String? = null): String = when {
+        code in IMAGE_REJECTION_CODES && rawMessage?.contains("image", ignoreCase = true) == true ->
+            "The model rejected the attached images (HTTP $code): $rawMessage. " +
+                "It may accept fewer or smaller images per request — images from earlier in " +
+                "this chat count too. Remove some attachments or start a new chat, then try again."
+        else -> fromHttpCodeOnly(code, rawMessage)
+    }
+
+    private val IMAGE_REJECTION_CODES = setOf(400, 413, 422)
+
+    private fun fromHttpCodeOnly(code: Int, rawMessage: String?): String = when (code) {
         400 -> "Bad request (HTTP 400). The request format or parameters sent to the API were invalid."
         401 -> "Authentication failed (HTTP 401). Please check your API key in Settings."
         403 -> {
@@ -31,6 +45,7 @@ object HumanReadableError {
         }
         404 -> "Resource not found (HTTP 404). Check if the selected model ID or endpoint URL is correct in Settings."
         408 -> "Request timeout (HTTP 408). The server timed out waiting for the request."
+        413 -> "Request too large (HTTP 413). Try sending fewer or smaller attachments."
         429 -> "Rate limit or quota exceeded (HTTP 429). Please wait a moment or check your API usage limits."
         500 -> "Server error (HTTP 500). The remote AI service encountered an internal error. Please try again."
         502 -> "Bad gateway (HTTP 502). The proxy or upstream service received an invalid response."

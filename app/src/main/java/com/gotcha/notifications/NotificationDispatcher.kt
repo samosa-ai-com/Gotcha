@@ -36,6 +36,8 @@ class NotificationDispatcher(
     private val api: NotificationApi,
     private val store: NotificationStore,
     private val versionName: String,
+    /** Where delivered messages are listed in the app (issue #100); null leaves them out. */
+    private val inbox: LocalNotificationStore? = null,
     @Suppress("UnusedPrivateProperty")
     private val openIntent: (url: String) -> Intent = { url ->
         Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(
@@ -128,8 +130,17 @@ class NotificationDispatcher(
     @Suppress("MissingPermission") // hasPostPermission() is enforced in deliver().
     private fun postOne(msg: NotificationMessage) {
         val notifyId = stableNotifyId(msg.id)
+        val safeUrl = msg.url?.takeIf { it.startsWith("https://") }
+        val entryId = inbox?.addEntry(
+            NotificationCategory.SERVER,
+            msg.title,
+            msg.body,
+            NotificationTarget.Home,
+            safeUrl
+        )
         val tapIntent = Intent(context, com.gotcha.MainActivity::class.java).apply {
             action = ACTION_SHOW_NOTIFICATION
+            entryId?.let { putExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID, it) }
             putExtra(EXTRA_NOTIFICATION_ID, notifyId)
             putExtra(EXTRA_NOTIFICATION_TITLE, msg.title)
             putExtra(EXTRA_NOTIFICATION_BODY, msg.body)

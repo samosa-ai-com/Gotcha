@@ -8,7 +8,7 @@ import android.content.Context
  *
  * The content is bundled as an asset rather than fetched, so the agent can
  * answer offline and the answer never drifts with the network. The same
- * document backs the Settings > About Us page, which reads it directly.
+ * document backs the Settings > About page, which reads it directly.
  */
 class CompanyInfoTool(private val context: Context) {
 

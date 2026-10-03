@@ -11,6 +11,9 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
 import com.gotcha.util.GotchaLog
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -36,6 +39,10 @@ class GotchaAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         initClipboardListener()
+        // Every capture runs through this service, and the system rebinds it after
+        // the process dies, so a capture killed with Night Light off is undone here.
+        val guard = DisplayTintGuard.get(this)
+        CoroutineScope(Dispatchers.IO).launch { guard.recoverIfInterrupted() }
     }
 
     // Passive: we drive the UI on demand from tools rather than reacting to events,
@@ -215,6 +222,16 @@ class GotchaAccessibilityService : AccessibilityService() {
             bestLayer = window.layer
         }
         return best ?: rootInActiveWindow
+    }
+
+    /** Package of the app on screen, looked up the same way as [hostRoot]; null when unknown. */
+    fun activeAppPackage(): String? {
+        val root = hostRoot() ?: return null
+        return try {
+            root.packageName?.toString()
+        } finally {
+            root.recycle()
+        }
     }
 
     /** Recursively collect visible, non-blank text/content-descriptions from the active window. */

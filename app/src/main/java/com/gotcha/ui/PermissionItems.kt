@@ -295,16 +295,16 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
  * Whether Gotcha's accessibility service is switched on.
  *
  * Named rather than inlined into the catalog above because the feature tour asks
- * the same question to decide when its "grant Accessibility" step is finished,
- * and two copies of this string comparison would be two chances to drift.
+ * the same question to decide when its "grant Accessibility" step is finished.
+ * It delegates rather than comparing the settings string itself: three copies of
+ * that comparison had already drifted into three different answers, which is how
+ * a disabled setting came to surface as an unrelated error (issue #76). This is
+ * the "has the user granted it" question, so it reads the setting rather than
+ * [com.gotcha.tools.DeviceCapabilities.accessibilityState] — a granted service
+ * that Android has unbound should still show as granted here.
  */
-fun isAccessibilityGranted(context: Context): Boolean {
-    val expected = "${context.packageName}/com.gotcha.service.GotchaAccessibilityService"
-    val enabled = Settings.Secure.getString(
-        context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: ""
-    return enabled.contains(expected, ignoreCase = true)
-}
+fun isAccessibilityGranted(context: Context): Boolean =
+    com.gotcha.tools.DeviceCapabilities.accessibilityEnabled(context)
 
 /** Whether "Display over other apps" is allowed — the assistive ball and Lens need it. */
 fun isOverlayGranted(context: Context): Boolean = Settings.canDrawOverlays(context)

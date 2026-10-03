@@ -176,11 +176,12 @@ class ScreenLensController(
                 overlay?.setCaptureMode(true)
                 onCaptureChrome(true)
             }
-            kotlinx.coroutines.delay(250L)
-            var full = service.takeScreenshotBitmap()
-            if (full == null) {
-                kotlinx.coroutines.delay(600L)
-                full = service.takeScreenshotBitmap()
+            val full = DisplayTintGuard.get(appContext).withTintSuspended {
+                kotlinx.coroutines.delay(250L)
+                service.takeScreenshotBitmap() ?: run {
+                    kotlinx.coroutines.delay(600L)
+                    service.takeScreenshotBitmap()
+                }
             }
             withContext(Dispatchers.Main) {
                 onCaptureChrome(false)

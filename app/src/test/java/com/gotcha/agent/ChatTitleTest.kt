@@ -1,5 +1,8 @@
 package com.gotcha.agent
 
+import com.gotcha.llm.ChatMessage
+import com.gotcha.llm.visionUserMessage
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -57,5 +60,33 @@ class ChatTitleTest {
             "one two three four five six seven eight nine ten",
             ChatTitle.sanitize("one two three four five six seven eight nine ten")
         )
+    }
+
+    // ---- the fallback, until a title is generated ----
+
+    private fun user(text: String) = ChatMessage(role = "user", content = JsonPrimitive(text))
+
+    @Test
+    fun `a chat is named by the start of its first message`() {
+        val messages = listOf(user("Find the best ramen in Tokyo tonight please"))
+        assertEquals("Find the best ramen in Tokyo t", ChatTitle.fallback(messages))
+    }
+
+    /** #95 sends an image-only message as a single space, which used to name the chat " ". */
+    @Test
+    fun `a chat that opened with an image alone is never blank`() {
+        val messages = listOf(visionUserMessage("", "QUJD", "jpeg"))
+        assertNull(ChatTitle.openingText(messages))
+        assertEquals(ChatTitle.IMAGE_CHAT, ChatTitle.fallback(messages))
+    }
+
+    @Test
+    fun `the first message with words names the chat, not an image before it or a screen capture`() {
+        val messages = listOf(
+            visionUserMessage("", "QUJD", "jpeg"),
+            user("[Screen State] Home screen, 12 icons"),
+            user("What colour is the box?")
+        )
+        assertEquals("What colour is the box?", ChatTitle.fallback(messages))
     }
 }

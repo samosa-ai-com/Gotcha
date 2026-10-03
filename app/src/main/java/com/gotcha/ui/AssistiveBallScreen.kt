@@ -1,5 +1,7 @@
 package com.gotcha.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -30,14 +32,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
 import com.gotcha.data.WakeWordListeningMode
+import com.gotcha.service.DisplayTintGuard
 import android.provider.Settings as AndroidSettings
 
 /**
- * The Assistive Ball page: one switch that starts or stops the floating overlay,
- * plus the short version of what the ball does once it is on.
+ * The Assistive Ball and Wake Word page: a switch that starts or stops the
+ * floating overlay, the short version of what the ball does once it is on, and
+ * the "Hey Gotcha" wake word — which lives here because its listener runs inside
+ * the ball's service and cannot outlive it.
  *
  * The switch is not a stored preference the page owns — it drives the
  * [com.gotcha.service.AssistiveBallService] through the host, which persists
@@ -60,6 +66,7 @@ fun AssistiveBallScreen(
     var wakeWordEnabled by remember { mutableStateOf(initial.wakeWordEnabled) }
     var wakeWordSensitivity by remember { mutableStateOf(initial.wakeWordSensitivity) }
     var wakeWordListeningMode by remember { mutableStateOf(initial.wakeWordListeningMode) }
+    var pauseNightLight by remember { mutableStateOf(initial.pauseNightLightForScreenshots) }
 
     // The wake word runs inside the ball service, so it cannot be on while the
     // ball is off. When the ball is switched off here (or this screen is opened
@@ -94,6 +101,21 @@ fun AssistiveBallScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         SettingsToggleRow(
+            label = "Night Light off for screenshots",
+            checked = pauseNightLight,
+            onCheckedChange = {
+                pauseNightLight = it
+                onSave { settings -> settings.copy(pauseNightLightForScreenshots = it) }
+            },
+            switchTestTag = "settings_pause_night_light",
+            switchContentDescription = if (pauseNightLight) {
+                "Stop turning Night Light off for screenshots"
+            } else {
+                "Turn Night Light off for screenshots"
+            }
+        )
+        NightLightGrantHint()
+        SettingsToggleRow(
             label = "Wake word: Hey Gotcha",
             checked = wakeWordEnabled,
             // The listener runs inside the Assistive Ball service, so the wake
@@ -112,21 +134,23 @@ fun AssistiveBallScreen(
                 "Turn on Hey Gotcha wake word"
             }
         )
+        // Stated whether or not the ball is on: with the ball on, the toggle
+        // works and nothing else would explain why it stops later.
+        Text(
+            "Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device, but " +
+                "only while the Assistive Ball is on and no call is active. The " +
+                "listener lives inside the ball's service, so switching the ball off " +
+                "switches the wake word off too. Keep microphone permission enabled.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         if (!ballEnabled) {
             Text(
-                "The wake word requires the Assistive Ball to be on — turn on " +
-                    "\"Show Assistive Ball\" to use it.",
+                "Turn on \"Show Assistive Ball\" above to use it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(
-            "Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device while " +
-                "the assistive ball is on and no call is active. Keep microphone " +
-                "permission enabled.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
         if (wakeWordEnabled) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -183,7 +207,7 @@ fun AssistiveBallScreen(
                 valueRange = 0f..1f,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("settings_wake_word_sensitivity")
+                    .settingsField("settings_wake_word_sensitivity")
                     .semantics {
                         contentDescription = "Wake word sensitivity ${(wakeWordSensitivity * 100).toInt()} percent"
                     }
@@ -203,6 +227,51 @@ fun AssistiveBallScreen(
                 "first time takes you there to grant it.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * What "Night Light off for screenshots" does, and how to let it. The grant is
+ * an adb command because no Settings screen can hand out WRITE_SECURE_SETTINGS;
+ * tapping the command copies it. Root works too, so the switch is never locked.
+ */
+@Composable
+private fun NightLightGrantHint() {
+    val context = LocalContext.current
+    val granted = remember(context) { DisplayTintGuard.hasSecureSettingsGrant(context) }
+    Text(
+        "Some phones keep the Night Light tint in screenshots. With this on, a " +
+            "screenshot or Screen Lens capture from the ball turns Night Light off, " +
+            "waits a few seconds for the colours to settle, captures, and turns it " +
+            "back on. The screen shows its normal colours meanwhile.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (granted) {
+        Text(
+            "Gotcha has permission to switch Night Light.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        Text(
+            "Needs a one-time grant from a computer (or root). Connect with adb and " +
+                "run this — tap to copy:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            DisplayTintGuard.GRANT_COMMAND,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    context.getSystemService(ClipboardManager::class.java)
+                        ?.setPrimaryClip(ClipData.newPlainText("adb command", DisplayTintGuard.GRANT_COMMAND))
+                }
+                .padding(vertical = 4.dp)
+                .testTag("settings_pause_night_light_command")
         )
     }
 }

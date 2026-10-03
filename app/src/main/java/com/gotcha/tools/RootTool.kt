@@ -88,6 +88,18 @@ class RootTool(
         }
     }
 
+    /**
+     * Read a setting via `settings get`, for keys an app can't read itself. Null when
+     * there is no root, the key is unset, or the arguments are unsafe.
+     */
+    fun readSecureSetting(namespace: String, key: String): String? {
+        val ns = namespace.trim().lowercase()
+        if (ns !in setOf("system", "secure", "global") || key.isBlank() || unsafeArg(key)) return null
+        val result = exec("settings get $ns $key") ?: return null
+        val value = result.output.trim()
+        return if (result.exit == 0 && value.isNotEmpty() && value != "null") value else null
+    }
+
     private fun unsafeArg(s: String): Boolean =
         s.any { it in "\n\r;&|`$()<>\"'\\ " }
 

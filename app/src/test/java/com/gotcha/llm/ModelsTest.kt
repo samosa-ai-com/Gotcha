@@ -76,9 +76,9 @@ class ModelsTest {
     }
 
     @Test
-    fun `visionUserMessage falls back to a default prompt for blank text`() {
+    fun `visionUserMessage sends whitespace, not an invented prompt, for blank text`() {
         val msg = visionUserMessage("  ", "QUJD")
-        assertEquals("What is in this image?", msg.textContent)
+        assertEquals(" ", msg.textContent)
     }
 
     @Test
@@ -341,5 +341,59 @@ class ModelsTest {
         val noCalls = ChatMessage(role = "assistant", content = JsonPrimitive("ok"))
         assertEquals(plain, plain.withValidToolCallArguments())
         assertEquals(noCalls, noCalls.withValidToolCallArguments())
+    }
+
+    @Test
+    fun `attachmentsUserMessage with one document matches documentUserMessage`() {
+        val single = attachmentsUserMessage(
+            userText = "summarize",
+            documents = listOf(DocumentPart("a.pdf", "application/pdf", "BODY", pageCount = 3)),
+            imagesBase64 = emptyList()
+        )
+        val legacy = documentUserMessage("summarize", "a.pdf", "application/pdf", "BODY", pageCount = 3)
+        assertEquals(legacy, single)
+    }
+
+    @Test
+    fun `attachmentsUserMessage with one image matches visionUserMessage`() {
+        assertEquals(
+            visionUserMessage("", "QUJD", "jpeg"),
+            attachmentsUserMessage("", emptyList(), listOf("QUJD"), imageFormat = "jpeg")
+        )
+    }
+
+    @Test
+    fun `attachmentsUserMessage puts documents in the first part and each image in its own part`() {
+        val msg = attachmentsUserMessage(
+            userText = "",
+            documents = listOf(
+                DocumentPart("one.txt", "text/plain", "FIRST"),
+                DocumentPart("two.txt", "text/plain", "SECOND")
+            ),
+            imagesBase64 = listOf("AAA", "BBB")
+        )
+        val parts = msg.content as JsonArray
+        assertEquals(3, parts.size)
+        assertEquals(2, msg.imageCount)
+        val text = msg.textContent
+        assertTrue(text.startsWith("Answer questions about the attached files."))
+        assertTrue(text.indexOf("[Attached file: one.txt") < text.indexOf("[Attached file: two.txt"))
+        assertTrue(text.contains("FIRST") && text.contains("SECOND"))
+        assertEquals(
+            listOf("data:image/jpeg;base64,AAA", "data:image/jpeg;base64,BBB"),
+            parts.drop(1).map { it.jsonObject["image_url"]!!.jsonObject["url"]!!.jsonPrimitive.content }
+        )
+    }
+
+    @Test
+    fun `attachmentsUserMessage sends whitespace, not an invented prompt, for image-only messages`() {
+        assertEquals(" ", attachmentsUserMessage("", emptyList(), listOf("A")).textContent)
+        assertEquals(" ", attachmentsUserMessage("  ", emptyList(), listOf("A", "B")).textContent)
+    }
+
+    @Test
+    fun `attachmentsUserMessage keeps the document prompt when the text is blank`() {
+        val msg = attachmentsUserMessage("", listOf(DocumentPart("a.txt", "text/plain", "BODY")), listOf("A"))
+        assertTrue(msg.textContent.startsWith("Answer questions about the attached files."))
     }
 }

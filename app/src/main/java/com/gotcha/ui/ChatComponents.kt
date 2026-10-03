@@ -4,14 +4,17 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -30,7 +33,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.gotcha.ui.theme.LocalAnimationsEnabled
 import com.gotcha.ui.theme.WarningAmber
-import kotlin.math.roundToInt
 
 /**
  * Pieces the chat screen is assembled from. They exist here rather than inline
@@ -41,6 +43,7 @@ import kotlin.math.roundToInt
 private const val METER_SEGMENTS = 12
 private const val METER_WARN_AT = 0.75f
 private const val METER_CRITICAL_AT = 0.9f
+private const val METER_ANIM_MS = 400
 
 /**
  * How much of the context window this chat has spent.
@@ -49,11 +52,19 @@ private const val METER_CRITICAL_AT = 0.9f
  * full", which nobody acts on, while segments answer "how many turns do I have
  * left", which is the question actually being asked. Colour carries the same
  * information a second way, for the three-quarters of it that matters.
+ *
+ * The segment in progress fills in proportion, so a round that spends less
+ * than a whole segment still visibly moves the meter (#71).
  */
 @Composable
 fun ContextMeter(fraction: Float, modifier: Modifier = Modifier) {
     val clamped = fraction.coerceIn(0f, 1f)
-    val filled = (clamped * METER_SEGMENTS).roundToInt()
+    val shown by animateFloatAsState(
+        targetValue = clamped,
+        animationSpec = if (LocalAnimationsEnabled.current) tween(METER_ANIM_MS) else snap(),
+        label = "contextMeter"
+    )
+    val filled = shown * METER_SEGMENTS
     val colors = MaterialTheme.colorScheme
     val fillColor = when {
         clamped >= METER_CRITICAL_AT -> colors.error
@@ -69,13 +80,23 @@ fun ContextMeter(fraction: Float, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         repeat(METER_SEGMENTS) { index ->
+            val segmentFill = (filled - index).coerceIn(0f, 1f)
             Box(
                 Modifier
                     .weight(1f)
                     .height(3.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(if (index < filled) fillColor else emptyColor)
-            )
+                    .background(emptyColor)
+            ) {
+                if (segmentFill > 0f) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(segmentFill)
+                            .fillMaxHeight()
+                            .background(fillColor)
+                    )
+                }
+            }
         }
     }
 }

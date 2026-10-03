@@ -23,7 +23,6 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.data.settingsChangeNotifier
-import com.gotcha.i18n.Language
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import com.gotcha.util.GotchaLog
@@ -321,10 +320,12 @@ class AssistiveBallService : Service() {
                 // capture returns null and the prompt is left to the chat flow.
                 val compressed = if (attachScreenshot) {
                     showingActivity(com.gotcha.ui.BallActivity.ACTING) {
-                        com.gotcha.tools.ScreenPerception.compressScreenshot(
-                            maxDimension = 1024,
-                            quality = 85
-                        )
+                        DisplayTintGuard.get(applicationContext).withTintSuspended {
+                            com.gotcha.tools.ScreenPerception.compressScreenshot(
+                                maxDimension = 1024,
+                                quality = 85
+                            )
+                        }
                     }
                 } else {
                     null
@@ -807,7 +808,7 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
+                if (sttEngine.startAndroidListening(s.effectiveVoiceLanguage)) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError("Failed to start speech recognition.")
@@ -861,7 +862,7 @@ class AssistiveBallService : Service() {
         }
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         scope.launch {
-            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val sttLanguage = s.sttLanguage.ifBlank { s.effectiveVoiceLanguage.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
@@ -885,7 +886,7 @@ class AssistiveBallService : Service() {
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
                 voice = s.ttsVoice,
-                language = Language.fromLabel(s.preferredLanguage)
+                language = s.effectiveVoiceLanguage
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
@@ -1047,11 +1048,12 @@ class AssistiveBallService : Service() {
                     chatWindow.setVisibleForCapture(false)
                     screenCompanionPanel.setVisibleForCapture(false)
                 }
-                delay(250L)
-                var bitmap = service.takeScreenshotBitmap()
-                if (bitmap == null) {
-                    delay(800L)
-                    bitmap = service.takeScreenshotBitmap()
+                val bitmap = DisplayTintGuard.get(applicationContext).withTintSuspended {
+                    delay(250L)
+                    service.takeScreenshotBitmap() ?: run {
+                        delay(800L)
+                        service.takeScreenshotBitmap()
+                    }
                 }
                 withContext(Dispatchers.Main) {
                     overlay.showChromeAfterCapture()

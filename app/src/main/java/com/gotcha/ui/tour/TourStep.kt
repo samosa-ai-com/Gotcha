@@ -20,6 +20,9 @@ enum class TourPlace {
 
     /** The settings category list. */
     SETTINGS_HOME,
+
+    /** The AI hub: the model page and the speech page, one level under Settings. */
+    AI_HUB,
     AI_CONFIG,
     PERMISSIONS,
     PERSONAL_INFO
@@ -96,13 +99,21 @@ private fun brainSteps(): List<TourStep> = listOf(
         hint = "Tip: the same swipe works from anywhere in the chat."
     ),
     TourStep(
-        id = "open_ai_config",
+        id = "open_ai",
         place = TourPlace.SETTINGS_HOME,
+        autoNavigate = false,
+        anchor = TourAnchor.SETTINGS_AI,
+        title = "Start with AI",
+        body = "Everything Gotcha thinks, hears and says with is behind this row. Open it."
+    ),
+    TourStep(
+        id = "open_ai_config",
+        place = TourPlace.AI_HUB,
         autoNavigate = false,
         anchor = TourAnchor.SETTINGS_AI_CONFIG,
         title = "Give Gotcha a brain",
         body = "AI Configuration is where the model lives. Open it — you'll come back here to " +
-            "change models later."
+            "change models later, and to pick a voice."
     ),
     TourStep(
         id = "choose_provider",

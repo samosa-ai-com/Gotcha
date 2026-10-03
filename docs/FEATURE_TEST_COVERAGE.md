@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 27 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 30 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **115** | |
+| **Total** | **118** | |
 
-**51 of 115** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**54 of 118** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -85,6 +85,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `set_dnd` | `MANUAL_ONLY` | Needs NotificationPolicyManager access and a real notification shade to verify the DND icon; Robolectric's shadow does not faithfully reproduce the policy enforcement side-effects. |
 | `set_password_policy` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `set_ringer_mode` | `ROBOLECTRIC` | `DeviceToolTest` — normal/vibrate/silent plus the Do-Not-Disturb access gate |
+| `set_screen_timeout` | `ROBOLECTRIC` | `SystemToolTest` — range validation, seconds to milliseconds, previous value reported, WRITE_SETTINGS gate |
 | `set_timer` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `set_volume` | `ROBOLECTRIC` | `DeviceToolTest` — percentage-to-stream scaling, aliases, range and stream validation |
 | `set_wallpaper` | `MANUAL_ONLY` | Needs an Android Context and WallpaperManager; the platform wallpaper API has no usable emulator fake for the set-call callback. |
@@ -107,6 +108,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 
 | Tool | Tier | Tests / reason |
 |---|---|---|
+| `about_gotcha` | `ROBOLECTRIC` | `AppInfoToolTest` — the bundled handbook ships and still documents every SettingsPage and every gated Capability, checked against the enums so a rename fails the build |
 | `about_samosa_ai` | `ROBOLECTRIC` | `CompanyInfoToolTest` — the bundled asset ships and still contains the company, product and contact facts the tool promises |
 | `ask_final_answer` | `MANUAL_ONLY` | Only reachable from inside a sub-agent loop with a live LLM connection. |
 | `check_availability` | `UNIT` | `CalendarWindowTest` — free/busy window arithmetic |
@@ -147,6 +149,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `search_skills` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `sleep` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `todowrite` | `MANUAL_ONLY` | Pure UI round-trip: writes the visible todo list in the chat surface. |
+| `update_gotcha_settings` | `ROBOLECTRIC` | `GotchaSettingsUpdateTest`, `SettingsUpdateLoopTest` — the allowlist (credentials refused), per-key validation, all-or-nothing rejection, and the loop: a prompt on every change, denial leaves settings untouched, approval saves through SettingsRepository, both audited |
 | `update_user_profile` | `UNIT` | `UpdateUserProfileTest` — merge semantics (modify-and-extend, never erase), the no-op guard, and the 250/50-word caps |
 | `webfetch` | `UNIT` | `WebFetchToolTest` — HTML-to-text extraction, truncation, error handling |
 | `websearch` | `MANUAL_ONLY` | Performs real network I/O against a search provider; exercising it in CI would make the suite non-hermetic. |

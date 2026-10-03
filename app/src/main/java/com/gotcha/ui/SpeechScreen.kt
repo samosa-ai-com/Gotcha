@@ -1,7 +1,7 @@
 package com.gotcha.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -10,7 +10,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,13 +19,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import com.gotcha.BuildConfig
+import com.gotcha.audio.AudioLanguageLabels
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
+import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.Settings
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
@@ -35,6 +39,11 @@ import kotlinx.coroutines.launch
 /**
  * The Speech page: which engines synthesise and transcribe, the models and
  * voices they use, and whether replies are read aloud automatically.
+ *
+ * No language is set here. The transcription override moved to the Language
+ * page (issue #114); this page shows it read-only, with a way there
+ * ([onOpenLanguage]), and warns when a model picked here doesn't suit the voice
+ * language ([SpeechLanguageCheck], issue #113).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +63,9 @@ fun SpeechScreen(
     /** Claims an invite code via the auth manager. */
     onClaimReferral: suspend (String) -> Result<Unit> = {
         Result.failure(Exception("Not supported"))
-    }
+    },
+    /** Opens Settings → Language, where every language setting lives. */
+    onOpenLanguage: () -> Unit = {}
 ) {
     val initial = remember { load() }
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
@@ -68,7 +79,6 @@ fun SpeechScreen(
     var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
     var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
-    var sttLanguage by remember { mutableStateOf(initial.sttLanguage) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     // Samosa auth state, kept live as the user signs in / out.
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
@@ -93,7 +103,6 @@ fun SpeechScreen(
     var hostAVoiceExpanded by remember { mutableStateOf(false) }
     var hostBVoiceExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
-    var sttLanguageExpanded by remember { mutableStateOf(false) }
 
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
@@ -124,7 +133,6 @@ fun SpeechScreen(
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
-        sttLanguage = sttLanguage.trim(),
         autoReadReplies = autoReadReplies
     )
 
@@ -260,7 +268,7 @@ fun SpeechScreen(
                         expanded = ttsProviderExpanded
                     )
                 },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
+                modifier = Modifier.fillMaxWidth().menuAnchor().settingsField("settings_tts_provider")
             )
             SkinExposedDropdownMenu(
                 expanded = ttsProviderExpanded,
@@ -303,6 +311,7 @@ fun SpeechScreen(
                     },
                     onClearVoice = { ttsVoice = "" }
                 )
+                SpeechDocsLink(modifier = Modifier.testTag("settings_tts_docs_link"))
             }
             AudioProvider.API -> {
                 OutlinedTextField(
@@ -359,40 +368,45 @@ fun SpeechScreen(
             AudioProvider.ANDROID, AudioProvider.NONE -> Unit
         }
         // ---- Podcast hosts (synthesize_podcast_dialogue) ----
+        // Advanced: only two-host podcast generation reads these, and the
+        // defaults (the TTS voice for host A, an automatically chosen second
+        // voice for host B) already work.
         if (ttsProvider.isApiBased()) {
-            Text(
-                "Podcast hosts — the two voices used when the assistant generates a two-host " +
-                    "podcast dialogue. Leave blank to use the TTS voice for host A and an " +
-                    "automatically chosen different voice for host B.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            TtsVoicePicker(
-                selectedModel = ttsApiModel,
-                selectedVoice = podcastHostAVoice,
-                availableModels = availableTtsModels,
-                expanded = hostAVoiceExpanded,
-                onExpandedChange = { hostAVoiceExpanded = it },
-                onSelect = {
-                    podcastHostAVoice = it
-                    hostAVoiceExpanded = false
-                },
-                onClearVoice = { podcastHostAVoice = "" },
-                label = "Podcast Host A Voice (optional)"
-            )
-            TtsVoicePicker(
-                selectedModel = ttsApiModel,
-                selectedVoice = podcastHostBVoice,
-                availableModels = availableTtsModels,
-                expanded = hostBVoiceExpanded,
-                onExpandedChange = { hostBVoiceExpanded = it },
-                onSelect = {
-                    podcastHostBVoice = it
-                    hostBVoiceExpanded = false
-                },
-                onClearVoice = { podcastHostBVoice = "" },
-                label = "Podcast Host B Voice (optional)"
-            )
+            SettingsAdvancedSection(testTag = "settings_speech_advanced") {
+                Text(
+                    "Podcast hosts — the two voices used when the assistant generates a two-host " +
+                        "podcast dialogue. Leave blank to use the TTS voice for host A and an " +
+                        "automatically chosen different voice for host B.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TtsVoicePicker(
+                    selectedModel = ttsApiModel,
+                    selectedVoice = podcastHostAVoice,
+                    availableModels = availableTtsModels,
+                    expanded = hostAVoiceExpanded,
+                    onExpandedChange = { hostAVoiceExpanded = it },
+                    onSelect = {
+                        podcastHostAVoice = it
+                        hostAVoiceExpanded = false
+                    },
+                    onClearVoice = { podcastHostAVoice = "" },
+                    label = "Podcast Host A Voice (optional)"
+                )
+                TtsVoicePicker(
+                    selectedModel = ttsApiModel,
+                    selectedVoice = podcastHostBVoice,
+                    availableModels = availableTtsModels,
+                    expanded = hostBVoiceExpanded,
+                    onExpandedChange = { hostBVoiceExpanded = it },
+                    onSelect = {
+                        podcastHostBVoice = it
+                        hostBVoiceExpanded = false
+                    },
+                    onClearVoice = { podcastHostBVoice = "" },
+                    label = "Podcast Host B Voice (optional)"
+                )
+            }
         }
         ExposedDropdownMenuBox(
             expanded = sttProviderExpanded,
@@ -408,7 +422,7 @@ fun SpeechScreen(
                         expanded = sttProviderExpanded
                     )
                 },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
+                modifier = Modifier.fillMaxWidth().menuAnchor().settingsField("settings_stt_provider")
             )
             SkinExposedDropdownMenu(
                 expanded = sttProviderExpanded,
@@ -439,18 +453,12 @@ fun SpeechScreen(
                         sttModelExpanded = false
                     }
                 )
-                SttLanguagePicker(
-                    selectedModel = sttApiModel,
-                    selectedLanguage = sttLanguage,
-                    availableModels = availableSttModels,
-                    expanded = sttLanguageExpanded,
-                    onExpandedChange = { sttLanguageExpanded = it },
-                    onSelect = {
-                        sttLanguage = it
-                        sttLanguageExpanded = false
-                    },
-                    onClearLanguage = { sttLanguage = "" }
+                TranscriptionLanguageSummary(
+                    sttLanguage = initial.sttLanguage,
+                    voiceLanguage = initial.effectiveVoiceLanguage.label,
+                    onOpenLanguage = onOpenLanguage
                 )
+                SpeechDocsLink(modifier = Modifier.testTag("settings_stt_docs_link"))
             }
             AudioProvider.API -> {
                 OutlinedTextField(
@@ -491,29 +499,38 @@ fun SpeechScreen(
                         sttModelExpanded = false
                     }
                 )
-                SttLanguagePicker(
-                    selectedModel = sttApiModel,
-                    selectedLanguage = sttLanguage,
-                    availableModels = availableSttModels,
-                    expanded = sttLanguageExpanded,
-                    onExpandedChange = { sttLanguageExpanded = it },
-                    onSelect = {
-                        sttLanguage = it
-                        sttLanguageExpanded = false
-                    },
-                    onClearLanguage = { sttLanguage = "" }
+                TranscriptionLanguageSummary(
+                    sttLanguage = initial.sttLanguage,
+                    voiceLanguage = initial.effectiveVoiceLanguage.label,
+                    onOpenLanguage = onOpenLanguage
                 )
             }
             AudioProvider.ANDROID, AudioProvider.NONE -> Unit
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Auto-read replies aloud", style = MaterialTheme.typography.bodyLarge)
-            Switch(checked = autoReadReplies, onCheckedChange = { autoReadReplies = it })
-        }
+        SpeechLanguageWarnings(
+            listOfNotNull(
+                SpeechLanguageCheck.ttsWarning(
+                    ttsProvider,
+                    ttsApiModel,
+                    ttsVoice,
+                    availableTtsModels,
+                    initial.effectiveVoiceLanguage
+                )
+            ) + SpeechLanguageCheck.sttWarnings(
+                sttProvider,
+                sttApiModel,
+                initial.sttLanguage,
+                availableSttModels,
+                initial.effectiveVoiceLanguage
+            )
+        )
+        SettingsToggleRow(
+            label = "Auto-read replies aloud",
+            checked = autoReadReplies,
+            onCheckedChange = { autoReadReplies = it },
+            isLarge = true,
+            switchTestTag = "settings_auto_read_replies"
+        )
         Button(
             onClick = {
                 onSave { applySpeech(it) }
@@ -724,59 +741,50 @@ private fun SttModelPicker(
     }
 }
 
-/** STT language picker — uses the model's languages when available, otherwise [COMMON_STT_LANGUAGES]. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The transcription language, read-only: it is set on the Language page with the
+ * other languages (issue #114), and [onOpenLanguage] goes there.
+ */
 @Composable
-private fun SttLanguagePicker(
-    selectedModel: String,
-    selectedLanguage: String,
-    availableModels: List<AudioModel>,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onSelect: (String) -> Unit,
-    onClearLanguage: () -> Unit
+private fun TranscriptionLanguageSummary(
+    sttLanguage: String,
+    voiceLanguage: String,
+    onOpenLanguage: () -> Unit
 ) {
-    val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
-    val languagesList = selectedModelObj?.languages?.takeIf { it.isNotEmpty() }
-        ?: COMMON_STT_LANGUAGES
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = onExpandedChange
-    ) {
-        OutlinedTextField(
-            value = selectedLanguage,
-            onValueChange = onSelect,
-            label = { Text("STT Language (optional)") },
-            placeholder = { Text("Auto-detect / Default (or select below)") },
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
-            modifier = Modifier.fillMaxWidth().menuAnchor()
-        )
-        SkinExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { onExpandedChange(false) }
-        ) {
-            DropdownMenuItem(
-                text = { Text("Auto-detect / Default (empty)") },
-                onClick = onClearLanguage
-            )
-            languagesList.forEach { lang ->
-                DropdownMenuItem(
-                    text = { Text(lang) },
-                    onClick = { onSelect(lang) }
-                )
-            }
-        }
-    }
+    val forced = sttLanguage.trim()
+    Text(
+        if (forced.isEmpty()) {
+            "Transcription language: $voiceLanguage, the voice language."
+        } else {
+            "Transcription language: forced to ${AudioLanguageLabels.label(forced)}."
+        },
+        style = MaterialTheme.typography.bodyMedium
+    )
+    TextButton(
+        onClick = onOpenLanguage,
+        modifier = Modifier.testTag("settings_speech_open_language")
+    ) { Text("Change in Settings → Language") }
 }
 
-private val COMMON_STT_LANGUAGES = listOf(
-    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar",
-    "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu",
-    "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa",
-    "lv", "bn", "sr", "az", "sl", "kn", "et", "mk", "br", "eu", "is", "hy", "ne", "mn",
-    "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si", "km", "sn", "yo", "so", "af", "oc",
-    "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo", "ht", "ps", "tk", "nn",
-    "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln", "ha", "ba", "jw", "su"
-)
+/** Inline link to the Samosa AI docs on choosing a voice and language. */
+@Composable
+private fun SpeechDocsLink(modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    Text(
+        text = "How to choose a voice and language (Samosa AI docs)",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+        textDecoration = TextDecoration.Underline,
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable {
+                try {
+                    uriHandler.openUri(AudioLanguageLabels.SPEECH_DOCS_URL)
+                } catch (_: Exception) {
+                    Toast.makeText(context, "No app can open the docs link", Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
+    )
+}

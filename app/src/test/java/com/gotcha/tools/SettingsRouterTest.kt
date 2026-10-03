@@ -129,4 +129,29 @@ class SettingsRouterTest {
             SettingsRouter.resolveAction(gated, gated.minSdk)
         )
     }
+
+    // ---- what open_setting says it did ----
+
+    private val lockScreen get() = SettingsRouter.ROUTES.getValue("lock_screen")
+
+    /**
+     * On a Redmi, SECURITY_SETTINGS opens "Passwords & security", which has no
+     * screen-timeout control, and the reply used to hand the model the stock hint
+     * as if it described the screen. The phone's own title now comes first, and
+     * the hint is labelled as stock Android.
+     */
+    @Test
+    fun openedMessageNamesTheScreenThePhoneOpened() {
+        val message = openedMessage(lockScreen, "Passwords & security")
+
+        assertTrue(message, message.contains("\"Passwords & security\""))
+        assertTrue(message, message.contains("On stock Android: ${lockScreen.hint}"))
+        assertTrue(message, message.contains("read_screen"))
+    }
+
+    @Test
+    fun openedMessageLeavesOutATitleThatAddsNothing() {
+        assertTrue(!openedMessage(lockScreen, null).contains("titles the screen"))
+        assertTrue(!openedMessage(lockScreen, lockScreen.label).contains("titles the screen"))
+    }
 }

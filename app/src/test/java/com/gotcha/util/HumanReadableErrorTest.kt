@@ -120,4 +120,23 @@ class HumanReadableErrorTest {
         val emptyEx = RuntimeException("")
         assertTrue(HumanReadableError.format(emptyEx).contains("An unexpected error occurred"))
     }
+
+    @Test
+    fun `an HTTP rejection that names images explains how to recover`() {
+        val msg = HumanReadableError.fromHttpCode(400, "Too many images in request. Max is 3.")
+        assertTrue(msg.contains("rejected the attached images"))
+        assertTrue(msg.contains("Too many images in request. Max is 3."))
+        assertTrue(msg.contains("Remove some attachments"))
+
+        val tooLarge = HumanReadableError.fromHttpCode(413, "image exceeds 5 MB maximum")
+        assertTrue(tooLarge.contains("rejected the attached images"))
+    }
+
+    @Test
+    fun `an HTTP rejection without images keeps its usual explanation`() {
+        assertTrue(HumanReadableError.fromHttpCode(400, "bad json").contains("Bad request"))
+        assertTrue(HumanReadableError.fromHttpCode(413).contains("Request too large"))
+        // Only request errors are reinterpreted, not e.g. auth failures that mention images.
+        assertTrue(HumanReadableError.fromHttpCode(401, "image model requires auth").contains("Authentication failed"))
+    }
 }

@@ -1,7 +1,30 @@
 package com.gotcha.tools
 
 import android.content.Context
+import android.text.TextUtils
+import com.gotcha.service.GotchaAccessibilityService
 import java.io.File
+
+/**
+ * What the accessibility service can actually do right now.
+ *
+ * Two states would not be enough. "Listed in the settings" and "bound and
+ * usable" come apart routinely — the OS unbinds the service under memory
+ * pressure, across an app update, and when the master switch goes off while the
+ * component stays listed — and the advice differs: [OFF] means enable it,
+ * [ENABLED_BUT_NOT_BOUND] means toggle it off and on. Collapsing them is what
+ * made a disabled setting surface as an unrelated failure (issue #76).
+ */
+enum class AccessibilityState {
+    /** Bound and serving calls. */
+    AVAILABLE,
+
+    /** The user switched it on, but no live service is bound to talk to. */
+    ENABLED_BUT_NOT_BOUND,
+
+    /** Not switched on. */
+    OFF
+}
 
 /**
  * Runtime probes for the [Capability] set. Cheap enough to call once per LLM
@@ -30,7 +53,11 @@ object DeviceCapabilities {
     private var cachedRoot: Boolean? = null
 
     fun available(context: Context): Set<Capability> = buildSet {
-        if (accessibilityEnabled(context)) add(Capability.ACCESSIBILITY)
+        // Gated on the service being *bound*, not on the setting listing it.
+        // A listed-but-unbound service cannot serve a single call, and offering
+        // the tools anyway is what produced the "reached N steps without
+        // completing the task" dead end in AppNavigatorSession.
+        if (accessibilityState(context) == AccessibilityState.AVAILABLE) add(Capability.ACCESSIBILITY)
         if (notificationListenerEnabled(context)) add(Capability.NOTIFICATION_LISTENER)
         if (deviceAdminActive(context)) add(Capability.DEVICE_ADMIN)
         if (rootAvailable()) add(Capability.ROOT)
@@ -43,11 +70,63 @@ object DeviceCapabilities {
     fun hiddenToolNames(context: Context): Set<String> =
         CapabilityCatalog.hiddenTools(available(context))
 
-    fun accessibilityEnabled(context: Context): Boolean = secureListContains(
-        context,
-        android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        "${context.packageName}/com.gotcha.service.GotchaAccessibilityService"
-    )
+    /**
+     * The one probe for accessibility. Everything else — tool gating, the `<env>`
+     * line, the permissions screen, the feature tour — routes here, because three
+     * copies of this string comparison drifted into three different answers.
+     *
+     * A bound service is authoritative: if calls are being served, no reading of
+     * the settings string can make that false.
+     */
+    fun accessibilityState(context: Context): AccessibilityState = when {
+        GotchaAccessibilityService.instance != null -> AccessibilityState.AVAILABLE
+        accessibilityEnabled(context) -> AccessibilityState.ENABLED_BUT_NOT_BOUND
+        else -> AccessibilityState.OFF
+    }
+
+    /**
+     * Whether the user has switched the service on — which is not the same as it
+     * being usable; see [accessibilityState].
+     *
+     * Both halves matter. `ENABLED_ACCESSIBILITY_SERVICES` keeps listing the
+     * component after the master switch goes off, so reading only the list
+     * reports a service that the framework has already stopped.
+     */
+    fun accessibilityEnabled(context: Context): Boolean =
+        accessibilityMasterSwitchOn(context) && accessibilityServiceListed(context)
+
+    private fun accessibilityMasterSwitchOn(context: Context): Boolean = runCatching {
+        android.provider.Settings.Secure.getInt(
+            context.contentResolver,
+            android.provider.Settings.Secure.ACCESSIBILITY_ENABLED,
+            0
+        ) == 1
+    }.getOrDefault(false)
+
+    /**
+     * Whether our component appears in the enabled-services list.
+     *
+     * Parsed rather than substring-matched, and tolerant of both spellings: the
+     * Settings UI writes the flattened long form, but a backup restore, an `adb
+     * settings put`, and some OEM ROMs write the short form
+     * (`com.gotcha/.service.GotchaAccessibilityService`). Matching only the long
+     * form reported "off" on a device where the service was bound and working.
+     */
+    private fun accessibilityServiceListed(context: Context): Boolean = runCatching {
+        val listed = android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        val pkg = context.packageName
+        val cls = GotchaAccessibilityService::class.java.name
+        val splitter = TextUtils.SimpleStringSplitter(':')
+        splitter.setString(listed)
+        splitter.any { entry ->
+            val trimmed = entry.trim()
+            trimmed.equals("$pkg/$cls", ignoreCase = true) ||
+                trimmed.equals("$pkg/.${cls.substringAfter("$pkg.")}", ignoreCase = true)
+        }
+    }.getOrDefault(false)
 
     fun notificationListenerEnabled(context: Context): Boolean =
         secureListContains(context, "enabled_notification_listeners", context.packageName)

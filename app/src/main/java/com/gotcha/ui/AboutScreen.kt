@@ -34,7 +34,7 @@ import com.gotcha.updater.UpdateStatus
 import kotlinx.coroutines.launch
 
 /**
- * About Us: the hub for everything about who made this app and what using it
+ * About: the hub for everything about who made this app and what using it
  * commits you to. Shaped like the settings home list rather than a content page,
  * so the two things underneath it — the company and the agreements — stay
  * separate reads instead of one long scroll.
@@ -210,12 +210,6 @@ fun AppUpdateSection() {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
-                        Text(
-                            text = currentStatus.info.releaseNotes,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
                     Button(onClick = {
                         if (busy) return@Button
                         busy = true
@@ -239,6 +233,9 @@ fun AppUpdateSection() {
                         }
                     }) {
                         Text("Download Update")
+                    }
+                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
+                        ReleaseNotes(currentStatus.info.releaseNotes)
                     }
                 }
             }

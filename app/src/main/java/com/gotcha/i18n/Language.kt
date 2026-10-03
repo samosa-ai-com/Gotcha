@@ -24,6 +24,16 @@ enum class Language(
 
     val locale: java.util.Locale get() = java.util.Locale.forLanguageTag(bcp47)
 
+    /**
+     * True when a server's language [code] (`hi`, `en-us`, `pt_BR`) names this
+     * language, whatever region it adds. A plain name (`Hindi`) counts too.
+     */
+    fun matchesCode(code: String): Boolean {
+        val trimmed = code.trim()
+        return trimmed.equals(label, ignoreCase = true) ||
+            trimmed.replace('_', '-').substringBefore('-').equals(iso639, ignoreCase = true)
+    }
+
     companion object {
         val labels: List<String> get() = entries.map { it.label }
 

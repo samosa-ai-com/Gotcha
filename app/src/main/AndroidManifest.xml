@@ -55,6 +55,11 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Never granted at install: the user runs `adb shell pm grant` once so Gotcha can
+         switch Night Light off around the screenshots they take (#78). -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Tier 3: component-based / device-wide special access -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -206,6 +211,18 @@
                 android:value="floating_assistant_overlay" />
         </service>
 
+        <!-- Keeps the process alive while a chat run is in progress, so leaving Gotcha
+             mid-task does not let Android reclaim it (issue #105). specialUse: the run
+             is an on-device agent task, which none of the other types describe. -->
+        <service
+            android:name=".service.ChatRunService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="agent_task_in_progress" />
+        </service>
+
         <!-- Screenshot capture via MediaProjection (foreground service, one-shot). -->
         <service
             android:name=".service.MediaProjectionService"
@@ -247,6 +264,30 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Gotcha's own proactive notifications (issues #100, #101). The daily tip alarm and
+             the periodic reminder check post them; neither is exported, as only Gotcha's own
+             PendingIntents fire them. -->
+        <receiver
+            android:name=".notifications.DailyTipAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".notifications.ReminderCheckReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms those alarms, which a reboot, an app update or a clock change would
+             otherwise lose or misplace. All four broadcasts are protected and exempt from the
+             implicit-broadcast limits. -->
+        <receiver
+            android:name=".notifications.NotificationRescheduleReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
 
