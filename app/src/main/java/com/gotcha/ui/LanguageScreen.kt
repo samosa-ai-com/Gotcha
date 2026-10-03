@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import android.app.LocaleConfig
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -293,14 +294,22 @@ fun LanguageScreen(
 }
 
 /**
- * Open the per-app language screen where the platform has one (API 33+), falling
- * back to the device-wide language list. Both are ordinary system activities that
- * a heavily-skinned OEM build may simply not have; if neither activity resolves,
- * a toast informs the user.
+ * Open the per-app language screen where it can work, otherwise the device-wide
+ * language list. If neither activity can be started, a toast says so.
+ *
+ * Android 13+ shows the per-app screen only for apps that declare their locales
+ * (a `LocaleConfig`). Gotcha declares none, because its UI is English only, so
+ * Settings refuses the screen. Stock builds still draw a picker whose choices do
+ * nothing, and some OEM builds (Nothing OS) close it at once: a blank flash, and
+ * no exception for us to fall back on (issue #112). So the per-app screen is only
+ * tried when [appHasLocales] says the app declares more than one locale.
  */
-internal fun openLanguageSettings(context: Context) {
+internal fun openLanguageSettings(
+    context: Context,
+    appHasLocales: Boolean = declaresAppLocales(context)
+) {
     val intents = buildList {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && appHasLocales) {
             add(
                 Intent(AndroidSettings.ACTION_APP_LOCALE_SETTINGS)
                     .setData(Uri.fromParts("package", context.packageName, null))
@@ -319,4 +328,14 @@ internal fun openLanguageSettings(context: Context) {
         "Could not open language settings.",
         Toast.LENGTH_SHORT
     ).show()
+}
+
+/** True when the app's `LocaleConfig` lists more than one locale (API 33+). */
+private fun declaresAppLocales(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    return try {
+        (LocaleConfig(context).supportedLocales?.size() ?: 0) > 1
+    } catch (_: Exception) {
+        false
+    }
 }

@@ -23,8 +23,8 @@ class LanguageScreenTest {
 
     @Test
     @Config(sdk = [34])
-    fun `openLanguageSettings targets per-app locale settings on API 34`() {
-        openLanguageSettings(context)
+    fun `openLanguageSettings targets per-app locale settings on API 34 when the app declares locales`() {
+        openLanguageSettings(context, appHasLocales = true)
         val intent = Shadows.shadowOf(context as android.app.Application).nextStartedActivity
         assertNotNull(intent)
         assertEquals(AndroidSettings.ACTION_APP_LOCALE_SETTINGS, intent.action)
@@ -33,9 +33,28 @@ class LanguageScreenTest {
     }
 
     @Test
+    @Config(sdk = [34])
+    fun `openLanguageSettings opens device locale settings on API 34 when the app declares no locales`() {
+        // Issue #112: without a LocaleConfig the per-app screen closes at once on some OEM builds.
+        openLanguageSettings(context, appHasLocales = false)
+        val intent = Shadows.shadowOf(context as android.app.Application).nextStartedActivity
+        assertNotNull(intent)
+        assertEquals(AndroidSettings.ACTION_LOCALE_SETTINGS, intent.action)
+    }
+
+    @Test
+    @Config(sdk = [34])
+    fun `openLanguageSettings defaults to device locale settings for Gotcha`() {
+        openLanguageSettings(context)
+        val intent = Shadows.shadowOf(context as android.app.Application).nextStartedActivity
+        assertNotNull(intent)
+        assertEquals(AndroidSettings.ACTION_LOCALE_SETTINGS, intent.action)
+    }
+
+    @Test
     @Config(sdk = [30])
     fun `openLanguageSettings falls back to device locale settings on API 30`() {
-        openLanguageSettings(context)
+        openLanguageSettings(context, appHasLocales = true)
         val intent = Shadows.shadowOf(context as android.app.Application).nextStartedActivity
         assertNotNull(intent)
         assertEquals(AndroidSettings.ACTION_LOCALE_SETTINGS, intent.action)
@@ -49,7 +68,7 @@ class LanguageScreenTest {
                 throw android.content.ActivityNotFoundException("Activity not found")
             }
         }
-        openLanguageSettings(failingContext)
+        openLanguageSettings(failingContext, appHasLocales = true)
         assertEquals("Could not open language settings.", ShadowToast.getTextOfLatestToast())
     }
 }
