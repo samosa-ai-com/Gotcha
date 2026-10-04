@@ -5,8 +5,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.gotcha.R
 import com.gotcha.data.CompletionPreview
 
 /** What a paused run is waiting on. */
@@ -45,11 +47,11 @@ class AttentionNotifier(private val context: Context) {
         if (!canPost()) return false
         ensureChannel()
         val shown = if (named && kind == AttentionKind.QUESTION) preview else CompletionPreview.NONE
-        val body = questionPreview(question, shown) ?: defaultBody(kind)
+        val body = questionPreview(question, shown) ?: context.getString(defaultBody(kind))
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(com.gotcha.R.drawable.ic_notification)
-            .setContentTitle(title(kind))
+            .setContentTitle(context.getString(title(kind)))
             .setContentText(body)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -58,7 +60,7 @@ class AttentionNotifier(private val context: Context) {
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(com.gotcha.R.drawable.ic_notification)
-                    .setContentTitle(PUBLIC_TITLE)
+                    .setContentTitle(context.getString(R.string.attention_public_title))
                     .build()
             )
             .setOnlyAlertOnce(true)
@@ -95,8 +97,12 @@ class AttentionNotifier(private val context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
         if (mgr.getNotificationChannel(CHANNEL_ID) != null) return
         mgr.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Waiting for your answer", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "When Gotcha has paused a task to ask you something while you are in another app"
+            NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.channel_attention),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = context.getString(R.string.channel_attention_description)
             }
         )
     }
@@ -104,17 +110,18 @@ class AttentionNotifier(private val context: Context) {
     companion object {
         const val CHANNEL_ID = "gotcha_needs_input"
         private const val NOTIFICATION_ID = 0x4A77_E7
-        private const val PUBLIC_TITLE = "Gotcha is waiting for you"
         private val FENCE_LINE = Regex("^\\s*(```|~~~).*$")
 
-        internal fun title(kind: AttentionKind): String = when (kind) {
-            AttentionKind.QUESTION -> "Gotcha has a question"
-            AttentionKind.CONFIRMATION -> "Gotcha is waiting for your OK"
+        @StringRes
+        internal fun title(kind: AttentionKind): Int = when (kind) {
+            AttentionKind.QUESTION -> R.string.attention_question_title
+            AttentionKind.CONFIRMATION -> R.string.attention_confirmation_title
         }
 
-        internal fun defaultBody(kind: AttentionKind): String = when (kind) {
-            AttentionKind.QUESTION -> "Your task is paused until you answer. Tap to open it."
-            AttentionKind.CONFIRMATION -> "Your task is paused until you allow or deny its next step. Tap to open it."
+        @StringRes
+        internal fun defaultBody(kind: AttentionKind): Int = when (kind) {
+            AttentionKind.QUESTION -> R.string.attention_question_body
+            AttentionKind.CONFIRMATION -> R.string.attention_confirmation_body
         }
 
         /**

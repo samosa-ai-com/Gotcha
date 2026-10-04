@@ -146,6 +146,6 @@ class LocalNotificationCheckTest {
         val tried = DAILY_TIPS.filter { it.id != "podcast" }.flatMap { it.tools }
         chat("old", endedAt = noon - 3 * DAY_MS, tools = tried)
         val podcast = DAILY_TIPS.single { it.id == "podcast" }
-        assertEquals(podcast.title, check()?.title)
+        assertEquals(application.getString(podcast.title), check()?.title)
     }
 }

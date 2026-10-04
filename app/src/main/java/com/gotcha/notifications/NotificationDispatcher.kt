@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.gotcha.R
 
 /**
  * Pulls the latest envelope from [NotificationApi], filters/dedupes against
@@ -186,10 +187,10 @@ class NotificationDispatcher(
         return try {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Server messages",
+                context.getString(R.string.channel_server),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "Updates, tips, and maintenance notices from Gotcha"
+                description = context.getString(R.string.channel_server_description)
             }
             mgr.createNotificationChannel(channel)
             true

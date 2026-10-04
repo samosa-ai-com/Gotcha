@@ -40,6 +40,7 @@ import com.gotcha.audio.AudioModel
 import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
 import kotlinx.coroutines.delay

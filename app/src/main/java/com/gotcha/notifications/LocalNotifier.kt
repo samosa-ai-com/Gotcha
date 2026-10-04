@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.gotcha.R
 
 /**
  * Posts Gotcha's proactive notifications (issues #100, #101) and files each in
@@ -44,7 +45,7 @@ class LocalNotifier(private val context: Context) {
                 .setPublicVersion(
                     NotificationCompat.Builder(context, channel)
                         .setSmallIcon(com.gotcha.R.drawable.ic_notification)
-                        .setContentTitle(PUBLIC_TITLE)
+                        .setContentTitle(context.getString(R.string.local_public_title))
                         .build()
                 )
         }
@@ -71,15 +72,23 @@ class LocalNotifier(private val context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
         if (mgr.getNotificationChannel(TIP_CHANNEL_ID) == null) {
             mgr.createNotificationChannel(
-                NotificationChannel(TIP_CHANNEL_ID, "Daily tips", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "One thing to try with Gotcha each day"
+                NotificationChannel(
+                    TIP_CHANNEL_ID,
+                    context.getString(R.string.channel_daily_tips),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = context.getString(R.string.channel_daily_tips_description)
                 }
             )
         }
         if (mgr.getNotificationChannel(REMINDER_CHANNEL_ID) == null) {
             mgr.createNotificationChannel(
-                NotificationChannel(REMINDER_CHANNEL_ID, "Reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "Unfinished chats, routines that are due, and a nudge after a quiet spell"
+                NotificationChannel(
+                    REMINDER_CHANNEL_ID,
+                    context.getString(R.string.channel_reminders),
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = context.getString(R.string.channel_reminders_description)
                 }
             )
         }
@@ -91,7 +100,6 @@ class LocalNotifier(private val context: Context) {
         const val ACTION_OPEN_LOCAL_NOTIFICATION = "com.gotcha.ACTION_OPEN_LOCAL_NOTIFICATION"
         const val EXTRA_DRAFT_PROMPT = "com.gotcha.DRAFT_PROMPT"
         const val EXTRA_DRAFT_MODE = "com.gotcha.DRAFT_MODE"
-        private const val PUBLIC_TITLE = "Gotcha has a suggestion"
 
         internal fun notificationId(category: NotificationCategory): Int = 0x7100 + category.ordinal
 

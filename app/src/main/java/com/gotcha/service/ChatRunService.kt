@@ -16,6 +16,9 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.gotcha.R
+import com.gotcha.i18n.StringLookup
+import com.gotcha.i18n.stringLookup
 import com.gotcha.notifications.ChatCompletionNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -139,7 +142,6 @@ class ChatRunService : Service() {
         const val CHANNEL_ID = "gotcha_chat_running"
         const val ACTION_STOP_RUN = "com.gotcha.ACTION_STOP_CHAT_RUN"
         internal const val NOTIFICATION_ID = 0x4A77_E8
-        private const val PUBLIC_TITLE = "Gotcha is working on a task…"
 
         private val _running = MutableStateFlow<RunningChat?>(null)
 
@@ -245,17 +247,17 @@ class ChatRunService : Service() {
             stop()
         }
 
-        internal fun title(chat: RunningChat?): String {
-            val name = chat?.chatTitle?.takeIf { it.isNotBlank() } ?: return PUBLIC_TITLE
+        internal fun title(chat: RunningChat?, text: StringLookup): String {
+            val name = chat?.chatTitle?.takeIf { it.isNotBlank() } ?: return text(R.string.run_public_title)
             // A name already cut short with "…" doesn't need a second one.
-            return if (name.endsWith("…")) "Gotcha is working on “$name”" else "Gotcha is working on “$name”…"
+            return text(if (name.endsWith("…")) R.string.run_title_cut else R.string.run_title, name)
         }
 
         internal fun buildNotification(context: Context, chat: RunningChat?): Notification {
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(com.gotcha.R.drawable.ic_notification_running)
-                .setContentTitle(title(chat))
-                .setContentText("Tap to follow along. You can keep using your phone.")
+                .setContentTitle(title(chat, context.stringLookup()))
+                .setContentText(context.getString(R.string.run_body))
                 .setCategory(NotificationCompat.CATEGORY_PROGRESS)
                 .setProgress(0, 0, true)
                 .setOngoing(true)
@@ -266,10 +268,10 @@ class ChatRunService : Service() {
                 .setPublicVersion(
                     NotificationCompat.Builder(context, CHANNEL_ID)
                         .setSmallIcon(com.gotcha.R.drawable.ic_notification_running)
-                        .setContentTitle(PUBLIC_TITLE)
+                        .setContentTitle(context.getString(R.string.run_public_title))
                         .build()
                 )
-                .addAction(0, "Stop", stopIntent(context))
+                .addAction(0, context.getString(R.string.action_stop), stopIntent(context))
             chat?.let { builder.setContentIntent(openChatIntent(context, it.sessionId)) }
             return builder.build()
         }
@@ -299,9 +301,12 @@ class ChatRunService : Service() {
             val mgr = context.getSystemService(NotificationManager::class.java) ?: return
             if (mgr.getNotificationChannel(CHANNEL_ID) != null) return
             mgr.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Task in progress", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shown while Gotcha works on a task, so Android keeps it running " +
-                        "when you switch to another app"
+                NotificationChannel(
+                    CHANNEL_ID,
+                    context.getString(R.string.channel_run),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = context.getString(R.string.channel_run_description)
                     setShowBadge(false)
                 }
             )

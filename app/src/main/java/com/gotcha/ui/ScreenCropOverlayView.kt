@@ -14,6 +14,7 @@ import android.graphics.Shader
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.ColorUtils
+import com.gotcha.R
 import com.gotcha.service.AnnotatedEntity
 import com.gotcha.service.SmartActionDetector
 import com.gotcha.ui.theme.OverlaySkin
@@ -322,7 +323,7 @@ class ScreenCropOverlayView(
             frozen != null -> drawSelectionBox(canvas, frozen)
             else -> if (annotatedEntities.isEmpty()) {
                 canvas.drawText(
-                    "Draw around anything • tap to cancel",
+                    context.getString(R.string.crop_hint),
                     width / 2f,
                     height * 0.12f,
                     hintPaint

@@ -1,4 +1,4 @@
-package com.gotcha.ui
+package com.gotcha.i18n
 
 import android.content.Context
 import androidx.annotation.StringRes

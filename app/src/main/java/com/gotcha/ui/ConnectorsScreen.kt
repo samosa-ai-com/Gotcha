@@ -14,7 +14,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 
 /**
  * Top-level Connectors screen, reached from the drawer alongside Settings.
@@ -27,8 +29,8 @@ fun ConnectorsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Connectors") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("← Back") } }
+                title = { Text(stringResource(R.string.connectors_title)) },
+                navigationIcon = { TextButton(onClick = onBack) { Text(stringResource(R.string.action_back)) } }
             )
         }
     ) { padding ->
@@ -41,8 +43,7 @@ fun ConnectorsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Connect your accounts so the assistant can read and act on your mail, " +
-                    "calendars, tasks and notes.",
+                stringResource(R.string.connectors_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -40,6 +40,7 @@ import com.gotcha.R
 import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.data.Settings
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinAlertDialog
 import kotlinx.coroutines.launch
 

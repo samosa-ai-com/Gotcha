@@ -6,6 +6,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.i18n.stringLookup
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import com.gotcha.tools.AgentMode
 import org.junit.Assert.assertEquals
@@ -39,13 +40,17 @@ class LocalNotifierTest {
     fun `a tip opens a drafted chat and marks its inbox entry read`() {
         grant()
         val tip = DAILY_TIPS.single { it.id == "do_not_disturb" }
-        assertTrue(LocalNotifier(application).post(tipCandidate(tip, 0L, java.time.ZoneOffset.UTC), store))
+        assertTrue(
+            LocalNotifier(
+                application
+            ).post(tipCandidate(tip, 0L, java.time.ZoneOffset.UTC, application.stringLookup()), store)
+        )
 
         val notification = shadowOf(manager).allNotifications.single()
         assertEquals(LocalNotifier.TIP_CHANNEL_ID, notification.channelId)
-        assertEquals(tip.title, notification.extras.getString(NotificationCompat.EXTRA_TITLE))
+        assertEquals(application.getString(tip.title), notification.extras.getString(NotificationCompat.EXTRA_TITLE))
         val intent = shadowOf(notification.contentIntent).savedIntent
-        assertEquals(tip.prompt, intent.getStringExtra(LocalNotifier.EXTRA_DRAFT_PROMPT))
+        assertEquals(application.getString(tip.prompt), intent.getStringExtra(LocalNotifier.EXTRA_DRAFT_PROMPT))
         assertEquals(AgentMode.OPERATOR.name, intent.getStringExtra(LocalNotifier.EXTRA_DRAFT_MODE))
         assertEquals(store.entries().single().id, intent.getStringExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID))
     }
@@ -71,7 +76,7 @@ class LocalNotifierTest {
     @Test
     fun `nothing is posted or filed without the permission`() {
         shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        val tip = tipCandidate(DAILY_TIPS.first(), 0L, java.time.ZoneOffset.UTC)
+        val tip = tipCandidate(DAILY_TIPS.first(), 0L, java.time.ZoneOffset.UTC, application.stringLookup())
         assertFalse(LocalNotifier(application).post(tip, store))
         assertTrue(shadowOf(manager).allNotifications.isEmpty())
         assertTrue(store.entries().isEmpty())

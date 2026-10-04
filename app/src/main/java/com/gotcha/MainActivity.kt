@@ -48,6 +48,7 @@ import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.computeFeedbackStats
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.notifications.ChatCompletionNotifier
@@ -83,7 +84,6 @@ import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
-import com.gotcha.ui.stringLookup
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins

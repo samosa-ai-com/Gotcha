@@ -1108,4 +1108,121 @@
 
     <!-- Feature tour: finish -->
     <string name="tour_start_using">Start using Gotcha</string>
+
+    <!-- Share poster, connectors, crop, release notes -->
+    <string name="share_nothing_yet">Nothing to share yet.</string>
+    <string name="share_generate_failed">Could not generate the poster.</string>
+    <string name="share_subject">Gotcha just did this for me</string>
+    <string name="share_chooser_title">Share your Gotcha moment</string>
+    <string name="share_failed">Could not share: %1$s</string>
+    <string name="share_saved_to">Saved to %1$s</string>
+    <string name="share_save_failed">Could not save: %1$s</string>
+    <string name="connectors_title">Connectors</string>
+    <string name="connectors_intro">Connect your accounts so the assistant can read and act on your mail, calendars, tasks and notes.</string>
+    <string name="crop_hint">Draw around anything • tap to cancel</string>
+    <string name="release_notes_show_less">Show less</string>
+    <string name="release_notes_show_all">Show all release notes</string>
+
+    <!-- Daily tips -->
+    <string name="daily_tip_read_screen_title">Ask about your screen</string>
+    <string name="daily_tip_read_screen_body">Stuck on something? Gotcha can read your screen and explain it.</string>
+    <string name="daily_tip_read_screen_prompt">What\'s on my screen?</string>
+    <string name="daily_tip_catch_up_title">Catch up in seconds</string>
+    <string name="daily_tip_catch_up_body">Let Gotcha sum up your unread notifications.</string>
+    <string name="daily_tip_catch_up_prompt">Catch me up on my unread notifications</string>
+    <string name="daily_tip_big_files_title">Free up some space</string>
+    <string name="daily_tip_big_files_body">Gotcha can find your largest files and tell you what\'s safe to delete.</string>
+    <string name="daily_tip_big_files_prompt">Find the largest files in my Downloads folder and tell me what\'s safe to delete</string>
+    <string name="daily_tip_summarise_pdf_title">Summarise a PDF</string>
+    <string name="daily_tip_summarise_pdf_body">No time to read it? Gotcha can summarise your latest PDF.</string>
+    <string name="daily_tip_summarise_pdf_prompt">Read the most recent PDF in my Downloads and summarise it</string>
+    <string name="daily_tip_calendar_today_title">Plan your day</string>
+    <string name="daily_tip_calendar_today_body">Ask Gotcha what\'s on your calendar today.</string>
+    <string name="daily_tip_calendar_today_prompt">What\'s on my calendar today?</string>
+    <string name="daily_tip_calendar_add_title">Add to your calendar</string>
+    <string name="daily_tip_calendar_add_body">Tell Gotcha about a plan and it goes straight into your calendar.</string>
+    <string name="daily_tip_calendar_add_prompt">Add lunch with … on Friday at 1pm to my calendar</string>
+    <string name="daily_tip_set_alarm_title">Set an alarm by asking</string>
+    <string name="daily_tip_set_alarm_body">Gotcha can set alarms and timers for you.</string>
+    <string name="daily_tip_set_alarm_prompt">Set an alarm for 7am tomorrow</string>
+    <string name="daily_tip_send_whatsapp_title">Send a WhatsApp hands-free</string>
+    <string name="daily_tip_send_whatsapp_body">Gotcha can open WhatsApp and send the message for you.</string>
+    <string name="daily_tip_send_whatsapp_prompt">Send a WhatsApp to … saying …</string>
+    <string name="daily_tip_send_sms_title">Running late?</string>
+    <string name="daily_tip_send_sms_body">Gotcha can text someone for you.</string>
+    <string name="daily_tip_send_sms_prompt">Text … that I\'m running 10 minutes late</string>
+    <string name="daily_tip_recent_sms_title">Skim your messages</string>
+    <string name="daily_tip_recent_sms_body">Gotcha can summarise your latest texts.</string>
+    <string name="daily_tip_recent_sms_prompt">Summarise my latest text messages</string>
+    <string name="daily_tip_missed_calls_title">Who called?</string>
+    <string name="daily_tip_missed_calls_body">Ask Gotcha to go through your call log.</string>
+    <string name="daily_tip_missed_calls_prompt">Who called me today?</string>
+    <string name="daily_tip_battery_title">What\'s draining your battery?</string>
+    <string name="daily_tip_battery_body">Gotcha can check your battery and which apps use it most.</string>
+    <string name="daily_tip_battery_prompt">Check my battery and tell me which apps have been using the most</string>
+    <string name="daily_tip_screen_time_title">Check your screen time</string>
+    <string name="daily_tip_screen_time_body">Ask Gotcha how long you spent on your phone, and where.</string>
+    <string name="daily_tip_screen_time_prompt">How much time did I spend on my phone today, and on which apps?</string>
+    <string name="daily_tip_web_search_title">Research anything</string>
+    <string name="daily_tip_web_search_body">Gotcha can search the web and sum up what it finds.</string>
+    <string name="daily_tip_web_search_prompt">Search the web for … and summarise what you find</string>
+    <string name="daily_tip_do_not_disturb_title">Need to focus?</string>
+    <string name="daily_tip_do_not_disturb_body">Gotcha can turn on Do Not Disturb for you.</string>
+    <string name="daily_tip_do_not_disturb_prompt">Turn on Do Not Disturb for the next hour</string>
+    <string name="daily_tip_wifi_title">Change settings by asking</string>
+    <string name="daily_tip_wifi_body">Gotcha can find and flip settings for you, like Wi-Fi.</string>
+    <string name="daily_tip_wifi_prompt">Open settings and turn on Wi-Fi</string>
+    <string name="daily_tip_podcast_title">Listen instead of reading</string>
+    <string name="daily_tip_podcast_body">Gotcha can turn a document into a short podcast.</string>
+    <string name="daily_tip_podcast_prompt">Turn the most recent PDF in my Downloads into a short podcast</string>
+
+    <!-- Local notifications -->
+    <string name="local_unfinished_generic">A chat was left unfinished. Tap to pick it up.</string>
+    <string name="local_unfinished_asked">Gotcha asked you something in “%1$s”. Tap to answer.</string>
+    <string name="local_unfinished_stopped">“%1$s” stopped before it was done. Tap to pick it up.</string>
+    <string name="local_unfinished_title_asked">Gotcha is waiting for you</string>
+    <string name="local_unfinished_title">Finish what you started</string>
+    <string name="local_routine_title">Time for your usual?</string>
+    <string name="local_routine_body">You often ask: “%1$s”. Tap to ask again.</string>
+    <string name="local_routine_body_generic">One of your regular requests may be due. Tap to see it.</string>
+    <string name="local_inactive_title_recent">Pick up where you left off</string>
+    <string name="local_inactive_title">Anything Gotcha can do for you?</string>
+    <string name="local_inactive_body_recent">Your last chat was “%1$s”. Tap to open it.</string>
+    <string name="local_inactive_body">Ask Gotcha to handle something on your phone. Tap to open.</string>
+
+    <!-- Notifications: channels and titles -->
+    <string name="channel_attention">Waiting for your answer</string>
+    <string name="channel_attention_description">When Gotcha has paused a task to ask you something while you are in another app</string>
+    <string name="attention_public_title">Gotcha is waiting for you</string>
+    <string name="attention_question_title">Gotcha has a question</string>
+    <string name="attention_confirmation_title">Gotcha is waiting for your OK</string>
+    <string name="attention_question_body">Your task is paused until you answer. Tap to open it.</string>
+    <string name="attention_confirmation_body">Your task is paused until you allow or deny its next step. Tap to open it.</string>
+    <string name="channel_completion">Task finished</string>
+    <string name="channel_completion_description">When a chat task finishes while you are in another app</string>
+    <string name="completion_public_title">Gotcha finished a task</string>
+    <string name="completion_untitled_chat">Chat</string>
+    <string name="completion_done_title">Done: %1$s</string>
+    <string name="completion_failed_title">Failed: %1$s</string>
+    <string name="completion_stopped_title">Stopped: %1$s</string>
+    <string name="completion_done_anonymous">Task finished</string>
+    <string name="completion_failed_anonymous">Task failed</string>
+    <string name="completion_stopped_anonymous">Task stopped</string>
+    <string name="completion_done_body">Gotcha finished your task. Tap to see the reply.</string>
+    <string name="completion_failed_body">Gotcha couldn\'t finish your task. Tap to see what happened.</string>
+    <string name="completion_stopped_body">The task was stopped. Tap to open the chat.</string>
+    <string name="channel_daily_tips">Daily tips</string>
+    <string name="channel_daily_tips_description">One thing to try with Gotcha each day</string>
+    <string name="channel_reminders">Reminders</string>
+    <string name="channel_reminders_description">Unfinished chats, routines that are due, and a nudge after a quiet spell</string>
+    <string name="local_public_title">Gotcha has a suggestion</string>
+    <string name="channel_server">Server messages</string>
+    <string name="channel_server_description">Updates, tips, and maintenance notices from Gotcha</string>
+    <string name="run_public_title">Gotcha is working on a task…</string>
+    <string name="run_title">Gotcha is working on “%1$s”…</string>
+    <string name="run_title_cut">Gotcha is working on “%1$s”</string>
+    <string name="run_body">Tap to follow along. You can keep using your phone.</string>
+    <string name="action_stop">Stop</string>
+    <string name="channel_run">Task in progress</string>
+    <string name="channel_run_description">Shown while Gotcha works on a task, so Android keeps it running when you switch to another app</string>
 </resources>

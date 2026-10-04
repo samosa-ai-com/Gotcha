@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.gotcha.R
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
+import com.gotcha.i18n.StringLookup
 import com.gotcha.tools.AgentMode
 import java.time.Instant
 import java.time.LocalDate
@@ -146,13 +147,14 @@ internal fun behaviorCandidates(
     inactivityDays: Int,
     mention: Boolean,
     now: Long,
-    zone: ZoneId
+    zone: ZoneId,
+    text: StringLookup
 ): List<LocalCandidate> {
     val usable = chats.filterNot { it.sensitive }
     return listOfNotNull(
-        unfinishedChat(usable, mention, now),
-        dueRoutine(usable, mention, now, zone),
-        inactivityReminder(usable, lastOpenedAt, inactivityDays, mention, now)
+        unfinishedChat(usable, mention, now, text),
+        dueRoutine(usable, mention, now, zone, text),
+        inactivityReminder(usable, lastOpenedAt, inactivityDays, mention, now, text)
     )
 }
 
@@ -161,7 +163,12 @@ internal fun behaviorCandidates(
  * question to the user — between [UNFINISHED_MIN_AGE_MS] and
  * [UNFINISHED_MAX_AGE_MS] ago.
  */
-internal fun unfinishedChat(chats: List<ChatDigest>, mention: Boolean, now: Long): LocalCandidate? {
+internal fun unfinishedChat(
+    chats: List<ChatDigest>,
+    mention: Boolean,
+    now: Long,
+    text: StringLookup
+): LocalCandidate? {
     val (chat, run) = chats
         .mapNotNull { chat -> chat.runs.maxByOrNull { it.endedAt }?.let { chat to it } }
         .filter { (_, run) -> now - run.endedAt in UNFINISHED_MIN_AGE_MS..UNFINISHED_MAX_AGE_MS }
@@ -170,14 +177,14 @@ internal fun unfinishedChat(chats: List<ChatDigest>, mention: Boolean, now: Long
         ?: return null
     val asked = run.succeeded
     val body = when {
-        !mention -> "A chat was left unfinished. Tap to pick it up."
-        asked -> "Gotcha asked you something in “${chat.title}”. Tap to answer."
-        else -> "“${chat.title}” stopped before it was done. Tap to pick it up."
+        !mention -> text(R.string.local_unfinished_generic)
+        asked -> text(R.string.local_unfinished_asked, chat.title)
+        else -> text(R.string.local_unfinished_stopped, chat.title)
     }
     return LocalCandidate(
         category = NotificationCategory.UNFINISHED_CHAT,
         dedupKey = "unfinished:${chat.id}:${run.endedAt}",
-        title = if (asked) "Gotcha is waiting for you" else "Finish what you started",
+        title = text(if (asked) R.string.local_unfinished_title_asked else R.string.local_unfinished_title),
         body = body,
         target = NotificationTarget.Chat(chat.id)
     )
@@ -189,7 +196,13 @@ internal fun unfinishedChat(chats: List<ChatDigest>, mention: Boolean, now: Long
  * last time as usually do (the median gap), but no more than two beyond it —
  * a routine long abandoned is not nagged about.
  */
-internal fun dueRoutine(chats: List<ChatDigest>, mention: Boolean, now: Long, zone: ZoneId): LocalCandidate? {
+internal fun dueRoutine(
+    chats: List<ChatDigest>,
+    mention: Boolean,
+    now: Long,
+    zone: ZoneId,
+    text: StringLookup
+): LocalCandidate? {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     fun day(millis: Long): LocalDate = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
     val runs = chats.flatMap { it.runs }.filter { it.succeeded && routineKey(it.userPrompt).isNotEmpty() }
@@ -216,11 +229,11 @@ internal fun dueRoutine(chats: List<ChatDigest>, mention: Boolean, now: Long, zo
             LocalCandidate(
                 category = NotificationCategory.ROUTINE,
                 dedupKey = "routine:${key.hashCode()}:${day(latest.endedAt)}",
-                title = "Time for your usual?",
+                title = text(R.string.local_routine_title),
                 body = if (mention) {
-                    "You often ask: “$preview”. Tap to ask again."
+                    text(R.string.local_routine_body, preview)
                 } else {
-                    "One of your regular requests may be due. Tap to see it."
+                    text(R.string.local_routine_body_generic)
                 },
                 target = NotificationTarget.Draft(
                     prompt = prompt,
@@ -260,7 +273,8 @@ internal fun inactivityReminder(
     lastOpenedAt: Long,
     inactivityDays: Int,
     mention: Boolean,
-    now: Long
+    now: Long,
+    text: StringLookup
 ): LocalCandidate? {
     if (lastOpenedAt <= 0L || now - lastOpenedAt < inactivityDays * DAY_MS) return null
     val recent = chats
@@ -271,23 +285,23 @@ internal fun inactivityReminder(
     return LocalCandidate(
         category = NotificationCategory.INACTIVITY,
         dedupKey = "inactive:$lastOpenedAt",
-        title = if (recent != null) "Pick up where you left off" else "Anything Gotcha can do for you?",
+        title = text(if (recent != null) R.string.local_inactive_title_recent else R.string.local_inactive_title),
         body = if (recent != null) {
-            "Your last chat was “${recent.title}”. Tap to open it."
+            text(R.string.local_inactive_body_recent, recent.title)
         } else {
-            "Ask Gotcha to handle something on your phone. Tap to open."
+            text(R.string.local_inactive_body)
         },
         target = recent?.let { NotificationTarget.Chat(it.id) } ?: NotificationTarget.Home
     )
 }
 
 /** The daily tip as a candidate: at most one a day. */
-internal fun tipCandidate(tip: DailyTip, now: Long, zone: ZoneId): LocalCandidate = LocalCandidate(
+internal fun tipCandidate(tip: DailyTip, now: Long, zone: ZoneId, text: StringLookup): LocalCandidate = LocalCandidate(
     category = NotificationCategory.DAILY_TIP,
     dedupKey = "tip:${Instant.ofEpochMilli(now).atZone(zone).toLocalDate()}",
-    title = tip.title,
-    body = tip.body,
-    target = NotificationTarget.Draft(tip.prompt, tip.agent)
+    title = text(tip.title),
+    body = text(tip.body),
+    target = NotificationTarget.Draft(text(tip.prompt), tip.agent)
 )
 
 /**

@@ -8,6 +8,7 @@ import android.content.Intent
 import android.util.Log
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -172,7 +173,8 @@ internal suspend fun runLocalNotificationCheck(
                     settings.inactivityDays,
                     settings.notificationsMentionChats,
                     now,
-                    zone
+                    zone,
+                    context.stringLookup()
                 )
             )
         }
@@ -181,7 +183,7 @@ internal suspend fun runLocalNotificationCheck(
         if (includeTip && !usedToday(lastRun, now, zone)) {
             val usedTools = chats.flatMap { c -> c.runs.flatMap { run -> run.toolCalls.map { it.name } } }
             tip = pickDailyTip(DAILY_TIPS, recentTips(repo), usedTools.toSet())
-            tip?.let { add(tipCandidate(it, now, zone)) }
+            tip?.let { add(tipCandidate(it, now, zone, context.stringLookup())) }
         }
     }
 

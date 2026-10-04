@@ -8,6 +8,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.gotcha.R
+import com.gotcha.i18n.StringLookup
 import com.gotcha.ui.theme.SkinAlertDialog
 import android.provider.Settings as AndroidSettings
 

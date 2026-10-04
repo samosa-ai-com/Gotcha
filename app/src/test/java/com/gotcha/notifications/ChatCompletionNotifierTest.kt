@@ -7,6 +7,7 @@ import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.R
 import com.gotcha.data.CompletionPreview
+import com.gotcha.i18n.stringLookup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -72,10 +73,22 @@ class ChatCompletionNotifierTest {
 
     @Test
     fun `title says how the run ended`() {
-        assertEquals("Done: Chat", ChatCompletionNotifier.notificationTitle("Chat", RunOutcome.DONE))
-        assertEquals("Failed: Chat", ChatCompletionNotifier.notificationTitle("Chat", RunOutcome.FAILED))
-        assertEquals("Stopped: Chat", ChatCompletionNotifier.notificationTitle("Chat", RunOutcome.STOPPED))
-        assertEquals("Done: Chat", ChatCompletionNotifier.notificationTitle(" ", RunOutcome.DONE))
+        assertEquals(
+            "Done: Chat",
+            ChatCompletionNotifier.notificationTitle("Chat", RunOutcome.DONE, application.stringLookup())
+        )
+        assertEquals(
+            "Failed: Chat",
+            ChatCompletionNotifier.notificationTitle("Chat", RunOutcome.FAILED, application.stringLookup())
+        )
+        assertEquals(
+            "Stopped: Chat",
+            ChatCompletionNotifier.notificationTitle("Chat", RunOutcome.STOPPED, application.stringLookup())
+        )
+        assertEquals(
+            "Done: Chat",
+            ChatCompletionNotifier.notificationTitle(" ", RunOutcome.DONE, application.stringLookup())
+        )
     }
 
     @Test
@@ -111,7 +124,7 @@ class ChatCompletionNotifierTest {
         notifier.notify("s1", "Chat", RunOutcome.FAILED, "secret reply", CompletionPreview.NONE)
 
         val text = posted().single().extras.getCharSequence(NotificationCompat.EXTRA_TEXT).toString()
-        assertEquals(ChatCompletionNotifier.defaultBody(RunOutcome.FAILED), text)
+        assertEquals(application.getString(ChatCompletionNotifier.defaultBody(RunOutcome.FAILED)), text)
     }
 
     @Test
@@ -123,7 +136,10 @@ class ChatCompletionNotifierTest {
         val notification = posted().single()
         assertEquals(R.drawable.ic_notification_failed, notification.smallIcon.resId)
         assertEquals(R.drawable.ic_notification_failed, notification.publicVersion.smallIcon.resId)
-        assertEquals("Gotcha finished a task", notification.publicVersion.extras.getString(NotificationCompat.EXTRA_TITLE))
+        assertEquals(
+            "Gotcha finished a task",
+            notification.publicVersion.extras.getString(NotificationCompat.EXTRA_TITLE)
+        )
     }
 
     @Test

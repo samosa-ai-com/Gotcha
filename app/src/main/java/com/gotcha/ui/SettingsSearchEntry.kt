@@ -2,6 +2,7 @@ package com.gotcha.ui
 
 import androidx.annotation.StringRes
 import com.gotcha.R
+import com.gotcha.i18n.StringLookup
 
 /**
  * The search index behind the field at the top of the settings home list.

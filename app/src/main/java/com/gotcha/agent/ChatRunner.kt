@@ -12,6 +12,7 @@ import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.DocumentPart
 import com.gotcha.llm.LLMClient
@@ -1035,14 +1036,14 @@ class ChatRunner(private val app: Application) : AgentEvents {
         // at all, get a notification that says only that a task finished.
         val named = mayNameChat(sessionId)
         val title = if (named) {
-            ChatCompletionNotifier.notificationTitle(engine.currentTitle(), outcome)
+            ChatCompletionNotifier.notificationTitle(engine.currentTitle(), outcome, app.stringLookup())
         } else {
-            ChatCompletionNotifier.anonymousTitle(outcome)
+            app.getString(ChatCompletionNotifier.anonymousTitle(outcome))
         }
         val entryId = localNotificationStore.addEntry(
             category = NotificationCategory.TASK_FINISHED,
             title = title,
-            body = ChatCompletionNotifier.defaultBody(outcome),
+            body = app.getString(ChatCompletionNotifier.defaultBody(outcome)),
             target = NotificationTarget.Chat(sessionId)
         )
         return completionNotifier.build(

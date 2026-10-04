@@ -74,6 +74,7 @@ import com.gotcha.R
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
+import com.gotcha.i18n.StringLookup
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch

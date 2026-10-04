@@ -1,18 +1,27 @@
 package com.gotcha.notifications
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
+import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /** The pure rules behind Gotcha's proactive notifications (issue #100). */
+@RunWith(RobolectricTestRunner::class)
 class LocalNotificationsTest {
+
+    /** The notification text, read from Robolectric's (English) resources. */
+    private val text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     private val zone = ZoneId.of("Europe/Berlin")
     private val now = at(2026, 9, 24, 12)
@@ -117,7 +126,12 @@ class LocalNotificationsTest {
 
     @Test
     fun `a failed run from a few hours ago is unfinished`() {
-        val c = unfinishedChat(listOf(chat("a", run(now - 3 * HOUR_MS, succeeded = false))), mention = true, now)!!
+        val c = unfinishedChat(
+            listOf(chat("a", run(now - 3 * HOUR_MS, succeeded = false))),
+            mention = true,
+            now,
+            text
+        )!!
         assertEquals(NotificationCategory.UNFINISHED_CHAT, c.category)
         assertEquals(NotificationTarget.Chat("a"), c.target)
         assertTrue(c.body.contains("Chat a"))
@@ -125,23 +139,28 @@ class LocalNotificationsTest {
 
     @Test
     fun `a reply ending on a question is unfinished`() {
-        val c = unfinishedChat(listOf(chat("a", run(now - 3 * HOUR_MS, reply = "Which Priya?"))), true, now)!!
+        val c = unfinishedChat(listOf(chat("a", run(now - 3 * HOUR_MS, reply = "Which Priya?"))), true, now, text)!!
         assertEquals("Gotcha is waiting for you", c.title)
     }
 
     @Test
     fun `too fresh, too old, finished or superseded is not unfinished`() {
-        assertNull(unfinishedChat(listOf(chat("a", run(now - HOUR_MS, succeeded = false))), true, now))
-        assertNull(unfinishedChat(listOf(chat("a", run(now - 4 * DAY_MS, succeeded = false))), true, now))
-        assertNull(unfinishedChat(listOf(chat("a", run(now - 3 * HOUR_MS))), true, now))
+        assertNull(unfinishedChat(listOf(chat("a", run(now - HOUR_MS, succeeded = false))), true, now, text))
+        assertNull(unfinishedChat(listOf(chat("a", run(now - 4 * DAY_MS, succeeded = false))), true, now, text))
+        assertNull(unfinishedChat(listOf(chat("a", run(now - 3 * HOUR_MS))), true, now, text))
         // Only the chat's last run counts: a later success finished it.
         val later = chat("a", run(now - 5 * HOUR_MS, succeeded = false), run(now - 3 * HOUR_MS))
-        assertNull(unfinishedChat(listOf(later), true, now))
+        assertNull(unfinishedChat(listOf(later), true, now, text))
     }
 
     @Test
     fun `without mentions the text names no chat`() {
-        val c = unfinishedChat(listOf(chat("a", run(now - 3 * HOUR_MS, succeeded = false))), mention = false, now)!!
+        val c = unfinishedChat(
+            listOf(chat("a", run(now - 3 * HOUR_MS, succeeded = false))),
+            mention = false,
+            now,
+            text
+        )!!
         assertFalse(c.body.contains("Chat a"))
         assertEquals(NotificationTarget.Chat("a"), c.target)
     }
@@ -154,7 +173,7 @@ class LocalNotificationsTest {
     @Test
     fun `a weekly request is due a week after the last`() {
         val runs = weekly("Summarise my unread emails from 9 to 5", listOf(1, 2, 3), mode = "OPERATOR")
-        val c = dueRoutine(listOf(chat("a", *runs.toTypedArray())), mention = true, now, zone)!!
+        val c = dueRoutine(listOf(chat("a", *runs.toTypedArray())), mention = true, now, zone, text)!!
         assertEquals(NotificationCategory.ROUTINE, c.category)
         assertEquals(
             NotificationTarget.Draft("Summarise my unread emails from 9 to 5", AgentMode.OPERATOR),
@@ -170,18 +189,18 @@ class LocalNotificationsTest {
             run(now - 14 * DAY_MS, prompt = "set an alarm for 6am!"),
             run(now - 21 * DAY_MS, prompt = "Set an alarm for 7:30am")
         )
-        assertTrue(dueRoutine(listOf(chat("a", *runs.toTypedArray())), true, now, zone) != null)
+        assertTrue(dueRoutine(listOf(chat("a", *runs.toTypedArray())), true, now, zone, text) != null)
     }
 
     @Test
     fun `not due early, not nagged when long abandoned, not from two days`() {
         // Weekly, but the last time was only four days ago.
         val early = listOf(4, 11, 18).map { run(now - it * DAY_MS, prompt = "Summarise my unread emails") }
-        assertNull(dueRoutine(listOf(chat("a", *early.toTypedArray())), true, now, zone))
+        assertNull(dueRoutine(listOf(chat("a", *early.toTypedArray())), true, now, zone, text))
         val stale = weekly("Summarise my unread emails", listOf(4, 5, 6))
-        assertNull(dueRoutine(listOf(chat("a", *stale.toTypedArray())), true, now, zone))
+        assertNull(dueRoutine(listOf(chat("a", *stale.toTypedArray())), true, now, zone, text))
         val twice = weekly("Summarise my unread emails", listOf(1, 2))
-        assertNull(dueRoutine(listOf(chat("a", *twice.toTypedArray())), true, now, zone))
+        assertNull(dueRoutine(listOf(chat("a", *twice.toTypedArray())), true, now, zone, text))
     }
 
     @Test
@@ -195,17 +214,17 @@ class LocalNotificationsTest {
     @Test
     fun `a reminder after the chosen number of days, once per spell`() {
         val opened = now - 5 * DAY_MS
-        val c = inactivityReminder(listOf(chat("a", run(opened))), opened, 4, mention = true, now)!!
+        val c = inactivityReminder(listOf(chat("a", run(opened))), opened, 4, mention = true, now, text)!!
         assertEquals("inactive:$opened", c.dedupKey)
         assertEquals(NotificationTarget.Chat("a"), c.target)
-        assertNull(inactivityReminder(emptyList(), now - 3 * DAY_MS, 4, true, now))
-        assertNull(inactivityReminder(emptyList(), 0L, 4, true, now))
+        assertNull(inactivityReminder(emptyList(), now - 3 * DAY_MS, 4, true, now, text))
+        assertNull(inactivityReminder(emptyList(), 0L, 4, true, now, text))
     }
 
     @Test
     fun `without mentions the reminder goes home`() {
         val opened = now - 5 * DAY_MS
-        val c = inactivityReminder(listOf(chat("a", run(opened))), opened, 4, mention = false, now)!!
+        val c = inactivityReminder(listOf(chat("a", run(opened))), opened, 4, mention = false, now, text)!!
         assertEquals(NotificationTarget.Home, c.target)
         assertFalse(c.body.contains("Chat a"))
     }
@@ -219,7 +238,7 @@ class LocalNotificationsTest {
             chat("u", run(now - 3 * HOUR_MS, succeeded = false)),
             chat("r", *weekly("Summarise my unread emails", listOf(1, 2, 3)).toTypedArray())
         )
-        val all = behaviorCandidates(chats, opened, 4, true, now, zone)
+        val all = behaviorCandidates(chats, opened, 4, true, now, zone, text)
         assertEquals(
             listOf(NotificationCategory.UNFINISHED_CHAT, NotificationCategory.ROUTINE, NotificationCategory.INACTIVITY),
             all.map { it.category }
@@ -233,7 +252,7 @@ class LocalNotificationsTest {
             chat("u", run(now - 3 * HOUR_MS, succeeded = false), sensitive = true),
             chat("r", *weekly("Summarise my unread emails", listOf(1, 2, 3)).toTypedArray(), sensitive = true)
         )
-        val all = behaviorCandidates(chats, opened, 4, true, now, zone)
+        val all = behaviorCandidates(chats, opened, 4, true, now, zone, text)
         assertEquals(listOf(NotificationCategory.INACTIVITY), all.map { it.category })
         assertEquals(NotificationTarget.Home, all.single().target)
     }

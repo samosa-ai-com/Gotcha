@@ -12,7 +12,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.halilibo.richtext.ui.RichTextStyle
 
 private val LIST_ITEM = Regex("^[-*+] ")
@@ -61,7 +63,9 @@ fun ReleaseNotes(markdown: String, modifier: Modifier = Modifier) {
         }
         if (headlines != null) {
             TextButton(onClick = { expanded = !expanded }) {
-                Text(if (expanded) "Show less" else "Show all release notes")
+                Text(
+                    stringResource(if (expanded) R.string.release_notes_show_less else R.string.release_notes_show_all)
+                )
             }
         }
     }

@@ -80,7 +80,7 @@ class AttentionNotifierTest {
         )
 
         val notification = posted().single()
-        assertEquals(AttentionNotifier.defaultBody(AttentionKind.QUESTION), text(notification))
+        assertEquals(application.getString(AttentionNotifier.defaultBody(AttentionKind.QUESTION)), text(notification))
         assertNull(notification.extras.getString(NotificationCompat.EXTRA_SUB_TEXT))
     }
 
@@ -88,7 +88,10 @@ class AttentionNotifierTest {
     fun `a confirmation never shows the actions, only that it is waiting`() {
         notifier.notify("s1", AttentionKind.CONFIRMATION, "Chat", "Delete 3 files", CompletionPreview.FULL)
 
-        assertEquals(AttentionNotifier.defaultBody(AttentionKind.CONFIRMATION), text(posted().single()))
+        assertEquals(
+            application.getString(AttentionNotifier.defaultBody(AttentionKind.CONFIRMATION)),
+            text(posted().single())
+        )
     }
 
     @Test

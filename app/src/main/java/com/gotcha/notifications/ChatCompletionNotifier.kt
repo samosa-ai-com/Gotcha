@@ -9,11 +9,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.gotcha.R
 import com.gotcha.data.CompletionPreview
+import com.gotcha.i18n.StringLookup
+import com.gotcha.i18n.stringLookup
 import com.gotcha.service.ChatRunService
 
 /** How a chat run ended, as the task-finished notification reports it. */
@@ -79,9 +82,13 @@ class ChatCompletionNotifier(private val context: Context) {
         if (!canPost()) return null
         ensureChannel()
         val notifyId = notificationId(sessionId)
-        val title = if (named) notificationTitle(chatTitle, outcome) else anonymousTitle(outcome)
+        val title = if (named) {
+            notificationTitle(chatTitle, outcome, context.stringLookup())
+        } else {
+            context.getString(anonymousTitle(outcome))
+        }
         val shown = if (named) preview else CompletionPreview.NONE
-        val body = previewText(reply, shown) ?: defaultBody(outcome)
+        val body = previewText(reply, shown) ?: context.getString(defaultBody(outcome))
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(smallIcon(outcome))
@@ -93,7 +100,7 @@ class ChatCompletionNotifier(private val context: Context) {
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(smallIcon(outcome))
-                    .setContentTitle(PUBLIC_TITLE)
+                    .setContentTitle(context.getString(R.string.completion_public_title))
                     .build()
             )
             .setAutoCancel(true)
@@ -133,8 +140,12 @@ class ChatCompletionNotifier(private val context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
         if (mgr.getNotificationChannel(CHANNEL_ID) != null) return
         mgr.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Task finished", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "When a chat task finishes while you are in another app"
+            NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.channel_completion),
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = context.getString(R.string.channel_completion_description)
             }
         )
     }
@@ -143,7 +154,6 @@ class ChatCompletionNotifier(private val context: Context) {
         const val CHANNEL_ID = "gotcha_chat_completion"
         const val ACTION_OPEN_CHAT_SESSION = "com.gotcha.ACTION_OPEN_CHAT_SESSION"
         const val EXTRA_OPEN_SESSION_ID = "com.gotcha.OPEN_SESSION_ID"
-        private const val PUBLIC_TITLE = "Gotcha finished a task"
         private const val SHORT_PREVIEW_CHARS = 140
 
         /**
@@ -152,12 +162,12 @@ class ChatCompletionNotifier(private val context: Context) {
          */
         internal fun notificationId(sessionId: String): Int = "chat:$sessionId".hashCode() and 0x7FFF_FFFF
 
-        internal fun notificationTitle(chatTitle: String, outcome: RunOutcome): String {
-            val chat = chatTitle.ifBlank { "Chat" }
+        internal fun notificationTitle(chatTitle: String, outcome: RunOutcome, text: StringLookup): String {
+            val chat = chatTitle.ifBlank { text(R.string.completion_untitled_chat) }
             return when (outcome) {
-                RunOutcome.DONE -> "Done: $chat"
-                RunOutcome.FAILED -> "Failed: $chat"
-                RunOutcome.STOPPED -> "Stopped: $chat"
+                RunOutcome.DONE -> text(R.string.completion_done_title, chat)
+                RunOutcome.FAILED -> text(R.string.completion_failed_title, chat)
+                RunOutcome.STOPPED -> text(R.string.completion_stopped_title, chat)
             }
         }
 
@@ -169,16 +179,18 @@ class ChatCompletionNotifier(private val context: Context) {
         }
 
         /** The title when the chat may not be named. */
-        internal fun anonymousTitle(outcome: RunOutcome): String = when (outcome) {
-            RunOutcome.DONE -> "Task finished"
-            RunOutcome.FAILED -> "Task failed"
-            RunOutcome.STOPPED -> "Task stopped"
+        @StringRes
+        internal fun anonymousTitle(outcome: RunOutcome): Int = when (outcome) {
+            RunOutcome.DONE -> R.string.completion_done_anonymous
+            RunOutcome.FAILED -> R.string.completion_failed_anonymous
+            RunOutcome.STOPPED -> R.string.completion_stopped_anonymous
         }
 
-        internal fun defaultBody(outcome: RunOutcome): String = when (outcome) {
-            RunOutcome.DONE -> "Gotcha finished your task. Tap to see the reply."
-            RunOutcome.FAILED -> "Gotcha couldn't finish your task. Tap to see what happened."
-            RunOutcome.STOPPED -> "The task was stopped. Tap to open the chat."
+        @StringRes
+        internal fun defaultBody(outcome: RunOutcome): Int = when (outcome) {
+            RunOutcome.DONE -> R.string.completion_done_body
+            RunOutcome.FAILED -> R.string.completion_failed_body
+            RunOutcome.STOPPED -> R.string.completion_stopped_body
         }
 
         /**

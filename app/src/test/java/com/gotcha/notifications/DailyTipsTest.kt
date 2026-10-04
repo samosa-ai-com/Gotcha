@@ -22,7 +22,7 @@ class DailyTipsTest {
         ZonedDateTime.of(y, mo, d, h, mi, 0, 0, zone).toInstant().toEpochMilli()
 
     private fun tip(id: String, vararg tools: String) =
-        DailyTip(id = id, title = id, body = id, prompt = id, tools = tools.toSet())
+        DailyTip(id = id, title = 0, body = 0, prompt = 0, tools = tools.toSet())
 
     // ---- catalog ----
 
@@ -44,7 +44,7 @@ class DailyTipsTest {
         val known = ToolDefinitions.all.map { it.function.name }.toSet()
         DAILY_TIPS.forEach { tip ->
             val texts = listOf(tip.title, tip.body, tip.prompt)
-            assertTrue("Blank text in ${tip.id}", texts.all { it.isNotBlank() })
+            assertTrue("Missing text in ${tip.id}", texts.all { it != 0 })
             assertTrue("${tip.id} lists no tools", tip.tools.isNotEmpty())
             tip.tools.forEach { assertTrue("${tip.id} names unknown tool $it", it in known) }
         }

@@ -7,8 +7,8 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.R
+import com.gotcha.i18n.stringLookup
 import com.gotcha.notifications.ChatCompletionNotifier
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -27,6 +27,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 
 /** The keep-alive service for a chat run (issue #105). */
 @RunWith(RobolectricTestRunner::class)
@@ -89,7 +90,10 @@ class ChatRunServiceTest {
 
     @Test
     fun `a chat that may not be named is not`() {
-        assertEquals("Gotcha is working on a task…", ChatRunService.title(chat.copy(chatTitle = null)))
+        assertEquals(
+            "Gotcha is working on a task…",
+            ChatRunService.title(chat.copy(chatTitle = null), application.stringLookup())
+        )
     }
 
     @Test
@@ -210,7 +214,9 @@ class ChatRunServiceTest {
 
         assertEquals(
             "Done: Plan my trip",
-            posted(ChatCompletionNotifier.notificationId("session-1"))?.extras?.getString(NotificationCompat.EXTRA_TITLE)
+            posted(
+                ChatCompletionNotifier.notificationId("session-1")
+            )?.extras?.getString(NotificationCompat.EXTRA_TITLE)
         )
     }
 
@@ -222,7 +228,9 @@ class ChatRunServiceTest {
 
         assertEquals(
             "Failed: Plan my trip",
-            posted(ChatCompletionNotifier.notificationId("session-1"))?.extras?.getString(NotificationCompat.EXTRA_TITLE)
+            posted(
+                ChatCompletionNotifier.notificationId("session-1")
+            )?.extras?.getString(NotificationCompat.EXTRA_TITLE)
         )
         assertNull(ChatRunService.running.value)
     }
@@ -240,9 +248,14 @@ class ChatRunServiceTest {
 
         assertEquals(
             "Done: Plan my trip",
-            posted(ChatCompletionNotifier.notificationId("session-1"))?.extras?.getString(NotificationCompat.EXTRA_TITLE)
+            posted(
+                ChatCompletionNotifier.notificationId("session-1")
+            )?.extras?.getString(NotificationCompat.EXTRA_TITLE)
         )
-        assertEquals(ChatCompletionNotifier.notificationId("session-2"), shadowOf(controller.get()).lastForegroundNotificationId)
+        assertEquals(
+            ChatCompletionNotifier.notificationId("session-2"),
+            shadowOf(controller.get()).lastForegroundNotificationId
+        )
         assertFalse(shadowOf(controller.get()).isStoppedBySelf)
     }
 
@@ -275,7 +288,7 @@ class ChatRunServiceTest {
     fun `a name cut short keeps a single ellipsis`() {
         assertEquals(
             "Gotcha is working on “Find the largest files in my…”",
-            ChatRunService.title(chat.copy(chatTitle = "Find the largest files in my…"))
+            ChatRunService.title(chat.copy(chatTitle = "Find the largest files in my…"), application.stringLookup())
         )
     }
 }
