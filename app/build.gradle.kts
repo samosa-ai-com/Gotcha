@@ -185,6 +185,13 @@ android {
         }
     }
 
+    // Builds the app's LocaleConfig from the values-<lang>/ folders, so Android 13+
+    // lists Gotcha under per-app languages with exactly the translations it ships.
+    // Default (unqualified) strings are English; see res/resources.properties.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     lint {
         abortOnError = true
         warningsAsErrors = false

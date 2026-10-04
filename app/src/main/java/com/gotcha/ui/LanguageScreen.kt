@@ -388,11 +388,14 @@ internal fun transcriptionOverrideHint(provider: AudioProvider): String = when {
  * language list. If neither activity can be started, a toast says so.
  *
  * Android 13+ shows the per-app screen only for apps that declare their locales
- * (a `LocaleConfig`). Gotcha declares none, because its UI is English only, so
- * Settings refuses the screen. Stock builds still draw a picker whose choices do
- * nothing, and some OEM builds (Nothing OS) close it at once: a blank flash, and
- * no exception for us to fall back on (issue #112). So the per-app screen is only
- * tried when [appHasLocales] says the app declares more than one locale.
+ * (a `LocaleConfig`). The build generates Gotcha's from its `values-<lang>/`
+ * folders, so until a translation ships it lists English alone. With nothing to
+ * choose, stock builds draw a picker whose choices do nothing, and some OEM builds
+ * (Nothing OS) close it at once: a blank flash, and no exception for us to fall
+ * back on (issue #112). So the per-app screen is only tried when [appHasLocales]
+ * says the app declares more than one locale, which turns it on by itself once
+ * the first translation is added. Android 11 and 12 have no per-app screen and
+ * always get the device-wide one.
  */
 internal fun openLanguageSettings(
     context: Context,
