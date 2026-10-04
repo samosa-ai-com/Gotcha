@@ -1,14 +1,23 @@
 package com.gotcha.service
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.gotcha.i18n.stringLookup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 
+@RunWith(RobolectricTestRunner::class)
 class SmartActionDetectorTest {
+
+    /** Chip labels are string resources; Robolectric reads the English ones. */
+    private val strings = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     // ---- Multi-Entity detectAll() ----
 
@@ -21,7 +30,7 @@ class SmartActionDetectorTest {
             Your verification OTP code is 849201.
         """.trimIndent()
 
-        val entities = SmartActionDetector.detectAll(text)
+        val entities = SmartActionDetector.detectAll(text, strings = strings)
         assertTrue(entities.isNotEmpty())
 
         val types = entities.map { it.type }
@@ -45,7 +54,7 @@ class SmartActionDetectorTest {
             Mountain View, CA 94043
         """.trimIndent()
 
-        val entities = SmartActionDetector.detectAll(text)
+        val entities = SmartActionDetector.detectAll(text, strings = strings)
         val address = entities.firstOrNull { it.type == EntityType.ADDRESS }
         assertNotNull(address)
         assertTrue(address!!.normalizedValue.contains("Amphitheatre Pkwy"))
@@ -64,14 +73,18 @@ class SmartActionDetectorTest {
     @Test
     fun `detectAll finds INR and dollar currency prices`() {
         val text = "Item price is ₹1250 ($15.00 USD)"
-        val entities = SmartActionDetector.detectAll(text)
+        val entities = SmartActionDetector.detectAll(text, strings = strings)
         val currencies = entities.filter { it.type == EntityType.CURRENCY }
         assertTrue(currencies.isNotEmpty())
     }
 
     @Test
     fun `detectCurrencies omits conversion when price is already in target currency`() {
-        val entitiesUsd = SmartActionDetector.detectAll("Price is $50.00 USD", targetCurrency = "USD")
+        val entitiesUsd = SmartActionDetector.detectAll(
+            "Price is $50.00 USD",
+            targetCurrency = "USD",
+            strings = strings
+        )
         val currencyUsd = entitiesUsd.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull(currencyUsd)
         assertFalse(
@@ -79,7 +92,7 @@ class SmartActionDetectorTest {
             currencyUsd!!.actions.any { it.label.contains("Convert to USD") }
         )
 
-        val entitiesEur = SmartActionDetector.detectAll("Price is €50.00", targetCurrency = "USD")
+        val entitiesEur = SmartActionDetector.detectAll("Price is €50.00", targetCurrency = "USD", strings = strings)
         val currencyEur = entitiesEur.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull(currencyEur)
         assertTrue(
@@ -90,7 +103,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll finds Indian-format comma-grouped currency INR`() {
-        val entities = SmartActionDetector.detectAll("Total is INR1,23,456")
+        val entities = SmartActionDetector.detectAll("Total is INR1,23,456", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("Should detect INR1,23,456 as a currency", currency)
         assertTrue("rawValue should contain the full number", currency!!.rawValue.contains("1,23,456"))
@@ -99,7 +112,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll finds rupee symbol with Indian comma grouping and decimal`() {
-        val entities = SmartActionDetector.detectAll("Price is ₹12,34,567.89")
+        val entities = SmartActionDetector.detectAll("Price is ₹12,34,567.89", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("Should detect ₹12,34,567.89 as a currency", currency)
         assertTrue(currency!!.rawValue.contains("12,34,567.89"))
@@ -108,14 +121,14 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll finds western comma-formatted dollar amount`() {
-        val entities = SmartActionDetector.detectAll("Total is $1,234,567.89 USD")
+        val entities = SmartActionDetector.detectAll("Total is $1,234,567.89 USD", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("Should detect $1,234,567.89 USD as a currency", currency)
     }
 
     @Test
     fun `detectAll finds Rs format with Indian comma grouping`() {
-        val entities = SmartActionDetector.detectAll("Cost Rs. 12,34,567")
+        val entities = SmartActionDetector.detectAll("Cost Rs. 12,34,567", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("Should detect Rs. 12,34,567 as a currency", currency)
         assertTrue(currency!!.rawValue.contains("12,34,567"))
@@ -123,7 +136,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll finds euro symbol with comma-grouped thousands`() {
-        val entities = SmartActionDetector.detectAll("Price is €1,234.56", targetCurrency = "USD")
+        val entities = SmartActionDetector.detectAll("Price is €1,234.56", targetCurrency = "USD", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("Should detect €1,234.56 as a currency", currency)
         assertTrue(currency!!.actions.any { it.label.contains("Convert") })
@@ -131,7 +144,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll still finds plain digit currency amounts`() {
-        val entities = SmartActionDetector.detectAll("Price is ₹1250")
+        val entities = SmartActionDetector.detectAll("Price is ₹1250", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("Should still detect plain ₹1250", currency)
     }
@@ -156,7 +169,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll finds email addresses and generates compose mail actions`() {
-        val entities = SmartActionDetector.detectAll("Contact john.doe@company.org for details")
+        val entities = SmartActionDetector.detectAll("Contact john.doe@company.org for details", strings = strings)
         val email = entities.firstOrNull { it.type == EntityType.EMAIL }
         assertNotNull(email)
         assertEquals("john.doe@company.org", email!!.normalizedValue)
@@ -165,7 +178,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll suppresses URL detection when domain is part of an email address`() {
-        val entities = SmartActionDetector.detectAll("Reach out at contact@mywebsite.com")
+        val entities = SmartActionDetector.detectAll("Reach out at contact@mywebsite.com", strings = strings)
         val emails = entities.filter { it.type == EntityType.EMAIL }
         val urls = entities.filter { it.type == EntityType.URL }
         assertEquals(1, emails.size)
@@ -175,7 +188,10 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll finds tracking numbers`() {
-        val entities = SmartActionDetector.detectAll("Your package 1Z9999999999999999 is out for delivery")
+        val entities = SmartActionDetector.detectAll(
+            "Your package 1Z9999999999999999 is out for delivery",
+            strings = strings
+        )
         val tracking = entities.firstOrNull { it.type == EntityType.TRACKING_NUMBER }
         assertNotNull(tracking)
         assertEquals("1Z9999999999999999", tracking!!.normalizedValue)
@@ -186,7 +202,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detects punctuated phone number and encodes a dial action`() {
-        val action = SmartActionDetector.detect("Call me at (415) 555-2671 tomorrow")
+        val action = SmartActionDetector.detect("Call me at (415) 555-2671 tomorrow", strings = strings)
         assertNotNull(action)
         assertTrue(action!!.label.contains("Dial"))
         assertTrue(SmartActionDetector.isNativeAction(action.prompt))
@@ -197,31 +213,31 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detects dashed phone number`() {
-        val action = SmartActionDetector.detect("Reach us on 415-555-2671")
+        val action = SmartActionDetector.detect("Reach us on 415-555-2671", strings = strings)
         assertNotNull(action)
         assertEquals(SmartActionDetector.TYPE_DIAL, SmartActionDetector.decode(action!!.prompt)!!.first)
     }
 
     @Test
     fun `detects international phone number`() {
-        val action = SmartActionDetector.detect("Ring +44 20 7946 0958 for support")
+        val action = SmartActionDetector.detect("Ring +44 20 7946 0958 for support", strings = strings)
         assertNotNull(action)
         assertEquals(SmartActionDetector.TYPE_DIAL, SmartActionDetector.decode(action!!.prompt)!!.first)
     }
 
     @Test
     fun `does not treat a bare digit run as a phone number`() {
-        assertNull(SmartActionDetector.detect("Your order 4155552671 has shipped"))
+        assertNull(SmartActionDetector.detect("Your order 4155552671 has shipped", strings = strings))
     }
 
     @Test
     fun `does not match digits embedded in a longer number`() {
-        assertNull(SmartActionDetector.detect("SKU 004155552671003 in stock"))
+        assertNull(SmartActionDetector.detect("SKU 004155552671003 in stock", strings = strings))
     }
 
     @Test
     fun `detects street address and encodes a navigate action`() {
-        val action = SmartActionDetector.detect("Meet at 1600 Amphitheatre Parkway Way for lunch")
+        val action = SmartActionDetector.detect("Meet at 1600 Amphitheatre Parkway Way for lunch", strings = strings)
         assertNotNull(action)
         assertTrue(action!!.label.contains("Navigate"))
         val (type, _) = SmartActionDetector.decode(action.prompt)!!
@@ -230,38 +246,38 @@ class SmartActionDetectorTest {
 
     @Test
     fun `proactive detect never offers currency`() {
-        assertNull(SmartActionDetector.detect("The jacket costs €89.99 in Berlin"))
+        assertNull(SmartActionDetector.detect("The jacket costs €89.99 in Berlin", strings = strings))
     }
 
     @Test
     fun `proactive detect never offers calendar`() {
-        assertNull(SmartActionDetector.detect("Let's schedule a meeting on Monday"))
+        assertNull(SmartActionDetector.detect("Let's schedule a meeting on Monday", strings = strings))
     }
 
     @Test
     fun `chat reply only fires when allowChat is set`() {
         val text = "Hey, are you free later?"
-        assertNull(SmartActionDetector.detect(text, allowChat = false))
-        val action = SmartActionDetector.detect(text, allowChat = true)
+        assertNull(SmartActionDetector.detect(text, allowChat = false, strings = strings))
+        val action = SmartActionDetector.detect(text, allowChat = true, strings = strings)
         assertNotNull(action)
         assertTrue(action!!.label.contains("Draft reply"))
     }
 
     @Test
     fun `plain prose returns no action`() {
-        assertNull(SmartActionDetector.detect("The quick brown fox jumps over the lazy dog."))
+        assertNull(SmartActionDetector.detect("The quick brown fox jumps over the lazy dog.", strings = strings))
     }
 
     @Test
     fun `blank input returns no action`() {
-        assertNull(SmartActionDetector.detect("   "))
+        assertNull(SmartActionDetector.detect("   ", strings = strings))
     }
 
     // ---- Lens-mode detectContextual() ----
 
     @Test
     fun `contextual detection finds currency`() {
-        val actions = SmartActionDetector.detectContextual("The jacket costs €89.99")
+        val actions = SmartActionDetector.detectContextual("The jacket costs €89.99", strings = strings)
         assertTrue(actions.any { it.label.contains("Convert") })
         val currency = actions.first { it.label.contains("Convert") }
         // Currency conversion now uses the native TYPE_CONVERT action (not an LLM prompt)
@@ -271,7 +287,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `contextual detection finds calendar event`() {
-        val actions = SmartActionDetector.detectContextual("Team meeting on Monday")
+        val actions = SmartActionDetector.detectContextual("Team meeting on Monday", strings = strings)
         val cal = actions.firstOrNull { it.label.contains("calendar") }
         assertNotNull(cal)
         assertEquals(SmartActionDetector.TYPE_CALENDAR, SmartActionDetector.decode(cal!!.prompt)!!.first)
@@ -279,7 +295,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `contextual detection finds month-day time event`() {
-        val actions = SmartActionDetector.detectContextual("Flight on July 20 at 9:10 a.m.")
+        val actions = SmartActionDetector.detectContextual("Flight on July 20 at 9:10 a.m.", strings = strings)
         val cal = actions.firstOrNull { it.label.contains("calendar") }
         assertNotNull(cal)
         assertEquals(SmartActionDetector.TYPE_CALENDAR, SmartActionDetector.decode(cal!!.prompt)!!.first)
@@ -287,7 +303,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `contextual detection finds address with city and zip`() {
-        val actions = SmartActionDetector.detectContextual("Ship to 350 5th Ave, New York, NY 10118")
+        val actions = SmartActionDetector.detectContextual("Ship to 350 5th Ave, New York, NY 10118", strings = strings)
         val addr = actions.firstOrNull { it.label.contains("Navigate") }
         assertNotNull(addr)
         assertEquals(SmartActionDetector.TYPE_NAVIGATE, SmartActionDetector.decode(addr!!.prompt)!!.first)
@@ -295,7 +311,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `contextual detection returns empty for plain prose`() {
-        assertTrue(SmartActionDetector.detectContextual("just some words here").isEmpty())
+        assertTrue(SmartActionDetector.detectContextual("just some words here", strings = strings).isEmpty())
     }
 
     // ---- Snippets in labels ----
@@ -309,7 +325,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `fetch action label shows a url snippet`() {
-        val action = SmartActionDetector.fetchAction("https://www.example.com/very/long/path/here")
+        val action = SmartActionDetector.fetchAction("https://www.example.com/very/long/path/here", strings)
         assertTrue(action.label.contains("example.com"))
         assertEquals(
             "https://www.example.com/very/long/path/here",
@@ -325,7 +341,7 @@ class SmartActionDetectorTest {
     @Test
     fun `qr code and barcode entities have highest priority over OTP and phone`() {
         val text = "Your OTP is 123456. Connect to WIFI:S:HomeNet;P:secret123;T:WPA;;"
-        val entities = SmartActionDetector.detectAll(text)
+        val entities = SmartActionDetector.detectAll(text, strings = strings)
         assertTrue(entities.isNotEmpty())
         assertEquals(EntityType.QR_CODE, entities.first().type)
         assertTrue(entities.first().normalizedValue.contains("HomeNet"))
@@ -337,7 +353,8 @@ class SmartActionDetectorTest {
     fun `past dates are not calendar events`() {
         val entities = SmartActionDetector.detectAll(
             "Rebase #53 by DevUser2 was merged Jul 26, 2026",
-            now = NOON_AUG_1
+            now = NOON_AUG_1,
+            strings = strings
         )
         assertTrue(
             "A merge timestamp is not something to put on a calendar",
@@ -349,7 +366,8 @@ class SmartActionDetectorTest {
     fun `future dates are still calendar events`() {
         val entities = SmartActionDetector.detectAll(
             "Design review Aug 14, 2026",
-            now = NOON_AUG_1
+            now = NOON_AUG_1,
+            strings = strings
         )
         assertTrue(entities.any { it.type == EntityType.CALENDAR })
     }
@@ -372,9 +390,9 @@ class SmartActionDetectorTest {
 
     @Test
     fun `an event word outranks a bare time`() {
-        val worded = SmartActionDetector.detectAll("Dinner tomorrow", now = NOON_AUG_1)
+        val worded = SmartActionDetector.detectAll("Dinner tomorrow", now = NOON_AUG_1, strings = strings)
             .first { it.type == EntityType.CALENDAR }
-        val bare = SmartActionDetector.detectAll("Doors open 8 pm", now = NOON_AUG_1)
+        val bare = SmartActionDetector.detectAll("Doors open 8 pm", now = NOON_AUG_1, strings = strings)
             .first { it.type == EntityType.CALENDAR }
         assertTrue(bare.confidence < worded.confidence)
     }
@@ -385,7 +403,8 @@ class SmartActionDetectorTest {
         // which is not before today, so a date-only check let it through.
         val entities = SmartActionDetector.detectAll(
             "rebase #64 by DevUser2 was merged Aug 1, 2026, 9:14 a.m.",
-            now = NOON_AUG_1
+            now = NOON_AUG_1,
+            strings = strings
         )
         assertTrue(
             "A merge from this morning is not an event this afternoon",
@@ -395,7 +414,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `an event later today survives`() {
-        val entities = SmartActionDetector.detectAll("Dinner today at 8 pm", now = NOON_AUG_1)
+        val entities = SmartActionDetector.detectAll("Dinner today at 8 pm", now = NOON_AUG_1, strings = strings)
         assertTrue(entities.any { it.type == EntityType.CALENDAR })
     }
 
@@ -405,7 +424,8 @@ class SmartActionDetectorTest {
         // there is nothing to compare against, so the day is the granularity.
         val entities = SmartActionDetector.detectAll(
             "Lunch today",
-            now = LocalDate.of(2026, 8, 1).atTime(23, 30)
+            now = LocalDate.of(2026, 8, 1).atTime(23, 30),
+            strings = strings
         )
         assertTrue(entities.any { it.type == EntityType.CALENDAR })
     }
@@ -427,7 +447,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `a list of merge timestamps produces no calendar annotations`() {
-        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1)
+        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1, strings = strings)
         val selected = SmartActionDetector.selectForAnnotation(entities)
         assertTrue(
             "Merge timestamps should not be annotated at all",
@@ -439,7 +459,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `annotations are capped however busy the screen is`() {
-        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1)
+        val entities = SmartActionDetector.detectAll(pullRequestList, now = NOON_AUG_1, strings = strings)
         val selected = SmartActionDetector.selectForAnnotation(entities)
         assertTrue(
             "Expected at most ${SmartActionDetector.MAX_ANNOTATIONS}, got ${selected.size}",
@@ -450,7 +470,7 @@ class SmartActionDetectorTest {
     @Test
     fun `a repeated type collapses to a single grouped annotation`() {
         val catalogue = (1..12).joinToString("\n") { "Item $it — €${it * 10}.00" }
-        val entities = SmartActionDetector.detectAll(catalogue)
+        val entities = SmartActionDetector.detectAll(catalogue, strings = strings)
         val prices = entities.filter { it.type == EntityType.CURRENCY }
         assertTrue("Fixture should detect many prices", prices.size >= 10)
 
@@ -458,7 +478,10 @@ class SmartActionDetectorTest {
         val currency = selected.filter { it.entity.type == EntityType.CURRENCY }
         assertEquals("Twelve prices are a catalogue, not twelve calls to action", 1, currency.size)
         assertEquals(prices.size, currency.first().groupCount)
-        assertEquals("💵 ${prices.size} prices", SmartActionDetector.chipLabel(currency.first().entity, prices.size))
+        assertEquals(
+            "💵 ${prices.size} prices",
+            SmartActionDetector.chipLabel(currency.first().entity, prices.size, strings = strings)
+        )
     }
 
     @Test
@@ -468,7 +491,7 @@ class SmartActionDetectorTest {
             Mail a@example.com, b@example.com, c@example.com, d@example.com.
             Visit https://example.com/help
         """.trimIndent()
-        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text))
+        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text, strings = strings))
         val perType = selected.groupBy { it.entity.type }
         for ((type, group) in perType) {
             assertTrue(
@@ -482,7 +505,7 @@ class SmartActionDetectorTest {
     @Test
     fun `identical values collapse before ranking`() {
         val text = "Ping support@example.com — again, support@example.com — once more, support@example.com"
-        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text))
+        val selected = SmartActionDetector.selectForAnnotation(SmartActionDetector.detectAll(text, strings = strings))
         val emails = selected.filter { it.entity.type == EntityType.EMAIL }
         assertEquals(1, emails.size)
         assertEquals(3, emails.first().groupCount)
@@ -490,9 +513,9 @@ class SmartActionDetectorTest {
 
     @Test
     fun `chip labels drop the verb and keep the value`() {
-        val entity = SmartActionDetector.detectAll("Visit https://example.com/help")
+        val entity = SmartActionDetector.detectAll("Visit https://example.com/help", strings = strings)
             .first { it.type == EntityType.URL }
-        val label = SmartActionDetector.chipLabel(entity)
+        val label = SmartActionDetector.chipLabel(entity, strings = strings)
         assertTrue(label.startsWith("🌐"))
         assertFalse("The verb belongs in the menu, not the chip", label.contains("Open:"))
     }
@@ -505,7 +528,7 @@ class SmartActionDetectorTest {
     @Test
     fun `a grouped candidate carries every member, not just a count`() {
         val catalogue = (1..12).joinToString("\n") { "Item $it — €${it * 10}.00" }
-        val entities = SmartActionDetector.detectAll(catalogue)
+        val entities = SmartActionDetector.detectAll(catalogue, strings = strings)
         val grouped = SmartActionDetector.selectForAnnotation(entities)
             .first { it.entity.type == EntityType.CURRENCY }
 
@@ -522,7 +545,7 @@ class SmartActionDetectorTest {
     // ---- Calendar payloads carry a resolved start ----
 
     private fun calendarPayload(text: String, now: java.time.LocalDateTime): String {
-        val entity = SmartActionDetector.detectAll(text, now = now)
+        val entity = SmartActionDetector.detectAll(text, now = now, strings = strings)
             .first { it.type == EntityType.CALENDAR }
         return SmartActionDetector.decode(entity.primaryAction!!.prompt)!!.second
     }
@@ -564,7 +587,7 @@ class SmartActionDetectorTest {
     fun `detectAll respects a French target language for currency labels`() {
         // USD string with EUR target: the conversion action should mention EUR
         // (the EUR label is what a French-user sees in the proactive action).
-        val entities = SmartActionDetector.detectAll("Prix: \$50,00", targetCurrency = "EUR")
+        val entities = SmartActionDetector.detectAll("Prix: \$50,00", targetCurrency = "EUR", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull("USD-string should be detected as CURRENCY", currency)
         assertTrue(
@@ -575,7 +598,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll respects a EUR target when source is USD`() {
-        val entities = SmartActionDetector.detectAll("Total: \$50.00", targetCurrency = "EUR")
+        val entities = SmartActionDetector.detectAll("Total: \$50.00", targetCurrency = "EUR", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull(currency)
         assertTrue(
@@ -586,7 +609,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll default target currency is USD when not specified`() {
-        val entities = SmartActionDetector.detectAll("Price is €50")
+        val entities = SmartActionDetector.detectAll("Price is €50", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull(currency)
         assertTrue(
@@ -597,7 +620,7 @@ class SmartActionDetectorTest {
 
     @Test
     fun `detectAll GBP target suppresses GBP conversion action`() {
-        val entities = SmartActionDetector.detectAll("Price is £25.00", targetCurrency = "GBP")
+        val entities = SmartActionDetector.detectAll("Price is £25.00", targetCurrency = "GBP", strings = strings)
         val currency = entities.firstOrNull { it.type == EntityType.CURRENCY }
         assertNotNull(currency)
         assertFalse(
@@ -614,7 +637,8 @@ class SmartActionDetectorTest {
         val entities = SmartActionDetector.detectAll(
             "Hola, ¿cómo estás?",
             allowChat = true,
-            targetLanguage = "French"
+            targetLanguage = "French",
+            strings = strings
         )
         val chat = entities.firstOrNull { it.type == EntityType.CHAT_REPLY }
         assertNotNull("Should detect Spanish chat text with allowChat=true", chat)
@@ -630,7 +654,8 @@ class SmartActionDetectorTest {
         val entities = SmartActionDetector.detectAll(
             "How are you doing today?",
             allowChat = true,
-            targetLanguage = "English"
+            targetLanguage = "English",
+            strings = strings
         )
         val chat = entities.firstOrNull { it.type == EntityType.CHAT_REPLY }
         assertNotNull(chat)
@@ -644,11 +669,12 @@ class SmartActionDetectorTest {
     fun `call sites propagate the same targetCurrency and targetLanguage`() {
         // Pin the shape of the call signature so any change to detectAll's
         // parameter list surfaces here, not in a runtime ClassCastException.
-        val a = SmartActionDetector.detectAll("100 USD", targetCurrency = "USD")
+        val a = SmartActionDetector.detectAll("100 USD", targetCurrency = "USD", strings = strings)
         val b = SmartActionDetector.detectAll(
             "100 EUR",
             targetCurrency = "USD",
-            targetLanguage = "English"
+            targetLanguage = "English",
+            strings = strings
         )
         assertNotNull(a.firstOrNull { it.type == EntityType.CURRENCY })
         assertNotNull(b.firstOrNull { it.type == EntityType.CURRENCY })

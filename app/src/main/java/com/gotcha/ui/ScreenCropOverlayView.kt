@@ -15,6 +15,7 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.core.graphics.ColorUtils
 import com.gotcha.R
+import com.gotcha.i18n.stringLookup
 import com.gotcha.service.AnnotatedEntity
 import com.gotcha.service.SmartActionDetector
 import com.gotcha.ui.theme.OverlaySkin
@@ -407,7 +408,7 @@ class ScreenCropOverlayView(
             val labelStr = if (index == 0 && item.groupCount == 1) {
                 action.label
             } else {
-                SmartActionDetector.chipLabel(item.entity, item.groupCount)
+                SmartActionDetector.chipLabel(item.entity, item.groupCount, strings = context.stringLookup())
             }
             val chipW = entityChipTextPaint.measureText(labelStr) + padding * 2f
             val chipH = CHIP_HEIGHT_DP * density

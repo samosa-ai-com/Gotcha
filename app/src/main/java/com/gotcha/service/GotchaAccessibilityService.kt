@@ -10,6 +10,7 @@ import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.annotation.RequiresApi
+import com.gotcha.i18n.stringLookup
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -427,7 +428,8 @@ class GotchaAccessibilityService : AccessibilityService() {
             fullText,
             allowChat = false,
             targetCurrency = prefCurr,
-            targetLanguage = prefLang
+            targetLanguage = prefLang,
+            strings = stringLookup()
         )
         val placeable = discardOversizedBounds(locateEntities(entities, nodeRanges))
         val selected = SmartActionDetector.selectForAnnotation(placeable.map { it.entity })

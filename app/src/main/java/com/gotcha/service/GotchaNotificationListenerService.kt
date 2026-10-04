@@ -8,7 +8,9 @@ import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.widget.Toast
+import com.gotcha.R
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 
 /**
  * Tier 3 — NotificationListenerService.
@@ -73,7 +75,8 @@ class GotchaNotificationListenerService : NotificationListenerService() {
             fullText,
             allowChat = false,
             targetCurrency = settings.preferredCurrency,
-            targetLanguage = settings.preferredLanguage
+            targetLanguage = settings.preferredLanguage,
+            strings = stringLookup()
         )
         if (entities.isEmpty()) return
 
@@ -86,7 +89,10 @@ class GotchaNotificationListenerService : NotificationListenerService() {
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(
                         context,
-                        "🔑 OTP ${otpEntity.normalizedValue} copied to clipboard",
+                        context.getString(
+                            R.string.notification_listener_otp_copied_to_clipboard,
+                            otpEntity.normalizedValue
+                        ),
                         Toast.LENGTH_SHORT
                     ).show()
                 }

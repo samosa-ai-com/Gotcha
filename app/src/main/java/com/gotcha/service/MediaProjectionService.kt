@@ -21,6 +21,7 @@ import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
+import com.gotcha.R
 import com.gotcha.util.GotchaLog
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -309,17 +310,17 @@ class MediaProjectionService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "Screenshot Capture",
+            getString(R.string.screenshot_channel),
             NotificationManager.IMPORTANCE_LOW
-        ).apply { description = "One-shot screen capture" }
+        ).apply { description = getString(R.string.screenshot_channel_description) }
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(channel)
     }
 
     private fun buildNotification(): Notification {
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Gotcha")
-            .setContentText("Capturing screenshot…")
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.screenshot_capturing))
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .build()
     }

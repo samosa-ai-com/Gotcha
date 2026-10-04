@@ -1,5 +1,10 @@
 package com.gotcha.service
 
+import androidx.annotation.StringRes
+import com.gotcha.R
+import com.gotcha.i18n.Language
+import com.gotcha.i18n.StringLookup
+import com.gotcha.ui.nameRes
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -268,38 +273,39 @@ object SmartActionDetector {
         allowChat: Boolean = false,
         targetCurrency: String = "USD",
         targetLanguage: String = "English",
-        now: LocalDateTime = LocalDateTime.now()
+        now: LocalDateTime = LocalDateTime.now(),
+        strings: StringLookup
     ): List<DetectedEntity> {
         if (text.isBlank()) return emptyList()
 
         val rawEntities = mutableListOf<DetectedEntity>()
 
         // 0. QR & Barcode patterns in text
-        detectQrAndBarcodes(text, rawEntities)
+        detectQrAndBarcodes(text, rawEntities, strings)
 
         // 1. OTP
-        detectOtps(text, rawEntities)
+        detectOtps(text, rawEntities, strings)
 
         // 2. Phone
-        detectPhones(text, rawEntities)
+        detectPhones(text, rawEntities, strings)
 
         // 3. Address
-        detectAddresses(text, rawEntities)
+        detectAddresses(text, rawEntities, strings)
 
         // 4. Email
-        detectEmails(text, rawEntities)
+        detectEmails(text, rawEntities, strings)
 
         // 5. URL
-        detectUrls(text, rawEntities)
+        detectUrls(text, rawEntities, strings)
 
         // 6. Currency
-        detectCurrencies(text, rawEntities, targetCurrency)
+        detectCurrencies(text, rawEntities, targetCurrency, strings)
 
         // 7. Calendar
-        detectCalendars(text, rawEntities, now)
+        detectCalendars(text, rawEntities, now, strings)
 
         // 8. Tracking numbers
-        detectTracking(text, rawEntities)
+        detectTracking(text, rawEntities, strings)
 
         // 9. Chat reply fallback (if allowChat set)
         if (allowChat && looksLikeChatMessage(text, targetLanguage)) {
@@ -310,7 +316,10 @@ object SmartActionDetector {
             if (!isAlreadyTargetLang) {
                 actions.add(
                     SmartAction(
-                        label = "🌐 Translate to $targetLanguage",
+                        label = strings(
+                            R.string.smart_translate_to,
+                            strings(Language.fromLabel(targetLanguage).nameRes)
+                        ),
                         prompt = "Translate the following text to $targetLanguage:\n\n$text",
                         actionType = ActionType.LLM_TRANSLATE,
                         isPrimary = true
@@ -319,7 +328,7 @@ object SmartActionDetector {
             }
             actions.add(
                 SmartAction(
-                    label = "💬 Draft reply: ${snippet(normalized, 24)}",
+                    label = strings(R.string.smart_draft_reply, snippet(normalized, 24)),
                     prompt = "Draft a short, friendly reply to this message. Return only the reply text:\n\n$text",
                     actionType = ActionType.LLM_CHAT_REPLY,
                     isPrimary = isAlreadyTargetLang
@@ -327,7 +336,7 @@ object SmartActionDetector {
             )
             actions.add(
                 SmartAction(
-                    label = "📋 Copy text",
+                    label = strings(R.string.smart_copy_text),
                     prompt = encode(TYPE_COPY, normalized),
                     actionType = ActionType.NATIVE_COPY
                 )
@@ -357,9 +366,10 @@ object SmartActionDetector {
         text: String,
         allowChat: Boolean = false,
         targetCurrency: String = "USD",
-        targetLanguage: String = "English"
+        targetLanguage: String = "English",
+        strings: StringLookup
     ): SmartAction? {
-        val entities = detectAll(text, allowChat, targetCurrency, targetLanguage)
+        val entities = detectAll(text, allowChat, targetCurrency, targetLanguage, strings = strings)
         // Proactive detect historically excluded currency & calendar unless in Lens mode
         val filtered = entities.filter { it.type != EntityType.CURRENCY && it.type != EntityType.CALENDAR }
         return filtered.firstOrNull()?.primaryAction
@@ -372,13 +382,15 @@ object SmartActionDetector {
     fun detectContextual(
         text: String,
         targetCurrency: String = "USD",
-        targetLanguage: String = "English"
+        targetLanguage: String = "English",
+        strings: StringLookup
     ): List<SmartAction> {
         val entities = detectAll(
             text = text,
             allowChat = false,
             targetCurrency = targetCurrency,
-            targetLanguage = targetLanguage
+            targetLanguage = targetLanguage,
+            strings = strings
         )
         return entities.mapNotNull { it.primaryAction }
     }
@@ -444,9 +456,9 @@ object SmartActionDetector {
      * same word on every chip of a type, and it is what made the chips wide
      * enough to bury the screen underneath them.
      */
-    fun chipLabel(entity: DetectedEntity, groupCount: Int = 1): String {
+    fun chipLabel(entity: DetectedEntity, groupCount: Int = 1, strings: StringLookup): String {
         val icon = iconFor(entity.type)
-        if (groupCount > 1) return "$icon $groupCount ${pluralFor(entity.type)}"
+        if (groupCount > 1) return "$icon ${strings(groupLabelFor(entity.type), groupCount)}"
         return "$icon ${snippet(entity.normalizedValue, CHIP_LABEL_MAX)}"
     }
 
@@ -464,21 +476,23 @@ object SmartActionDetector {
         EntityType.GENERIC_TEXT -> "✨"
     }
 
-    private fun pluralFor(type: EntityType): String = when (type) {
-        EntityType.QR_CODE, EntityType.BARCODE -> "codes"
-        EntityType.OTP -> "codes"
-        EntityType.PHONE -> "numbers"
-        EntityType.ADDRESS -> "addresses"
-        EntityType.EMAIL -> "emails"
-        EntityType.URL -> "links"
-        EntityType.CALENDAR -> "dates"
-        EntityType.CURRENCY -> "prices"
-        EntityType.TRACKING_NUMBER -> "packages"
-        EntityType.CHAT_REPLY -> "messages"
-        EntityType.GENERIC_TEXT -> "items"
+    /** "%1$d links" and the like, for a chip standing for several matches. */
+    @StringRes
+    private fun groupLabelFor(type: EntityType): Int = when (type) {
+        EntityType.QR_CODE, EntityType.BARCODE -> R.string.smart_group_codes
+        EntityType.OTP -> R.string.smart_group_codes
+        EntityType.PHONE -> R.string.smart_group_numbers
+        EntityType.ADDRESS -> R.string.smart_group_addresses
+        EntityType.EMAIL -> R.string.smart_group_emails
+        EntityType.URL -> R.string.smart_group_links
+        EntityType.CALENDAR -> R.string.smart_group_dates
+        EntityType.CURRENCY -> R.string.smart_group_prices
+        EntityType.TRACKING_NUMBER -> R.string.smart_group_packages
+        EntityType.CHAT_REPLY -> R.string.smart_group_messages
+        EntityType.GENERIC_TEXT -> R.string.smart_group_items
     }
 
-    private fun detectOtps(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectOtps(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         val m = potentialCodePattern.matcher(text)
         while (m.find()) {
             val code = m.group(1)?.trim() ?: continue
@@ -493,13 +507,13 @@ object SmartActionDetector {
                 if (otpKeywordCheckPattern.matcher(windowText).find()) {
                     val actions = listOf(
                         SmartAction(
-                            label = "🔑 Copy code ${snippet(code, 10)}",
+                            label = strings(R.string.smart_copy_code, snippet(code, 10)),
                             prompt = encode(TYPE_COPY, code),
                             actionType = ActionType.NATIVE_COPY,
                             isPrimary = true
                         ),
                         SmartAction(
-                            label = "📤 Share code",
+                            label = strings(R.string.smart_share_code),
                             prompt = encode(TYPE_SHARE, code),
                             actionType = ActionType.NATIVE_SHARE
                         )
@@ -519,35 +533,35 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectPhones(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectPhones(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         val m = phonePattern.matcher(text)
         while (m.find()) {
             val raw = m.group().trim()
             val normalized = raw.replace(Regex("[^0-9+]"), "")
             val actions = listOf(
                 SmartAction(
-                    label = "📞 Dial ${snippet(raw, 20)}",
+                    label = strings(R.string.smart_dial, snippet(raw, 20)),
                     prompt = encode(TYPE_DIAL, raw),
                     actionType = ActionType.NATIVE_DIAL,
                     isPrimary = true
                 ),
                 SmartAction(
-                    label = "💬 SMS",
+                    label = strings(R.string.smart_sms),
                     prompt = encode(TYPE_SMS, raw),
                     actionType = ActionType.NATIVE_SMS
                 ),
                 SmartAction(
-                    label = "💬 WhatsApp",
+                    label = strings(R.string.smart_whatsapp),
                     prompt = encode(TYPE_WHATSAPP, normalized),
                     actionType = ActionType.NATIVE_WHATSAPP
                 ),
                 SmartAction(
-                    label = "👤 Save contact",
+                    label = strings(R.string.smart_save_contact),
                     prompt = encode(TYPE_CONTACT, raw),
                     actionType = ActionType.NATIVE_ADD_CONTACT
                 ),
                 SmartAction(
-                    label = "📋 Copy number",
+                    label = strings(R.string.smart_copy_number),
                     prompt = encode(TYPE_COPY, raw),
                     actionType = ActionType.NATIVE_COPY
                 )
@@ -565,25 +579,25 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectAddresses(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectAddresses(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         val m = addressPattern.matcher(text)
         while (m.find()) {
             val raw = m.group().trim().trimEnd(',')
             val normalized = raw.replace(Regex("[\\r\\n]+"), " ").replace(Regex("\\s+"), " ").trim()
             val actions = listOf(
                 SmartAction(
-                    label = "📍 Navigate: ${snippet(normalized, 24)}",
+                    label = strings(R.string.smart_navigate, snippet(normalized, 24)),
                     prompt = encode(TYPE_NAVIGATE, normalized),
                     actionType = ActionType.NATIVE_NAVIGATE,
                     isPrimary = true
                 ),
                 SmartAction(
-                    label = "📋 Copy address",
+                    label = strings(R.string.smart_copy_address),
                     prompt = encode(TYPE_COPY, normalized),
                     actionType = ActionType.NATIVE_COPY
                 ),
                 SmartAction(
-                    label = "📤 Share address",
+                    label = strings(R.string.smart_share_address),
                     prompt = encode(TYPE_SHARE, normalized),
                     actionType = ActionType.NATIVE_SHARE
                 )
@@ -601,24 +615,24 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectEmails(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectEmails(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         val m = emailPattern.matcher(text)
         while (m.find()) {
             val email = m.group().trim()
             val actions = listOf(
                 SmartAction(
-                    label = "📧 Compose: ${snippet(email, 22)}",
+                    label = strings(R.string.smart_compose, snippet(email, 22)),
                     prompt = encode(TYPE_MAILTO, email),
                     actionType = ActionType.NATIVE_COMPOSE_MAIL,
                     isPrimary = true
                 ),
                 SmartAction(
-                    label = "📋 Copy email",
+                    label = strings(R.string.smart_copy_email),
                     prompt = encode(TYPE_COPY, email),
                     actionType = ActionType.NATIVE_COPY
                 ),
                 SmartAction(
-                    label = "📤 Share email",
+                    label = strings(R.string.smart_share_email),
                     prompt = encode(TYPE_SHARE, email),
                     actionType = ActionType.NATIVE_SHARE
                 )
@@ -636,7 +650,7 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectUrls(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectUrls(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         val m = urlPattern.matcher(text)
         while (m.find()) {
             val raw = m.group().trim()
@@ -644,23 +658,23 @@ object SmartActionDetector {
             val pretty = prettyUrl(cleanUrl)
             val actions = listOf(
                 SmartAction(
-                    label = "🌐 Open: ${snippet(pretty, 24)}",
+                    label = strings(R.string.smart_open, snippet(pretty, 24)),
                     prompt = encode(TYPE_VIEW, cleanUrl),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
                 ),
                 SmartAction(
-                    label = "📝 Summarize",
+                    label = strings(R.string.smart_summarize),
                     prompt = encode(TYPE_FETCH, cleanUrl),
                     actionType = ActionType.LLM_SUMMARIZE
                 ),
                 SmartAction(
-                    label = "📋 Copy link",
+                    label = strings(R.string.smart_copy_link),
                     prompt = encode(TYPE_COPY, cleanUrl),
                     actionType = ActionType.NATIVE_COPY
                 ),
                 SmartAction(
-                    label = "📤 Share link",
+                    label = strings(R.string.smart_share_link),
                     prompt = encode(TYPE_SHARE, cleanUrl),
                     actionType = ActionType.NATIVE_SHARE
                 )
@@ -693,7 +707,8 @@ object SmartActionDetector {
     private fun detectCurrencies(
         text: String,
         out: MutableList<DetectedEntity>,
-        targetCurrency: String = "USD"
+        targetCurrency: String = "USD",
+        strings: StringLookup
     ) {
         val m = currencyPattern.matcher(text)
         val targetCode = targetCurrency.uppercase().take(3)
@@ -706,7 +721,7 @@ object SmartActionDetector {
             if (priceCode.isNotBlank() && !priceCode.equals(targetCode, ignoreCase = true)) {
                 actions.add(
                     SmartAction(
-                        label = "💵 Convert to $targetCode",
+                        label = strings(R.string.smart_convert_to, targetCode),
                         prompt = encode(TYPE_CONVERT, "$price|$targetCode"),
                         actionType = ActionType.LLM_CONVERT_CURRENCY,
                         isPrimary = true
@@ -715,7 +730,7 @@ object SmartActionDetector {
             }
             actions.add(
                 SmartAction(
-                    label = "📋 Copy price",
+                    label = strings(R.string.smart_copy_price),
                     prompt = encode(TYPE_COPY, price),
                     actionType = ActionType.NATIVE_COPY,
                     isPrimary = actions.isEmpty()
@@ -828,7 +843,7 @@ object SmartActionDetector {
     private fun isStillAhead(date: LocalDate, time: LocalTime?, now: LocalDateTime): Boolean =
         if (time != null) date.atTime(time).isAfter(now) else !date.isBefore(now.toLocalDate())
 
-    private fun detectCalendars(text: String, out: MutableList<DetectedEntity>, now: LocalDateTime) {
+    private fun detectCalendars(text: String, out: MutableList<DetectedEntity>, now: LocalDateTime, strings: StringLookup) {
         val today = now.toLocalDate()
         val m = calendarPattern.matcher(text)
         while (m.find()) {
@@ -854,13 +869,13 @@ object SmartActionDetector {
 
             val actions = listOf(
                 SmartAction(
-                    label = "📅 Add to calendar: ${snippet(event, 24)}",
+                    label = strings(R.string.smart_add_to_calendar, snippet(event, 24)),
                     prompt = encode(TYPE_CALENDAR, calendarPayload(event, date, timeOfDay)),
                     actionType = ActionType.NATIVE_CALENDAR,
                     isPrimary = true
                 ),
                 SmartAction(
-                    label = "📋 Copy event",
+                    label = strings(R.string.smart_copy_event),
                     prompt = encode(TYPE_COPY, event),
                     actionType = ActionType.NATIVE_COPY
                 )
@@ -878,7 +893,7 @@ object SmartActionDetector {
         }
     }
 
-    private fun detectTracking(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectTracking(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         val m = trackingPattern.matcher(text)
         while (m.find()) {
             val trackNum = m.group().trim()
@@ -890,13 +905,13 @@ object SmartActionDetector {
             }
             val actions = listOf(
                 SmartAction(
-                    label = "📦 Track $carrier: ${snippet(trackNum, 16)}",
+                    label = strings(R.string.smart_track, carrier, snippet(trackNum, 16)),
                     prompt = encode(TYPE_VIEW, trackingUrl),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
                 ),
                 SmartAction(
-                    label = "📋 Copy tracking number",
+                    label = strings(R.string.smart_copy_tracking_number),
                     prompt = encode(TYPE_COPY, trackNum),
                     actionType = ActionType.NATIVE_COPY
                 )
@@ -965,7 +980,7 @@ object SmartActionDetector {
     fun encode(type: String, payload: String): String =
         "$ACTION_PREFIX$type$PAYLOAD_SEP$payload"
 
-    private fun detectQrAndBarcodes(text: String, out: MutableList<DetectedEntity>) {
+    private fun detectQrAndBarcodes(text: String, out: MutableList<DetectedEntity>, strings: StringLookup) {
         if (text.isBlank()) return
         val wifiPattern = Pattern.compile("WIFI:S:([^;]+);(?:T:([^;]+);)?(?:P:([^;]+);)?", Pattern.CASE_INSENSITIVE)
         val mWifi = wifiPattern.matcher(text)
@@ -975,7 +990,7 @@ object SmartActionDetector {
             val fullMatch = mWifi.group(0) ?: text
             val actions = listOf(
                 SmartAction(
-                    label = "📶 Connect Wi-Fi: $ssid",
+                    label = strings(R.string.smart_connect_wi_fi, ssid),
                     prompt = encode(TYPE_COPY, "SSID: $ssid, Password: $pass"),
                     actionType = ActionType.NATIVE_COPY,
                     isPrimary = true
@@ -995,9 +1010,9 @@ object SmartActionDetector {
     }
 
     /** Build a native "fetch this URL and summarize" action. */
-    fun fetchAction(url: String): SmartAction =
+    fun fetchAction(url: String, strings: StringLookup): SmartAction =
         SmartAction(
-            label = "🔗 Summarize: ${snippet(prettyUrl(url), 30)}",
+            label = strings(R.string.smart_summarize_2, snippet(prettyUrl(url), 30)),
             prompt = encode(TYPE_FETCH, url.trim()),
             actionType = ActionType.LLM_SUMMARIZE,
             isPrimary = true

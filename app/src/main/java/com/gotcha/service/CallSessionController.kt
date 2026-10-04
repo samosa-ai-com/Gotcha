@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.gotcha.R
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
 import com.gotcha.agent.ForegroundControlRequest
@@ -162,24 +163,34 @@ class CallSessionController(
     fun startCall(): Boolean {
         if (isActive()) return false
         if (buildClient() == null) {
-            onError("Set up your API key in Gotcha first.")
+            onError(appContext.getString(R.string.call_error_no_api_key))
             return false
         }
         val micGranted = ContextCompat.checkSelfPermission(
             appContext, android.Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
         if (!micGranted) {
-            onError("Microphone permission not granted. Enable it in Gotcha → Settings → Permissions.")
+            onError(appContext.getString(R.string.call_error_no_mic))
             return false
         }
 
         val s = settingsRepository.load()
-        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.effectiveSttBaseUrl, s.sttApiModel)
+        val sttError = audioConfigError(
+            appContext.getString(R.string.call_stt_label),
+            s.sttProvider,
+            s.effectiveSttBaseUrl,
+            s.sttApiModel
+        )
         if (sttError != null) {
             onError(sttError)
             return false
         }
-        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.effectiveTtsBaseUrl, s.ttsApiModel)
+        val ttsError = audioConfigError(
+            appContext.getString(R.string.call_tts_label),
+            s.ttsProvider,
+            s.effectiveTtsBaseUrl,
+            s.ttsApiModel
+        )
         if (ttsError != null) {
             onError(ttsError)
             return false
@@ -224,7 +235,7 @@ class CallSessionController(
         scope.launch {
             val language = s.effectiveVoiceLanguage
             if (!speakText(startGreeting(handsFree, language), language)) {
-                reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+                reportError(appContext.getString(R.string.call_error_tts_playback))
             }
             _state.value = CallState.READY
             if (!handsFree) {
@@ -451,7 +462,7 @@ class CallSessionController(
      * untouched (still [READY] / [WAITING_USER]) so the user can tap again.
      */
     internal fun onMicStartFailed() {
-        reportError("Couldn't start the microphone — tap again to retry.")
+        reportError(appContext.getString(R.string.call_error_mic_start))
     }
 
     /** Stop the mic and send the recording for transcription + agent processing. */
@@ -544,7 +555,7 @@ class CallSessionController(
         if (speakText(reply, language)) {
             triggerEndVibration()
         } else {
-            reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_reply_playback))
         }
         onActionRingColor(null)
         if (autoEndOnReply) endCall() else _state.value = CallState.READY
@@ -678,7 +689,7 @@ class CallSessionController(
     }
 
     override fun onPermissionRequest(marker: String) {
-        reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
+        reportError(appContext.getString(R.string.call_error_permission))
     }
 
     /**
@@ -717,7 +728,7 @@ class CallSessionController(
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
         if (!speakText(prompt, currentLanguage())) {
-            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_tts_playback))
         }
         val gate = CompletableDeferred<String>()
         questionGate = gate
@@ -735,7 +746,7 @@ class CallSessionController(
      * Denies on timeout after 90 seconds.
      */
     override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean =
-        askOverScreen("Confirmation needed: $description", description)
+        askOverScreen(appContext.getString(R.string.call_confirmation_needed, description), description)
 
     /**
      * The once-per-request ask before Gotcha controls another app (issue #98).
@@ -755,15 +766,15 @@ class CallSessionController(
     private suspend fun askOverScreen(
         transcript: String,
         summary: String,
-        title: String = "Gotcha — confirm action",
-        allowLabel: String = "Allow",
-        denyLabel: String = "Deny"
+        title: String = appContext.getString(R.string.confirmation_title),
+        allowLabel: String = appContext.getString(R.string.action_allow),
+        denyLabel: String = appContext.getString(R.string.action_deny)
     ): Boolean {
         _state.value = CallState.WAITING_USER
         addTranscript(MessageKind.ASSISTANT, transcript)
         val language = currentLanguage()
         if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
-            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_tts_playback))
         }
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
@@ -845,19 +856,19 @@ class CallSessionController(
      */
     private fun audioConfigError(label: String, provider: AudioProvider, baseUrl: String, model: String): String? =
         when (provider) {
-            AudioProvider.NONE -> "$label is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT)."
+            AudioProvider.NONE -> appContext.getString(R.string.call_audio_not_configured, label)
             AudioProvider.SAMOSA_AI -> when {
                 baseUrl.isBlank() ->
-                    "$label Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_samosa_not_configured, label)
                 model.isBlank() ->
-                    "$label model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_model_missing, label)
                 else -> null
             }
             AudioProvider.API -> when {
                 baseUrl.isBlank() || baseUrl.trim().toHttpUrlOrNull() == null ->
-                    "$label API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_url_invalid, label)
                 model.isBlank() ->
-                    "$label API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_api_model_missing, label)
                 else -> null
             }
             AudioProvider.ANDROID -> null
@@ -914,7 +925,7 @@ class CallSessionController(
     internal fun onNarrationTtsFailed() {
         if (!narrationErrorReported) {
             narrationErrorReported = true
-            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_tts_playback))
         } else {
             Log.w(TAG, "TTS narration failed during a call (already reported once)")
         }

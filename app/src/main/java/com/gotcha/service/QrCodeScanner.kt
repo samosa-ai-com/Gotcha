@@ -5,6 +5,8 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.gotcha.R
+import com.gotcha.i18n.StringLookup
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -22,17 +24,17 @@ object QrCodeScanner {
     /**
      * Scans [bitmap] for QR codes and 1D/2D barcodes using ML Kit on-device recognition.
      */
-    suspend fun scanBitmap(bitmap: Bitmap): List<DetectedEntity> {
+    suspend fun scanBitmap(bitmap: Bitmap, strings: StringLookup): List<DetectedEntity> {
         return try {
             val image = InputImage.fromBitmap(bitmap, 0)
             val barcodes = scanner.process(image).await()
-            barcodes.mapNotNull { barcodeToEntity(it) }
+            barcodes.mapNotNull { barcodeToEntity(it, strings) }
         } catch (_: Throwable) {
             emptyList()
         }
     }
 
-    fun barcodeToEntity(barcode: Barcode): DetectedEntity? {
+    fun barcodeToEntity(barcode: Barcode, strings: StringLookup): DetectedEntity? {
         val rawValue = barcode.rawValue ?: barcode.displayValue ?: return null
         if (rawValue.isBlank()) return null
 
@@ -40,7 +42,7 @@ object QrCodeScanner {
         val type = if (isQr) EntityType.QR_CODE else EntityType.BARCODE
         val actions = mutableListOf<SmartAction>()
 
-        val displayTitle = buildQrActions(barcode, rawValue, isQr, actions)
+        val displayTitle = buildQrActions(barcode, rawValue, isQr, actions, strings)
 
         return DetectedEntity(
             type = type,
@@ -57,7 +59,8 @@ object QrCodeScanner {
         barcode: Barcode,
         rawValue: String,
         isQr: Boolean,
-        actions: MutableList<SmartAction>
+        actions: MutableList<SmartAction>,
+        strings: StringLookup
     ): String {
         val clean = rawValue.trim()
 
@@ -68,7 +71,7 @@ object QrCodeScanner {
                 ?.ifBlank { null } ?: SmartActionDetector.snippet(url, 24)
             actions.add(
                 SmartAction(
-                    label = "🌐 Open QR Link: $domain",
+                    label = strings(R.string.qr_open_qr_link, domain),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_VIEW, url),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
@@ -76,19 +79,19 @@ object QrCodeScanner {
             )
             actions.add(
                 SmartAction(
-                    label = "📝 Summarize",
+                    label = strings(R.string.qr_summarize),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_FETCH, url),
                     actionType = ActionType.LLM_SUMMARIZE
                 )
             )
             actions.add(
                 SmartAction(
-                    label = "📋 Copy URL",
+                    label = strings(R.string.qr_copy_url),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, url),
                     actionType = ActionType.NATIVE_COPY
                 )
             )
-            return "QR Link: $domain"
+            return strings(R.string.qr_qr_link, domain)
         }
 
         // 2. ML Kit recognized Wi-Fi
@@ -98,13 +101,13 @@ object QrCodeScanner {
             val info = "SSID: $ssid, Password: $pwd"
             actions.add(
                 SmartAction(
-                    label = "📶 Wi-Fi: $ssid",
+                    label = strings(R.string.qr_wi_fi, ssid),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, info),
                     actionType = ActionType.NATIVE_COPY,
                     isPrimary = true
                 )
             )
-            return "Wi-Fi QR: $ssid"
+            return strings(R.string.qr_wi_fi_qr, ssid)
         }
 
         // 3. ML Kit recognized Phone
@@ -112,13 +115,13 @@ object QrCodeScanner {
             val phone = barcode.phone?.number ?: clean
             actions.add(
                 SmartAction(
-                    label = "📞 Call: ${SmartActionDetector.snippet(phone, 16)}",
+                    label = strings(R.string.qr_call, SmartActionDetector.snippet(phone, 16)),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_DIAL, phone),
                     actionType = ActionType.NATIVE_DIAL,
                     isPrimary = true
                 )
             )
-            return "QR Phone: $phone"
+            return strings(R.string.qr_qr_phone, phone)
         }
 
         // 4. UPI Payment scheme (upi://pay?pa=...)
@@ -128,7 +131,7 @@ object QrCodeScanner {
                 ?.let { android.net.Uri.decode(it) } ?: SmartActionDetector.snippet(clean, 20)
             actions.add(
                 SmartAction(
-                    label = "💳 Pay via UPI: $payee",
+                    label = strings(R.string.qr_pay_via_upi, payee),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_VIEW, clean),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
@@ -136,12 +139,12 @@ object QrCodeScanner {
             )
             actions.add(
                 SmartAction(
-                    label = "📋 Copy UPI Link",
+                    label = strings(R.string.qr_copy_upi_link),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, clean),
                     actionType = ActionType.NATIVE_COPY
                 )
             )
-            return "UPI Payment: $payee"
+            return strings(R.string.qr_upi_payment, payee)
         }
 
         // 5. Generic URI scheme (e.g. intent://, paytm://, phonepe://, geo:, mailto:, smsto:, market://)
@@ -154,7 +157,7 @@ object QrCodeScanner {
                 ?.ifBlank { null } ?: schemeName
             actions.add(
                 SmartAction(
-                    label = "🌐 Open QR Link: $displayDomain",
+                    label = strings(R.string.qr_open_qr_link, displayDomain),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_VIEW, clean),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
@@ -162,12 +165,12 @@ object QrCodeScanner {
             )
             actions.add(
                 SmartAction(
-                    label = "📋 Copy Link",
+                    label = strings(R.string.qr_copy_link),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, clean),
                     actionType = ActionType.NATIVE_COPY
                 )
             )
-            return "QR Link: $displayDomain"
+            return strings(R.string.qr_qr_link, displayDomain)
         }
 
         // 6. Web URL without scheme (e.g. www.example.com/page, domain.com, sub.domain.org/path)
@@ -187,7 +190,7 @@ object QrCodeScanner {
                 ?: SmartActionDetector.snippet(clean, 20)
             actions.add(
                 SmartAction(
-                    label = "🌐 Open QR Link: $domain",
+                    label = strings(R.string.qr_open_qr_link, domain),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_VIEW, fullUrl),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
@@ -195,19 +198,19 @@ object QrCodeScanner {
             )
             actions.add(
                 SmartAction(
-                    label = "📝 Summarize",
+                    label = strings(R.string.qr_summarize),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_FETCH, fullUrl),
                     actionType = ActionType.LLM_SUMMARIZE
                 )
             )
             actions.add(
                 SmartAction(
-                    label = "📋 Copy Link",
+                    label = strings(R.string.qr_copy_link),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, fullUrl),
                     actionType = ActionType.NATIVE_COPY
                 )
             )
-            return "QR Link: $domain"
+            return strings(R.string.qr_qr_link, domain)
         }
 
         // 7. If 1D Barcode
@@ -215,7 +218,7 @@ object QrCodeScanner {
             val searchUrl = "https://www.google.com/search?q=${android.net.Uri.encode(clean)}"
             actions.add(
                 SmartAction(
-                    label = "🔍 Search Barcode: ${SmartActionDetector.snippet(clean, 16)}",
+                    label = strings(R.string.qr_search_barcode, SmartActionDetector.snippet(clean, 16)),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_VIEW, searchUrl),
                     actionType = ActionType.NATIVE_BROWSE,
                     isPrimary = true
@@ -223,12 +226,12 @@ object QrCodeScanner {
             )
             actions.add(
                 SmartAction(
-                    label = "📋 Copy Barcode",
+                    label = strings(R.string.qr_copy_barcode),
                     prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, clean),
                     actionType = ActionType.NATIVE_COPY
                 )
             )
-            return "Barcode: ${SmartActionDetector.snippet(clean, 20)}"
+            return strings(R.string.qr_barcode, SmartActionDetector.snippet(clean, 20))
         }
 
         // 8. General QR content fallback:
@@ -240,7 +243,7 @@ object QrCodeScanner {
         }
         actions.add(
             SmartAction(
-                label = "🌐 Open QR Link: ${SmartActionDetector.snippet(clean, 18)}",
+                label = strings(R.string.qr_open_qr_link, SmartActionDetector.snippet(clean, 18)),
                 prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_VIEW, searchUrl),
                 actionType = ActionType.NATIVE_BROWSE,
                 isPrimary = true
@@ -248,7 +251,7 @@ object QrCodeScanner {
         )
         actions.add(
             SmartAction(
-                label = "🤖 Ask Assistant",
+                label = strings(R.string.qr_ask_assistant),
                 prompt = "Here is the content of a QR code detected on screen:\n\n$clean\n\n" +
                     "Please process or act on this QR code content.",
                 actionType = ActionType.LLM_GENERAL
@@ -256,11 +259,11 @@ object QrCodeScanner {
         )
         actions.add(
             SmartAction(
-                label = "📋 Copy QR Content",
+                label = strings(R.string.qr_copy_qr_content),
                 prompt = SmartActionDetector.encode(SmartActionDetector.TYPE_COPY, clean),
                 actionType = ActionType.NATIVE_COPY
             )
         )
-        return "QR: ${SmartActionDetector.snippet(clean, 20)}"
+        return strings(R.string.qr_qr, SmartActionDetector.snippet(clean, 20))
     }
 }

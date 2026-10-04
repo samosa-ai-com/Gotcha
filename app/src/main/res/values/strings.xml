@@ -1225,4 +1225,146 @@
     <string name="action_stop">Stop</string>
     <string name="channel_run">Task in progress</string>
     <string name="channel_run_description">Shown while Gotcha works on a task, so Android keeps it running when you switch to another app</string>
+
+    <!-- Voice call errors -->
+    <string name="call_error_no_api_key">Set up your API key in Gotcha first.</string>
+    <string name="call_error_no_mic">Microphone permission not granted. Enable it in Gotcha → Settings → Permissions.</string>
+    <string name="call_error_tts_playback">Couldn\'t play voice audio — check your Text-to-Speech settings.</string>
+    <string name="call_error_mic_start">Couldn\'t start the microphone — tap again to retry.</string>
+    <string name="call_error_reply_playback">Couldn\'t play the voice reply — check your Text-to-Speech settings.</string>
+    <string name="call_error_permission">A permission is needed that can\'t be granted during a call — open Gotcha to grant it.</string>
+    <string name="call_confirmation_needed">Confirmation needed: %1$s</string>
+    <string name="call_stt_label">Speech-to-text</string>
+    <string name="call_tts_label">Text-to-speech</string>
+    <string name="call_audio_not_configured">%1$s is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="call_audio_model_missing">%1$s model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="call_audio_url_invalid">%1$s API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="call_audio_api_model_missing">%1$s API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT).</string>
+    <string name="screenshot_channel">Screenshot Capture</string>
+    <string name="screenshot_channel_description">One-shot screen capture</string>
+    <string name="screenshot_capturing">Capturing screenshot…</string>
+    <string name="wake_word_no_mic">Microphone permission is not granted.</string>
+    <string name="wake_word_mic_unavailable">Microphone permission is not available.</string>
+    <string name="wake_word_model_failed">The bundled wake-word model could not be loaded.</string>
+    <string name="wake_word_start_failed">Wake word could not start.</string>
+    <string name="wake_word_stopped">Wake word listening stopped unexpectedly.</string>
+
+    <!-- Smart actions (chips over other apps) -->
+    <string name="smart_translate_to">🌐 Translate to %1$s</string>
+    <string name="smart_draft_reply">💬 Draft reply: %1$s</string>
+    <string name="smart_copy_text">📋 Copy text</string>
+    <string name="smart_copy_code">🔑 Copy code %1$s</string>
+    <string name="smart_share_code">📤 Share code</string>
+    <string name="smart_dial">📞 Dial %1$s</string>
+    <string name="smart_sms">💬 SMS</string>
+    <string name="smart_whatsapp">💬 WhatsApp</string>
+    <string name="smart_save_contact">👤 Save contact</string>
+    <string name="smart_copy_number">📋 Copy number</string>
+    <string name="smart_navigate">📍 Navigate: %1$s</string>
+    <string name="smart_copy_address">📋 Copy address</string>
+    <string name="smart_share_address">📤 Share address</string>
+    <string name="smart_compose">📧 Compose: %1$s</string>
+    <string name="smart_copy_email">📋 Copy email</string>
+    <string name="smart_share_email">📤 Share email</string>
+    <string name="smart_open">🌐 Open: %1$s</string>
+    <string name="smart_summarize">📝 Summarize</string>
+    <string name="smart_copy_link">📋 Copy link</string>
+    <string name="smart_share_link">📤 Share link</string>
+    <string name="smart_convert_to">💵 Convert to %1$s</string>
+    <string name="smart_copy_price">📋 Copy price</string>
+    <string name="smart_add_to_calendar">📅 Add to calendar: %1$s</string>
+    <string name="smart_copy_event">📋 Copy event</string>
+    <string name="smart_track">📦 Track %1$s: %2$s</string>
+    <string name="smart_copy_tracking_number">📋 Copy tracking number</string>
+    <string name="smart_connect_wi_fi">📶 Connect Wi-Fi: %1$s</string>
+    <string name="smart_summarize_2">🔗 Summarize: %1$s</string>
+    <string name="smart_group_codes">%1$d codes</string>
+    <string name="smart_group_numbers">%1$d numbers</string>
+    <string name="smart_group_addresses">%1$d addresses</string>
+    <string name="smart_group_emails">%1$d emails</string>
+    <string name="smart_group_links">%1$d links</string>
+    <string name="smart_group_dates">%1$d dates</string>
+    <string name="smart_group_prices">%1$d prices</string>
+    <string name="smart_group_packages">%1$d packages</string>
+    <string name="smart_group_messages">%1$d messages</string>
+    <string name="smart_group_items">%1$d items</string>
+
+    <!-- QR codes and barcodes -->
+    <string name="qr_open_qr_link">🌐 Open QR Link: %1$s</string>
+    <string name="qr_summarize">📝 Summarize</string>
+    <string name="qr_copy_url">📋 Copy URL</string>
+    <string name="qr_wi_fi">📶 Wi-Fi: %1$s</string>
+    <string name="qr_call">📞 Call: %1$s</string>
+    <string name="qr_pay_via_upi">💳 Pay via UPI: %1$s</string>
+    <string name="qr_copy_upi_link">📋 Copy UPI Link</string>
+    <string name="qr_copy_link">📋 Copy Link</string>
+    <string name="qr_search_barcode">🔍 Search Barcode: %1$s</string>
+    <string name="qr_copy_barcode">📋 Copy Barcode</string>
+    <string name="qr_ask_assistant">🤖 Ask Assistant</string>
+    <string name="qr_copy_qr_content">📋 Copy QR Content</string>
+    <string name="qr_qr_link">QR Link: %1$s</string>
+    <string name="qr_wi_fi_qr">Wi-Fi QR: %1$s</string>
+    <string name="qr_qr_phone">QR Phone: %1$s</string>
+    <string name="qr_upi_payment">UPI Payment: %1$s</string>
+    <string name="qr_barcode">Barcode: %1$s</string>
+    <string name="qr_qr">QR: %1$s</string>
+
+    <!-- ScreenLensController -->
+    <string name="lens_couldn_t_start_lens_mode">Couldn\'t start Lens mode</string>
+    <string name="lens_accessibility_service_not_available">Accessibility service not available</string>
+    <string name="lens_screenshot_failed_try_again">Screenshot failed — try again</string>
+    <string name="lens_selection_was_empty">Selection was empty</string>
+    <string name="lens_failed_to_save_image">Failed to save image: %1$s</string>
+    <string name="lens_couldn_t_prepare_the_image">Couldn\'t prepare the image</string>
+    <string name="lens_select">Select</string>
+    <string name="lens_copy">Copy</string>
+    <string name="lens_translate">Translate</string>
+    <string name="lens_save">Save</string>
+    <string name="lens_ask">Ask</string>
+    <string name="lens_copy_selected">Copy Selected</string>
+    <string name="lens_copy_all">Copy All</string>
+    <string name="lens_close">Close</string>
+    <string name="lens_select_some_text_first_then">Select some text first, then tap Copy Selected</string>
+    <string name="lens_copied_to_clipboard">Copied to clipboard</string>
+    <string name="lens_saved_image_to">Saved image to %1$s</string>
+    <string name="lens_extracted_text">Extracted Text</string>
+
+    <!-- Assistive ball: clipboard and Screen Companion -->
+    <string name="ball_translate_clip">🌐 Translate: %1$s</string>
+    <string name="ball_summarize_clip">📋 Summarize: %1$s</string>
+    <string name="companion_screenshot_extract">📸 Screenshot taken. Extract text?</string>
+    <string name="companion_screenshot_translate">🌐 Translate Screenshot</string>
+    <string name="companion_no_response">No response</string>
+    <string name="companion_error">Error: %1$s</string>
+    <string name="companion_summarize_link">Summarize link:\n%1$s</string>
+    <string name="companion_fetching">Fetching %1$s …</string>
+    <string name="companion_fetch_failed">Couldn\'t fetch the link: %1$s</string>
+    <string name="companion_summarizing">Summarizing …</string>
+
+    <!-- Assistive ball: clipboard and Screen Companion -->
+
+    <!-- AssistiveBallService -->
+    <string name="ball_could_not_fetch_exchange_rate">Could not fetch exchange rate for %1$s</string>
+    <string name="ball_couldn_t_open_action">Couldn\'t open action: %1$s</string>
+    <string name="ball_microphone_permission_not_granted">Microphone permission not granted.</string>
+    <string name="ball_failed_to_start_speech_recognition">Failed to start speech recognition.</string>
+    <string name="ball_failed_to_start_recording">Failed to start recording.</string>
+    <string name="ball_no_stt_provider_configured_enable">No STT provider configured. Enable one in settings.</string>
+    <string name="ball_transcription_failed">Transcription failed: %1$s</string>
+    <string name="ball_no_tts_provider_configured_enable">No TTS provider configured. Enable one in settings.</string>
+    <string name="ball_accessibility_service_not_available">Accessibility service not available</string>
+    <string name="ball_screenshot_failed_try_again">Screenshot failed — try again</string>
+    <string name="ball_screenshot_error">Screenshot error: %1$s</string>
+    <string name="ball_region_attached_ask_a_question">📸 Region attached — ask a question about it below.</string>
+    <string name="ball_region_attached">📸 Region attached</string>
+    <string name="ball_ask_me_anything_about_the">Ask me anything about the selected region.</string>
+    <string name="ball_thinking">Thinking...</string>
+    <string name="ball_no_text_found_in_selection">No text found in selection</string>
+    <string name="ball_copied_to_clipboard">Copied to clipboard</string>
+    <string name="ball_couldn_t_read_text">Couldn\'t read text: %1$s</string>
+    <string name="ball_error">Error: %1$s</string>
+
+    <!-- GotchaNotificationListenerService -->
+    <string name="notification_listener_otp_copied_to_clipboard">🔑 OTP %1$s copied to clipboard</string>
 </resources>
