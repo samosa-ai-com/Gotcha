@@ -1,6 +1,7 @@
 package com.gotcha.agent
 
 import android.content.Context
+import com.gotcha.R
 import com.gotcha.agent.skills.SkillPromptBuilder
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.connectors.ConnectorRegistry
@@ -10,6 +11,8 @@ import com.gotcha.data.GotchaStorage
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.ToolSummary
+import com.gotcha.i18n.StringLookup
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.ToolCall
@@ -48,19 +51,15 @@ private enum class ConfirmDecision { APPROVED, DENIED, TIMED_OUT }
 private val WHITESPACE = Regex("\\s+")
 
 /** Maps API/network failures to a short, user-readable message. */
-internal fun friendlyAgentError(e: Exception): String = HumanReadableError.format(e)
-
-/** Shown when the model server sends nothing back within the API timeout (#104). */
-internal const val MODEL_TIMEOUT_MESSAGE =
-    "The model didn't respond in time. Try again, or raise the API timeout in Settings → AI → AI Configuration."
+internal fun friendlyAgentError(e: Exception, strings: StringLookup): String = HumanReadableError.format(e, strings)
 
 /**
  * [friendlyAgentError] for a failed model request. A timeout here means the model
  * never answered, which the generic network wording ("try a smaller request")
  * does not say; the generic one stays for speech-to-text and the rest.
  */
-internal fun friendlyModelError(e: Exception): String =
-    if (e is SocketTimeoutException) MODEL_TIMEOUT_MESSAGE else friendlyAgentError(e)
+internal fun friendlyModelError(e: Exception, strings: StringLookup): String =
+    if (e is SocketTimeoutException) strings(R.string.error_model_timeout) else friendlyAgentError(e, strings)
 
 /**
  * The core agent loop, extracted from ChatViewModel so it can run both inside
@@ -587,7 +586,7 @@ class AgentEngine(
             } catch (e: Exception) {
                 lastModelRequestFailed = true
                 // Also spoken: on a voice call an unannounced return is silence.
-                val error = friendlyModelError(e)
+                val error = friendlyModelError(e, appContext.stringLookup())
                 events.onUi(MessageKind.ERROR, error)
                 events.onAssistantReply(error)
                 emitRunSummary(error, succeeded = false)

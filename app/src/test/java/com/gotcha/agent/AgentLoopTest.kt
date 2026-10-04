@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatRequest
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -482,7 +483,11 @@ class AgentLoopTest {
         val request = events.foregroundControlRequests.single()
         assertEquals("open_app", request.toolName)
         assertEquals("Chat App", request.appLabel)
-        assertTrue(request.promptText().contains("Say hi to Sam on Chat App"))
+        assertTrue(
+            request.promptText(
+                ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            ).contains("Say hi to Sam on Chat App")
+        )
         assertEquals(listOf(true to "Chat App", false to "Chat App"), events.foregroundControlChanges)
     }
 

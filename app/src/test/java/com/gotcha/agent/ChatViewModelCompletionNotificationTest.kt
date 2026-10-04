@@ -3,11 +3,13 @@ package com.gotcha.agent
 import android.Manifest
 import android.app.Application
 import android.app.NotificationManager
+import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import com.gotcha.notifications.ChatCompletionNotifier
 import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.service.ChatRunService
@@ -221,7 +223,12 @@ class ChatViewModelCompletionNotificationTest {
         ShadowLooper.idleMainLooper()
 
         assertEquals(
-            backgroundHintText(vibrate = true, chime = false, notify = true),
+            backgroundHintText(
+                vibrate = true,
+                chime = false,
+                notify = true,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            ),
             viewModel.uiState.value.backgroundHint
         )
         waitForRunToFinish()
@@ -250,13 +257,25 @@ class ChatViewModelCompletionNotificationTest {
         start(granted = false)
         viewModel.sendMessage("Hello")
         ShadowLooper.idleMainLooper()
-        assertEquals(backgroundHintText(vibrate = true, chime = false), viewModel.uiState.value.backgroundHint)
+        assertEquals(
+            backgroundHintText(
+                vibrate = true,
+                chime = false,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            ),
+            viewModel.uiState.value.backgroundHint
+        )
 
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         viewModel.onNotificationPermissionResult(true)
 
         assertEquals(
-            backgroundHintText(vibrate = true, chime = false, notify = true),
+            backgroundHintText(
+                vibrate = true,
+                chime = false,
+                notify = true,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            ),
             viewModel.uiState.value.backgroundHint
         )
         assertFalse(viewModel.uiState.value.askNotificationPermission)

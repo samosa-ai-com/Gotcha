@@ -3,6 +3,7 @@ package com.gotcha.agent
 import android.app.Application
 import android.app.Notification
 import com.gotcha.GotchaApp
+import com.gotcha.R
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.CompletionFeedback
@@ -171,8 +172,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
             withContext(Dispatchers.Main) {
                 appendTranscript(
                     MessageKind.TOOL,
-                    "Assistant updated your profile: " +
-                        merged.changedFields.joinToString(", ") + "."
+                    app.getString(R.string.runner_profile_updated, merged.changedFields.joinToString(", "))
                 )
             }
             ToolResult.ok(
@@ -587,7 +587,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
             engine.run(agent)
         } catch (_: CancellationException) {
             stopped = true
-            appendTranscript(MessageKind.ERROR, "Agent was interrupted by the user.")
+            appendTranscript(MessageKind.ERROR, app.getString(R.string.runner_interrupted_by_user))
             // The interrupt may have orphaned an assistant with tool_calls but no
             // matching tool results. Repair it in NonCancellable before the next
             // turn is built — otherwise the provider 400s every later request.
@@ -917,16 +917,16 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
         if (active) {
-            val text = ForegroundControlRequest.controllingMessage(appLabel)
+            val text = ForegroundControlRequest.controllingMessage(appLabel, app.stringLookup())
             setState { it.copy(foregroundControlStatus = text) }
             foregroundControlIndicator.showControlling(text)
         } else {
-            setState { it.copy(foregroundControlStatus = ForegroundControlRequest.DONE_MESSAGE) }
+            setState { it.copy(foregroundControlStatus = app.getString(ForegroundControlRequest.DONE_MESSAGE)) }
             // In the app the status line says it; outside, the card over their app does.
             if (appInForeground) {
                 foregroundControlIndicator.dismiss()
             } else {
-                foregroundControlIndicator.showDone(ForegroundControlRequest.DONE_MESSAGE)
+                foregroundControlIndicator.showDone(app.getString(ForegroundControlRequest.DONE_MESSAGE))
             }
         }
     }
@@ -950,12 +950,12 @@ class ChatRunner(private val app: Application) : AgentEvents {
         val gate = foregroundControlGate
         if (foregroundControl != null && gate != null && confirmationOverlay.canShow()) {
             confirmationOverlay.show(
-                summary = foregroundControl.promptText(),
+                summary = foregroundControl.promptText(app.stringLookup()),
                 onAllow = { gate.complete(true) },
                 onDeny = { gate.complete(false) },
-                title = foregroundControl.title,
-                allowLabel = ForegroundControlRequest.ALLOW_LABEL,
-                denyLabel = ForegroundControlRequest.DENY_LABEL
+                title = foregroundControl.title(app.stringLookup()),
+                allowLabel = app.getString(ForegroundControlRequest.ALLOW_LABEL),
+                denyLabel = app.getString(ForegroundControlRequest.DENY_LABEL)
             )
             return
         }
@@ -998,7 +998,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
     private fun currentBackgroundHint(): String = backgroundHintText(
         vibrate = settings.notifyVibrationEnabled,
         chime = settings.notifyChimeEnabled,
-        notify = settings.chatCompletionNotificationsEnabled && completionNotifier.canPost()
+        notify = settings.chatCompletionNotificationsEnabled && completionNotifier.canPost(),
+        text = app.stringLookup()
     )
 
     /**
@@ -1074,7 +1075,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 session.displayMessages
             } else {
                 val nextId = session.displayMessages.maxOf { it.id } + 1
-                session.displayMessages + UiMessage(nextId, MessageKind.ERROR, INTERRUPTED_NOTICE)
+                session.displayMessages + UiMessage(nextId, MessageKind.ERROR, app.getString(R.string.runner_interrupted_notice))
             }
             historyRepository.saveSession(
                 session.copy(messages = closeOrphanedToolCalls(session.messages), displayMessages = shown),
@@ -1084,8 +1085,15 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 !localNotificationStore.isChatSensitive(sessionId, session.personaId)
             localNotificationStore.addEntry(
                 category = NotificationCategory.TASK_FINISHED,
-                title = if (named) "Interrupted: ${session.title}" else "Task interrupted",
-                body = INTERRUPTED_INBOX_BODY,
+                title = if (named) {
+                    app.getString(
+                        R.string.runner_interrupted_title,
+                        ChatTitle.display(session.title, app.stringLookup())
+                    )
+                } else {
+                    app.getString(R.string.runner_interrupted_title_anonymous)
+                },
+                body = app.getString(R.string.runner_interrupted_inbox_body),
                 target = NotificationTarget.Chat(sessionId)
             )
             _inboxChanges.update { it + 1 }
@@ -1137,10 +1145,6 @@ class ChatRunner(private val app: Application) : AgentEvents {
         private const val MIGRATED_CHAT_DIRS_KEY = "migrated_chat_dirs_v1"
 
         /** Ends the chat of a run that died with the process; see [reportInterruptedRun]. */
-        private const val INTERRUPTED_NOTICE = "This task was interrupted: Android closed Gotcha while it was " +
-            "working, usually to free memory. Send a message to pick up where it left off."
-        private const val INTERRUPTED_INBOX_BODY = "Android closed Gotcha while it was working on this task. " +
-            "Tap to open the chat and pick up where it left off."
 
         @Volatile
         private var fallback: ChatRunner? = null

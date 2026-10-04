@@ -361,7 +361,9 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse(getString(R.string.companion_error, HumanReadableError.format(e)))
+                screenCompanionPanel.updateResponse(
+                    getString(R.string.companion_error, HumanReadableError.format(e, stringLookup()))
+                )
             }
         }
     }
@@ -412,7 +414,9 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse(getString(R.string.companion_error, HumanReadableError.format(e)))
+                screenCompanionPanel.updateResponse(
+                    getString(R.string.companion_error, HumanReadableError.format(e, stringLookup()))
+                )
             }
         }
     }
@@ -625,7 +629,9 @@ class AssistiveBallService : Service() {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         } catch (e: Exception) {
-            overlay.showError(getString(R.string.ball_couldn_t_open_action, HumanReadableError.format(e)))
+            overlay.showError(
+                getString(R.string.ball_couldn_t_open_action, HumanReadableError.format(e, stringLookup()))
+            )
         }
     }
 
@@ -681,7 +687,9 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse(getString(R.string.companion_error, HumanReadableError.format(e)))
+                screenCompanionPanel.updateResponse(
+                    getString(R.string.companion_error, HumanReadableError.format(e, stringLookup()))
+                )
             }
         }
     }
@@ -708,7 +716,7 @@ class AssistiveBallService : Service() {
                     showToast(getString(R.string.ball_copied_to_clipboard))
                 }
             } catch (e: Exception) {
-                showToast(getString(R.string.ball_couldn_t_read_text, HumanReadableError.format(e)))
+                showToast(getString(R.string.ball_couldn_t_read_text, HumanReadableError.format(e, stringLookup())))
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
@@ -795,7 +803,7 @@ class AssistiveBallService : Service() {
                         )
                         updateResponse(replyText)
                     } catch (e: Exception) {
-                        updateResponse(getString(R.string.ball_error, HumanReadableError.format(e)))
+                        updateResponse(getString(R.string.ball_error, HumanReadableError.format(e, stringLookup())))
                     }
                 }
             }
@@ -875,7 +883,9 @@ class AssistiveBallService : Service() {
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
                 .onFailure { e ->
-                    overlay.showError(getString(R.string.ball_transcription_failed, HumanReadableError.format(e)))
+                    overlay.showError(
+                        getString(R.string.ball_transcription_failed, HumanReadableError.format(e, stringLookup()))
+                    )
                 }
         }
     }
@@ -1094,7 +1104,9 @@ class AssistiveBallService : Service() {
                     overlay.showChromeAfterCapture()
                     chatWindow.setVisibleForCapture(true)
                     screenCompanionPanel.setVisibleForCapture(true)
-                    overlay.showError(getString(R.string.ball_screenshot_error, HumanReadableError.format(e)))
+                    overlay.showError(
+                        getString(R.string.ball_screenshot_error, HumanReadableError.format(e, stringLookup()))
+                    )
                 }
             }
         }

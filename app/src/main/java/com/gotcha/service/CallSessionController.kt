@@ -20,6 +20,7 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
@@ -322,7 +323,7 @@ class CallSessionController(
                     // never spoke.
                     val error = outcome.exceptionOrNull()
                     if (error != null && !SttEngine.isBenignSttError(error)) {
-                        reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                        reportError(friendlyAgentError(error as? Exception ?: Exception(error.message), appContext.stringLookup()))
                         endCall()
                         break
                     }
@@ -484,7 +485,7 @@ class CallSessionController(
                 // surface a dialog for actual STT failures (e.g. a bad API key/model).
                 val error = result.exceptionOrNull()
                 if (error != null && error.message != "No speech detected") {
-                    reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                    reportError(friendlyAgentError(error as? Exception ?: Exception(error.message), appContext.stringLookup()))
                 }
                 _state.value = CallState.READY
                 return@launch
@@ -537,7 +538,7 @@ class CallSessionController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            val msg = friendlyAgentError(e)
+            val msg = friendlyAgentError(e, appContext.stringLookup())
             reportError(msg)
             pendingReply = msg
         }
@@ -755,11 +756,11 @@ class CallSessionController(
      */
     override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean =
         askOverScreen(
-            transcript = "${request.title} ${request.promptText()}",
-            summary = request.promptText(),
-            title = request.title,
-            allowLabel = ForegroundControlRequest.ALLOW_LABEL,
-            denyLabel = ForegroundControlRequest.DENY_LABEL
+            transcript = "${request.title(appContext.stringLookup())} ${request.promptText(appContext.stringLookup())}",
+            summary = request.promptText(appContext.stringLookup()),
+            title = request.title(appContext.stringLookup()),
+            allowLabel = appContext.getString(ForegroundControlRequest.ALLOW_LABEL),
+            denyLabel = appContext.getString(ForegroundControlRequest.DENY_LABEL)
         )
 
     /** Says a decision is needed, then waits on the overlay's Allow/Deny; denies on timeout. */
@@ -795,10 +796,12 @@ class CallSessionController(
 
     override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
         if (active) {
-            foregroundControlIndicator.showControlling(ForegroundControlRequest.controllingMessage(appLabel))
+            foregroundControlIndicator.showControlling(
+                ForegroundControlRequest.controllingMessage(appLabel, appContext.stringLookup())
+            )
         } else {
-            addTranscript(MessageKind.ASSISTANT, ForegroundControlRequest.DONE_MESSAGE)
-            foregroundControlIndicator.showDone(ForegroundControlRequest.DONE_MESSAGE)
+            addTranscript(MessageKind.ASSISTANT, appContext.getString(ForegroundControlRequest.DONE_MESSAGE))
+            foregroundControlIndicator.showDone(appContext.getString(ForegroundControlRequest.DONE_MESSAGE))
         }
     }
 

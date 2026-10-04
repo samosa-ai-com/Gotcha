@@ -2,6 +2,7 @@ package com.gotcha.notifications
 
 import androidx.annotation.StringRes
 import com.gotcha.R
+import com.gotcha.agent.ChatTitle
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.i18n.StringLookup
@@ -178,8 +179,8 @@ internal fun unfinishedChat(
     val asked = run.succeeded
     val body = when {
         !mention -> text(R.string.local_unfinished_generic)
-        asked -> text(R.string.local_unfinished_asked, chat.title)
-        else -> text(R.string.local_unfinished_stopped, chat.title)
+        asked -> text(R.string.local_unfinished_asked, ChatTitle.display(chat.title, text))
+        else -> text(R.string.local_unfinished_stopped, ChatTitle.display(chat.title, text))
     }
     return LocalCandidate(
         category = NotificationCategory.UNFINISHED_CHAT,
@@ -287,7 +288,7 @@ internal fun inactivityReminder(
         dedupKey = "inactive:$lastOpenedAt",
         title = text(if (recent != null) R.string.local_inactive_title_recent else R.string.local_inactive_title),
         body = if (recent != null) {
-            text(R.string.local_inactive_body_recent, recent.title)
+            text(R.string.local_inactive_body_recent, ChatTitle.display(recent.title, text))
         } else {
             text(R.string.local_inactive_body)
         },

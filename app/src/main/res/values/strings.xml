@@ -1367,4 +1367,135 @@
 
     <!-- GotchaNotificationListenerService -->
     <string name="notification_listener_otp_copied_to_clipboard">🔑 OTP %1$s copied to clipboard</string>
+
+    <!-- Chat: messages from the view model -->
+    <string name="chat_vm_no_api_key_configured_open">No API key configured. Open settings to add one.</string>
+    <string name="chat_vm_microphone_permission_not_granted_enable">Microphone permission not granted. Enable it in Settings → Permissions.</string>
+    <string name="chat_vm_failed_to_start_speech_recognition">Failed to start speech recognition.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT is not configured. Sign in from Settings → Speech.</string>
+    <string name="chat_vm_no_stt_api_url_configured">No STT API URL configured in settings.</string>
+    <string name="chat_vm_no_stt_model_selected_refresh">No STT model selected. Refresh audio models in settings.</string>
+    <string name="chat_vm_failed_to_start_recording">Failed to start recording.</string>
+    <string name="chat_vm_no_stt_provider_configured_enable">No STT provider configured. Enable one in settings.</string>
+    <string name="chat_vm_failed_to_record_audio">Failed to record audio.</string>
+    <string name="chat_vm_transcription_failed">Transcription failed: %1$s</string>
+    <string name="chat_vm_switched_to_monitor_mode_the">Switched to Monitor mode — the agent can only observe; it cannot make any changes to your device.</string>
+    <string name="chat_vm_switched_to_operator_mode_the">Switched to Operator mode — the agent can now make changes to your device.</string>
+    <string name="chat_vm_could_not_read_that_file">Could not read that file: %1$s</string>
+    <string name="chat_vm_backup_saved">Backup saved</string>
+    <string name="chat_vm_backup_failed">Backup failed</string>
+    <string name="chat_vm_the_backup_couldn_t_be">The backup couldn\'t be saved.</string>
+    <string name="chat_vm_reading_file">Reading file…</string>
+    <string name="chat_vm_the_file_couldn_t_be">The file couldn\'t be opened.</string>
+    <string name="chat_vm_the_file_is_larger_than">The file is larger than %1$s MB, the most Gotcha imports at once.</string>
+    <string name="chat_vm_importing">Importing…</string>
+    <string name="chat_vm_import_finished">Import finished</string>
+    <string name="chat_vm_nothing_imported">Nothing imported</string>
+    <string name="chat_vm_saving_backup">Saving backup…</string>
+    <string name="chat_vm_there_are_no_saved_chats">There are no saved chats to back up yet.</string>
+    <string name="chat_vm_the_chosen_location_can_t">The chosen location can\'t be written to.</string>
+    <string name="chat_vm_nothing_accomplished_in_this_run">Nothing accomplished in this run to showcase yet.</string>
+    <string name="chat_vm_import_failed">Import failed</string>
+    <string name="chat_vm_could_not_read_that_file_2">Could not read that file.</string>
+    <string name="chat_vm_imported_count">Imported %1$d</string>
+    <string name="chat_vm_replaced_count">replaced %1$d</string>
+    <string name="chat_vm_skipped_count">skipped %1$d</string>
+    <string name="chat_vm_failed_count">%1$d failed</string>
+    <plurals name="chat_vm_saved_chats">
+        <item quantity="one">Saved %1$d chat.</item>
+        <item quantity="other">Saved %1$d chats.</item>
+    </plurals>
+    <plurals name="chat_vm_too_many_files">
+        <item quantity="one">You can attach up to %2$d files per message — skipped %1$d file.</item>
+        <item quantity="other">You can attach up to %2$d files per message — skipped %1$d files.</item>
+    </plurals>
+    <plurals name="chat_vm_documents_too_long">
+        <item quantity="one">The attached documents are too long to send together — skipped %1$d document. Send them in separate messages.</item>
+        <item quantity="other">The attached documents are too long to send together — skipped %1$d documents. Send them in separate messages.</item>
+    </plurals>
+
+    <!-- Chat runner and background hint -->
+    <string name="runner_profile_updated">Assistant updated your profile: %1$s.</string>
+    <string name="runner_interrupted_by_user">Agent was interrupted by the user.</string>
+    <string name="runner_interrupted_title">Interrupted: %1$s</string>
+    <string name="runner_interrupted_title_anonymous">Task interrupted</string>
+    <string name="runner_interrupted_notice">This task was interrupted: Android closed Gotcha while it was working, usually to free memory. Send a message to pick up where it left off.</string>
+    <string name="runner_interrupted_inbox_body">Android closed Gotcha while it was working on this task. Tap to open the chat and pick up where it left off.</string>
+    <string name="hint_background">Gotcha is working in the background. You can use another app while it works</string>
+    <string name="hint_background_with_signal">%1$s — %2$s.</string>
+    <string name="hint_background_alone">%1$s.</string>
+    <string name="hint_signal_notify">Gotcha will notify you when the task is finished</string>
+    <string name="hint_signal_buzz_chime">your phone will buzz and chime when it\'s done</string>
+    <string name="hint_signal_buzz">your phone will buzz when it\'s done</string>
+    <string name="hint_signal_chime">your phone will chime when it\'s done</string>
+
+    <!-- Chat titles until one is generated -->
+    <string name="chat_title_new">New Chat</string>
+    <string name="chat_title_image">Image chat</string>
+
+    <!-- Controlling other apps (foreground control) -->
+    <string name="fg_title">Let Gotcha control %1$s?</string>
+    <string name="fg_your_apps">your apps</string>
+    <string name="fg_another_app">another app</string>
+    <string name="fg_wants_to">Gotcha wants to: %1$s</string>
+    <string name="fg_to_do_what_you_asked_quoted">To do what you asked (“%1$s”), Gotcha needs to use %2$s.</string>
+    <string name="fg_to_do_what_you_asked">To do what you asked, Gotcha needs to use %1$s.</string>
+    <string name="fg_prompt">%1$s\n\nGotcha may bring %2$s to the front and tap, type, scroll and read its screen until this request is done. You\'ll see when it has finished.\n\nIf you deny, Gotcha won\'t open or control other apps for this request.</string>
+    <string name="fg_allow">Allow for this request</string>
+    <string name="fg_done">Gotcha is done. You can use your app again.</string>
+    <string name="fg_controlling">Gotcha is controlling %1$s…</string>
+    <string name="fg_your_screen">your screen</string>
+
+    <!-- Errors shown to the user -->
+    <string name="error_network_problem_check">Network problem: %1$s. Check your connection.</string>
+    <string name="error_could_not_reach_server">could not reach the server</string>
+    <string name="error_permission_denied">Permission denied: %1$s.</string>
+    <string name="error_permission_not_granted">required permission was not granted</string>
+    <string name="error_http_generic">The API returned an error (HTTP %1$d).</string>
+    <string name="error_http_generic_detail">The API returned an error (HTTP %1$d) (%2$s).</string>
+    <string name="error_the_model_rejected_the_attached">The model rejected the attached images (HTTP %1$s): %2$s. It may accept fewer or smaller images per request — images from earlier in this chat count too. Remove some attachments or start a new chat, then try again.</string>
+    <string name="error_bad_request_http_400_the">Bad request (HTTP 400). The request format or parameters sent to the API were invalid.</string>
+    <string name="error_authentication_failed_http_401_please">Authentication failed (HTTP 401). Please check your API key in Settings.</string>
+    <string name="error_access_restricted_http_403_this">Access restricted (HTTP 403). This model is not available on your current tier. Please upgrade your account in Settings to access it.</string>
+    <string name="error_resource_not_found_http_404">Resource not found (HTTP 404). Check if the selected model ID or endpoint URL is correct in Settings.</string>
+    <string name="error_request_timeout_http_408_the">Request timeout (HTTP 408). The server timed out waiting for the request.</string>
+    <string name="error_request_too_large_http_413">Request too large (HTTP 413). Try sending fewer or smaller attachments.</string>
+    <string name="error_rate_limit_or_quota_exceeded">Rate limit or quota exceeded (HTTP 429). Please wait a moment or check your API usage limits.</string>
+    <string name="error_server_error_http_500_the">Server error (HTTP 500). The remote AI service encountered an internal error. Please try again.</string>
+    <string name="error_bad_gateway_http_502_the">Bad gateway (HTTP 502). The proxy or upstream service received an invalid response.</string>
+    <string name="error_service_unavailable_http_503_the">Service unavailable (HTTP 503). The remote AI service is temporarily down or overloaded.</string>
+    <string name="error_gateway_timeout_http_504_the">Gateway timeout (HTTP 504). The upstream AI service took too long to respond.</string>
+    <string name="error_network_connection_timed_out_while">Network connection timed out while recognizing speech.</string>
+    <string name="error_network_connection_error_during_speech">Network connection error during speech recognition. Check your internet connection.</string>
+    <string name="error_microphone_hardware_error_ensure_your">Microphone hardware error. Ensure your microphone is not in use by another app.</string>
+    <string name="error_device_speech_recognition_server_error">Device speech recognition server error. Please try again.</string>
+    <string name="error_android_speech_recognition_client_error">Android speech recognition client error.</string>
+    <string name="error_no_speech_detected_please_speak">No speech detected. Please speak closer to the microphone.</string>
+    <string name="error_could_not_understand_speech_please">Could not understand speech. Please try speaking clearer or closer to the mic.</string>
+    <string name="error_speech_recognizer_is_busy_please">Speech recognizer is busy. Please wait a moment and try again.</string>
+    <string name="error_microphone_permission_is_required_for">Microphone permission is required for voice input.</string>
+    <string name="error_too_many_speech_recognition_requests">Too many speech recognition requests sent. Please wait a moment.</string>
+    <string name="error_speech_recognition_service_disconnected_reconnecting">Speech recognition service disconnected. Reconnecting...</string>
+    <string name="error_selected_language_is_not_supported">Selected language is not supported by device speech recognition.</string>
+    <string name="error_language_pack_for_selected_language">Language pack for selected language is not installed on your device.</string>
+    <string name="error_speech_recognition_error_code">Speech recognition error (code %1$s).</string>
+    <string name="error_speech_synthesis_error_while_generating">Speech synthesis error while generating audio.</string>
+    <string name="error_android_texttospeech_engine_service_error">Android TextToSpeech engine service error.</string>
+    <string name="error_audio_output_stream_error_during">Audio output stream error during speech playback.</string>
+    <string name="error_network_failure_during_online_speech">Network failure during online speech synthesis.</string>
+    <string name="error_network_timeout_during_speech_synthesis">Network timeout during speech synthesis.</string>
+    <string name="error_invalid_text_input_or_parameters">Invalid text input or parameters passed to TTS engine.</string>
+    <string name="error_tts_voice_data_is_still">TTS voice data is still downloading on your device.</string>
+    <string name="error_text_to_speech_error_code">Text-to-speech error (code %1$s).</string>
+    <string name="error_cannot_connect_to_server_check">Cannot connect to server. Check your internet connection or server URL in Settings.</string>
+    <string name="error_connection_refused_by_server_ensure">Connection refused by server. Ensure the server is running and accessible.</string>
+    <string name="error_connection_timed_out_waiting_for">Connection timed out waiting for server response. Check network speed or try a smaller request.</string>
+    <string name="error_network_problem">Network problem: %1$s</string>
+    <string name="error_an_unexpected_error_occurred">An unexpected error occurred (%1$s).</string>
+
+    <!-- Errors shown to the user: generic -->
+    <string name="error_generic">Error: %1$s</string>
+
+    <!-- Errors: model timeout -->
+    <string name="error_model_timeout">The model didn\'t respond in time. Try again, or raise the API timeout in Settings → AI → AI Configuration.</string>
 </resources>

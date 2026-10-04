@@ -1,10 +1,12 @@
 package com.gotcha.agent
 
 import android.app.Application
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.CoroutineScope
@@ -77,21 +79,56 @@ class ChatViewModelBackgroundHintTest {
         return viewModel.runner.engine.history.toList()
     }
 
-    private val expectedHint = backgroundHintText(vibrate = true, chime = false)
+    private val expectedHint =
+        backgroundHintText(
+            vibrate = true,
+            chime = false,
+            text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+        )
 
     @Test
     fun `hint promises only the signals the user has enabled`() {
         val base = "Gotcha is working in the background. You can use another app while it works"
-        assertEquals("$base — your phone will buzz when it's done.", backgroundHintText(vibrate = true, chime = false))
-        assertEquals("$base — your phone will chime when it's done.", backgroundHintText(vibrate = false, chime = true))
+        assertEquals(
+            "$base — your phone will buzz when it's done.",
+            backgroundHintText(
+                vibrate = true,
+                chime = false,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            )
+        )
+        assertEquals(
+            "$base — your phone will chime when it's done.",
+            backgroundHintText(
+                vibrate = false,
+                chime = true,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            )
+        )
         assertEquals(
             "$base — your phone will buzz and chime when it's done.",
-            backgroundHintText(vibrate = true, chime = true)
+            backgroundHintText(
+                vibrate = true,
+                chime = true,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            )
         )
-        assertEquals("$base.", backgroundHintText(vibrate = false, chime = false))
+        assertEquals(
+            "$base.",
+            backgroundHintText(
+                vibrate = false,
+                chime = false,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            )
+        )
         assertEquals(
             "$base — Gotcha will notify you when the task is finished.",
-            backgroundHintText(vibrate = true, chime = true, notify = true)
+            backgroundHintText(
+                vibrate = true,
+                chime = true,
+                notify = true,
+                text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            )
         )
     }
 

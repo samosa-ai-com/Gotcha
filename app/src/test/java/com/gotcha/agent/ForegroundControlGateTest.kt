@@ -1,5 +1,8 @@
 package com.gotcha.agent
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -10,7 +13,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class ForegroundControlGateTest {
 
     private val noArgs = JsonObject(emptyMap())
@@ -102,7 +108,7 @@ class ForegroundControlGateTest {
             toolName = "open_app",
             appLabel = "WhatsApp",
             userRequest = "text Sam I'm late"
-        ).promptText()
+        ).promptText(ApplicationProvider.getApplicationContext<Context>().stringLookup())
 
         assertTrue(text.contains("WhatsApp"))
         assertTrue(text.contains("text Sam I'm late"))

@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.gotcha.R
+import com.gotcha.agent.ChatTitle
 import com.gotcha.i18n.StringLookup
 import com.gotcha.i18n.stringLookup
 import com.gotcha.notifications.ChatCompletionNotifier
@@ -248,7 +249,8 @@ class ChatRunService : Service() {
         }
 
         internal fun title(chat: RunningChat?, text: StringLookup): String {
-            val name = chat?.chatTitle?.takeIf { it.isNotBlank() } ?: return text(R.string.run_public_title)
+            val name = chat?.chatTitle?.takeIf { it.isNotBlank() }?.let { ChatTitle.display(it, text) }
+                ?: return text(R.string.run_public_title)
             // A name already cut short with "…" doesn't need a second one.
             return text(if (name.endsWith("…")) R.string.run_title_cut else R.string.run_title, name)
         }

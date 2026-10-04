@@ -1,5 +1,8 @@
 package com.gotcha.agent
 
+import androidx.annotation.StringRes
+import com.gotcha.R
+import com.gotcha.i18n.StringLookup
 import com.gotcha.tools.ToolCategories
 import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.sync.Mutex
@@ -20,30 +23,29 @@ data class ForegroundControlRequest(
     /** navigate_app's task, when that is what asked: more specific than [userRequest]. */
     val task: String? = null
 ) {
-    val title: String get() = "Let Gotcha control ${appLabel ?: "your apps"}?"
+    fun title(text: StringLookup): String = text(R.string.fg_title, appLabel ?: text(R.string.fg_your_apps))
 
-    fun promptText(): String {
-        val target = appLabel ?: "another app"
+    fun promptText(text: StringLookup): String {
+        val target = appLabel ?: text(R.string.fg_another_app)
         val why = task?.trim()?.takeIf { it.isNotEmpty() }
-            ?.let { "Gotcha wants to: ${it.take(MAX_QUOTE)}" }
+            ?.let { text(R.string.fg_wants_to, it.take(MAX_QUOTE)) }
             ?: userRequest.trim().takeIf { it.isNotEmpty() }
-                ?.let { "To do what you asked (“${it.take(MAX_QUOTE)}”), Gotcha needs to use $target." }
-            ?: "To do what you asked, Gotcha needs to use $target."
-        return why + "\n\n" +
-            "Gotcha may bring $target to the front and tap, type, scroll and read its screen " +
-            "until this request is done. You'll see when it has finished.\n\n" +
-            "If you deny, Gotcha won't open or control other apps for this request."
+                ?.let { text(R.string.fg_to_do_what_you_asked_quoted, it.take(MAX_QUOTE), target) }
+            ?: text(R.string.fg_to_do_what_you_asked, target)
+        return text(R.string.fg_prompt, why, target)
     }
 
     companion object {
-        const val ALLOW_LABEL = "Allow for this request"
-        const val DENY_LABEL = "Deny"
-        const val DONE_MESSAGE = "Gotcha is done. You can use your app again."
+        @StringRes val ALLOW_LABEL = R.string.fg_allow
+
+        @StringRes val DENY_LABEL = R.string.action_deny
+
+        @StringRes val DONE_MESSAGE = R.string.fg_done
 
         private const val MAX_QUOTE = 160
 
-        fun controllingMessage(appLabel: String?): String =
-            "Gotcha is controlling ${appLabel ?: "your screen"}…"
+        fun controllingMessage(appLabel: String?, text: StringLookup): String =
+            text(R.string.fg_controlling, appLabel ?: text(R.string.fg_your_screen))
     }
 }
 

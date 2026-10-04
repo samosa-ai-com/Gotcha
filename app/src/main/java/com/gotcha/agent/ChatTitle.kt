@@ -1,6 +1,8 @@
 package com.gotcha.agent
 
+import com.gotcha.R
 import com.gotcha.data.isScreenCapture
+import com.gotcha.i18n.StringLookup
 import com.gotcha.llm.ChatMessage
 
 /**
@@ -32,6 +34,17 @@ object ChatTitle {
     const val IMAGE_CHAT = "Image chat"
 
     private const val NEW_CHAT = "New Chat"
+
+    /**
+     * [title] as the user sees it. The placeholder names ([NEW_CHAT], [IMAGE_CHAT])
+     * are stored in English, so they are recognised as placeholders whatever the
+     * display language; this shows them in it.
+     */
+    fun display(title: String, strings: StringLookup): String = when (title) {
+        NEW_CHAT -> strings(R.string.chat_title_new)
+        IMAGE_CHAT -> strings(R.string.chat_title_image)
+        else -> title
+    }
 
     /**
      * The first thing the user wrote in the chat, trimmed, or null while every

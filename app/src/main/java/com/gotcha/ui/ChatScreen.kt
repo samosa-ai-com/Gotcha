@@ -89,9 +89,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.agent.ATTACHMENT_PLACEHOLDERS
+import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.agent.ForegroundControlRequest
+import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
@@ -198,7 +200,11 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            if (isHome) "Gotcha" else (sessionTitle ?: "Gotcha"),
+                            if (isHome) {
+                                "Gotcha"
+                            } else {
+                                sessionTitle?.let { ChatTitle.display(it, LocalContext.current.stringLookup()) } ?: "Gotcha"
+                            },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -561,7 +567,8 @@ fun ChatScreen(
                     Text(
                         stringResource(
                             R.string.chat_agent_working_elsewhere,
-                            state.runningSessionTitle ?: stringResource(R.string.chat_another_chat)
+                            state.runningSessionTitle?.let { ChatTitle.display(it, LocalContext.current.stringLookup()) }
+                                ?: stringResource(R.string.chat_another_chat)
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -843,16 +850,21 @@ fun ChatScreen(
     state.pendingForegroundControl?.let { pending ->
         SkinAlertDialog(
             onDismissRequest = { onAnswerForegroundControl(false) },
-            title = { Text(pending.title) },
-            text = { Text(pending.promptText(), style = MaterialTheme.typography.bodyMedium) },
+            title = { Text(pending.title(LocalContext.current.stringLookup())) },
+            text = {
+                Text(
+                    pending.promptText(LocalContext.current.stringLookup()),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
             confirmButton = {
                 Button(onClick = { onAnswerForegroundControl(true) }) {
-                    Text(ForegroundControlRequest.ALLOW_LABEL)
+                    Text(stringResource(ForegroundControlRequest.ALLOW_LABEL))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { onAnswerForegroundControl(false) }) {
-                    Text(ForegroundControlRequest.DENY_LABEL)
+                    Text(stringResource(ForegroundControlRequest.DENY_LABEL))
                 }
             }
         )

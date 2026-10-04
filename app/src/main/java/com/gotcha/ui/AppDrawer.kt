@@ -34,11 +34,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
+import com.gotcha.agent.ChatTitle
 import com.gotcha.data.ChatSession
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -126,7 +129,7 @@ fun AppDrawerContent(
                         label = {
                             Column {
                                 Text(
-                                    session.title,
+                                    ChatTitle.display(session.title, LocalContext.current.stringLookup()),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -212,7 +215,8 @@ fun AppDrawerContent(
     }
 
     sessionToDelete?.let { id ->
-        val title = sessions.find { it.id == id }?.title ?: stringResource(R.string.drawer_this_chat)
+        val title = sessions.find { it.id == id }?.title?.let { ChatTitle.display(it, LocalContext.current.stringLookup()) }
+            ?: stringResource(R.string.drawer_this_chat)
         SkinAlertDialog(
             onDismissRequest = { sessionToDelete = null },
             title = { Text(stringResource(R.string.drawer_delete_chat)) },

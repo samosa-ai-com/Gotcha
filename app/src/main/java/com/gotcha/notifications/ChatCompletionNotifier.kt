@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.gotcha.R
+import com.gotcha.agent.ChatTitle
 import com.gotcha.data.CompletionPreview
 import com.gotcha.i18n.StringLookup
 import com.gotcha.i18n.stringLookup
@@ -163,7 +164,7 @@ class ChatCompletionNotifier(private val context: Context) {
         internal fun notificationId(sessionId: String): Int = "chat:$sessionId".hashCode() and 0x7FFF_FFFF
 
         internal fun notificationTitle(chatTitle: String, outcome: RunOutcome, text: StringLookup): String {
-            val chat = chatTitle.ifBlank { text(R.string.completion_untitled_chat) }
+            val chat = chatTitle.ifBlank { text(R.string.completion_untitled_chat) }.let { ChatTitle.display(it, text) }
             return when (outcome) {
                 RunOutcome.DONE -> text(R.string.completion_done_title, chat)
                 RunOutcome.FAILED -> text(R.string.completion_failed_title, chat)

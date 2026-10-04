@@ -7,8 +7,11 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import androidx.annotation.PluralsRes
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gotcha.R
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
@@ -23,6 +26,8 @@ import com.gotcha.data.Settings
 import com.gotcha.data.documentPromptText
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
+import com.gotcha.i18n.StringLookup
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.marketing.PosterRenderer
@@ -131,16 +136,20 @@ internal fun shortTitle(text: String, max: Int = 40): String {
     return atWord.trimEnd(',', '.', ';', ':', ' ') + "…"
 }
 
-internal fun backgroundHintText(vibrate: Boolean, chime: Boolean, notify: Boolean = false): String {
-    val base = "Gotcha is working in the background. You can use another app while it works"
+internal fun backgroundHintText(vibrate: Boolean, chime: Boolean, notify: Boolean = false, text: StringLookup): String {
+    val base = text(R.string.hint_background)
     val signal = when {
-        notify -> "Gotcha will notify you when the task is finished"
-        vibrate && chime -> "your phone will buzz and chime when it's done"
-        vibrate -> "your phone will buzz when it's done"
-        chime -> "your phone will chime when it's done"
+        notify -> R.string.hint_signal_notify
+        vibrate && chime -> R.string.hint_signal_buzz_chime
+        vibrate -> R.string.hint_signal_buzz
+        chime -> R.string.hint_signal_chime
         else -> null
     }
-    return if (signal == null) "$base." else "$base — $signal."
+    return if (signal == null) {
+        text(R.string.hint_background_alone, base)
+    } else {
+        text(R.string.hint_background_with_signal, base, text(signal))
+    }
 }
 
 @kotlinx.serialization.Serializable
@@ -445,7 +454,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         // the user can browse other chats but must let the current run finish.
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         if (client == null) {
-            appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
+            appendUi(MessageKind.ERROR, str(R.string.chat_vm_no_api_key_configured_open))
             return
         }
         val isVoice = isVoiceInput || lastInputWasVoice
@@ -549,7 +558,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         if (trimmed.isEmpty() && attachments.isNullOrEmpty()) return
         if (_uiState.value.isBusy || _uiState.value.runningSessionId != null) return
         if (client == null) {
-            appendUi(MessageKind.ERROR, "No API key configured. Open settings to add one.")
+            appendUi(MessageKind.ERROR, str(R.string.chat_vm_no_api_key_configured_open))
             return
         }
         lastInputWasVoice = false
@@ -645,12 +654,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                 state.copy(pendingAttachments = queue)
             }
             if (overCount > 0) {
-                errors += "You can attach up to ${ComposerAttachment.MAX_PER_MESSAGE} files per message — " +
-                    "skipped ${plural(overCount, "file")}."
+                errors += quantityStr(R.plurals.chat_vm_too_many_files, overCount, ComposerAttachment.MAX_PER_MESSAGE)
             }
             if (overText > 0) {
-                errors += "The attached documents are too long to send together — " +
-                    "skipped ${plural(overText, "document")}. Send them in separate messages."
+                errors += quantityStr(R.plurals.chat_vm_documents_too_long, overText)
             }
             errors.forEach { appendUi(MessageKind.ERROR, it) }
         }
@@ -671,7 +678,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     private fun List<ComposerAttachment>.documentChars(): Int =
         sumOf { (it as? ComposerAttachment.Document)?.attachment?.text?.length ?: 0 }
 
-    private fun plural(count: Int, noun: String): String = if (count == 1) "1 $noun" else "$count ${noun}s"
+    /** This app's strings, in the display language. */
+    private fun strings(): StringLookup = getApplication<Application>().stringLookup()
+
+    /** This app's string [id], in the display language. */
+    private fun str(@StringRes id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
+
+    /** A plural of [count], formatted with the count first and then [args]. */
+    private fun quantityStr(@PluralsRes id: Int, count: Int, vararg args: Any): String =
+        getApplication<Application>().resources.getQuantityString(id, count, count, *args)
 
     /**
      * Reads one picked file into an attachment. A failure carries the message to
@@ -688,13 +703,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         // Both loaders return null when the stream cannot be opened; treat that
         // like any other failed pick so the user gets a visible error instead of
         // a silent no-op.
-        if (attachment != null) Result.success(attachment) else Result.failure(Exception("Could not read that file."))
+        if (attachment != null) {
+            Result.success(
+                attachment
+            )
+        } else {
+            Result.failure(Exception(str(R.string.chat_vm_could_not_read_that_file_2)))
+        }
     } catch (e: CancellationException) {
         throw e
     } catch (e: DocumentError) {
-        Result.failure(Exception(e.message ?: "Could not read that file."))
+        Result.failure(Exception(e.message ?: str(R.string.chat_vm_could_not_read_that_file_2)))
     } catch (e: Exception) {
-        Result.failure(Exception("Could not read that file: ${HumanReadableError.format(e)}"))
+        Result.failure(
+            Exception(
+                str(
+                    R.string.chat_vm_could_not_read_that_file,
+                    HumanReadableError.format(e, strings())
+                )
+            )
+        )
     }
 
     /**
@@ -797,7 +825,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                 if (!granted) {
                     appendUi(
                         MessageKind.ERROR,
-                        "Microphone permission not granted. Enable it in Settings → Permissions."
+                        str(R.string.chat_vm_microphone_permission_not_granted_enable)
                     )
                     return
                 }
@@ -805,7 +833,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
-                    appendUi(MessageKind.ERROR, "Failed to start speech recognition.")
+                    appendUi(MessageKind.ERROR, str(R.string.chat_vm_failed_to_start_speech_recognition))
                 }
             }
             settings.sttProvider.isApiBased() -> {
@@ -813,26 +841,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     appendUi(
                         MessageKind.ERROR,
                         if (settings.sttProvider == AudioProvider.SAMOSA_AI) {
-                            "Samosa STT is not configured. Sign in from Settings → Speech."
+                            str(R.string.chat_vm_samosa_stt_is_not_configured)
                         } else {
-                            "No STT API URL configured in settings."
+                            str(R.string.chat_vm_no_stt_api_url_configured)
                         }
                     )
                     return
                 }
                 if (settings.sttApiModel.isBlank()) {
-                    appendUi(MessageKind.ERROR, "No STT model selected. Refresh audio models in settings.")
+                    appendUi(MessageKind.ERROR, str(R.string.chat_vm_no_stt_model_selected_refresh))
                     return
                 }
                 val started = sttEngine.startRecording()
                 if (started) {
                     _uiState.update { it.copy(isRecording = true) }
                 } else {
-                    appendUi(MessageKind.ERROR, "Failed to start recording.")
+                    appendUi(MessageKind.ERROR, str(R.string.chat_vm_failed_to_start_recording))
                 }
             }
             else -> {
-                appendUi(MessageKind.ERROR, "No STT provider configured. Enable one in settings.")
+                appendUi(MessageKind.ERROR, str(R.string.chat_vm_no_stt_provider_configured_enable))
             }
         }
     }
@@ -850,7 +878,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     provider.isApiBased() -> {
                         val audioFile = sttEngine.stopRecording()
                         if (audioFile == null) {
-                            appendUi(MessageKind.ERROR, "Failed to record audio.")
+                            appendUi(MessageKind.ERROR, str(R.string.chat_vm_failed_to_record_audio))
                             return@launch
                         }
                         val sttLanguage = settings.sttLanguage.ifBlank {
@@ -860,7 +888,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                             audioFile, settings.sttApiModel, sttLanguage
                         )
                             .onFailure { e ->
-                                appendUi(MessageKind.ERROR, "Transcription failed: ${HumanReadableError.format(e)}")
+                                appendUi(
+                                    MessageKind.ERROR,
+                                    str(R.string.chat_vm_transcription_failed, HumanReadableError.format(e, strings()))
+                                )
                             }
                             .getOrDefault("")
                     }
@@ -933,9 +964,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         }
         val uiMsg = when (next) {
             AgentMode.MONITOR ->
-                "Switched to Monitor mode — the agent can only observe; it cannot make any changes to your device."
+                str(R.string.chat_vm_switched_to_monitor_mode_the)
             AgentMode.OPERATOR ->
-                "Switched to Operator mode — the agent can now make changes to your device."
+                str(R.string.chat_vm_switched_to_operator_mode_the)
         }
         // Only inject into the LLM history when the viewed chat is the engine's;
         // otherwise the mode is applied at the next send (run(engineAgent)).
@@ -1277,14 +1308,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         val request = pendingBackup ?: return
         pendingBackup = null
         if (uri == null) return
-        _chatTransfer.value = ChatTransferState.Working("Saving backup…")
+        _chatTransfer.value = ChatTransferState.Working(str(R.string.chat_vm_saving_backup))
         viewModelScope.launch {
             val outcome = runCatching {
                 withContext(Dispatchers.IO) {
                     val sessions = request.sessionId
                         ?.let { listOfNotNull(historyRepository.loadSession(it)) }
                         ?: historyRepository.listSessions()
-                    check(sessions.isNotEmpty()) { "There are no saved chats to back up yet." }
+                    check(sessions.isNotEmpty()) { str(R.string.chat_vm_there_are_no_saved_chats) }
                     val archive = ChatArchive(
                         exportedAt = System.currentTimeMillis(),
                         appVersion = com.gotcha.BuildConfig.VERSION_NAME,
@@ -1292,7 +1323,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                         sessions = if (request.includeImages) sessions else sessions.map(ChatArchive::withoutImages)
                     )
                     val stream = getApplication<Application>().contentResolver.openOutputStream(uri, "wt")
-                        ?: error("The chosen location can't be written to.")
+                        ?: error(str(R.string.chat_vm_the_chosen_location_can_t))
                     stream.use { it.write(ChatArchive.encode(archive).toByteArray(Charsets.UTF_8)) }
                     sessions.size
                 }
@@ -1300,12 +1331,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
             _chatTransfer.value = outcome.fold(
                 onSuccess = { count ->
                     ChatTransferState.Report(
-                        "Backup saved",
-                        if (count == 1) "Saved 1 chat." else "Saved $count chats."
+                        str(R.string.chat_vm_backup_saved),
+                        quantityStr(R.plurals.chat_vm_saved_chats, count)
                     )
                 },
                 onFailure = { e ->
-                    ChatTransferState.Report("Backup failed", e.message ?: "The backup couldn't be saved.")
+                    ChatTransferState.Report(str(R.string.chat_vm_backup_failed), e.message ?: str(R.string.chat_vm_the_backup_couldn_t_be))
                 }
             )
         }
@@ -1314,20 +1345,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     /** Reads the file the user picked to import and shows what it holds; null means the picker was cancelled. */
     fun readImport(uri: Uri?) {
         if (uri == null) return
-        _chatTransfer.value = ChatTransferState.Working("Reading file…")
+        _chatTransfer.value = ChatTransferState.Working(str(R.string.chat_vm_reading_file))
         viewModelScope.launch {
             val bytes = runCatching {
                 withContext(Dispatchers.IO) { readAtMost(uri, ChatImporter.MAX_BYTES) }
             }.getOrNull()
             _chatTransfer.value = when {
-                bytes == null -> ChatTransferState.Report("Import failed", "The file couldn't be opened.")
+                bytes == null -> ChatTransferState.Report(str(R.string.chat_vm_import_failed), str(R.string.chat_vm_the_file_couldn_t_be))
                 bytes.size > ChatImporter.MAX_BYTES -> ChatTransferState.Report(
-                    "Import failed",
-                    "The file is larger than ${ChatImporter.MAX_BYTES / (1024 * 1024)} MB, the most Gotcha imports at once."
+                    str(R.string.chat_vm_import_failed),
+                    str(R.string.chat_vm_the_file_is_larger_than, ChatImporter.MAX_BYTES / (1024 * 1024))
                 )
                 else -> when (val read = chatImporter.preview(bytes)) {
                     is ImportParseResult.Ready -> ChatTransferState.Previewing(read.preview)
-                    is ImportParseResult.Failed -> ChatTransferState.Report("Import failed", read.message)
+                    is ImportParseResult.Failed -> ChatTransferState.Report(str(R.string.chat_vm_import_failed), read.message)
                 }
             }
         }
@@ -1336,7 +1367,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     /** Imports the previewed file, resolving clashes with existing chats by [strategy]. */
     fun confirmImport(strategy: DuplicateStrategy) {
         val preview = (_chatTransfer.value as? ChatTransferState.Previewing)?.preview ?: return
-        _chatTransfer.value = ChatTransferState.Working("Importing…")
+        _chatTransfer.value = ChatTransferState.Working(str(R.string.chat_vm_importing))
         viewModelScope.launch {
             val result = chatImporter.commit(
                 preview,
@@ -1350,15 +1381,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
             if (open != null && open in result.writtenIds) openSession(open)
 
             val counts = listOfNotNull(
-                "Imported ${result.imported}",
-                result.replaced.takeIf { it > 0 }?.let { "replaced $it" },
-                result.skipped.takeIf { it > 0 }?.let { "skipped $it" },
-                result.failed.size.takeIf { it > 0 }?.let { "$it failed" }
+                str(R.string.chat_vm_imported_count, result.imported),
+                result.replaced.takeIf { it > 0 }?.let { str(R.string.chat_vm_replaced_count, it) },
+                result.skipped.takeIf { it > 0 }?.let { str(R.string.chat_vm_skipped_count, it) },
+                result.failed.size.takeIf { it > 0 }?.let { str(R.string.chat_vm_failed_count, it) }
             )
             _chatTransfer.value = ChatTransferState.Report(
-                title = if (result.imported + result.replaced > 0) "Import finished" else "Nothing imported",
+                title = str(
+                    if (result.imported + result.replaced > 0) R.string.chat_vm_import_finished else R.string.chat_vm_nothing_imported
+                ),
                 summary = counts.joinToString(" · ") + ".",
-                details = result.failed.map { "${it.title}: ${it.reason}" } + preview.warnings
+                details = result.failed.map { str(R.string.import_rejected_note, it.title, it.reason) } + preview.warnings
             )
         }
     }
@@ -1394,7 +1427,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         val client = ShareCardClient(getApplication(), settings)
         val content = client.generate(runs)
         if (!content.eligible) {
-            error("Nothing accomplished in this run to showcase yet.")
+            error(str(R.string.chat_vm_nothing_accomplished_in_this_run))
         }
         val stats = PosterStatsBuilder.from(runs)
         withContext(Dispatchers.Main) {
