@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
 
@@ -29,9 +30,7 @@ fun AiHubScreen(
 
     SettingsScaffold(title = stringResource(SettingsPage.AI.title), onBack = onBack, overlay = overlay) {
         Text(
-            "The model does the thinking; speech gives it a voice and ears. " +
-                "One provider can cover both. Which language it speaks and answers " +
-                "in lives under Settings → Language.",
+            stringResource(R.string.ai_hub_the_model_does_the_thinking),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

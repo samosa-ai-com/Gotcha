@@ -28,12 +28,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.audio.AudioLanguageLabels
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.Settings
+import com.gotcha.i18n.Language
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
 
@@ -96,6 +98,7 @@ fun SpeechScreen(
     var showTtsKey by remember { mutableStateOf(false) }
     var showSttKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    val localContext = LocalContext.current
 
     var ttsProviderExpanded by remember { mutableStateOf(false) }
     var sttProviderExpanded by remember { mutableStateOf(false) }
@@ -162,12 +165,12 @@ fun SpeechScreen(
     val refreshAudioModelsAction = {
         if (!refreshingModels) {
             refreshingModels = true
-            status = "Refreshing audio models…"
+            status = localContext.getString(R.string.speech_refreshing_audio_models)
             scope.launch {
                 val (tts, stt) = onRefreshAudioModels(draftSpeech())
                 availableTtsModels = tts
                 availableSttModels = stt
-                status = "Found ${tts.size} TTS, ${stt.size} STT models"
+                status = localContext.getString(R.string.speech_models_found, tts.size, stt.size)
                 refreshingModels = false
             }
         }
@@ -184,8 +187,7 @@ fun SpeechScreen(
     SettingsScaffold(title = stringResource(SettingsPage.SPEECH.title), onBack = onBack, overlay = overlay) {
         // ---- Voice / speech recommendations ----
         Text(
-            "For mixed-language text (like Hinglish), Android built-in is the recommended choice. " +
-                "For single-language speech (like Hindi or English), SAMOSA AI is the recommended choice.",
+            stringResource(R.string.speech_for_mixed_language_text_like),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -215,16 +217,16 @@ fun SpeechScreen(
                             }
                             samosaCredits = samosaUser?.creditsRemaining
                             referralBusy = false
-                            status = "Invite code applied!"
+                            status = localContext.getString(R.string.samosa_invite_applied)
                         }.onFailure { e ->
-                            referralError = e.message ?: "Failed to apply invite code."
+                            referralError = e.message ?: localContext.getString(R.string.samosa_invite_failed)
                             referralBusy = false
                         }
                     }
                 },
                 onSignIn = {
                     samosaBusy = true
-                    status = "Signing in with Google…"
+                    status = localContext.getString(R.string.samosa_signing_in_google)
                     scope.launch {
                         val result = onSamosaSignIn()
                         result.onSuccess { (email, token) ->
@@ -233,23 +235,23 @@ fun SpeechScreen(
                             val profile = onFetchSamosaProfile()
                             samosaUser = profile
                             samosaCredits = profile?.creditsRemaining
-                            status = "Signed in as $email"
+                            status = localContext.getString(R.string.samosa_signed_in_as, email)
                         }.onFailure { e ->
-                            status = e.message ?: "Sign-in failed."
+                            status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
                         }
                         samosaBusy = false
                     }
                 },
                 onSignOut = {
                     samosaBusy = true
-                    status = "Signing out…"
+                    status = localContext.getString(R.string.samosa_signing_out)
                     scope.launch {
                         onSamosaSignOut()
                         samosaToken = ""
                         samosaEmail = ""
                         samosaCredits = null
                         samosaUser = null
-                        status = "Signed out of Samosa AI."
+                        status = localContext.getString(R.string.samosa_signed_out)
                         samosaBusy = false
                     }
                 }
@@ -263,7 +265,7 @@ fun SpeechScreen(
                 value = ttsProvider.label,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("TTS Provider") },
+                label = { Text(stringResource(R.string.speech_tts_provider)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(
                         expanded = ttsProviderExpanded
@@ -318,7 +320,7 @@ fun SpeechScreen(
                 OutlinedTextField(
                     value = ttsApiBaseUrl,
                     onValueChange = { ttsApiBaseUrl = it },
-                    label = { Text("TTS API Base URL") },
+                    label = { Text(stringResource(R.string.speech_tts_api_base_url)) },
                     singleLine = true,
                     placeholder = { Text("http://${BuildConfig.DEV_LAN_HOST}:8969/v1") },
                     modifier = Modifier.fillMaxWidth()
@@ -326,9 +328,9 @@ fun SpeechScreen(
                 OutlinedTextField(
                     value = ttsApiKey,
                     onValueChange = { ttsApiKey = it },
-                    label = { Text("TTS API Key (optional)") },
+                    label = { Text(stringResource(R.string.speech_tts_api_key_optional)) },
                     singleLine = true,
-                    placeholder = { Text("Leave blank to use main API key") },
+                    placeholder = { Text(stringResource(R.string.speech_leave_blank_to_use_main)) },
                     visualTransformation = if (showTtsKey) {
                         VisualTransformation.None
                     } else {
@@ -336,7 +338,7 @@ fun SpeechScreen(
                     },
                     trailingIcon = {
                         TextButton(onClick = { showTtsKey = !showTtsKey }) {
-                            Text(if (showTtsKey) "Hide" else "Show")
+                            Text(stringResource(if (showTtsKey) R.string.speech_hide else R.string.speech_show))
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -375,9 +377,7 @@ fun SpeechScreen(
         if (ttsProvider.isApiBased()) {
             SettingsAdvancedSection(testTag = "settings_speech_advanced") {
                 Text(
-                    "Podcast hosts — the two voices used when the assistant generates a two-host " +
-                        "podcast dialogue. Leave blank to use the TTS voice for host A and an " +
-                        "automatically chosen different voice for host B.",
+                    stringResource(R.string.speech_podcast_hosts_the_two_voices),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -392,7 +392,7 @@ fun SpeechScreen(
                         hostAVoiceExpanded = false
                     },
                     onClearVoice = { podcastHostAVoice = "" },
-                    label = "Podcast Host A Voice (optional)"
+                    label = stringResource(R.string.speech_podcast_host_a_voice_optional)
                 )
                 TtsVoicePicker(
                     selectedModel = ttsApiModel,
@@ -405,7 +405,7 @@ fun SpeechScreen(
                         hostBVoiceExpanded = false
                     },
                     onClearVoice = { podcastHostBVoice = "" },
-                    label = "Podcast Host B Voice (optional)"
+                    label = stringResource(R.string.speech_podcast_host_b_voice_optional)
                 )
             }
         }
@@ -417,7 +417,7 @@ fun SpeechScreen(
                 value = sttProvider.label,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("STT Provider") },
+                label = { Text(stringResource(R.string.speech_stt_provider)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(
                         expanded = sttProviderExpanded
@@ -465,7 +465,7 @@ fun SpeechScreen(
                 OutlinedTextField(
                     value = sttApiBaseUrl,
                     onValueChange = { sttApiBaseUrl = it },
-                    label = { Text("STT API Base URL") },
+                    label = { Text(stringResource(R.string.speech_stt_api_base_url)) },
                     singleLine = true,
                     placeholder = { Text("http://${BuildConfig.DEV_LAN_HOST}:8969/v1") },
                     modifier = Modifier.fillMaxWidth()
@@ -473,9 +473,9 @@ fun SpeechScreen(
                 OutlinedTextField(
                     value = sttApiKey,
                     onValueChange = { sttApiKey = it },
-                    label = { Text("STT API Key (optional)") },
+                    label = { Text(stringResource(R.string.speech_stt_api_key_optional)) },
                     singleLine = true,
-                    placeholder = { Text("Leave blank to use main API key") },
+                    placeholder = { Text(stringResource(R.string.speech_leave_blank_to_use_main)) },
                     visualTransformation = if (showSttKey) {
                         VisualTransformation.None
                     } else {
@@ -483,7 +483,7 @@ fun SpeechScreen(
                     },
                     trailingIcon = {
                         TextButton(onClick = { showSttKey = !showSttKey }) {
-                            Text(if (showSttKey) "Hide" else "Show")
+                            Text(stringResource(if (showSttKey) R.string.speech_hide else R.string.speech_show))
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -526,7 +526,7 @@ fun SpeechScreen(
             )
         )
         SettingsToggleRow(
-            label = "Auto-read replies aloud",
+            label = stringResource(R.string.speech_auto_read_replies_aloud),
             checked = autoReadReplies,
             onCheckedChange = { autoReadReplies = it },
             isLarge = true,
@@ -535,12 +535,12 @@ fun SpeechScreen(
         Button(
             onClick = {
                 onSave { applySpeech(it) }
-                overlay.show("Saved.")
+                overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
             enabled = speechConfigValid(),
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Save Speech Settings") }
+        ) { Text(stringResource(R.string.speech_save_speech_settings)) }
         status?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
@@ -567,10 +567,10 @@ private fun TtsModelPicker(
         }
     ) {
         OutlinedTextField(
-            value = selectedModel.ifEmpty { "(select model)" },
+            value = selectedModel.ifEmpty { stringResource(R.string.speech_select_model) },
             onValueChange = {},
             readOnly = true,
-            label = { Text("TTS Model") },
+            label = { Text(stringResource(R.string.speech_tts_model)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -582,13 +582,17 @@ private fun TtsModelPicker(
         ) {
             DropdownMenuItem(
                 text = {
-                    Text(if (refreshing) "Refreshing…" else "🔄 Refresh audio models…")
+                    Text(
+                        stringResource(
+                            if (refreshing) R.string.speech_refreshing else R.string.speech_refresh_audio_models
+                        )
+                    )
                 },
                 onClick = onRefresh
             )
             if (availableModels.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("No models found") },
+                    text = { Text(stringResource(R.string.speech_no_models_found)) },
                     onClick = { onExpandedChange(false) }
                 )
             } else {
@@ -625,7 +629,7 @@ private fun TtsVoicePicker(
     onExpandedChange: (Boolean) -> Unit,
     onSelect: (String) -> Unit,
     onClearVoice: () -> Unit,
-    label: String = "TTS Voice (optional)"
+    label: String = stringResource(R.string.speech_tts_voice_optional)
 ) {
     val selectedModelObj = availableModels.firstOrNull { it.id == selectedModel }
     val voicesList: List<VoiceInfo> = run {
@@ -639,7 +643,7 @@ private fun TtsVoicePicker(
     val hasAnyVoices = voicesList.isNotEmpty()
     val defaultVoiceLabel = selectedModelObj?.defaultVoice
         ?: voicesList.firstOrNull()?.id
-        ?: "the provider's default"
+        ?: stringResource(R.string.speech_provider_default_voice)
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = onExpandedChange
@@ -650,9 +654,9 @@ private fun TtsVoicePicker(
             label = { Text(label) },
             placeholder = {
                 if (hasAnyVoices) {
-                    Text("Default ($defaultVoiceLabel) or pick below")
+                    Text(stringResource(R.string.speech_default_voice_or_pick, defaultVoiceLabel))
                 } else {
-                    Text("Type a voice ID — picker has no suggestions")
+                    Text(stringResource(R.string.speech_type_a_voice_id_picker))
                 }
             },
             trailingIcon = {
@@ -665,7 +669,7 @@ private fun TtsVoicePicker(
             onDismissRequest = { onExpandedChange(false) }
         ) {
             DropdownMenuItem(
-                text = { Text("Default (clear)") },
+                text = { Text(stringResource(R.string.speech_default_clear)) },
                 onClick = onClearVoice
             )
             if (hasAnyVoices) {
@@ -677,7 +681,7 @@ private fun TtsVoicePicker(
                 }
             } else {
                 DropdownMenuItem(
-                    text = { Text("No voices suggested — type a voice ID above") },
+                    text = { Text(stringResource(R.string.speech_no_voices_suggested_type_a)) },
                     onClick = { },
                     enabled = false
                 )
@@ -706,10 +710,10 @@ private fun SttModelPicker(
         }
     ) {
         OutlinedTextField(
-            value = selectedModel.ifEmpty { "(select model)" },
+            value = selectedModel.ifEmpty { stringResource(R.string.speech_select_model) },
             onValueChange = {},
             readOnly = true,
-            label = { Text("STT Model") },
+            label = { Text(stringResource(R.string.speech_stt_model)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             },
@@ -721,13 +725,17 @@ private fun SttModelPicker(
         ) {
             DropdownMenuItem(
                 text = {
-                    Text(if (refreshing) "Refreshing…" else "🔄 Refresh audio models…")
+                    Text(
+                        stringResource(
+                            if (refreshing) R.string.speech_refreshing else R.string.speech_refresh_audio_models
+                        )
+                    )
                 },
                 onClick = onRefresh
             )
             if (availableModels.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("No models found") },
+                    text = { Text(stringResource(R.string.speech_no_models_found)) },
                     onClick = { onExpandedChange(false) }
                 )
             } else {
@@ -755,16 +763,19 @@ private fun TranscriptionLanguageSummary(
     val forced = sttLanguage.trim()
     Text(
         if (forced.isEmpty()) {
-            "Transcription language: $voiceLanguage, the voice language."
+            stringResource(
+                R.string.speech_transcription_follows_voice,
+                stringResource(Language.fromLabel(voiceLanguage).nameRes)
+            )
         } else {
-            "Transcription language: forced to ${AudioLanguageLabels.label(forced)}."
+            stringResource(R.string.speech_transcription_forced, AudioLanguageLabels.label(forced))
         },
         style = MaterialTheme.typography.bodyMedium
     )
     TextButton(
         onClick = onOpenLanguage,
         modifier = Modifier.testTag("settings_speech_open_language")
-    ) { Text("Change in Settings → Language") }
+    ) { Text(stringResource(R.string.speech_change_in_settings_language)) }
 }
 
 /** Inline link to the Samosa AI docs on choosing a voice and language. */
@@ -773,7 +784,7 @@ private fun SpeechDocsLink(modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
     Text(
-        text = "How to choose a voice and language (Samosa AI docs)",
+        text = stringResource(R.string.speech_how_to_choose_a_voice),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.primary,
         textDecoration = TextDecoration.Underline,
@@ -783,7 +794,7 @@ private fun SpeechDocsLink(modifier: Modifier = Modifier) {
                 try {
                     uriHandler.openUri(AudioLanguageLabels.SPEECH_DOCS_URL)
                 } catch (_: Exception) {
-                    Toast.makeText(context, "No app can open the docs link", Toast.LENGTH_SHORT)
+                    Toast.makeText(context, context.getString(R.string.speech_no_app_can_open_the), Toast.LENGTH_SHORT)
                         .show()
                 }
             }

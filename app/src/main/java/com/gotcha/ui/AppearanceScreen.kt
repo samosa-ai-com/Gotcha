@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.data.Settings
 import com.gotcha.ui.theme.Brightness
 import com.gotcha.ui.theme.GlassTier
@@ -77,10 +79,13 @@ fun AppearanceScreen(
     }
 
     SettingsScaffold(title = stringResource(SettingsPage.APPEARANCE.title), onBack = onBack, overlay = overlay) {
-        Text("Theme", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            "Every theme works on every device. Where live blur isn't available, " +
-                "the glass is made a cheaper way rather than switched off.",
+            stringResource(R.string.appearance_theme),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            stringResource(R.string.appearance_every_theme_works_on_every),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -101,7 +106,7 @@ fun AppearanceScreen(
         tierExplanation(tier)?.let { note ->
             HorizontalDivider(thickness = 1.dp)
             Text(
-                text = note,
+                text = stringResource(note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -114,9 +119,10 @@ fun AppearanceScreen(
  * was designed to do. Live blur is the normal case on anything from API 31, and
  * announcing the default is noise on a page whose job is choosing a theme.
  */
-private fun tierExplanation(tier: GlassTier): String? = when (tier) {
-    GlassTier.SOLID -> "Battery saver is on, so the theme is drawn flat until it's off."
-    GlassTier.STATIC -> "Live blur isn't available on this device, so panels use a fixed frost."
+@StringRes
+private fun tierExplanation(tier: GlassTier): Int? = when (tier) {
+    GlassTier.SOLID -> R.string.appearance_tier_solid
+    GlassTier.STATIC -> R.string.appearance_tier_static
     GlassTier.LIVE -> null
 }
 
@@ -153,6 +159,7 @@ private fun RowScope.SkinTile(skin: Skin, selected: Boolean, onSelect: () -> Uni
     } else {
         MaterialTheme.colorScheme.outlineVariant
     }
+    val description = stringResource(R.string.appearance_skin_description, skin.label, brightnessLabel(skin))
     Column(
         modifier = Modifier
             .weight(1f)
@@ -172,7 +179,7 @@ private fun RowScope.SkinTile(skin: Skin, selected: Boolean, onSelect: () -> Uni
             // The preview, the name and the brightness are one choice, not three
             // things to swipe through.
             .semantics(mergeDescendants = true) {
-                contentDescription = "${skin.label}, ${brightnessLabel(skin)} theme"
+                contentDescription = description
             }
             .testTag("appearance_skin_${skin.id}")
     ) {
@@ -198,10 +205,13 @@ private fun RowScope.SkinTile(skin: Skin, selected: Boolean, onSelect: () -> Uni
     }
 }
 
-private fun brightnessLabel(skin: Skin): String = when (skin.brightness) {
-    Brightness.LIGHT -> "light"
-    Brightness.DARK -> "dark"
-}
+@Composable
+private fun brightnessLabel(skin: Skin): String = stringResource(
+    when (skin.brightness) {
+        Brightness.LIGHT -> R.string.appearance_brightness_light
+        Brightness.DARK -> R.string.appearance_brightness_dark
+    }
+)
 
 /**
  * A miniature of the chat screen in the skin's own tokens: the wallpaper it

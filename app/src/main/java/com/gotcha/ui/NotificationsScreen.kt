@@ -3,6 +3,7 @@ package com.gotcha.ui
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.audio.CompletionFeedback
 import com.gotcha.data.CompletionPreview
 import com.gotcha.data.Settings
@@ -92,11 +94,11 @@ fun NotificationsScreen(
 
     SettingsScaffold(title = stringResource(SettingsPage.NOTIFICATIONS.title), onBack = onBack, overlay = overlay) {
         Text(
-            "Played as soon as a reply arrives. Turn both off for no alert.",
+            stringResource(R.string.notifications_played_as_soon_as_a),
             style = MaterialTheme.typography.bodySmall
         )
         SettingsToggleRow(
-            label = "Vibration",
+            label = stringResource(R.string.notifications_vibration),
             checked = notifyVibration,
             onCheckedChange = {
                 notifyVibration = it
@@ -107,7 +109,7 @@ fun NotificationsScreen(
             switchTestTag = "settings_notify_vibration"
         )
         SettingsToggleRow(
-            label = "Chime",
+            label = stringResource(R.string.notifications_chime),
             checked = notifyChime,
             onCheckedChange = {
                 notifyChime = it
@@ -120,16 +122,15 @@ fun NotificationsScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            "Task finished",
+            stringResource(R.string.notifications_task_finished),
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            "A notification when a chat task finishes while you are in another app. " +
-                "Tap it to open that chat. On the lock screen it only says a task finished.",
+            stringResource(R.string.notifications_a_notification_when_a_chat),
             style = MaterialTheme.typography.bodySmall
         )
         SettingsToggleRow(
-            label = "Notify when a task finishes",
+            label = stringResource(R.string.notifications_notify_when_a_task_finishes),
             checked = taskFinished,
             onCheckedChange = {
                 taskFinished = it
@@ -142,7 +143,7 @@ fun NotificationsScreen(
             switchTestTag = "settings_task_finished_enabled"
         )
         if (taskFinished) {
-            Text("Show the reply", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.notifications_show_the_reply), style = MaterialTheme.typography.bodyMedium)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -162,7 +163,7 @@ fun NotificationsScreen(
             }
             if (!canPost) {
                 Text(
-                    "Notifications are blocked for Gotcha, so none will be shown.",
+                    stringResource(R.string.notifications_notifications_are_blocked_for_gotcha),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -173,7 +174,7 @@ fun NotificationsScreen(
                                 .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, localContext.packageName)
                         )
                     }
-                ) { Text("Open notification settings") }
+                ) { Text(stringResource(R.string.notifications_open_notification_settings)) }
             }
         }
 
@@ -191,17 +192,18 @@ fun NotificationsScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            "Server messages",
+            stringResource(R.string.notifications_server_messages),
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            "Updates, tips and maintenance notices from Gotcha, fetched from " +
-                "${BuildConfig.SAMOSA_API_URL.removePrefix("https://")}. " +
-                "Each message shows at most the number of times the server asks; re-deliveries are suppressed automatically.",
+            stringResource(
+                R.string.notifications_server_messages_description,
+                BuildConfig.SAMOSA_API_URL.removePrefix("https://")
+            ),
             style = MaterialTheme.typography.bodySmall
         )
         SettingsToggleRow(
-            label = "Enable server messages",
+            label = stringResource(R.string.notifications_enable_server_messages),
             checked = serverMessagesEnabled,
             onCheckedChange = {
                 serverMessagesEnabled = it
@@ -234,9 +236,9 @@ fun NotificationsScreen(
             },
             enabled = !isSyncing && serverMessagesEnabled,
             modifier = Modifier.fillMaxWidth().testTag("settings_server_messages_sync")
-        ) { Text(if (isSyncing) "Syncing…" else "Sync now") }
+        ) { Text(stringResource(if (isSyncing) R.string.notifications_syncing else R.string.notifications_sync_now)) }
         Text(
-            "Last synced: ${formatRelative(lastFetched)}",
+            stringResource(R.string.notifications_last_synced, formatRelative(lastFetched)),
             style = MaterialTheme.typography.bodySmall
         )
     }
@@ -250,9 +252,12 @@ private fun CompletionPreviewRow(
     onSelect: () -> Unit
 ) {
     val (label, summary) = when (preview) {
-        CompletionPreview.NONE -> "Don't show it" to "Only the chat's name and whether the task finished."
-        CompletionPreview.SHORT -> "A short preview" to "The first line or two of the reply."
-        CompletionPreview.FULL -> "The whole reply" to "Expand the notification to read all of it."
+        CompletionPreview.NONE ->
+            R.string.notifications_preview_none to R.string.notifications_preview_none_summary
+        CompletionPreview.SHORT ->
+            R.string.notifications_preview_short to R.string.notifications_preview_short_summary
+        CompletionPreview.FULL ->
+            R.string.notifications_preview_full to R.string.notifications_preview_full_summary
     }
     Column(
         modifier = Modifier
@@ -262,10 +267,10 @@ private fun CompletionPreviewRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = selected, onClick = null)
-            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
         }
         Text(
-            summary,
+            stringResource(summary),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 40.dp, bottom = 4.dp)
@@ -273,13 +278,13 @@ private fun CompletionPreviewRow(
     }
 }
 
+/** "never", or Android's own "5 minutes ago" in the display language. */
+@Composable
 private fun formatRelative(epochMillis: Long): String {
-    if (epochMillis <= 0L) return "never"
-    val deltaMin = (System.currentTimeMillis() - epochMillis) / 60_000L
-    return when {
-        deltaMin < 1L -> "just now"
-        deltaMin < 60L -> "${deltaMin}m ago"
-        deltaMin < 24L * 60L -> "${deltaMin / 60L}h ago"
-        else -> "${deltaMin / (24L * 60L)}d ago"
-    }
+    if (epochMillis <= 0L) return stringResource(R.string.notifications_never_synced)
+    return DateUtils.getRelativeTimeSpanString(
+        epochMillis,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS
+    ).toString()
 }

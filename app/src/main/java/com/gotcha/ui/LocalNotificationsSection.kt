@@ -29,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.data.Settings
 import com.gotcha.notifications.LocalNotificationScheduler
 import com.gotcha.notifications.LocalNotificationStore
@@ -92,10 +94,12 @@ internal fun LocalNotificationsSection(
         )
     }
 
-    Text("Gotcha notifications", style = MaterialTheme.typography.titleMedium)
     Text(
-        "Reminders and tips Gotcha decides to send, worked out on this phone from your chats. " +
-            "Nothing about how you use Gotcha is uploaded to decide them.",
+        stringResource(R.string.local_notifications_gotcha_notifications),
+        style = MaterialTheme.typography.titleMedium
+    )
+    Text(
+        stringResource(R.string.local_notifications_reminders_and_tips_gotcha_decides),
         style = MaterialTheme.typography.bodySmall
     )
     Toggle("Send Gotcha notifications", enabled, "settings_local_notifications_enabled") {
@@ -108,20 +112,20 @@ internal fun LocalNotificationsSection(
         unfinished = it
         onSave { s -> s.copy(unfinishedChatRemindersEnabled = it) }
     }
-    Hint("When a task failed, was stopped, or Gotcha asked you something and you didn't answer.")
+    Hint(stringResource(R.string.local_notifications_when_a_task_failed_was))
 
     Toggle("Routines", routines, "settings_routine_suggestions") {
         routines = it
         onSave { s -> s.copy(routineSuggestionsEnabled = it) }
     }
-    Hint("When something you ask regularly is due again. Tap to ask it again, edited first if you like.")
+    Hint(stringResource(R.string.local_notifications_when_something_you_ask_regularly))
 
     Toggle("After a quiet spell", inactivity, "settings_inactivity_reminders") {
         inactivity = it
         onSave { s -> s.copy(inactivityRemindersEnabled = it) }
     }
     if (inactivity) {
-        Hint("When you haven't opened Gotcha for:")
+        Hint(stringResource(R.string.local_notifications_when_you_haven_t_opened))
         ChoiceChips(INACTIVITY_DAY_CHOICES, inactivityDays, { "$it days" }, "settings_inactivity_days") {
             inactivityDays = it
             onSave { s -> s.copy(inactivityDays = it) }
@@ -133,8 +137,7 @@ internal fun LocalNotificationsSection(
         onSave { s -> s.copy(dailyTipsEnabled = it) }
     }
     Hint(
-        "One thing to try each day, picked from what you haven't used yet. Tap it to start a chat " +
-            "with the prompt ready to edit or send. Skipped on days you've already used Gotcha."
+        stringResource(R.string.local_notifications_one_thing_to_try_each)
     )
     if (tips) {
         TimeButton("Time", tipMinute, "settings_daily_tip_time") {
@@ -143,7 +146,7 @@ internal fun LocalNotificationsSection(
             LocalNotificationScheduler.scheduleTip(context, it)
         }
         if (quiet && inQuietHours(tipMinute, quietStart, quietEnd)) {
-            Warning("This time is inside your quiet hours, so no tip will arrive.")
+            Warning(stringResource(R.string.local_notifications_this_time_is_inside_your))
         }
     }
 
@@ -165,41 +168,48 @@ internal fun LocalNotificationsSection(
         }
     }
 
-    Text("At most a day", style = MaterialTheme.typography.bodyMedium)
+    Text(stringResource(R.string.local_notifications_at_most_a_day), style = MaterialTheme.typography.bodyMedium)
     ChoiceChips(DAILY_CAP_CHOICES, cap, { it.toString() }, "settings_daily_cap") {
         cap = it
         onSave { s -> s.copy(maxLocalNotificationsPerDay = it) }
     }
-    Hint("Tips and reminders count; finished tasks and server messages don't.")
+    Hint(stringResource(R.string.local_notifications_tips_and_reminders_count_finished))
 
     Toggle("Name chats in notifications", mention, "settings_mention_chats") {
         mention = it
         onSave { s -> s.copy(notificationsMentionChats = it) }
     }
     Hint(
-        "Off, notifications only say that something needs you, never which chat or request. " +
-            "Chats kept out of notifications (from a chat's ⋮ menu, and Doctor chats unless you change it) " +
-            "are never named, and the lock screen never shows either."
+        stringResource(R.string.local_notifications_off_notifications_only_say_that)
     )
 
     if (!canPost) {
-        Warning("Notifications are blocked for Gotcha, so none will be shown.")
+        Warning(stringResource(R.string.local_notifications_notifications_are_blocked_for_gotcha))
     }
 
     TextButton(
         onClick = { confirmClear = true },
         enabled = !cleared,
         modifier = Modifier.testTag("settings_clear_notification_history")
-    ) { Text(if (cleared) "Notification history cleared" else "Clear notification history") }
+    ) {
+        Text(
+            stringResource(
+                if (cleared) {
+                    R.string.local_notifications_history_cleared
+                } else {
+                    R.string.local_notifications_clear_history
+                }
+            )
+        )
+    }
 
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Clear notification history?") },
+            title = { Text(stringResource(R.string.local_notifications_clear_notification_history)) },
             text = {
                 Text(
-                    "This empties the list behind the bell on the home screen. Reminders Gotcha has " +
-                        "already sent won't be sent again."
+                    stringResource(R.string.local_notifications_this_empties_the_list_behind)
                 )
             },
             confirmButton = {
@@ -207,9 +217,13 @@ internal fun LocalNotificationsSection(
                     LocalNotificationStore(context).clearHistory()
                     cleared = true
                     confirmClear = false
-                }) { Text("Clear") }
+                }) { Text(stringResource(R.string.local_notifications_clear)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(
+                    onClick = { confirmClear = false }
+                ) { Text(stringResource(R.string.local_notifications_cancel)) }
+            }
         )
     }
 }
@@ -266,7 +280,7 @@ private fun TimeButton(label: String, minuteOfDay: Int, tag: String, onPick: (In
     TextButton(
         onClick = { showTimePicker(context, minuteOfDay, onPick) },
         modifier = Modifier.testTag(tag)
-    ) { Text("$label: ${formatMinuteOfDay(minuteOfDay)}") }
+    ) { Text(stringResource(R.string.time_button_label, label, formatMinuteOfDay(minuteOfDay))) }
 }
 
 private fun showTimePicker(context: Context, minuteOfDay: Int, onPick: (Int) -> Unit) {

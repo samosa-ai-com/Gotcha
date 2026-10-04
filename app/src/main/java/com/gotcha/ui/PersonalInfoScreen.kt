@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.data.Settings
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import com.gotcha.ui.tour.TourAnchor
@@ -75,27 +76,24 @@ fun PersonalInfoScreen(
 
     SettingsScaffold(title = stringResource(SettingsPage.PERSONAL_INFO.title), onBack = onBack, overlay = overlay) {
         Text(
-            "About you",
+            stringResource(R.string.personal_info_about_you),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Everything here is optional, stays on this device, and is given to the " +
-                "assistant at the start of every conversation so it doesn't have to ask.",
+            stringResource(R.string.personal_info_everything_here_is_optional_stays),
             style = MaterialTheme.typography.bodySmall
         )
         Text(
-            "For more personalized results, keep this profile up to date — or just " +
-                "ask Gotcha to record things like your personal website, GitHub link, " +
-                "or CV (PDF) in your profile for you.",
+            stringResource(R.string.personal_info_for_more_personalized_results_keep),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         OutlinedTextField(
             value = userName,
             onValueChange = { userName = it },
-            label = { Text("Name") },
-            placeholder = { Text("What the assistant should call you") },
+            label = { Text(stringResource(R.string.personal_info_name)) },
+            placeholder = { Text(stringResource(R.string.personal_info_what_the_assistant_should_call)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -105,8 +103,8 @@ fun PersonalInfoScreen(
         OutlinedTextField(
             value = userLocation,
             onValueChange = { userLocation = it },
-            label = { Text("Location") },
-            placeholder = { Text("e.g. Munich, Germany") },
+            label = { Text(stringResource(R.string.personal_info_location)) },
+            placeholder = { Text(stringResource(R.string.personal_info_e_g_munich_germany)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -115,8 +113,8 @@ fun PersonalInfoScreen(
         OutlinedTextField(
             value = userOccupation,
             onValueChange = { userOccupation = it },
-            label = { Text("Occupation") },
-            placeholder = { Text("e.g. Backend engineer") },
+            label = { Text(stringResource(R.string.personal_info_occupation)) },
+            placeholder = { Text(stringResource(R.string.personal_info_e_g_backend_engineer)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -125,11 +123,10 @@ fun PersonalInfoScreen(
         OutlinedTextField(
             value = userBackground,
             onValueChange = { userBackground = it },
-            label = { Text("Background") },
+            label = { Text(stringResource(R.string.personal_info_background)) },
             placeholder = {
                 Text(
-                    "Anything worth knowing by default — tools you use, who you " +
-                        "work with, what you usually ask for"
+                    stringResource(R.string.personal_info_anything_worth_knowing_by_default)
                 )
             },
             minLines = 3,
@@ -142,18 +139,17 @@ fun PersonalInfoScreen(
 
         // ---- Output preferences ----
         Text(
-            "How replies should be written",
+            stringResource(R.string.personal_info_how_replies_should_be_written),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         OutlinedTextField(
             value = userResponseStyle,
             onValueChange = { userResponseStyle = it },
-            label = { Text("Reply style") },
+            label = { Text(stringResource(R.string.personal_info_reply_style)) },
             placeholder = {
                 Text(
-                    "e.g. Keep it to a few sentences, no bullet lists, show the " +
-                        "command you ran"
+                    stringResource(R.string.personal_info_e_g_keep_it_to)
                 )
             },
             minLines = 3,
@@ -170,7 +166,7 @@ fun PersonalInfoScreen(
                 value = preferredCurrency,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Preferred Currency") },
+                label = { Text(stringResource(R.string.personal_info_preferred_currency)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded)
                 },
@@ -200,7 +196,7 @@ fun PersonalInfoScreen(
         // Language moved out of this page (issue #74); a pointer keeps it findable
         // for anyone who still comes here looking for "Preferred Language".
         Text(
-            "Reply, voice and app display language now live on their own page.",
+            stringResource(R.string.personal_info_reply_voice_and_app_display),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -210,15 +206,16 @@ fun PersonalInfoScreen(
             modifier = Modifier.testTag("settings_personal_info_language_row")
         )
 
+        val saved = stringResource(R.string.personal_info_saved)
         Button(
             onClick = {
                 onSave { applyPersonalInfo(it) }
-                overlay.show("Saved Personal Info.")
+                overlay.show(saved)
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save_personal_info")
                 .tourAnchor(TourAnchor.PERSONAL_SAVE)
-        ) { Text("Save Personal Info") }
+        ) { Text(stringResource(R.string.personal_info_save_personal_info)) }
     }
 }

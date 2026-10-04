@@ -166,4 +166,242 @@
     <string name="settings_feature_tour_summary">Walk through setup again, one step at a time</string>
     <string name="settings_feedback">Send Feedback</string>
     <string name="settings_feedback_summary">Tell us what to improve — nothing is sent until you submit</string>
+
+    <!-- AiHubScreen -->
+    <string name="ai_hub_the_model_does_the_thinking">The model does the thinking; speech gives it a voice and ears. One provider can cover both. Which language it speaks and answers in lives under Settings → Language.</string>
+
+    <!-- AppearanceScreen -->
+    <string name="appearance_theme">Theme</string>
+    <string name="appearance_every_theme_works_on_every">Every theme works on every device. Where live blur isn\'t available, the glass is made a cheaper way rather than switched off.</string>
+
+    <!-- ProactiveScreen -->
+    <string name="proactive_save_proactive_settings">Save Proactive Settings</string>
+    <string name="proactive_master_proactive_offers">Master Proactive Offers</string>
+    <string name="proactive_scan_screen_content">Scan Screen Content</string>
+    <string name="proactive_scan_clipboard">Scan Clipboard</string>
+    <string name="proactive_scan_notifications">Scan Notifications</string>
+    <string name="proactive_detect_otp_codes">Detect OTP / Codes</string>
+    <string name="proactive_auto_copy_otp_to_clipboard">Auto-Copy OTP to Clipboard</string>
+
+    <!-- PersonalInfoScreen -->
+    <string name="personal_info_name">Name</string>
+    <string name="personal_info_what_the_assistant_should_call">What the assistant should call you</string>
+    <string name="personal_info_location">Location</string>
+    <string name="personal_info_e_g_munich_germany">e.g. Munich, Germany</string>
+    <string name="personal_info_occupation">Occupation</string>
+    <string name="personal_info_e_g_backend_engineer">e.g. Backend engineer</string>
+    <string name="personal_info_background">Background</string>
+    <string name="personal_info_reply_style">Reply style</string>
+    <string name="personal_info_preferred_currency">Preferred Currency</string>
+    <string name="personal_info_save_personal_info">Save Personal Info</string>
+    <string name="personal_info_about_you">About you</string>
+    <string name="personal_info_everything_here_is_optional_stays">Everything here is optional, stays on this device, and is given to the assistant at the start of every conversation so it doesn\'t have to ask.</string>
+    <string name="personal_info_for_more_personalized_results_keep">For more personalized results, keep this profile up to date — or just ask Gotcha to record things like your personal website, GitHub link, or CV (PDF) in your profile for you.</string>
+    <string name="personal_info_anything_worth_knowing_by_default">Anything worth knowing by default — tools you use, who you work with, what you usually ask for</string>
+    <string name="personal_info_how_replies_should_be_written">How replies should be written</string>
+    <string name="personal_info_e_g_keep_it_to">e.g. Keep it to a few sentences, no bullet lists, show the command you ran</string>
+    <string name="personal_info_reply_voice_and_app_display">Reply, voice and app display language now live on their own page.</string>
+
+    <!-- Appearance and save confirmations -->
+    <string name="appearance_tier_solid">Battery saver is on, so the theme is drawn flat until it\'s off.</string>
+    <string name="appearance_tier_static">Live blur isn\'t available on this device, so panels use a fixed frost.</string>
+    <string name="appearance_brightness_light">light</string>
+    <string name="appearance_brightness_dark">dark</string>
+    <string name="appearance_skin_description">%1$s, %2$s theme</string>
+    <string name="proactive_saved">Saved Proactive Settings.</string>
+    <string name="personal_info_saved">Saved Personal Info.</string>
+
+    <!-- AiConfigScreen -->
+    <string name="ai_config_llm_provider">LLM Provider</string>
+    <string name="ai_config_api_key">API key</string>
+    <string name="ai_config_base_url_openai_compatible">Base URL (OpenAI-compatible)</string>
+    <string name="ai_config_main_model">Main model</string>
+    <string name="ai_config_select_model">(select model)</string>
+    <string name="ai_config_no_models_found">No models found</string>
+    <string name="ai_config_custom_model">✏️ Custom model…</string>
+    <string name="ai_config_sub_agent_model">Sub-agent model</string>
+    <string name="ai_config_same_as_main_agent">Same as main agent</string>
+    <string name="ai_config_navigator_model">Navigator model</string>
+    <string name="ai_config_same_as_main_model">Same as main model</string>
+    <string name="ai_config_max_tool_rounds">Max tool rounds</string>
+    <string name="ai_config_max_repeated_tool_calls">Max repeated tool calls</string>
+    <string name="ai_config_max_navigation_tool_calls">Max navigation tool calls</string>
+    <string name="ai_config_max_consecutive_delegations">Max consecutive delegations</string>
+    <string name="ai_config_max_context_tokens">Max context tokens</string>
+    <string name="ai_config_api_timeout_seconds">API timeout (seconds)</string>
+    <string name="ai_config_clear_llm_cache">Clear LLM cache</string>
+    <string name="ai_config_clear_debug_screenshots">Clear debug screenshots</string>
+    <string name="ai_config_save">Save</string>
+    <string name="ai_config_test_connection">Test connection</string>
+    <string name="ai_config_recommended_setup_use_the_samosa">Recommended setup: Use the SAMOSA AI provider for the best LLM performance.\n</string>
+    <string name="ai_config_the_api_key_is_stored">The API key is stored encrypted on this device and never leaves it except in requests to the base URL above.</string>
+
+    <!-- SpeechScreen -->
+    <string name="speech_tts_provider">TTS Provider</string>
+    <string name="speech_tts_api_base_url">TTS API Base URL</string>
+    <string name="speech_tts_api_key_optional">TTS API Key (optional)</string>
+    <string name="speech_leave_blank_to_use_main">Leave blank to use main API key</string>
+    <string name="speech_stt_provider">STT Provider</string>
+    <string name="speech_stt_api_base_url">STT API Base URL</string>
+    <string name="speech_stt_api_key_optional">STT API Key (optional)</string>
+    <string name="speech_save_speech_settings">Save Speech Settings</string>
+    <string name="speech_tts_model">TTS Model</string>
+    <string name="speech_no_models_found">No models found</string>
+    <string name="speech_type_a_voice_id_picker">Type a voice ID — picker has no suggestions</string>
+    <string name="speech_default_clear">Default (clear)</string>
+    <string name="speech_no_voices_suggested_type_a">No voices suggested — type a voice ID above</string>
+    <string name="speech_stt_model">STT Model</string>
+    <string name="speech_change_in_settings_language">Change in Settings → Language</string>
+    <string name="speech_podcast_host_a_voice_optional">Podcast Host A Voice (optional)</string>
+    <string name="speech_podcast_host_b_voice_optional">Podcast Host B Voice (optional)</string>
+    <string name="speech_auto_read_replies_aloud">Auto-read replies aloud</string>
+    <string name="speech_how_to_choose_a_voice">How to choose a voice and language (Samosa AI docs)</string>
+    <string name="speech_for_mixed_language_text_like">For mixed-language text (like Hinglish), Android built-in is the recommended choice. For single-language speech (like Hindi or English), SAMOSA AI is the recommended choice.</string>
+    <string name="speech_podcast_hosts_the_two_voices">Podcast hosts — the two voices used when the assistant generates a two-host podcast dialogue. Leave blank to use the TTS voice for host A and an automatically chosen different voice for host B.</string>
+
+    <!-- SpeechLanguageSettings -->
+    <string name="speech_language_transcription_language_override">Transcription language override</string>
+
+    <!-- AssistiveBallScreen -->
+    <string name="assistive_ball_show_assistive_ball">Show Assistive Ball</string>
+    <string name="assistive_ball_night_light_off_for_screenshots">Night Light off for screenshots</string>
+    <string name="assistive_ball_wake_word_hey_gotcha">Wake word: Hey Gotcha</string>
+    <string name="assistive_ball_always">Always</string>
+    <string name="assistive_ball_listen_with_the_screen_on">Listen with the screen on or off. Full hands-free, highest battery use.</string>
+    <string name="assistive_ball_only_while_the_screen_is">Only while the screen is on</string>
+    <string name="assistive_ball_saves_battery_the_microphone_and">Saves battery — the microphone and its indicator are off while the screen is off.</string>
+    <string name="assistive_ball_only_while_the_screen_is_2">Only while the screen is off</string>
+    <string name="assistive_ball_hands_free_when_you_are">Hands-free when you are not already looking at the phone; the screen being on means the mic is off.</string>
+    <string name="assistive_ball_a_draggable_ball_floating_over">A draggable ball floating over other apps. Long-press it to start a hands-free voice call with the assistant; tap it for Start / Pause / End and to open the app. Drag it onto the ✕ to hide it again.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">Says \"Hey Gotcha\" — the bundled OpenWakeWord model runs on-device, but only while the Assistive Ball is on and no call is active. The listener lives inside the ball\'s service, so switching the ball off switches the wake word off too. Keep microphone permission enabled.</string>
+    <string name="assistive_ball_turn_on_show_assistive_ball">Turn on \"Show Assistive Ball\" above to use it.</string>
+    <string name="assistive_ball_when_to_listen">When to listen</string>
+    <string name="assistive_ball_the_listener_is_only_active">The listener is only active while the screen matches the chosen state, so the microphone and its indicator are off the rest of the time.</string>
+    <string name="assistive_ball_detection_sensitivity">Detection sensitivity</string>
+    <string name="assistive_ball_lower_values_are_stricter_fewer">Lower values are stricter — fewer false activations in TV or music; higher values catch the word from further away or with weaker pronunciation.</string>
+    <string name="assistive_ball_needs_the_display_over_other">Needs the \"Display over other apps\" permission — turning this on the first time takes you there to grant it.</string>
+    <string name="assistive_ball_some_phones_keep_the_night">Some phones keep the Night Light tint in screenshots. With this on, a screenshot or Screen Lens capture from the ball turns Night Light off, waits a few seconds for the colours to settle, captures, and turns it back on. The screen shows its normal colours meanwhile.</string>
+    <string name="assistive_ball_gotcha_has_permission_to_switch">Gotcha has permission to switch Night Light.</string>
+    <string name="assistive_ball_needs_a_one_time_grant">Needs a one-time grant from a computer (or root). Connect with adb and run this — tap to copy:</string>
+
+    <!-- NotificationsScreen -->
+    <string name="notifications_show_the_reply">Show the reply</string>
+    <string name="notifications_open_notification_settings">Open notification settings</string>
+    <string name="notifications_vibration">Vibration</string>
+    <string name="notifications_chime">Chime</string>
+    <string name="notifications_notify_when_a_task_finishes">Notify when a task finishes</string>
+    <string name="notifications_enable_server_messages">Enable server messages</string>
+    <string name="notifications_played_as_soon_as_a">Played as soon as a reply arrives. Turn both off for no alert.</string>
+    <string name="notifications_task_finished">Task finished</string>
+    <string name="notifications_a_notification_when_a_chat">A notification when a chat task finishes while you are in another app. Tap it to open that chat. On the lock screen it only says a task finished.</string>
+    <string name="notifications_notifications_are_blocked_for_gotcha">Notifications are blocked for Gotcha, so none will be shown.</string>
+    <string name="notifications_server_messages">Server messages</string>
+
+    <!-- LocalNotificationsSection -->
+    <string name="local_notifications_gotcha_notifications">Gotcha notifications</string>
+    <string name="local_notifications_at_most_a_day">At most a day</string>
+    <string name="local_notifications_clear_notification_history">Clear notification history?</string>
+    <string name="local_notifications_clear">Clear</string>
+    <string name="local_notifications_cancel">Cancel</string>
+    <string name="local_notifications_reminders_and_tips_gotcha_decides">Reminders and tips Gotcha decides to send, worked out on this phone from your chats. Nothing about how you use Gotcha is uploaded to decide them.</string>
+    <string name="local_notifications_this_empties_the_list_behind">This empties the list behind the bell on the home screen. Reminders Gotcha has already sent won\'t be sent again.</string>
+
+    <!-- AiConfigScreen -->
+    <string name="ai_config_hide">Hide</string>
+    <string name="ai_config_show">Show</string>
+    <string name="ai_config_refreshing">Refreshing…</string>
+    <string name="ai_config_refresh_models">🔄 Refresh models…</string>
+    <string name="ai_config_refreshing_models">Refreshing models…</string>
+    <string name="ai_config_invite_code_applied">Invite code applied!</string>
+    <string name="ai_config_signing_in_with_google">Signing in with Google…</string>
+    <string name="ai_config_signing_out">Signing out…</string>
+    <string name="ai_config_signed_out_of_samosa_ai">Signed out of Samosa AI.</string>
+    <string name="ai_config_llm_response_cache_cleared">LLM response cache cleared.</string>
+    <string name="ai_config_debug_screenshots_cleared">Debug screenshots cleared.</string>
+    <string name="ai_config_saved">Saved.</string>
+    <string name="ai_config_testing_connection">Testing connection…</string>
+
+    <!-- SpeechScreen -->
+    <string name="speech_hide">Hide</string>
+    <string name="speech_show">Show</string>
+    <string name="speech_refreshing">Refreshing…</string>
+    <string name="speech_refresh_audio_models">🔄 Refresh audio models…</string>
+    <string name="speech_refreshing_audio_models">Refreshing audio models…</string>
+    <string name="speech_invite_code_applied">Invite code applied!</string>
+    <string name="speech_signing_in_with_google">Signing in with Google…</string>
+    <string name="speech_signing_out">Signing out…</string>
+    <string name="speech_signed_out_of_samosa_ai">Signed out of Samosa AI.</string>
+    <string name="speech_saved">Saved.</string>
+    <string name="speech_no_app_can_open_the">No app can open the docs link</string>
+
+    <!-- Samosa sign-in status and shared model pickers -->
+    <string name="samosa_invite_applied">Invite code applied!</string>
+    <string name="samosa_invite_failed">Failed to apply invite code.</string>
+    <string name="samosa_signing_in_google">Signing in with Google…</string>
+    <string name="samosa_signed_in_as">Signed in as %1$s</string>
+    <string name="samosa_sign_in_failed">Sign-in failed.</string>
+    <string name="samosa_signing_out">Signing out…</string>
+    <string name="samosa_signed_out">Signed out of Samosa AI.</string>
+    <string name="settings_saved">Saved.</string>
+    <string name="models_found">Found %1$d models</string>
+    <string name="models_failed">Failed: %1$s</string>
+    <string name="ai_config_api_timeout_hint">Default %1$d. 0 = never time out (not recommended).</string>
+    <string name="ai_config_connected">✓ Connected: %1$s</string>
+    <string name="ai_config_connection_failed">✗ Connection failed: %1$s</string>
+    <string name="speech_models_found">Found %1$d TTS, %2$d STT models</string>
+    <string name="speech_select_model">(select model)</string>
+    <string name="speech_tts_voice_optional">TTS Voice (optional)</string>
+    <string name="speech_provider_default_voice">the provider\'s default</string>
+    <string name="speech_default_voice_or_pick">Default (%1$s) or pick below</string>
+    <string name="speech_transcription_follows_voice">Transcription language: %1$s, the voice language.</string>
+    <string name="speech_transcription_forced">Transcription language: forced to %1$s.</string>
+
+    <!-- LocalNotificationsSection -->
+    <string name="local_notifications_history_cleared">Notification history cleared</string>
+    <string name="local_notifications_clear_history">Clear notification history</string>
+    <string name="local_notifications_when_a_task_failed_was">When a task failed, was stopped, or Gotcha asked you something and you didn\'t answer.</string>
+    <string name="local_notifications_when_something_you_ask_regularly">When something you ask regularly is due again. Tap to ask it again, edited first if you like.</string>
+    <string name="local_notifications_when_you_haven_t_opened">When you haven\'t opened Gotcha for:</string>
+    <string name="local_notifications_tips_and_reminders_count_finished">Tips and reminders count; finished tasks and server messages don\'t.</string>
+    <string name="local_notifications_one_thing_to_try_each">One thing to try each day, picked from what you haven\'t used yet. Tap it to start a chat with the prompt ready to edit or send. Skipped on days you\'ve already used Gotcha.</string>
+    <string name="local_notifications_off_notifications_only_say_that">Off, notifications only say that something needs you, never which chat or request. Chats kept out of notifications (from a chat\'s ⋮ menu, and Doctor chats unless you change it) are never named, and the lock screen never shows either.</string>
+    <string name="local_notifications_this_time_is_inside_your">This time is inside your quiet hours, so no tip will arrive.</string>
+    <string name="local_notifications_notifications_are_blocked_for_gotcha">Notifications are blocked for Gotcha, so none will be shown.</string>
+
+    <!-- AssistiveBallScreen -->
+    <string name="assistive_ball_background_restriction_lifted">Background restriction: lifted</string>
+    <string name="assistive_ball_background_restriction">Background restriction</string>
+    <string name="assistive_ball_turn_off_assistive_ball">Turn off assistive ball</string>
+    <string name="assistive_ball_turn_on_assistive_ball">Turn on assistive ball</string>
+    <string name="assistive_ball_stop_turning_night_light_off">Stop turning Night Light off for screenshots</string>
+    <string name="assistive_ball_turn_night_light_off_for">Turn Night Light off for screenshots</string>
+    <string name="assistive_ball_turn_off_hey_gotcha_wake">Turn off Hey Gotcha wake word</string>
+    <string name="assistive_ball_turn_on_hey_gotcha_wake">Turn on Hey Gotcha wake word</string>
+    <string name="assistive_ball_gotcha_is_whitelisted_from_battery">Gotcha is whitelisted from battery optimization. The wake-word listener will keep running while the ball is on.</string>
+    <string name="assistive_ball_oem_battery_managers_may_kill">OEM battery managers may kill the wake-word listener. Tap to allow Gotcha to run unrestricted in the background — required for reliable always-on listening.</string>
+
+    <!-- Assistive ball: wake word sensitivity -->
+    <string name="assistive_ball_sensitivity_description">Wake word sensitivity %1$d percent</string>
+    <string name="assistive_ball_sensitivity_high_precision">High precision</string>
+    <string name="assistive_ball_sensitivity_balanced">Balanced</string>
+    <string name="assistive_ball_sensitivity_high">High sensitivity</string>
+
+    <!-- NotificationsScreen -->
+    <string name="notifications_syncing">Syncing…</string>
+    <string name="notifications_sync_now">Sync now</string>
+
+    <!-- Notifications page -->
+    <string name="notifications_server_messages_description">Updates, tips and maintenance notices from Gotcha, fetched from %1$s. Each message shows at most the number of times the server asks; re-deliveries are suppressed automatically.</string>
+    <string name="notifications_last_synced">Last synced: %1$s</string>
+    <string name="notifications_never_synced">never</string>
+    <string name="notifications_preview_none">Don\'t show it</string>
+    <string name="notifications_preview_none_summary">Only the chat\'s name and whether the task finished.</string>
+    <string name="notifications_preview_short">A short preview</string>
+    <string name="notifications_preview_short_summary">The first line or two of the reply.</string>
+    <string name="notifications_preview_full">The whole reply</string>
+    <string name="notifications_preview_full_summary">Expand the notification to read all of it.</string>
+    <string name="time_button_label">%1$s: %2$s</string>
+
+    <!-- Transcription language picker -->
+    <string name="speech_language_follow_voice">Follow voice language / auto-detect</string>
 </resources>

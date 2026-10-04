@@ -15,7 +15,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.audio.AudioLanguageLabels
 import com.gotcha.audio.AudioModel
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
@@ -78,8 +80,8 @@ internal fun TranscriptionLanguagePicker(
         OutlinedTextField(
             value = selectedLanguage,
             onValueChange = onSelect,
-            label = { Text("Transcription language override") },
-            placeholder = { Text(FOLLOW_VOICE_LANGUAGE) },
+            label = { Text(stringResource(R.string.speech_language_transcription_language_override)) },
+            placeholder = { Text(stringResource(R.string.speech_language_follow_voice)) },
             supportingText = AudioLanguageLabels.describe(selectedLanguage)?.let { name -> { Text(name) } },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
@@ -94,7 +96,7 @@ internal fun TranscriptionLanguagePicker(
             onDismissRequest = { onExpandedChange(false) }
         ) {
             DropdownMenuItem(
-                text = { Text(FOLLOW_VOICE_LANGUAGE) },
+                text = { Text(stringResource(R.string.speech_language_follow_voice)) },
                 onClick = onClearLanguage
             )
             languagesList.forEach { lang ->
@@ -106,9 +108,6 @@ internal fun TranscriptionLanguagePicker(
         }
     }
 }
-
-/** Override entry meaning "no override": transcription follows the voice language. */
-internal const val FOLLOW_VOICE_LANGUAGE = "Follow voice language / auto-detect"
 
 private val COMMON_STT_LANGUAGES = listOf(
     "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar",
