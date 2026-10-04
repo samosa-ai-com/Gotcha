@@ -404,4 +404,309 @@
 
     <!-- Transcription language picker -->
     <string name="speech_language_follow_voice">Follow voice language / auto-detect</string>
+
+    <!-- SkillsScreen -->
+    <string name="skills_no_skills_loaded">No skills loaded.</string>
+    <string name="skills_import_from_url">Import from URL</string>
+    <string name="skills_paste_json">Paste JSON…</string>
+    <string name="skills_skill_json">Skill JSON</string>
+    <string name="skills_cancel">Cancel</string>
+    <string name="skills_import">Import</string>
+    <string name="skills_delete_community_skill">Delete community skill?</string>
+    <string name="skills_delete">Delete</string>
+    <string name="skills_remove">Remove</string>
+    <string name="skills_add_host">Add host</string>
+    <string name="skills_add">Add</string>
+    <string name="skills_community_skills">Community Skills</string>
+    <string name="skills_paste_community_skill_json">Paste community skill JSON</string>
+    <string name="skills_no_community_skills_imported_yet">No community skills imported yet.</string>
+    <string name="skills_allowed_community_skill_hosts">Allowed community skill hosts</string>
+    <string name="skills_built_in">Built-in</string>
+    <string name="skills_enter_a_url_first">Enter a URL first.</string>
+    <string name="skills_fetching_skill">Fetching skill…</string>
+    <string name="skills_paste_json_first">Paste JSON first.</string>
+    <string name="skills_importing_skill">Importing skill…</string>
+
+    <!-- TermuxSetupScreen -->
+    <string name="termux_setup_copy_commands">Copy commands</string>
+    <string name="termux_setup_install_termux">Install Termux</string>
+    <string name="termux_setup_check_the_termux_build">Check the Termux build</string>
+    <string name="termux_setup_grant_the_run_commands_permission">Grant the Run Commands permission</string>
+    <string name="termux_setup_allow_external_apps">Allow external apps</string>
+    <string name="termux_setup_termux_gives_the_assistant_a">Termux gives the assistant a full Linux shell — installing packages, running scripts and tools no phone ships with. This page walks you through the one-time setup so you don\'t have to look anything up.</string>
+    <string name="termux_setup_termux_is_set_up_try">Termux is set up. Try asking the assistant to run a command in Termux.</string>
+    <string name="termux_setup_checking">Checking…</string>
+    <string name="termux_setup_check_configuration">Check configuration</string>
+    <string name="termux_setup_could_not_open_the_f">Could not open the F-Droid page.</string>
+    <string name="termux_setup_copied_to_clipboard">Copied to clipboard.</string>
+    <string name="termux_setup_permission_granted_next_enable_external">Permission granted — next, enable external apps in Termux.</string>
+    <string name="termux_setup_permission_denied_if_no_dialog">Permission denied. If no dialog appeared, Termux was installed after Gotcha — update or reinstall Gotcha so Android can grant it.</string>
+
+    <!-- AboutScreen -->
+    <string name="about_check_for_updates">Check for Updates</string>
+    <string name="about_download_update">Download Update</string>
+    <string name="about_install_update">Install Update</string>
+    <string name="about_grant_install_permission">Grant Install Permission</string>
+    <string name="about_retry_check">Retry Check</string>
+    <string name="about_open_in_your_browser">Open in your browser</string>
+    <string name="about_app_version_updates">App Version &amp; Updates</string>
+    <string name="about_checking_for_updates">Checking for updates...</string>
+    <string name="about_allow_gotcha_to_install_updates">Allow Gotcha to install updates from this source, then return here.</string>
+
+    <!-- LegalScreen -->
+    <string name="legal_by_using_gotcha_you_accept">By using Gotcha you accept these documents.</string>
+
+    <!-- PermissionsSection -->
+    <string name="permissions_cancel">Cancel</string>
+    <string name="permissions_health_connect_permission_needed">Health Connect permission needed</string>
+    <string name="permissions_open_health_connect">Open Health Connect</string>
+    <string name="permissions_not_now">Not now</string>
+    <string name="permissions_nothing_here_is_required_up">Nothing here is required up front — the assistant asks for a permission when it first needs one, and says why. This page is for granting them ahead of time, seeing what is on, and turning anything back off. Runtime permissions show a system dialog when toggled on; special-access permissions open a Settings screen for one-time setup.</string>
+    <string name="permissions_guided_setup">Guided setup ›</string>
+    <string name="permissions_gotcha_can_t_read_your">Gotcha can\'t read your health data yet. Open Health Connect, find Gotcha under App permissions, and allow the data types you\'re comfortable sharing, then return here.</string>
+    <string name="permissions_open_settings_screen">Open settings screen</string>
+    <string name="permissions_open_app_settings">Open app settings</string>
+    <string name="permissions_granted">Granted</string>
+    <string name="permissions_not_granted_asked_for_when">Not granted — asked for when first needed</string>
+
+    <!-- Termux setup -->
+    <string name="termux_setup_termux_answered_allow_external_apps">Termux answered — allow-external-apps is enabled.</string>
+    <string name="termux_setup_termux_answered_but_allow_external">Termux answered, but allow-external-apps is not enabled yet.</string>
+    <string name="termux_setup_could_not_confirm_open_termux">Could not confirm. Open Termux once, set the property, then check again.</string>
+    <string name="termux_setup_installed_version">Termux %1$s is installed.</string>
+    <string name="termux_setup_not_installed">Termux is not installed.</string>
+    <string name="termux_setup_install_termux_first">Install Termux first.</string>
+    <string name="termux_setup_this_build_exposes_the_run">This build exposes the Run Commands API Gotcha needs.</string>
+    <string name="termux_setup_this_build_has_no_run">This build has no Run Commands API — that is the Google Play build, which removed it. Install the F-Droid or GitHub build instead.</string>
+    <string name="termux_setup_gotcha_may_run_commands_in">Gotcha may run commands in Termux.</string>
+    <string name="termux_setup_termux_must_let_gotcha_run">Termux must let Gotcha run commands. If no permission dialog appears, Termux was installed after Gotcha — update or reinstall Gotcha.</string>
+    <string name="termux_setup_this_build_cannot_run_commands">This build cannot run commands — see step 2.</string>
+    <string name="termux_setup_allow_external_apps_is_enabled">allow-external-apps is enabled — Gotcha can reach Termux.</string>
+    <string name="termux_setup_allow_external_apps_is_not">allow-external-apps is not enabled. Open Termux and run the two lines below.</string>
+    <string name="termux_setup_not_confirmed_yet_open_termux">Not confirmed yet. Open Termux, run the two lines below, then check again.</string>
+    <string name="termux_setup_action_install_termux_from_fdroid">Install Termux from F-Droid</string>
+    <string name="termux_setup_action_grant_permission">Grant permission</string>
+    <string name="termux_setup_action_open_termux">Open Termux</string>
+
+    <!-- Skills page -->
+    <string name="skills_community_description">Import skills from %1$s or paste JSON. Community skills appear in the agent\'s system prompt as advisory guidance.</string>
+    <string name="skills_url_label">Skill URL (https://%1$s/...)</string>
+    <string name="skills_imported">Imported \'%1$s\'.</string>
+    <string name="skills_id">id: %1$s</string>
+    <string name="skills_delete_description">Delete %1$s</string>
+    <string name="skills_delete_confirm">Are you sure you want to permanently delete \"%1$s\"? The skill will be removed from this device and the agent will no longer have access to it. This action cannot be undone.</string>
+    <string name="skills_deleted">Deleted \'%1$s\'.</string>
+    <string name="skills_hosts_description">Only HTTPS hosts in this list can be fetched. Default: %1$s.</string>
+
+    <!-- About page -->
+    <string name="loading">(loading…)</string>
+    <string name="about_link_website">Samosa AI website</string>
+    <string name="about_link_about_us">About us</string>
+    <string name="about_link_gotcha">Gotcha</string>
+    <string name="about_link_docs">Gotcha documentation</string>
+    <string name="about_link_pricing">Pricing</string>
+    <string name="about_link_blog">Blog</string>
+    <string name="about_link_github">GitHub</string>
+    <string name="about_link_email">Email contact@samosa-ai.com</string>
+    <string name="about_version">Gotcha v%1$s (build %2$d)</string>
+    <string name="about_up_to_date">Gotcha is up to date (v%1$s).</string>
+    <string name="about_update_available">New update available: v%1$s</string>
+    <string name="about_download_failed">Download failed</string>
+    <string name="about_downloading">Downloading update: %1$d%%</string>
+    <string name="about_installer_failed">Could not launch the installer.</string>
+    <string name="about_update_error">Error: %1$s</string>
+
+    <!-- Legal page -->
+    <string name="legal_accepted_toast">Accepted. You won\'t see this gate again until the legal copy changes.</string>
+    <string name="legal_accepted_current">You\'ve accepted version %1$s. You\'ll be asked again only if the legal copy changes.</string>
+    <string name="legal_not_accepted">You haven\'t accepted yet. The first-launch dialog will keep showing until you tap %1$s.</string>
+    <string name="legal_accepted_earlier">You accepted an earlier version (%1$s). The current version is %2$s.</string>
+
+    <!-- Permissions catalog -->
+    <string name="permission_group_communications">Communications</string>
+    <string name="permission_group_contacts">Contacts</string>
+    <string name="permission_group_calendar">Calendar</string>
+    <string name="permission_group_media_storage">Media &amp; Storage</string>
+    <string name="permission_group_location">Location</string>
+    <string name="permission_group_device_control">Device Control</string>
+    <string name="permission_group_notifications">Notifications</string>
+    <string name="permission_group_system_access">System Access</string>
+    <string name="permission_group_health">Health</string>
+    <string name="permission_phone">Phone</string>
+    <string name="permission_phone_description">Place calls directly</string>
+    <string name="permission_sms">SMS</string>
+    <string name="permission_sms_description">Send text messages</string>
+    <string name="permission_read_sms">Read SMS</string>
+    <string name="permission_read_sms_description">Read inbox messages</string>
+    <string name="permission_call_log">Call Log</string>
+    <string name="permission_call_log_description">Read recent call history</string>
+    <string name="permission_contacts">Contacts</string>
+    <string name="permission_contacts_description">Read and create contacts</string>
+    <string name="permission_calendar">Calendar</string>
+    <string name="permission_calendar_description">Read and create calendar events</string>
+    <string name="permission_camera">Camera</string>
+    <string name="permission_camera_description">Take photos</string>
+    <string name="permission_microphone">Microphone</string>
+    <string name="permission_microphone_description">Record audio</string>
+    <string name="permission_storage_read">Storage Read</string>
+    <string name="permission_storage_read_description">Read files from shared storage</string>
+    <string name="permission_storage_write">Storage Write</string>
+    <string name="permission_storage_write_description">Write files to shared storage</string>
+    <string name="permission_all_files_access">All Files Access</string>
+    <string name="permission_all_files_access_description">Full access to all files on device</string>
+    <string name="permission_location">Location</string>
+    <string name="permission_location_description">Get device location</string>
+    <string name="permission_write_settings">Write Settings</string>
+    <string name="permission_write_settings_description">Modify system settings (brightness)</string>
+    <string name="permission_do_not_disturb">Do Not Disturb</string>
+    <string name="permission_do_not_disturb_description">Silence/vibrate mode and DND</string>
+    <string name="permission_usage_access">Usage Access</string>
+    <string name="permission_usage_access_description">Read app usage and data stats</string>
+    <string name="permission_termux_commands_optional">Termux Commands (Optional)</string>
+    <string name="permission_termux_commands_optional_description">Run shell commands and install packages in Termux. Also needs `allow-external-apps=true` in Termux\'s ~/.termux/termux.properties — use the Guided setup link for step-by-step help.</string>
+    <string name="permission_device_admin_optional">Device Admin (Optional)</string>
+    <string name="permission_device_admin_optional_description">DANGEROUS: Lock screen, enforce password policy. Only enable if you really need these.</string>
+    <string name="permission_show_notifications">Show Notifications</string>
+    <string name="permission_show_notifications_description">Display server messages and reply alerts in the status bar</string>
+    <string name="permission_accessibility">Accessibility</string>
+    <string name="permission_accessibility_description">Read screen, tap, swipe, type</string>
+    <string name="permission_notification_listener">Notification Listener</string>
+    <string name="permission_notification_listener_description">Read and dismiss notifications, media control</string>
+    <string name="permission_display_over_apps">Display Over Apps</string>
+    <string name="permission_display_over_apps_description">Show floating overlays</string>
+    <string name="permission_health_connect">Health Connect</string>
+    <string name="permission_health_connect_description">Read steps, sleep, heart rate, weight and workouts</string>
+
+    <!-- Permission requests: why each one is asked for -->
+    <string name="permission_rationale_call_phone">Gotcha needs the Phone permission to dial the number you asked it to call. It only places calls you ask for, and the dialer stays on screen while it does.</string>
+    <string name="permission_rationale_send_sms">Gotcha needs the SMS permission to send the message you asked for. Nothing is sent that you haven\'t asked it to send.</string>
+    <string name="permission_rationale_read_sms">Gotcha needs to read your inbox to answer this — for example to find a code or a message someone sent you. Messages stay on the device unless you ask Gotcha to do something with them.</string>
+    <string name="permission_rationale_read_call_log">Gotcha needs your call history to answer questions about who called and when.</string>
+    <string name="permission_rationale_read_contacts">Gotcha needs your contacts to turn a name into a number — so \"call Priya\" reaches the right Priya.</string>
+    <string name="permission_rationale_write_contacts">Gotcha needs permission to save this contact to your address book.</string>
+    <string name="permission_rationale_read_calendar">Gotcha needs your calendar to see what\'s on your schedule.</string>
+    <string name="permission_rationale_write_calendar">Gotcha needs calendar access to create or change the event you asked for.</string>
+    <string name="permission_rationale_camera">Gotcha needs the camera to take the photo you asked for.</string>
+    <string name="permission_rationale_record_audio">Gotcha needs the microphone to hear you — for voice input, recording, and the \"Hey Gotcha\" wake word.</string>
+    <string name="permission_rationale_access_fine_location">Gotcha needs your location to answer this — weather, what\'s nearby, or where you are right now.</string>
+    <string name="permission_rationale_access_coarse_location">Gotcha needs an approximate location to answer this.</string>
+    <string name="permission_rationale_read_media_images">Gotcha needs access to your photos to open the image you pointed it at.</string>
+    <string name="permission_rationale_read_external_storage">Gotcha needs storage access to open the file you pointed it at.</string>
+    <string name="permission_rationale_post_notifications">Gotcha needs notification permission to alert you when a reply or a message arrives.</string>
+    <string name="permission_rationale_read_phone_state">On a dual-SIM phone, Gotcha needs to read the phone state to pick which SIM places the call or sends the message.</string>
+    <string name="permission_rationale_from_description">Gotcha needs this permission to %1$s.</string>
+    <string name="permission_rationale_generic">Gotcha needs the %1$s permission to do what you asked.</string>
+
+    <!-- PermissionAsk -->
+    <string name="permission_ask_continue">Continue</string>
+    <string name="permission_ask_not_now">Not now</string>
+    <string name="permission_ask_open_app_settings">Open app settings</string>
+    <string name="permission_ask_android_won_t_ask_again">Android won\'t ask again once a permission has been turned off. You can switch it back on in Settings › Apps › Gotcha › Permissions, then ask Gotcha again.</string>
+
+    <!-- Permission dialogs -->
+    <string name="permission_ask_needed">%1$s permission needed</string>
+    <string name="permission_ask_turned_off">%1$s is turned off</string>
+
+    <!-- Permissions page -->
+    <string name="permissions_revoke_title">Turn off %1$s?</string>
+    <string name="permissions_revoke_special">%1$s is switched on in the system\'s own settings screen, and only that screen can switch it back off. Gotcha stops using it the moment you do.</string>
+    <string name="permissions_revoke_runtime">Only Android can take a permission back. Open Gotcha\'s app settings, go to Permissions, and deny %1$s there — anything that needs it will ask again next time.</string>
+    <string name="permissions_device_admin_explanation">Gotcha uses device administration to lock the screen, enforce password policy, and disable the camera when you ask it to.</string>
+
+    <!-- ConnectorsSection -->
+    <string name="connectors_auto_tool_sync">Auto Tool Sync</string>
+    <string name="connectors_interval">Interval</string>
+    <string name="connectors_use_gmail_preset">Use Gmail preset</string>
+    <string name="connectors_services_to_authorise">Services to authorise:</string>
+    <string name="connectors_gmail">Gmail</string>
+    <string name="connectors_calendar">Calendar</string>
+    <string name="connectors_tenant_common_or_your_organisation">Tenant (common, or your organisation\'s tenant ID)</string>
+    <string name="connectors_home_assistant">Home Assistant</string>
+    <string name="connectors_notion">Notion</string>
+    <string name="connectors_email_imap">Email (IMAP)</string>
+    <string name="connectors_google_gmail_calendar">Google (Gmail, Calendar)</string>
+    <string name="connectors_microsoft_outlook_calendar_to_do">Microsoft (Outlook, Calendar, To Do)</string>
+    <string name="connectors_changing_this_needs_a_reconnect">Changing this needs a reconnect — the saved sign-in only carries the scopes granted at consent time.</string>
+    <string name="connectors_syncing">Syncing…</string>
+    <string name="connectors_refresh_all">Refresh All</string>
+    <string name="connectors_long_lived_access_token">Long-lived access token</string>
+    <string name="connectors_internal_integration_token">Internal integration token</string>
+    <string name="connectors_email_address">Email address</string>
+    <string name="connectors_app_password">App password</string>
+    <string name="connectors_imap_host">IMAP host</string>
+    <string name="connectors_imap_port">IMAP port</string>
+    <string name="connectors_smtp_host">SMTP host</string>
+    <string name="connectors_smtp_port">SMTP port</string>
+    <string name="connectors_home_assistant_url">Home Assistant URL</string>
+    <string name="connectors_control_and_query_your_smart">Control and query your smart home through Home Assistant\'s Model Context Protocol server. Its tools are defined by your server and scoped to the entities you expose to Assist.</string>
+    <string name="connectors_search_read_and_write_notion">Search, read and write Notion pages using an internal integration in your own workspace — no OAuth app to register.</string>
+    <string name="connectors_full_read_write_gmail_and">Full read/write Gmail and Google Calendar access using your own Google Cloud OAuth client — no shared app, no verification wait.</string>
+    <string name="connectors_outlook_mail_calendar_and_to">Outlook mail, calendar and To Do using your own Entra app registration. One sign-in covers all three.</string>
+    <string name="connectors_1_in_home_assistant_add">1. In Home Assistant, add the \"Model Context Protocol Server\" integration (Settings ▸ Devices &amp; services ▸ Add integration).</string>
+    <string name="connectors_2_create_a_long_lived">2. Create a long-lived access token: your profile ▸ Security ▸ Long-lived access tokens ▸ Create token.</string>
+    <string name="connectors_3_paste_your_home_assistant">3. Paste your Home Assistant URL (e.g. http://192.168.1.10:8123) and the token below.</string>
+    <string name="connectors_1_go_to_notion_so">1. Go to notion.so/my-integrations ▸ New integration, in your workspace.</string>
+    <string name="connectors_2_give_it_read_insert">2. Give it Read, Insert and Update content capabilities.</string>
+    <string name="connectors_3_copy_the_internal_integration">3. Copy the Internal Integration Secret and paste it below.</string>
+    <string name="connectors_needs_an_app_password_not">Needs an app password, not your regular password. Requires 2-Step Verification to be enabled first.</string>
+    <string name="connectors_generate_one_at_myaccount_google">Generate one at myaccount.google.com/apppasswords, or via Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords.</string>
+    <string name="connectors_1_create_a_google_cloud">1. Create a Google Cloud project.</string>
+    <string name="connectors_2_enable_the_gmail_api">2. Enable the Gmail API and/or the Google Calendar API — whichever you tick below.</string>
+    <string name="connectors_3_configure_the_oauth_consent">3. Configure the OAuth consent screen (External, add yourself as a test user — or publish it to skip weekly reconnects).</string>
+    <string name="connectors_4_create_a_desktop_app">4. Create a Desktop app OAuth client.</string>
+    <string name="connectors_5_paste_its_client_id">5. Paste its Client ID and secret below.</string>
+    <string name="connectors_1_go_to_portal_azure">1. Go to portal.azure.com ▸ Microsoft Entra ID ▸ App registrations ▸ New.</string>
+    <string name="connectors_2_under_redirect_uri_pick">2. Under \"Redirect URI\" pick \"Public client/native\" and enter http://localhost.</string>
+    <string name="connectors_3_in_api_permissions_add">3. In API permissions add delegated Microsoft Graph permissions: offline_access, User.Read, Mail.ReadWrite, Mail.Send, Calendars.ReadWrite, Tasks.ReadWrite.</string>
+    <string name="connectors_4_copy_the_application_client">4. Copy the Application (client) ID from the Overview page.</string>
+
+    <!-- ConnectorCards -->
+    <string name="connector_cards_enabled">Enabled</string>
+    <string name="connector_cards_disconnect">Disconnect</string>
+    <string name="connector_cards_client_id">Client ID</string>
+    <string name="connector_cards_client_secret">Client secret</string>
+    <string name="connector_cards_pasted_redirect_url">Pasted redirect URL</string>
+    <string name="connector_cards_finish_sign_in_with_pasted">Finish sign-in with pasted URL</string>
+    <string name="connector_cards_connecting">Connecting…</string>
+    <string name="connector_cards_connect">Connect</string>
+    <string name="connector_cards_waiting_for_sign_in">Waiting for sign-in…</string>
+    <string name="connector_cards_disconnected">Disconnected.</string>
+    <string name="connector_cards_opening_sign_in">Opening sign-in…</string>
+    <string name="connector_cards_refresh_tools">Refresh tools</string>
+    <string name="connector_cards_refresh_connection">Refresh connection</string>
+    <string name="connector_cards_refreshing_tools">Refreshing tools…</string>
+    <string name="connector_cards_refreshing">Refreshing…</string>
+    <string name="connector_cards_the_assistant_can_use_this">The assistant can use this connector\'s tools.</string>
+    <string name="connector_cards_switched_off_tools_hidden_sign">Switched off — tools hidden, sign-in kept.</string>
+    <string name="connector_cards_hide_paste_url_fallback">Hide paste-URL fallback</string>
+    <string name="connector_cards_browser_didn_t_return_paste">Browser didn\'t return? Paste redirect URL</string>
+
+    <!-- ConnectorsSection -->
+    <string name="connectors_4_expose_the_devices_you">4. Expose the devices you want the assistant to control: Settings ▸ Voice assistants ▸ Expose entities.</string>
+    <string name="connectors_4_important_open_each_page">4. Important: open each page you want reachable and use ⋯ ▸ Connections ▸ add the integration. Pages that are not shared stay invisible to it.</string>
+    <string name="connectors_other_providers_check_their_imap">Other providers: check their IMAP app-password documentation.</string>
+    <string name="connectors_6_tap_connect">6. Tap Connect.</string>
+    <string name="connectors_5_paste_it_below_and">5. Paste it below and tap Connect. Leave Tenant as \"common\" for personal accounts.</string>
+
+    <!-- Connector cards -->
+    <string name="connector_cards_enable">Enable %1$s</string>
+    <string name="connector_cards_collapse">Collapse %1$s</string>
+    <string name="connector_cards_expand">Expand %1$s</string>
+    <string name="connector_cards_not_connected_hint">Not connected — tap to set up</string>
+    <string name="connector_cards_connected_as">Connected as %1$s.</string>
+
+    <!-- Connectors page -->
+    <string name="connectors_interval_off">Off</string>
+    <string name="connectors_last_sync_just_now">Last sync: Just now</string>
+    <string name="connectors_last_sync_never">Last sync: Never</string>
+    <string name="connectors_all_up_to_date">All active connectors are up to date.</string>
+    <string name="connectors_imap_saved">Saved. Credentials are verified on first use.</string>
+    <plurals name="connectors_last_sync_minutes">
+        <item quantity="one">Last sync: %1$d min ago</item>
+        <item quantity="other">Last sync: %1$d min ago</item>
+    </plurals>
+    <plurals name="connectors_refreshed">
+        <item quantity="one">Refreshed %1$d connector: %2$s</item>
+        <item quantity="other">Refreshed %1$d connectors: %2$s</item>
+    </plurals>
 </resources>

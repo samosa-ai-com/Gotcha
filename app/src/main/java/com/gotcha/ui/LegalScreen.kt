@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 
@@ -63,22 +64,23 @@ fun LegalScreen(
 
     SettingsScaffold(title = stringResource(SettingsPage.LEGAL.title), onBack = onBack, overlay = overlay) {
         Text(
-            "By using Gotcha you accept these documents.",
+            stringResource(R.string.legal_by_using_gotcha_you_accept),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        LegalSection(label = "Terms and Conditions", markdown = termsText)
-        LegalSection(label = "Disclaimer and Declaration", markdown = disclaimerText)
-        LegalSection(label = "Data Retention and Privacy Policy", markdown = privacyText)
+        LegalSection(label = stringResource(R.string.legal_consent_section_terms), markdown = termsText)
+        LegalSection(label = stringResource(R.string.legal_consent_section_disclaimer), markdown = disclaimerText)
+        LegalSection(label = stringResource(R.string.legal_consent_section_privacy), markdown = privacyText)
 
         HorizontalDivider(thickness = 1.dp)
 
+        val accepted = stringResource(R.string.legal_accepted_toast)
         AcceptBlock(
             acceptedVersion = initial.legalAcceptedVersion,
             onAccept = {
                 onSave { it.copy(legalAcceptedVersion = LEGAL_VERSION) }
-                overlay.show("Accepted. You won't see this gate again until the legal copy changes.")
+                overlay.show(accepted)
             }
         )
     }
@@ -97,7 +99,7 @@ private fun LegalSection(label: String, markdown: String?) {
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
         ) {
-            val body = markdown ?: "(loading…)"
+            val body = markdown ?: stringResource(R.string.loading)
             Text(text = renderLegalMarkdown(body), style = MaterialTheme.typography.bodyMedium)
         }
     }
@@ -111,8 +113,7 @@ private fun ColumnScope.AcceptBlock(
     val currentVersion = LEGAL_VERSION
     if (acceptedVersion == currentVersion) {
         Text(
-            text = "You've accepted version $currentVersion. You'll be asked again " +
-                "only if the legal copy changes.",
+            text = stringResource(R.string.legal_accepted_current, currentVersion),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Start
@@ -124,14 +125,12 @@ private fun ColumnScope.AcceptBlock(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("settings_legal_accept_button")
-    ) { Text("I agree") }
+    ) { Text(stringResource(R.string.legal_consent_agree)) }
     Text(
         text = if (acceptedVersion.isBlank()) {
-            "You haven't accepted yet. The first-launch dialog will keep showing " +
-                "until you tap I agree."
+            stringResource(R.string.legal_not_accepted, stringResource(R.string.legal_consent_agree))
         } else {
-            "You accepted an earlier version ($acceptedVersion). The current " +
-                "version is $currentVersion."
+            stringResource(R.string.legal_accepted_earlier, acceptedVersion, currentVersion)
         },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant

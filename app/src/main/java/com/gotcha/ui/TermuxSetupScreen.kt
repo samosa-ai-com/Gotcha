@@ -31,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.gotcha.R
 import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.theme.GotchaMono
@@ -78,12 +80,13 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
     ) { granted ->
         state = TermuxTool.TermuxSetupState.from(tool.status())
         overlay.show(
-            if (granted) {
-                "Permission granted — next, enable external apps in Termux."
-            } else {
-                "Permission denied. If no dialog appeared, Termux was installed after Gotcha — " +
-                    "update or reinstall Gotcha so Android can grant it."
-            }
+            context.getString(
+                if (granted) {
+                    R.string.termux_setup_permission_granted_next_enable_external
+                } else {
+                    R.string.termux_setup_permission_denied_if_no_dialog
+                }
+            )
         )
     }
 
@@ -93,76 +96,78 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
         scope.launch {
             val probe = tool.probeExternalApps()
             state = state.copy(externalAppsEnabled = probe)
-            probeFeedback = when (probe) {
-                TermuxTool.TermuxConfigProbe.CONFIGURED ->
-                    "Termux answered — allow-external-apps is enabled."
-                TermuxTool.TermuxConfigProbe.NOT_CONFIGURED ->
-                    "Termux answered, but allow-external-apps is not enabled yet."
-                TermuxTool.TermuxConfigProbe.UNKNOWN ->
-                    "Could not confirm. Open Termux once, set the property, then check again."
-            }
+            probeFeedback = context.getString(
+                when (probe) {
+                    TermuxTool.TermuxConfigProbe.CONFIGURED ->
+                        R.string.termux_setup_termux_answered_allow_external_apps
+                    TermuxTool.TermuxConfigProbe.NOT_CONFIGURED ->
+                        R.string.termux_setup_termux_answered_but_allow_external
+                    TermuxTool.TermuxConfigProbe.UNKNOWN ->
+                        R.string.termux_setup_could_not_confirm_open_termux
+                }
+            )
             probing = false
         }
     }
 
-    SettingsScaffold(title = "Termux (Linux shell)", onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.TERMUX.title), onBack = onBack, overlay = overlay) {
         Text(
-            "Termux gives the assistant a full Linux shell — installing packages, running " +
-                "scripts and tools no phone ships with. This page walks you through the one-time " +
-                "setup so you don't have to look anything up.",
+            stringResource(R.string.termux_setup_termux_gives_the_assistant_a),
             style = MaterialTheme.typography.bodySmall
         )
 
         SetupCheck(
-            title = "Install Termux",
+            title = stringResource(R.string.termux_setup_install_termux),
             done = state.installed,
             detail = if (state.installed) {
-                "Termux ${state.versionName.orEmpty().trim()} is installed."
+                stringResource(R.string.termux_setup_installed_version, state.versionName.orEmpty().trim())
             } else {
-                "Termux is not installed."
+                stringResource(R.string.termux_setup_not_installed)
             },
             action = if (state.installed) {
                 null
             } else {
-                SetupAction("Install Termux from F-Droid") {
+                SetupAction(stringResource(R.string.termux_setup_action_install_termux_from_fdroid)) {
                     runCatching {
                         context.startActivity(
                             Intent(Intent.ACTION_VIEW, Uri.parse(TermuxTool.TERMUX_FDROID_URL))
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                     }.onFailure {
-                        overlay.show("Could not open the F-Droid page.")
+                        overlay.show(context.getString(R.string.termux_setup_could_not_open_the_f))
                     }
                 }
             }
         )
 
         SetupCheck(
-            title = "Check the Termux build",
+            title = stringResource(R.string.termux_setup_check_the_termux_build),
             done = state.pluginApiAvailable,
-            detail = when {
-                !state.installed -> "Install Termux first."
-                state.pluginApiAvailable -> "This build exposes the Run Commands API Gotcha needs."
-                else ->
-                    "This build has no Run Commands API — that is the Google Play build, which " +
-                        "removed it. Install the F-Droid or GitHub build instead."
-            }
+            detail = stringResource(
+                when {
+                    !state.installed -> R.string.termux_setup_install_termux_first
+                    state.pluginApiAvailable -> R.string.termux_setup_this_build_exposes_the_run
+                    else ->
+                        R.string.termux_setup_this_build_has_no_run
+                }
+            )
         )
 
         SetupCheck(
-            title = "Grant the Run Commands permission",
+            title = stringResource(R.string.termux_setup_grant_the_run_commands_permission),
             done = state.permissionGranted,
-            detail = when {
-                !state.installed -> "Install Termux first."
-                state.permissionGranted -> "Gotcha may run commands in Termux."
-                else ->
-                    "Termux must let Gotcha run commands. If no permission dialog appears, " +
-                        "Termux was installed after Gotcha — update or reinstall Gotcha."
-            },
+            detail = stringResource(
+                when {
+                    !state.installed -> R.string.termux_setup_install_termux_first
+                    state.permissionGranted -> R.string.termux_setup_gotcha_may_run_commands_in
+                    else ->
+                        R.string.termux_setup_termux_must_let_gotcha_run
+                }
+            ),
             action = when {
                 state.permissionGranted -> null
                 state.installed && state.pluginApiAvailable ->
-                    SetupAction("Grant permission") {
+                    SetupAction(stringResource(R.string.termux_setup_action_grant_permission)) {
                         permissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
                     }
                 else -> null
@@ -170,19 +175,21 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
         )
 
         SetupCheck(
-            title = "Allow external apps",
+            title = stringResource(R.string.termux_setup_allow_external_apps),
             done = state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.CONFIGURED,
-            detail = when {
-                !state.installed -> "Install Termux first."
-                !state.pluginApiAvailable -> "This build cannot run commands — see step 2."
-                state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.CONFIGURED ->
-                    "allow-external-apps is enabled — Gotcha can reach Termux."
-                state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.NOT_CONFIGURED ->
-                    "allow-external-apps is not enabled. Open Termux and run the two lines below."
-                else -> "Not confirmed yet. Open Termux, run the two lines below, then check again."
-            },
+            detail = stringResource(
+                when {
+                    !state.installed -> R.string.termux_setup_install_termux_first
+                    !state.pluginApiAvailable -> R.string.termux_setup_this_build_cannot_run_commands
+                    state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.CONFIGURED ->
+                        R.string.termux_setup_allow_external_apps_is_enabled
+                    state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.NOT_CONFIGURED ->
+                        R.string.termux_setup_allow_external_apps_is_not
+                    else -> R.string.termux_setup_not_confirmed_yet_open_termux
+                }
+            ),
             action = if (state.installed) {
-                SetupAction("Open Termux") {
+                SetupAction(stringResource(R.string.termux_setup_action_open_termux)) {
                     openSpecialAccess(context, ToolResult.TERMUX_ACCESS, context.packageName)
                 }
             } else {
@@ -208,15 +215,21 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                         clipboard?.setPrimaryClip(
                             ClipData.newPlainText("Termux setup", TermuxTool.SETUP_COMMANDS)
                         )
-                        overlay.show("Copied to clipboard.")
+                        overlay.show(context.getString(R.string.termux_setup_copied_to_clipboard))
                     },
                     modifier = Modifier.weight(1f)
-                ) { Text("Copy commands") }
+                ) { Text(stringResource(R.string.termux_setup_copy_commands)) }
                 OutlinedButton(
                     onClick = { checkConfiguration() },
                     enabled = !probing,
                     modifier = Modifier.weight(1f)
-                ) { Text(if (probing) "Checking…" else "Check configuration") }
+                ) {
+                    Text(
+                        stringResource(
+                            if (probing) R.string.termux_setup_checking else R.string.termux_setup_check_configuration
+                        )
+                    )
+                }
             }
         }
 
@@ -231,7 +244,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    "Termux is set up. Try asking the assistant to run a command in Termux.",
+                    stringResource(R.string.termux_setup_termux_is_set_up_try),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(12.dp)

@@ -30,10 +30,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.gotcha.R
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.HealthPermissionState
 import com.gotcha.tools.TermuxTool
@@ -50,7 +52,7 @@ fun PermissionsSection(
 ) {
     val context = LocalContext.current
     val groups = remember { allPermissionGroups() }
-    var userToggledGroups by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var userToggledGroups by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
 
     // Trigger recomposition on every activity resume so permission state is re-read from Android
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -78,10 +80,7 @@ fun PermissionsSection(
 
     // No "Permissions" heading: PermissionsScreen's top bar already says it.
     Text(
-        "Nothing here is required up front — the assistant asks for a permission when it first " +
-            "needs one, and says why. This page is for granting them ahead of time, seeing what " +
-            "is on, and turning anything back off. Runtime permissions show a system dialog when " +
-            "toggled on; special-access permissions open a Settings screen for one-time setup.",
+        stringResource(R.string.permissions_nothing_here_is_required_up),
         style = MaterialTheme.typography.bodySmall
     )
 
@@ -105,7 +104,7 @@ fun PermissionsSection(
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = group.name,
+                text = stringResource(group.name),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -166,16 +165,18 @@ private fun PermissionRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.name, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(item.name), style = MaterialTheme.typography.bodyMedium)
             Text(
-                item.description,
+                stringResource(item.description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             // The switch says granted or not; this says it in words, so a row
             // read aloud by a screen reader still answers "is this on?".
             Text(
-                if (granted) "Granted" else "Not granted — asked for when first needed",
+                stringResource(
+                    if (granted) R.string.permissions_granted else R.string.permissions_not_granted_asked_for_when
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (granted) {
                     MaterialTheme.colorScheme.primary
@@ -189,7 +190,7 @@ private fun PermissionRow(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        "Guided setup ›",
+                        stringResource(R.string.permissions_guided_setup),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -226,18 +227,17 @@ private fun PermissionRow(
     if (showRevokeDialog) {
         SkinAlertDialog(
             onDismissRequest = { showRevokeDialog = false },
-            title = { Text("Turn off ${item.name}?") },
+            title = { Text(stringResource(R.string.permissions_revoke_title, stringResource(item.name))) },
             text = {
                 Text(
-                    if (item.specialMarker != null) {
-                        "${item.name} is switched on in the system's own settings screen, and " +
-                            "only that screen can switch it back off. Gotcha stops using it the " +
-                            "moment you do."
-                    } else {
-                        "Only Android can take a permission back. Open Gotcha's app settings, " +
-                            "go to Permissions, and deny ${item.name} there — anything that " +
-                            "needs it will ask again next time."
-                    }
+                    stringResource(
+                        if (item.specialMarker != null) {
+                            R.string.permissions_revoke_special
+                        } else {
+                            R.string.permissions_revoke_runtime
+                        },
+                        stringResource(item.name)
+                    )
                 )
             },
             confirmButton = {
@@ -250,10 +250,20 @@ private fun PermissionRow(
                             openAppPermissionSettings(context, packageName)
                         }
                     }
-                ) { Text(if (item.specialMarker != null) "Open settings screen" else "Open app settings") }
+                ) {
+                    Text(
+                        stringResource(
+                            if (item.specialMarker != null) {
+                                R.string.permissions_open_settings_screen
+                            } else {
+                                R.string.permissions_open_app_settings
+                            }
+                        )
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showRevokeDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showRevokeDialog = false }) { Text(stringResource(R.string.permissions_cancel)) }
             }
         )
     }
@@ -261,12 +271,10 @@ private fun PermissionRow(
     if (showHealthConnectDialog) {
         SkinAlertDialog(
             onDismissRequest = { showHealthConnectDialog = false },
-            title = { Text("Health Connect permission needed") },
+            title = { Text(stringResource(R.string.permissions_health_connect_permission_needed)) },
             text = {
                 Text(
-                    "Gotcha can't read your health data yet. Open Health Connect, " +
-                        "find Gotcha under App permissions, and allow the data types " +
-                        "you're comfortable sharing, then return here."
+                    stringResource(R.string.permissions_gotcha_can_t_read_your)
                 )
             },
             confirmButton = {
@@ -275,10 +283,12 @@ private fun PermissionRow(
                         showHealthConnectDialog = false
                         openSpecialAccess(context, ToolResult.HEALTH_CONNECT, packageName)
                     }
-                ) { Text("Open Health Connect") }
+                ) { Text(stringResource(R.string.permissions_open_health_connect)) }
             },
             dismissButton = {
-                TextButton(onClick = { showHealthConnectDialog = false }) { Text("Not now") }
+                TextButton(
+                    onClick = { showHealthConnectDialog = false }
+                ) { Text(stringResource(R.string.permissions_not_now)) }
             }
         )
     }
@@ -318,8 +328,7 @@ internal fun openSpecialAccess(
             ComponentName(context, GotchaDeviceAdminReceiver::class.java)
         ).putExtra(
             DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-            "Gotcha uses device administration to lock the screen, enforce " +
-                "password policy, and disable the camera when you ask it to."
+            context.getString(R.string.permissions_device_admin_explanation)
         )
         ToolResult.VPN_CONSENT -> VpnService.prepare(context)?.let {
             Intent(Intent.ACTION_MAIN).apply {

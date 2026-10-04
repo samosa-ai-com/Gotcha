@@ -40,7 +40,7 @@ class PermissionAskTest {
         assertTrue("the catalog must declare runtime permissions", runtimePermissions.isNotEmpty())
 
         runtimePermissions.forEach { permission ->
-            val ask = runtimePermissionAsk(permission)
+            val ask = runtimePermissionAsk(permission, context.stringLookup())
             assertTrue(
                 "'$permission' has no rationale of its own — it fell back to a generic sentence",
                 ask.rationale.startsWith("Gotcha needs") && !ask.rationale.contains("to do what you asked")
@@ -56,7 +56,7 @@ class PermissionAskTest {
     fun theAskNamesTheCapabilityTheSettingsRowNames() {
         // One vocabulary for one permission: the dialog that asks for it and the
         // Settings row that shows it granted have to be recognisably the same thing.
-        val ask = runtimePermissionAsk(android.Manifest.permission.READ_CALL_LOG)
+        val ask = runtimePermissionAsk(android.Manifest.permission.READ_CALL_LOG, context.stringLookup())
         assertEquals("Call Log", ask.title)
     }
 
@@ -64,7 +64,7 @@ class PermissionAskTest {
     fun anUnknownPermissionStillProducesAReadableAsk() {
         // A tool reporting something the catalog has never heard of must still
         // yield a dialog a human can act on, not a raw permission string.
-        val ask = runtimePermissionAsk("android.permission.BODY_SENSORS")
+        val ask = runtimePermissionAsk("android.permission.BODY_SENSORS", context.stringLookup())
         assertEquals("Body Sensors", ask.title)
         assertTrue(ask.rationale.startsWith("Gotcha needs"))
     }

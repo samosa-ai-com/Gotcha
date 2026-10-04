@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.gotcha.R
 import com.gotcha.ui.theme.SkinAlertDialog
 import android.provider.Settings as AndroidSettings
 
@@ -33,47 +35,39 @@ data class PermissionAsk(
  * that reports one this table has never heard of still gets a usable sentence
  * from the Settings catalog — see [runtimePermissionAsk].
  */
-private val RUNTIME_RATIONALES: Map<String, String> = mapOf(
+private val RUNTIME_RATIONALES: Map<String, Int> = mapOf(
     android.Manifest.permission.CALL_PHONE to
-        "Gotcha needs the Phone permission to dial the number you asked it to call. " +
-        "It only places calls you ask for, and the dialer stays on screen while it does.",
+        R.string.permission_rationale_call_phone,
     android.Manifest.permission.SEND_SMS to
-        "Gotcha needs the SMS permission to send the message you asked for. " +
-        "Nothing is sent that you haven't asked it to send.",
+        R.string.permission_rationale_send_sms,
     android.Manifest.permission.READ_SMS to
-        "Gotcha needs to read your inbox to answer this — for example to find a code " +
-        "or a message someone sent you. Messages stay on the device unless you " +
-        "ask Gotcha to do something with them.",
+        R.string.permission_rationale_read_sms,
     android.Manifest.permission.READ_CALL_LOG to
-        "Gotcha needs your call history to answer questions about who called and when.",
+        R.string.permission_rationale_read_call_log,
     android.Manifest.permission.READ_CONTACTS to
-        "Gotcha needs your contacts to turn a name into a number — so \"call Priya\" " +
-        "reaches the right Priya.",
+        R.string.permission_rationale_read_contacts,
     android.Manifest.permission.WRITE_CONTACTS to
-        "Gotcha needs permission to save this contact to your address book.",
+        R.string.permission_rationale_write_contacts,
     android.Manifest.permission.READ_CALENDAR to
-        "Gotcha needs your calendar to see what's on your schedule.",
+        R.string.permission_rationale_read_calendar,
     android.Manifest.permission.WRITE_CALENDAR to
-        "Gotcha needs calendar access to create or change the event you asked for.",
+        R.string.permission_rationale_write_calendar,
     android.Manifest.permission.CAMERA to
-        "Gotcha needs the camera to take the photo you asked for.",
+        R.string.permission_rationale_camera,
     android.Manifest.permission.RECORD_AUDIO to
-        "Gotcha needs the microphone to hear you — for voice input, recording, and " +
-        "the \"Hey Gotcha\" wake word.",
+        R.string.permission_rationale_record_audio,
     android.Manifest.permission.ACCESS_FINE_LOCATION to
-        "Gotcha needs your location to answer this — weather, what's nearby, or where " +
-        "you are right now.",
+        R.string.permission_rationale_access_fine_location,
     android.Manifest.permission.ACCESS_COARSE_LOCATION to
-        "Gotcha needs an approximate location to answer this.",
+        R.string.permission_rationale_access_coarse_location,
     android.Manifest.permission.READ_MEDIA_IMAGES to
-        "Gotcha needs access to your photos to open the image you pointed it at.",
+        R.string.permission_rationale_read_media_images,
     android.Manifest.permission.READ_EXTERNAL_STORAGE to
-        "Gotcha needs storage access to open the file you pointed it at.",
+        R.string.permission_rationale_read_external_storage,
     android.Manifest.permission.POST_NOTIFICATIONS to
-        "Gotcha needs notification permission to alert you when a reply or a message arrives.",
+        R.string.permission_rationale_post_notifications,
     android.Manifest.permission.READ_PHONE_STATE to
-        "On a dual-SIM phone, Gotcha needs to read the phone state to pick which SIM " +
-        "places the call or sends the message."
+        R.string.permission_rationale_read_phone_state
 )
 
 /**
@@ -84,16 +78,18 @@ private val RUNTIME_RATIONALES: Map<String, String> = mapOf(
  * sentence for still produces a dialog that names something recognisable rather
  * than a bare `android.permission.*` string.
  */
-fun runtimePermissionAsk(permission: String): PermissionAsk {
+fun runtimePermissionAsk(permission: String, text: StringLookup): PermissionAsk {
     val item = allPermissionGroups()
         .flatMap { it.items }
         .firstOrNull { it.androidPermission == permission || permission in it.extraPermissions }
     return PermissionAsk(
         permission = permission,
-        title = item?.name ?: shortPermissionName(permission),
-        rationale = RUNTIME_RATIONALES[permission]
-            ?: item?.description?.let { "Gotcha needs this permission to ${it.replaceFirstChar(Char::lowercase)}." }
-            ?: "Gotcha needs the ${shortPermissionName(permission)} permission to do what you asked."
+        title = item?.name?.let { text(it) } ?: shortPermissionName(permission),
+        rationale = RUNTIME_RATIONALES[permission]?.let { text(it) }
+            ?: item?.description?.let {
+                text(R.string.permission_rationale_from_description, text(it).replaceFirstChar(Char::lowercase))
+            }
+            ?: text(R.string.permission_rationale_generic, shortPermissionName(permission))
     )
 }
 
@@ -117,13 +113,13 @@ fun PermissionRationaleDialog(
 ) {
     SkinAlertDialog(
         onDismissRequest = onDeny,
-        title = { Text("${ask.title} permission needed") },
+        title = { Text(stringResource(R.string.permission_ask_needed, ask.title)) },
         text = { Text(ask.rationale) },
         confirmButton = {
-            TextButton(onClick = onAllow) { Text("Continue") }
+            TextButton(onClick = onAllow) { Text(stringResource(R.string.permission_ask_continue)) }
         },
         dismissButton = {
-            TextButton(onClick = onDeny) { Text("Not now") }
+            TextButton(onClick = onDeny) { Text(stringResource(R.string.permission_ask_not_now)) }
         }
     )
 }
@@ -142,12 +138,10 @@ fun PermissionBlockedDialog(
     val context = androidx.compose.ui.platform.LocalContext.current
     SkinAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${ask.title} is turned off") },
+        title = { Text(stringResource(R.string.permission_ask_turned_off, ask.title)) },
         text = {
             Text(
-                "Android won't ask again once a permission has been turned off. " +
-                    "You can switch it back on in Settings › Apps › Gotcha › Permissions, " +
-                    "then ask Gotcha again."
+                stringResource(R.string.permission_ask_android_won_t_ask_again)
             )
         },
         confirmButton = {
@@ -156,10 +150,10 @@ fun PermissionBlockedDialog(
                     onDismiss()
                     openAppPermissionSettings(context, packageName)
                 }
-            ) { Text("Open app settings") }
+            ) { Text(stringResource(R.string.permission_ask_open_app_settings)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Not now") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.permission_ask_not_now)) }
         }
     )
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.agent.skills.Skill
 import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.data.Settings
@@ -95,7 +96,7 @@ fun SkillsScreen(
     SettingsScaffold(title = stringResource(SettingsPage.SKILLS.title), onBack = onBack, overlay = overlay) {
         val allSkills = SkillRegistry.getAllSkills()
         if (allSkills.isEmpty()) {
-            Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.skills_no_skills_loaded), style = MaterialTheme.typography.bodyMedium)
         } else {
             allSkills.forEach { skill ->
                 Row(
@@ -132,21 +133,19 @@ fun SkillsScreen(
 
         // ---- Community Skills ----
         Text(
-            "Community Skills",
+            stringResource(R.string.skills_community_skills),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Import skills from ${BuildConfig.SAMOSA_SKILL_HOST} or paste JSON. " +
-                "Community skills appear in the agent's system prompt " +
-                "as advisory guidance.",
+            stringResource(R.string.skills_community_description, BuildConfig.SAMOSA_SKILL_HOST),
             style = MaterialTheme.typography.bodySmall
         )
 
         OutlinedTextField(
             value = communitySkillUrl,
             onValueChange = { communitySkillUrl = it.trim() },
-            label = { Text("Skill URL (https://${BuildConfig.SAMOSA_SKILL_HOST}/...)") },
+            label = { Text(stringResource(R.string.skills_url_label, BuildConfig.SAMOSA_SKILL_HOST)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -155,11 +154,11 @@ fun SkillsScreen(
                 if (communityImportBusy) return@Button
                 val url = communitySkillUrl.trim()
                 if (url.isEmpty()) {
-                    overlay.show("Enter a URL first.")
+                    overlay.show(localContext.getString(R.string.skills_enter_a_url_first))
                     return@Button
                 }
                 communityImportBusy = true
-                overlay.show("Fetching skill…", sticky = true)
+                overlay.show(localContext.getString(R.string.skills_fetching_skill), sticky = true)
                 scope.launch {
                     val result = runCatching {
                         val hosts = communitySkillHosts
@@ -169,7 +168,7 @@ fun SkillsScreen(
                     result.onSuccess { skill ->
                         communitySkillUrl = ""
                         communitySkillRefreshTick++
-                        overlay.show("Imported '${skill.id}'.")
+                        overlay.show(localContext.getString(R.string.skills_imported, skill.id))
                     }.onFailure { e ->
                         overlay.show(formatImportError(e, localContext.stringLookup()))
                     }
@@ -177,13 +176,13 @@ fun SkillsScreen(
             },
             enabled = !communityImportBusy,
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Import from URL") }
+        ) { Text(stringResource(R.string.skills_import_from_url)) }
 
         var pasteOpen by remember { mutableStateOf(false) }
         OutlinedButton(
             onClick = { pasteOpen = true },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Paste JSON…") }
+        ) { Text(stringResource(R.string.skills_paste_json)) }
         if (pasteOpen) {
             androidx.compose.ui.window.Dialog(onDismissRequest = {
                 pasteOpen = false
@@ -195,13 +194,13 @@ fun SkillsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            "Paste community skill JSON",
+                            stringResource(R.string.skills_paste_community_skill_json),
                             style = MaterialTheme.typography.titleMedium
                         )
                         OutlinedTextField(
                             value = communitySkillPasteJson,
                             onValueChange = { communitySkillPasteJson = it },
-                            label = { Text("Skill JSON") },
+                            label = { Text(stringResource(R.string.skills_skill_json)) },
                             modifier = Modifier.fillMaxWidth().height(220.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
                         )
@@ -212,16 +211,16 @@ fun SkillsScreen(
                             TextButton(onClick = {
                                 pasteOpen = false
                                 communitySkillPasteJson = ""
-                            }) { Text("Cancel") }
+                            }) { Text(stringResource(R.string.skills_cancel)) }
                             TextButton(onClick = {
                                 val src = communitySkillPasteJson.trim()
                                 if (src.isEmpty()) {
-                                    overlay.show("Paste JSON first.")
+                                    overlay.show(localContext.getString(R.string.skills_paste_json_first))
                                     return@TextButton
                                 }
                                 communityImportBusy = true
                                 pasteOpen = false
-                                overlay.show("Importing skill…", sticky = true)
+                                overlay.show(localContext.getString(R.string.skills_importing_skill), sticky = true)
                                 scope.launch {
                                     val result = runCatching {
                                         SkillRegistry.importCommunity(src)
@@ -230,14 +229,12 @@ fun SkillsScreen(
                                     communitySkillPasteJson = ""
                                     result.onSuccess { skill ->
                                         communitySkillRefreshTick++
-                                        overlay.show(
-                                            "Imported '${skill.id}'."
-                                        )
+                                        overlay.show(localContext.getString(R.string.skills_imported, skill.id))
                                     }.onFailure { e ->
                                         overlay.show(formatImportError(e, localContext.stringLookup()))
                                     }
                                 }
-                            }) { Text("Import") }
+                            }) { Text(stringResource(R.string.skills_import)) }
                         }
                     }
                 }
@@ -250,7 +247,7 @@ fun SkillsScreen(
         }
         if (communitySkills.isEmpty()) {
             Text(
-                "No community skills imported yet.",
+                stringResource(R.string.skills_no_community_skills_imported_yet),
                 style = MaterialTheme.typography.bodySmall
             )
         } else {
@@ -268,7 +265,7 @@ fun SkillsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                "id: ${skill.id}",
+                                stringResource(R.string.skills_id, skill.id),
                                 style = MaterialTheme.typography.bodySmall
                             )
                             if (skill.description.isNotBlank()) {
@@ -294,7 +291,7 @@ fun SkillsScreen(
                         ) {
                             Icon(
                                 Icons.Outlined.Delete,
-                                contentDescription = "Delete ${skill.id}",
+                                contentDescription = stringResource(R.string.skills_delete_description, skill.id),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -307,13 +304,10 @@ fun SkillsScreen(
         communitySkillToDelete?.let { pending ->
             SkinAlertDialog(
                 onDismissRequest = { communitySkillToDelete = null },
-                title = { Text("Delete community skill?") },
+                title = { Text(stringResource(R.string.skills_delete_community_skill)) },
                 text = {
                     Text(
-                        "Are you sure you want to permanently delete " +
-                            "\"${pending.id}\"? The skill will be removed from " +
-                            "this device and the agent will no longer have " +
-                            "access to it. This action cannot be undone."
+                        stringResource(R.string.skills_delete_confirm, pending.id)
                     )
                 },
                 confirmButton = {
@@ -326,17 +320,17 @@ fun SkillsScreen(
                                 disabledSkills = disabledSkills - id
                                 onSave { applySkills(it) }
                                 communitySkillRefreshTick++
-                                overlay.show("Deleted '$id'.")
+                                overlay.show(localContext.getString(R.string.skills_deleted, id))
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error
                         )
-                    ) { Text("Delete") }
+                    ) { Text(stringResource(R.string.skills_delete)) }
                 },
                 dismissButton = {
                     TextButton(onClick = { communitySkillToDelete = null }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.skills_cancel))
                     }
                 }
             )
@@ -346,13 +340,12 @@ fun SkillsScreen(
 
         // ---- Host allowlist ----
         Text(
-            "Allowed community skill hosts",
+            stringResource(R.string.skills_allowed_community_skill_hosts),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Only HTTPS hosts in this list can be fetched. " +
-                "Default: ${BuildConfig.SAMOSA_SKILL_HOST}.",
+            stringResource(R.string.skills_hosts_description, BuildConfig.SAMOSA_SKILL_HOST),
             style = MaterialTheme.typography.bodySmall
         )
         communitySkillHosts.forEach { host ->
@@ -364,7 +357,7 @@ fun SkillsScreen(
                 Text(host, modifier = Modifier.weight(1f))
                 if (host.equals(pinnedHost, ignoreCase = true)) {
                     Text(
-                        "Built-in",
+                        stringResource(R.string.skills_built_in),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -372,7 +365,7 @@ fun SkillsScreen(
                     TextButton(onClick = {
                         communitySkillHosts = communitySkillHosts - host
                         onSave { applySkills(it) }
-                    }) { Text("Remove") }
+                    }) { Text(stringResource(R.string.skills_remove)) }
                 }
             }
         }
@@ -385,7 +378,7 @@ fun SkillsScreen(
             OutlinedTextField(
                 value = newHost,
                 onValueChange = { newHost = it.trim() },
-                label = { Text("Add host") },
+                label = { Text(stringResource(R.string.skills_add_host)) },
                 singleLine = true,
                 modifier = Modifier.weight(1f)
             )
@@ -397,7 +390,7 @@ fun SkillsScreen(
                     onSave { applySkills(it) }
                     newHost = ""
                 }
-            ) { Text("Add") }
+            ) { Text(stringResource(R.string.skills_add)) }
         }
     }
 }

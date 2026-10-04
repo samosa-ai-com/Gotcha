@@ -83,6 +83,7 @@ import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
+import com.gotcha.ui.stringLookup
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -311,7 +312,7 @@ class MainActivity : ComponentActivity() {
             if (granted) {
                 chatViewModel.startListening()
             } else if (!shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
-                blockedPermissionAsk = runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO)
+                blockedPermissionAsk = runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO, this@MainActivity.stringLookup())
             }
         }
 
@@ -1230,7 +1231,7 @@ class MainActivity : ComponentActivity() {
         // on the answer — including across a rotation, since the ask lives in
         // the view model rather than here.
         state.pendingPermission?.let { permission ->
-            val ask = remember(permission) { runtimePermissionAsk(permission) }
+            val ask = remember(permission) { runtimePermissionAsk(permission, this@MainActivity.stringLookup()) }
             PermissionRationaleDialog(
                 ask = ask,
                 onAllow = { requestRuntimePermission(ask) },
@@ -1239,7 +1240,13 @@ class MainActivity : ComponentActivity() {
         }
 
         if (state.askNotificationPermission) {
-            val ask = remember { runtimePermissionAsk(android.Manifest.permission.POST_NOTIFICATIONS) }
+            val ask =
+                remember {
+                    runtimePermissionAsk(
+                        android.Manifest.permission.POST_NOTIFICATIONS,
+                        this@MainActivity.stringLookup()
+                    )
+                }
             PermissionRationaleDialog(
                 ask = ask,
                 onAllow = { notificationPermissionLauncher.launch(ask.permission) },
@@ -1248,7 +1255,13 @@ class MainActivity : ComponentActivity() {
         }
 
         if (askMicPermission) {
-            val ask = remember { runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO) }
+            val ask =
+                remember {
+                    runtimePermissionAsk(
+                        android.Manifest.permission.RECORD_AUDIO,
+                        this@MainActivity.stringLookup()
+                    )
+                }
             PermissionRationaleDialog(
                 ask = ask,
                 onAllow = {
