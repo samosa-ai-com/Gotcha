@@ -155,6 +155,12 @@ data class Settings(
     val sttLanguage: String = "",
     val autoReadReplies: Boolean = false,
     /**
+     * Speak the reply to a message sent by voice even when [autoReadReplies] is
+     * off. On by default; off for people who dictate where the reply shouldn't
+     * be heard.
+     */
+    val autoReadVoiceReplies: Boolean = true,
+    /**
      * Buzz when a reply arrives. On by default: a reply can land while the user
      * is in another app, and the pattern is distinct from the error buzz so it
      * says *how* the turn ended, not just that it did.
@@ -614,6 +620,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         sttApiModel = string(KEY_STT_API_MODEL),
         sttLanguage = string(KEY_STT_LANGUAGE),
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
+        autoReadVoiceReplies = prefs.getBoolean(KEY_AUTO_READ_VOICE, true),
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
         notifyChimeEnabled = prefs.getBoolean(KEY_NOTIFY_CHIME, false),
         chatCompletionNotificationsEnabled = prefs.getBoolean(KEY_CHAT_COMPLETION_NOTIFICATIONS, true),
@@ -706,6 +713,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
+            .putBoolean(KEY_AUTO_READ_VOICE, settings.autoReadVoiceReplies)
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
             .putBoolean(KEY_NOTIFY_CHIME, settings.notifyChimeEnabled)
             .putBoolean(KEY_CHAT_COMPLETION_NOTIFICATIONS, settings.chatCompletionNotificationsEnabled)
@@ -837,6 +845,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_STT_LANGUAGE = "stt_language"
         const val KEY_AUTO_READ = "auto_read"
+        const val KEY_AUTO_READ_VOICE = "auto_read_voice"
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"
         const val KEY_NOTIFY_CHIME = "notify_chime"
         const val KEY_CHAT_COMPLETION_NOTIFICATIONS = "chat_completion_notifications"

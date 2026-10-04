@@ -143,6 +143,7 @@
     <string name="settings_field_api_timeout">API timeout</string>
     <string name="settings_field_tts_provider">TTS provider</string>
     <string name="settings_field_auto_read_replies">Auto-read replies aloud</string>
+    <string name="settings_field_auto_read_voice_replies">Read aloud replies to voice messages</string>
     <string name="settings_field_proactive_enabled">Proactive offers</string>
     <string name="settings_field_proactive_scan_screen">Scan screen content</string>
     <string name="settings_field_proactive_scan_clipboard">Scan clipboard</string>
@@ -259,6 +260,7 @@
     <string name="speech_podcast_host_a_voice_optional">Podcast Host A Voice (optional)</string>
     <string name="speech_podcast_host_b_voice_optional">Podcast Host B Voice (optional)</string>
     <string name="speech_auto_read_replies_aloud">Auto-read replies aloud</string>
+    <string name="speech_auto_read_voice_replies">Read aloud replies to voice messages</string>
     <string name="speech_how_to_choose_a_voice">How to choose a voice and language (Samosa AI docs)</string>
     <string name="speech_for_mixed_language_text_like">For mixed-language text (like Hinglish), Android built-in is the recommended choice. For single-language speech (like Hindi or English), SAMOSA AI is the recommended choice.</string>
     <string name="speech_podcast_hosts_the_two_voices">Podcast hosts — the two voices used when the assistant generates a two-host podcast dialogue. Leave blank to use the TTS voice for host A and an automatically chosen different voice for host B.</string>

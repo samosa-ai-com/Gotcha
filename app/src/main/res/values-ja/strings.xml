@@ -108,6 +108,7 @@
     <string name="settings_field_api_timeout">API タイムアウト</string>
     <string name="settings_field_tts_provider">TTS プロバイダ</string>
     <string name="settings_field_auto_read_replies">回答を自動で読み上げる</string>
+    <string name="settings_field_auto_read_voice_replies">音声メッセージへの返信を読み上げる</string>
     <string name="settings_field_proactive_enabled">先回りの提案</string>
     <string name="settings_field_proactive_scan_screen">画面の内容をスキャン</string>
     <string name="settings_field_proactive_scan_clipboard">クリップボードをスキャン</string>
@@ -206,6 +207,7 @@
     <string name="speech_podcast_host_a_voice_optional">ポッドキャスト ホスト A の音声 (任意)</string>
     <string name="speech_podcast_host_b_voice_optional">ポッドキャスト ホスト B の音声 (任意)</string>
     <string name="speech_auto_read_replies_aloud">回答を自動で読み上げる</string>
+    <string name="speech_auto_read_voice_replies">音声メッセージへの返信を読み上げる</string>
     <string name="speech_how_to_choose_a_voice">音声と言語の選び方 (Samosa AI ドキュメント)</string>
     <string name="speech_for_mixed_language_text_like">ヒングリッシュのように複数の言語が混ざった文章には Android built-in をおすすめします。ヒンディー語や英語など単一の言語には SAMOSA AI をおすすめします。</string>
     <string name="speech_podcast_hosts_the_two_voices">ポッドキャストのホスト: アシスタントが 2 人の声でポッドキャスト風の対話を作るときに使う音声です。空欄にすると、ホスト A には TTS の音声、ホスト B には自動で選んだ別の音声を使います。</string>

@@ -118,6 +118,10 @@ class SettingsSearchEntryTest {
         assertEquals("settings_proactive_otp", fieldFor("otp", SettingsPage.PROACTIVE)?.testTag)
         assertEquals("settings_wake_word", fieldFor("wake word", SettingsPage.ASSISTIVE_BALL)?.testTag)
         assertEquals("settings_auto_read_replies", fieldFor("read aloud", SettingsPage.SPEECH)?.testTag)
+        assertEquals(
+            "settings_auto_read_voice_replies",
+            fieldFor("microphone", SettingsPage.SPEECH)?.testTag
+        )
     }
 
     @Test

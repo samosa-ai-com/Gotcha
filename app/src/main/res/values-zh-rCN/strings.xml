@@ -108,6 +108,7 @@
     <string name="settings_field_api_timeout">API 超时</string>
     <string name="settings_field_tts_provider">TTS 提供商</string>
     <string name="settings_field_auto_read_replies">自动朗读回复</string>
+    <string name="settings_field_auto_read_voice_replies">朗读语音消息的回复</string>
     <string name="settings_field_proactive_enabled">主动建议</string>
     <string name="settings_field_proactive_scan_screen">扫描屏幕内容</string>
     <string name="settings_field_proactive_scan_clipboard">扫描剪贴板</string>
@@ -206,6 +207,7 @@
     <string name="speech_podcast_host_a_voice_optional">播客主持人 A 的声音（可选）</string>
     <string name="speech_podcast_host_b_voice_optional">播客主持人 B 的声音（可选）</string>
     <string name="speech_auto_read_replies_aloud">自动朗读回复</string>
+    <string name="speech_auto_read_voice_replies">朗读语音消息的回复</string>
     <string name="speech_how_to_choose_a_voice">如何选择声音和语言（Samosa AI 文档）</string>
     <string name="speech_for_mixed_language_text_like">对于混合多种语言的文本（如印式英语），推荐使用 Android built-in。对于单一语言（如印地语或英语），推荐使用 SAMOSA AI。</string>
     <string name="speech_podcast_hosts_the_two_voices">播客主持人：助手制作双人播客对话时使用的两个声音。留空则主持人 A 使用 TTS 声音，主持人 B 自动选择另一个声音。</string>

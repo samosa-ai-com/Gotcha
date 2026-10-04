@@ -85,6 +85,7 @@ fun SpeechScreen(
     var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
+    var autoReadVoiceReplies by remember { mutableStateOf(initial.autoReadVoiceReplies) }
     // Samosa auth state, kept live as the user signs in / out.
     var samosaToken by remember { mutableStateOf(initial.samosaSessionToken) }
     var samosaEmail by remember { mutableStateOf(initial.samosaEmail) }
@@ -139,7 +140,8 @@ fun SpeechScreen(
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
-        autoReadReplies = autoReadReplies
+        autoReadReplies = autoReadReplies,
+        autoReadVoiceReplies = autoReadVoiceReplies
     )
 
     /** As stored, plus the unsaved edits — audio-model discovery needs both. */
@@ -535,6 +537,15 @@ fun SpeechScreen(
             onCheckedChange = { autoReadReplies = it },
             isLarge = true,
             switchTestTag = "settings_auto_read_replies"
+        )
+        // Moot while every reply is read aloud anyway.
+        SettingsToggleRow(
+            label = stringResource(R.string.speech_auto_read_voice_replies),
+            checked = autoReadVoiceReplies || autoReadReplies,
+            onCheckedChange = { autoReadVoiceReplies = it },
+            isLarge = true,
+            enabled = !autoReadReplies,
+            switchTestTag = "settings_auto_read_voice_replies"
         )
         Button(
             onClick = {

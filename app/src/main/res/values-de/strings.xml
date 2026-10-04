@@ -108,6 +108,7 @@
     <string name="settings_field_api_timeout">API-Zeitlimit</string>
     <string name="settings_field_tts_provider">TTS-Anbieter</string>
     <string name="settings_field_auto_read_replies">Antworten automatisch vorlesen</string>
+    <string name="settings_field_auto_read_voice_replies">Antworten auf Sprachnachrichten vorlesen</string>
     <string name="settings_field_proactive_enabled">Proaktive Vorschläge</string>
     <string name="settings_field_proactive_scan_screen">Bildschirminhalt scannen</string>
     <string name="settings_field_proactive_scan_clipboard">Zwischenablage scannen</string>
@@ -206,6 +207,7 @@
     <string name="speech_podcast_host_a_voice_optional">Stimme für Podcast-Host A (optional)</string>
     <string name="speech_podcast_host_b_voice_optional">Stimme für Podcast-Host B (optional)</string>
     <string name="speech_auto_read_replies_aloud">Antworten automatisch vorlesen</string>
+    <string name="speech_auto_read_voice_replies">Antworten auf Sprachnachrichten vorlesen</string>
     <string name="speech_how_to_choose_a_voice">So wählst du Stimme und Sprache (Samosa-AI-Doku)</string>
     <string name="speech_for_mixed_language_text_like">Für gemischtsprachigen Text (wie Hinglish) wird Android built-in empfohlen. Für eine einzelne Sprache (wie Hindi oder Englisch) wird SAMOSA AI empfohlen.</string>
     <string name="speech_podcast_hosts_the_two_voices">Podcast-Hosts – die zwei Stimmen, die genutzt werden, wenn der Assistent einen Podcast-Dialog mit zwei Hosts erstellt. Leer lassen, um für Host A die TTS-Stimme und für Host B automatisch eine andere Stimme zu nutzen.</string>

@@ -108,6 +108,7 @@
     <string name="settings_field_api_timeout">Timeout API</string>
     <string name="settings_field_tts_provider">Fornitore TTS</string>
     <string name="settings_field_auto_read_replies">Leggi le risposte ad alta voce automaticamente</string>
+    <string name="settings_field_auto_read_voice_replies">Leggi ad alta voce le risposte ai messaggi vocali</string>
     <string name="settings_field_proactive_enabled">Suggerimenti proattivi</string>
     <string name="settings_field_proactive_scan_screen">Analizza il contenuto dello schermo</string>
     <string name="settings_field_proactive_scan_clipboard">Analizza gli appunti</string>
@@ -206,6 +207,7 @@
     <string name="speech_podcast_host_a_voice_optional">Voce del conduttore A del podcast (facoltativa)</string>
     <string name="speech_podcast_host_b_voice_optional">Voce del conduttore B del podcast (facoltativa)</string>
     <string name="speech_auto_read_replies_aloud">Leggi le risposte ad alta voce automaticamente</string>
+    <string name="speech_auto_read_voice_replies">Leggi ad alta voce le risposte ai messaggi vocali</string>
     <string name="speech_how_to_choose_a_voice">Come scegliere voce e lingua (documentazione Samosa AI)</string>
     <string name="speech_for_mixed_language_text_like">Per testi in più lingue mescolate (come l\'hinglish) è consigliato Android built-in. Per una sola lingua (come hindi o inglese) è consigliato SAMOSA AI.</string>
     <string name="speech_podcast_hosts_the_two_voices">Conduttori del podcast: le due voci usate quando l\'assistente crea un dialogo da podcast a due voci. Lascia vuoto per usare la voce TTS per il conduttore A e un\'altra voce scelta automaticamente per il conduttore B.</string>

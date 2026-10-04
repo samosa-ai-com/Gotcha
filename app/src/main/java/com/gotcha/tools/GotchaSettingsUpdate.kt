@@ -271,6 +271,13 @@ object GotchaSettingsUpdate {
             { it.autoReadReplies },
             { s, v -> s.copy(autoReadReplies = v) }
         ),
+        boolSpec(
+            "auto_read_voice_replies",
+            "Read replies to voice messages aloud, even when auto-read is off",
+            setOf(SettingImpact.PRIVACY),
+            { it.autoReadVoiceReplies },
+            { s, v -> s.copy(autoReadVoiceReplies = v) }
+        ),
         choiceSpec(
             "reply_language",
             "Reply language",

@@ -164,6 +164,17 @@ class SettingsUpdateLoopTest {
     }
 
     @Test
+    fun `the voice-reply read-aloud toggle can be turned off`() = runTest {
+        enqueueSettingsCall("""{"auto_read_voice_replies":false}""")
+        enqueueTextReply("Done.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, events.confirmationRequests.size)
+        assertFalse(repository.load().autoReadVoiceReplies)
+    }
+
+    @Test
     fun `an invalid request is refused before any prompt and changes nothing`() = runTest {
         val before = repository.load()
         enqueueSettingsCall("""{"reply_chime":true,"apiKey":"sk-evil"}""")

@@ -4,6 +4,12 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Dictate without the reply being read aloud** (#118). A new Speech setting,
+  "Read aloud replies to voice messages", decides whether the reply to a message
+  you sent with the microphone is spoken. It is on by default, so nothing
+  changes until you turn it off; then voice messages behave like typed ones and
+  are only read aloud when "Auto-read replies aloud" is on. The speaker icon
+  still reads any reply on demand.
 - **Tasks keep running when you leave Gotcha** (#105). While Gotcha works on a
   task, a quiet "Gotcha is working on …" notification now keeps it running, so
   Android no longer closes it to free memory when you switch to another app mid

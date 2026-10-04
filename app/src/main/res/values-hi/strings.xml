@@ -108,6 +108,7 @@
     <string name="settings_field_api_timeout">API टाइमआउट</string>
     <string name="settings_field_tts_provider">TTS प्रदाता</string>
     <string name="settings_field_auto_read_replies">जवाब अपने-आप ज़ोर से पढ़ें</string>
+    <string name="settings_field_auto_read_voice_replies">वॉइस मैसेज के जवाब पढ़कर सुनाएँ</string>
     <string name="settings_field_proactive_enabled">सक्रिय सुझाव</string>
     <string name="settings_field_proactive_scan_screen">स्क्रीन की सामग्री स्कैन करें</string>
     <string name="settings_field_proactive_scan_clipboard">क्लिपबोर्ड स्कैन करें</string>
@@ -206,6 +207,7 @@
     <string name="speech_podcast_host_a_voice_optional">पॉडकास्ट होस्ट A की आवाज़ (वैकल्पिक)</string>
     <string name="speech_podcast_host_b_voice_optional">पॉडकास्ट होस्ट B की आवाज़ (वैकल्पिक)</string>
     <string name="speech_auto_read_replies_aloud">जवाब अपने-आप ज़ोर से पढ़ें</string>
+    <string name="speech_auto_read_voice_replies">वॉइस मैसेज के जवाब पढ़कर सुनाएँ</string>
     <string name="speech_how_to_choose_a_voice">आवाज़ और भाषा कैसे चुनें (Samosa AI दस्तावेज़)</string>
     <string name="speech_for_mixed_language_text_like">मिली-जुली भाषा वाले टेक्स्ट (जैसे Hinglish) के लिए Android built-in सुझाया जाता है। एक ही भाषा की बोली (जैसे हिन्दी या अंग्रेज़ी) के लिए SAMOSA AI सुझाया जाता है।</string>
     <string name="speech_podcast_hosts_the_two_voices">पॉडकास्ट होस्ट — जब असिस्टेंट दो होस्ट वाला पॉडकास्ट संवाद बनाता है, तब इस्तेमाल होने वाली दो आवाज़ें। खाली छोड़ें तो होस्ट A के लिए TTS आवाज़ और होस्ट B के लिए अपने-आप चुनी गई दूसरी आवाज़ इस्तेमाल होगी।</string>

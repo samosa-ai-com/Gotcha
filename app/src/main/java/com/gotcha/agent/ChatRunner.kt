@@ -813,9 +813,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     override fun onAssistantReply(text: String) {
         signalReplyArrived()
-        val shouldRead = currentRunIsVoice ||
-            (settings.autoReadReplies && settings.ttsProvider != AudioProvider.NONE)
-        if (shouldRead && settings.ttsProvider != AudioProvider.NONE) {
+        val shouldRead = settings.ttsProvider != AudioProvider.NONE &&
+            (settings.autoReadReplies || (currentRunIsVoice && settings.autoReadVoiceReplies))
+        if (shouldRead) {
             speak(text)
         }
         currentRunIsVoice = false

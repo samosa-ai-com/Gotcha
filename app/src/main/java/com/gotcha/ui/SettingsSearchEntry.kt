@@ -184,7 +184,12 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
                 R.string.settings_field_stt_provider,
                 "stt, transcription, transcribe, speech to text"
             ),
-            field("settings_auto_read_replies", R.string.settings_field_auto_read_replies, "read aloud, read replies")
+            field("settings_auto_read_replies", R.string.settings_field_auto_read_replies, "read aloud, read replies"),
+            field(
+                "settings_auto_read_voice_replies",
+                R.string.settings_field_auto_read_voice_replies,
+                "voice replies, microphone, mic, dictation, dictate"
+            )
         )
     )
     SettingsPage.PERMISSIONS -> SettingsSearchEntry(
