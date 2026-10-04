@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -22,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.motionSpec
 
@@ -51,7 +54,9 @@ import com.gotcha.ui.theme.motionSpec
  */
 data class Persona(
     val id: String,
+    /** English name, as the model is told it; [name] is what the user sees. */
     val label: String,
+    @StringRes val name: Int,
     val defaultAgent: AgentMode,
     val systemPrompt: String,
     val starters: List<StarterPrompt> = emptyList()
@@ -77,6 +82,8 @@ internal val PERSONAS = listOf(
     Persona(
         id = "doctor",
         label = "Doctor",
+
+        name = R.string.persona_doctor,
         defaultAgent = AgentMode.MONITOR,
         systemPrompt = "You are a knowledgeable general-practice doctor talking a patient through a " +
             "health question. Ask about the symptoms that would change your answer before giving one, " +
@@ -89,30 +96,32 @@ internal val PERSONAS = listOf(
             "thoughts). Never give dosing instructions for prescription medication.",
         starters = listOf(
             StarterPrompt(
-                label = "Check a symptom",
-                template = "I've had … for … days. What could be causing it?"
+                label = R.string.starter_check_a_symptom,
+                template = R.string.starter_check_a_symptom_template
             ),
             StarterPrompt(
-                label = "Is this urgent?",
-                template = "I have … — should I see a doctor today, or can it wait?"
+                label = R.string.starter_is_this_urgent,
+                template = R.string.starter_is_this_urgent_template
             ),
             StarterPrompt(
-                label = "Explain a result",
-                template = "Can you explain what this test result means: …"
+                label = R.string.starter_explain_a_result,
+                template = R.string.starter_explain_a_result_template
             ),
             StarterPrompt(
-                label = "Sleep better",
-                template = "I keep waking up in the night. What usually helps?"
+                label = R.string.starter_sleep_better,
+                template = R.string.starter_sleep_better_template
             ),
             StarterPrompt(
-                label = "Cold or flu?",
-                template = "I have a sore throat and a temperature. Is it a cold or the flu?"
+                label = R.string.starter_cold_or_flu,
+                template = R.string.starter_cold_or_flu_template
             )
         )
     ),
     Persona(
         id = "chef",
         label = "Chef",
+
+        name = R.string.persona_chef,
         defaultAgent = AgentMode.MONITOR,
         systemPrompt = "You are a working chef helping someone cook. Start from what they actually have " +
             "and how much time they have, and give recipes as short numbered steps with real quantities " +
@@ -121,30 +130,32 @@ internal val PERSONAS = listOf(
             "advice (cooking temperatures, storage times, reheating) accurate rather than relaxed.",
         starters = listOf(
             StarterPrompt(
-                label = "Cook from my fridge",
-                template = "I have … in the fridge. What can I make in 30 minutes?"
+                label = R.string.starter_cook_from_my_fridge,
+                template = R.string.starter_cook_from_my_fridge_template
             ),
             StarterPrompt(
-                label = "Plan a dinner",
-                template = "Plan a dinner for … people, one of them vegetarian"
+                label = R.string.starter_plan_a_dinner,
+                template = R.string.starter_plan_a_dinner_template
             ),
             StarterPrompt(
-                label = "Swap an ingredient",
-                template = "What can I use instead of … in …?"
+                label = R.string.starter_swap_an_ingredient,
+                template = R.string.starter_swap_an_ingredient_template
             ),
             StarterPrompt(
-                label = "Quick breakfast",
-                template = "Give me three breakfasts I can make in under 10 minutes"
+                label = R.string.starter_quick_breakfast,
+                template = R.string.starter_quick_breakfast_template
             ),
             StarterPrompt(
-                label = "Fix a dish",
-                template = "My … came out too … — what went wrong?"
+                label = R.string.starter_fix_a_dish,
+                template = R.string.starter_fix_a_dish_template
             )
         )
     ),
     Persona(
         id = "fitness_coach",
         label = "Fitness Coach",
+
+        name = R.string.persona_fitness_coach,
         defaultAgent = AgentMode.MONITOR,
         systemPrompt = "You are a personal trainer. Ask about experience level, available equipment and " +
             "any injuries before programming anything, then give concrete sessions — exercises, sets, " +
@@ -153,30 +164,32 @@ internal val PERSONAS = listOf(
             "them to a professional for anything that hurts rather than working around it.",
         starters = listOf(
             StarterPrompt(
-                label = "Plan my week",
-                template = "Plan three workouts a week for a beginner with no equipment"
+                label = R.string.starter_plan_my_week,
+                template = R.string.starter_plan_my_week_template
             ),
             StarterPrompt(
-                label = "Start running",
-                template = "Give me a plan to run 5 km without stopping"
+                label = R.string.starter_start_running,
+                template = R.string.starter_start_running_template
             ),
             StarterPrompt(
-                label = "Check my form",
-                template = "How do I squat with good form?"
+                label = R.string.starter_check_my_form,
+                template = R.string.starter_check_my_form_template
             ),
             StarterPrompt(
-                label = "Stretch routine",
-                template = "Give me a 10-minute stretch for after sitting all day"
+                label = R.string.starter_stretch_routine,
+                template = R.string.starter_stretch_routine_template
             ),
             StarterPrompt(
-                label = "Build strength",
-                template = "I can go to a gym twice a week. Build me a strength plan"
+                label = R.string.starter_build_strength,
+                template = R.string.starter_build_strength_template
             )
         )
     ),
     Persona(
         id = "tutor",
         label = "Tutor",
+
+        name = R.string.persona_tutor,
         defaultAgent = AgentMode.MONITOR,
         systemPrompt = "You are a patient tutor. Find out what the user already understands, then teach " +
             "from there in small steps with a worked example before the abstraction. Ask them to try the " +
@@ -186,30 +199,32 @@ internal val PERSONAS = listOf(
             "produce an answer to copy.",
         starters = listOf(
             StarterPrompt(
-                label = "Explain a topic",
-                template = "Explain … to me like I'm new to it"
+                label = R.string.starter_explain_a_topic,
+                template = R.string.starter_explain_a_topic_template
             ),
             StarterPrompt(
-                label = "Quiz me",
-                template = "Quiz me on … one question at a time"
+                label = R.string.starter_quiz_me,
+                template = R.string.starter_quiz_me_template
             ),
             StarterPrompt(
-                label = "Help with a problem",
-                template = "I'm stuck on this problem: …"
+                label = R.string.starter_help_with_a_problem,
+                template = R.string.starter_help_with_a_problem_template
             ),
             StarterPrompt(
-                label = "Check my answer",
-                template = "Here's my working for …. Where did I go wrong?"
+                label = R.string.starter_check_my_answer,
+                template = R.string.starter_check_my_answer_template
             ),
             StarterPrompt(
-                label = "Make a study plan",
-                template = "I have an exam on … in two weeks. Help me plan my revision"
+                label = R.string.starter_make_a_study_plan,
+                template = R.string.starter_make_a_study_plan_template
             )
         )
     ),
     Persona(
         id = "travel_planner",
         label = "Travel Planner",
+
+        name = R.string.persona_travel_planner,
         defaultAgent = AgentMode.MONITOR,
         systemPrompt = "You are a well-travelled trip planner. Pin down dates, budget, pace and who is " +
             "travelling before proposing anything, then give day-by-day itineraries that account for " +
@@ -219,30 +234,32 @@ internal val PERSONAS = listOf(
             "travel advisories must be checked against official sources.",
         starters = listOf(
             StarterPrompt(
-                label = "Plan a weekend",
-                template = "Plan a weekend in … for two on a mid-range budget"
+                label = R.string.starter_plan_a_weekend,
+                template = R.string.starter_plan_a_weekend_template
             ),
             StarterPrompt(
-                label = "Build an itinerary",
-                template = "Build a 5-day itinerary for … in …"
+                label = R.string.starter_build_an_itinerary,
+                template = R.string.starter_build_an_itinerary_template
             ),
             StarterPrompt(
-                label = "Packing list",
-                template = "What should I pack for a week in … in …?"
+                label = R.string.starter_packing_list,
+                template = R.string.starter_packing_list_template
             ),
             StarterPrompt(
-                label = "Best time to go",
-                template = "When is the best time of year to visit …?"
+                label = R.string.starter_best_time_to_go,
+                template = R.string.starter_best_time_to_go_template
             ),
             StarterPrompt(
-                label = "Trip on a budget",
-                template = "Where can I go for a week from … on a budget of …?"
+                label = R.string.starter_trip_on_a_budget,
+                template = R.string.starter_trip_on_a_budget_template
             )
         )
     ),
     Persona(
         id = "handyman",
         label = "Handyman",
+
+        name = R.string.persona_handyman,
         defaultAgent = AgentMode.MONITOR,
         systemPrompt = "You are an experienced handyman walking someone through a repair. Work out what " +
             "the thing actually is and what tools they own, then give ordered steps with the tools and " +
@@ -251,24 +268,24 @@ internal val PERSONAS = listOf(
             "electrician, plumber or gas fitter, and do not talk the user through it anyway.",
         starters = listOf(
             StarterPrompt(
-                label = "Fix a leaky tap",
-                template = "My tap keeps dripping. How do I fix it?"
+                label = R.string.starter_fix_a_leaky_tap,
+                template = R.string.starter_fix_a_leaky_tap_template
             ),
             StarterPrompt(
-                label = "Hang a shelf",
-                template = "How do I hang a heavy shelf on a … wall?"
+                label = R.string.starter_hang_a_shelf,
+                template = R.string.starter_hang_a_shelf_template
             ),
             StarterPrompt(
-                label = "Unblock a drain",
-                template = "My sink drains slowly. How do I clear it?"
+                label = R.string.starter_unblock_a_drain,
+                template = R.string.starter_unblock_a_drain_template
             ),
             StarterPrompt(
-                label = "Patch a wall",
-                template = "How do I fill a hole in plasterboard?"
+                label = R.string.starter_patch_a_wall,
+                template = R.string.starter_patch_a_wall_template
             ),
             StarterPrompt(
-                label = "Squeaky door",
-                template = "How do I stop a door from squeaking?"
+                label = R.string.starter_squeaky_door,
+                template = R.string.starter_squeaky_door_template
             )
         )
     )
@@ -308,7 +325,7 @@ internal fun PersonaRow(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Persona",
+            stringResource(R.string.persona_persona),
             style = MaterialTheme.typography.labelMedium,
             color = scheme.onSurfaceVariant
         )
@@ -367,7 +384,7 @@ private fun PersonaChip(
         modifier = Modifier.testTag("persona_${persona.id}")
     ) {
         Text(
-            persona.label,
+            stringResource(persona.name),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             textAlign = TextAlign.Center,

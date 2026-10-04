@@ -1,6 +1,8 @@
 package com.gotcha.ui.tour
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.gotcha.R
 import com.gotcha.data.Settings
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.isAccessibilityGranted
@@ -33,7 +35,7 @@ enum class TourPlace {
  * the app. [marker] is one of [com.gotcha.tools.ToolResult]'s special-access
  * markers, resolved through the same intent table the Permissions screen uses.
  */
-data class TourAction(val label: String, val marker: String)
+data class TourAction(@StringRes val label: Int, val marker: String)
 
 /**
  * One instruction in the guided setup.
@@ -66,13 +68,13 @@ data class TourAction(val label: String, val marker: String)
 data class TourStep(
     val id: String,
     val place: TourPlace,
-    val title: String,
-    val body: String,
+    @StringRes val title: Int,
+    @StringRes val body: Int,
     val autoNavigate: Boolean = true,
     val anchor: TourAnchor? = null,
-    val hint: String? = null,
+    @StringRes val hint: Int? = null,
     val requiresAnchor: Boolean = false,
-    val ackLabel: String? = null,
+    @StringRes val ackLabel: Int? = null,
     val action: TourAction? = null,
     val isDone: (Settings, Context) -> Boolean = { _, _ -> false }
 )
@@ -94,53 +96,51 @@ private fun brainSteps(): List<TourStep> = listOf(
         id = "open_settings",
         place = TourPlace.CHAT_DRAWER,
         anchor = TourAnchor.DRAWER_SETTINGS,
-        title = "Everything lives behind here",
-        body = "Swipe in from the left edge any time to reach this menu. Tap Settings to start.",
-        hint = "Tip: the same swipe works from anywhere in the chat."
+        title = R.string.tour_open_settings_title,
+        body = R.string.tour_open_settings_body,
+        hint = R.string.tour_open_settings_hint
     ),
     TourStep(
         id = "open_ai",
         place = TourPlace.SETTINGS_HOME,
         autoNavigate = false,
         anchor = TourAnchor.SETTINGS_AI,
-        title = "Start with AI",
-        body = "Everything Gotcha thinks, hears and says with is behind this row. Open it."
+        title = R.string.tour_open_ai_title,
+        body = R.string.tour_open_ai_body
     ),
     TourStep(
         id = "open_ai_config",
         place = TourPlace.AI_HUB,
         autoNavigate = false,
         anchor = TourAnchor.SETTINGS_AI_CONFIG,
-        title = "Give Gotcha a brain",
-        body = "AI Configuration is where the model lives. Open it — you'll come back here to " +
-            "change models later, and to pick a voice."
+        title = R.string.tour_open_ai_config_title,
+        body = R.string.tour_open_ai_config_body
     ),
     TourStep(
         id = "choose_provider",
         place = TourPlace.AI_CONFIG,
         anchor = TourAnchor.AI_PROVIDER,
-        title = "Pick who does the thinking",
-        body = "Samosa AI gives you a model, speech and transcription on a free daily allowance — " +
-            "no keys to paste. Choose OpenAI-compatible instead if you'd rather bring your own.",
-        ackLabel = "Next"
+        title = R.string.tour_choose_provider_title,
+        body = R.string.tour_choose_provider_body,
+        ackLabel = R.string.tour_next
     ),
     TourStep(
         id = "samosa_sign_in",
         place = TourPlace.AI_CONFIG,
         anchor = TourAnchor.AI_SAMOSA_SIGN_IN,
         requiresAnchor = true,
-        title = "Sign in once",
-        body = "One Google account covers the model, the voice and the transcription.",
-        ackLabel = "Next",
+        title = R.string.tour_samosa_sign_in_title,
+        body = R.string.tour_samosa_sign_in_body,
+        ackLabel = R.string.tour_next,
         isDone = { settings, _ -> settings.isSamosaAuthenticated }
     ),
     TourStep(
         id = "save_ai_config",
         place = TourPlace.AI_CONFIG,
         anchor = TourAnchor.AI_SAVE,
-        title = "Save it",
-        body = "Nothing on this page takes effect until you do.",
-        ackLabel = "Next",
+        title = R.string.tour_save_ai_config_title,
+        body = R.string.tour_save_ai_config_body,
+        ackLabel = R.string.tour_next,
         isDone = { settings, _ -> settings.hasUsableModel }
     )
 )
@@ -151,29 +151,26 @@ private fun permissionSteps(): List<TourStep> = listOf(
         id = "open_permissions",
         place = TourPlace.SETTINGS_HOME,
         anchor = TourAnchor.SETTINGS_PERMISSIONS,
-        title = "Now decide what it may touch",
-        body = "Open Permissions. Two of them are worth granting now; the rest can wait."
+        title = R.string.tour_open_permissions_title,
+        body = R.string.tour_open_permissions_body
     ),
     TourStep(
         id = "grant_accessibility",
         place = TourPlace.PERMISSIONS,
-        title = "Accessibility is the important one",
-        body = "It's what lets Gotcha read the screen and tap for you. Without it the assistant " +
-            "can answer questions but cannot do anything. The switch is Android's, not ours.",
-        hint = "Look for Gotcha in the list. On some phones it lives under Settings › " +
-            "Additional settings › Accessibility › Installed apps.",
-        ackLabel = "Next",
-        action = TourAction("Open Android settings", ToolResult.ACCESSIBILITY_ACCESS),
+        title = R.string.tour_grant_accessibility_title,
+        body = R.string.tour_grant_accessibility_body,
+        hint = R.string.tour_grant_accessibility_hint,
+        ackLabel = R.string.tour_next,
+        action = TourAction(R.string.tour_open_android_settings, ToolResult.ACCESSIBILITY_ACCESS),
         isDone = { _, context -> isAccessibilityGranted(context) }
     ),
     TourStep(
         id = "grant_overlay",
         place = TourPlace.PERMISSIONS,
-        title = "And one for the floating ball",
-        body = "\"Display over other apps\" lets the assistive ball and Screen Lens appear on " +
-            "top of whatever you're using.",
-        ackLabel = "Next",
-        action = TourAction("Open Android settings", ToolResult.OVERLAY_ACCESS),
+        title = R.string.tour_grant_overlay_title,
+        body = R.string.tour_grant_overlay_body,
+        ackLabel = R.string.tour_next,
+        action = TourAction(R.string.tour_open_android_settings, ToolResult.OVERLAY_ACCESS),
         isDone = { _, context -> isOverlayGranted(context) }
     )
 )
@@ -184,34 +181,31 @@ private fun profileSteps(): List<TourStep> = listOf(
         id = "open_personal_info",
         place = TourPlace.SETTINGS_HOME,
         anchor = TourAnchor.SETTINGS_PERSONAL_INFO,
-        title = "Last thing: who are you?",
-        body = "Open Personal Info. What you put here reaches every reply — your language, your " +
-            "units, your currency."
+        title = R.string.tour_open_personal_info_title,
+        body = R.string.tour_open_personal_info_body
     ),
     TourStep(
         id = "fill_personal_info",
         place = TourPlace.PERSONAL_INFO,
         anchor = TourAnchor.PERSONAL_NAME,
-        title = "Tell it your name",
-        body = "Type whatever you'd like to be called. Everything on this page is optional, and " +
-            "all of it makes the answers fit you better.",
-        ackLabel = "Next"
+        title = R.string.tour_fill_personal_info_title,
+        body = R.string.tour_fill_personal_info_body,
+        ackLabel = R.string.tour_next
     ),
     TourStep(
         id = "save_personal_info",
         place = TourPlace.PERSONAL_INFO,
         anchor = TourAnchor.PERSONAL_SAVE,
-        title = "Save it",
-        body = "Same as before — nothing on the page counts until you do.",
-        ackLabel = "Next",
+        title = R.string.tour_save_personal_info_title,
+        body = R.string.tour_save_personal_info_body,
+        ackLabel = R.string.tour_next,
         isDone = { settings, _ -> settings.userName.isNotBlank() }
     ),
     TourStep(
         id = "finish",
         place = TourPlace.CHAT,
-        title = "That's the tour",
-        body = "Anything you skipped is waiting in Settings, and Feature Tour there replays this " +
-            "whenever you want it.",
-        ackLabel = "Start using Gotcha"
+        title = R.string.tour_finish_title,
+        body = R.string.tour_finish_body,
+        ackLabel = R.string.tour_start_using
     )
 )

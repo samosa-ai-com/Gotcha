@@ -18,8 +18,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,15 +36,14 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Badge
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,6 +51,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -77,8 +77,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -204,7 +208,7 @@ fun ChatScreen(
                         val persona = personaById(state.activePersonaId)
                         if (persona != null) {
                             Text(
-                                persona.label,
+                                stringResource(persona.name),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -216,7 +220,7 @@ fun ChatScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.chat_open_menu))
                     }
                 },
                 actions = {
@@ -264,16 +268,18 @@ fun ChatScreen(
                             ) {
                                 Icon(
                                     if (isOperator) Icons.Filled.TouchApp else Icons.Outlined.Visibility,
-                                    contentDescription = if (isOperator) {
-                                        "Operator mode — tap to switch to Monitor"
-                                    } else {
-                                        "Monitor mode — tap to switch to Operator"
-                                    },
+                                    contentDescription = stringResource(
+                                        if (isOperator) {
+                                            R.string.chat_operator_mode_tap_to_switch
+                                        } else {
+                                            R.string.chat_monitor_mode_tap_to_switch
+                                        }
+                                    ),
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Spacer(modifier = Modifier.width(5.dp))
                                 Text(
-                                    if (isOperator) "Operator" else "Monitor",
+                                    stringResource(if (isOperator) R.string.chat_operator else R.string.chat_monitor),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -283,7 +289,7 @@ fun ChatScreen(
                             IconButton(onClick = onStopSpeaking) {
                                 Icon(
                                     Icons.AutoMirrored.Rounded.VolumeOff,
-                                    contentDescription = "Stop reading aloud",
+                                    contentDescription = stringResource(R.string.chat_stop_reading_aloud),
                                     tint = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -308,7 +314,10 @@ fun ChatScreen(
                 ContextMeter(fraction = state.contextUsagePercent)
             }
             if (isHome) {
-                val greeting = rememberSaveable(state.activeSessionId) { HOME_GREETINGS.random() }
+                // Gender-neutral greetings; the index is saved, so a language change re-reads it.
+                val greetings = stringArrayResource(R.array.home_greetings)
+                val greetingIndex = rememberSaveable(state.activeSessionId) { greetings.indices.random() }
+                val greeting = greetings[greetingIndex.coerceIn(greetings.indices)]
                 // `heightIn(min = maxHeight)` inside a scroller keeps the column
                 // centred exactly as before whenever it fits, and lets it scroll
                 // once it doesn't — which the persona row made reachable on a
@@ -328,7 +337,7 @@ fun ChatScreen(
                             // The in-app mark, not the launcher icon: @mipmap/ic_launcher_round
                             // is an adaptive-icon XML, which painterResource cannot load.
                             painter = painterResource(R.drawable.gotcha_logo),
-                            contentDescription = "Gotcha logo",
+                            contentDescription = stringResource(R.string.chat_gotcha_logo),
                             modifier = Modifier.size(96.dp).clip(CircleShape)
                         )
                         Spacer(modifier = Modifier.height(24.dp))
@@ -378,12 +387,13 @@ fun ChatScreen(
                             }
                             if (starters.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(24.dp))
+                                val context = LocalContext.current
                                 StarterPromptRow(
                                     prompts = starters,
                                     onPick = { prompt ->
                                         // Fill, never send: the template is a draft the
                                         // user is expected to edit first.
-                                        input = prompt.template
+                                        input = context.getString(prompt.template)
                                         inputWasVoice = false
                                     }
                                 )
@@ -527,7 +537,7 @@ fun ChatScreen(
                     onClick = onOpenSettings,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Set your API key in settings to start chatting →")
+                    Text(stringResource(R.string.chat_set_your_api_key_in))
                 }
             }
 
@@ -549,7 +559,10 @@ fun ChatScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "⚡ Agent working in “${state.runningSessionTitle ?: "another chat"}” — you can leave Gotcha; tap to return",
+                        stringResource(
+                            R.string.chat_agent_working_elsewhere,
+                            state.runningSessionTitle ?: stringResource(R.string.chat_another_chat)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         maxLines = 2,
@@ -588,14 +601,14 @@ fun ChatScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "Reading aloud…",
+                                stringResource(R.string.chat_reading_aloud),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium
                             )
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Stop",
+                                stringResource(R.string.chat_stop),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.error
@@ -603,7 +616,7 @@ fun ChatScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 Icons.Default.Stop,
-                                contentDescription = "Stop speaking",
+                                contentDescription = stringResource(R.string.chat_stop_speaking),
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -634,7 +647,7 @@ fun ChatScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "Editing message — sending will rewrite the conversation from here",
+                            stringResource(R.string.chat_editing_message_sending_will_rewrite),
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -648,7 +661,7 @@ fun ChatScreen(
                                 inputWasVoice = false
                             }
                         ) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.chat_transfer_cancel))
                         }
                     }
                 }
@@ -685,11 +698,13 @@ fun ChatScreen(
                         shape = RoundedCornerShape(24.dp),
                         placeholder = {
                             Text(
-                                when {
-                                    state.isTranscribing -> "Transcribing…"
-                                    otherChatRunning -> "Finish the running chat first…"
-                                    else -> "Let's Go"
-                                }
+                                stringResource(
+                                    when {
+                                        state.isTranscribing -> R.string.chat_transcribing
+                                        otherChatRunning -> R.string.chat_finish_the_running_chat_first
+                                        else -> R.string.chat_let_s_go
+                                    }
+                                )
                             )
                         },
                         enabled = !state.isBusy && !state.isTranscribing && state.isConfigured && !otherChatRunning,
@@ -719,7 +734,7 @@ fun ChatScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.Stop,
-                                        contentDescription = "Stop",
+                                        contentDescription = stringResource(R.string.chat_stop),
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -748,7 +763,7 @@ fun ChatScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.Stop,
-                                        contentDescription = "Stop recording",
+                                        contentDescription = stringResource(R.string.chat_stop_recording),
                                         modifier = Modifier.size(20.dp),
                                         tint = Color.White
                                     )
@@ -769,7 +784,10 @@ fun ChatScreen(
                                     modifier = Modifier.size(40.dp),
                                     enabled = state.isConfigured && !otherChatRunning
                                 ) {
-                                    Icon(Icons.Default.Mic, contentDescription = "Voice input")
+                                    Icon(
+                                        Icons.Default.Mic,
+                                        contentDescription = stringResource(R.string.chat_voice_input)
+                                    )
                                 }
                             }
                             else -> {
@@ -790,7 +808,10 @@ fun ChatScreen(
                                     enabled = state.isConfigured && !otherChatRunning &&
                                         (input.isNotBlank() || pendingAttachments.isNotEmpty())
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = stringResource(R.string.chat_send)
+                                    )
                                 }
                             }
                         }
@@ -803,18 +824,18 @@ fun ChatScreen(
     state.pendingConfirmation?.let { pending ->
         SkinAlertDialog(
             onDismissRequest = { onConfirm(false) },
-            title = { Text("Allow these actions?") },
+            title = { Text(stringResource(R.string.chat_allow_these_actions)) },
             text = {
                 Text(
-                    "The assistant wants to run:\n\n${pending.description}",
+                    stringResource(R.string.chat_wants_to_run, pending.description),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
             confirmButton = {
-                Button(onClick = { onConfirm(true) }) { Text("Allow") }
+                Button(onClick = { onConfirm(true) }) { Text(stringResource(R.string.chat_allow)) }
             },
             dismissButton = {
-                TextButton(onClick = { onConfirm(false) }) { Text("Deny") }
+                TextButton(onClick = { onConfirm(false) }) { Text(stringResource(R.string.chat_deny)) }
             }
         )
     }
@@ -845,11 +866,10 @@ fun ChatScreen(
     if (pendingRevert != null) {
         SkinAlertDialog(
             onDismissRequest = { pendingRevertId = null },
-            title = { Text("Revert to this message?") },
+            title = { Text(stringResource(R.string.chat_revert_to_this_message)) },
             text = {
                 Text(
-                    "This will delete all messages after this one, " +
-                        "then let you continue the conversation from here.",
+                    stringResource(R.string.chat_this_will_delete_all_messages),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -860,10 +880,10 @@ fun ChatScreen(
                         pendingRevertId = null
                         onRevertMessage(id)
                     }
-                ) { Text("Revert") }
+                ) { Text(stringResource(R.string.chat_revert)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRevertId = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingRevertId = null }) { Text(stringResource(R.string.chat_transfer_cancel)) }
             }
         )
     }
@@ -890,7 +910,11 @@ private fun InboxButton(unread: Int, onClick: () -> Unit) {
         ) {
             Icon(
                 if (unread > 0) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                contentDescription = if (unread > 0) "Notifications, $unread unread" else "Notifications",
+                contentDescription = if (unread > 0) {
+                    pluralStringResource(R.plurals.chat_notifications_unread, unread, unread)
+                } else {
+                    stringResource(R.string.chat_notifications)
+                },
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -937,23 +961,27 @@ private fun ChatOptionsMenu(
             BadgedBox(
                 badge = {
                     if (unreadNotifications > 0) {
-                        UnreadBadge(count = unreadNotifications, showCount = false, modifier = Modifier.offset(x = (-2).dp, y = 2.dp))
+                        UnreadBadge(
+                            count = unreadNotifications,
+                            showCount = false,
+                            modifier = Modifier.offset(x = (-2).dp, y = 2.dp)
+                        )
                     }
                 }
             ) {
                 Icon(
                     Icons.Default.MoreVert,
                     contentDescription = if (unreadNotifications > 0) {
-                        "Chat options, $unreadNotifications unread notifications"
+                        pluralStringResource(R.plurals.chat_options_unread, unreadNotifications, unreadNotifications)
                     } else {
-                        "Chat options"
+                        stringResource(R.string.chat_options)
                     }
                 )
             }
         }
         SkinDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Notifications") },
+                text = { Text(stringResource(R.string.chat_notifications)) },
                 leadingIcon = {
                     Icon(
                         if (unreadNotifications > 0) Icons.Filled.Notifications else Icons.Outlined.Notifications,
@@ -971,7 +999,7 @@ private fun ChatOptionsMenu(
             )
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("Export chat") },
+                text = { Text(stringResource(R.string.chat_export_chat)) },
                 enabled = shareEnabled,
                 onClick = {
                     expanded = false
@@ -979,7 +1007,7 @@ private fun ChatOptionsMenu(
                 }
             )
             DropdownMenuItem(
-                text = { Text("Back up chat") },
+                text = { Text(stringResource(R.string.chat_back_up_chat)) },
                 enabled = shareEnabled,
                 onClick = {
                     expanded = false
@@ -988,7 +1016,7 @@ private fun ChatOptionsMenu(
                 modifier = Modifier.testTag("chat_backup")
             )
             DropdownMenuItem(
-                text = { Text("Create share card") },
+                text = { Text(stringResource(R.string.chat_create_share_card)) },
                 enabled = shareEnabled,
                 onClick = {
                     expanded = false
@@ -996,7 +1024,7 @@ private fun ChatOptionsMenu(
                 }
             )
             DropdownMenuItem(
-                text = { Text("Keep out of notifications") },
+                text = { Text(stringResource(R.string.chat_keep_out_of_notifications)) },
                 trailingIcon = { Checkbox(checked = keptOutOfNotifications, onCheckedChange = null) },
                 onClick = { onSetKeptOutOfNotifications(!keptOutOfNotifications) },
                 modifier = Modifier.testTag("chat_keep_out_of_notifications")
@@ -1017,7 +1045,7 @@ private fun AgentModeSelector(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            "Agent",
+            stringResource(R.string.chat_agent),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1027,14 +1055,14 @@ private fun AgentModeSelector(
             modifier = Modifier.fillMaxWidth()
         ) {
             AgentModeOption(
-                label = "Monitor",
+                label = stringResource(R.string.chat_monitor),
                 icon = Icons.Outlined.Visibility,
                 selected = selected == AgentMode.MONITOR,
                 onClick = { onSelect(AgentMode.MONITOR) },
                 modifier = Modifier.weight(1f)
             )
             AgentModeOption(
-                label = "Operator",
+                label = stringResource(R.string.chat_operator),
                 icon = Icons.Filled.TouchApp,
                 selected = selected == AgentMode.OPERATOR,
                 onClick = { onSelect(AgentMode.OPERATOR) },
@@ -1043,11 +1071,13 @@ private fun AgentModeSelector(
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            if (selected == AgentMode.MONITOR) {
-                "Read-only — observes but cannot change your device."
-            } else {
-                "Full control — can make changes to your device."
-            },
+            stringResource(
+                if (selected == AgentMode.MONITOR) {
+                    R.string.chat_read_only_observes_but_cannot
+                } else {
+                    R.string.chat_full_control_can_make_changes
+                }
+            ),
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1155,8 +1185,7 @@ private fun SampleChatNotice() {
             .testTag("sample_chat_notice")
     ) {
         Text(
-            "Sample chat — this one ships with Gotcha to show what it can do. " +
-                "Carry it on, or delete it from the drawer.",
+            stringResource(R.string.chat_sample_chat_this_one_ships),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         )

@@ -1,17 +1,25 @@
 package com.gotcha.ui
 
+import android.content.Context
 import androidx.compose.runtime.saveable.SaverScope
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * [STARTER_PROMPTS] and each persona's starters are hand-edited lists that the
  * home screen draws from blindly. These are the invariants that drawing relies
- * on, checked for every pool the screen can draw from.
+ * on, checked for every pool the screen can draw from. The text is string
+ * resources, read here in English.
  */
+@RunWith(RobolectricTestRunner::class)
 class StarterPromptsTest {
+
+    private val context: Context = ApplicationProvider.getApplicationContext()
 
     /** The default list plus every persona's own, by a name for failure messages. */
     private val pools: Map<String, List<StarterPrompt>> =
@@ -34,12 +42,13 @@ class StarterPromptsTest {
     fun `every starter has a label and a template`() {
         pools.forEach { (name, pool) ->
             pool.forEach { prompt ->
-                assertTrue("Blank label in $name: $prompt", prompt.label.isNotBlank())
-                assertTrue("Blank template in $name: $prompt", prompt.template.isNotBlank())
+                val label = context.getString(prompt.label)
+                assertTrue("Blank label in $name: $prompt", label.isNotBlank())
+                assertTrue("Blank template in $name: $prompt", context.getString(prompt.template).isNotBlank())
                 // The chip has to sit three to a row on a phone.
                 assertTrue(
-                    "Label too long to fit a chip in $name: '${prompt.label}'",
-                    prompt.label.length <= 20
+                    "Label too long to fit a chip in $name: '$label'",
+                    label.length <= 20
                 )
             }
         }
@@ -71,7 +80,7 @@ class StarterPromptsTest {
     fun `saver refills a stale save from its own pool`() {
         val pool = requireNotNull(personaById("doctor")).starters
         val restored = requireNotNull(
-            starterPromptLabelsSaver(pool).restore(listOf(pool.first().label, "A starter since removed"))
+            starterPromptLabelsSaver(pool).restore(listOf(pool.first().label, -1))
         )
         assertEquals(STARTER_PROMPT_COUNT, restored.size)
         assertEquals(pool.first(), restored.first())

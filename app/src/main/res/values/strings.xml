@@ -807,7 +807,6 @@
 
     <!-- TourOverlay -->
     <string name="tour_skip_tour">Skip tour</string>
-    <string name="tour_tour_pulse_progress">tour_pulse_progress</string>
     <string name="tour_waiting_for_you">Waiting for you…</string>
 
     <!-- Screen companion panel -->
@@ -911,4 +910,202 @@
     <string name="attachment_document">document</string>
     <string name="attachment_truncated"> · truncated</string>
     <string name="tour_step_of">STEP %1$d OF %2$d</string>
+
+    <!-- Starter prompts -->
+    <string name="starter_turn_on_wi_fi">Turn on Wi-Fi</string>
+    <string name="starter_turn_on_wi_fi_template">Open settings and turn on Wi-Fi</string>
+    <string name="starter_set_an_alarm">Set an alarm</string>
+    <string name="starter_set_an_alarm_template">Set an alarm for 7am tomorrow</string>
+    <string name="starter_read_my_screen">Read my screen</string>
+    <string name="starter_read_my_screen_template">What\'s on my screen?</string>
+    <string name="starter_find_big_files">Find big files</string>
+    <string name="starter_find_big_files_template">Find the largest files in my Downloads folder and tell me what\'s safe to delete</string>
+    <string name="starter_summarise_a_pdf">Summarise a PDF</string>
+    <string name="starter_summarise_a_pdf_template">Read the most recent PDF in my Downloads and summarise it</string>
+    <string name="starter_send_a_whatsapp">Send a WhatsApp</string>
+    <string name="starter_send_a_whatsapp_template">Send a WhatsApp to … saying …</string>
+    <string name="starter_catch_me_up">Catch me up</string>
+    <string name="starter_catch_me_up_template">Catch me up on my unread notifications</string>
+    <string name="starter_check_a_symptom">Check a symptom</string>
+    <string name="starter_check_a_symptom_template">I\'ve had … for … days. What could be causing it?</string>
+    <string name="starter_is_this_urgent">Is this urgent?</string>
+    <string name="starter_is_this_urgent_template">I have … — should I see a doctor today, or can it wait?</string>
+    <string name="starter_explain_a_result">Explain a result</string>
+    <string name="starter_explain_a_result_template">Can you explain what this test result means: …</string>
+    <string name="starter_sleep_better">Sleep better</string>
+    <string name="starter_sleep_better_template">I keep waking up in the night. What usually helps?</string>
+    <string name="starter_cold_or_flu">Cold or flu?</string>
+    <string name="starter_cold_or_flu_template">I have a sore throat and a temperature. Is it a cold or the flu?</string>
+    <string name="starter_cook_from_my_fridge">Cook from my fridge</string>
+    <string name="starter_cook_from_my_fridge_template">I have … in the fridge. What can I make in 30 minutes?</string>
+    <string name="starter_plan_a_dinner">Plan a dinner</string>
+    <string name="starter_plan_a_dinner_template">Plan a dinner for … people, one of them vegetarian</string>
+    <string name="starter_swap_an_ingredient">Swap an ingredient</string>
+    <string name="starter_swap_an_ingredient_template">What can I use instead of … in …?</string>
+    <string name="starter_quick_breakfast">Quick breakfast</string>
+    <string name="starter_quick_breakfast_template">Give me three breakfasts I can make in under 10 minutes</string>
+    <string name="starter_fix_a_dish">Fix a dish</string>
+    <string name="starter_fix_a_dish_template">My … came out too … — what went wrong?</string>
+    <string name="starter_plan_my_week">Plan my week</string>
+    <string name="starter_plan_my_week_template">Plan three workouts a week for a beginner with no equipment</string>
+    <string name="starter_start_running">Start running</string>
+    <string name="starter_start_running_template">Give me a plan to run 5 km without stopping</string>
+    <string name="starter_check_my_form">Check my form</string>
+    <string name="starter_check_my_form_template">How do I squat with good form?</string>
+    <string name="starter_stretch_routine">Stretch routine</string>
+    <string name="starter_stretch_routine_template">Give me a 10-minute stretch for after sitting all day</string>
+    <string name="starter_build_strength">Build strength</string>
+    <string name="starter_build_strength_template">I can go to a gym twice a week. Build me a strength plan</string>
+    <string name="starter_explain_a_topic">Explain a topic</string>
+    <string name="starter_explain_a_topic_template">Explain … to me like I\'m new to it</string>
+    <string name="starter_quiz_me">Quiz me</string>
+    <string name="starter_quiz_me_template">Quiz me on … one question at a time</string>
+    <string name="starter_help_with_a_problem">Help with a problem</string>
+    <string name="starter_help_with_a_problem_template">I\'m stuck on this problem: …</string>
+    <string name="starter_check_my_answer">Check my answer</string>
+    <string name="starter_check_my_answer_template">Here\'s my working for …. Where did I go wrong?</string>
+    <string name="starter_make_a_study_plan">Make a study plan</string>
+    <string name="starter_make_a_study_plan_template">I have an exam on … in two weeks. Help me plan my revision</string>
+    <string name="starter_plan_a_weekend">Plan a weekend</string>
+    <string name="starter_plan_a_weekend_template">Plan a weekend in … for two on a mid-range budget</string>
+    <string name="starter_build_an_itinerary">Build an itinerary</string>
+    <string name="starter_build_an_itinerary_template">Build a 5-day itinerary for … in …</string>
+    <string name="starter_packing_list">Packing list</string>
+    <string name="starter_packing_list_template">What should I pack for a week in … in …?</string>
+    <string name="starter_best_time_to_go">Best time to go</string>
+    <string name="starter_best_time_to_go_template">When is the best time of year to visit …?</string>
+    <string name="starter_trip_on_a_budget">Trip on a budget</string>
+    <string name="starter_trip_on_a_budget_template">Where can I go for a week from … on a budget of …?</string>
+    <string name="starter_fix_a_leaky_tap">Fix a leaky tap</string>
+    <string name="starter_fix_a_leaky_tap_template">My tap keeps dripping. How do I fix it?</string>
+    <string name="starter_hang_a_shelf">Hang a shelf</string>
+    <string name="starter_hang_a_shelf_template">How do I hang a heavy shelf on a … wall?</string>
+    <string name="starter_unblock_a_drain">Unblock a drain</string>
+    <string name="starter_unblock_a_drain_template">My sink drains slowly. How do I clear it?</string>
+    <string name="starter_patch_a_wall">Patch a wall</string>
+    <string name="starter_patch_a_wall_template">How do I fill a hole in plasterboard?</string>
+    <string name="starter_squeaky_door">Squeaky door</string>
+    <string name="starter_squeaky_door_template">How do I stop a door from squeaking?</string>
+
+    <!-- Personas -->
+    <string name="persona_doctor">Doctor</string>
+    <string name="persona_chef">Chef</string>
+    <string name="persona_fitness_coach">Fitness Coach</string>
+    <string name="persona_tutor">Tutor</string>
+    <string name="persona_travel_planner">Travel Planner</string>
+    <string name="persona_handyman">Handyman</string>
+
+    <!-- Starter row -->
+    <string name="starter_try">Try</string>
+
+    <!-- Persona -->
+    <string name="persona_persona">Persona</string>
+
+    <!-- Home screen greetings; one is picked per new chat. Gender-neutral. -->
+    <string-array name="home_greetings">
+        <item>Hello, how can I help you?</item>
+        <item>What can I do for you today?</item>
+        <item>Ready when you are.</item>
+        <item>What\'s on your mind?</item>
+        <item>How can I make your day easier?</item>
+        <item>Need a hand with something?</item>
+        <item>Let\'s get something done.</item>
+        <item>What would you like to do?</item>
+        <item>I\'m all ears — what do you need?</item>
+        <item>Where should we start?</item>
+        <item>Got a task for me?</item>
+        <item>Happy to help — what\'s up?</item>
+        <item>What shall we tackle first?</item>
+        <item>Ask me anything.</item>
+        <item>Here to help, whenever you\'re ready.</item>
+        <item>What\'s next on your list?</item>
+        <item>Let\'s make something happen.</item>
+        <item>How can I assist you right now?</item>
+        <item>Tell me what you need.</item>
+        <item>At your service — what can I do?</item>
+    </string-array>
+
+    <!-- ChatScreen -->
+    <string name="chat_set_your_api_key_in">Set your API key in settings to start chatting →</string>
+    <string name="chat_allow_these_actions">Allow these actions?</string>
+    <string name="chat_allow">Allow</string>
+    <string name="chat_deny">Deny</string>
+    <string name="chat_revert_to_this_message">Revert to this message?</string>
+    <string name="chat_revert">Revert</string>
+    <string name="chat_notifications">Notifications</string>
+    <string name="chat_export_chat">Export chat</string>
+    <string name="chat_back_up_chat">Back up chat</string>
+    <string name="chat_create_share_card">Create share card</string>
+    <string name="chat_keep_out_of_notifications">Keep out of notifications</string>
+    <string name="chat_stop_reading_aloud">Stop reading aloud</string>
+    <string name="chat_gotcha_logo">Gotcha logo</string>
+    <string name="chat_stop_speaking">Stop speaking</string>
+    <string name="chat_stop">Stop</string>
+    <string name="chat_stop_recording">Stop recording</string>
+    <string name="chat_monitor">Monitor</string>
+    <string name="chat_operator">Operator</string>
+    <string name="chat_reading_aloud">Reading aloud…</string>
+    <string name="chat_editing_message_sending_will_rewrite">Editing message — sending will rewrite the conversation from here</string>
+    <string name="chat_this_will_delete_all_messages">This will delete all messages after this one, then let you continue the conversation from here.</string>
+    <string name="chat_agent">Agent</string>
+    <string name="chat_sample_chat_this_one_ships">Sample chat — this one ships with Gotcha to show what it can do. Carry it on, or delete it from the drawer.</string>
+    <string name="chat_operator_mode_tap_to_switch">Operator mode — tap to switch to Monitor</string>
+    <string name="chat_monitor_mode_tap_to_switch">Monitor mode — tap to switch to Operator</string>
+    <string name="chat_read_only_observes_but_cannot">Read-only — observes but cannot change your device.</string>
+    <string name="chat_full_control_can_make_changes">Full control — can make changes to your device.</string>
+
+    <!-- Chat screen -->
+    <string name="chat_open_menu">Open menu</string>
+    <string name="chat_another_chat">another chat</string>
+    <string name="chat_agent_working_elsewhere">⚡ Agent working in “%1$s” — you can leave Gotcha; tap to return</string>
+    <string name="chat_voice_input">Voice input</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_wants_to_run">The assistant wants to run:\n\n%1$s</string>
+    <string name="chat_options">Chat options</string>
+    <string name="chat_transcribing">Transcribing…</string>
+    <string name="chat_finish_the_running_chat_first">Finish the running chat first…</string>
+    <string name="chat_let_s_go">Let\'s Go</string>
+    <plurals name="chat_notifications_unread">
+        <item quantity="one">Notifications, %1$d unread</item>
+        <item quantity="other">Notifications, %1$d unread</item>
+    </plurals>
+    <plurals name="chat_options_unread">
+        <item quantity="one">Chat options, %1$d unread notification</item>
+        <item quantity="other">Chat options, %1$d unread notifications</item>
+    </plurals>
+
+    <!-- Feature tour -->
+    <string name="tour_open_settings_title">Everything lives behind here</string>
+    <string name="tour_open_settings_body">Swipe in from the left edge any time to reach this menu. Tap Settings to start.</string>
+    <string name="tour_open_settings_hint">Tip: the same swipe works from anywhere in the chat.</string>
+    <string name="tour_open_ai_title">Start with AI</string>
+    <string name="tour_open_ai_body">Everything Gotcha thinks, hears and says with is behind this row. Open it.</string>
+    <string name="tour_open_ai_config_title">Give Gotcha a brain</string>
+    <string name="tour_open_ai_config_body">AI Configuration is where the model lives. Open it — you\'ll come back here to change models later, and to pick a voice.</string>
+    <string name="tour_choose_provider_title">Pick who does the thinking</string>
+    <string name="tour_choose_provider_body">Samosa AI gives you a model, speech and transcription on a free daily allowance — no keys to paste. Choose OpenAI-compatible instead if you\'d rather bring your own.</string>
+    <string name="tour_samosa_sign_in_title">Sign in once</string>
+    <string name="tour_samosa_sign_in_body">One Google account covers the model, the voice and the transcription.</string>
+    <string name="tour_save_ai_config_title">Save it</string>
+    <string name="tour_save_ai_config_body">Nothing on this page takes effect until you do.</string>
+    <string name="tour_open_permissions_title">Now decide what it may touch</string>
+    <string name="tour_open_permissions_body">Open Permissions. Two of them are worth granting now; the rest can wait.</string>
+    <string name="tour_grant_accessibility_title">Accessibility is the important one</string>
+    <string name="tour_grant_accessibility_body">It\'s what lets Gotcha read the screen and tap for you. Without it the assistant can answer questions but cannot do anything. The switch is Android\'s, not ours.</string>
+    <string name="tour_grant_accessibility_hint">Look for Gotcha in the list. On some phones it lives under Settings › Additional settings › Accessibility › Installed apps.</string>
+    <string name="tour_grant_overlay_title">And one for the floating ball</string>
+    <string name="tour_grant_overlay_body">\"Display over other apps\" lets the assistive ball and Screen Lens appear on top of whatever you\'re using.</string>
+    <string name="tour_open_personal_info_title">Last thing: who are you?</string>
+    <string name="tour_open_personal_info_body">Open Personal Info. What you put here reaches every reply — your language, your units, your currency.</string>
+    <string name="tour_fill_personal_info_title">Tell it your name</string>
+    <string name="tour_fill_personal_info_body">Type whatever you\'d like to be called. Everything on this page is optional, and all of it makes the answers fit you better.</string>
+    <string name="tour_save_personal_info_title">Save it</string>
+    <string name="tour_save_personal_info_body">Same as before — nothing on the page counts until you do.</string>
+    <string name="tour_finish_title">That\'s the tour</string>
+    <string name="tour_finish_body">Anything you skipped is waiting in Settings, and Feature Tour there replays this whenever you want it.</string>
+    <string name="tour_next">Next</string>
+    <string name="tour_open_android_settings">Open Android settings</string>
+
+    <!-- Feature tour: finish -->
+    <string name="tour_start_using">Start using Gotcha</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.gotcha.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,8 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 
 /**
  * One tap-to-fill suggestion on the empty home screen.
@@ -33,7 +36,7 @@ import androidx.compose.ui.unit.dp
  *
  * Public only because [Persona] carries its own list of them.
  */
-data class StarterPrompt(val label: String, val template: String)
+data class StarterPrompt(@StringRes val label: Int, @StringRes val template: Int)
 
 /**
  * The default starters, offered on an empty chat with no persona picked (or a
@@ -52,32 +55,32 @@ data class StarterPrompt(val label: String, val template: String)
  */
 internal val STARTER_PROMPTS = listOf(
     StarterPrompt(
-        label = "Turn on Wi-Fi",
-        template = "Open settings and turn on Wi-Fi"
+        label = R.string.starter_turn_on_wi_fi,
+        template = R.string.starter_turn_on_wi_fi_template
     ),
     StarterPrompt(
-        label = "Set an alarm",
-        template = "Set an alarm for 7am tomorrow"
+        label = R.string.starter_set_an_alarm,
+        template = R.string.starter_set_an_alarm_template
     ),
     StarterPrompt(
-        label = "Read my screen",
-        template = "What's on my screen?"
+        label = R.string.starter_read_my_screen,
+        template = R.string.starter_read_my_screen_template
     ),
     StarterPrompt(
-        label = "Find big files",
-        template = "Find the largest files in my Downloads folder and tell me what's safe to delete"
+        label = R.string.starter_find_big_files,
+        template = R.string.starter_find_big_files_template
     ),
     StarterPrompt(
-        label = "Summarise a PDF",
-        template = "Read the most recent PDF in my Downloads and summarise it"
+        label = R.string.starter_summarise_a_pdf,
+        template = R.string.starter_summarise_a_pdf_template
     ),
     StarterPrompt(
-        label = "Send a WhatsApp",
-        template = "Send a WhatsApp to … saying …"
+        label = R.string.starter_send_a_whatsapp,
+        template = R.string.starter_send_a_whatsapp_template
     ),
     StarterPrompt(
-        label = "Catch me up",
-        template = "Catch me up on my unread notifications"
+        label = R.string.starter_catch_me_up,
+        template = R.string.starter_catch_me_up_template
     )
 )
 
@@ -102,7 +105,7 @@ internal fun startersFor(persona: Persona?): List<StarterPrompt> =
  * drops out, and the row is refilled from [pool] so a stale save never shows
  * fewer than [STARTER_PROMPT_COUNT] chips.
  */
-internal fun starterPromptLabelsSaver(pool: List<StarterPrompt>) = listSaver<List<StarterPrompt>, String>(
+internal fun starterPromptLabelsSaver(pool: List<StarterPrompt>) = listSaver<List<StarterPrompt>, Int>(
     save = { prompts -> prompts.map { it.label } },
     restore = { labels ->
         val restored = labels.mapNotNull { label -> pool.firstOrNull { it.label == label } }
@@ -133,7 +136,7 @@ internal fun StarterPromptRow(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            "Try",
+            stringResource(R.string.starter_try),
             style = MaterialTheme.typography.labelMedium,
             color = scheme.onSurfaceVariant
         )
@@ -153,7 +156,7 @@ internal fun StarterPromptRow(
                     modifier = Modifier.testTag("starter_prompt_${prompt.label}")
                 ) {
                     Text(
-                        prompt.label,
+                        stringResource(prompt.label),
                         style = MaterialTheme.typography.labelLarge,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)

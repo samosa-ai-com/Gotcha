@@ -15,6 +15,7 @@ import androidx.compose.ui.test.longClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.gotcha.testutil.MOCK_REPLY_OK
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.TestSeed
@@ -115,7 +116,9 @@ class ChatRoundTripTest {
 
         // Filled, not sent: the template is in the composer, the transcript is
         // still empty, and nothing went to the LLM.
-        composeRule.onNodeWithTag("chat_input").assert(hasText(shown.template))
+        composeRule.onNodeWithTag("chat_input").assert(
+            hasText(InstrumentationRegistry.getInstrumentation().targetContext.getString(shown.template))
+        )
         assertTrue(
             "tapping a starter must not open the transcript",
             composeRule.onAllNodes(hasTestTag("message_list")).fetchSemanticsNodes().isEmpty()

@@ -1,6 +1,7 @@
 package com.gotcha.ui.tour
 
 import android.content.Context
+import com.gotcha.R
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import io.mockk.mockk
@@ -25,22 +26,22 @@ class TourControllerTest {
         TourStep(
             id = "first",
             place = TourPlace.SETTINGS_HOME,
-            title = "First",
-            body = ""
+            title = R.string.tour_next,
+            body = R.string.tour_next
         ),
         TourStep(
             id = "second",
             place = TourPlace.AI_CONFIG,
-            title = "Second",
-            body = "",
+            title = R.string.tour_next,
+            body = R.string.tour_next,
             isDone = { settings, _ -> settings.isSamosaAuthenticated }
         ),
         TourStep(
             id = "third",
             place = TourPlace.AI_CONFIG,
-            title = "Third",
-            body = "",
-            ackLabel = "Got it"
+            title = R.string.tour_next,
+            body = R.string.tour_next,
+            ackLabel = R.string.tour_next
         )
     )
 
@@ -183,12 +184,12 @@ class TourControllerTest {
             TourStep(
                 id = "optional_branch",
                 place = TourPlace.AI_CONFIG,
-                title = "Sign in",
-                body = "",
+                title = R.string.tour_next,
+                body = R.string.tour_next,
                 anchor = TourAnchor.AI_SAMOSA_SIGN_IN,
                 requiresAnchor = true
             ),
-            TourStep(id = "after", place = TourPlace.AI_CONFIG, title = "After", body = "")
+            TourStep(id = "after", place = TourPlace.AI_CONFIG, title = R.string.tour_next, body = R.string.tour_next)
         )
         val controller = TourController(branching)
         controller.start()
@@ -218,8 +219,8 @@ class TourControllerTest {
             TourStep(
                 id = "tap_it_yourself",
                 place = TourPlace.SETTINGS_HOME,
-                title = "Tap it",
-                body = "",
+                title = R.string.tour_next,
+                body = R.string.tour_next,
                 autoNavigate = false
             )
         )

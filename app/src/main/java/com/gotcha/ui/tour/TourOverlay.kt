@@ -261,7 +261,7 @@ private fun Pulse(spotlight: Rect) {
                 animation = tween(durationMillis = 1800, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
-            label = stringResource(R.string.tour_tour_pulse_progress)
+            label = "tour_pulse_progress"
         ).value
     } else {
         0f
@@ -311,18 +311,18 @@ private fun CoachCard(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = step.title,
+                text = stringResource(step.title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = step.body,
+                text = stringResource(step.body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             step.hint?.let {
                 Text(
-                    text = it,
+                    text = stringResource(it),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -339,7 +339,7 @@ private fun CoachCard(
                         .fillMaxWidth()
                         .padding(top = 4.dp)
                         .testTag("tour_action")
-                ) { Text(action.label) }
+                ) { Text(stringResource(action.label)) }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -354,7 +354,7 @@ private fun CoachCard(
                     TextButton(
                         onClick = { controller.acknowledge() },
                         modifier = Modifier.testTag("tour_ack")
-                    ) { Text(step.ackLabel) }
+                    ) { Text(stringResource(step.ackLabel)) }
                 } else {
                     Text(
                         text = stringResource(R.string.tour_waiting_for_you),
