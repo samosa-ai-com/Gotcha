@@ -1,6 +1,7 @@
 package com.gotcha.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 
 /**
  * The Permissions page. The groups themselves live in [PermissionsSection],
@@ -15,7 +16,7 @@ fun PermissionsScreen(
     onOpenTermuxSetup: (() -> Unit)? = null
 ) {
     val overlay = rememberSettingsOverlayState()
-    SettingsScaffold(title = SettingsPage.PERMISSIONS.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.PERMISSIONS.title), onBack = onBack, overlay = overlay) {
         PermissionsSection(packageName = packageName, onOpenTermuxSetup = onOpenTermuxSetup)
     }
 }

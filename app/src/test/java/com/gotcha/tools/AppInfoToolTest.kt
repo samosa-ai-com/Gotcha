@@ -40,11 +40,15 @@ class AppInfoToolTest {
     fun `every settings page the app can open is documented`() {
         val text = tool.aboutGotcha().message
 
+        // The handbook is English, like everything the model reads, so it names the
+        // pages by their English titles.
+        val context = ApplicationProvider.getApplicationContext<Context>()
         SettingsPage.entries.forEach { page ->
+            val title = context.getString(page.title)
             assertTrue(
-                "the handbook does not mention the '${page.title}' settings page, so the agent " +
+                "the handbook does not mention the '$title' settings page, so the agent " +
                     "cannot tell the user how to reach it",
-                text.contains(page.title)
+                text.contains(title)
             )
         }
     }

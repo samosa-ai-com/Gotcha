@@ -136,7 +136,7 @@ fun LanguageScreen(
         resolvedVoiceLanguage
     )
 
-    SettingsScaffold(title = SettingsPage.LANGUAGE.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.LANGUAGE.title), onBack = onBack, overlay = overlay) {
         Text(
             stringResource(R.string.language_page_intro),
             style = MaterialTheme.typography.bodySmall,

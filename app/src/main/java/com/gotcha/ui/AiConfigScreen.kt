@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -164,7 +165,7 @@ fun AiConfigScreen(
         }
     }
 
-    SettingsScaffold(title = SettingsPage.AI_CONFIG.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = onBack, overlay = overlay) {
         // ---- Provider / model guidance ----
         Text(
             "Recommended setup: Use the SAMOSA AI provider for the best LLM performance.\n",

@@ -30,9 +30,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.audio.AudioModel
 import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
@@ -310,7 +313,7 @@ private fun SettingsHome(
     }
 
     SettingsScaffold(
-        title = "Settings",
+        title = stringResource(R.string.settings_title),
         onBack = onBack,
         overlay = overlay,
         header = { SettingsSearchField(query = query, onQueryChange = { query = it }) }
@@ -337,14 +340,14 @@ private fun SettingsSearchField(query: String, onQueryChange: (String) -> Unit) 
             .fillMaxWidth()
             .testTag("settings_search"),
         singleLine = true,
-        placeholder = { Text("Search settings") },
+        placeholder = { Text(stringResource(R.string.settings_search_hint)) },
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
         trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(
                     onClick = { onQueryChange("") },
                     modifier = Modifier.testTag("settings_search_clear")
-                ) { Icon(Icons.Filled.Close, contentDescription = "Clear search") }
+                ) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.settings_search_clear)) }
             }
         }
     )
@@ -390,10 +393,11 @@ private fun ColumnScope.SettingsHomeRows(
  */
 @Composable
 private fun SettingsSearchResults(query: String, onOpenResult: (SettingsSearchResult) -> Unit) {
-    val results = filterSettings(query)
+    val text = LocalContext.current.stringLookup()
+    val results = filterSettings(query, text)
     if (results.isEmpty()) {
         Text(
-            text = "No settings match “$query”",
+            text = stringResource(R.string.settings_search_empty, query),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
@@ -409,7 +413,7 @@ private fun SettingsSearchResults(query: String, onOpenResult: (SettingsSearchRe
             page = result.page,
             onClick = { onOpenResult(result) },
             modifier = Modifier.testTag(result.page.testTag),
-            title = result.label
+            title = result.label(text)
         )
     }
 }
@@ -436,12 +440,12 @@ private fun FeatureTourRow(onClick: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Feature Tour",
+                text = stringResource(R.string.settings_feature_tour),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "Walk through setup again, one step at a time",
+                text = stringResource(R.string.settings_feature_tour_summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -463,12 +467,12 @@ private fun FeedbackRow(onClick: () -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Send Feedback",
+                text = stringResource(R.string.settings_feedback),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "Tell us what to improve — nothing is sent until you submit",
+                text = stringResource(R.string.settings_feedback_summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

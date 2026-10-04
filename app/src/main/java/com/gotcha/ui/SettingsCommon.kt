@@ -2,6 +2,7 @@ package com.gotcha.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -59,6 +60,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
@@ -67,6 +70,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
@@ -105,8 +109,8 @@ import kotlin.math.round
  * collects "who made this app and what did I agree to".
  */
 enum class SettingsPage(
-    val title: String,
-    val summary: String,
+    @StringRes val title: Int,
+    @StringRes val summary: Int,
     val testTag: String,
     /**
      * The page this one is reached from, or null for the home list. Doubles as
@@ -117,83 +121,83 @@ enum class SettingsPage(
     val parentPage: () -> SettingsPage? = { null }
 ) {
     PERSONAL_INFO(
-        "Personal Info",
-        "Who you are, currency, reply style",
+        R.string.settings_page_personal_info,
+        R.string.settings_page_personal_info_summary,
         "settings_personal_info_row"
     ),
     LANGUAGE(
-        "Language",
-        "App display, voice, transcription and AI reply language",
+        R.string.settings_page_language,
+        R.string.settings_page_language_summary,
         "settings_language_row"
     ),
     AI(
-        "AI",
-        "Model, provider, voice and transcription",
+        R.string.settings_page_ai,
+        R.string.settings_page_ai_summary,
         "settings_ai_row"
     ),
     AI_CONFIG(
-        "AI Configuration",
-        "Provider, models, agent limits",
+        R.string.settings_page_ai_config,
+        R.string.settings_page_ai_config_summary,
         "settings_ai_config_row",
         { AI }
     ),
     SPEECH(
-        "Speech (TTS / STT)",
-        "Voices, transcription, read replies aloud",
+        R.string.settings_page_speech,
+        R.string.settings_page_speech_summary,
         "settings_speech_row",
         { AI }
     ),
     PERMISSIONS(
-        "Permissions",
-        "What the assistant is allowed to do",
+        R.string.settings_page_permissions,
+        R.string.settings_page_permissions_summary,
         "settings_permissions_row"
     ),
     TERMUX(
-        "Termux (Linux shell)",
-        "Run commands in a real Linux shell",
+        R.string.settings_page_termux,
+        R.string.settings_page_termux_summary,
         "settings_termux_row"
     ),
     SKILLS(
-        "Skills / Plugins",
-        "Built-in and community skills",
+        R.string.settings_page_skills,
+        R.string.settings_page_skills_summary,
         "settings_skills_row"
     ),
     PROACTIVE(
-        "Proactive Assistance",
-        "Offers, OTP detection, what may be scanned",
+        R.string.settings_page_proactive,
+        R.string.settings_page_proactive_summary,
         "settings_proactive_row"
     ),
     ASSISTIVE_BALL(
         // The wake word listens from inside the ball's service, so it is not a
         // page of its own — the title says so to make it findable.
-        "Assistive Ball and Wake Word",
-        "Floating ball over other apps, hands-free calls, \"Hey Gotcha\"",
+        R.string.settings_page_assistive_ball,
+        R.string.settings_page_assistive_ball_summary,
         "settings_assistive_ball_row"
     ),
     APPEARANCE(
-        "Appearance",
-        "How the app looks",
+        R.string.settings_page_appearance,
+        R.string.settings_page_appearance_summary,
         "settings_appearance_row"
     ),
     NOTIFICATIONS(
-        "Notifications",
-        "Replies, finished tasks, reminders and tips",
+        R.string.settings_page_notifications,
+        R.string.settings_page_notifications_summary,
         "settings_notifications_row"
     ),
     ABOUT(
-        "About",
-        "Samosa AI, other products, legal, contact",
+        R.string.settings_page_about,
+        R.string.settings_page_about_summary,
         "settings_about_row"
     ),
     ABOUT_SAMOSA(
-        "About Samosa AI",
-        "Mission, products, pricing, developers",
+        R.string.settings_page_about_samosa,
+        R.string.settings_page_about_samosa_summary,
         "settings_about_samosa_row",
         { ABOUT }
     ),
     LEGAL(
-        "Legal",
-        "Terms, disclaimer, data retention",
+        R.string.settings_page_legal,
+        R.string.settings_page_legal_summary,
         "settings_legal_row",
         { ABOUT }
     );
@@ -214,7 +218,7 @@ fun SettingsNavRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** Overrides the row label. Search results pass the "hub › page" path. */
-    title: String = page.title
+    title: String = stringResource(page.title)
 ) {
     Row(
         modifier = modifier
@@ -230,7 +234,7 @@ fun SettingsNavRow(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = page.summary,
+                text = stringResource(page.summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -312,7 +316,7 @@ fun SettingsScaffold(
                     TextButton(
                         onClick = onBack,
                         modifier = Modifier.testTag("settings_back")
-                    ) { Text("← Back") }
+                    ) { Text(stringResource(R.string.action_back)) }
                 }
             )
         }
@@ -391,21 +395,17 @@ internal fun parseBadgeColor(hex: String): Color = try {
     Color(0xFF6C757D)
 }
 
-/** Formats the remaining hours until the referral claim window expires. */
-internal fun formatRemainingClaimHours(
+/** Whole hours left to claim an invite code, or null once the window has closed. */
+internal fun remainingClaimHours(
     createdAt: String?,
     now: Instant = Instant.now()
-): String? {
+): Long? {
     if (createdAt.isNullOrBlank()) return null
     return try {
         val instant = Instant.parse(createdAt)
         val elapsedHours = Duration.between(instant, now).toHours()
         val remainingHours = com.gotcha.auth.REFERRAL_CLAIM_WINDOW_HOURS - elapsedHours
-        if (remainingHours > 0) {
-            "You have ${remainingHours}h left to claim an invite code."
-        } else {
-            null
-        }
+        remainingHours.takeIf { it > 0 }
     } catch (_: Exception) {
         null
     }
@@ -421,7 +421,7 @@ fun TierPill(tier: SamosaTier, modifier: Modifier = Modifier) {
         modifier = modifier
     ) {
         Text(
-            text = tier.displayName.ifBlank { "Free" },
+            text = tier.displayName.ifBlank { stringResource(R.string.samosa_tier_free) },
             color = Color.White,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
@@ -470,13 +470,12 @@ fun ReferAndEarnCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "🎁 Invite Friends, Earn Free Credits",
+                text = stringResource(R.string.referral_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Share your invite code — you both get bonus credits when a friend " +
-                    "signs up with it.",
+                text = stringResource(R.string.referral_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -489,7 +488,7 @@ fun ReferAndEarnCard(
                 ) {
                     Column {
                         Text(
-                            text = "Your invite code:",
+                            text = stringResource(R.string.referral_your_code),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -503,7 +502,7 @@ fun ReferAndEarnCard(
                     OutlinedButton(
                         onClick = { ReferralClipboardHelper.copyReferralCode(context, code) }
                     ) {
-                        Text("Copy Code")
+                        Text(stringResource(R.string.referral_copy_code))
                     }
                 }
 
@@ -517,12 +516,17 @@ fun ReferAndEarnCard(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Share Invite Link")
+                    Text(stringResource(R.string.referral_share_link))
                 }
 
                 val earnedCredits = formatScaledCredits(referral.creditsEarned)
                 Text(
-                    text = "You've referred ${referral.totalReferred} friends • $earnedCredits credits earned",
+                    text = pluralStringResource(
+                        R.plurals.referral_stats,
+                        referral.totalReferred,
+                        referral.totalReferred,
+                        earnedCredits
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -541,7 +545,7 @@ fun ReferAndEarnCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "🎁 Referred by",
+                            text = stringResource(R.string.referral_referred_by),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
@@ -559,15 +563,19 @@ fun ReferAndEarnCard(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
-                    text = "Enter Invite Code",
+                    text = stringResource(R.string.referral_enter_code),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                val remainingText = formatRemainingClaimHours(user.createdAt)
-                if (remainingText != null) {
+                val remainingHours = remainingClaimHours(user.createdAt)
+                if (remainingHours != null) {
                     Text(
-                        text = remainingText,
+                        text = pluralStringResource(
+                            R.plurals.referral_claim_hours_left,
+                            remainingHours.toInt(),
+                            remainingHours
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -581,7 +589,7 @@ fun ReferAndEarnCard(
                     OutlinedTextField(
                         value = claimInput,
                         onValueChange = { claimInput = it.uppercase().trim() },
-                        placeholder = { Text("AIR-XXXXXX") },
+                        placeholder = { Text(stringResource(R.string.referral_code_placeholder)) },
                         singleLine = true,
                         enabled = !referralBusy,
                         modifier = Modifier.weight(1f)
@@ -598,7 +606,7 @@ fun ReferAndEarnCard(
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
-                            Text("Apply")
+                            Text(stringResource(R.string.referral_apply))
                         }
                     }
                 }
@@ -655,13 +663,12 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "🌟 Got an audience? Let's team up",
+                text = stringResource(R.string.influencer_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "If you're an influencer with a solid following, we'd love to get " +
-                    "Samosa AI in your hands early — with perks to match.",
+                text = stringResource(R.string.influencer_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -676,7 +683,7 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Apply as an Influencer")
+                Text(stringResource(R.string.influencer_apply))
             }
         }
     }
@@ -707,7 +714,7 @@ fun SamosaAuthSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
+                text = stringResource(if (signedIn) R.string.samosa_signed_in else R.string.samosa_not_signed_in),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -735,14 +742,13 @@ fun SamosaAuthSection(
         }
         if (signedIn && creditsRemaining != null) {
             Text(
-                text = "Credits remaining: ${formatScaledCredits(creditsRemaining)}",
+                text = stringResource(R.string.samosa_credits_remaining, formatScaledCredits(creditsRemaining)),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
         if (!signedIn) {
             Text(
-                text = "Sign in with Google to use Samosa AI. Your OpenAI-compatible " +
-                    "settings are kept separately and are unaffected.",
+                text = stringResource(R.string.samosa_sign_in_hint),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -751,7 +757,7 @@ fun SamosaAuthSection(
                 onClick = onSignOut,
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "Please wait…" else "Log out") }
+            ) { Text(stringResource(if (busy) R.string.samosa_please_wait else R.string.samosa_log_out)) }
 
             if (user != null) {
                 ReferAndEarnCard(
@@ -773,7 +779,7 @@ fun SamosaAuthSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(signInModifier)
-            ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
+            ) { Text(stringResource(if (busy) R.string.samosa_signing_in else R.string.samosa_sign_in)) }
         }
     }
 }
@@ -897,7 +903,7 @@ fun Modifier.settingsField(tag: String): Modifier = testTag(tag).settingsHighlig
 @Composable
 fun SettingsAdvancedSection(
     testTag: String,
-    title: String = "Advanced settings",
+    title: String = stringResource(R.string.settings_advanced),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val holdsHighlight = LocalSettingsHighlight.current.field?.section == testTag
@@ -993,12 +999,12 @@ fun SettingsToggleRow(
 }
 
 /** Always produce a human-readable error string for a community-skill import failure. */
-fun formatImportError(t: Throwable): String {
+fun formatImportError(t: Throwable, text: StringLookup): String {
     val msg = t.message?.takeIf { it.isNotBlank() }
     val causeMsg = t.cause?.message?.takeIf { it.isNotBlank() }
     return when {
-        !msg.isNullOrBlank() -> "Import failed: $msg"
-        !causeMsg.isNullOrBlank() -> "Import failed: $causeMsg"
-        else -> "Import failed: ${t::class.java.simpleName}"
-    }
+        !msg.isNullOrBlank() -> msg
+        !causeMsg.isNullOrBlank() -> causeMsg
+        else -> t::class.java.simpleName
+    }.let { text(R.string.settings_import_failed, it) }
 }

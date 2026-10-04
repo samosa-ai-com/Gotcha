@@ -15,38 +15,32 @@ import java.time.Instant
 class SettingsCommonTest {
 
     @Test
-    fun `formatRemainingClaimHours calculates correct remaining time`() {
+    fun `remainingClaimHours calculates correct remaining time`() {
         val now = Instant.parse("2026-08-20T12:00:00Z")
 
         // 10 hours ago -> 62 hours left
         val created10hAgo = "2026-08-20T02:00:00Z"
-        assertEquals(
-            "You have 62h left to claim an invite code.",
-            formatRemainingClaimHours(created10hAgo, now = now)
-        )
+        assertEquals(62L, remainingClaimHours(created10hAgo, now = now))
 
         // 71 hours ago -> 1 hour left
         val created71hAgo = "2026-08-17T13:00:00Z"
-        assertEquals(
-            "You have 1h left to claim an invite code.",
-            formatRemainingClaimHours(created71hAgo, now = now)
-        )
+        assertEquals(1L, remainingClaimHours(created71hAgo, now = now))
 
         // Exactly 72 hours ago -> 0 hours left -> returns null
         val created72hAgo = "2026-08-17T12:00:00Z"
-        assertNull(formatRemainingClaimHours(created72hAgo, now = now))
+        assertNull(remainingClaimHours(created72hAgo, now = now))
 
         // 80 hours ago -> past window -> returns null
         val created80hAgo = "2026-08-17T04:00:00Z"
-        assertNull(formatRemainingClaimHours(created80hAgo, now = now))
+        assertNull(remainingClaimHours(created80hAgo, now = now))
     }
 
     @Test
-    fun `formatRemainingClaimHours handles invalid input safely`() {
+    fun `remainingClaimHours handles invalid input safely`() {
         val now = Instant.parse("2026-08-20T12:00:00Z")
-        assertNull(formatRemainingClaimHours(null, now = now))
-        assertNull(formatRemainingClaimHours("", now = now))
-        assertNull(formatRemainingClaimHours("invalid-date", now = now))
+        assertNull(remainingClaimHours(null, now = now))
+        assertNull(remainingClaimHours("", now = now))
+        assertNull(remainingClaimHours("invalid-date", now = now))
     }
 
     @Test

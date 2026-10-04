@@ -1,5 +1,8 @@
 package com.gotcha.ui
 
+import androidx.annotation.StringRes
+import com.gotcha.R
+
 /**
  * The search index behind the field at the top of the settings home list.
  *
@@ -10,7 +13,10 @@ package com.gotcha.ui
  * no row of their own on the home list — and, where the alias names one field,
  * says which, so the page can open on it rather than at the top.
  *
- * Kept free of Compose so the matching is a plain unit test.
+ * Kept free of Compose so the matching is a plain unit test. Titles, summaries
+ * and field labels are string resources, read through a [StringLookup], so a
+ * query matches them in the app's display language; the aliases stay English,
+ * which still finds a page for someone who types the English name.
  */
 
 /**
@@ -23,13 +29,12 @@ package com.gotcha.ui
  */
 data class SettingsField(
     val testTag: String,
-    val label: String,
+    @StringRes val label: Int,
     val keywords: List<String> = emptyList(),
     val section: String? = null
 ) {
-    private val haystack: String = (listOf(label) + keywords).joinToString(" ").lowercase()
-
-    internal fun matches(token: String): Boolean = haystack.contains(token)
+    internal fun matches(token: String, text: StringLookup): Boolean =
+        (listOf(text(label)) + keywords).joinToString(" ").lowercase().contains(token)
 }
 
 /**
@@ -46,18 +51,22 @@ data class SettingsSearchEntry(
      * "AI › Speech (TTS / STT)" — because the home list never shows that row, so
      * the result is the only place the path can be learned.
      */
-    val breadcrumb: String
-        get() = page.parentPage()?.let { "${it.title} › ${page.title}" } ?: page.title
+    fun breadcrumb(text: StringLookup): String =
+        page.parentPage()?.let { "${text(it.title)} › ${text(page.title)}" } ?: text(page.title)
 
-    /** Everything this entry matches against, lowercased once at construction. */
-    private val haystack: String =
-        (listOf(page.title, page.summary) + keywords + fields.flatMap { listOf(it.label) + it.keywords })
+    /** Everything this entry matches against, lowercased. */
+    private fun haystack(text: StringLookup): String =
+        (
+            listOf(text(page.title), text(page.summary)) + keywords +
+                fields.flatMap { listOf(text(it.label)) + it.keywords }
+            )
             .joinToString(" ")
             .lowercase()
 
-    private val titleWords: Set<String> = wordsOf(page.title)
-
-    internal fun matches(token: String): Boolean = haystack.contains(token)
+    internal fun matches(tokens: List<String>, text: StringLookup): Boolean {
+        val haystack = haystack(text)
+        return tokens.all { haystack.contains(it) }
+    }
 
     /**
      * The field [tokens] name, or null when they name the page itself.
@@ -70,9 +79,9 @@ data class SettingsSearchEntry(
      * order; words spread across the page's aliases and a field find the page
      * but no one field.
      */
-    internal fun fieldFor(tokens: List<String>): SettingsField? {
-        if (wordsOf(tokens.joinToString(" ")).containsAll(titleWords)) return null
-        return fields.firstOrNull { field -> tokens.all { field.matches(it) } }
+    internal fun fieldFor(tokens: List<String>, text: StringLookup): SettingsField? {
+        if (wordsOf(tokens.joinToString(" ")).containsAll(wordsOf(text(page.title)))) return null
+        return fields.firstOrNull { field -> tokens.all { field.matches(it, text) } }
     }
 }
 
@@ -88,8 +97,8 @@ data class SettingsSearchResult(
     val page: SettingsPage get() = entry.page
 
     /** The breadcrumb, carried one step further down when a field matched. */
-    val label: String
-        get() = this.field?.let { "${entry.breadcrumb} › ${it.label}" } ?: entry.breadcrumb
+    fun label(text: StringLookup): String =
+        this.field?.let { "${entry.breadcrumb(text)} › ${text(it.label)}" } ?: entry.breadcrumb(text)
 }
 
 /**
@@ -100,7 +109,7 @@ private fun words(csv: String): List<String> =
     csv.split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
 /** Short form for the index below: tag, label, then the aliases as prose. */
-private fun field(testTag: String, label: String, csv: String = "", section: String? = null) =
+private fun field(testTag: String, @StringRes label: Int, csv: String = "", section: String? = null) =
     SettingsField(testTag, label, words(csv), section)
 
 /**
@@ -119,23 +128,23 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("about me, profile"),
         listOf(
-            field("settings_user_name", "Name"),
-            field("settings_user_response_style", "Reply style", "tone"),
-            field("settings_user_currency", "Preferred currency")
+            field("settings_user_name", R.string.settings_field_user_name),
+            field("settings_user_response_style", R.string.settings_field_user_response_style, "tone"),
+            field("settings_user_currency", R.string.settings_field_user_currency)
         )
     )
     SettingsPage.LANGUAGE -> SettingsSearchEntry(
         page,
         words("translate, locale"),
         listOf(
-            field("settings_open_app_locale", "App language"),
-            field("settings_voice_language", "Voice language"),
+            field("settings_open_app_locale", R.string.settings_field_open_app_locale),
+            field("settings_voice_language", R.string.settings_field_voice_language),
             field(
                 "settings_stt_language",
-                "Transcription language",
+                R.string.settings_field_stt_language,
                 "stt language, speech to text language, transcription override"
             ),
-            field("settings_reply_language", "AI reply language")
+            field("settings_reply_language", R.string.settings_field_reply_language)
         )
     )
     SettingsPage.AI -> SettingsSearchEntry(
@@ -146,30 +155,35 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("samosa sign in, sign in, login, credits, temperature"),
         listOf(
-            field("settings_llm_provider", "LLM provider", "provider, openai, samosa"),
-            field("settings_api_key", "API key"),
-            field("settings_base_url", "Base URL", "endpoint"),
-            field("settings_model", "Main model", "model"),
+            field("settings_llm_provider", R.string.settings_field_llm_provider, "provider, openai, samosa"),
+            field("settings_api_key", R.string.settings_field_api_key),
+            field("settings_base_url", R.string.settings_field_base_url, "endpoint"),
+            field("settings_model", R.string.settings_field_model, "model"),
             field(
                 "settings_max_tool_rounds",
-                "Max tool rounds",
+                R.string.settings_field_max_tool_rounds,
                 "agent limits",
                 section = AI_ADVANCED_SECTION
             ),
-            field("settings_api_timeout", "API timeout", "timeout", section = AI_ADVANCED_SECTION)
+            field(
+                "settings_api_timeout",
+                R.string.settings_field_api_timeout,
+                "timeout",
+                section = AI_ADVANCED_SECTION
+            )
         )
     )
     SettingsPage.SPEECH -> SettingsSearchEntry(
         page,
         words("voice, speak, microphone, kokoro, whisper"),
         listOf(
-            field("settings_tts_provider", "TTS provider", "tts, text to speech"),
+            field("settings_tts_provider", R.string.settings_field_tts_provider, "tts, text to speech"),
             field(
                 "settings_stt_provider",
-                "STT provider",
+                R.string.settings_field_stt_provider,
                 "stt, transcription, transcribe, speech to text"
             ),
-            field("settings_auto_read_replies", "Auto-read replies aloud", "read aloud, read replies")
+            field("settings_auto_read_replies", R.string.settings_field_auto_read_replies, "read aloud, read replies")
         )
     )
     SettingsPage.PERMISSIONS -> SettingsSearchEntry(
@@ -194,24 +208,24 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("privacy"),
         listOf(
-            field("settings_proactive_enabled", "Proactive offers", "offers, suggestions"),
-            field("settings_proactive_scan_screen", "Scan screen content", "screen scanning"),
-            field("settings_proactive_scan_clipboard", "Scan clipboard", "clipboard"),
-            field("settings_proactive_otp", "Detect OTP / codes", "otp")
+            field("settings_proactive_enabled", R.string.settings_field_proactive_enabled, "offers, suggestions"),
+            field("settings_proactive_scan_screen", R.string.settings_field_proactive_scan_screen, "screen scanning"),
+            field("settings_proactive_scan_clipboard", R.string.settings_field_proactive_scan_clipboard, "clipboard"),
+            field("settings_proactive_otp", R.string.settings_field_proactive_otp, "otp")
         )
     )
     SettingsPage.ASSISTIVE_BALL -> SettingsSearchEntry(
         page,
         words("overlay, hands free, hands-free"),
         listOf(
-            field("settings_assistive_ball", "Show assistive ball", "floating ball, bubble"),
+            field("settings_assistive_ball", R.string.settings_field_assistive_ball, "floating ball, bubble"),
             field(
                 "settings_pause_night_light",
-                "Night Light off for screenshots",
+                R.string.settings_field_pause_night_light,
                 "night mode, blue light, yellow tint, eye comfort, screenshot colours, screenshot colors"
             ),
-            field("settings_wake_word", "Wake word: Hey Gotcha", "always listening"),
-            field("settings_wake_word_sensitivity", "Wake word sensitivity", "sensitivity")
+            field("settings_wake_word", R.string.settings_field_wake_word, "always listening"),
+            field("settings_wake_word_sensitivity", R.string.settings_field_wake_word_sensitivity, "sensitivity")
         )
     )
     SettingsPage.APPEARANCE -> SettingsSearchEntry(
@@ -227,10 +241,14 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             """
         ),
         listOf(
-            field("settings_notify_vibration", "Vibration", "vibrate"),
-            field("settings_notify_chime", "Chime", "sound"),
-            field("settings_task_finished_enabled", "Notify when a task finishes"),
-            field("settings_server_messages_enabled", "Server messages", "announcements, sync")
+            field("settings_notify_vibration", R.string.settings_field_notify_vibration, "vibrate"),
+            field("settings_notify_chime", R.string.settings_field_notify_chime, "sound"),
+            field("settings_task_finished_enabled", R.string.settings_field_task_finished_enabled),
+            field(
+                "settings_server_messages_enabled",
+                R.string.settings_field_server_messages_enabled,
+                "announcements, sync"
+            )
         )
     )
     SettingsPage.ABOUT -> SettingsSearchEntry(
@@ -265,10 +283,10 @@ fun settingsFieldFor(page: SettingsPage, testTag: String): SettingsField? =
  * extra word narrows rather than widens the result. A blank query matches
  * nothing: the caller shows the normal, unfiltered list instead.
  */
-fun filterSettings(query: String): List<SettingsSearchResult> {
+fun filterSettings(query: String, text: StringLookup): List<SettingsSearchResult> {
     val tokens = query.lowercase().split(' ', '\t', '\n').filter { it.isNotBlank() }
     if (tokens.isEmpty()) return emptyList()
     return settingsSearchIndex
-        .filter { entry -> tokens.all { entry.matches(it) } }
-        .map { entry -> SettingsSearchResult(entry, entry.fieldFor(tokens)) }
+        .filter { entry -> entry.matches(tokens, text) }
+        .map { entry -> SettingsSearchResult(entry, entry.fieldFor(tokens, text)) }
 }

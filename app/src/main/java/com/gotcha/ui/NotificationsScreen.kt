@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -89,7 +90,7 @@ fun NotificationsScreen(
         if (serverMessagesEnabled) onSyncServerMessages()
     }
 
-    SettingsScaffold(title = SettingsPage.NOTIFICATIONS.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.NOTIFICATIONS.title), onBack = onBack, overlay = overlay) {
         Text(
             "Played as soon as a reply arrives. Turn both off for no alert.",
             style = MaterialTheme.typography.bodySmall

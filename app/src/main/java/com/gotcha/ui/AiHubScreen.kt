@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
@@ -26,7 +27,7 @@ fun AiHubScreen(
 ) {
     val overlay = rememberSettingsOverlayState()
 
-    SettingsScaffold(title = SettingsPage.AI.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.AI.title), onBack = onBack, overlay = overlay) {
         Text(
             "The model does the thinking; speech gives it a voice and ears. " +
                 "One provider can cover both. Which language it speaks and answers " +

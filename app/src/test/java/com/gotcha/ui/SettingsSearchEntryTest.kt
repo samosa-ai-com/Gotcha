@@ -1,18 +1,30 @@
 package com.gotcha.ui
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * The matching behind the settings search field. The cases named in issue #86
  * are the point of the feature: each one is a control with no row of its own on
  * the home list, found by the word someone would actually type for it.
+ * Titles and labels are string resources, so this runs on Robolectric's (English) ones.
  */
+@RunWith(RobolectricTestRunner::class)
 class SettingsSearchEntryTest {
 
+    private val text = ApplicationProvider.getApplicationContext<Context>().stringLookup()
+
+    private fun filterSettings(query: String) = filterSettings(query, text)
+
     private fun pagesFor(query: String) = filterSettings(query).map { it.page }
+
+    private val SettingsPage.titleText: String get() = text(title)
 
     @Test
     fun keywordsFindThePageOwningTheControl() {
@@ -72,8 +84,8 @@ class SettingsSearchEntryTest {
     fun everyPageIsSearchableByItsOwnTitle() {
         SettingsPage.entries.forEach { page ->
             assertTrue(
-                "${page.title} cannot be found by its own title",
-                page in pagesFor(page.title)
+                "${page.titleText} cannot be found by its own title",
+                page in pagesFor(page.titleText)
             )
         }
     }
@@ -86,10 +98,10 @@ class SettingsSearchEntryTest {
     @Test
     fun nestedPagesNameTheirHub() {
         val speech = settingsSearchIndex.first { it.page == SettingsPage.SPEECH }
-        assertEquals("AI › ${SettingsPage.SPEECH.title}", speech.breadcrumb)
+        assertEquals("AI › ${SettingsPage.SPEECH.titleText}", speech.breadcrumb(text))
 
         val termux = settingsSearchIndex.first { it.page == SettingsPage.TERMUX }
-        assertEquals(SettingsPage.TERMUX.title, termux.breadcrumb)
+        assertEquals(SettingsPage.TERMUX.titleText, termux.breadcrumb(text))
     }
 
     private fun fieldFor(query: String, page: SettingsPage) =
@@ -110,7 +122,7 @@ class SettingsSearchEntryTest {
     @Test
     fun aPagesOwnTitleHighlightsNothing() {
         SettingsPage.entries.forEach { page ->
-            assertNull("${page.title} highlights a field", fieldFor(page.title, page))
+            assertNull("${page.titleText} highlights a field", fieldFor(page.titleText, page))
         }
     }
 
@@ -123,7 +135,7 @@ class SettingsSearchEntryTest {
     @Test
     fun aFieldResultNamesTheFieldInItsLabel() {
         val result = filterSettings("max tool rounds").first { it.page == SettingsPage.AI_CONFIG }
-        assertEquals("AI › AI Configuration › Max tool rounds", result.label)
+        assertEquals("AI › AI Configuration › Max tool rounds", result.label(text))
     }
 
     @Test
@@ -136,7 +148,7 @@ class SettingsSearchEntryTest {
     fun fieldsAreFoundByTheirPageAndTag() {
         assertEquals(
             "Max tool rounds",
-            settingsFieldFor(SettingsPage.AI_CONFIG, "settings_max_tool_rounds")?.label
+            settingsFieldFor(SettingsPage.AI_CONFIG, "settings_max_tool_rounds")?.label?.let { text(it) }
         )
         assertNull(settingsFieldFor(SettingsPage.SPEECH, "settings_max_tool_rounds"))
     }

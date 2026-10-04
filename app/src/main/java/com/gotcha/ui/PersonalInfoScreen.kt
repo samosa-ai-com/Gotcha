@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.data.Settings
@@ -72,7 +73,7 @@ fun PersonalInfoScreen(
         preferredCurrency = preferredCurrency
     )
 
-    SettingsScaffold(title = SettingsPage.PERSONAL_INFO.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.PERSONAL_INFO.title), onBack = onBack, overlay = overlay) {
         Text(
             "About you",
             style = MaterialTheme.typography.titleMedium,

@@ -58,4 +58,112 @@
 
     <!-- Shared actions -->
     <string name="action_cancel">Cancel</string>
+
+    <!-- Settings pages: title and the summary under it on the home list -->
+    <string name="settings_page_personal_info">Personal Info</string>
+    <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
+    <string name="settings_page_language">Language</string>
+    <string name="settings_page_language_summary">App display, voice, transcription and AI reply language</string>
+    <string name="settings_page_ai">AI</string>
+    <string name="settings_page_ai_summary">Model, provider, voice and transcription</string>
+    <string name="settings_page_ai_config">AI Configuration</string>
+    <string name="settings_page_ai_config_summary">Provider, models, agent limits</string>
+    <string name="settings_page_speech">Speech (TTS / STT)</string>
+    <string name="settings_page_speech_summary">Voices, transcription, read replies aloud</string>
+    <string name="settings_page_permissions">Permissions</string>
+    <string name="settings_page_permissions_summary">What the assistant is allowed to do</string>
+    <string name="settings_page_termux">Termux (Linux shell)</string>
+    <string name="settings_page_termux_summary">Run commands in a real Linux shell</string>
+    <string name="settings_page_skills">Skills / Plugins</string>
+    <string name="settings_page_skills_summary">Built-in and community skills</string>
+    <string name="settings_page_proactive">Proactive Assistance</string>
+    <string name="settings_page_proactive_summary">Offers, OTP detection, what may be scanned</string>
+    <string name="settings_page_assistive_ball">Assistive Ball and Wake Word</string>
+    <string name="settings_page_assistive_ball_summary">Floating ball over other apps, hands-free calls, \"Hey Gotcha\"</string>
+    <string name="settings_page_appearance">Appearance</string>
+    <string name="settings_page_appearance_summary">How the app looks</string>
+    <string name="settings_page_notifications">Notifications</string>
+    <string name="settings_page_notifications_summary">Replies, finished tasks, reminders and tips</string>
+    <string name="settings_page_about">About</string>
+    <string name="settings_page_about_summary">Samosa AI, other products, legal, contact</string>
+    <string name="settings_page_about_samosa">About Samosa AI</string>
+    <string name="settings_page_about_samosa_summary">Mission, products, pricing, developers</string>
+    <string name="settings_page_legal">Legal</string>
+    <string name="settings_page_legal_summary">Terms, disclaimer, data retention</string>
+
+    <!-- Settings: shared frame and cards -->
+    <string name="action_back">← Back</string>
+    <string name="settings_advanced">Advanced settings</string>
+    <string name="settings_import_failed">Import failed: %1$s</string>
+    <string name="samosa_tier_free">Free</string>
+    <string name="samosa_signed_in">Signed in to Samosa AI</string>
+    <string name="samosa_not_signed_in">Not signed in</string>
+    <string name="samosa_credits_remaining">Credits remaining: %1$s</string>
+    <string name="samosa_sign_in_hint">Sign in with Google to use Samosa AI. Your OpenAI-compatible settings are kept separately and are unaffected.</string>
+    <string name="samosa_please_wait">Please wait…</string>
+    <string name="samosa_log_out">Log out</string>
+    <string name="samosa_signing_in">Signing in…</string>
+    <string name="samosa_sign_in">Sign in with Google</string>
+    <string name="referral_title">🎁 Invite Friends, Earn Free Credits</string>
+    <string name="referral_description">Share your invite code — you both get bonus credits when a friend signs up with it.</string>
+    <string name="referral_your_code">Your invite code:</string>
+    <string name="referral_copy_code">Copy Code</string>
+    <string name="referral_share_link">Share Invite Link</string>
+    <string name="referral_referred_by">🎁 Referred by</string>
+    <string name="referral_enter_code">Enter Invite Code</string>
+    <string name="referral_code_placeholder">AIR-XXXXXX</string>
+    <string name="referral_apply">Apply</string>
+    <string name="influencer_title">🌟 Got an audience? Let\'s team up</string>
+    <string name="influencer_description">If you\'re an influencer with a solid following, we\'d love to get Samosa AI in your hands early — with perks to match.</string>
+    <string name="influencer_apply">Apply as an Influencer</string>
+    <plurals name="referral_claim_hours_left">
+        <item quantity="one">You have %1$dh left to claim an invite code.</item>
+        <item quantity="other">You have %1$dh left to claim an invite code.</item>
+    </plurals>
+    <plurals name="referral_stats">
+        <item quantity="one">You\'ve referred %1$d friend • %2$s credits earned</item>
+        <item quantity="other">You\'ve referred %1$d friends • %2$s credits earned</item>
+    </plurals>
+
+    <!-- Settings search: the controls a result can point at -->
+    <string name="settings_field_user_name">Name</string>
+    <string name="settings_field_user_response_style">Reply style</string>
+    <string name="settings_field_user_currency">Preferred currency</string>
+    <string name="settings_field_open_app_locale">App language</string>
+    <string name="settings_field_voice_language">Voice language</string>
+    <string name="settings_field_reply_language">AI reply language</string>
+    <string name="settings_field_llm_provider">LLM provider</string>
+    <string name="settings_field_api_key">API key</string>
+    <string name="settings_field_base_url">Base URL</string>
+    <string name="settings_field_model">Main model</string>
+    <string name="settings_field_api_timeout">API timeout</string>
+    <string name="settings_field_tts_provider">TTS provider</string>
+    <string name="settings_field_auto_read_replies">Auto-read replies aloud</string>
+    <string name="settings_field_proactive_enabled">Proactive offers</string>
+    <string name="settings_field_proactive_scan_screen">Scan screen content</string>
+    <string name="settings_field_proactive_scan_clipboard">Scan clipboard</string>
+    <string name="settings_field_proactive_otp">Detect OTP / codes</string>
+    <string name="settings_field_assistive_ball">Show assistive ball</string>
+    <string name="settings_field_wake_word">Wake word: Hey Gotcha</string>
+    <string name="settings_field_wake_word_sensitivity">Wake word sensitivity</string>
+    <string name="settings_field_notify_vibration">Vibration</string>
+    <string name="settings_field_notify_chime">Chime</string>
+    <string name="settings_field_task_finished_enabled">Notify when a task finishes</string>
+    <string name="settings_field_server_messages_enabled">Server messages</string>
+
+    <!-- Settings search: controls with longer aliases -->
+    <string name="settings_field_stt_language">Transcription language</string>
+    <string name="settings_field_max_tool_rounds">Max tool rounds</string>
+    <string name="settings_field_stt_provider">STT provider</string>
+    <string name="settings_field_pause_night_light">Night Light off for screenshots</string>
+
+    <!-- Settings home -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_clear">Clear search</string>
+    <string name="settings_search_empty">No settings match “%1$s”</string>
+    <string name="settings_feature_tour">Feature Tour</string>
+    <string name="settings_feature_tour_summary">Walk through setup again, one step at a time</string>
+    <string name="settings_feedback">Send Feedback</string>
+    <string name="settings_feedback_summary">Tell us what to improve — nothing is sent until you submit</string>
 </resources>

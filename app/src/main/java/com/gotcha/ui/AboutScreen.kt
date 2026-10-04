@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -46,7 +47,7 @@ fun AboutScreen(
 ) {
     val overlay = rememberSettingsOverlayState()
 
-    SettingsScaffold(title = SettingsPage.ABOUT.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.ABOUT.title), onBack = onBack, overlay = overlay) {
         listOf(SettingsPage.ABOUT_SAMOSA, SettingsPage.LEGAL).forEach { page ->
             HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
@@ -83,7 +84,7 @@ fun AboutSamosaScreen(
         aboutText = readAsset(context, CompanyInfoTool.ABOUT_ASSET)
     }
 
-    SettingsScaffold(title = SettingsPage.ABOUT_SAMOSA.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.ABOUT_SAMOSA.title), onBack = onBack, overlay = overlay) {
         Text(
             text = renderLegalMarkdown(aboutText ?: "(loading…)"),
             style = MaterialTheme.typography.bodyMedium

@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -91,7 +92,7 @@ fun SkillsScreen(
             .toSet() + pinnedHost
     )
 
-    SettingsScaffold(title = SettingsPage.SKILLS.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.SKILLS.title), onBack = onBack, overlay = overlay) {
         val allSkills = SkillRegistry.getAllSkills()
         if (allSkills.isEmpty()) {
             Text("No skills loaded.", style = MaterialTheme.typography.bodyMedium)
@@ -170,7 +171,7 @@ fun SkillsScreen(
                         communitySkillRefreshTick++
                         overlay.show("Imported '${skill.id}'.")
                     }.onFailure { e ->
-                        overlay.show(formatImportError(e))
+                        overlay.show(formatImportError(e, localContext.stringLookup()))
                     }
                 }
             },
@@ -233,7 +234,7 @@ fun SkillsScreen(
                                             "Imported '${skill.id}'."
                                         )
                                     }.onFailure { e ->
-                                        overlay.show(formatImportError(e))
+                                        overlay.show(formatImportError(e, localContext.stringLookup()))
                                     }
                                 }
                             }) { Text("Import") }

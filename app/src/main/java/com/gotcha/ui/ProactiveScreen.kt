@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import com.gotcha.data.Settings
 
 /**
@@ -45,7 +46,7 @@ fun ProactiveScreen(
         proactiveAutoCopyOtp = proactiveAutoCopyOtp
     )
 
-    SettingsScaffold(title = SettingsPage.PROACTIVE.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.PROACTIVE.title), onBack = onBack, overlay = overlay) {
         SettingsToggleRow(
             label = "Master Proactive Offers",
             checked = proactiveEnabled,
