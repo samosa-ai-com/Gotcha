@@ -1,6 +1,9 @@
 package com.gotcha.connectors.notion
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.connectors.CredentialStore
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -12,6 +15,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 private class InMemoryCredentialStore : CredentialStore {
     private val map = mutableMapOf<String, String>()
@@ -20,7 +25,11 @@ private class InMemoryCredentialStore : CredentialStore {
     override fun clear(connectorId: String) { map.remove(connectorId) }
 }
 
+@RunWith(RobolectricTestRunner::class)
 class NotionToolsTest {
+
+    /** Status text is string resources; Robolectric reads the English ones. */
+    private val strings = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     private lateinit var server: MockWebServer
     private lateinit var store: InMemoryCredentialStore
@@ -46,7 +55,7 @@ class NotionToolsTest {
 
     private suspend fun connect() {
         server.enqueue(MockResponse().setBody("""{"name":"Gotcha bot"}"""))
-        connector.connect("secret_token")
+        connector.connect("secret_token", strings)
         server.takeRequest() // the /users/me validation call
     }
 
@@ -58,7 +67,7 @@ class NotionToolsTest {
     @Test
     fun `connect validates the token and stores the workspace name`() = runTest {
         server.enqueue(MockResponse().setBody("""{"name":"My workspace"}"""))
-        val status = connector.connect("secret_token")
+        val status = connector.connect("secret_token", strings)
 
         assertTrue(connector.isConnected())
         assertEquals("My workspace", connector.credentials()?.workspaceName)
@@ -72,7 +81,7 @@ class NotionToolsTest {
     @Test
     fun `a rejected token is not stored`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"message":"API token is invalid"}"""))
-        val status = connector.connect("wrong")
+        val status = connector.connect("wrong", strings)
 
         assertTrue(!connector.isConnected())
         assertEquals(null, store.loadRaw("notion"))

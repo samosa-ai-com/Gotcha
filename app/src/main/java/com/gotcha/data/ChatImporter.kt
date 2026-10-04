@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.gotcha.R
 import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.MessageKind
+import com.gotcha.i18n.StringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.DOCUMENTS_ONLY_PROMPT
 import com.gotcha.llm.DOCUMENT_ONLY_PROMPT
@@ -97,6 +98,8 @@ data class ImportResult(
  */
 class ChatImporter(
     private val repository: ChatHistoryRepository,
+    /** For the problems and notes the import dialog shows. */
+    private val strings: StringLookup,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() }
 ) {
@@ -104,17 +107,16 @@ class ChatImporter(
     suspend fun preview(bytes: ByteArray): ImportParseResult {
         if (bytes.size > MAX_BYTES) {
             return ImportParseResult.Failed(
-                "The file is ${bytes.size / (1024 * 1024)} MB; the most Gotcha imports at once is " +
-                    "${MAX_BYTES / (1024 * 1024)} MB."
+                strings(R.string.import_file_too_large, bytes.size / (1024 * 1024), MAX_BYTES / (1024 * 1024))
             )
         }
         val text = bytes.toString(Charsets.UTF_8).removePrefix(BYTE_ORDER_MARK)
-        if (text.isBlank()) return ImportParseResult.Failed("The file is empty.")
+        if (text.isBlank()) return ImportParseResult.Failed(strings(R.string.import_the_file_is_empty))
 
         val read = when {
             text.trimStart().startsWith("{") -> readJson(text)
             ChatMarkdown.looksLikeExport(text) -> readMarkdown(text)
-            else -> return ImportParseResult.Failed(NOT_RECOGNISED)
+            else -> return ImportParseResult.Failed(strings(R.string.import_not_recognised))
         }
         if (read is ImportParseResult.Failed) return read
         val parsed = (read as ImportParseResult.Ready).preview
@@ -126,14 +128,14 @@ class ChatImporter(
         val items = parsed.items.map { item ->
             var session = item.session
             if (!seenIds.add(session.id)) {
-                warnings += "\"${session.title}\" shares its id with another chat in the file; imported as a separate chat."
+                warnings += strings(R.string.import_shares_its_id_with_another, session.title)
                 session = session.copy(id = newId())
                 seenIds += session.id
             }
             ImportItem(session, statusOf(session, parsed.format))
         }
         if (items.isEmpty() && parsed.rejected.isEmpty()) {
-            return ImportParseResult.Failed("The file holds no chats.")
+            return ImportParseResult.Failed(strings(R.string.import_the_file_holds_no_chats))
         }
         return ImportParseResult.Ready(parsed.copy(items = items, warnings = warnings))
     }
@@ -157,7 +159,7 @@ class ChatImporter(
 
         suspend fun write(session: ChatSession): Boolean {
             val ok = repository.saveSession(session, touch = false)
-            if (ok) written += session.id else failed += ImportProblem(session.title, "It couldn't be saved.")
+            if (ok) written += session.id else failed += ImportProblem(session.title, strings(R.string.import_it_couldn_t_be_saved))
             return ok
         }
 
@@ -172,7 +174,7 @@ class ChatImporter(
                         if (write(session.copy(id = newId(), title = "${session.title} (imported)"))) imported++
                     DuplicateStrategy.REPLACE ->
                         if (session.id in protectedIds) {
-                            failed += ImportProblem(session.title, "A task is running in that chat; try again when it's done.")
+                            failed += ImportProblem(session.title, strings(R.string.import_a_task_is_running_in))
                         } else if (write(session)) {
                             replaced++
                         }
@@ -202,27 +204,27 @@ class ChatImporter(
         val root = try {
             ChatArchive.json.parseToJsonElement(text)
         } catch (_: Exception) {
-            return ImportParseResult.Failed("The file isn't valid JSON; it may be damaged or cut short.")
+            return ImportParseResult.Failed(strings(R.string.import_the_file_isn_t_valid))
         }
-        val obj = root as? JsonObject ?: return ImportParseResult.Failed(NOT_RECOGNISED)
+        val obj = root as? JsonObject ?: return ImportParseResult.Failed(strings(R.string.import_not_recognised))
         val format = (obj["format"] as? JsonPrimitive)?.content
 
         if (format == null && "id" in obj && "messages" in obj) {
             return collect(ImportFormat.CHAT_FILE, listOf(obj), emptyList())
         }
-        if (format != ChatArchive.FORMAT) return ImportParseResult.Failed(NOT_RECOGNISED)
+        if (format != ChatArchive.FORMAT) return ImportParseResult.Failed(strings(R.string.import_not_recognised))
 
         val version = (obj["version"] as? JsonPrimitive)?.intOrNull
-            ?: return ImportParseResult.Failed("The backup has no version number; it may be damaged.")
+            ?: return ImportParseResult.Failed(strings(R.string.import_the_backup_has_no_version))
         if (version > ChatArchive.VERSION) {
             return ImportParseResult.Failed(
-                "This backup was made by a newer version of Gotcha (format $version). Update Gotcha to import it."
+                strings(R.string.import_this_backup_was_made_by, version)
             )
         }
         val sessions = obj["sessions"] as? JsonArray
-            ?: return ImportParseResult.Failed("The backup has no chat list; it may be damaged.")
+            ?: return ImportParseResult.Failed(strings(R.string.import_the_backup_has_no_chat))
         val warnings = if ((obj["includesImages"] as? JsonPrimitive)?.content == "false") {
-            listOf("This backup was made without images, so imported chats show none.")
+            listOf(strings(R.string.import_this_backup_was_made_without))
         } else {
             emptyList()
         }
@@ -241,11 +243,11 @@ class ChatImporter(
         elements.forEachIndexed { index, element ->
             val fallbackTitle = ((element as? JsonObject)?.get("title") as? JsonPrimitive)?.content
                 ?.takeIf { it.isNotBlank() }
-                ?: "Chat ${index + 1}"
+                ?: strings(R.string.import_chat, index + 1)
             val session = try {
                 ChatArchive.json.decodeFromJsonElement(ChatSession.serializer(), element)
             } catch (_: Exception) {
-                rejected += ImportProblem(fallbackTitle, "Its data is damaged or incomplete.")
+                rejected += ImportProblem(fallbackTitle, strings(R.string.import_its_data_is_damaged_or))
                 return@forEachIndexed
             }
             when (val checked = validate(session, notes)) {
@@ -263,7 +265,7 @@ class ChatImporter(
         val parsed = try {
             ChatMarkdown.parse(text)
         } catch (e: IllegalArgumentException) {
-            return ImportParseResult.Failed(e.message ?: NOT_RECOGNISED)
+            return ImportParseResult.Failed(e.message ?: strings(R.string.import_not_recognised))
         }
         val notes = parsed.warnings.toMutableList()
         val session = ChatSession(
@@ -274,8 +276,7 @@ class ChatImporter(
             // Rough, like the engine's own trimming estimate; the next turn recounts.
             tokenCount = parsed.messages.sumOf { it.textContent.length } / 4
         )
-        notes += "A Markdown export holds text only: images, attached documents and full tool " +
-            "arguments are not part of it."
+        notes += strings(R.string.import_a_markdown_export_holds_text)
         return when (val checked = validate(session, notes)) {
             is Validated.Ok -> ImportParseResult.Ready(
                 ImportPreview(
@@ -285,7 +286,9 @@ class ChatImporter(
                     notes
                 )
             )
-            is Validated.Rejected -> ImportParseResult.Failed("The export can't be imported: ${checked.reason}")
+            is Validated.Rejected -> ImportParseResult.Failed(
+                strings(R.string.import_the_export_can_t_be, checked.reason)
+            )
         }
     }
 
@@ -299,8 +302,7 @@ class ChatImporter(
      */
     private fun withTranscriptOfHistory(session: ChatSession, notes: MutableList<String>): ChatSession {
         if (session.displayMessages.isEmpty() || transcriptShowsHistory(session)) return session
-        notes += "\"${session.title}\": what it showed didn't match the conversation, so it is shown " +
-            "rebuilt from the conversation instead; images appear as placeholders."
+        notes += strings(R.string.import_what_it_showed_didn_t, session.title)
         return session.copy(displayMessages = emptyList())
     }
 
@@ -341,7 +343,7 @@ class ChatImporter(
     private fun asNotes(session: ChatSession, notes: MutableList<String>): ChatSession {
         val count = session.messages.count { it.role == "system" }
         if (count == 0) return session
-        notes += "\"${session.title}\": $count system message(s) imported as notes, not instructions."
+        notes += strings.quantity(R.plurals.import_system_as_notes, count, session.title, count)
         return session.copy(messages = ChatMarkdown.withSystemAsNotes(session.messages))
     }
 
@@ -370,7 +372,7 @@ class ChatImporter(
         val latest = now() + CLOCK_SKEW_MS
         if (repaired.lastModified <= 0 || repaired.lastModified > latest) {
             repaired = repaired.copy(lastModified = now())
-            notes += "\"${repaired.title}\" had no usable date; it is dated today."
+            notes += strings(R.string.import_had_no_usable_date_it, repaired.title)
         }
         return Validated.Ok(repaired)
     }
@@ -389,7 +391,5 @@ class ChatImporter(
         /** What the transcript shows for a message sent with attachments and no text ([com.gotcha.agent.userDisplayText]). */
         private val ATTACHMENT_PLACEHOLDERS = setOf("(image attached)", "(files attached)", "(document attached)")
         private val SAFE_ID = Regex("[A-Za-z0-9_-]{1,100}")
-        private const val NOT_RECOGNISED =
-            "This isn't a Gotcha chat file. Choose a backup (.gotcha.json) or a chat exported as Markdown."
     }
 }

@@ -1498,4 +1498,110 @@
 
     <!-- Errors: model timeout -->
     <string name="error_model_timeout">The model didn\'t respond in time. Try again, or raise the API timeout in Settings → AI → AI Configuration.</string>
+
+    <!-- Connectors: status lines and connect results -->
+    <string name="connector_not_connected">Not connected</string>
+    <string name="connector_connected_to">Connected to %1$s</string>
+    <string name="connector_connected_as">Connected as %1$s</string>
+    <string name="connector_could_not_connect">Could not connect: %1$s</string>
+    <string name="connector_could_not_refresh">Could not refresh %1$s: %2$s</string>
+    <string name="ha_not_connected">Home Assistant is not connected.</string>
+    <string name="ha_enter_url">Enter your Home Assistant URL first.</string>
+    <string name="ha_paste_token">Paste a long-lived access token first.</string>
+    <string name="ha_disconnected_while_connecting">Disconnected while connecting — the new connection was not saved.</string>
+    <string name="ha_connected">Connected to %1$s. %2$s %3$s</string>
+    <string name="ha_hint_expose">Expose devices/entities to Assist to add tools.</string>
+    <string name="ha_hint_expose_more">Expose more entities to Assist to add tools.</string>
+    <string name="ha_disconnected_while_refreshing">Home Assistant was disconnected while refreshing.</string>
+    <string name="ha_refresh_failed">Could not refresh Home Assistant tools: %1$s</string>
+    <string name="google_reconnect_needed">Reconnect needed — the saved sign-in expired (consent screens in \"Testing\" status expire every 7 days; publish to production to stop this).</string>
+    <string name="microsoft_reconnect_needed">Reconnect needed — the saved sign-in expired or was revoked.</string>
+    <string name="notion_refresh_failed">Could not refresh Notion connection: %1$s</string>
+    <string name="notion_paste_token">Paste the integration token first.</string>
+    <string name="notion_your_workspace">your workspace</string>
+    <string name="notion_connected">Connected to %1$s. Remember to share the pages you want reachable with the integration (page ⋯ → Connections).</string>
+    <string name="imap_connected_as">Connected as %1$s (%2$s)</string>
+    <string name="oauth_connection_failed">Connection failed.</string>
+    <string name="oauth_start_first">Start Connect first, then paste the redirect URL if the browser didn\'t return.</string>
+    <string name="oauth_no_code">That URL doesn\'t contain a \'code\' parameter.</string>
+    <string name="oauth_state_mismatch">State mismatch — start Connect again and paste the new redirect URL.</string>
+    <plurals name="ha_tools_available">
+        <item quantity="one">%1$d Home Assistant tool is available.</item>
+        <item quantity="other">%1$d Home Assistant tools are available.</item>
+    </plurals>
+
+    <!-- Speech: when the voice language and speech models disagree -->
+    <string name="speech_check_remedy_clear">Clear the voice to let Gotcha pick a %1$s one.</string>
+    <string name="speech_check_remedy_pick">Pick a voice or model that speaks %1$s.</string>
+    <string name="speech_check_voice_mismatch">The voice %1$s speaks %2$s, so it will read %3$s replies with %2$s pronunciation and they may not sound right. %4$s</string>
+    <string name="speech_check_read_by_voice">its %1$s voice %2$s</string>
+    <string name="speech_check_read_by_default">its default voice %1$s</string>
+    <string name="speech_check_model_no_voice">The text-to-speech model %1$s has no %2$s voice, so %2$s replies will be read by %3$s and may not sound right. Pick a model with a %2$s voice, or use Android Built-in.</string>
+    <string name="speech_check_stt_forced">Transcription is forced to %1$s (%2$s), so %3$s speech will be transcribed as %1$s. Clear the override to follow the voice language.</string>
+    <string name="speech_check_stt_unlisted">The speech-to-text model %1$s does not list %2$s, so it may transcribe %2$s speech wrongly. Pick a model that lists it.</string>
+
+    <!-- Referral sharing -->
+    <string name="referral_copied">Copied invite code: %1$s</string>
+    <string name="referral_share_text">Try Gotcha — use my invite code %1$s to get bonus credits: %2$s</string>
+    <string name="referral_share_subject">Invite to Gotcha</string>
+    <string name="referral_share_chooser">Share invite</string>
+
+    <!-- SamosaAuthManager -->
+    <string name="samosa_auth_no_google_account_available_add">No Google account available. Add a Google account to this device and try again.</string>
+    <string name="samosa_auth_google_sign_in_failed">Google Sign-In failed: %1$s</string>
+    <string name="samosa_auth_server_did_not_return_a">Server did not return a session token.</string>
+    <string name="samosa_auth_network_error_check_your_connection">Network error. Check your connection and try again.</string>
+    <string name="samosa_auth_not_signed_in_to_samosa">Not signed in to Samosa AI.</string>
+    <string name="samosa_auth_please_enter_an_invite_code">Please enter an invite code.</string>
+    <string name="samosa_auth_network_error_please_check_your">Network error. Please check your connection and try again.</string>
+
+    <!-- Samosa sign-in and referral errors -->
+    <string name="samosa_auth_sign_in_was_rejected_by">Sign-in was rejected by the server (invalid token). Please try again.</string>
+    <string name="samosa_auth_this_account_is_disabled_contact">This account is disabled. Contact support.</string>
+    <string name="samosa_auth_too_many_attempts_please_wait">Too many attempts. Please wait a moment and try again.</string>
+    <string name="samosa_auth_samosa_ai_is_temporarily_unavailable">Samosa AI is temporarily unavailable (gateway error). Try again shortly.</string>
+    <string name="samosa_auth_registration_failed_http">Registration failed (HTTP %1$d).</string>
+    <string name="samosa_auth"></string>
+    <string name="samosa_auth_invalid_referral_code">Invalid referral code.</string>
+    <string name="samosa_auth_referral_code_not_found">Referral code not found.</string>
+    <string name="samosa_auth_you_have_already_been_referred">You have already been referred.</string>
+    <string name="samosa_auth_referral_window_expired_codes_must">Referral window expired. Codes must be claimed within %1$d hours of signup.</string>
+    <string name="samosa_auth_too_many_attempts_please_try">Too many attempts. Please try again later.</string>
+    <string name="samosa_auth_bonus_grant_failed_please_try">Bonus grant failed. Please try again shortly.</string>
+    <string name="samosa_auth_referral_claim_failed_http">Referral claim failed (HTTP %1$d).</string>
+    <string name="samosa_auth_you_cannot_refer_yourself">You cannot refer yourself.</string>
+    <string name="samosa_auth_this_referral_code_has_reached">This referral code has reached its maximum invite limit.</string>
+
+    <!-- Samosa sign-in: unexpected -->
+    <string name="samosa_auth_unexpected_error">Unexpected sign-in error.</string>
+
+    <!-- Speech providers -->
+    <string name="audio_provider_android">Android Built-in</string>
+    <string name="audio_provider_samosa">Samosa AI</string>
+    <string name="audio_provider_api">External API</string>
+    <string name="audio_provider_none">None</string>
+
+    <!-- Chat import: problems and notes -->
+    <string name="import_the_file_is_empty">The file is empty.</string>
+    <string name="import_the_file_holds_no_chats">The file holds no chats.</string>
+    <string name="import_it_couldn_t_be_saved">It couldn\'t be saved.</string>
+    <string name="import_a_task_is_running_in">A task is running in that chat; try again when it\'s done.</string>
+    <string name="import_the_file_isn_t_valid">The file isn\'t valid JSON; it may be damaged or cut short.</string>
+    <string name="import_the_backup_has_no_version">The backup has no version number; it may be damaged.</string>
+    <string name="import_this_backup_was_made_by">This backup was made by a newer version of Gotcha (format %1$s). Update Gotcha to import it.</string>
+    <string name="import_the_backup_has_no_chat">The backup has no chat list; it may be damaged.</string>
+    <string name="import_this_backup_was_made_without">This backup was made without images, so imported chats show none.</string>
+    <string name="import_its_data_is_damaged_or">Its data is damaged or incomplete.</string>
+    <string name="import_a_markdown_export_holds_text">A Markdown export holds text only: images, attached documents and full tool arguments are not part of it.</string>
+    <string name="import_the_export_can_t_be">The export can\'t be imported: %1$s</string>
+    <string name="import_what_it_showed_didn_t">\"%1$s\": what it showed didn\'t match the conversation, so it is shown rebuilt from the conversation instead; images appear as placeholders.</string>
+    <string name="import_had_no_usable_date_it">\"%1$s\" had no usable date; it is dated today.</string>
+    <string name="import_shares_its_id_with_another">\"%1$s\" shares its id with another chat in the file; imported as a separate chat.</string>
+    <string name="import_chat">Chat %1$s</string>
+    <string name="import_file_too_large">The file is %1$s MB; the most Gotcha imports at once is %2$s MB.</string>
+    <string name="import_not_recognised">This isn\'t a Gotcha chat file. Choose a backup (.gotcha.json) or a chat exported as Markdown.</string>
+    <plurals name="import_system_as_notes">
+        <item quantity="one">\"%1$s\": %2$d system message imported as a note, not an instruction.</item>
+        <item quantity="other">\"%1$s\": %2$d system messages imported as notes, not instructions.</item>
+    </plurals>
 </resources>

@@ -1,7 +1,9 @@
 package com.gotcha.connectors.homeassistant
 
+import com.gotcha.R
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
+import com.gotcha.i18n.StringLookup
 import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import com.gotcha.tools.ToolRegistry
@@ -77,9 +79,9 @@ class HomeAssistantConnector(
 
     override fun isConnected(): Boolean = credentials != null
 
-    override fun statusLine(): String = credentials
-        ?.let { "Connected to ${hostOf(it.baseUrl)}" }
-        ?: "Not connected"
+    override fun statusLine(strings: StringLookup): String = credentials
+        ?.let { strings(R.string.connector_connected_to, hostOf(it.baseUrl)) }
+        ?: strings(R.string.connector_not_connected)
 
     override fun disconnect() {
         // Invalidate any in-flight connect/refresh so it cannot re-establish the
@@ -97,15 +99,15 @@ class HomeAssistantConnector(
      * them, so a typo is caught on the Settings screen instead of on the first
      * tool call. Returns a status message for the card.
      */
-    suspend fun connect(baseUrl: String, token: String): String {
+    suspend fun connect(baseUrl: String, token: String, strings: StringLookup): String {
         val generation = connectionGeneration
         var url = baseUrl.trim().trimEnd('/')
         if (url.isNotBlank() && !url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
             url = "http://$url"
         }
         val trimmedToken = token.trim()
-        if (url.isBlank()) return "Enter your Home Assistant URL first."
-        if (trimmedToken.isBlank()) return "Paste a long-lived access token first."
+        if (url.isBlank()) return strings(R.string.ha_enter_url)
+        if (trimmedToken.isBlank()) return strings(R.string.ha_paste_token)
         return try {
             val endpoint = HomeAssistantMcpClient.mcpEndpoint(url)
             client.initialize(endpoint, trimmedToken)
@@ -119,18 +121,18 @@ class HomeAssistantConnector(
                     credentials = creds
                     creds
                 }
-            } ?: return "Disconnected while connecting — the new connection was not saved."
+            } ?: return strings(R.string.ha_disconnected_while_connecting)
             registerTools(committed.tools)
-            val hint = if (tools.isEmpty()) {
-                " Expose devices/entities to Assist to add tools."
-            } else {
-                " Expose more entities to Assist to add tools."
-            }
-            "Connected to ${hostOf(url)}. ${tools.size} Home Assistant tool(s) are available.$hint"
+            val hint = strings(if (tools.isEmpty()) R.string.ha_hint_expose else R.string.ha_hint_expose_more)
+            strings(R.string.ha_connected, hostOf(url), toolsAvailable(tools.size, strings), hint)
         } catch (e: Exception) {
-            "Could not connect: ${e.message}"
+            strings(R.string.connector_could_not_connect, e.message.orEmpty())
         }
     }
+
+    /** "3 Home Assistant tools are available." */
+    private fun toolsAvailable(count: Int, strings: StringLookup): String =
+        strings.quantity(R.plurals.ha_tools_available, count, count)
 
     /** Executes a server-defined MCP tool by name with [args]. */
     suspend fun callTool(name: String, args: JsonObject): McpCallResult {
@@ -144,9 +146,9 @@ class HomeAssistantConnector(
     }
 
     /** Re-reads `tools/list` and updates the cached + registered tool set. */
-    override suspend fun refreshTools(): String {
+    override suspend fun refreshTools(strings: StringLookup): String {
         val generation = connectionGeneration
-        val creds = credentials ?: return "Home Assistant is not connected."
+        val creds = credentials ?: return strings(R.string.ha_not_connected)
         return try {
             val endpoint = HomeAssistantMcpClient.mcpEndpoint(creds.baseUrl)
             val tools = client.listTools(endpoint, creds.token)
@@ -159,11 +161,11 @@ class HomeAssistantConnector(
                     credentials = updated
                     updated
                 }
-            } ?: return "Home Assistant was disconnected while refreshing."
+            } ?: return strings(R.string.ha_disconnected_while_refreshing)
             registerTools(committed.tools)
-            "${committed.tools.size} Home Assistant tool(s) are available."
+            toolsAvailable(committed.tools.size, strings)
         } catch (e: Exception) {
-            "Could not refresh Home Assistant tools: ${e.message}"
+            strings(R.string.ha_refresh_failed, e.message.orEmpty())
         }
     }
 

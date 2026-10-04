@@ -1280,7 +1280,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
 
     // ---- Chat backup and import (issue #83) ----
 
-    private val chatImporter = ChatImporter(historyRepository)
+    private val chatImporter = ChatImporter(historyRepository, application.stringLookup())
 
     private val _chatTransfer = MutableStateFlow<ChatTransferState>(ChatTransferState.Idle)
     val chatTransfer: StateFlow<ChatTransferState> = _chatTransfer.asStateFlow()

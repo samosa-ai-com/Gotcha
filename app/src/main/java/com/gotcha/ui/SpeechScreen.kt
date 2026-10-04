@@ -1,6 +1,7 @@
 package com.gotcha.ui
 
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
@@ -36,6 +37,7 @@ import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
 
@@ -262,7 +264,7 @@ fun SpeechScreen(
             onExpandedChange = { ttsProviderExpanded = it }
         ) {
             OutlinedTextField(
-                value = ttsProvider.label,
+                value = stringResource(ttsProvider.nameRes),
                 onValueChange = {},
                 readOnly = true,
                 label = { Text(stringResource(R.string.speech_tts_provider)) },
@@ -279,7 +281,7 @@ fun SpeechScreen(
             ) {
                 AudioProvider.entries.forEach { provider ->
                     DropdownMenuItem(
-                        text = { Text(provider.label) },
+                        text = { Text(stringResource(provider.nameRes)) },
                         onClick = {
                             ttsProvider = provider
                             ttsProviderExpanded = false
@@ -414,7 +416,7 @@ fun SpeechScreen(
             onExpandedChange = { sttProviderExpanded = it }
         ) {
             OutlinedTextField(
-                value = sttProvider.label,
+                value = stringResource(sttProvider.nameRes),
                 onValueChange = {},
                 readOnly = true,
                 label = { Text(stringResource(R.string.speech_stt_provider)) },
@@ -431,7 +433,7 @@ fun SpeechScreen(
             ) {
                 AudioProvider.entries.forEach { provider ->
                     DropdownMenuItem(
-                        text = { Text(provider.label) },
+                        text = { Text(stringResource(provider.nameRes)) },
                         onClick = {
                             sttProvider = provider
                             sttProviderExpanded = false
@@ -515,14 +517,16 @@ fun SpeechScreen(
                     ttsApiModel,
                     ttsVoice,
                     availableTtsModels,
-                    initial.effectiveVoiceLanguage
+                    initial.effectiveVoiceLanguage,
+                    LocalContext.current.stringLookup()
                 )
             ) + SpeechLanguageCheck.sttWarnings(
                 sttProvider,
                 sttApiModel,
                 initial.sttLanguage,
                 availableSttModels,
-                initial.effectiveVoiceLanguage
+                initial.effectiveVoiceLanguage,
+                LocalContext.current.stringLookup()
             )
         )
         SettingsToggleRow(
@@ -800,3 +804,13 @@ private fun SpeechDocsLink(modifier: Modifier = Modifier) {
             }
     )
 }
+
+/** The provider's name in the display language; [AudioProvider.label] is the English one tools report. */
+@get:StringRes
+private val AudioProvider.nameRes: Int
+    get() = when (this) {
+        AudioProvider.ANDROID -> R.string.audio_provider_android
+        AudioProvider.SAMOSA_AI -> R.string.audio_provider_samosa
+        AudioProvider.API -> R.string.audio_provider_api
+        AudioProvider.NONE -> R.string.audio_provider_none
+    }

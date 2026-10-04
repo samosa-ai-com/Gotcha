@@ -1,13 +1,22 @@
 package com.gotcha.audio
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.stringLookup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class SpeechLanguageCheckTest {
+
+    /** Warnings are string resources; Robolectric reads the English ones. */
+    private val strings = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     private val englishOnlyKokoro = AudioModel(
         id = "kokoro",
@@ -25,7 +34,7 @@ class SpeechLanguageCheckTest {
         language: Language,
         voice: String = "",
         provider: AudioProvider = AudioProvider.SAMOSA_AI
-    ) = SpeechLanguageCheck.ttsWarning(provider, model.id, voice, listOf(model), language)
+    ) = SpeechLanguageCheck.ttsWarning(provider, model.id, voice, listOf(model), language, strings)
 
     // ---- Text to speech (issue #113's acceptance case) ----
 
@@ -85,7 +94,14 @@ class SpeechLanguageCheckTest {
     fun `Android Built-in and an unknown model are not judged`() {
         assertNull(tts(englishOnlyKokoro, Language.HINDI, provider = AudioProvider.ANDROID))
         assertNull(
-            SpeechLanguageCheck.ttsWarning(AudioProvider.API, "missing", "", listOf(englishOnlyKokoro), Language.HINDI)
+            SpeechLanguageCheck.ttsWarning(
+                AudioProvider.API,
+                "missing",
+                "",
+                listOf(englishOnlyKokoro),
+                Language.HINDI,
+                strings
+            )
         )
     }
 
@@ -94,7 +110,7 @@ class SpeechLanguageCheckTest {
     private val whisperEnHi = AudioModel("whisper", ModelCategory.STT, languages = listOf("en", "hi"))
 
     private fun stt(override: String, language: Language, model: AudioModel = whisperEnHi) =
-        SpeechLanguageCheck.sttWarnings(AudioProvider.SAMOSA_AI, model.id, override, listOf(model), language)
+        SpeechLanguageCheck.sttWarnings(AudioProvider.SAMOSA_AI, model.id, override, listOf(model), language, strings)
 
     @Test
     fun `an override that disagrees with the voice language warns`() {
@@ -125,7 +141,14 @@ class SpeechLanguageCheckTest {
     @Test
     fun `Android speech-to-text ignores the override, so it is not judged`() {
         assertTrue(
-            SpeechLanguageCheck.sttWarnings(AudioProvider.ANDROID, "", "en", emptyList(), Language.HINDI).isEmpty()
+            SpeechLanguageCheck.sttWarnings(
+                AudioProvider.ANDROID,
+                "",
+                "en",
+                emptyList(),
+                Language.HINDI,
+                strings
+            ).isEmpty()
         )
     }
 

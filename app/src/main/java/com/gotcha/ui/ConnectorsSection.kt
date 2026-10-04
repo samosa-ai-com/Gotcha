@@ -39,6 +39,7 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -309,6 +310,7 @@ private fun HomeAssistantCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val saved = homeAssistant.credentials()
     val url = rememberTokenField(
         stringResource(R.string.connectors_home_assistant_url),
@@ -319,7 +321,7 @@ private fun HomeAssistantCard(
 
     TokenConnectorCard(
         title = stringResource(R.string.connectors_home_assistant),
-        statusLine = homeAssistant::statusLine,
+        statusLine = { homeAssistant.statusLine(strings) },
         isConnected = homeAssistant::isConnected,
         fields = listOf(url, token),
         headerTestTag = "connector_header_homeassistant",
@@ -330,9 +332,9 @@ private fun HomeAssistantCard(
             stringResource(R.string.connectors_3_paste_your_home_assistant),
             stringResource(R.string.connectors_4_expose_the_devices_you)
         ),
-        onConnect = { homeAssistant.connect(url.value, token.value) },
+        onConnect = { homeAssistant.connect(url.value, token.value, strings) },
         onDisconnect = homeAssistant::disconnect,
-        onRefresh = homeAssistant::refreshTools,
+        onRefresh = { homeAssistant.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -344,11 +346,12 @@ private fun NotionCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val token = rememberTokenField(stringResource(R.string.connectors_internal_integration_token), "", secret = true)
 
     TokenConnectorCard(
         title = stringResource(R.string.connectors_notion),
-        statusLine = notion::statusLine,
+        statusLine = { notion.statusLine(strings) },
         isConnected = notion::isConnected,
         fields = listOf(token),
         headerTestTag = "connector_header_notion",
@@ -359,9 +362,9 @@ private fun NotionCard(
             stringResource(R.string.connectors_3_copy_the_internal_integration),
             stringResource(R.string.connectors_4_important_open_each_page)
         ),
-        onConnect = { notion.connect(token.value) },
+        onConnect = { notion.connect(token.value, strings) },
         onDisconnect = notion::disconnect,
-        onRefresh = notion::refreshTools,
+        onRefresh = { notion.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -373,6 +376,7 @@ private fun ImapCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val saved = imap.credentials()
     val context = LocalContext.current
     val email =
@@ -402,7 +406,7 @@ private fun ImapCard(
 
     TokenConnectorCard(
         title = stringResource(R.string.connectors_email_imap),
-        statusLine = imap::statusLine,
+        statusLine = { imap.statusLine(strings) },
         isConnected = imap::isConnected,
         fields = fields,
         headerTestTag = "connector_header_imap",
@@ -433,7 +437,7 @@ private fun ImapCard(
             context.getString(R.string.connectors_imap_saved)
         },
         onDisconnect = imap::disconnect,
-        onRefresh = imap::refreshTools,
+        onRefresh = { imap.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -445,6 +449,7 @@ private fun GoogleCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val context = LocalContext.current
     // Which Google services to request consent for. Adding one later needs a reconnect,
     // because the refresh token only carries the scopes granted at consent time.
@@ -471,7 +476,7 @@ private fun GoogleCard(
 
     OAuthConnectorCard(
         title = stringResource(R.string.connectors_google_gmail_calendar),
-        statusLine = google::statusLine,
+        statusLine = { google.statusLine(strings) },
         isConnected = google::isConnected,
         needsReconnect = google::needsReconnect,
         initialClientId = google.credentials()?.clientId ?: "",
@@ -479,7 +484,7 @@ private fun GoogleCard(
         flow = flow,
         headerTestTag = "connector_header_google",
         onDisconnect = google::disconnect,
-        onRefresh = google::refreshTools,
+        onRefresh = { google.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange,
         blurb = stringResource(R.string.connectors_full_read_write_gmail_and),
@@ -514,6 +519,7 @@ private fun MicrosoftCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val context = LocalContext.current
     // "common" covers personal and work accounts; a tenant id/domain locks it to one org.
     var tenant by remember {
@@ -530,7 +536,7 @@ private fun MicrosoftCard(
 
     OAuthConnectorCard(
         title = stringResource(R.string.connectors_microsoft_outlook_calendar_to_do),
-        statusLine = microsoft::statusLine,
+        statusLine = { microsoft.statusLine(strings) },
         isConnected = microsoft::isConnected,
         needsReconnect = microsoft::needsReconnect,
         initialClientId = microsoft.credentials()?.clientId ?: "",
@@ -539,7 +545,7 @@ private fun MicrosoftCard(
         flow = flow,
         headerTestTag = "connector_header_microsoft",
         onDisconnect = microsoft::disconnect,
-        onRefresh = microsoft::refreshTools,
+        onRefresh = { microsoft.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange,
         blurb = stringResource(R.string.connectors_outlook_mail_calendar_and_to),

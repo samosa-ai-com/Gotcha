@@ -154,7 +154,11 @@ private fun EnabledRow(
  */
 @Composable
 private fun disconnectedHint(status: String): String =
-    if (status == "Not connected") stringResource(R.string.connector_cards_not_connected_hint) else status
+    if (status == stringResource(R.string.connector_not_connected)) {
+        stringResource(R.string.connector_cards_not_connected_hint)
+    } else {
+        status
+    }
 
 /**
  * Shared "Refresh tools" / "Refresh connection" button for a connected connector

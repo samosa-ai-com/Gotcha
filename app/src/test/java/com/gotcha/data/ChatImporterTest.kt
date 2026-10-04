@@ -1,8 +1,11 @@
 package com.gotcha.data
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.DocumentPart
 import com.gotcha.llm.attachmentsUserMessage
@@ -18,6 +21,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
@@ -25,6 +30,7 @@ import java.io.File
  * damaged input is refused with a reason (per chat where possible), and a
  * clash with an existing chat is resolved the way the user chose.
  */
+@RunWith(RobolectricTestRunner::class)
 class ChatImporterTest {
 
     @get:Rule
@@ -35,7 +41,12 @@ class ChatImporterTest {
     private var idCounter = 0
     private val now = 1_790_000_000_000L
 
-    private fun importer() = ChatImporter(repo, now = { now }, newId = { "new-${idCounter++}" })
+    private fun importer() = ChatImporter(
+        repo,
+        ApplicationProvider.getApplicationContext<Context>().stringLookup(),
+        now = { now },
+        newId = { "new-${idCounter++}" }
+    )
 
     @Before
     fun setUp() {
@@ -116,7 +127,7 @@ class ChatImporterTest {
         val messages = preview.items.single().session.messages
         assertTrue(messages.none { it.role == "system" })
         assertTrue(messages.last().textContent.startsWith(ChatMarkdown.SYSTEM_NOTE_PREFIX))
-        assertTrue(preview.warnings.any { "as notes" in it })
+        assertTrue(preview.warnings.any { "imported as a note" in it })
 
         // Re-importing a chat's own backup is still recognised as a duplicate.
         repo.saveSession(withSystem, touch = false)

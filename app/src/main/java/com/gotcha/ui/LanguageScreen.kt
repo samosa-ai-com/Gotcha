@@ -39,6 +39,7 @@ import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SpeechLanguageCheck
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
@@ -126,14 +127,16 @@ fun LanguageScreen(
             initial.ttsApiModel,
             initial.ttsVoice,
             ttsModels,
-            resolvedVoiceLanguage
+            resolvedVoiceLanguage,
+            LocalContext.current.stringLookup()
         )
     ) + SpeechLanguageCheck.sttWarnings(
         initial.sttProvider,
         initial.sttApiModel,
         sttLanguage,
         sttModels,
-        resolvedVoiceLanguage
+        resolvedVoiceLanguage,
+        LocalContext.current.stringLookup()
     )
 
     SettingsScaffold(title = stringResource(SettingsPage.LANGUAGE.title), onBack = onBack, overlay = overlay) {

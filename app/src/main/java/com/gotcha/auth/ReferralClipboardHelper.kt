@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.gotcha.R
 import com.gotcha.util.GotchaLog
 
 /**
@@ -40,7 +41,7 @@ object ReferralClipboardHelper {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             val clip = ClipData.newPlainText("Gotcha Referral Code", code)
             clipboard?.setPrimaryClip(clip)
-            Toast.makeText(context, "Copied invite code: $code", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.referral_copied, code), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             GotchaLog.d(TAG, e) { "Failed to copy referral code to clipboard" }
         }
@@ -56,12 +57,12 @@ object ReferralClipboardHelper {
                 type = "text/plain"
                 putExtra(
                     Intent.EXTRA_TEXT,
-                    "Try Gotcha — use my invite code $code to get bonus credits: $url"
+                    context.getString(R.string.referral_share_text, code, url)
                 )
-                putExtra(Intent.EXTRA_SUBJECT, "Invite to Gotcha")
+                putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.referral_share_subject))
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            val chooser = Intent.createChooser(shareIntent, "Share invite").apply {
+            val chooser = Intent.createChooser(shareIntent, context.getString(R.string.referral_share_chooser)).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(chooser)

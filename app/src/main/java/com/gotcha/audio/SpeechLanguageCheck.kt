@@ -1,6 +1,9 @@
 package com.gotcha.audio
 
+import com.gotcha.R
 import com.gotcha.i18n.Language
+import com.gotcha.i18n.StringLookup
+import com.gotcha.ui.nameRes
 
 /**
  * What happens when the voice language and the chosen speech models disagree
@@ -39,11 +42,12 @@ object SpeechLanguageCheck {
         modelId: String,
         voice: String,
         models: List<AudioModel>,
-        language: Language
+        language: Language,
+        strings: StringLookup
     ): String? {
         if (!provider.isApiBased()) return null
         val model = models.firstOrNull { it.id == modelId.trim() } ?: return null
-        val name = language.label
+        val name = strings(language.nameRes)
         val picked = voice.trim()
         if (picked.isNotEmpty()) {
             val pickedInfo = (model.voices + models.flatMap { it.voices }).firstOrNull { it.id == picked }
@@ -51,22 +55,19 @@ object SpeechLanguageCheck {
             val code = pickedInfo.languageCode ?: return null
             if (language.matchesCode(code)) return null
             val hasMatchingVoice = model.voices.any { v -> v.languageCode?.let(language::matchesCode) == true }
-            val remedy = if (hasMatchingVoice) {
-                "Clear the voice to let Gotcha pick a $name one."
-            } else {
-                "Pick a voice or model that speaks $name."
-            }
-            return "The voice $picked speaks ${languageName(code)}, so it will read $name replies " +
-                "with ${languageName(code)} pronunciation and they may not sound right. $remedy"
+            val remedy = strings(
+                if (hasMatchingVoice) R.string.speech_check_remedy_clear else R.string.speech_check_remedy_pick,
+                name
+            )
+            return strings(R.string.speech_check_voice_mismatch, picked, languageName(code, strings), name, remedy)
         }
         if (ttsSupports(model, language) != false) return null
         val fallback = model.defaultVoice
         val fallbackLanguage = model.voices.firstOrNull { it.id == fallback }?.languageCode
             ?: AudioLanguageLabels.languageFromVoiceId(fallback)
-        val readBy = fallbackLanguage?.let { "its ${languageName(it)} voice $fallback" } ?: "its default voice $fallback"
-        return "The text-to-speech model ${model.id} has no $name voice, so $name replies will be " +
-            "read by $readBy and may not sound right. Pick a model with a $name voice, or use " +
-            "Android Built-in."
+        val readBy = fallbackLanguage?.let { strings(R.string.speech_check_read_by_voice, languageName(it, strings), fallback) }
+            ?: strings(R.string.speech_check_read_by_default, fallback)
+        return strings(R.string.speech_check_model_no_voice, model.id, name, readBy)
     }
 
     /**
@@ -79,26 +80,24 @@ object SpeechLanguageCheck {
         modelId: String,
         override: String,
         models: List<AudioModel>,
-        language: Language
+        language: Language,
+        strings: StringLookup
     ): List<String> {
         if (!provider.isApiBased()) return emptyList()
-        val name = language.label
+        val name = strings(language.nameRes)
         val forced = override.trim()
         val warnings = mutableListOf<String>()
         if (forced.isNotEmpty() && forced.lowercase() !in ANY_LANGUAGE && !language.matchesCode(forced)) {
-            warnings += "Transcription is forced to ${languageName(forced)} ($forced), so $name speech " +
-                "will be transcribed as ${languageName(forced)}. Clear the override to follow the " +
-                "voice language."
+            warnings += strings(R.string.speech_check_stt_forced, languageName(forced, strings), forced, name)
         }
         val heard = forced.ifEmpty { language.iso639 }
         val model = models.firstOrNull { it.id == modelId.trim() }
         val listed = model?.languages.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
-        val heardName = if (forced.isEmpty()) name else languageName(forced)
+        val heardName = if (forced.isEmpty()) name else languageName(forced, strings)
         if (model != null && listed.isNotEmpty() && listed.none { it.lowercase() in ANY_LANGUAGE } &&
             heard.lowercase() !in ANY_LANGUAGE && listed.none { sameLanguage(it, heard) }
         ) {
-            warnings += "The speech-to-text model ${model.id} does not list $heardName, so it may " +
-                "transcribe $heardName speech wrongly. Pick a model that lists it."
+            warnings += strings(R.string.speech_check_stt_unlisted, model.id, heardName)
         }
         return warnings
     }
@@ -117,8 +116,8 @@ object SpeechLanguageCheck {
     }
 
     /** "Hindi" for `hi`, "English" for `en-us`; the JDK's name, or the code, otherwise. */
-    private fun languageName(code: String): String =
-        Language.entries.firstOrNull { it.matchesCode(code) }?.label
+    private fun languageName(code: String, strings: StringLookup): String =
+        Language.entries.firstOrNull { it.matchesCode(code) }?.let { strings(it.nameRes) }
             ?: AudioLanguageLabels.describe(code.substringBefore('-').substringBefore('_'))
             ?: code
 

@@ -1,7 +1,9 @@
 package com.gotcha.connectors.notion
 
+import com.gotcha.R
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
+import com.gotcha.i18n.StringLookup
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -56,17 +58,17 @@ class NotionConnector(
 
     override fun isConnected(): Boolean = credentials != null
 
-    override fun statusLine(): String = credentials
-        ?.let { "Connected to ${it.workspaceName}" }
-        ?: "Not connected"
+    override fun statusLine(strings: StringLookup): String = credentials
+        ?.let { strings(R.string.connector_connected_to, it.workspaceName) }
+        ?: strings(R.string.connector_not_connected)
 
     override fun disconnect() {
         store.clear(id)
         credentials = null
     }
 
-    override suspend fun refreshTools(): String {
-        val creds = credentials ?: return "Not connected"
+    override suspend fun refreshTools(strings: StringLookup): String {
+        val creds = credentials ?: return strings(R.string.connector_not_connected)
         return try {
             val me = api.me(creds.token)
             val name = me["name"]?.jsonPrimitive?.contentOrNull
@@ -77,9 +79,9 @@ class NotionConnector(
                 store.saveRaw(id, json.encodeToString(updated))
                 credentials = updated
             }
-            "Connected to $name"
+            strings(R.string.connector_connected_to, name)
         } catch (e: Exception) {
-            "Could not refresh Notion connection: ${e.message}"
+            strings(R.string.notion_refresh_failed, e.message.orEmpty())
         }
     }
 
@@ -88,21 +90,20 @@ class NotionConnector(
      * caught on the Settings screen instead of on the first tool call. Returns a
      * status message for the card.
      */
-    suspend fun connect(token: String): String {
+    suspend fun connect(token: String, strings: StringLookup): String {
         val trimmed = token.trim()
-        if (trimmed.isBlank()) return "Paste the integration token first."
+        if (trimmed.isBlank()) return strings(R.string.notion_paste_token)
         return try {
             val me = api.me(trimmed)
             val name = me["name"]?.jsonPrimitive?.contentOrNull
                 ?: me["bot"]?.jsonObject?.get("workspace_name")?.jsonPrimitive?.contentOrNull
-                ?: "your workspace"
+                ?: strings(R.string.notion_your_workspace)
             val creds = NotionCredentials(trimmed, name)
             store.saveRaw(id, json.encodeToString(creds))
             credentials = creds
-            "Connected to $name. Remember to share the pages you want reachable with the " +
-                "integration (page ⋯ → Connections)."
+            strings(R.string.notion_connected, name)
         } catch (e: Exception) {
-            "Could not connect: ${e.message}"
+            strings(R.string.connector_could_not_connect, e.message.orEmpty())
         }
     }
 

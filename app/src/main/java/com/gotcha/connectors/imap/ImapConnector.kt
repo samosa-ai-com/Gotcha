@@ -1,5 +1,6 @@
 package com.gotcha.connectors.imap
 
+import com.gotcha.R
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
 import com.gotcha.connectors.mail.EmailFull
@@ -7,6 +8,7 @@ import com.gotcha.connectors.mail.EmailSummary
 import com.gotcha.connectors.mail.MailBackend
 import com.gotcha.connectors.mail.MailBodyExtractor
 import com.gotcha.connectors.mail.OutgoingEmail
+import com.gotcha.i18n.StringLookup
 import com.gotcha.tools.MimeMessageBuilder
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -95,8 +97,9 @@ class ImapConnector(
 
     override fun isConnected(): Boolean = credentials != null
 
-    override fun statusLine(): String =
-        credentials?.let { "Connected as ${it.email} (${it.imapHost})" } ?: "Not connected"
+    override fun statusLine(strings: StringLookup): String =
+        credentials?.let { strings(R.string.imap_connected_as, it.email, it.imapHost) }
+            ?: strings(R.string.connector_not_connected)
 
     @Synchronized
     override fun disconnect() {

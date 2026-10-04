@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
+import com.gotcha.R
 import java.util.UUID
 
 /**
@@ -71,7 +72,7 @@ class OAuthConnectFlow(
                 }
             }
         } catch (e: Exception) {
-            Outcome.Failed(e.message ?: "Connection failed.")
+            Outcome.Failed(e.message ?: context.getString(R.string.oauth_connection_failed))
         } finally {
             server.close()
         }
@@ -92,13 +93,13 @@ class OAuthConnectFlow(
         val verifier = lastVerifier
         val expectedState = lastState
         if (redirectUri == null || verifier == null || expectedState == null) {
-            return Outcome.Failed("Start Connect first, then paste the redirect URL if the browser didn't return.")
+            return Outcome.Failed(context.getString(R.string.oauth_start_first))
         }
         val uri = Uri.parse(pastedUrl.trim())
         val code = uri.getQueryParameter("code")
-            ?: return Outcome.Failed("That URL doesn't contain a 'code' parameter.")
+            ?: return Outcome.Failed(context.getString(R.string.oauth_no_code))
         if (uri.getQueryParameter("state") != expectedState) {
-            return Outcome.Failed("State mismatch — start Connect again and paste the new redirect URL.")
+            return Outcome.Failed(context.getString(R.string.oauth_state_mismatch))
         }
         val id = clientId.trim()
         val secret = clientSecret?.trim()
@@ -107,7 +108,7 @@ class OAuthConnectFlow(
             onTokens(id, secret, tokens)
             Outcome.Connected(accountLabel())
         } catch (e: Exception) {
-            Outcome.Failed(e.message ?: "Connection failed.")
+            Outcome.Failed(e.message ?: context.getString(R.string.oauth_connection_failed))
         }
     }
 
