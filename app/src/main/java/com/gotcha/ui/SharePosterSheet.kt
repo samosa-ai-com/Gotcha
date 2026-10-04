@@ -22,8 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.data.RunSummary
 import com.gotcha.ui.theme.SkinAlertDialog
 
@@ -52,7 +55,7 @@ fun SharePosterSheet(
         onDismissRequest = { if (!loading) onDismiss() },
         title = {
             Text(
-                if (runs.size == 1) "Share this moment" else "Share your ${runs.size} moments"
+                pluralStringResource(R.plurals.share_poster_title, runs.size, runs.size)
             )
         },
         text = {
@@ -63,7 +66,7 @@ fun SharePosterSheet(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Turn what Gotcha just did into a shareable Instagram poster.",
+                    stringResource(R.string.share_poster_turn_what_gotcha_just_did),
                     style = MaterialTheme.typography.bodyMedium
                 )
 
@@ -78,7 +81,7 @@ fun SharePosterSheet(
                             CircularProgressIndicator()
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                "Writing your poster…",
+                                stringResource(R.string.share_poster_writing_your_poster),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -86,7 +89,7 @@ fun SharePosterSheet(
                     preview != null -> {
                         Image(
                             bitmap = preview.asImageBitmap(),
-                            contentDescription = "Your share poster",
+                            contentDescription = stringResource(R.string.share_poster_your_share_poster),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(340.dp),
@@ -105,10 +108,10 @@ fun SharePosterSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Button(onClick = onShare, modifier = Modifier.weight(1f)) {
-                                Text("Share")
+                                Text(stringResource(R.string.share_poster_share))
                             }
                             Button(onClick = onSave, modifier = Modifier.weight(1f)) {
-                                Text("Save")
+                                Text(stringResource(R.string.share_poster_save))
                             }
                         }
                         TextButton(
@@ -116,7 +119,7 @@ fun SharePosterSheet(
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                             enabled = !loading
                         ) {
-                            Text("Regenerate")
+                            Text(stringResource(R.string.share_poster_regenerate))
                         }
                     }
                     else -> {
@@ -131,7 +134,7 @@ fun SharePosterSheet(
                             onClick = onGenerate,
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         ) {
-                            Text("Generate poster")
+                            Text(stringResource(R.string.share_poster_generate_poster))
                         }
                     }
                 }
@@ -139,7 +142,7 @@ fun SharePosterSheet(
         },
         confirmButton = {
             if (preview == null && !loading) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.share_poster_cancel)) }
             }
         }
     )

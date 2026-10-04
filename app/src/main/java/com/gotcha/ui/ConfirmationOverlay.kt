@@ -11,6 +11,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.ui.theme.OverlaySkin
 import com.gotcha.ui.theme.Skins
@@ -42,9 +43,9 @@ class ConfirmationOverlay(context: Context) {
         summary: String,
         onAllow: () -> Unit,
         onDeny: () -> Unit,
-        title: String = "Gotcha — confirm action",
-        allowLabel: String = "Allow",
-        denyLabel: String = "Deny"
+        title: String = appContext.getString(R.string.confirmation_title),
+        allowLabel: String = appContext.getString(R.string.action_allow),
+        denyLabel: String = appContext.getString(R.string.action_deny)
     ) {
         mainHandler.post {
             removeView()

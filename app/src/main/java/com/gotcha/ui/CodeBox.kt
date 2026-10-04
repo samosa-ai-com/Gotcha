@@ -24,7 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.halilibo.richtext.markdown.Markdown
@@ -78,7 +80,7 @@ fun CodeBox(code: String, language: String?, modifier: Modifier = Modifier) {
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Text("Copy", modifier = Modifier.padding(start = 6.dp))
+                    Text(stringResource(R.string.code_box_copy), modifier = Modifier.padding(start = 6.dp))
                 }
             }
             Text(
@@ -97,5 +99,5 @@ fun CodeBox(code: String, language: String?, modifier: Modifier = Modifier) {
 private fun copyCode(context: Context, code: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("Code", code))
-    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, context.getString(R.string.code_box_copied), Toast.LENGTH_SHORT).show()
 }

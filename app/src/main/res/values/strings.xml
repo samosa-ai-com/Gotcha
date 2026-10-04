@@ -709,4 +709,206 @@
         <item quantity="one">Refreshed %1$d connector: %2$s</item>
         <item quantity="other">Refreshed %1$d connectors: %2$s</item>
     </plurals>
+
+    <!-- AppDrawer -->
+    <string name="drawer_new_chat">New Chat</string>
+    <string name="drawer_import_chats">Import chats</string>
+    <string name="drawer_back_up_all_chats">Back up all chats</string>
+    <string name="drawer_connectors">Connectors</string>
+    <string name="drawer_settings">Settings</string>
+    <string name="drawer_delete_chat">Delete Chat?</string>
+    <string name="drawer_delete">Delete</string>
+    <string name="drawer_cancel">Cancel</string>
+    <string name="drawer_delete_chat_2">Delete chat</string>
+    <string name="drawer_gotcha">Gotcha</string>
+    <string name="drawer_recent_chats">Recent chats</string>
+    <string name="drawer_sample_chat">Sample chat</string>
+
+    <!-- InboxScreen -->
+    <string name="inbox_clear_history">Clear history</string>
+    <string name="inbox_clear_notification_history">Clear notification history?</string>
+    <string name="inbox_this_empties_the_list_reminders">This empties the list. Reminders Gotcha has already sent won\'t be sent again.</string>
+    <string name="inbox_clear">Clear</string>
+    <string name="inbox_cancel">Cancel</string>
+    <string name="inbox_notifications">Notifications</string>
+    <string name="inbox_nothing_here_yet_reminders_daily">Nothing here yet. Reminders, daily tips, finished tasks and messages from Samosa AI are listed here for 30 days.</string>
+
+    <!-- MessageBubble -->
+    <string name="message_edit_message">Edit message</string>
+    <string name="message_revert_to_this_message">Revert to this message</string>
+    <string name="message_copy_as_text">Copy as text</string>
+    <string name="message_copy_as_markdown">Copy as markdown</string>
+    <string name="message_attached_image">Attached image</string>
+    <string name="message_reasoning_process">💭 Reasoning process</string>
+    <string name="message_toggle_reasoning">Toggle reasoning</string>
+    <string name="message_general_agent">⚡ General Agent</string>
+    <string name="message_copied_as_plain_text">Copied as plain text</string>
+    <string name="message_copied_as_markdown">Copied as markdown</string>
+    <string name="message_stop_reading">Stop reading</string>
+    <string name="message_speak">Speak</string>
+    <string name="message_collapse">Collapse</string>
+    <string name="message_expand">Expand</string>
+
+    <!-- ScreenCompanionPanelOverlay -->
+    <string name="companion_panel_screen_companion">Screen Companion</string>
+    <string name="companion_panel_send">Send</string>
+
+    <!-- SharePosterSheet -->
+    <string name="share_poster_share">Share</string>
+    <string name="share_poster_save">Save</string>
+    <string name="share_poster_regenerate">Regenerate</string>
+    <string name="share_poster_generate_poster">Generate poster</string>
+    <string name="share_poster_cancel">Cancel</string>
+    <string name="share_poster_your_share_poster">Your share poster</string>
+    <string name="share_poster_turn_what_gotcha_just_did">Turn what Gotcha just did into a shareable Instagram poster.</string>
+    <string name="share_poster_writing_your_poster">Writing your poster…</string>
+
+    <!-- FeedbackSheet -->
+    <string name="feedback_send_feedback">Send feedback</string>
+    <string name="feedback_open_form">Open form</string>
+    <string name="feedback_cancel">Cancel</string>
+    <string name="feedback_if_you_provide_successful_feedback">If you provide successful feedback, after validation you may be eligible for 100 credits per feedback, up to 500 credits per day.</string>
+    <string name="feedback_this_is_pre_filled_into">This is pre-filled into the form — you can edit or remove anything before submitting. Nothing is sent until you press Submit in the form.</string>
+
+    <!-- ChatTransferController -->
+    <string name="chat_transfer_ok">OK</string>
+    <string name="chat_transfer_include_images_and_screenshots">Include images and screenshots</string>
+    <string name="chat_transfer_choose_where_to_save">Choose where to save</string>
+    <string name="chat_transfer_cancel">Cancel</string>
+    <string name="chat_transfer_import_chats">Import chats</string>
+    <string name="chat_transfer_import">Import</string>
+    <string name="chat_transfer_the_backup_holds_the_whole">The backup holds the whole conversation, including what tools returned: messages, contacts or text read from your screen. Anyone with the file can read it, so keep it somewhere private.</string>
+    <string name="chat_transfer_replacing_with_a_markdown_export">Replacing with a Markdown export drops the images and attachments your copy has.</string>
+    <string name="chat_transfer_back_up_all_chats">Back up all chats</string>
+    <string name="chat_transfer_back_up_this_chat">Back up this chat</string>
+
+    <!-- ReferralInviteDialog -->
+    <string name="referral_invite_invite_code_e_g_air">Invite Code (e.g. AIR-K9X2P7)</string>
+    <string name="referral_invite_air_xxxxxx">AIR-XXXXXX</string>
+    <string name="referral_invite_applying">Applying…</string>
+    <string name="referral_invite_apply_code">Apply Code</string>
+    <string name="referral_invite_skip">Skip</string>
+    <string name="referral_invite_have_an_invite_code">🎁 Have an Invite Code?</string>
+    <string name="referral_invite_enter_a_friend_s_code">Enter a friend\'s code to earn bonus credits.</string>
+
+    <!-- QuestionDialog -->
+    <string name="question_your_answer">Your answer</string>
+    <string name="question_submit">Submit</string>
+    <string name="question_skip">Skip</string>
+
+    <!-- CodeBox -->
+    <string name="code_box_copy">Copy</string>
+    <string name="code_box_copied">Copied</string>
+
+    <!-- NotificationDetailDialog -->
+    <string name="notification_detail_open_link">Open Link</string>
+    <string name="notification_detail_ok">OK</string>
+    <string name="notification_detail_close">Close</string>
+
+    <!-- TourOverlay -->
+    <string name="tour_skip_tour">Skip tour</string>
+    <string name="tour_tour_pulse_progress">tour_pulse_progress</string>
+    <string name="tour_waiting_for_you">Waiting for you…</string>
+
+    <!-- Screen companion panel -->
+    <string name="companion_panel_thinking">Thinking...</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_copied">Copied!</string>
+    <string name="action_share">Share</string>
+    <string name="companion_panel_follow_up_hint">Ask a follow-up...</string>
+
+    <!-- Drawer and inbox -->
+    <string name="drawer_this_chat">this chat</string>
+    <string name="drawer_delete_confirm">Are you sure you want to permanently delete \"%1$s\"? This action cannot be undone.</string>
+    <string name="drawer_context_usage">%1$s / %2$s · %3$d%%</string>
+    <string name="drawer_context_tokens">%1$s tokens</string>
+    <string name="notification_category_unfinished_chat">Unfinished chat</string>
+    <string name="notification_category_routine">Routine</string>
+    <string name="notification_category_reminder">Reminder</string>
+    <string name="notification_category_daily_tip">Daily tip</string>
+    <string name="notification_category_task_finished">Task finished</string>
+    <string name="notification_category_server">From Samosa AI</string>
+    <string name="inbox_notification">Notification</string>
+    <string name="inbox_entry_header">%1$s · %2$s</string>
+
+    <!-- Relative time -->
+    <string name="time_just_now">Just now</string>
+
+    <!-- Message bubbles -->
+    <string name="message_tap_to_expand">tap to expand</string>
+    <string name="message_truncated">…truncated %1$d chars — Copy as text for full output</string>
+    <plurals name="message_steps">
+        <item quantity="one">%1$d step</item>
+        <item quantity="other">%1$d steps</item>
+    </plurals>
+
+    <!-- FeedbackSheet -->
+    <string name="feedback_app_info_version_device_android">App info (version, device, Android)</string>
+    <string name="feedback_usage_stats_chats_tool_calls">Usage stats (chats, tool calls, runs)</string>
+    <string name="feedback_user_id_for_cross_checking">User ID (for cross-checking your feedback)</string>
+    <string name="feedback_chat_log_excerpt_recent_chat">Chat log excerpt (recent chat, sized to fit the form)</string>
+
+    <!-- Share poster -->
+    <plurals name="share_poster_title">
+        <item quantity="one">Share this moment</item>
+        <item quantity="other">Share your %1$d moments</item>
+    </plurals>
+
+    <!-- Chat import -->
+    <string name="import_format_backup">Gotcha backup</string>
+    <string name="import_format_chat_file">Gotcha chat file</string>
+    <string name="import_format_markdown">Markdown chat export</string>
+    <string name="import_strategy_keep_both">Keep both</string>
+    <string name="import_strategy_replace">Replace mine</string>
+    <string name="import_strategy_skip">Skip</string>
+    <string name="import_summary">%1$s: %2$s (%3$s).</string>
+    <string name="import_rejected_note">%1$s: %2$s</string>
+    <string name="bullet_item">• %1$s</string>
+    <plurals name="import_conflicts">
+        <item quantity="one">%1$d chat is already here in a different version:</item>
+        <item quantity="other">%1$d chats are already here in a different version:</item>
+    </plurals>
+    <plurals name="import_chats">
+        <item quantity="one">%1$d chat</item>
+        <item quantity="other">%1$d chats</item>
+    </plurals>
+    <plurals name="import_new">
+        <item quantity="one">%1$d new</item>
+        <item quantity="other">%1$d new</item>
+    </plurals>
+    <plurals name="import_identical">
+        <item quantity="one">%1$d already here</item>
+        <item quantity="other">%1$d already here</item>
+    </plurals>
+    <plurals name="import_changed">
+        <item quantity="one">%1$d changed</item>
+        <item quantity="other">%1$d changed</item>
+    </plurals>
+    <plurals name="import_unreadable">
+        <item quantity="one">%1$d can\'t be read</item>
+        <item quantity="other">%1$d can\'t be read</item>
+    </plurals>
+
+    <!-- Assistive ball overlay and confirmation -->
+    <string name="assistive_ball_content_description">Gotcha assistive ball</string>
+    <string name="action_close">Close</string>
+    <string name="ball_open_app">Open App</string>
+    <string name="ball_screenshot">Screenshot</string>
+    <string name="ball_lens">Lens</string>
+    <string name="confirmation_title">Gotcha — confirm action</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_deny">Deny</string>
+    <string name="question_dialog_title">Gotcha has a question</string>
+
+    <!-- Call window, attachments, tour -->
+    <string name="call_status_connecting">✨ Connecting…</string>
+    <string name="call_status_listening">🎙️ Listening…</string>
+    <string name="call_status_processing">🧠 Processing…</string>
+    <string name="call_status_replying">🔊 Replying…</string>
+    <string name="call_status_awaiting_input">❓ Awaiting input…</string>
+    <string name="attachment_remove">Remove %1$s</string>
+    <string name="attachment_count">%1$d / %2$d files</string>
+    <string name="attachment_document">document</string>
+    <string name="attachment_truncated"> · truncated</string>
+    <string name="tour_step_of">STEP %1$d OF %2$d</string>
 </resources>

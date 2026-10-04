@@ -24,8 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.notifications.InboxEntry
 
 /**
@@ -51,7 +53,7 @@ fun InboxScreen(
     LaunchedEffect(Unit) { onOpened() }
 
     SettingsScaffold(
-        title = "Notifications",
+        title = stringResource(R.string.inbox_notifications),
         onBack = onBack,
         overlay = overlay,
         header = if (entries.isEmpty()) {
@@ -62,15 +64,14 @@ fun InboxScreen(
                     TextButton(
                         onClick = { confirmClear = true },
                         modifier = Modifier.testTag("inbox_clear")
-                    ) { Text("Clear history") }
+                    ) { Text(stringResource(R.string.inbox_clear_history)) }
                 }
             }
         }
     ) {
         if (entries.isEmpty()) {
             Text(
-                "Nothing here yet. Reminders, daily tips, finished tasks and messages from " +
-                    "Samosa AI are listed here for 30 days.",
+                stringResource(R.string.inbox_nothing_here_yet_reminders_daily),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag("inbox_empty")
@@ -82,9 +83,9 @@ fun InboxScreen(
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Clear notification history?") },
+            title = { Text(stringResource(R.string.inbox_clear_notification_history)) },
             text = {
-                Text("This empties the list. Reminders Gotcha has already sent won't be sent again.")
+                Text(stringResource(R.string.inbox_this_empties_the_list_reminders))
             },
             confirmButton = {
                 TextButton(
@@ -94,9 +95,13 @@ fun InboxScreen(
                         confirmClear = false
                     },
                     modifier = Modifier.testTag("inbox_clear_confirm")
-                ) { Text("Clear") }
+                ) { Text(stringResource(R.string.inbox_clear)) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(
+                    onClick = { confirmClear = false }
+                ) { Text(stringResource(R.string.inbox_cancel)) }
+            }
         )
     }
 }
@@ -120,7 +125,11 @@ private fun InboxRow(entry: InboxEntry, onClick: () -> Unit) {
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "${entry.categoryOrNull?.label ?: "Notification"} · ${inboxTime(entry.postedAt)}",
+                    stringResource(
+                        R.string.inbox_entry_header,
+                        stringResource(entry.categoryOrNull?.label ?: R.string.inbox_notification),
+                        relativeTime(entry.postedAt)
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = scheme.onSurfaceVariant
                 )
@@ -139,16 +148,5 @@ private fun InboxRow(entry: InboxEntry, onClick: () -> Unit) {
                 )
             }
         }
-    }
-}
-
-/** "just now", "5m ago", "3h ago", "2d ago". */
-internal fun inboxTime(epochMillis: Long, now: Long = System.currentTimeMillis()): String {
-    val minutes = (now - epochMillis) / 60_000L
-    return when {
-        minutes < 1L -> "just now"
-        minutes < 60L -> "${minutes}m ago"
-        minutes < 24L * 60L -> "${minutes / 60L}h ago"
-        else -> "${minutes / (24L * 60L)}d ago"
     }
 }

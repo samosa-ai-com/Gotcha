@@ -15,11 +15,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.agent.PendingQuestion
 import com.gotcha.ui.theme.SkinAlertDialog
-
-const val QUESTION_DIALOG_TITLE = "Gotcha has a question"
 
 /**
  * The agent's question to the user (the `question` tool). The question can run
@@ -33,7 +33,7 @@ fun QuestionDialog(pending: PendingQuestion, onAnswer: (String?) -> Unit) {
     var customAnswer by remember(pending) { mutableStateOf("") }
     SkinAlertDialog(
         onDismissRequest = { onAnswer(null) },
-        title = { Text(QUESTION_DIALOG_TITLE) },
+        title = { Text(stringResource(R.string.question_dialog_title)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -49,7 +49,7 @@ fun QuestionDialog(pending: PendingQuestion, onAnswer: (String?) -> Unit) {
                     OutlinedTextField(
                         value = customAnswer,
                         onValueChange = { customAnswer = it },
-                        label = { Text("Your answer") },
+                        label = { Text(stringResource(R.string.question_your_answer)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Button(
@@ -57,11 +57,11 @@ fun QuestionDialog(pending: PendingQuestion, onAnswer: (String?) -> Unit) {
                         enabled = customAnswer.isNotBlank(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Submit")
+                        Text(stringResource(R.string.question_submit))
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text("Skip") } }
+        confirmButton = { TextButton(onClick = { onAnswer(null) }) { Text(stringResource(R.string.question_skip)) } }
     )
 }

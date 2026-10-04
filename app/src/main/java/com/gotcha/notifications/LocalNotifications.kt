@@ -1,5 +1,7 @@
 package com.gotcha.notifications
 
+import androidx.annotation.StringRes
+import com.gotcha.R
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.tools.AgentMode
@@ -15,13 +17,13 @@ import java.time.temporal.ChronoUnit
  * messages answer something already asked for or sent, and only appear here so
  * the inbox can list them.
  */
-enum class NotificationCategory(val label: String, val proactive: Boolean) {
-    UNFINISHED_CHAT("Unfinished chat", proactive = true),
-    ROUTINE("Routine", proactive = true),
-    INACTIVITY("Reminder", proactive = true),
-    DAILY_TIP("Daily tip", proactive = true),
-    TASK_FINISHED("Task finished", proactive = false),
-    SERVER("From Samosa AI", proactive = false)
+enum class NotificationCategory(@StringRes val label: Int, val proactive: Boolean) {
+    UNFINISHED_CHAT(R.string.notification_category_unfinished_chat, proactive = true),
+    ROUTINE(R.string.notification_category_routine, proactive = true),
+    INACTIVITY(R.string.notification_category_reminder, proactive = true),
+    DAILY_TIP(R.string.notification_category_daily_tip, proactive = true),
+    TASK_FINISHED(R.string.notification_category_task_finished, proactive = false),
+    SERVER(R.string.notification_category_server, proactive = false)
 }
 
 /** Where tapping a notification (or its inbox entry) goes. */

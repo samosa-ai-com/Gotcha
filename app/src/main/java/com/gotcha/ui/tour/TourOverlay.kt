@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
@@ -53,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.ui.openSpecialAccess
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.delay
@@ -259,7 +261,7 @@ private fun Pulse(spotlight: Rect) {
                 animation = tween(durationMillis = 1800, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
-            label = "tour_pulse_progress"
+            label = stringResource(R.string.tour_tour_pulse_progress)
         ).value
     } else {
         0f
@@ -303,7 +305,7 @@ private fun CoachCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "STEP ${controller.stepNumber} OF ${controller.stepCount}",
+                text = stringResource(R.string.tour_step_of, controller.stepNumber, controller.stepCount),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = GotchaMono,
                 color = MaterialTheme.colorScheme.primary
@@ -347,7 +349,7 @@ private fun CoachCard(
                 TextButton(
                     onClick = { controller.cancel() },
                     modifier = Modifier.testTag("tour_skip_all")
-                ) { Text("Skip tour") }
+                ) { Text(stringResource(R.string.tour_skip_tour)) }
                 if (step.ackLabel != null) {
                     TextButton(
                         onClick = { controller.acknowledge() },
@@ -355,7 +357,7 @@ private fun CoachCard(
                     ) { Text(step.ackLabel) }
                 } else {
                     Text(
-                        text = "Waiting for you…",
+                        text = stringResource(R.string.tour_waiting_for_you),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(end = 12.dp)

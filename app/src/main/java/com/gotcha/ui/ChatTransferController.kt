@@ -28,8 +28,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.agent.BackupRequest
 import com.gotcha.agent.ChatTransferState
 import com.gotcha.agent.ChatViewModel
@@ -145,14 +148,14 @@ fun ChatTransferDialogs(
                     Text(state.summary)
                     state.details.forEach { detail ->
                         Text(
-                            "• $detail",
+                            stringResource(R.string.bullet_item, detail),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_transfer_ok)) } }
         )
     }
 }
@@ -171,13 +174,17 @@ private fun BackupOptionsDialog(
     var includeImages by rememberSaveable { mutableStateOf(true) }
     SkinAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (allChats) "Back up all chats" else "Back up this chat") },
+        title = {
+            Text(
+                stringResource(
+                    if (allChats) R.string.chat_transfer_back_up_all_chats else R.string.chat_transfer_back_up_this_chat
+                )
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "The backup holds the whole conversation, including what tools returned: " +
-                        "messages, contacts or text read from your screen. Anyone with the file " +
-                        "can read it, so keep it somewhere private."
+                    stringResource(R.string.chat_transfer_the_backup_holds_the_whole)
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -186,12 +193,19 @@ private fun BackupOptionsDialog(
                         .toggleable(value = includeImages, role = Role.Checkbox, onValueChange = { includeImages = it })
                 ) {
                     Checkbox(checked = includeImages, onCheckedChange = null)
-                    Text("Include images and screenshots", modifier = Modifier.padding(start = 8.dp))
+                    Text(
+                        stringResource(R.string.chat_transfer_include_images_and_screenshots),
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
                 }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(includeImages) }) { Text("Choose where to save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(includeImages) }
+            ) { Text(stringResource(R.string.chat_transfer_choose_where_to_save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_transfer_cancel)) } }
     )
 }
 
@@ -205,7 +219,7 @@ private fun ImportPreviewDialog(
     val importable = preview.newCount + preview.conflictCount
     SkinAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Import chats") },
+        title = { Text(stringResource(R.string.chat_transfer_import_chats)) },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
@@ -214,11 +228,7 @@ private fun ImportPreviewDialog(
                 Text(importSummary(preview))
                 if (preview.conflictCount > 0) {
                     Text(
-                        if (preview.conflictCount == 1) {
-                            "1 chat is already here in a different version:"
-                        } else {
-                            "${preview.conflictCount} chats are already here in a different version:"
-                        },
+                        pluralStringResource(R.plurals.import_conflicts, preview.conflictCount, preview.conflictCount),
                         style = MaterialTheme.typography.labelLarge
                     )
                     DuplicateStrategy.entries.forEach { option ->
@@ -233,20 +243,23 @@ private fun ImportPreviewDialog(
                                 )
                         ) {
                             RadioButton(selected = strategy == option, onClick = null)
-                            Text(option.label, modifier = Modifier.padding(start = 8.dp))
+                            Text(stringResource(option.label), modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                     if (strategy == DuplicateStrategy.REPLACE && preview.format == ImportFormat.MARKDOWN) {
                         Text(
-                            "Replacing with a Markdown export drops the images and attachments your copy has.",
+                            stringResource(R.string.chat_transfer_replacing_with_a_markdown_export),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
                     }
                 }
-                (preview.rejected.map { "${it.title}: ${it.reason}" } + preview.warnings).forEach { note ->
+                val notes = preview.rejected.map {
+                    stringResource(R.string.import_rejected_note, it.title, it.reason)
+                } + preview.warnings
+                notes.forEach { note ->
                     Text(
-                        "• $note",
+                        stringResource(R.string.bullet_item, note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -254,20 +267,29 @@ private fun ImportPreviewDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(strategy) }, enabled = importable > 0) { Text("Import") }
+            Button(
+                onClick = { onConfirm(strategy) },
+                enabled = importable > 0
+            ) { Text(stringResource(R.string.chat_transfer_import)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.chat_transfer_cancel)) } }
     )
 }
 
+@Composable
 private fun importSummary(preview: ImportPreview): String {
     val total = preview.items.size + preview.rejected.size
-    val parts = listOfNotNull(
-        preview.newCount.takeIf { it > 0 }?.let { "$it new" },
-        preview.identicalCount.takeIf { it > 0 }?.let { "$it already here" },
-        preview.conflictCount.takeIf { it > 0 }?.let { "$it changed" },
-        preview.rejected.size.takeIf { it > 0 }?.let { "$it can't be read" }
+    val parts = listOf(
+        R.plurals.import_new to preview.newCount,
+        R.plurals.import_identical to preview.identicalCount,
+        R.plurals.import_changed to preview.conflictCount,
+        R.plurals.import_unreadable to preview.rejected.size
+    ).filter { (_, count) -> count > 0 }
+        .map { (id, count) -> pluralStringResource(id, count, count) }
+    return stringResource(
+        R.string.import_summary,
+        stringResource(preview.format.label),
+        pluralStringResource(R.plurals.import_chats, total, total),
+        parts.joinToString(", ")
     )
-    val chats = if (total == 1) "1 chat" else "$total chats"
-    return "${preview.format.label}: $chats (${parts.joinToString(", ")})."
 }

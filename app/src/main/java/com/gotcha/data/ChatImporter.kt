@@ -1,5 +1,7 @@
 package com.gotcha.data
 
+import androidx.annotation.StringRes
+import com.gotcha.R
 import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.MessageKind
 import com.gotcha.llm.ChatMessage
@@ -13,15 +15,15 @@ import kotlinx.serialization.json.intOrNull
 import java.util.UUID
 
 /** Which kind of file an import was read from. */
-enum class ImportFormat(val label: String) {
+enum class ImportFormat(@StringRes val label: Int) {
     /** A [ChatArchive]: "Back up chat" or "Back up all chats". Lossless. */
-    BACKUP("Gotcha backup"),
+    BACKUP(R.string.import_format_backup),
 
     /** One bare [ChatSession] file, as Gotcha stores it on the device. Lossless. */
-    CHAT_FILE("Gotcha chat file"),
+    CHAT_FILE(R.string.import_format_chat_file),
 
     /** The Markdown "Export chat". Text only; see [ChatMarkdown]. */
-    MARKDOWN("Markdown chat export")
+    MARKDOWN(R.string.import_format_markdown)
 }
 
 /** How an incoming chat relates to the ones already on the device. */
@@ -37,10 +39,10 @@ enum class ImportStatus {
 }
 
 /** What to do with an incoming chat whose id is already taken by a different chat. */
-enum class DuplicateStrategy(val label: String) {
-    KEEP_BOTH("Keep both"),
-    REPLACE("Replace mine"),
-    SKIP("Skip")
+enum class DuplicateStrategy(@StringRes val label: Int) {
+    KEEP_BOTH(R.string.import_strategy_keep_both),
+    REPLACE(R.string.import_strategy_replace),
+    SKIP(R.string.import_strategy_skip)
 }
 
 data class ImportItem(val session: ChatSession, val status: ImportStatus)

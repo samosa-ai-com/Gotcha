@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import com.gotcha.MainActivity
+import com.gotcha.R
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
@@ -1116,7 +1117,7 @@ class AssistiveBallService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val notification: Notification = Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Gotcha assistive ball")
+            .setContentTitle(getString(R.string.assistive_ball_content_description))
             .setContentText("Tap the ball for call controls. Long-press it to start a voice call.")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(tapIntent)

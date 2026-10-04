@@ -49,10 +49,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
 import com.gotcha.ui.theme.GotchaMono
@@ -154,7 +157,7 @@ fun MessageBubble(
                     if (bitmap != null) {
                         Image(
                             bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "Attached image",
+                            contentDescription = stringResource(R.string.message_attached_image),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(160.dp)
@@ -183,14 +186,14 @@ fun MessageBubble(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "💭 Reasoning process",
+                                text = stringResource(R.string.message_reasoning_process),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = contentColor.copy(alpha = 0.7f)
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Icon(
                                 imageVector = if (reasoningExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                contentDescription = "Toggle reasoning",
+                                contentDescription = stringResource(R.string.message_toggle_reasoning),
                                 modifier = Modifier.size(16.dp),
                                 tint = contentColor.copy(alpha = 0.7f)
                             )
@@ -216,7 +219,13 @@ fun MessageBubble(
                     if (isTool || isToolFailure) {
                         ToolLedger(
                             text = if (expanded.value) displayText else firstLine,
-                            hint = if (!expanded.value && hasMore) "tap to expand" else null,
+                            hint = if (!expanded.value && hasMore) {
+                                stringResource(
+                                    R.string.message_tap_to_expand
+                                )
+                            } else {
+                                null
+                            },
                             railColor = if (isToolFailure) colors.error else colors.primary,
                             contentColor = contentColor,
                             collapsed = !expanded.value
@@ -253,7 +262,9 @@ fun MessageBubble(
                                 } else {
                                     Icons.AutoMirrored.Rounded.VolumeUp
                                 },
-                                contentDescription = if (isSpeaking) "Stop reading" else "Speak",
+                                contentDescription = stringResource(
+                                    if (isSpeaking) R.string.message_stop_reading else R.string.message_speak
+                                ),
                                 modifier = Modifier.size(18.dp),
                                 tint = if (isSpeaking) {
                                     MaterialTheme.colorScheme.error
@@ -273,14 +284,14 @@ fun MessageBubble(
         ) {
             if (isUser) {
                 DropdownMenuItem(
-                    text = { Text("Edit message") },
+                    text = { Text(stringResource(R.string.message_edit_message)) },
                     onClick = {
                         showMenu = false
                         onEdit(message)
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Revert to this message") },
+                    text = { Text(stringResource(R.string.message_revert_to_this_message)) },
                     onClick = {
                         showMenu = false
                         onRevert(message)
@@ -288,14 +299,14 @@ fun MessageBubble(
                 )
             }
             DropdownMenuItem(
-                text = { Text("Copy as text") },
+                text = { Text(stringResource(R.string.message_copy_as_text)) },
                 onClick = {
                     copyPlainText(context, message.text, isTool || isSubAgent)
                     showMenu = false
                 }
             )
             DropdownMenuItem(
-                text = { Text("Copy as markdown") },
+                text = { Text(stringResource(R.string.message_copy_as_markdown)) },
                 onClick = {
                     copyMarkdown(context, message.text, isTool || isSubAgent)
                     showMenu = false
@@ -361,7 +372,7 @@ private fun ToolLedger(
         ) {
             val softCap = 8192
             val display = if (!collapsed && text.length > softCap) {
-                text.take(softCap) + "\n…truncated ${text.length - softCap} chars — Copy as text for full output"
+                text.take(softCap) + "\n" + stringResource(R.string.message_truncated, text.length - softCap)
             } else {
                 text
             }
@@ -403,7 +414,7 @@ private fun SubAgentContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "⚡ General Agent",
+            text = stringResource(R.string.message_general_agent),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
             color = contentColor
@@ -411,7 +422,7 @@ private fun SubAgentContent(
         Spacer(modifier = Modifier.weight(1f))
         if (steps.isNotEmpty()) {
             Text(
-                text = "${steps.size} step${if (steps.size != 1) "s" else ""}",
+                text = pluralStringResource(R.plurals.message_steps, steps.size, steps.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = contentColor.copy(alpha = 0.6f)
             )
@@ -419,7 +430,9 @@ private fun SubAgentContent(
         }
         Icon(
             imageVector = if (expanded.value) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = if (expanded.value) "Collapse" else "Expand",
+            contentDescription = stringResource(
+                if (expanded.value) R.string.message_collapse else R.string.message_expand
+            ),
             modifier = Modifier.size(20.dp),
             tint = contentColor.copy(alpha = 0.7f)
         )
@@ -480,14 +493,14 @@ private fun copyPlainText(context: Context, text: String, isTool: Boolean) {
     val plain = stripMarkdown(source)
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("Gotcha", plain))
-    Toast.makeText(context, "Copied as plain text", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, context.getString(R.string.message_copied_as_plain_text), Toast.LENGTH_SHORT).show()
 }
 
 private fun copyMarkdown(context: Context, text: String, isTool: Boolean) {
     val source = if (isTool) text else text
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText("Gotcha (Markdown)", source))
-    Toast.makeText(context, "Copied as markdown", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, context.getString(R.string.message_copied_as_markdown), Toast.LENGTH_SHORT).show()
 }
 
 private fun stripMarkdown(md: String): String {

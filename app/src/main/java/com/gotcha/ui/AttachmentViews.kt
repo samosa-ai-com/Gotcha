@@ -36,10 +36,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.agent.Attachment
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.tools.FileResolver
@@ -117,7 +119,7 @@ fun ComposerAttachmentStrip(
                         IconButton(onClick = { onRemove(attachment.id) }) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "Remove ${attachment.name}",
+                                contentDescription = stringResource(R.string.attachment_remove, attachment.name),
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
@@ -126,7 +128,7 @@ fun ComposerAttachmentStrip(
             }
         }
         Text(
-            "${attachments.size} / ${ComposerAttachment.MAX_PER_MESSAGE} files",
+            stringResource(R.string.attachment_count, attachments.size, ComposerAttachment.MAX_PER_MESSAGE),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, top = 2.dp)
@@ -147,7 +149,7 @@ private fun RemoveButton(name: String, onClick: () -> Unit, modifier: Modifier =
         ) {
             Icon(
                 Icons.Default.Close,
-                contentDescription = "Remove $name",
+                contentDescription = stringResource(R.string.attachment_remove, name),
                 tint = Color.White,
                 modifier = Modifier.size(14.dp)
             )
@@ -222,12 +224,14 @@ private fun DocumentSummary(attachment: Attachment, color: Color, modifier: Modi
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            val document = stringResource(R.string.attachment_document)
+            val truncated = stringResource(R.string.attachment_truncated)
             Text(
                 buildString {
-                    append(attachment.mimeType.ifBlank { "document" })
+                    append(attachment.mimeType.ifBlank { document })
                     append(" · ")
                     append(FileResolver.formatSizeStatic(attachment.size))
-                    if (attachment.truncated) append(" · truncated")
+                    if (attachment.truncated) append(truncated)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = color.copy(alpha = 0.7f),

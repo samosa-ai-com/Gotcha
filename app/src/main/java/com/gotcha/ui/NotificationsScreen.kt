@@ -3,7 +3,6 @@ package com.gotcha.ui
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -278,13 +277,9 @@ private fun CompletionPreviewRow(
     }
 }
 
-/** "never", or Android's own "5 minutes ago" in the display language. */
+/** "never", or how long ago, in the display language. */
 @Composable
 private fun formatRelative(epochMillis: Long): String {
     if (epochMillis <= 0L) return stringResource(R.string.notifications_never_synced)
-    return DateUtils.getRelativeTimeSpanString(
-        epochMillis,
-        System.currentTimeMillis(),
-        DateUtils.MINUTE_IN_MILLIS
-    ).toString()
+    return relativeTime(epochMillis)
 }
