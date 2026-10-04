@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -29,8 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SpeechLanguageCheck
@@ -40,9 +43,6 @@ import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
 import android.provider.Settings as AndroidSettings
-
-/** Voice-language dropdown entry meaning "no explicit choice — follow the reply language". */
-private const val FOLLOW_REPLY_LANGUAGE = "Same as AI reply language"
 
 /**
  * The Language page: every language choice, told apart, and the only place any
@@ -138,8 +138,7 @@ fun LanguageScreen(
 
     SettingsScaffold(title = SettingsPage.LANGUAGE.title, onBack = onBack, overlay = overlay) {
         Text(
-            "Every language Gotcha uses, in one place: what the app's own screens are " +
-                "written in, what Gotcha speaks and hears, and what it writes its answers in.",
+            stringResource(R.string.language_page_intro),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -148,13 +147,12 @@ fun LanguageScreen(
 
         // ---- 1. App display language ----
         Text(
-            "App display language",
+            stringResource(R.string.language_display_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Gotcha's own buttons, labels and settings are in English only for now — " +
-                "changing this affects the rest of your phone, not this app.",
+            stringResource(R.string.language_display_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -163,20 +161,18 @@ fun LanguageScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .settingsField("settings_open_app_locale")
-        ) { Text("Open Android language settings") }
+        ) { Text(stringResource(R.string.language_display_open_settings)) }
 
         HorizontalDivider(thickness = 1.dp)
 
         // ---- 2. Voice language ----
         Text(
-            "Voice language",
+            stringResource(R.string.language_voice_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "What Gotcha speaks aloud and listens for during voice input and calls. " +
-                "Leave it following the reply language unless you want answers written " +
-                "in one language and spoken in another.",
+            stringResource(R.string.language_voice_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -185,10 +181,14 @@ fun LanguageScreen(
             onExpandedChange = { voiceExpanded = it }
         ) {
             OutlinedTextField(
-                value = voiceLanguage.ifBlank { FOLLOW_REPLY_LANGUAGE },
+                value = if (voiceLanguage.isBlank()) {
+                    stringResource(R.string.language_voice_follow_reply)
+                } else {
+                    stringResource(Language.fromLabel(voiceLanguage).nameRes)
+                },
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Voice language") },
+                label = { Text(stringResource(R.string.language_voice_title)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = voiceExpanded)
                 },
@@ -202,17 +202,17 @@ fun LanguageScreen(
                 onDismissRequest = { voiceExpanded = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text(FOLLOW_REPLY_LANGUAGE) },
+                    text = { Text(stringResource(R.string.language_voice_follow_reply)) },
                     onClick = {
                         voiceLanguage = ""
                         voiceExpanded = false
                     }
                 )
-                Language.labels.forEach { lang ->
+                Language.entries.forEach { lang ->
                     DropdownMenuItem(
-                        text = { Text(lang) },
+                        text = { Text(stringResource(lang.nameRes)) },
                         onClick = {
-                            voiceLanguage = lang
+                            voiceLanguage = lang.label
                             voiceExpanded = false
                         }
                     )
@@ -220,19 +220,18 @@ fun LanguageScreen(
             }
         }
         Text(
-            "Which model and voice read it out are picked under Settings → AI → Speech.",
+            stringResource(R.string.language_voice_speech_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Text(
-            "Transcription language",
+            stringResource(R.string.language_transcription_title),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "The language Gotcha writes your speech down in, for voice input, calls " +
-                "and transcribing audio files.",
+            stringResource(R.string.language_transcription_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -252,7 +251,7 @@ fun LanguageScreen(
             }
         )
         Text(
-            transcriptionOverrideHint(initial.sttProvider),
+            stringResource(transcriptionOverrideHint(initial.sttProvider)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -274,17 +273,22 @@ fun LanguageScreen(
             enabled = !testingVoice,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(if (testingVoice) "Playing…" else "Test voice")
+            Text(
+                stringResource(
+                    if (testingVoice) R.string.language_test_voice_playing else R.string.language_test_voice
+                )
+            )
         }
         voiceDataMissing?.let { missingLang ->
             SkinAlertDialog(
                 onDismissRequest = { voiceDataMissing = null },
-                title = { Text("Voice data not installed") },
+                title = { Text(stringResource(R.string.language_voice_data_missing_title)) },
                 text = {
                     Text(
-                        "Your device doesn't have Android's built-in voice for " +
-                            "${missingLang.label}. It was spoken in English instead. " +
-                            "Install the voice data to fix pronunciation."
+                        stringResource(
+                            R.string.language_voice_data_missing_body,
+                            stringResource(missingLang.nameRes)
+                        )
                     )
                 },
                 confirmButton = {
@@ -300,15 +304,15 @@ fun LanguageScreen(
                             } catch (_: Exception) {
                                 Toast.makeText(
                                     localContext,
-                                    "Could not open text-to-speech settings.",
+                                    localContext.getString(R.string.language_tts_settings_failed),
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
                         }
-                    ) { Text("Install") }
+                    ) { Text(stringResource(R.string.language_voice_data_install)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
+                    TextButton(onClick = { voiceDataMissing = null }) { Text(stringResource(R.string.action_cancel)) }
                 }
             )
         }
@@ -317,13 +321,12 @@ fun LanguageScreen(
 
         // ---- 3. AI reply language ----
         Text(
-            "AI reply language",
+            stringResource(R.string.language_reply_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "The language the assistant writes its answers in. Tool names, commands " +
-                "and file paths stay in English so they keep working.",
+            stringResource(R.string.language_reply_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -332,10 +335,10 @@ fun LanguageScreen(
             onExpandedChange = { replyExpanded = it }
         ) {
             OutlinedTextField(
-                value = preferredLanguage,
+                value = stringResource(Language.fromLabel(preferredLanguage).nameRes),
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("AI reply language") },
+                label = { Text(stringResource(R.string.language_reply_title)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = replyExpanded)
                 },
@@ -348,11 +351,11 @@ fun LanguageScreen(
                 expanded = replyExpanded,
                 onDismissRequest = { replyExpanded = false }
             ) {
-                Language.labels.forEach { lang ->
+                Language.entries.forEach { lang ->
                     DropdownMenuItem(
-                        text = { Text(lang) },
+                        text = { Text(stringResource(lang.nameRes)) },
                         onClick = {
-                            preferredLanguage = lang
+                            preferredLanguage = lang.label
                             replyExpanded = false
                         }
                     )
@@ -363,25 +366,40 @@ fun LanguageScreen(
         Button(
             onClick = {
                 onSave { applyLanguages(it) }
-                overlay.show("Saved language settings.")
+                overlay.show(localContext.getString(R.string.language_saved))
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save_language")
-        ) { Text("Save Language Settings") }
+        ) { Text(stringResource(R.string.language_save)) }
     }
 }
 
 /** What the transcription override does with the speech-to-text [provider] in use. */
-internal fun transcriptionOverrideHint(provider: AudioProvider): String = when {
-    provider.isApiBased() ->
-        "Leave this empty and speech is transcribed in the voice language. Set it to " +
-            "force one language, which helps accuracy when the model tends to guess wrong."
-    provider == AudioProvider.ANDROID ->
-        "Only Samosa AI and external speech-to-text use this. Android Built-in " +
-            "always transcribes in the voice language."
-    else -> "Only Samosa AI and external speech-to-text use this. Speech-to-text is off."
+@StringRes
+internal fun transcriptionOverrideHint(provider: AudioProvider): Int = when {
+    provider.isApiBased() -> R.string.language_transcription_hint_api
+    provider == AudioProvider.ANDROID -> R.string.language_transcription_hint_android
+    else -> R.string.language_transcription_hint_off
 }
+
+/**
+ * The language's name in the app's display language. [Language.label] stays the
+ * stored value and the name the model and speech engines are given.
+ */
+@get:StringRes
+internal val Language.nameRes: Int
+    get() = when (this) {
+        Language.ENGLISH -> R.string.language_english
+        Language.SPANISH -> R.string.language_spanish
+        Language.FRENCH -> R.string.language_french
+        Language.GERMAN -> R.string.language_german
+        Language.HINDI -> R.string.language_hindi
+        Language.JAPANESE -> R.string.language_japanese
+        Language.CHINESE -> R.string.language_chinese
+        Language.ITALIAN -> R.string.language_italian
+        Language.PORTUGUESE -> R.string.language_portuguese
+    }
 
 /**
  * Open the per-app language screen where it can work, otherwise the device-wide
@@ -418,7 +436,7 @@ internal fun openLanguageSettings(
     }
     Toast.makeText(
         context,
-        "Could not open language settings.",
+        context.getString(R.string.language_display_settings_failed),
         Toast.LENGTH_SHORT
     ).show()
 }

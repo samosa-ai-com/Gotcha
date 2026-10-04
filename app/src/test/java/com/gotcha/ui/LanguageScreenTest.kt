@@ -5,6 +5,8 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.audio.AudioProvider
+import com.gotcha.i18n.Language
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -70,5 +72,22 @@ class LanguageScreenTest {
         }
         openLanguageSettings(failingContext, appHasLocales = true)
         assertEquals("Could not open language settings.", ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun `every language name reads as its label in English`() {
+        // The stored label doubles as the English name; a mismatch would change the dropdowns.
+        for (lang in Language.entries) {
+            assertEquals(lang.label, context.getString(lang.nameRes))
+        }
+    }
+
+    @Test
+    fun `transcription hint follows the speech-to-text provider`() {
+        assertEquals(
+            "Only Samosa AI and external speech-to-text use this. Android Built-in " +
+                "always transcribes in the voice language.",
+            context.getString(transcriptionOverrideHint(AudioProvider.ANDROID))
+        )
     }
 }

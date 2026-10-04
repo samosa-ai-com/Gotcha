@@ -18,4 +18,44 @@
         <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
         <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
     </string-array>
+
+    <!-- Language names, shown wherever a Language is picked. -->
+    <string name="language_english">English</string>
+    <string name="language_spanish">Spanish</string>
+    <string name="language_french">French</string>
+    <string name="language_german">German</string>
+    <string name="language_hindi">Hindi</string>
+    <string name="language_japanese">Japanese</string>
+    <string name="language_chinese">Chinese</string>
+    <string name="language_italian">Italian</string>
+    <string name="language_portuguese">Portuguese</string>
+
+    <!-- Settings → Language -->
+    <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
+    <string name="language_display_title">App display language</string>
+    <string name="language_display_description">Gotcha\'s own buttons, labels and settings are in English only for now — changing this affects the rest of your phone, not this app.</string>
+    <string name="language_display_open_settings">Open Android language settings</string>
+    <string name="language_display_settings_failed">Could not open language settings.</string>
+    <string name="language_voice_title">Voice language</string>
+    <string name="language_voice_description">What Gotcha speaks aloud and listens for during voice input and calls. Leave it following the reply language unless you want answers written in one language and spoken in another.</string>
+    <string name="language_voice_follow_reply">Same as AI reply language</string>
+    <string name="language_voice_speech_hint">Which model and voice read it out are picked under Settings → AI → Speech.</string>
+    <string name="language_transcription_title">Transcription language</string>
+    <string name="language_transcription_description">The language Gotcha writes your speech down in, for voice input, calls and transcribing audio files.</string>
+    <string name="language_transcription_hint_api">Leave this empty and speech is transcribed in the voice language. Set it to force one language, which helps accuracy when the model tends to guess wrong.</string>
+    <string name="language_transcription_hint_android">Only Samosa AI and external speech-to-text use this. Android Built-in always transcribes in the voice language.</string>
+    <string name="language_transcription_hint_off">Only Samosa AI and external speech-to-text use this. Speech-to-text is off.</string>
+    <string name="language_test_voice">Test voice</string>
+    <string name="language_test_voice_playing">Playing…</string>
+    <string name="language_voice_data_missing_title">Voice data not installed</string>
+    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s. It was spoken in English instead. Install the voice data to fix pronunciation.</string>
+    <string name="language_voice_data_install">Install</string>
+    <string name="language_tts_settings_failed">Could not open text-to-speech settings.</string>
+    <string name="language_reply_title">AI reply language</string>
+    <string name="language_reply_description">The language the assistant writes its answers in. Tool names, commands and file paths stay in English so they keep working.</string>
+    <string name="language_saved">Saved language settings.</string>
+    <string name="language_save">Save Language Settings</string>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">Cancel</string>
 </resources>
