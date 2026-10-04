@@ -56,9 +56,10 @@ import android.provider.Settings as AndroidSettings
  * can see all three at once, which is what makes the difference between them
  * legible:
  *
- *  1. **App display language** — Android's, not ours. The interface is English
- *     only, so this section is honest about that and hands the user off to the
- *     system screen rather than pretending to a picker that would do nothing.
+ *  1. **App display language** — what Gotcha's own screens are written in.
+ *     Android owns the choice: Android 13+ keeps a per-app language, which
+ *     changes Gotcha alone; Android 11 and 12 only have the phone's language,
+ *     so the page says that choosing there changes the whole phone.
  *  2. **Voice language** — what TTS speaks and STT listens in
  *     ([Settings.effectiveVoiceLanguage]). Blank follows the reply language.
  *     Under it, the **transcription language override** ([Settings.sttLanguage]),
@@ -110,6 +111,8 @@ fun LanguageScreen(
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
     val localContext = LocalContext.current
+    // Android 13+ keeps a language for Gotcha alone; earlier versions only the phone's.
+    val hasPerAppLanguage = remember { declaresAppLocales(localContext) }
 
     /** This page's fields, copied onto [base]. */
     fun applyLanguages(base: Settings) = base.copy(
@@ -155,7 +158,9 @@ fun LanguageScreen(
             fontWeight = FontWeight.Bold
         )
         Text(
-            stringResource(R.string.language_display_description),
+            stringResource(
+                if (hasPerAppLanguage) R.string.language_display_description else R.string.language_display_description_device
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -164,7 +169,17 @@ fun LanguageScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .settingsField("settings_open_app_locale")
-        ) { Text(stringResource(R.string.language_display_open_settings)) }
+        ) {
+            Text(
+                stringResource(
+                    if (hasPerAppLanguage) {
+                        R.string.language_display_open_settings
+                    } else {
+                        R.string.language_display_open_device_settings
+                    }
+                )
+            )
+        }
 
         HorizontalDivider(thickness = 1.dp)
 

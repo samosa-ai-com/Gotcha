@@ -210,7 +210,7 @@ class SamosaAuthManager(
     }
 
     private fun mapClaimError(code: Int, detail: String?): String {
-        val lowerDetail = detail?.lowercase() ?: appContext.getString(R.string.samosa_auth)
+        val lowerDetail = detail?.lowercase() ?: ""
         return when (code) {
             400 -> {
                 if (lowerDetail.contains("yourself")) {

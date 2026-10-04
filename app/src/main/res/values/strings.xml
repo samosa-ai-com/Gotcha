@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Gotcha</string>
+    <!-- Text marked translatable="false" stays English in every language: names,
+         codes, and the legal consent, which changes only with reviewed copy. -->
+    <string name="app_name" translatable="false">Gotcha</string>
     <string name="accessibility_service_description">Lets Gotcha read on-screen content and perform taps, swipes and text input on your behalf, so the assistant can operate other apps for you.</string>
     <string name="device_admin_description">Lets Gotcha lock the screen, enforce password policy and disable the camera when you ask it to.</string>
-    <string name="legal_consent_title">Before you continue</string>
-    <string name="legal_consent_intro">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
-    <string name="legal_consent_toggle_label">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
-    <string name="legal_consent_agree">I agree</string>
-    <string name="legal_consent_section_terms">Terms and Conditions</string>
-    <string name="legal_consent_section_disclaimer">Disclaimer and Declaration</string>
-    <string name="legal_consent_section_privacy">Data Retention and Privacy Policy</string>
-    <string name="legal_consent_loading">(loading…)</string>
-    <string-array name="legal_consent_bullets">
+    <string name="legal_consent_title" translatable="false">Before you continue</string>
+    <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
+    <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
+    <string name="legal_consent_agree" translatable="false">I agree</string>
+    <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
+    <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
+    <string name="legal_consent_section_privacy" translatable="false">Data Retention and Privacy Policy</string>
+    <string name="legal_consent_loading" translatable="false">(loading…)</string>
+    <string-array name="legal_consent_bullets" translatable="false">
         <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
         <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
         <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
@@ -33,8 +35,10 @@
     <!-- Settings → Language -->
     <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
     <string name="language_display_title">App display language</string>
-    <string name="language_display_description">Gotcha\'s own buttons, labels and settings are in English only for now — changing this affects the rest of your phone, not this app.</string>
-    <string name="language_display_open_settings">Open Android language settings</string>
+    <string name="language_display_description">The language of Gotcha\'s own buttons and screens. Only Gotcha changes; the rest of your phone stays as it is.</string>
+    <string name="language_display_open_settings">Choose app language</string>
+    <string name="language_display_description_device">On this Android version Gotcha follows your phone\'s language, so changing it changes the whole phone.</string>
+    <string name="language_display_open_device_settings">Open Android language settings</string>
     <string name="language_display_settings_failed">Could not open language settings.</string>
     <string name="language_voice_title">Voice language</string>
     <string name="language_voice_description">What Gotcha speaks aloud and listens for during voice input and calls. Leave it following the reply language unless you want answers written in one language and spoken in another.</string>
@@ -111,7 +115,7 @@
     <string name="referral_share_link">Share Invite Link</string>
     <string name="referral_referred_by">🎁 Referred by</string>
     <string name="referral_enter_code">Enter Invite Code</string>
-    <string name="referral_code_placeholder">AIR-XXXXXX</string>
+    <string name="referral_code_placeholder" translatable="false">AIR-XXXXXX</string>
     <string name="referral_apply">Apply</string>
     <string name="influencer_title">🌟 Got an audience? Let\'s team up</string>
     <string name="influencer_description">If you\'re an influencer with a solid following, we\'d love to get Samosa AI in your hands early — with perks to match.</string>
@@ -312,13 +316,8 @@
     <string name="ai_config_refreshing">Refreshing…</string>
     <string name="ai_config_refresh_models">🔄 Refresh models…</string>
     <string name="ai_config_refreshing_models">Refreshing models…</string>
-    <string name="ai_config_invite_code_applied">Invite code applied!</string>
-    <string name="ai_config_signing_in_with_google">Signing in with Google…</string>
-    <string name="ai_config_signing_out">Signing out…</string>
-    <string name="ai_config_signed_out_of_samosa_ai">Signed out of Samosa AI.</string>
     <string name="ai_config_llm_response_cache_cleared">LLM response cache cleared.</string>
     <string name="ai_config_debug_screenshots_cleared">Debug screenshots cleared.</string>
-    <string name="ai_config_saved">Saved.</string>
     <string name="ai_config_testing_connection">Testing connection…</string>
 
     <!-- SpeechScreen -->
@@ -327,11 +326,6 @@
     <string name="speech_refreshing">Refreshing…</string>
     <string name="speech_refresh_audio_models">🔄 Refresh audio models…</string>
     <string name="speech_refreshing_audio_models">Refreshing audio models…</string>
-    <string name="speech_invite_code_applied">Invite code applied!</string>
-    <string name="speech_signing_in_with_google">Signing in with Google…</string>
-    <string name="speech_signing_out">Signing out…</string>
-    <string name="speech_signed_out_of_samosa_ai">Signed out of Samosa AI.</string>
-    <string name="speech_saved">Saved.</string>
     <string name="speech_no_app_can_open_the">No app can open the docs link</string>
 
     <!-- Samosa sign-in status and shared model pickers -->
@@ -502,12 +496,12 @@
     <string name="loading">(loading…)</string>
     <string name="about_link_website">Samosa AI website</string>
     <string name="about_link_about_us">About us</string>
-    <string name="about_link_gotcha">Gotcha</string>
+    <string name="about_link_gotcha" translatable="false">Gotcha</string>
     <string name="about_link_docs">Gotcha documentation</string>
     <string name="about_link_pricing">Pricing</string>
     <string name="about_link_blog">Blog</string>
-    <string name="about_link_github">GitHub</string>
-    <string name="about_link_email">Email contact@samosa-ai.com</string>
+    <string name="about_link_github" translatable="false">GitHub</string>
+    <string name="about_link_email" translatable="false">Email contact@samosa-ai.com</string>
     <string name="about_version">Gotcha v%1$s (build %2$d)</string>
     <string name="about_up_to_date">Gotcha is up to date (v%1$s).</string>
     <string name="about_update_available">New update available: v%1$s</string>
@@ -1561,7 +1555,6 @@
     <string name="samosa_auth_too_many_attempts_please_wait">Too many attempts. Please wait a moment and try again.</string>
     <string name="samosa_auth_samosa_ai_is_temporarily_unavailable">Samosa AI is temporarily unavailable (gateway error). Try again shortly.</string>
     <string name="samosa_auth_registration_failed_http">Registration failed (HTTP %1$d).</string>
-    <string name="samosa_auth"></string>
     <string name="samosa_auth_invalid_referral_code">Invalid referral code.</string>
     <string name="samosa_auth_referral_code_not_found">Referral code not found.</string>
     <string name="samosa_auth_you_have_already_been_referred">You have already been referred.</string>
@@ -1577,7 +1570,7 @@
 
     <!-- Speech providers -->
     <string name="audio_provider_android">Android Built-in</string>
-    <string name="audio_provider_samosa">Samosa AI</string>
+    <string name="audio_provider_samosa" translatable="false">Samosa AI</string>
     <string name="audio_provider_api">External API</string>
     <string name="audio_provider_none">None</string>
 

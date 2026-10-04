@@ -193,6 +193,9 @@ android {
     }
 
     lint {
+        // A string not yet translated falls back to English, so a partial
+        // translation is safe to ship; lint still lists what is missing.
+        warning += "MissingTranslation"
         abortOnError = true
         warningsAsErrors = false
         htmlReport = true
