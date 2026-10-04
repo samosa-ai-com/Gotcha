@@ -759,7 +759,10 @@ class MainActivity : ComponentActivity() {
         // install that has already seen the tour and is still unconfigured gets
         // dropped straight on the page holding the key and model.
         val unconfigured = remember { !initial.isConfigured && !tour.willRun }
-        var currentRoute by remember {
+        // Saveable like settingsPage, so a configuration change (the phone's
+        // language, a rotation, dark mode) puts the user back on the screen they
+        // were on rather than on Home with a stale settings page waiting.
+        var currentRoute by rememberSaveable {
             mutableStateOf(if (unconfigured) Route.SETTINGS else Route.HOME)
         }
         var settingsPage by rememberSaveable {
