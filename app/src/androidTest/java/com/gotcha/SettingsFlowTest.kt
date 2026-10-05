@@ -4,6 +4,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -289,8 +290,16 @@ class SettingsFlowTest {
             .assert(SemanticsMatcher.expectValue(SettingsHighlighted, true))
 
         // The tint fades and the highlight is spent; the field stays where it is.
+        // Being spent is not the same as being gone: the page clears the mark
+        // after a real FOLLOW_MS delay plus the fade, and waitForIdle() only
+        // waits for the composition to settle — which it does long before that.
+        // So wait for the mark to actually leave rather than racing it.
         composeRule.mainClock.autoAdvance = true
-        composeRule.waitForIdle()
+        composeRule.waitUntil(timeoutMillis = HIGHLIGHT_CLEAR_MS) {
+            composeRule.onAllNodes(
+                hasTestTag("settings_max_tool_rounds") and SemanticsMatcher.keyIsDefined(SettingsHighlighted)
+            ).fetchSemanticsNodes().isEmpty()
+        }
         composeRule.onNodeWithTag("settings_max_tool_rounds")
             .assert(SemanticsMatcher.keyNotDefined(SettingsHighlighted))
 
@@ -331,5 +340,12 @@ class SettingsFlowTest {
     private companion object {
         /** Long enough for the page to open and scroll, well short of the fade. */
         const val HIGHLIGHT_CHECK_MS = 700L
+
+        /**
+         * How long to wait for the highlight to be given up. The page holds the
+         * mark while it can still be pulled back into view and only then clears
+         * it, so this has to cover that window and the fade, not just one frame.
+         */
+        const val HIGHLIGHT_CLEAR_MS = 10_000L
     }
 }
