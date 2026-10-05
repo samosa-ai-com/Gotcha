@@ -30,6 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Self-hosted only: the checkout has no local.properties (gitignored),
+      # so Gradle needs ANDROID_HOME. GitHub-hosted images set it already.
+      - name: Point at BeyondMax Android SDK
+        if: runner.environment != 'github-hosted'
+        run: |
+          echo "ANDROID_HOME=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -105,6 +113,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      # Self-hosted only (see build job): the checkout has no
+      # local.properties, so Gradle and emulator-runner need ANDROID_HOME.
+      - name: Point at BeyondMax Android SDK
+        if: runner.environment != 'github-hosted'
+        run: |
+          echo "ANDROID_HOME=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
 
       # GitHub-hosted only: BeyondMax already has KVM + free SDK images.
       # Running the sudo rm -rf cleanup on self-hosted would damage the host.
@@ -219,7 +235,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Self-hosted only (see build job): the checkout has no
+      # local.properties, so Gradle and emulator-runner need ANDROID_HOME.
+      - name: Point at BeyondMax Android SDK
+        if: runner.environment != 'github-hosted'
+        run: |
+          echo "ANDROID_HOME=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
+
       # See the note on the same step in instrumented-smoke.
+      # GitHub-hosted only — never run the sudo rm -rf cleanup on self-hosted.
       # GitHub-hosted only — never run the sudo rm -rf cleanup on self-hosted.
       - name: Free disk space
         if: runner.environment == 'github-hosted'
