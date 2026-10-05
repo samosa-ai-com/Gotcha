@@ -28,7 +28,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Self-hosted only: the checkout has no local.properties (gitignored),
       # so Gradle needs ANDROID_HOME. GitHub-hosted images set it already.
@@ -38,7 +38,7 @@ jobs:
           echo "ANDROID_HOME=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=/home/rishabh/Android/Sdk" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -48,7 +48,7 @@ jobs:
       # Robolectric downloads an android-all jar per @Config(sdk = ...) level on first
       # run; without this every fresh runner pays that download again.
       - name: Cache Robolectric android-all jars
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository/org/robolectric
           key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
@@ -91,7 +91,7 @@ jobs:
 
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: reports
           path: |
@@ -112,7 +112,7 @@ jobs:
     runs-on: [self-hosted, chanakya]
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Self-hosted only (see build job): the checkout has no
       # local.properties, so Gradle and emulator-runner need ANDROID_HOME.
@@ -142,7 +142,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -155,7 +155,7 @@ jobs:
       # and test runs boot from it with -no-snapshot-save so the cached clean
       # state is never overwritten.
       - name: AVD cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: avd-cache
         with:
           path: |
@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload instrumented test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: instrumented-smoke-reports
           path: |
@@ -253,7 +253,7 @@ jobs:
             profile: pixel_8
             port: 5568
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Self-hosted only (see build job): the checkout has no
       # local.properties, so Gradle and emulator-runner need ANDROID_HOME.
@@ -283,7 +283,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -293,7 +293,7 @@ jobs:
       # Same caching scheme as instrumented-smoke; the api-34 key is shared
       # with that job since the AVD definition is identical.
       - name: AVD cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: avd-cache
         with:
           path: |
@@ -338,7 +338,7 @@ jobs:
 
       - name: Upload instrumented test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: instrumented-full-reports-api${{ matrix.api-level }}
           path: |
