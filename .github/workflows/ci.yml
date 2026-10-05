@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64] # BeyondMax self-hosted — 0 minutes. TerminalToolTest shells out to POSIX `sh` — do not move to windows/macos
+    runs-on: [self-hosted, chanakya] # BeyondMax self-hosted — 0 minutes. TerminalToolTest shells out to POSIX `sh` — do not move to windows/macos
     timeout-minutes: 30
     # The coverage comment needs pull-requests: write. Without it the jacoco-report
     # action fails with "Resource not accessible by integration" — and because that
@@ -101,7 +101,7 @@ jobs:
   # in app/build.gradle.kts.
   instrumented-smoke:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, chanakya]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -191,7 +191,7 @@ jobs:
   # nightly schedule is removed.
   instrumented-full:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, chanakya]
     timeout-minutes: 60
     strategy:
       fail-fast: false

@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, chanakya]
     timeout-minutes: 30
     env:
       # What the release asset is called on GitHub - i.e. the filename a user ends
