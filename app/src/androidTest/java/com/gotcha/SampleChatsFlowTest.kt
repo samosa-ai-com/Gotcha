@@ -11,11 +11,13 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SampleChatSeeder
 import com.gotcha.data.SampleChats
 import com.gotcha.data.SettingsRepository
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.TestSeed
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -66,8 +68,30 @@ class SampleChatsFlowTest {
     }
 
     private fun launch() {
+        seedFirstRun()
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
+    }
+
+    /**
+     * Seeds the way a real first launch does: the same seeder, against the same
+     * chat directory and preferences.
+     *
+     * The app does this from ChatRunner's startup job, and that job is built in
+     * ChatRunner's constructor — which `ChatRunner.of` only ever runs once per
+     * *process*. Every test here shares one instrumentation process, so from the
+     * second test onward the seeding has already happened somewhere the test
+     * cannot reach back to, and clearing the flag on disk does not bring it
+     * back: the launch that would seed is not coming. Calling the seeder here
+     * puts each test back in the first-run state it is actually asserting about,
+     * and on the relaunch in [aDeletedSampleDoesNotComeBack] it is a no-op
+     * because the flag is already set — which is the regression that test exists
+     * to guard, now exercised for real rather than passed by accident.
+     */
+    private fun seedFirstRun() {
+        runBlocking {
+            SampleChatSeeder.seedIfNeeded(ChatHistoryRepository(context), SettingsRepository(context).prefs)
+        }
     }
 
     private fun openDrawer() {
@@ -77,11 +101,23 @@ class SampleChatsFlowTest {
 
     private fun titles() = SampleChats.all().map { it.title }
 
+    /**
+     * A drawer row for the sample called [title].
+     *
+     * Matching the title alone is not enough to say "the drawer has this chat":
+     * the chat screen stays composed behind the open drawer, and one of its
+     * starter prompts happens to be called "Turn on Wi-Fi" too — the same words
+     * as a sample. Only a row that also says where it came from is the drawer's,
+     * which is the thing these tests are actually about.
+     */
+    private fun sampleRow(title: String) = hasText(title) and hasText(SAMPLE_LABEL)
+
+    private fun sampleRowNodes(title: String) =
+        composeRule.onAllNodes(sampleRow(title)).fetchSemanticsNodes()
+
     private fun awaitSampleRows() {
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            titles().all { title ->
-                composeRule.onAllNodes(hasText(title)).fetchSemanticsNodes().isNotEmpty()
-            }
+            titles().all { title -> sampleRowNodes(title).isNotEmpty() }
         }
     }
 
@@ -91,11 +127,11 @@ class SampleChatsFlowTest {
         openDrawer()
         awaitSampleRows()
 
-        titles().forEach { composeRule.onNodeWithText(it).assertExists() }
+        titles().forEach { composeRule.onNode(sampleRow(it)).assertExists() }
         // Both rows say where they came from, not just one.
         assertTrue(
             "every seeded row must be labelled a sample",
-            composeRule.onAllNodes(hasText("Sample chat")).fetchSemanticsNodes().size >= titles().size
+            composeRule.onAllNodes(hasText(SAMPLE_LABEL)).fetchSemanticsNodes().size >= titles().size
         )
     }
 
@@ -105,7 +141,7 @@ class SampleChatsFlowTest {
         openDrawer()
         awaitSampleRows()
 
-        composeRule.onNodeWithText(titles().first()).performClick()
+        composeRule.onNode(sampleRow(titles().first())).performClick()
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag("sample_chat_notice").assertExists()
@@ -137,8 +173,13 @@ class SampleChatsFlowTest {
         titles().forEach { title ->
             assertTrue(
                 "deleted sample '$title' came back after a relaunch",
-                composeRule.onAllNodes(hasText(title)).fetchSemanticsNodes().isEmpty()
+                sampleRowNodes(title).isEmpty()
             )
         }
+    }
+
+    private companion object {
+        /** What the drawer calls a seeded chat; see `R.string.drawer_sample_chat`. */
+        const val SAMPLE_LABEL = "Sample chat"
     }
 }
