@@ -29,6 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class ChatRoundTripTest {
@@ -69,11 +70,20 @@ class ChatRoundTripTest {
 
     /** Consumes and returns the request bodies recorded since [previousCount]. */
     private fun drainSince(previousCount: Int): List<String> {
-        val bodies = mutableListOf<String>()
-        while (mockLlm.server.requestCount > previousCount) {
-            mockLlm.server.takeRequest()?.let { bodies.add(it.body.readUtf8()) }
+        // Take everything currently queued (bounded waits so an empty queue
+        // ends the drain instead of wedging the run), then keep only the
+        // requests that arrived after previousCount. MockWebServer is FIFO,
+        // so dropping the first previousCount entries is exactly "since".
+        // NOTE: a plain `while (requestCount > previousCount) takeRequest()`
+        // never terminates the takes and re-includes pre-revert requests —
+        // that wedged this test for 12+ minutes (unbounded take) and, once
+        // bounded, failed it on send#2's own legitimate request.
+        val all = mutableListOf<String>()
+        while (true) {
+            val req = mockLlm.server.takeRequest(2, TimeUnit.SECONDS) ?: break
+            all.add(req.body.readUtf8())
         }
-        return bodies
+        return all.drop(previousCount)
     }
 
     @Test
@@ -177,10 +187,12 @@ class ChatRoundTripTest {
         waitForReply()
         sendText("second prompt")
         waitForReply()
-        // run2's request + the run1 title-generation request must both have landed
-        // and the final run cleaned up before we snapshot, so the edit's
-        // regeneration is the only new request.
-        composeRule.waitUntil(timeoutMillis = 15_000) { mockLlm.server.requestCount >= 3 }
+        // Both sends must have landed and the final run cleaned up before we
+        // snapshot, so the edit's regeneration is the only new request. Count
+        // the two sends, not a fixed 3: the run-1 title-generation request
+        // fires only once per process, so in a full-suite run an earlier
+        // test may already have consumed it and >= 3 would wait out 15 s.
+        composeRule.waitUntil(timeoutMillis = 15_000) { mockLlm.server.requestCount >= 2 }
         composeRule.waitForIdle()
         val since = mockLlm.server.requestCount
 

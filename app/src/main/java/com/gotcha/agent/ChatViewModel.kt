@@ -1453,8 +1453,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         return synthesizeRunSummariesFromHistory(chat.history, settings.model, chat.agentName)
     }
 
-    private companion object {
-        /** Set once the one-time notification-permission ask has been shown. */
+    internal companion object {
+        /**
+         * Set once the one-time notification-permission ask has been shown.
+         * Internal (not private) so instrumented-test seeding can pre-mark
+         * it: no test covers the ask itself, and its modal dialog would
+         * otherwise overlay every multi-send chat test on fresh installs.
+         */
         const val KEY_NOTIFICATION_PERMISSION_ASKED = "chat_notification_permission_asked"
     }
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.gotcha.MainActivity
+import com.gotcha.agent.ChatViewModel
 import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
@@ -114,5 +115,9 @@ fun seedTestSettings(
     repository.prefs.edit()
         .putBoolean(MainActivity.KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT, true)
         .putBoolean(SUPPRESS_TOUR_KEY, true)
+        // The one-time notification-permission ask fires on the first send;
+        // no test covers the ask itself, and its modal would otherwise sit
+        // over every multi-send chat test on fresh installs.
+        .putBoolean(ChatViewModel.KEY_NOTIFICATION_PERMISSION_ASKED, true)
         .apply()
 }
