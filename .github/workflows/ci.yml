@@ -179,8 +179,10 @@ jobs:
           avd-name: ci-34
           # NOT 5554: the inbetween app's docker container owns host port
           # 5555 (adb channel), which ghosts as emulator-5554 offline and
-          # wedges the boot-wait loop. Do not touch that container.
-          emulator-port: 5764
+          # wedges the boot-wait loop. Do not touch that container (nor
+          # n8n-postgres on 5556). Ports must also stay inside the action's
+          # supported range [5554, 5584].
+          emulator-port: 5558
           emulator-boot-timeout: 420
           force-avd-creation: false
           disable-animations: true
@@ -196,7 +198,7 @@ jobs:
           target: aosp_atd
           profile: pixel_6
           avd-name: ci-34
-          emulator-port: 5764
+          emulator-port: 5558
           emulator-boot-timeout: 420
           force-avd-creation: false
           disable-animations: true
@@ -233,23 +235,23 @@ jobs:
           - api-level: 30
             target: default
             profile: pixel_2
-            port: 5766
+            port: 5560
           - api-level: 33
             target: aosp_atd
             profile: pixel_6
-            port: 5768
+            port: 5562
           - api-level: 34
             target: aosp_atd
             profile: pixel_6
-            port: 5770
+            port: 5564
           - api-level: 35
             target: aosp_atd
             profile: pixel_8
-            port: 5772
+            port: 5566
           - api-level: 36
             target: google_apis
             profile: pixel_8
-            port: 5774
+            port: 5568
     steps:
       - uses: actions/checkout@v4
 
