@@ -5,10 +5,13 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.testsupport.FileProviderCache
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -27,6 +30,17 @@ class AppUpdateManagerRobolectricTest {
 
     private val updateManager = AppUpdateManager()
     private val context: Context = ApplicationProvider.getApplicationContext()
+
+    @Before
+    fun clearFileProviderCache() {
+        // Same static-cache poisoning as PodcastToolTest (see FileProviderCache):
+        // each test gets a fresh sandbox but FileProvider remembers the first
+        // caller's roots for the whole test task.
+        FileProviderCache.clear()
+    }
+
+    @After
+    fun clearFileProviderCacheAfter() = FileProviderCache.clear()
 
     @Test
     fun downloadUpdate_untrustedUrl_returnsFailureBeforeAnyNetworkUse() = runTest {

@@ -8,6 +8,7 @@ import com.gotcha.audio.ModelCategory
 import com.gotcha.audio.VoiceInfo
 import com.gotcha.data.GotchaStorage
 import com.gotcha.data.Settings
+import com.gotcha.testsupport.FileProviderCache
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -61,6 +62,10 @@ class PodcastToolTest {
     @Before
     fun setUp() {
         ShadowExternalStorageManager.granted = true
+        // FileProvider caches its path strategy statically per authority
+        // across the whole test task while each test gets a fresh sandbox
+        // (see FileProviderCache) — clear it so this test resolves ITS roots.
+        FileProviderCache.clear()
         context = ApplicationProvider.getApplicationContext()
         GotchaStorage.podcastsRoot().deleteRecursively()
     }
@@ -68,6 +73,7 @@ class PodcastToolTest {
     @After
     fun tearDown() {
         ShadowExternalStorageManager.resetGranted()
+        FileProviderCache.clear()
     }
 
     private fun tool(
