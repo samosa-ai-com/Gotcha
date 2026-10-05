@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 30
     env:
       # What the release asset is called on GitHub - i.e. the filename a user ends
@@ -235,8 +235,9 @@ jobs:
           EXPECTED_CERT_SHA256: ${{ vars.RELEASE_CERT_SHA256 }}
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
-          AAPT2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n1)
+          SDK_ROOT="${ANDROID_HOME:-$HOME/Android/Sdk}"
+          APKSIGNER=$(ls "$SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -n1)
+          AAPT2=$(ls "$SDK_ROOT"/build-tools/*/aapt2 | sort -V | tail -n1)
 
           if [ -z "$EXPECTED_CERT_SHA256" ]; then
             echo "::error::RELEASE_CERT_SHA256 repo variable is not set. Get it with: apksigner verify --print-certs <apk>"
