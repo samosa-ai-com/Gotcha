@@ -4,6 +4,23 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Gotcha in eight more languages** (#120). Gotcha's own screens, menus,
+  dialogs and notifications are now available in Hindi, Spanish, French,
+  German, Italian, Portuguese (Brazil), Japanese and Simplified Chinese, as
+  well as English. On Android 13 and later you can pick a language for Gotcha
+  alone, under Settings → Language or in Android's app language settings; on
+  Android 11 and 12, Gotcha follows the phone's language. Names, codes and the
+  legal agreements stay in English, and anything not yet translated shows in
+  English. The language Gotcha replies in is a separate setting and works as
+  before.
+- **Several attachments in one message** (#94). The composer's + button now
+  adds images and files to a message instead of replacing the last one, up to
+  10 per message, each shown in a strip above the composer where it can be
+  removed before sending. The sent message shows every image and document.
+  Files past the tenth, or documents too long to send together, are left out
+  with a message saying why, and the rest are still sent. When the model
+  turns the images down, Gotcha says to send fewer or smaller ones instead of
+  showing only the server's error.
 - **Dictate without the reply being read aloud** (#118). A new Speech setting,
   "Read aloud replies to voice messages", decides whether the reply to a message
   you sent with the microphone is spoken. It is on by default, so nothing
@@ -94,8 +111,8 @@ All notable changes to Gotcha are documented here.
   device actions start the chat in Operator. On by default; Settings →
   Notifications turns tips off or changes the time, and they have their own
   "Daily tips" channel in Android's settings.
-- **The assistant can change Gotcha's settings, with your approval every
-  time** (#99). Ask it to turn off the reply chime, switch the skin, stop
+- **The assistant can change Gotcha's settings, with your approval every time**
+  (#99). Ask it to turn off the reply chime, switch the skin, stop
   scanning the clipboard or turn a connector off, and it proposes the change
   through a new `update_gotcha_settings` tool. Nothing is written until you
   approve a prompt that lists each setting with its current and new value and
@@ -183,10 +200,16 @@ All notable changes to Gotcha are documented here.
   Monitor, and which mode you're in stays the selector's business.
 
 ### Changed
-- **Every language setting on one page, with a warning when a speech model
-  doesn't fit** (#113, #114). The transcription language override has moved
-  from Settings → AI → Speech to Settings → Language, under the voice language
-  it overrides; the Speech page now shows it read-only, with a link to change
+- **Every language setting on one page** (#74, #113, #114). "Preferred
+  Language" in Personal Info used to set three things at once: the language
+  Gotcha replies in, the voice that reads replies aloud, and the language it
+  transcribes, and its place next to your name made it look like the app's
+  own language. A new Settings → Language page now holds them apart: the app
+  language, the voice language (the same as the reply language unless you
+  choose another, so nothing changes until you do) and the reply language,
+  with the Test voice button. The transcription language override has moved
+  from Settings → AI → Speech to the same page, under the voice language it
+  overrides; the Speech page now shows it read-only, with a link to change
   it. Both pages warn, and say what will happen, when the voice language and
   the chosen speech models disagree: a text-to-speech model with no voice in
   that language (Hindi replies read by an English voice), a hand-picked voice
@@ -194,6 +217,19 @@ All notable changes to Gotcha are documented here.
   or an override that forces transcription into a different one. Gotcha also
   picks a voice in the voice language more often when the voice is left on
   default: it now reads the language from Kokoro voice names like `hf_alpha`.
+- **Gotcha tells you that you can leave while it works** (#96). While a task
+  runs, a line in the chat now says that Gotcha is working in the background
+  and you can use another app meanwhile. It is not part of the conversation,
+  so it is never sent to the model or exported. Viewed from another chat, the
+  "Agent working in …" banner says the same and taps through to the running
+  chat.
+- **A task's notification shows how it went** (#115). The status bar icon now
+  tells a task's state without pulling down the shade: a running icon while it
+  works, then a tick, an error mark or a stop mark for done, failed and
+  stopped. When a task ends while you are elsewhere, its "Gotcha is working on
+  …" notification turns into the task-finished one, instead of one
+  disappearing and another arriving. The lock screen still shows only a
+  generic line.
 - **A calmer notifications bell** (#110). The bell's badge is now in Gotcha's
   own colour instead of alarm red, the bell matches the other top-bar icons and
   fills in while something is unread, and one unread notification shows as a dot
@@ -241,6 +277,20 @@ All notable changes to Gotcha are documented here.
   the ball is on or off instead of only once it is already too late.
 
 ### Fixed
+- **A clear message when Accessibility is off** (#76). A request that needed
+  to read the screen or tap in another app, with Gotcha's accessibility
+  service off, used to fail with an unrelated error. Gotcha now says the
+  service is needed and opens Settings → Accessibility. When the service is
+  switched on but Android has stopped it, which can happen after an update,
+  it says to switch Gotcha off and on again there, rather than telling you to
+  turn on something that is already on.
+- **Opening a chat marks its notifications read** (#116). Notifications in the
+  bell's list used to stay unread until you tapped them or opened the list.
+  Opening the chat they belong to, or coming back to it, now marks them read
+  and updates the bell's count; they stay in the list.
+- **"Open Android language settings" opens the language list** (#112). On some
+  phones the button flashed a blank screen and came back to Gotcha. It now
+  opens Android's language settings.
 - **Fixes from testing this release on a phone and an emulator.** The mic
   button now asks for the microphone the first time you tap it, and starts
   listening once you allow it; it used to say the permission was missing and
@@ -258,7 +308,7 @@ All notable changes to Gotcha are documented here.
   in it (#95).
 - **Gotcha can change the screen timeout itself.** Asked to keep the screen on
   longer, it used to try a shell command, then open a settings page and describe
-  it as if it could see it — on a Redmi, the wrong page. It now sets the timeout
+  it as if it could see it — on some phones, the wrong page. It now sets the timeout
   directly (15 seconds to 30 minutes) with the same "Modify system settings"
   access it uses for brightness, asks for that access the first time, and says
   what the timeout was before. When it opens a settings page, it now names the
@@ -332,7 +382,7 @@ All notable changes to Gotcha are documented here.
   never touch Night Light.
 
 ### Thanks
-- [Techynoob](https://youtube.com/@techynoo1818) for testing this release.
+- **[Techynoob](https://youtube.com/@techynoo1818)** for testing this release.
 
 ## [1.2.0]
 ### Added
