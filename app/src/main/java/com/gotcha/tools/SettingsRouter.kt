@@ -42,6 +42,27 @@ enum class Route {
  *   agent so the navigator starts from a known position rather than re-deriving
  *   it from a screen read.
  */
+/**
+ * What open_setting reports. The screen is launched, not seen: nothing here
+ * knows what is on it, and phone makers move controls between screens, so
+ * [SettingRoute.hint] is offered as where the control is on stock Android, and
+ * the model is told to check the screen, or say what to look for, before telling
+ * the user where to tap.
+ */
+internal fun openedMessage(entry: SettingRoute, screenTitle: String?): String = buildString {
+    append("Opened ${entry.label}")
+    if (screenTitle != null && !screenTitle.equals(entry.label, ignoreCase = true)) {
+        append(" (this phone titles the screen \"$screenTitle\")")
+    }
+    append(". On stock Android: ${entry.hint} ")
+    append(
+        "Phone makers move settings between screens, so this is not a description of what the " +
+            "user sees. Use read_screen before saying where a control is; if the screen can't be " +
+            "read, tell the user which screen you opened and what to look for there, not that " +
+            "the control is in front of them."
+    )
+}
+
 data class SettingRoute(
     val key: String,
     val route: Route,
@@ -69,11 +90,11 @@ class SettingsRouter(private val context: Context) {
         }
 
         val action = resolveAction(entry, Build.VERSION.SDK_INT)
+        val intent = Intent(action).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         return try {
-            context.startActivity(
-                Intent(action).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-            )
-            ToolResult.ok("Opened ${entry.label}. ${entry.hint}")
+            val title = screenTitle(intent)
+            context.startActivity(intent)
+            ToolResult.ok(openedMessage(entry, title))
         } catch (e: Exception) {
             // Not every OEM ships an activity for every documented action.
             ToolResult.error(
@@ -82,6 +103,19 @@ class SettingsRouter(private val context: Context) {
             )
         }
     }
+
+    /**
+     * The title of the screen [intent] opens on this phone, when it has one of
+     * its own: MIUI answers SECURITY_SETTINGS with "Passwords & security", for
+     * instance, not a lock-screen page. Null when it can't be read or is only the
+     * Settings app's name.
+     */
+    private fun screenTitle(intent: Intent): String? = runCatching {
+        val pm = context.packageManager
+        val info = pm.resolveActivity(intent, 0)?.activityInfo ?: return null
+        val title = info.loadLabel(pm).toString()
+        title.takeIf { it.isNotBlank() && it != info.applicationInfo.loadLabel(pm).toString() }
+    }.getOrNull()
 
     /** Whether a request may proceed, and why not when it may not. */
     sealed interface Decision {
@@ -195,7 +229,8 @@ class SettingsRouter(private val context: Context) {
                 route = Route.DEEPLINK,
                 action = Settings.ACTION_DISPLAY_SETTINGS,
                 label = "Display settings",
-                hint = "Brightness, dark theme, font size and screen timeout live here."
+                hint = "Brightness, dark theme, font size and screen timeout live here " +
+                    "(set_screen_timeout changes the timeout directly)."
             ),
             SettingRoute(
                 key = "sound",

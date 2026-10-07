@@ -1,6 +1,7 @@
 package com.gotcha.connectors
 
 import android.content.Context
+import com.gotcha.R
 import com.gotcha.connectors.calendar.CalendarToolDevice
 import com.gotcha.connectors.calendar.CalendarTools
 import com.gotcha.connectors.google.GoogleConnector
@@ -12,6 +13,7 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.microsoft.TaskTools
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.notion.NotionTools
+import com.gotcha.i18n.StringLookup
 import com.gotcha.tools.ToolRegistry
 import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.async
@@ -86,12 +88,12 @@ object ConnectorRegistry {
      * Executes [refreshTools] concurrently across all active connectors, returning a map
      * of connector ID to refresh result status message.
      */
-    suspend fun refreshAllActive(disabledConnectors: Set<String>): Map<String, String> =
+    suspend fun refreshAllActive(disabledConnectors: Set<String>, strings: StringLookup): Map<String, String> =
         coroutineScope {
             active(disabledConnectors).map { conn ->
                 async {
-                    conn.id to runCatching { conn.refreshTools() }.getOrElse { e ->
-                        "Could not refresh ${conn.displayName}: ${e.message}"
+                    conn.id to runCatching { conn.refreshTools(strings) }.getOrElse { e ->
+                        strings(R.string.connector_could_not_refresh, conn.displayName, e.message.orEmpty())
                     }
                 }
             }.awaitAll().toMap()

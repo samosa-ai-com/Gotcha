@@ -88,6 +88,30 @@ class CapabilityGatingTest {
     }
 
     @Test
+    fun `every capability the user can grant carries its settings marker`() {
+        // Without a marker a hidden tool can only produce prose, and whether the
+        // user learns which setting to enable comes down to how the model words
+        // it that turn — the intermittency behind issue #76.
+        assertEquals(ToolResult.ACCESSIBILITY_ACCESS, Capability.ACCESSIBILITY.permissionMarker)
+        assertEquals(
+            ToolResult.NOTIFICATION_LISTENER_ACCESS,
+            Capability.NOTIFICATION_LISTENER.permissionMarker
+        )
+        assertEquals(ToolResult.DEVICE_ADMIN, Capability.DEVICE_ADMIN.permissionMarker)
+        assertEquals(ToolResult.OVERLAY_ACCESS, Capability.OVERLAY.permissionMarker)
+    }
+
+    @Test
+    fun `capabilities with nothing to grant carry no marker`() {
+        // Root and Health Connect are properties of the device, and Termux is an
+        // app to install: there is no settings screen a deep-link could open, so
+        // a marker would send the user somewhere that cannot help.
+        assertNull(Capability.ROOT.permissionMarker)
+        assertNull(Capability.TERMUX.permissionMarker)
+        assertNull(Capability.HEALTH_CONNECT.permissionMarker)
+    }
+
+    @Test
     fun `hidden capability tools drop out of the operator schema list`() {
         val hidden = CapabilityCatalog.hiddenTools(emptySet())
         val exposed = ToolRegistry.toolsForAgent(AgentMode.OPERATOR, hidden).map { it.function.name }

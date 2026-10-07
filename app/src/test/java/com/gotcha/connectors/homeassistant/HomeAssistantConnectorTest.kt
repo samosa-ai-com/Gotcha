@@ -1,6 +1,9 @@
 package com.gotcha.connectors.homeassistant
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.connectors.CredentialStore
+import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ToolRegistry
 import kotlinx.coroutines.test.runTest
@@ -15,6 +18,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 private class InMemoryCredentialStore : CredentialStore {
     private val map = mutableMapOf<String, String>()
@@ -28,7 +33,11 @@ private class InMemoryCredentialStore : CredentialStore {
     }
 }
 
+@RunWith(RobolectricTestRunner::class)
 class HomeAssistantConnectorTest {
+
+    /** Status text is string resources; Robolectric reads the English ones. */
+    private val strings = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     private lateinit var server: MockWebServer
     private lateinit var store: InMemoryCredentialStore
@@ -56,10 +65,10 @@ class HomeAssistantConnectorTest {
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
 
-        val status = connector.connect(baseUrl(), "llat-1")
+        val status = connector.connect(baseUrl(), "llat-1", strings)
 
         assertTrue(status.contains("Connected to"))
-        assertTrue(status.contains("3 Home Assistant tool(s)"))
+        assertTrue(status.contains("3 Home Assistant tools are available"))
         assertTrue(connector.isConnected())
         assertTrue(store.loadRaw("homeassistant")!!.contains("llat-1"))
         assertEquals(setOf("HassGetState", "HassTurnOn", "GetLiveContext"), connector.toolNames)
@@ -77,8 +86,8 @@ class HomeAssistantConnectorTest {
 
     @Test
     fun `connect rejects a blank url or token without a network call`() = runTest {
-        assertTrue(connector.connect("", "tok").contains("URL"))
-        assertTrue(connector.connect("http://ha.local:8123", "  ").contains("token"))
+        assertTrue(connector.connect("", "tok", strings).contains("URL"))
+        assertTrue(connector.connect("http://ha.local:8123", "  ", strings).contains("token"))
         assertFalse(connector.isConnected())
         assertEquals(0, server.requestCount)
     }
@@ -87,7 +96,7 @@ class HomeAssistantConnectorTest {
     fun `connect with a rejected token keeps the connector disconnected`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("""{"message":"invalid token"}"""))
 
-        val status = connector.connect(baseUrl(), "bad-token")
+        val status = connector.connect(baseUrl(), "bad-token", strings)
 
         assertTrue(status.contains("Could not connect"))
         assertFalse(connector.isConnected())
@@ -99,7 +108,7 @@ class HomeAssistantConnectorTest {
     fun `callTool reaches the server with the stored credentials`() = runTest {
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
-        connector.connect(baseUrl(), "llat-1")
+        connector.connect(baseUrl(), "llat-1", strings)
         server.enqueue(MockResponse().setBody(callOkJson))
 
         val result = connector.callTool(
@@ -118,7 +127,7 @@ class HomeAssistantConnectorTest {
     fun `disconnect clears credentials and unregisters tools`() = runTest {
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
-        connector.connect(baseUrl(), "llat-1")
+        connector.connect(baseUrl(), "llat-1", strings)
         assertTrue(ToolRegistry.contains("HassTurnOn"))
 
         connector.disconnect()
@@ -132,7 +141,7 @@ class HomeAssistantConnectorTest {
     fun `reloading from the store re-registers the cached tools`() = runTest {
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
-        connector.connect(baseUrl(), "llat-1")
+        connector.connect(baseUrl(), "llat-1", strings)
 
         // A fresh connector (as after an app restart) loads the stored snapshot.
         val reloaded = HomeAssistantConnector(store, HomeAssistantMcpClient())
@@ -148,13 +157,13 @@ class HomeAssistantConnectorTest {
     fun `refreshTools re-reads the server tool list`() = runTest {
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
-        connector.connect(baseUrl(), "llat-1")
+        connector.connect(baseUrl(), "llat-1", strings)
         // The server now exposes one fewer tool.
         server.enqueue(MockResponse().setBody(singleToolJson))
 
-        val status = connector.refreshTools()
+        val status = connector.refreshTools(strings)
 
-        assertTrue(status.contains("1 Home Assistant tool(s)"))
+        assertTrue(status.contains("1 Home Assistant tool is available"))
         assertEquals(setOf("HassGetState"), connector.toolNames)
         assertTrue(ToolRegistry.contains("HassGetState"))
         assertFalse(ToolRegistry.contains("HassTurnOn"))
@@ -180,7 +189,7 @@ class HomeAssistantConnectorTest {
 
         // Host without http:// or https://
         val rawHost = "${server.hostName}:${server.port}"
-        val status = connector.connect(rawHost, "llat-1")
+        val status = connector.connect(rawHost, "llat-1", strings)
 
         assertTrue(status.contains("Connected to"))
         assertTrue(connector.isConnected())
@@ -188,12 +197,12 @@ class HomeAssistantConnectorTest {
 
     @Test
     fun `statusLine shows the host when connected`() = runTest {
-        assertEquals("Not connected", connector.statusLine())
+        assertEquals("Not connected", connector.statusLine(strings))
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
-        connector.connect(baseUrl(), "llat-1")
-        assertTrue(connector.statusLine().startsWith("Connected to"))
-        assertTrue(connector.statusLine().contains("localhost"))
+        connector.connect(baseUrl(), "llat-1", strings)
+        assertTrue(connector.statusLine(strings).startsWith("Connected to"))
+        assertTrue(connector.statusLine(strings).contains("localhost"))
     }
 
     private companion object {

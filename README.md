@@ -83,6 +83,12 @@ one-time setup walkthrough.
 * ❓ [**FAQ & Known Limitations**](https://samosa-ai.com/gotcha/docs/faq) — backend compatibility and rough edges.
 * ✅ [**Feature Test Coverage**](docs/FEATURE_TEST_COVERAGE.md) — every tool and how it's verified.
 
+## 🧪 Beta Testers
+
+Thanks to the people who try Gotcha builds before release and tell us what breaks:
+
+* 🎬 [**Techynoob**](https://youtube.com/@techynoo1818)
+
 ## 🤝 Project & Community
 
 * 💬 [**Discord**](https://discord.com/invite/rsgXSpcWNq) — chat with the team and other users, share skills, and get help in real time.

@@ -68,6 +68,38 @@ class SystemTool(
         "unknown"
     }
 
+    /**
+     * Sets how long the screen stays on without a touch. A plain system setting,
+     * so the "Modify system settings" access that [setBrightness] uses is enough:
+     * no Accessibility, and no hunting for the page, which OEMs move around (MIUI
+     * keeps it under Lock screen as "Sleep", not under Display).
+     */
+    fun setScreenTimeout(seconds: Int): ToolResult {
+        if (seconds !in MIN_SCREEN_TIMEOUT_S..MAX_SCREEN_TIMEOUT_S) {
+            return ToolResult.error(
+                "Screen timeout must be between $MIN_SCREEN_TIMEOUT_S seconds and " +
+                    "${MAX_SCREEN_TIMEOUT_S / 60} minutes (got $seconds seconds)."
+            )
+        }
+        if (!Settings.System.canWrite(context)) {
+            return ToolResult.permissionNeeded(
+                ToolResult.WRITE_SETTINGS,
+                "Missing the 'Modify system settings' special access. " +
+                    "I have opened the settings page — please enable it for Gotcha and ask again."
+            )
+        }
+        return try {
+            val resolver = context.contentResolver
+            // Read first, as set_brightness does, so the reply can say what was
+            // replaced and the model can put it back if asked.
+            val previous = Settings.System.getInt(resolver, Settings.System.SCREEN_OFF_TIMEOUT, -1)
+            Settings.System.putInt(resolver, Settings.System.SCREEN_OFF_TIMEOUT, seconds * 1000)
+            ToolResult.ok("Screen timeout ${timeoutLabel(previous)} → ${timeoutLabel(seconds * 1000)}.")
+        } catch (e: Exception) {
+            ToolResult.error("Could not set the screen timeout: ${e.message}")
+        }
+    }
+
     fun getBatteryInfo(): ToolResult {
         return try {
             val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
@@ -178,6 +210,23 @@ class SystemTool(
             )
         } catch (e: Exception) {
             ToolResult.error("Could not open app: ${e.message}")
+        }
+    }
+
+    companion object {
+        /** The shortest timeout Android's own settings offer. */
+        const val MIN_SCREEN_TIMEOUT_S = 15
+
+        /** The longest Android's own settings offer; anything longer is "never" in practice. */
+        const val MAX_SCREEN_TIMEOUT_S = 30 * 60
+
+        /** A screen timeout in milliseconds, as the Settings app would name it. */
+        internal fun timeoutLabel(millis: Int): String = when {
+            millis < 0 -> "unknown"
+            // OEM "Never" options store the largest int rather than a real duration.
+            millis >= Int.MAX_VALUE / 2 -> "never"
+            millis % 60_000 == 0 -> "${millis / 60_000} min"
+            else -> "${millis / 1000} s"
         }
     }
 }

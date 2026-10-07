@@ -37,8 +37,9 @@ class LanguageTest {
 
     @Test
     fun `labels matches the Settings dropdown source of truth`() {
-        // Drift guard for design decision D1: the Settings dropdown is derived
-        // from Language.labels, so this list is the single source of truth.
+        // Drift guard for design decision D1: both dropdowns on LanguageScreen
+        // (reply language and voice language) are derived from Language.labels,
+        // so this list is the single source of truth.
         val expected = listOf(
             "English", "Spanish", "French", "German", "Hindi",
             "Japanese", "Chinese", "Italian", "Portuguese"

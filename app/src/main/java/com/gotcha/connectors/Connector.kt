@@ -1,5 +1,7 @@
 package com.gotcha.connectors
 
+import com.gotcha.i18n.StringLookup
+
 /**
  * A connector integrates an external service (Gmail, IMAP, ...) via its official
  * API instead of accessibility UI-driving. Connectors own their credentials,
@@ -39,10 +41,10 @@ interface Connector {
         isConnected() && id !in disabledConnectors
 
     /** Short status line for the Settings card (e.g. "Connected as a@b.com"). */
-    fun statusLine(): String
+    fun statusLine(strings: StringLookup): String
 
     /** Re-synchronizes tools, tokens, or status from the remote server. */
-    suspend fun refreshTools(): String = statusLine()
+    suspend fun refreshTools(strings: StringLookup): String = statusLine(strings)
 
     /** Clear stored credentials and any cached clients/sessions. */
     fun disconnect()

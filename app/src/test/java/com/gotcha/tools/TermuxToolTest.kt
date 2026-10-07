@@ -137,6 +137,10 @@ class TermuxToolTest {
             "must name the property the user has to set: ${result.message}",
             result.message.contains("allow-external-apps")
         )
+        assertTrue(
+            "the setup commands go to the model as a fenced block: ${result.message}",
+            result.message.contains("```bash\n${TermuxTool.SETUP_COMMANDS}\n```")
+        )
     }
 
     @Test
@@ -174,14 +178,15 @@ class TermuxToolTest {
 
     @Test
     fun `a service that does not start is reported at once, not as a timeout`() = runTest {
-        // startService signals "no such service" by returning null rather than throwing, which
+        // A start signals "no such service" by returning null rather than throwing, which
         // is what a force-stopped Termux produces: Android excludes stopped packages from intent
         // resolution, while the package and its service still resolve for the availability
         // probe. Robolectric always returns a component, so the null is injected here.
         installTermux()
         grantRunCommand()
         val nullStartingContext = object : android.content.ContextWrapper(context) {
-            override fun startService(service: android.content.Intent?): android.content.ComponentName? = null
+            override fun startForegroundService(service: android.content.Intent?): android.content.ComponentName? =
+                null
         }
 
         val result = TermuxTool(nullStartingContext).runCommand("echo hello", timeoutSeconds = 600)
@@ -189,6 +194,29 @@ class TermuxToolTest {
         assertFalse(result.success)
         assertTrue("must not be reported as still running: ${result.message}", result.message.contains("force-stopped"))
         assertTrue("must say nothing is pending", result.message.contains("nothing is pending"))
+    }
+
+    @Test
+    fun `the command goes to Termux through startForegroundService`() = runTest {
+        // A plain startService into Termux (targetSdk 28) is refused while Termux has no process,
+        // "app is in background uid null", even with Gotcha on screen: seen on a Nothing Phone
+        // 3a on Android 16 after Termux was swiped away. startForegroundService is allowed.
+        installTermux()
+        grantRunCommand()
+        var viaForeground: android.content.Intent? = null
+        val recordingContext = object : android.content.ContextWrapper(context) {
+            override fun startService(service: android.content.Intent?): android.content.ComponentName? =
+                error("Not allowed to start service: app is in background uid null")
+
+            override fun startForegroundService(service: android.content.Intent?): android.content.ComponentName? {
+                viaForeground = service
+                return null
+            }
+        }
+
+        TermuxTool(recordingContext).runCommand("echo hello")
+
+        assertEquals("com.termux.RUN_COMMAND", viaForeground?.action)
     }
 
     @Test
@@ -643,6 +671,10 @@ class TermuxToolTest {
         assertTrue(result.message.contains("failed"))
         assertTrue("the actionable part must survive", result.message.contains("allow-external-apps"))
         assertTrue(result.message.contains("termux.properties"))
+        assertTrue(
+            "the fix is handed over as a fenced block, which the chat shows with a Copy button",
+            result.message.contains("```bash\n${TermuxTool.SETUP_COMMANDS}\n```")
+        )
     }
 
     @Test

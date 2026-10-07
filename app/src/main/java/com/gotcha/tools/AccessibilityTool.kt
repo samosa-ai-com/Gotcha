@@ -2,8 +2,6 @@ package com.gotcha.tools
 
 import android.content.Context
 import android.os.Build
-import android.provider.Settings
-import android.text.TextUtils
 import android.view.accessibility.AccessibilityNodeInfo
 import com.gotcha.service.GotchaAccessibilityService
 
@@ -19,7 +17,7 @@ class AccessibilityTool(private val context: Context) {
     /** Read the visible on-screen text of whatever app is in the foreground. */
     fun readScreen(): ToolResult {
         val service = GotchaAccessibilityService.instance
-        if (service == null) return if (isEnabled()) serviceNotRunning() else notEnabled()
+        if (service == null) return unavailable()
         val lines = service.dumpScreenText()
         return if (lines.isEmpty()) {
             ToolResult.ok("No readable text is on screen right now.")
@@ -31,7 +29,7 @@ class AccessibilityTool(private val context: Context) {
     /** Read screen text AND flag for full-resolution screenshot capture. */
     fun readScreenRaw(): ToolResult {
         val service = GotchaAccessibilityService.instance
-        if (service == null) return if (isEnabled()) serviceNotRunning() else notEnabled()
+        if (service == null) return unavailable()
         val lines = service.dumpScreenText()
         val text = if (lines.isEmpty()) {
             "No readable text is on screen right now."
@@ -43,7 +41,7 @@ class AccessibilityTool(private val context: Context) {
 
     /** Tap either an on-screen element matching [text], or absolute coordinates. */
     fun tap(text: String?, x: Int?, y: Int?): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         return when {
             !text.isNullOrBlank() ->
                 if (service.tapByText(text)) {
@@ -72,7 +70,7 @@ class AccessibilityTool(private val context: Context) {
 
     /** Long-press either an on-screen element matching [text], or absolute coordinates. */
     fun longPress(text: String?, x: Int?, y: Int?): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         return when {
             !text.isNullOrBlank() ->
                 if (service.longPressByText(text)) {
@@ -110,7 +108,7 @@ class AccessibilityTool(private val context: Context) {
         distance: Int? = null,
         index: Int? = null
     ): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         if (index != null) {
             val result = swipeOnElement(service, direction, index)
             if (result != null) return result
@@ -206,7 +204,7 @@ class AccessibilityTool(private val context: Context) {
 
     /** Type text into the currently focused input field or target an element directly by index. */
     fun inputText(text: String, index: Int? = null): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         if (index != null) {
             val element = ScreenPerception.resolveElementByIndex(index)
                 ?: return ToolResult.error(
@@ -227,7 +225,7 @@ class AccessibilityTool(private val context: Context) {
 
     /** Perform a device-wide navigation gesture via the accessibility service (back/home/recents/...). */
     fun globalAction(action: String): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         return if (service.performGlobal(action)) {
             ToolResult.ok("Performed global action: $action.")
         } else {
@@ -240,7 +238,7 @@ class AccessibilityTool(private val context: Context) {
 
     /** Tap a UI element by its index from the numbered elements list. */
     fun tapByIndex(index: Int): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         val element = ScreenPerception.resolveElementByIndex(index)
             ?: return ToolResult.error(
                 "No UI element with index $index found on screen. The screen may have changed — use read_screen " +
@@ -264,7 +262,7 @@ class AccessibilityTool(private val context: Context) {
 
     /** Long-press a UI element by its index from the numbered elements list. */
     fun longPressByIndex(index: Int): ToolResult {
-        val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+        val service = GotchaAccessibilityService.instance ?: return unavailable()
         val element = ScreenPerception.resolveElementByIndex(index)
             ?: return ToolResult.error(
                 "No UI element with index $index found on screen. The screen may have changed — use read_screen " +
@@ -297,7 +295,7 @@ class AccessibilityTool(private val context: Context) {
         val globalKeys = setOf("back", "home", "recents", "notifications", "quick_settings", "lock_screen")
         if (k in globalKeys) return globalAction(k)
         if (k == "enter") {
-            val service = GotchaAccessibilityService.instance ?: return if (isEnabled()) serviceNotRunning() else notEnabled()
+            val service = GotchaAccessibilityService.instance ?: return unavailable()
             try {
                 val root = service.rootInActiveWindow
                 val result = try {
@@ -324,35 +322,27 @@ class AccessibilityTool(private val context: Context) {
         )
     }
 
-    private fun notEnabled() = ToolResult.permissionNeeded(
-        ToolResult.ACCESSIBILITY_ACCESS,
-        "This action needs the Gotcha accessibility service. I have opened Accessibility " +
-            "settings — please enable Gotcha there and ask again."
-    )
-
-    private fun serviceNotRunning() = ToolResult.error(
-        "The Gotcha accessibility service is enabled but not running. " +
-            "This can happen after an app restart. Please toggle it off and on in " +
-            "Settings → Accessibility, or force-stop and reopen the app."
-    )
-
-    /** True when this app's service is listed in the system's enabled-accessibility-services setting. */
-    private fun isEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        val pkg = context.packageName
-        val cls = GotchaAccessibilityService::class.java.name
-        val splitter = TextUtils.SimpleStringSplitter(':')
-        splitter.setString(enabled)
-        while (splitter.hasNext()) {
-            val entry = splitter.next()
-            // Check long form (com.gotcha/com.gotcha.service.GotchaAccessibilityService)
-            if (entry.equals("$pkg/$cls", ignoreCase = true)) return true
-            // Check short form (com.gotcha/.service.GotchaAccessibilityService)
-            if (entry.equals("$pkg/.${cls.substringAfter(pkg)}", ignoreCase = true)) return true
-            if (entry.startsWith("$pkg/", ignoreCase = true) && entry.endsWith(cls.substringAfterLast('.'), ignoreCase = true)) return true
-        }
-        return false
+    /**
+     * Why the service could not be reached, as something the user can act on.
+     *
+     * Both branches carry [ToolResult.ACCESSIBILITY_ACCESS] so the host opens
+     * Settings ▸ Accessibility either way — the screen is the same, only the
+     * instruction on it differs.
+     */
+    private fun unavailable(): ToolResult = when (DeviceCapabilities.accessibilityState(context)) {
+        AccessibilityState.ENABLED_BUT_NOT_BOUND -> ToolResult.permissionNeeded(
+            ToolResult.ACCESSIBILITY_ACCESS,
+            "The Gotcha accessibility service is switched on but is not running — Android " +
+                "stops it after an app update or under memory pressure. I have opened " +
+                "Accessibility settings; please toggle Gotcha off and on there, then ask again."
+        )
+        // OFF, and the AVAILABLE branch: reaching here with a bound service means
+        // it was unbound between the state read and the call, which is the same
+        // problem from the user's side.
+        else -> ToolResult.permissionNeeded(
+            ToolResult.ACCESSIBILITY_ACCESS,
+            "This action needs the Gotcha accessibility service, which is switched off. " +
+                "I have opened Accessibility settings — please enable Gotcha there and ask again."
+        )
     }
 }

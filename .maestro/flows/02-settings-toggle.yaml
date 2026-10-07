@@ -7,5 +7,6 @@ appId: com.gotcha
 - assertVisible: "Light"
 - tapOn: "Dark"
 - assertVisible: "Dark"
+- tapOn: "AI"
 - tapOn: "AI Configuration"
 - assertVisible: "Base URL (OpenAI-compatible)"

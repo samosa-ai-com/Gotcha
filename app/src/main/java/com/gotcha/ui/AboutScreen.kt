@@ -23,18 +23,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.tools.CompanyInfoTool
 import com.gotcha.updater.AppUpdateManager
 import com.gotcha.updater.UpdateStatus
 import kotlinx.coroutines.launch
 
 /**
- * About Us: the hub for everything about who made this app and what using it
+ * About: the hub for everything about who made this app and what using it
  * commits you to. Shaped like the settings home list rather than a content page,
  * so the two things underneath it — the company and the agreements — stay
  * separate reads instead of one long scroll.
@@ -46,7 +48,7 @@ fun AboutScreen(
 ) {
     val overlay = rememberSettingsOverlayState()
 
-    SettingsScaffold(title = SettingsPage.ABOUT.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.ABOUT.title), onBack = onBack, overlay = overlay) {
         listOf(SettingsPage.ABOUT_SAMOSA, SettingsPage.LEGAL).forEach { page ->
             HorizontalDivider(thickness = 1.dp)
             SettingsNavRow(
@@ -83,9 +85,9 @@ fun AboutSamosaScreen(
         aboutText = readAsset(context, CompanyInfoTool.ABOUT_ASSET)
     }
 
-    SettingsScaffold(title = SettingsPage.ABOUT_SAMOSA.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.ABOUT_SAMOSA.title), onBack = onBack, overlay = overlay) {
         Text(
-            text = renderLegalMarkdown(aboutText ?: "(loading…)"),
+            text = renderLegalMarkdown(aboutText ?: stringResource(R.string.loading)),
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -93,11 +95,11 @@ fun AboutSamosaScreen(
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "Open in your browser",
+                text = stringResource(R.string.about_open_in_your_browser),
                 style = MaterialTheme.typography.titleMedium
             )
             LINKS.forEach { (label, url) ->
-                LinkRow(label = label, url = url, onOpen = uriHandler::openUri)
+                LinkRow(label = stringResource(label), url = url, onOpen = uriHandler::openUri)
             }
         }
     }
@@ -123,14 +125,14 @@ private fun LinkRow(label: String, url: String, onOpen: (String) -> Unit) {
  * links whenever the copy is reworded.
  */
 private val LINKS = listOf(
-    "Samosa AI website" to "https://samosa-ai.com",
-    "About us" to "https://samosa-ai.com/about-us",
-    "Gotcha" to "https://samosa-ai.com/gotcha",
-    "Gotcha documentation" to "https://samosa-ai.com/gotcha/docs",
-    "Pricing" to "https://samosa-ai.com/pricing",
-    "Blog" to "https://blog.samosa-ai.com",
-    "GitHub" to "https://github.com/samosa-ai-com/Gotcha",
-    "Email contact@samosa-ai.com" to "mailto:contact@samosa-ai.com"
+    R.string.about_link_website to "https://samosa-ai.com",
+    R.string.about_link_about_us to "https://samosa-ai.com/about-us",
+    R.string.about_link_gotcha to "https://samosa-ai.com/gotcha",
+    R.string.about_link_docs to "https://samosa-ai.com/gotcha/docs",
+    R.string.about_link_pricing to "https://samosa-ai.com/pricing",
+    R.string.about_link_blog to "https://blog.samosa-ai.com",
+    R.string.about_link_github to "https://github.com/samosa-ai-com/Gotcha",
+    R.string.about_link_email to "mailto:contact@samosa-ai.com"
 )
 
 @Composable
@@ -165,11 +167,11 @@ fun AppUpdateSection() {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "App Version & Updates",
+            text = stringResource(R.string.about_app_version_updates),
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            text = "Gotcha v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+            text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -187,18 +189,18 @@ fun AppUpdateSection() {
                         }
                     }
                 }) {
-                    Text("Check for Updates")
+                    Text(stringResource(R.string.about_check_for_updates))
                 }
             }
             is UpdateStatus.Checking -> {
                 Text(
-                    text = "Checking for updates...",
+                    text = stringResource(R.string.about_checking_for_updates),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             is UpdateStatus.UpToDate -> {
                 Text(
-                    text = "Gotcha is up to date (v${currentStatus.currentVersion}).",
+                    text = stringResource(R.string.about_up_to_date, currentStatus.currentVersion),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -206,16 +208,10 @@ fun AppUpdateSection() {
             is UpdateStatus.Available -> {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "New update available: v${currentStatus.info.versionName}",
+                        text = stringResource(R.string.about_update_available, currentStatus.info.versionName),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
-                        Text(
-                            text = currentStatus.info.releaseNotes,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
                     Button(onClick = {
                         if (busy) return@Button
                         busy = true
@@ -231,20 +227,23 @@ fun AppUpdateSection() {
                                 res.onSuccess { apkFile ->
                                     status = UpdateStatus.ReadyToInstall(apkFile)
                                 }.onFailure { err ->
-                                    status = UpdateStatus.Error(err.message ?: "Download failed")
+                                    status = UpdateStatus.Error(err.message ?: context.getString(R.string.about_download_failed))
                                 }
                             } finally {
                                 busy = false
                             }
                         }
                     }) {
-                        Text("Download Update")
+                        Text(stringResource(R.string.about_download_update))
+                    }
+                    if (currentStatus.info.releaseNotes.isNotEmpty()) {
+                        ReleaseNotes(currentStatus.info.releaseNotes)
                     }
                 }
             }
             is UpdateStatus.Downloading -> {
                 Text(
-                    text = "Downloading update: ${currentStatus.progressPercent}%",
+                    text = stringResource(R.string.about_downloading, currentStatus.progressPercent),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -252,32 +251,32 @@ fun AppUpdateSection() {
                 Button(onClick = {
                     if (!updateManager.installUpdate(context, currentStatus.apkFile)) {
                         status = if (updateManager.canInstall(context)) {
-                            UpdateStatus.Error("Could not launch the installer.")
+                            UpdateStatus.Error(context.getString(R.string.about_installer_failed))
                         } else {
                             UpdateStatus.NeedsInstallPermission(currentStatus.apkFile)
                         }
                     }
                 }) {
-                    Text("Install Update")
+                    Text(stringResource(R.string.about_install_update))
                 }
             }
             is UpdateStatus.NeedsInstallPermission -> {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Allow Gotcha to install updates from this source, then return here.",
+                        text = stringResource(R.string.about_allow_gotcha_to_install_updates),
                         style = MaterialTheme.typography.bodySmall
                     )
                     Button(onClick = {
                         updateManager.openInstallPermissionSettings(context)
                     }) {
-                        Text("Grant Install Permission")
+                        Text(stringResource(R.string.about_grant_install_permission))
                     }
                 }
             }
             is UpdateStatus.Error -> {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Error: ${currentStatus.message}",
+                        text = stringResource(R.string.about_update_error, currentStatus.message),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -293,7 +292,7 @@ fun AppUpdateSection() {
                             }
                         }
                     }) {
-                        Text("Retry Check")
+                        Text(stringResource(R.string.about_retry_check))
                     }
                 }
             }

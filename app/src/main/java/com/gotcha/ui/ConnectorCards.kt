@@ -29,12 +29,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -89,15 +92,19 @@ private fun ConnectorHeader(
             Text(status, style = MaterialTheme.typography.bodySmall)
         }
         if (showSwitch) {
+            val enableDescription = stringResource(R.string.connector_cards_enable, title)
             Switch(
                 checked = enabled,
                 onCheckedChange = onEnabledChange,
-                modifier = Modifier.semantics { contentDescription = "Enable $title" }
+                modifier = Modifier.semantics { contentDescription = enableDescription }
             )
         }
         Icon(
             imageVector = Icons.Filled.KeyboardArrowDown,
-            contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+            contentDescription = stringResource(
+                if (expanded) R.string.connector_cards_collapse else R.string.connector_cards_expand,
+                title
+            ),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.graphicsLayer { rotationZ = rotation }
         )
@@ -125,13 +132,15 @@ private fun EnabledRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("Enabled", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.connector_cards_enabled), style = MaterialTheme.typography.bodyMedium)
             Text(
-                if (enabled) {
-                    "The assistant can use this connector's tools."
-                } else {
-                    "Switched off — tools hidden, sign-in kept."
-                },
+                stringResource(
+                    if (enabled) {
+                        R.string.connector_cards_the_assistant_can_use_this
+                    } else {
+                        R.string.connector_cards_switched_off_tools_hidden_sign
+                    }
+                ),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -143,8 +152,13 @@ private fun EnabledRow(
  * The status line a collapsed card shows for a connector that has no saved
  * credentials yet — the "tap to set up" affordance hint.
  */
+@Composable
 private fun disconnectedHint(status: String): String =
-    if (status == "Not connected") "Not connected — tap to set up" else status
+    if (status == stringResource(R.string.connector_not_connected)) {
+        stringResource(R.string.connector_cards_not_connected_hint)
+    } else {
+        status
+    }
 
 /**
  * Shared "Refresh tools" / "Refresh connection" button for a connected connector
@@ -198,6 +212,7 @@ fun TokenConnectorCard(
     headerTestTag: String = "connector_header_$title"
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     // Bumped after connect/disconnect so statusLine() is re-read.
     var refreshTick by remember { mutableStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -258,15 +273,21 @@ fun TokenConnectorCard(
                         },
                         enabled = !busy && canConnect(),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (busy) "Connecting…" else "Connect") }
+                    ) {
+                        Text(
+                            stringResource(
+                                if (busy) R.string.connector_cards_connecting else R.string.connector_cards_connect
+                            )
+                        )
+                    }
                 } else {
                     if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange, showSwitch = false)
                     if (onRefresh != null) {
                         ConnectorRefreshButton(
                             busy = busy,
                             setBusy = { busy = it },
-                            idleLabel = "Refresh tools",
-                            busyLabel = "Refreshing tools…",
+                            idleLabel = stringResource(R.string.connector_cards_refresh_tools),
+                            busyLabel = stringResource(R.string.connector_cards_refreshing_tools),
                             scope = scope,
                             onRefresh = onRefresh,
                             onResult = {
@@ -279,11 +300,11 @@ fun TokenConnectorCard(
                         onClick = {
                             onDisconnect()
                             fields.filter { it.secret }.forEach { it.value = "" }
-                            status = "Disconnected."
+                            status = context.getString(R.string.connector_cards_disconnected)
                             refreshTick++
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Disconnect") }
+                    ) { Text(stringResource(R.string.connector_cards_disconnect)) }
                 }
             }
         }
@@ -314,6 +335,7 @@ fun OAuthConnectorCard(
     headerTestTag: String = "connector_header_$title"
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
     var clientId by remember { mutableStateOf(initialClientId) }
     var clientSecret by remember { mutableStateOf(initialClientSecret.orEmpty()) }
@@ -326,7 +348,7 @@ fun OAuthConnectorCard(
 
     fun apply(outcome: OAuthConnectFlow.Outcome) {
         status = when (outcome) {
-            is OAuthConnectFlow.Outcome.Connected -> "Connected as ${outcome.account}."
+            is OAuthConnectFlow.Outcome.Connected -> context.getString(R.string.connector_cards_connected_as, outcome.account)
             is OAuthConnectFlow.Outcome.Failed -> outcome.message
         }
         busy = false
@@ -363,7 +385,7 @@ fun OAuthConnectorCard(
                     OutlinedTextField(
                         value = clientId,
                         onValueChange = { clientId = it },
-                        label = { Text("Client ID") },
+                        label = { Text(stringResource(R.string.connector_cards_client_id)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -371,7 +393,7 @@ fun OAuthConnectorCard(
                         OutlinedTextField(
                             value = clientSecret,
                             onValueChange = { clientSecret = it },
-                            label = { Text("Client secret") },
+                            label = { Text(stringResource(R.string.connector_cards_client_secret)) },
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
                             modifier = Modifier.fillMaxWidth()
@@ -381,29 +403,37 @@ fun OAuthConnectorCard(
                     Button(
                         onClick = {
                             busy = true
-                            status = "Opening sign-in…"
+                            status = context.getString(R.string.connector_cards_opening_sign_in)
                             scope.launch {
                                 apply(flow.connect(clientId, clientSecret.takeIf { usesSecret }))
                             }
                         },
                         enabled = !busy && clientId.isNotBlank() && (!usesSecret || clientSecret.isNotBlank()),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text(if (busy) "Waiting for sign-in…" else "Connect") }
+                    ) {
+                        Text(
+                            stringResource(
+                                if (busy) R.string.connector_cards_waiting_for_sign_in else R.string.connector_cards_connect
+                            )
+                        )
+                    }
 
                     TextButton(onClick = { showPasteFallback = !showPasteFallback }) {
                         Text(
-                            if (showPasteFallback) {
-                                "Hide paste-URL fallback"
-                            } else {
-                                "Browser didn't return? Paste redirect URL"
-                            }
+                            stringResource(
+                                if (showPasteFallback) {
+                                    R.string.connector_cards_hide_paste_url_fallback
+                                } else {
+                                    R.string.connector_cards_browser_didn_t_return_paste
+                                }
+                            )
                         )
                     }
                     if (showPasteFallback) {
                         OutlinedTextField(
                             value = pastedUrl,
                             onValueChange = { pastedUrl = it },
-                            label = { Text("Pasted redirect URL") },
+                            label = { Text(stringResource(R.string.connector_cards_pasted_redirect_url)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -422,7 +452,7 @@ fun OAuthConnectorCard(
                             },
                             enabled = !busy && pastedUrl.isNotBlank(),
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Finish sign-in with pasted URL") }
+                        ) { Text(stringResource(R.string.connector_cards_finish_sign_in_with_pasted)) }
                     }
                 } else {
                     if (onEnabledChange != null) EnabledRow(enabled, onEnabledChange, showSwitch = false)
@@ -430,8 +460,8 @@ fun OAuthConnectorCard(
                         ConnectorRefreshButton(
                             busy = busy,
                             setBusy = { busy = it },
-                            idleLabel = "Refresh connection",
-                            busyLabel = "Refreshing…",
+                            idleLabel = stringResource(R.string.connector_cards_refresh_connection),
+                            busyLabel = stringResource(R.string.connector_cards_refreshing),
                             scope = scope,
                             onRefresh = onRefresh,
                             onResult = {
@@ -444,11 +474,11 @@ fun OAuthConnectorCard(
                         onClick = {
                             onDisconnect()
                             clientSecret = ""
-                            status = "Disconnected."
+                            status = context.getString(R.string.connector_cards_disconnected)
                             refreshTick++
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Disconnect") }
+                    ) { Text(stringResource(R.string.connector_cards_disconnect)) }
                 }
             }
         }

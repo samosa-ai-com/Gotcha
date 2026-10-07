@@ -259,8 +259,13 @@ current mode via the system prompt on every API call.
 
 A microphone button next to the input field lets you speak instead of type (Speech-to-Text).
 Each assistant message has a speaker icon to read it aloud (Text-to-Speech). Configure
-the provider (Android built-in vs OpenAI-compatible API) in Settings. An auto-read toggle
-speaks new replies automatically.
+the provider (Android built-in vs OpenAI-compatible API) in Settings. Two toggles decide
+which replies are spoken automatically:
+
+- **Auto-read replies aloud** (off by default) speaks every new reply.
+- **Read aloud replies to voice messages** (on by default) speaks the reply to a message
+  you sent with the microphone, even when auto-read is off. Turn it off to dictate
+  quietly; the speaker icon still reads any reply on demand.
 
 ### Image reading
 

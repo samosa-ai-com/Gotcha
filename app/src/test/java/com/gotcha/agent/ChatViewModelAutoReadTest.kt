@@ -7,6 +7,7 @@ import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.testsupport.FakeAndroidKeyStore
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -41,26 +42,57 @@ class ChatViewModelAutoReadTest {
     @Test
     fun `typed message when autoReadReplies is false does not speak reply`() {
         viewModel.sendMessage("Hello", isVoiceInput = false)
-        viewModel.onAssistantReply("Hello back!")
+        viewModel.runner.onAssistantReply("Hello back!")
         assertFalse(viewModel.uiState.value.isSpeaking)
     }
 
     @Test
     fun `voice message when autoReadReplies is false speaks reply for that turn`() {
         viewModel.sendMessage("Hello", isVoiceInput = true)
-        viewModel.onAssistantReply("Hello back!")
+        viewModel.runner.onAssistantReply("Hello back!")
         assertTrue(viewModel.uiState.value.isSpeaking)
     }
 
     @Test
     fun `subsequent typed message after voice message does not speak reply when autoReadReplies is false`() {
         viewModel.sendMessage("Hello", isVoiceInput = true)
-        viewModel.onAssistantReply("Hello back!")
+        viewModel.runner.onAssistantReply("Hello back!")
         viewModel.stopSpeaking()
 
         viewModel.sendMessage("Second message", isVoiceInput = false)
-        viewModel.onAssistantReply("Second reply")
+        viewModel.runner.onAssistantReply("Second reply")
         assertFalse(viewModel.uiState.value.isSpeaking)
+    }
+
+    @Test
+    fun `voice message when autoReadVoiceReplies is off stays silent`() {
+        applySettings { it.copy(autoReadVoiceReplies = false) }
+        viewModel.sendMessage("Hello", isVoiceInput = true)
+        viewModel.runner.onAssistantReply("Hello back!")
+        assertFalse(viewModel.uiState.value.isSpeaking)
+    }
+
+    @Test
+    fun `voice message when autoReadVoiceReplies is off still speaks when autoReadReplies is on`() {
+        applySettings { it.copy(autoReadVoiceReplies = false, autoReadReplies = true) }
+        viewModel.sendMessage("Hello", isVoiceInput = true)
+        viewModel.runner.onAssistantReply("Hello back!")
+        assertTrue(viewModel.uiState.value.isSpeaking)
+    }
+
+    @Test
+    fun `typed message when autoReadReplies is on speaks regardless of autoReadVoiceReplies`() {
+        applySettings { it.copy(autoReadVoiceReplies = false, autoReadReplies = true) }
+        viewModel.sendMessage("Hello", isVoiceInput = false)
+        viewModel.runner.onAssistantReply("Hello back!")
+        assertTrue(viewModel.uiState.value.isSpeaking)
+    }
+
+    @Test
+    fun `autoReadVoiceReplies round-trips and defaults to on for installs that never saved it`() {
+        assertTrue(settingsRepository.load().autoReadVoiceReplies)
+        applySettings { it.copy(autoReadVoiceReplies = false) }
+        assertEquals(false, settingsRepository.load().autoReadVoiceReplies)
     }
 
     @Test
@@ -69,7 +101,12 @@ class ChatViewModelAutoReadTest {
         viewModel.openSession("new-session-id")
 
         viewModel.sendMessage("Session message", isVoiceInput = false)
-        viewModel.onAssistantReply("Session reply")
+        viewModel.runner.onAssistantReply("Session reply")
         assertFalse(viewModel.uiState.value.isSpeaking)
+    }
+
+    private fun applySettings(change: (Settings) -> Settings) {
+        settingsRepository.save(change(settingsRepository.load()))
+        viewModel.runner.refreshSettings()
     }
 }

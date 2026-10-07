@@ -228,11 +228,18 @@ class TermuxTool(
                 TermuxResultReceiver.resultIntent(context, requestCode),
                 pendingIntentFlags()
             )
+            // startForegroundService, not startService. Termux targets SDK 28, so a plain
+            // startService into it is refused ("app is in background uid null") whenever Termux
+            // has no process — after it is swiped away, say — however much Gotcha is on screen:
+            // the start rules look at the target's state, and only apps targeting below 26 get the
+            // foreground-caller pass. RunCommandService calls startForeground() as it starts, which
+            // is what this call needs; Gotcha may make it while visible or while the assistive
+            // ball's foreground service runs.
             val started = runCatching {
-                context.startService(commandIntent(commandToRun(trimmed), workingDir, stdin, pendingIntent))
+                context.startForegroundService(commandIntent(commandToRun(trimmed), workingDir, stdin, pendingIntent))
             }
             started.exceptionOrNull()?.let { return TermuxMessages.startFailed(it) }
-            // startService reports "no such service" by returning null, not by throwing. Android
+            // A start reports "no such service" by returning null, not by throwing. Android
             // also excludes force-stopped packages from intent resolution, so a Termux the user
             // (or an OEM battery manager) has stopped lands here. Waiting on the deferred would
             // burn the whole timeout and then claim the command was accepted and still running.
@@ -254,7 +261,8 @@ class TermuxTool(
         if (err != ERRNO_SUCCESS) {
             return ToolResult.error(
                 "Termux refused or could not run the command (${TermuxMessages.errnoLabel(err)})" +
-                    if (errmsg.isEmpty()) "." else ": ${cap(errmsg)}"
+                    (if (errmsg.isEmpty()) "." else ": ${cap(errmsg)}") +
+                    if ("allow-external-apps" in errmsg) TermuxMessages.externalAppsFix() else ""
             )
         }
         val exit = bundle.numeric(RESULT_EXIT_CODE) ?: -1
@@ -402,6 +410,15 @@ class TermuxTool(
          * RUN_COMMAND plugin API wholesale, so it can never be made to work with Gotcha.
          */
         const val TERMUX_FDROID_URL = "https://f-droid.org/en/packages/com.termux/"
+
+        /**
+         * The two lines the user runs in Termux to let other apps send it commands: the setup
+         * screen's Copy button shares them, and the tool messages hand them to the model as a
+         * fenced block so the reply shows them with a Copy button too (issue #109).
+         */
+        const val SETUP_COMMANDS =
+            "echo 'allow-external-apps=true' >> ~/.termux/termux.properties\n" +
+                "termux-reload-settings"
 
         /** An `allow-external-apps` failure returns within a second; this is a generous ceiling. */
         private const val PROBE_TIMEOUT_SECONDS = 5

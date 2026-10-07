@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.liveRegion
@@ -53,6 +54,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.ui.openSpecialAccess
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.delay
@@ -303,24 +305,24 @@ private fun CoachCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "STEP ${controller.stepNumber} OF ${controller.stepCount}",
+                text = stringResource(R.string.tour_step_of, controller.stepNumber, controller.stepCount),
                 style = MaterialTheme.typography.labelSmall,
                 fontFamily = GotchaMono,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = step.title,
+                text = stringResource(step.title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = step.body,
+                text = stringResource(step.body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             step.hint?.let {
                 Text(
-                    text = it,
+                    text = stringResource(it),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -337,7 +339,7 @@ private fun CoachCard(
                         .fillMaxWidth()
                         .padding(top = 4.dp)
                         .testTag("tour_action")
-                ) { Text(action.label) }
+                ) { Text(stringResource(action.label)) }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -347,15 +349,15 @@ private fun CoachCard(
                 TextButton(
                     onClick = { controller.cancel() },
                     modifier = Modifier.testTag("tour_skip_all")
-                ) { Text("Skip tour") }
+                ) { Text(stringResource(R.string.tour_skip_tour)) }
                 if (step.ackLabel != null) {
                     TextButton(
                         onClick = { controller.acknowledge() },
                         modifier = Modifier.testTag("tour_ack")
-                    ) { Text(step.ackLabel) }
+                    ) { Text(stringResource(step.ackLabel)) }
                 } else {
                     Text(
-                        text = "Waiting for you…",
+                        text = stringResource(R.string.tour_waiting_for_you),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(end = 12.dp)

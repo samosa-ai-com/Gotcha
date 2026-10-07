@@ -4,6 +4,7 @@ import android.content.Context
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.SettingsStore
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -22,7 +23,7 @@ class ConnectorRefreshScheduler(
         store = SettingsRepository(context),
         refreshAction = { disabled ->
             ConnectorRegistry.init(context)
-            ConnectorRegistry.refreshAllActive(disabled)
+            ConnectorRegistry.refreshAllActive(disabled, context.stringLookup())
         }
     )
 

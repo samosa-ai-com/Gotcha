@@ -2,6 +2,8 @@ package com.gotcha.connectors
 
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsStore
+import com.gotcha.i18n.StringLookup
+import com.gotcha.testsupport.NoStrings
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,9 +23,9 @@ private class MockTestConnector(
     val refreshCount = AtomicInteger(0)
 
     override fun isConnected(): Boolean = connected
-    override fun statusLine(): String = if (connected) "Connected" else "Not connected"
+    override fun statusLine(strings: StringLookup): String = if (connected) "Connected" else "Not connected"
     override fun disconnect() {}
-    override suspend fun refreshTools(): String {
+    override suspend fun refreshTools(strings: StringLookup): String {
         refreshCount.incrementAndGet()
         return refreshOutcome
     }
@@ -46,7 +48,7 @@ class ConnectorRefreshTest {
     @Test
     fun `refreshTools interface default method returns statusLine`() = runTest {
         val connector = MockTestConnector("test", "Test Connector")
-        assertEquals("Refreshed test", connector.refreshTools())
+        assertEquals("Refreshed test", connector.refreshTools(NoStrings))
         assertEquals(1, connector.refreshCount.get())
     }
 
@@ -60,7 +62,7 @@ class ConnectorRefreshTest {
         val disabled = setOf("inactive")
 
         val results = activeConnectors.filter { it.isActive(disabled) }
-            .associate { it.id to it.refreshTools() }
+            .associate { it.id to it.refreshTools(NoStrings) }
 
         assertEquals(2, results.size)
         assertEquals("Refreshed active1", results["active1"])

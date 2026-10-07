@@ -24,6 +24,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.service.CallState
 import com.gotcha.ui.theme.Skins
@@ -264,11 +265,11 @@ class CallChatWindow(context: Context) {
     private fun updateStatusPillAndRing(s: CallState) {
         val pill = statusPill as? TextView ?: return
         val (text, ringColor) = when (s) {
-            CallState.STARTING -> "✨ Connecting…" to Color.parseColor("#00E5FF")
-            CallState.LISTENING -> "🎙️ Listening…" to Color.parseColor("#00E5FF")
-            CallState.THINKING -> "🧠 Processing…" to Color.parseColor("#7C4DFF")
-            CallState.SPEAKING -> "🔊 Replying…" to Color.parseColor("#00E676")
-            CallState.WAITING_USER -> "❓ Awaiting input…" to Color.parseColor("#FFD600")
+            CallState.STARTING -> appContext.getString(R.string.call_status_connecting) to Color.parseColor("#00E5FF")
+            CallState.LISTENING -> appContext.getString(R.string.call_status_listening) to Color.parseColor("#00E5FF")
+            CallState.THINKING -> appContext.getString(R.string.call_status_processing) to Color.parseColor("#7C4DFF")
+            CallState.SPEAKING -> appContext.getString(R.string.call_status_replying) to Color.parseColor("#00E676")
+            CallState.WAITING_USER -> appContext.getString(R.string.call_status_awaiting_input) to Color.parseColor("#FFD600")
             else -> null to null
         }
         if (text != null) {

@@ -20,10 +20,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import com.gotcha.R
+import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
 import com.gotcha.data.DEFAULT_MAX_CONTEXT_TOKENS
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
@@ -35,6 +39,12 @@ import kotlinx.coroutines.launch
 /**
  * The AI Configuration page: which LLM backend to talk to, which models to use
  * for the main agent and its sub-agents, and the agent loop's limits.
+ *
+ * Only the three things a working install needs — provider, credentials, main
+ * model — are on the page itself. The sub-agent and navigator overrides, the loop
+ * limits and the cache-clearing buttons sit inside a collapsed
+ * [SettingsAdvancedSection]: they are worth having, but not worth scrolling past
+ * on the way to Save.
  *
  * Saves write only the fields on this page (see [SettingsScreen]'s `onSave`), so
  * edits left half-finished on another page are never dragged into storage here.
@@ -87,6 +97,7 @@ fun AiConfigScreen(
     var availableChatModels by remember { mutableStateOf<List<String>>(emptyList()) }
     var showKey by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    val localContext = LocalContext.current
     var testing by remember { mutableStateOf(false) }
     var refreshingChatModels by remember { mutableStateOf(false) }
 
@@ -131,7 +142,7 @@ fun AiConfigScreen(
         maxNavigationToolCalls = maxNavigationToolCalls.toIntOrNull()?.takeIf { it > 0 } ?: 30,
         maxConsecutiveDelegations = maxConsecutiveDelegations.toIntOrNull()?.takeIf { it > 0 } ?: 3,
         maxContextTokens = maxContextTokens.toIntOrNull()?.takeIf { it > 0 } ?: DEFAULT_MAX_CONTEXT_TOKENS,
-        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
+        apiTimeoutSeconds = apiTimeoutSeconds.toLongOrNull()?.takeIf { it >= 0 } ?: DEFAULT_API_TIMEOUT_SECONDS
     )
 
     /**
@@ -143,24 +154,24 @@ fun AiConfigScreen(
     val refreshChatModelsAction = {
         if (!refreshingChatModels) {
             refreshingChatModels = true
-            status = "Refreshing models…"
+            status = localContext.getString(R.string.ai_config_refreshing_models)
             scope.launch {
                 val result = onRefreshChatModels(draftAiConfig())
                 result.onSuccess { models ->
                     availableChatModels = models
-                    status = "Found ${models.size} models"
+                    status = localContext.getString(R.string.models_found, models.size)
                 }.onFailure { e ->
-                    status = "Failed: ${e.message}"
+                    status = localContext.getString(R.string.models_failed, e.message.orEmpty())
                 }
                 refreshingChatModels = false
             }
         }
     }
 
-    SettingsScaffold(title = SettingsPage.AI_CONFIG.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.AI_CONFIG.title), onBack = onBack, overlay = overlay) {
         // ---- Provider / model guidance ----
         Text(
-            "Recommended setup: Use the SAMOSA AI provider for the best LLM performance.\n",
+            stringResource(R.string.ai_config_recommended_setup_use_the_samosa),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -174,13 +185,14 @@ fun AiConfigScreen(
                 value = provider.label,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("LLM Provider") },
+                label = { Text(stringResource(R.string.ai_config_llm_provider)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
+                    .settingsField("settings_llm_provider")
                     .tourAnchor(TourAnchor.AI_PROVIDER)
             )
             SkinExposedDropdownMenu(
@@ -224,9 +236,9 @@ fun AiConfigScreen(
                             }
                             samosaCredits = samosaUser?.creditsRemaining
                             referralBusy = false
-                            status = "Invite code applied!"
+                            status = localContext.getString(R.string.samosa_invite_applied)
                         }.onFailure { e ->
-                            referralError = e.message ?: "Failed to apply invite code."
+                            referralError = e.message ?: localContext.getString(R.string.samosa_invite_failed)
                             referralBusy = false
                         }
                     }
@@ -234,7 +246,7 @@ fun AiConfigScreen(
                 signInModifier = Modifier.tourAnchor(TourAnchor.AI_SAMOSA_SIGN_IN),
                 onSignIn = {
                     samosaBusy = true
-                    status = "Signing in with Google…"
+                    status = localContext.getString(R.string.samosa_signing_in_google)
                     scope.launch {
                         val result = onSamosaSignIn()
                         result.onSuccess { (email, token) ->
@@ -243,16 +255,16 @@ fun AiConfigScreen(
                             val profile = onFetchSamosaProfile()
                             samosaUser = profile
                             samosaCredits = profile?.creditsRemaining
-                            status = "Signed in as $email"
+                            status = localContext.getString(R.string.samosa_signed_in_as, email)
                         }.onFailure { e ->
-                            status = e.message ?: "Sign-in failed."
+                            status = e.message ?: localContext.getString(R.string.samosa_sign_in_failed)
                         }
                         samosaBusy = false
                     }
                 },
                 onSignOut = {
                     samosaBusy = true
-                    status = "Signing out…"
+                    status = localContext.getString(R.string.samosa_signing_out)
                     scope.launch {
                         onSamosaSignOut()
                         samosaToken = ""
@@ -260,7 +272,7 @@ fun AiConfigScreen(
                         samosaCredits = null
                         samosaUser = null
                         availableChatModels = emptyList()
-                        status = "Signed out of Samosa AI."
+                        status = localContext.getString(R.string.samosa_signed_out)
                         samosaBusy = false
                     }
                 }
@@ -270,7 +282,7 @@ fun AiConfigScreen(
             OutlinedTextField(
                 value = apiKey,
                 onValueChange = { apiKey = it },
-                label = { Text("API key") },
+                label = { Text(stringResource(R.string.ai_config_api_key)) },
                 singleLine = true,
                 visualTransformation = if (showKey) {
                     VisualTransformation.None
@@ -279,17 +291,17 @@ fun AiConfigScreen(
                 },
                 trailingIcon = {
                     TextButton(onClick = { showKey = !showKey }) {
-                        Text(if (showKey) "Hide" else "Show")
+                        Text(stringResource(if (showKey) R.string.ai_config_hide else R.string.ai_config_show))
                     }
                 },
-                modifier = Modifier.fillMaxWidth().testTag("settings_api_key")
+                modifier = Modifier.fillMaxWidth().settingsField("settings_api_key")
             )
             OutlinedTextField(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
-                label = { Text("Base URL (OpenAI-compatible)") },
+                label = { Text(stringResource(R.string.ai_config_base_url_openai_compatible)) },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("settings_base_url")
+                modifier = Modifier.fillMaxWidth().settingsField("settings_base_url")
             )
         }
         ExposedDropdownMenuBox(
@@ -303,22 +315,28 @@ fun AiConfigScreen(
                 value = model,
                 onValueChange = { model = it },
                 readOnly = false,
-                label = { Text("Main model") },
-                placeholder = { Text("(select model)") },
+                label = { Text(stringResource(R.string.ai_config_main_model)) },
+                placeholder = { Text(stringResource(R.string.ai_config_select_model)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor().testTag("settings_model")
+                modifier = Modifier.fillMaxWidth().menuAnchor().settingsField("settings_model")
             )
             SkinExposedDropdownMenu(
                 expanded = modelExpanded,
                 onDismissRequest = { modelExpanded = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
+                    text = {
+                        Text(
+                            stringResource(
+                                if (refreshingChatModels) R.string.ai_config_refreshing else R.string.ai_config_refresh_models
+                            )
+                        )
+                    },
                     onClick = { refreshChatModelsAction() }
                 )
                 if (availableChatModels.isEmpty()) {
                     DropdownMenuItem(
-                        text = { Text("No models found") },
+                        text = { Text(stringResource(R.string.ai_config_no_models_found)) },
                         onClick = { modelExpanded = false }
                     )
                 } else {
@@ -334,161 +352,198 @@ fun AiConfigScreen(
                 }
                 // Always allow manual text input
                 DropdownMenuItem(
-                    text = { Text("✏️ Custom model…") },
+                    text = { Text(stringResource(R.string.ai_config_custom_model)) },
                     onClick = {
                         modelExpanded = false
                     }
                 )
             }
         }
-        ExposedDropdownMenuBox(
-            expanded = subAgentModelExpanded,
-            onExpandedChange = {
-                subAgentModelExpanded = it
-                if (it) refreshChatModelsAction()
-            }
-        ) {
-            val subLabel = if (subAgentModel.isBlank()) "Same as main agent" else subAgentModel
-            OutlinedTextField(
-                value = subLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Sub-agent model") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = subAgentModelExpanded
-                    )
-                },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
-            )
-            SkinExposedDropdownMenu(
+        // ---- Advanced: model overrides, agent-loop limits, maintenance ----
+        // Collapsed by default. The fields' state lives at the top of this
+        // composable and `applyAiConfig` reads it either way, so folding the
+        // section away never drops an edit or changes what Save writes.
+        SettingsAdvancedSection(testTag = AI_ADVANCED_SECTION) {
+            ExposedDropdownMenuBox(
                 expanded = subAgentModelExpanded,
-                onDismissRequest = { subAgentModelExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                    onClick = { refreshChatModelsAction() }
-                )
-                DropdownMenuItem(
-                    text = { Text("Same as main agent") },
-                    onClick = {
-                        subAgentModel = ""
-                        subAgentModelExpanded = false
-                    }
-                )
-                if (availableChatModels.isNotEmpty()) {
-                    availableChatModels.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
-                                subAgentModel = m
-                                subAgentModelExpanded = false
-                            }
-                        )
-                    }
+                onExpandedChange = {
+                    subAgentModelExpanded = it
+                    if (it) refreshChatModelsAction()
                 }
-            }
-        }
-        ExposedDropdownMenuBox(
-            expanded = navigatorModelExpanded,
-            onExpandedChange = {
-                navigatorModelExpanded = it
-                if (it) refreshChatModelsAction()
-            }
-        ) {
-            val navLabel = if (navigatorModel.isBlank()) "Same as main model" else navigatorModel
-            OutlinedTextField(
-                value = navLabel,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Navigator model") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(
-                        expanded = navigatorModelExpanded
+            ) {
+                val subLabel = subAgentModel.ifBlank { stringResource(R.string.ai_config_same_as_main_agent) }
+                OutlinedTextField(
+                    value = subLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.ai_config_sub_agent_model)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(
+                            expanded = subAgentModelExpanded
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                SkinExposedDropdownMenu(
+                    expanded = subAgentModelExpanded,
+                    onDismissRequest = { subAgentModelExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (refreshingChatModels) R.string.ai_config_refreshing else R.string.ai_config_refresh_models
+                                )
+                            )
+                        },
+                        onClick = { refreshChatModelsAction() }
                     )
-                },
-                modifier = Modifier.fillMaxWidth().menuAnchor()
-            )
-            SkinExposedDropdownMenu(
-                expanded = navigatorModelExpanded,
-                onDismissRequest = { navigatorModelExpanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (refreshingChatModels) "Refreshing…" else "🔄 Refresh models…") },
-                    onClick = { refreshChatModelsAction() }
-                )
-                DropdownMenuItem(
-                    text = { Text("Same as main model") },
-                    onClick = {
-                        navigatorModel = ""
-                        navigatorModelExpanded = false
-                    }
-                )
-                if (availableChatModels.isNotEmpty()) {
-                    availableChatModels.forEach { m ->
-                        DropdownMenuItem(
-                            text = { Text(m) },
-                            onClick = {
-                                navigatorModel = m
-                                navigatorModelExpanded = false
-                            }
-                        )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ai_config_same_as_main_agent)) },
+                        onClick = {
+                            subAgentModel = ""
+                            subAgentModelExpanded = false
+                        }
+                    )
+                    if (availableChatModels.isNotEmpty()) {
+                        availableChatModels.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text(m) },
+                                onClick = {
+                                    subAgentModel = m
+                                    subAgentModelExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
+            ExposedDropdownMenuBox(
+                expanded = navigatorModelExpanded,
+                onExpandedChange = {
+                    navigatorModelExpanded = it
+                    if (it) refreshChatModelsAction()
+                }
+            ) {
+                val navLabel = navigatorModel.ifBlank { stringResource(R.string.ai_config_same_as_main_model) }
+                OutlinedTextField(
+                    value = navLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.ai_config_navigator_model)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(
+                            expanded = navigatorModelExpanded
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                SkinExposedDropdownMenu(
+                    expanded = navigatorModelExpanded,
+                    onDismissRequest = { navigatorModelExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (refreshingChatModels) R.string.ai_config_refreshing else R.string.ai_config_refresh_models
+                                )
+                            )
+                        },
+                        onClick = { refreshChatModelsAction() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ai_config_same_as_main_model)) },
+                        onClick = {
+                            navigatorModel = ""
+                            navigatorModelExpanded = false
+                        }
+                    )
+                    if (availableChatModels.isNotEmpty()) {
+                        availableChatModels.forEach { m ->
+                            DropdownMenuItem(
+                                text = { Text(m) },
+                                onClick = {
+                                    navigatorModel = m
+                                    navigatorModelExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = maxToolRounds,
+                onValueChange = { maxToolRounds = it },
+                label = { Text(stringResource(R.string.ai_config_max_tool_rounds)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth().settingsField("settings_max_tool_rounds")
+            )
+            OutlinedTextField(
+                value = maxRepeatedToolCalls,
+                onValueChange = { maxRepeatedToolCalls = it },
+                label = { Text(stringResource(R.string.ai_config_max_repeated_tool_calls)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxNavigationToolCalls,
+                onValueChange = { maxNavigationToolCalls = it },
+                label = { Text(stringResource(R.string.ai_config_max_navigation_tool_calls)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxConsecutiveDelegations,
+                onValueChange = { maxConsecutiveDelegations = it },
+                label = { Text(stringResource(R.string.ai_config_max_consecutive_delegations)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = maxContextTokens,
+                onValueChange = { maxContextTokens = it },
+                label = { Text(stringResource(R.string.ai_config_max_context_tokens)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = apiTimeoutSeconds,
+                onValueChange = { apiTimeoutSeconds = it },
+                label = { Text(stringResource(R.string.ai_config_api_timeout_seconds)) },
+                supportingText = {
+                    Text(stringResource(R.string.ai_config_api_timeout_hint, DEFAULT_API_TIMEOUT_SECONDS))
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth().settingsField("settings_api_timeout")
+            )
+            OutlinedButton(
+                onClick = {
+                    onClearLlmCache()
+                    overlay.show(localContext.getString(R.string.ai_config_llm_response_cache_cleared))
+                    status = null
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.ai_config_clear_llm_cache)) }
+            OutlinedButton(
+                onClick = {
+                    onClearDebugScreenshots()
+                    overlay.show(localContext.getString(R.string.ai_config_debug_screenshots_cleared))
+                    status = null
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(stringResource(R.string.ai_config_clear_debug_screenshots)) }
         }
-        OutlinedTextField(
-            value = maxToolRounds,
-            onValueChange = { maxToolRounds = it },
-            label = { Text("Max tool rounds") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxRepeatedToolCalls,
-            onValueChange = { maxRepeatedToolCalls = it },
-            label = { Text("Max repeated tool calls") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxNavigationToolCalls,
-            onValueChange = { maxNavigationToolCalls = it },
-            label = { Text("Max navigation tool calls") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxConsecutiveDelegations,
-            onValueChange = { maxConsecutiveDelegations = it },
-            label = { Text("Max consecutive delegations") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = maxContextTokens,
-            onValueChange = { maxContextTokens = it },
-            label = { Text("Max context tokens") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = apiTimeoutSeconds,
-            onValueChange = { apiTimeoutSeconds = it },
-            label = { Text("API Timeout (seconds, 0 for infinite)") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
         Button(
             onClick = {
                 onSave { applyAiConfig(it) }
-                overlay.show("Saved.")
+                overlay.show(localContext.getString(R.string.settings_saved))
                 status = null
             },
             enabled = when (provider) {
@@ -499,20 +554,22 @@ fun AiConfigScreen(
                 .fillMaxWidth()
                 .testTag("settings_save")
                 .tourAnchor(TourAnchor.AI_SAVE)
-        ) { Text("Save") }
+        ) { Text(stringResource(R.string.ai_config_save)) }
         OutlinedButton(
             onClick = {
                 testing = true
                 // Sticky while the request is in flight, then the result
                 // replaces it and fades out on its own.
-                overlay.show("Testing connection…", sticky = true)
+                overlay.show(localContext.getString(R.string.ai_config_testing_connection), sticky = true)
                 status = null
                 scope.launch {
                     val result = onTestConnection(draftAiConfig())
                     overlay.show(
                         result.fold(
-                            onSuccess = { "✓ Connected: $it" },
-                            onFailure = { "✗ Connection failed: ${it.message}" }
+                            onSuccess = { localContext.getString(R.string.ai_config_connected, it) },
+                            onFailure = {
+                                localContext.getString(R.string.ai_config_connection_failed, it.message.orEmpty())
+                            }
                         )
                     )
                     testing = false
@@ -523,30 +580,13 @@ fun AiConfigScreen(
                 LlmProvider.OPENAI_COMPATIBLE -> baseUrl.isNotBlank()
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Test connection") }
-        OutlinedButton(
-            onClick = {
-                onClearLlmCache()
-                overlay.show("LLM response cache cleared.")
-                status = null
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Clear LLM cache") }
-        OutlinedButton(
-            onClick = {
-                onClearDebugScreenshots()
-                overlay.show("Debug screenshots cleared.")
-                status = null
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Clear debug screenshots") }
+        ) { Text(stringResource(R.string.ai_config_test_connection)) }
         status?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium)
         }
 
         Text(
-            "The API key is stored encrypted on this device and never leaves it " +
-                "except in requests to the base URL above.",
+            stringResource(R.string.ai_config_the_api_key_is_stored),
             style = MaterialTheme.typography.bodySmall
         )
     }

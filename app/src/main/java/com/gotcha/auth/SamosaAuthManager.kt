@@ -10,6 +10,7 @@ import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
@@ -61,13 +62,15 @@ class SamosaAuthManager(
         } catch (e: NoCredentialException) {
             GotchaLog.d(TAG, e) { "No Google credential available" }
             return SamosaSignInResult.Error(
-                "No Google account available. Add a Google account to this device and try again."
+                appContext.getString(R.string.samosa_auth_no_google_account_available_add)
             )
         } catch (e: GetCredentialException) {
             Log.w(TAG, "Credential Manager error", e)
-            return SamosaSignInResult.Error("Google Sign-In failed: ${e.message}")
+            return SamosaSignInResult.Error(
+                appContext.getString(R.string.samosa_auth_google_sign_in_failed, e.message.orEmpty())
+            )
         } catch (e: IllegalStateException) {
-            return SamosaSignInResult.Error(e.message ?: "Unexpected sign-in error.")
+            return SamosaSignInResult.Error(e.message ?: appContext.getString(R.string.samosa_auth_unexpected_error))
         }
 
         return register(idToken)
@@ -98,7 +101,7 @@ class SamosaAuthManager(
     private suspend fun register(idToken: String): SamosaSignInResult = try {
         val resp = api.register(RegisterRequest(idToken = idToken))
         if (resp.token.isBlank()) {
-            SamosaSignInResult.Error("Server did not return a session token.")
+            SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_server_did_not_return_a))
         } else {
             settingsRepository.saveSamosaSession(resp.token, resp.user.email)
             // Fetch fresh /me to obtain full tier, tags, and referral metadata
@@ -110,15 +113,15 @@ class SamosaAuthManager(
         SamosaSignInResult.Error(mapRegisterError(e.code()))
     } catch (e: IOException) {
         GotchaLog.d(TAG, e) { "Network error during register" }
-        SamosaSignInResult.Error("Network error. Check your connection and try again.")
+        SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_network_error_check_your_connection))
     }
 
     private fun mapRegisterError(code: Int): String = when (code) {
-        401 -> "Sign-in was rejected by the server (invalid token). Please try again."
-        403 -> "This account is disabled. Contact support."
-        429 -> "Too many attempts. Please wait a moment and try again."
-        502 -> "Samosa AI is temporarily unavailable (gateway error). Try again shortly."
-        else -> "Registration failed (HTTP $code)."
+        401 -> appContext.getString(R.string.samosa_auth_sign_in_was_rejected_by)
+        403 -> appContext.getString(R.string.samosa_auth_this_account_is_disabled_contact)
+        429 -> appContext.getString(R.string.samosa_auth_too_many_attempts_please_wait)
+        502 -> appContext.getString(R.string.samosa_auth_samosa_ai_is_temporarily_unavailable)
+        else -> appContext.getString(R.string.samosa_auth_registration_failed_http, code)
     }
 
     /**
@@ -177,11 +180,15 @@ class SamosaAuthManager(
     suspend fun claimReferralCode(code: String): Result<ClaimReferralResponse> {
         val token = settingsRepository.load().samosaSessionToken
         if (token.isBlank()) {
-            return Result.failure(IllegalStateException("Not signed in to Samosa AI."))
+            return Result.failure(
+                IllegalStateException(appContext.getString(R.string.samosa_auth_not_signed_in_to_samosa))
+            )
         }
         val cleanCode = code.trim().uppercase()
         if (cleanCode.isBlank()) {
-            return Result.failure(IllegalArgumentException("Please enter an invite code."))
+            return Result.failure(
+                IllegalArgumentException(appContext.getString(R.string.samosa_auth_please_enter_an_invite_code))
+            )
         }
         return try {
             GotchaLog.d(TAG) { "Claiming referral code: $cleanCode" }
@@ -195,7 +202,7 @@ class SamosaAuthManager(
             Result.failure(Exception(msg))
         } catch (e: IOException) {
             GotchaLog.d(TAG, e) { "Network error during referral claim" }
-            Result.failure(Exception("Network error. Please check your connection and try again."))
+            Result.failure(Exception(appContext.getString(R.string.samosa_auth_network_error_please_check_your)))
         } catch (e: Exception) {
             GotchaLog.d(TAG, e) { "Unexpected error during referral claim" }
             Result.failure(e)
@@ -207,23 +214,23 @@ class SamosaAuthManager(
         return when (code) {
             400 -> {
                 if (lowerDetail.contains("yourself")) {
-                    "You cannot refer yourself."
+                    appContext.getString(R.string.samosa_auth_you_cannot_refer_yourself)
                 } else {
-                    detail ?: "Invalid referral code."
+                    detail ?: appContext.getString(R.string.samosa_auth_invalid_referral_code)
                 }
             }
-            404 -> detail ?: "Referral code not found."
+            404 -> detail ?: appContext.getString(R.string.samosa_auth_referral_code_not_found)
             409 -> {
                 if (lowerDetail.contains("limit")) {
-                    "This referral code has reached its maximum invite limit."
+                    appContext.getString(R.string.samosa_auth_this_referral_code_has_reached)
                 } else {
-                    detail ?: "You have already been referred."
+                    detail ?: appContext.getString(R.string.samosa_auth_you_have_already_been_referred)
                 }
             }
-            410 -> detail ?: "Referral window expired. Codes must be claimed within $REFERRAL_CLAIM_WINDOW_HOURS hours of signup."
-            429 -> detail ?: "Too many attempts. Please try again later."
-            502 -> detail ?: "Bonus grant failed. Please try again shortly."
-            else -> detail ?: "Referral claim failed (HTTP $code)."
+            410 -> detail ?: appContext.getString(R.string.samosa_auth_referral_window_expired_codes_must, REFERRAL_CLAIM_WINDOW_HOURS)
+            429 -> detail ?: appContext.getString(R.string.samosa_auth_too_many_attempts_please_try)
+            502 -> detail ?: appContext.getString(R.string.samosa_auth_bonus_grant_failed_please_try)
+            else -> detail ?: appContext.getString(R.string.samosa_auth_referral_claim_failed_http, code)
         }
     }
 

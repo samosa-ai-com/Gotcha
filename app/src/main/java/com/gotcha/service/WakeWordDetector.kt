@@ -13,6 +13,7 @@ import android.os.Process
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,7 +111,7 @@ class WakeWordDetector(
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED
         ) {
-            lastError = "Microphone permission is not granted."
+            lastError = appContext.getString(R.string.wake_word_no_mic)
             return false
         }
         synchronized(stateLock) {
@@ -458,7 +459,7 @@ class WakeWordDetector(
                 return
             }
         } catch (e: Exception) {
-            if (running.get()) fail("Wake word listening stopped unexpectedly.", e, generation)
+            if (running.get()) fail(appContext.getString(R.string.wake_word_stopped), e, generation)
         } finally {
             Process.setThreadPriority(callerPriority)
         }
@@ -583,9 +584,9 @@ class WakeWordDetector(
     }
 
     private fun startupError(error: Exception): String = when (error) {
-        is SecurityException -> "Microphone permission is not available."
-        is IOException -> "The bundled wake-word model could not be loaded."
-        else -> "Wake word could not start."
+        is SecurityException -> appContext.getString(R.string.wake_word_mic_unavailable)
+        is IOException -> appContext.getString(R.string.wake_word_model_failed)
+        else -> appContext.getString(R.string.wake_word_start_failed)
     }
 
     companion object {

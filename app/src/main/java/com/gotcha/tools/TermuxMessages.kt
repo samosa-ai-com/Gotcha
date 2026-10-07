@@ -32,16 +32,28 @@ internal object TermuxMessages {
     fun permissionNeeded() = ToolResult.permissionNeeded(
         ToolResult.TERMUX_ACCESS,
         "Running commands in Termux needs Termux's \"Run commands\" permission, which has not been granted. " +
-            "I have asked for it — please allow it, then in Termux add the line `allow-external-apps=true` to " +
-            "`~/.termux/termux.properties` and restart Termux, and ask again. (If no permission dialog appeared, " +
-            "Termux was installed after Gotcha — reinstall or update Gotcha so Android can grant it.)"
+            "I have asked for it — please allow it, then in Termux run these two lines, and ask again." +
+            externalAppsFix() +
+            "\n(If no permission dialog appeared, Termux was installed after Gotcha — reinstall or update " +
+            "Gotcha so Android can grant it.)"
     )
 
     /**
-     * Seen on-device as `Not allowed to start service … app is in background`: from Android 12,
-     * an app in the background cannot start another app's foreground service, and Termux's
-     * RunCommandService is one. Gotcha's assistive ball normally holds a foreground service that
-     * exempts us, so this shows up when it is switched off and the chat UI has been backgrounded.
+     * The commands that set `allow-external-apps`, as a fenced block with the instruction to keep
+     * them in one when passing them on: the user types them into Termux, and a fenced block is
+     * what the chat shows with a Copy button (issue #109).
+     */
+    fun externalAppsFix(): String =
+        "\n\nThe user runs this in Termux:\n\n```bash\n${TermuxTool.SETUP_COMMANDS}\n```\n\n" +
+            "When you tell the user, give them exactly this fenced block, not the commands inline."
+
+    /**
+     * The start itself was refused. The one expected cause: from Android 12 an app in the
+     * background may not start a foreground service, and Termux's RunCommandService is one
+     * (ForegroundServiceStartNotAllowedException). Gotcha's assistive ball holds a foreground
+     * service that exempts us, so this shows up when it is switched off and the chat UI has been
+     * backgrounded. The older "app is in background uid null" came from starting it with
+     * startService while Termux was not running, whatever Gotcha's state; see [TermuxTool.runCommand].
      */
     fun startFailed(cause: Throwable) = ToolResult.error(
         "Could not reach Termux's RUN_COMMAND service: ${cause.message}. If that says Gotcha is in the " +

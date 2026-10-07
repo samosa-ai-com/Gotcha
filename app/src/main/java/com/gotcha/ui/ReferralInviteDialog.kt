@@ -20,8 +20,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.ui.theme.SkinAlertDialog
 
 /**
@@ -42,7 +44,7 @@ fun ReferralInviteDialog(
         onDismissRequest = { if (!busy) onSkip() },
         title = {
             Text(
-                text = "🎁 Have an Invite Code?",
+                text = stringResource(R.string.referral_invite_have_an_invite_code),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -53,7 +55,7 @@ fun ReferralInviteDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Enter a friend's code to earn bonus credits.",
+                    text = stringResource(R.string.referral_invite_enter_a_friend_s_code),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -63,8 +65,8 @@ fun ReferralInviteDialog(
                 OutlinedTextField(
                     value = codeText,
                     onValueChange = { codeText = it.uppercase().trim() },
-                    label = { Text("Invite Code (e.g. AIR-K9X2P7)") },
-                    placeholder = { Text("AIR-XXXXXX") },
+                    label = { Text(stringResource(R.string.referral_invite_invite_code_e_g_air)) },
+                    placeholder = { Text(stringResource(R.string.referral_invite_air_xxxxxx)) },
                     singleLine = true,
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth()
@@ -94,10 +96,10 @@ fun ReferralInviteDialog(
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
-                        Text("Applying…")
+                        Text(stringResource(R.string.referral_invite_applying))
                     }
                 } else {
-                    Text("Apply Code")
+                    Text(stringResource(R.string.referral_invite_apply_code))
                 }
             }
         },
@@ -106,7 +108,7 @@ fun ReferralInviteDialog(
                 onClick = onSkip,
                 enabled = !busy
             ) {
-                Text("Skip")
+                Text(stringResource(R.string.referral_invite_skip))
             }
         }
     )

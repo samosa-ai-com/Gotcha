@@ -52,6 +52,18 @@ interface AgentEvents {
     fun onPermissionRequest(marker: String)
 
     /**
+     * A tool just reported that it needs the runtime [permission] it names.
+     * The host should explain why and raise the system dialog, returning
+     * whether the permission ended up granted — the engine retries the call
+     * once when it did.
+     *
+     * Defaults to "can't ask here": a runtime dialog needs a foreground
+     * Activity, which a voice call or a background run does not have. Those
+     * hosts leave the tool's own error message as the answer.
+     */
+    suspend fun awaitPermissionGrant(permission: String): Boolean = false
+
+    /**
      * History was just compacted: the host should drop its on-screen transcript
      * so pre-compaction bubbles are no longer shown. The compaction summary is
      * delivered immediately afterward via [onUi]. Default no-op for hosts that
@@ -78,6 +90,20 @@ interface AgentEvents {
 
     /** Ask the user the agent's question; returns "" when unanswered. */
     suspend fun awaitQuestionAnswer(question: PendingQuestion): String
+
+    /**
+     * Ask before Gotcha first opens or controls another app in this request
+     * (issue #98). Asked at most once per request; the answer covers every later
+     * foreground step in it. Defaults to "can't ask here", which denies.
+     */
+    suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean = false
+
+    /**
+     * Gotcha started ([active] true) or stopped controlling another app. The
+     * host shows that it is in control, then that the user has their app back.
+     * [appLabel] names the app when known. Default no-op.
+     */
+    fun onForegroundControlChanged(active: Boolean, appLabel: String?) {}
 
     /** Gate a destructive action on explicit user approval. */
     suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean

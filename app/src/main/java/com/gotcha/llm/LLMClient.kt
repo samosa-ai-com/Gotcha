@@ -4,6 +4,7 @@ import android.content.Context
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
+import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
 import com.gotcha.i18n.Language
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.builtins.ListSerializer
@@ -13,13 +14,39 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
+
+/** Longest a connection to the model server may take to open, however long the API timeout is. */
+private const val MAX_CONNECT_TIMEOUT_SECONDS = 15L
+
+/** OkHttp timeouts, in seconds, for one API timeout setting. 0 means no timeout. */
+internal data class LlmTimeouts(val connectSeconds: Long, val readSeconds: Long, val writeSeconds: Long)
+
+/**
+ * Splits the user's API timeout into OkHttp's timeouts (#104).
+ *
+ * Read and write are gaps between bytes, not a cap on the whole request, so a
+ * reply that keeps arriving is never cut off; there is deliberately no call
+ * timeout. Connecting never needs minutes, so it is capped at
+ * [MAX_CONNECT_TIMEOUT_SECONDS]. 0 is the user asking for no timeout at all and
+ * is passed through to every one of them.
+ */
+internal fun llmTimeouts(apiTimeoutSeconds: Long): LlmTimeouts {
+    val timeout = apiTimeoutSeconds.coerceAtLeast(0L)
+    if (timeout == 0L) return LlmTimeouts(0L, 0L, 0L)
+    return LlmTimeouts(
+        connectSeconds = timeout.coerceAtMost(MAX_CONNECT_TIMEOUT_SECONDS),
+        readSeconds = timeout,
+        writeSeconds = timeout
+    )
+}
 
 class LLMClient(
     private val apiKey: String,
     private val baseUrl: String,
     private val model: String = "chai-small",
     context: Context? = null,
-    private val apiTimeoutSeconds: Long = 0L,
+    private val apiTimeoutSeconds: Long = DEFAULT_API_TIMEOUT_SECONDS,
     private val cache: LLMCache = LLMCache(context),
     /**
      * Invoked when the server responds 401 (e.g. an expired/blacklisted Samosa
@@ -48,10 +75,11 @@ class LLMClient(
             redactHeader("Authorization")
         }
 
+        val timeouts = llmTimeouts(apiTimeoutSeconds)
         val okHttpClient = OkHttpClient.Builder()
-            .connectTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(apiTimeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)
+            .connectTimeout(timeouts.connectSeconds, TimeUnit.SECONDS)
+            .readTimeout(timeouts.readSeconds, TimeUnit.SECONDS)
+            .writeTimeout(timeouts.writeSeconds, TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val builder = chain.request().newBuilder()
                     .addHeader("Authorization", "Bearer $apiKey")

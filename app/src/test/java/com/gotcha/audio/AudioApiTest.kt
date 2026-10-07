@@ -94,7 +94,7 @@ class AudioApiTest {
         assertEquals("af_heart", tts.voices[0].id)
         assertEquals("en-us", tts.voices[0].language)
         assertEquals("female", tts.voices[0].gender)
-        assertEquals("af_heart (en-us, female)", tts.voices[0].displayLabel)
+        assertEquals("af_heart — English (United States), female", tts.voices[0].displayLabel)
 
         val stt = models[1]
         assertEquals("faster-whisper-medium", stt.id)

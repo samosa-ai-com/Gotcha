@@ -8,28 +8,23 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.data.Settings
-import com.gotcha.i18n.Language
-import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
-import kotlinx.coroutines.launch
 
 /** Currencies offered for [Settings.preferredCurrency]. */
 private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY", "CNY")
@@ -42,9 +37,12 @@ private val CURRENCIES = listOf("USD", "EUR", "GBP", "INR", "CAD", "AUD", "JPY",
  * language one (see `AgentEngine`). Nothing on this page changes what the agent
  * is *allowed* to do; it only changes what it knows about the person asking.
  *
- * Language and currency live here rather than under Proactive Assistance, where
- * they started: they describe the user, not whether the assistant volunteers
- * help, and they apply to every reply whether proactive or not.
+ * Currency lives here rather than under Proactive Assistance, where it started:
+ * it describes the user, not whether the assistant volunteers help, and it
+ * applies to every reply whether proactive or not. The language settings used to
+ * sit here too and now have their own page (issue #74) — "Preferred Language"
+ * next to a name and an occupation read as the app's UI language, which it never
+ * was; this page keeps only a pointer to them.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +50,7 @@ fun PersonalInfoScreen(
     load: () -> Settings,
     onSave: ((Settings) -> Settings) -> Unit,
     onBack: () -> Unit,
-    onTestVoice: suspend (Language) -> Boolean? = { null }
+    onOpenLanguage: () -> Unit = {}
 ) {
     val initial = remember { load() }
     var userName by remember { mutableStateOf(initial.userName) }
@@ -60,19 +58,11 @@ fun PersonalInfoScreen(
     var userOccupation by remember { mutableStateOf(initial.userOccupation) }
     var userBackground by remember { mutableStateOf(initial.userBackground) }
     var userResponseStyle by remember { mutableStateOf(initial.userResponseStyle) }
-    var preferredLanguage by remember { mutableStateOf(initial.preferredLanguage) }
     var preferredCurrency by remember { mutableStateOf(initial.preferredCurrency) }
 
-    var languageExpanded by remember { mutableStateOf(false) }
     var currencyExpanded by remember { mutableStateOf(false) }
-    var testingVoice by remember { mutableStateOf(false) }
-
-    /** Last [Language] whose voice data was reported missing, or null when not shown. */
-    var voiceDataMissing by remember { mutableStateOf<Language?>(null) }
 
     val overlay = rememberSettingsOverlayState()
-    val scope = rememberCoroutineScope()
-    val localContext = LocalContext.current
 
     /** This page's fields, copied onto [base]. */
     fun applyPersonalInfo(base: Settings) = base.copy(
@@ -81,44 +71,40 @@ fun PersonalInfoScreen(
         userOccupation = userOccupation.trim(),
         userBackground = userBackground.trim(),
         userResponseStyle = userResponseStyle.trim(),
-        preferredLanguage = preferredLanguage,
         preferredCurrency = preferredCurrency
     )
 
-    SettingsScaffold(title = SettingsPage.PERSONAL_INFO.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.PERSONAL_INFO.title), onBack = onBack, overlay = overlay) {
         Text(
-            "About you",
+            stringResource(R.string.personal_info_about_you),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Everything here is optional, stays on this device, and is given to the " +
-                "assistant at the start of every conversation so it doesn't have to ask.",
+            stringResource(R.string.personal_info_everything_here_is_optional_stays),
             style = MaterialTheme.typography.bodySmall
         )
         Text(
-            "For more personalized results, keep this profile up to date — or just " +
-                "ask Gotcha to record things like your personal website, GitHub link, " +
-                "or CV (PDF) in your profile for you.",
+            stringResource(R.string.personal_info_for_more_personalized_results_keep),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         OutlinedTextField(
             value = userName,
             onValueChange = { userName = it },
-            label = { Text("Name") },
-            placeholder = { Text("What the assistant should call you") },
+            label = { Text(stringResource(R.string.personal_info_name)) },
+            placeholder = { Text(stringResource(R.string.personal_info_what_the_assistant_should_call)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("settings_user_name")
+                .settingsField("settings_user_name")
                 .tourAnchor(TourAnchor.PERSONAL_NAME)
         )
         OutlinedTextField(
             value = userLocation,
             onValueChange = { userLocation = it },
-            label = { Text("Location") },
-            placeholder = { Text("e.g. Munich, Germany") },
+            label = { Text(stringResource(R.string.personal_info_location)) },
+            placeholder = { Text(stringResource(R.string.personal_info_e_g_munich_germany)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,8 +113,8 @@ fun PersonalInfoScreen(
         OutlinedTextField(
             value = userOccupation,
             onValueChange = { userOccupation = it },
-            label = { Text("Occupation") },
-            placeholder = { Text("e.g. Backend engineer") },
+            label = { Text(stringResource(R.string.personal_info_occupation)) },
+            placeholder = { Text(stringResource(R.string.personal_info_e_g_backend_engineer)) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
@@ -137,11 +123,10 @@ fun PersonalInfoScreen(
         OutlinedTextField(
             value = userBackground,
             onValueChange = { userBackground = it },
-            label = { Text("Background") },
+            label = { Text(stringResource(R.string.personal_info_background)) },
             placeholder = {
                 Text(
-                    "Anything worth knowing by default — tools you use, who you " +
-                        "work with, what you usually ask for"
+                    stringResource(R.string.personal_info_anything_worth_knowing_by_default)
                 )
             },
             minLines = 3,
@@ -154,104 +139,24 @@ fun PersonalInfoScreen(
 
         // ---- Output preferences ----
         Text(
-            "How replies should be written",
+            stringResource(R.string.personal_info_how_replies_should_be_written),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         OutlinedTextField(
             value = userResponseStyle,
             onValueChange = { userResponseStyle = it },
-            label = { Text("Reply style") },
+            label = { Text(stringResource(R.string.personal_info_reply_style)) },
             placeholder = {
                 Text(
-                    "e.g. Keep it to a few sentences, no bullet lists, show the " +
-                        "command you ran"
+                    stringResource(R.string.personal_info_e_g_keep_it_to)
                 )
             },
             minLines = 3,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag("settings_user_response_style")
+                .settingsField("settings_user_response_style")
         )
-
-        ExposedDropdownMenuBox(
-            expanded = languageExpanded,
-            onExpandedChange = { languageExpanded = it }
-        ) {
-            OutlinedTextField(
-                value = preferredLanguage,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Preferred Language") },
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageExpanded)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor()
-            )
-            SkinExposedDropdownMenu(
-                expanded = languageExpanded,
-                onDismissRequest = { languageExpanded = false }
-            ) {
-                Language.labels.forEach { lang ->
-                    DropdownMenuItem(
-                        text = { Text(lang) },
-                        onClick = {
-                            preferredLanguage = lang
-                            languageExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-        OutlinedButton(
-            onClick = {
-                testingVoice = true
-                scope.launch {
-                    val lang = Language.fromLabel(preferredLanguage)
-                    // Track which language triggered the missing-data state so
-                    // rapid language-switch clicks don't surface a stale dialog.
-                    val ok = onTestVoice(lang)
-                    voiceDataMissing = if (ok == false) lang else null
-                    testingVoice = false
-                }
-            },
-            enabled = !testingVoice,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (testingVoice) "Playing…" else "Test voice")
-        }
-        voiceDataMissing?.let { missingLang ->
-            SkinAlertDialog(
-                onDismissRequest = { voiceDataMissing = null },
-                title = { Text("Voice data not installed") },
-                text = {
-                    Text(
-                        "Your device doesn't have Android's built-in voice for " +
-                            "${missingLang.label}. It was spoken in English instead. " +
-                            "Install the voice data to fix pronunciation."
-                    )
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            voiceDataMissing = null
-                            try {
-                                localContext.startActivity(
-                                    android.content.Intent(
-                                        android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA
-                                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            } catch (_: Exception) { }
-                        }
-                    ) { Text("Install") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { voiceDataMissing = null }) { Text("Cancel") }
-                }
-            )
-        }
 
         ExposedDropdownMenuBox(
             expanded = currencyExpanded,
@@ -261,13 +166,14 @@ fun PersonalInfoScreen(
                 value = preferredCurrency,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Preferred Currency") },
+                label = { Text(stringResource(R.string.personal_info_preferred_currency)) },
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
+                    .settingsField("settings_user_currency")
             )
             SkinExposedDropdownMenu(
                 expanded = currencyExpanded,
@@ -285,15 +191,31 @@ fun PersonalInfoScreen(
             }
         }
 
+        HorizontalDivider(thickness = 1.dp)
+
+        // Language moved out of this page (issue #74); a pointer keeps it findable
+        // for anyone who still comes here looking for "Preferred Language".
+        Text(
+            stringResource(R.string.personal_info_reply_voice_and_app_display),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SettingsNavRow(
+            page = SettingsPage.LANGUAGE,
+            onClick = onOpenLanguage,
+            modifier = Modifier.testTag("settings_personal_info_language_row")
+        )
+
+        val saved = stringResource(R.string.personal_info_saved)
         Button(
             onClick = {
                 onSave { applyPersonalInfo(it) }
-                overlay.show("Saved Personal Info.")
+                overlay.show(saved)
             },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("settings_save_personal_info")
                 .tourAnchor(TourAnchor.PERSONAL_SAVE)
-        ) { Text("Save Personal Info") }
+        ) { Text(stringResource(R.string.personal_info_save_personal_info)) }
     }
 }

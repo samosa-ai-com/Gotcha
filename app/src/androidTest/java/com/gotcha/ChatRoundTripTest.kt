@@ -1,5 +1,6 @@
 package com.gotcha
 
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
@@ -14,15 +15,21 @@ import androidx.compose.ui.test.longClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.gotcha.testutil.MOCK_REPLY_OK
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.TestSeed
+import com.gotcha.ui.STARTER_PROMPTS
+import com.gotcha.ui.StarterPrompt
+import com.gotcha.ui.personaById
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class ChatRoundTripTest {
@@ -63,11 +70,20 @@ class ChatRoundTripTest {
 
     /** Consumes and returns the request bodies recorded since [previousCount]. */
     private fun drainSince(previousCount: Int): List<String> {
-        val bodies = mutableListOf<String>()
-        while (mockLlm.server.requestCount > previousCount) {
-            mockLlm.server.takeRequest()?.let { bodies.add(it.body.readUtf8()) }
+        // Take everything currently queued (bounded waits so an empty queue
+        // ends the drain instead of wedging the run), then keep only the
+        // requests that arrived after previousCount. MockWebServer is FIFO,
+        // so dropping the first previousCount entries is exactly "since".
+        // NOTE: a plain `while (requestCount > previousCount) takeRequest()`
+        // never terminates the takes and re-includes pre-revert requests —
+        // that wedged this test for 12+ minutes (unbounded take) and, once
+        // bounded, failed it on send#2's own legitimate request.
+        val all = mutableListOf<String>()
+        while (true) {
+            val req = mockLlm.server.takeRequest(2, TimeUnit.SECONDS) ?: break
+            all.add(req.body.readUtf8())
         }
-        return bodies
+        return all.drop(previousCount)
     }
 
     @Test
@@ -89,6 +105,76 @@ class ChatRoundTripTest {
     }
 
     @Test
+    fun starterPrompt_fillsComposerWithoutSending() {
+        mockLlm.start()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl, model = "test-model")
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        // Which three are on offer is drawn per session, so the test follows the
+        // screen rather than assuming a particular chip is there.
+        composeRule.onNodeWithTag("starter_prompts").assertExists()
+        val shown = STARTER_PROMPTS.first { prompt ->
+            composeRule.onAllNodes(hasTestTag("starter_prompt_${prompt.label}"))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithTag("starter_prompt_${shown.label}").performClick()
+        composeRule.waitForIdle()
+
+        // Filled, not sent: the template is in the composer, the transcript is
+        // still empty, and nothing went to the LLM.
+        composeRule.onNodeWithTag("chat_input").assert(
+            hasText(InstrumentationRegistry.getInstrumentation().targetContext.getString(shown.template))
+        )
+        assertTrue(
+            "tapping a starter must not open the transcript",
+            composeRule.onAllNodes(hasTestTag("message_list")).fetchSemanticsNodes().isEmpty()
+        )
+        assertEquals(
+            "tapping a starter must not send anything to the LLM",
+            0,
+            mockLlm.server.requestCount
+        )
+    }
+
+    @Test
+    fun starterPrompts_followTheSelectedPersona() {
+        mockLlm.start()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl, model = "test-model")
+
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        composeRule.waitForIdle()
+
+        fun shownFrom(pool: List<StarterPrompt>) = pool.filter { prompt ->
+            composeRule.onAllNodes(hasTestTag("starter_prompt_${prompt.label}"))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        val doctor = requireNotNull(personaById("doctor")).starters
+        val chef = requireNotNull(personaById("chef")).starters
+
+        assertEquals("no persona: the default starters", 3, shownFrom(STARTER_PROMPTS).size)
+
+        composeRule.onNodeWithTag("persona_doctor").performClick()
+        composeRule.waitForIdle()
+        assertEquals("Doctor: its own starters", 3, shownFrom(doctor).size)
+        assertTrue("Doctor: none of the default ones", shownFrom(STARTER_PROMPTS).isEmpty())
+
+        composeRule.onNodeWithTag("persona_chef").performClick()
+        composeRule.waitForIdle()
+        assertEquals("Chef: its own starters", 3, shownFrom(chef).size)
+        assertTrue("Chef: none of Doctor's", shownFrom(doctor).isEmpty())
+
+        // Tapping the chosen persona clears it, and the default row comes back.
+        composeRule.onNodeWithTag("persona_chef").performClick()
+        composeRule.waitForIdle()
+        assertEquals("cleared: the default starters again", 3, shownFrom(STARTER_PROMPTS).size)
+    }
+
+    @Test
     fun editMessage_truncatesHistoryAndRegenerates() {
         mockLlm.start()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -101,10 +187,12 @@ class ChatRoundTripTest {
         waitForReply()
         sendText("second prompt")
         waitForReply()
-        // run2's request + the run1 title-generation request must both have landed
-        // and the final run cleaned up before we snapshot, so the edit's
-        // regeneration is the only new request.
-        composeRule.waitUntil(timeoutMillis = 15_000) { mockLlm.server.requestCount >= 3 }
+        // Both sends must have landed and the final run cleaned up before we
+        // snapshot, so the edit's regeneration is the only new request. Count
+        // the two sends, not a fixed 3: the run-1 title-generation request
+        // fires only once per process, so in a full-suite run an earlier
+        // test may already have consumed it and >= 3 would wait out 15 s.
+        composeRule.waitUntil(timeoutMillis = 15_000) { mockLlm.server.requestCount >= 2 }
         composeRule.waitForIdle()
         val since = mockLlm.server.requestCount
 

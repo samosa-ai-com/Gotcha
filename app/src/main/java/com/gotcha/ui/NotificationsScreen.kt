@@ -1,11 +1,23 @@
 package com.gotcha.ui
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,19 +25,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.audio.CompletionFeedback
+import com.gotcha.data.CompletionPreview
 import com.gotcha.data.Settings
+import com.gotcha.notifications.ChatCompletionNotifier
 import kotlinx.coroutines.launch
+import android.provider.Settings as AndroidSettings
 
 /**
  * The Notifications page: what the phone does the moment a reply arrives
- * (vibration/chime) plus server-driven messages from the Samosa team
- * (updates, tips, maintenance).
+ * (vibration/chime), the task-finished notification, Gotcha's own reminders
+ * and tips ([LocalNotificationsSection]), and server-driven messages from the Samosa team (updates, tips, maintenance).
  *
  * The vibration/chime page has no Save button, and deliberately so —
  * switching one on plays it once, which is the whole point. A preview that
@@ -42,13 +62,23 @@ fun NotificationsScreen(
     val initial = remember { load() }
     var notifyVibration by remember { mutableStateOf(initial.notifyVibrationEnabled) }
     var notifyChime by remember { mutableStateOf(initial.notifyChimeEnabled) }
+    var taskFinished by remember { mutableStateOf(initial.chatCompletionNotificationsEnabled) }
+    var taskPreview by remember { mutableStateOf(initial.chatCompletionPreview) }
     var serverMessagesEnabled by remember { mutableStateOf(initial.serverMessagesEnabled) }
     var lastFetched by remember { mutableStateOf(initial.serverMessagesLastFetchedAt) }
     var isSyncing by remember { mutableStateOf(false) }
 
     val overlay = rememberSettingsOverlayState()
     val localContext = LocalContext.current
+    // Re-read after the permission prompt, so the "blocked" note clears on a grant.
+    var canPost by remember { mutableStateOf(ChatCompletionNotifier(localContext).canPost()) }
     val scope = rememberCoroutineScope()
+
+    // Asked for when server messages are switched on, not at first launch —
+    // a notification permission is only meaningful once something wants to post.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { canPost = ChatCompletionNotifier(localContext).canPost() }
 
     // Sync only when the user toggles server messages ON, not on the
     // initial composition — `onResume` already covers the first-arrival case.
@@ -61,13 +91,13 @@ fun NotificationsScreen(
         if (serverMessagesEnabled) onSyncServerMessages()
     }
 
-    SettingsScaffold(title = SettingsPage.NOTIFICATIONS.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.NOTIFICATIONS.title), onBack = onBack, overlay = overlay) {
         Text(
-            "Played as soon as a reply arrives. Turn both off for no alert.",
+            stringResource(R.string.notifications_played_as_soon_as_a),
             style = MaterialTheme.typography.bodySmall
         )
         SettingsToggleRow(
-            label = "Vibration",
+            label = stringResource(R.string.notifications_vibration),
             checked = notifyVibration,
             onCheckedChange = {
                 notifyVibration = it
@@ -78,7 +108,7 @@ fun NotificationsScreen(
             switchTestTag = "settings_notify_vibration"
         )
         SettingsToggleRow(
-            label = "Chime",
+            label = stringResource(R.string.notifications_chime),
             checked = notifyChime,
             onCheckedChange = {
                 notifyChime = it
@@ -91,21 +121,102 @@ fun NotificationsScreen(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            "Server messages",
+            stringResource(R.string.notifications_task_finished),
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            "Updates, tips and maintenance notices from Gotcha, fetched from " +
-                "${BuildConfig.SAMOSA_API_URL.removePrefix("https://")}. " +
-                "Each message shows at most the number of times the server asks; re-deliveries are suppressed automatically.",
+            stringResource(R.string.notifications_a_notification_when_a_chat),
             style = MaterialTheme.typography.bodySmall
         )
         SettingsToggleRow(
-            label = "Enable server messages",
+            label = stringResource(R.string.notifications_notify_when_a_task_finishes),
+            checked = taskFinished,
+            onCheckedChange = {
+                taskFinished = it
+                onSave { s -> s.copy(chatCompletionNotificationsEnabled = it) }
+                if (it && !canPost && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            isLarge = true,
+            switchTestTag = "settings_task_finished_enabled"
+        )
+        if (taskFinished) {
+            Text(stringResource(R.string.notifications_show_the_reply), style = MaterialTheme.typography.bodyMedium)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectableGroup()
+                    .testTag("settings_task_finished_preview")
+            ) {
+                CompletionPreview.entries.forEach { preview ->
+                    CompletionPreviewRow(
+                        preview = preview,
+                        selected = taskPreview == preview,
+                        onSelect = {
+                            taskPreview = preview
+                            onSave { s -> s.copy(chatCompletionPreview = preview) }
+                        }
+                    )
+                }
+            }
+            if (!canPost) {
+                Text(
+                    stringResource(R.string.notifications_notifications_are_blocked_for_gotcha),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(
+                    onClick = {
+                        localContext.startActivity(
+                            Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, localContext.packageName)
+                        )
+                    }
+                ) { Text(stringResource(R.string.notifications_open_notification_settings)) }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        LocalNotificationsSection(
+            initial = initial,
+            onSave = onSave,
+            canPost = canPost,
+            requestPermission = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.notifications_server_messages),
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            stringResource(
+                R.string.notifications_server_messages_description,
+                BuildConfig.SAMOSA_API_URL.removePrefix("https://")
+            ),
+            style = MaterialTheme.typography.bodySmall
+        )
+        SettingsToggleRow(
+            label = stringResource(R.string.notifications_enable_server_messages),
             checked = serverMessagesEnabled,
             onCheckedChange = {
                 serverMessagesEnabled = it
                 onSave { s -> s.copy(serverMessagesEnabled = it) }
+                // The one moment the permission is actually needed: a message
+                // that can't be posted is a setting that silently does nothing.
+                if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        localContext,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
             },
             isLarge = true,
             switchTestTag = "settings_server_messages_enabled"
@@ -124,21 +235,51 @@ fun NotificationsScreen(
             },
             enabled = !isSyncing && serverMessagesEnabled,
             modifier = Modifier.fillMaxWidth().testTag("settings_server_messages_sync")
-        ) { Text(if (isSyncing) "Syncing…" else "Sync now") }
+        ) { Text(stringResource(if (isSyncing) R.string.notifications_syncing else R.string.notifications_sync_now)) }
         Text(
-            "Last synced: ${formatRelative(lastFetched)}",
+            stringResource(R.string.notifications_last_synced, formatRelative(lastFetched)),
             style = MaterialTheme.typography.bodySmall
         )
     }
 }
 
-private fun formatRelative(epochMillis: Long): String {
-    if (epochMillis <= 0L) return "never"
-    val deltaMin = (System.currentTimeMillis() - epochMillis) / 60_000L
-    return when {
-        deltaMin < 1L -> "just now"
-        deltaMin < 60L -> "${deltaMin}m ago"
-        deltaMin < 24L * 60L -> "${deltaMin / 60L}h ago"
-        else -> "${deltaMin / (24L * 60L)}d ago"
+/** One selectable row of the "Show the reply" group. */
+@Composable
+private fun CompletionPreviewRow(
+    preview: CompletionPreview,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    val (label, summary) = when (preview) {
+        CompletionPreview.NONE ->
+            R.string.notifications_preview_none to R.string.notifications_preview_none_summary
+        CompletionPreview.SHORT ->
+            R.string.notifications_preview_short to R.string.notifications_preview_short_summary
+        CompletionPreview.FULL ->
+            R.string.notifications_preview_full to R.string.notifications_preview_full_summary
     }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .testTag("settings_task_finished_preview_${preview.name.lowercase()}")
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = selected, onClick = null)
+            Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
+        }
+        Text(
+            stringResource(summary),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 40.dp, bottom = 4.dp)
+        )
+    }
+}
+
+/** "never", or how long ago, in the display language. */
+@Composable
+private fun formatRelative(epochMillis: Long): String {
+    if (epochMillis <= 0L) return stringResource(R.string.notifications_never_synced)
+    return relativeTime(epochMillis)
 }

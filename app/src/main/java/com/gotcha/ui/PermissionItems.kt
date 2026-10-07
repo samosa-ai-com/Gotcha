@@ -7,19 +7,21 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
+import com.gotcha.R
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.HealthPermissionState
 import com.gotcha.tools.ToolResult
 
 data class PermissionGroup(
-    val name: String,
+    @StringRes val name: Int,
     val items: List<PermissionItem>
 )
 
 data class PermissionItem(
-    val name: String,
-    val description: String,
+    @StringRes val name: Int,
+    @StringRes val description: Int,
     val androidPermission: String?,
     val specialMarker: String?,
     val isGranted: (Context) -> Boolean,
@@ -39,32 +41,32 @@ data class PermissionItem(
 @Suppress("LongMethod")
 fun allPermissionGroups(): List<PermissionGroup> = listOf(
     PermissionGroup(
-        "Communications",
+        R.string.permission_group_communications,
         listOf(
             PermissionItem(
-                "Phone",
-                "Place calls directly",
+                R.string.permission_phone,
+                R.string.permission_phone_description,
                 android.Manifest.permission.CALL_PHONE,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.CALL_PHONE) }
             ),
             PermissionItem(
-                "SMS",
-                "Send text messages",
+                R.string.permission_sms,
+                R.string.permission_sms_description,
                 android.Manifest.permission.SEND_SMS,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.SEND_SMS) }
             ),
             PermissionItem(
-                "Read SMS",
-                "Read inbox messages",
+                R.string.permission_read_sms,
+                R.string.permission_read_sms_description,
                 android.Manifest.permission.READ_SMS,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.READ_SMS) }
             ),
             PermissionItem(
-                "Call Log",
-                "Read recent call history",
+                R.string.permission_call_log,
+                R.string.permission_call_log_description,
                 android.Manifest.permission.READ_CALL_LOG,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.READ_CALL_LOG) }
@@ -72,11 +74,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Contacts",
+        R.string.permission_group_contacts,
         listOf(
             PermissionItem(
-                "Contacts",
-                "Read and create contacts",
+                R.string.permission_contacts,
+                R.string.permission_contacts_description,
                 android.Manifest.permission.READ_CONTACTS,
                 null,
                 { c ->
@@ -88,11 +90,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Calendar",
+        R.string.permission_group_calendar,
         listOf(
             PermissionItem(
-                "Calendar",
-                "Read and create calendar events",
+                R.string.permission_calendar,
+                R.string.permission_calendar_description,
                 android.Manifest.permission.READ_CALENDAR,
                 null,
                 { c ->
@@ -104,25 +106,25 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Media & Storage",
+        R.string.permission_group_media_storage,
         listOf(
             PermissionItem(
-                "Camera",
-                "Take photos",
+                R.string.permission_camera,
+                R.string.permission_camera_description,
                 android.Manifest.permission.CAMERA,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.CAMERA) }
             ),
             PermissionItem(
-                "Microphone",
-                "Record audio",
+                R.string.permission_microphone,
+                R.string.permission_microphone_description,
                 android.Manifest.permission.RECORD_AUDIO,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.RECORD_AUDIO) }
             ),
             PermissionItem(
-                "Storage Read",
-                "Read files from shared storage",
+                R.string.permission_storage_read,
+                R.string.permission_storage_read_description,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     android.Manifest.permission.READ_MEDIA_IMAGES
                 } else {
@@ -139,16 +141,16 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 }
             ),
             PermissionItem(
-                "Storage Write",
-                "Write files to shared storage",
+                R.string.permission_storage_write,
+                R.string.permission_storage_write_description,
                 android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
                 null,
                 // API 30+ uses MANAGE_EXTERNAL_STORAGE instead; nothing to request here.
                 { true }
             ),
             PermissionItem(
-                "All Files Access",
-                "Full access to all files on device",
+                R.string.permission_all_files_access,
+                R.string.permission_all_files_access_description,
                 null,
                 "special:all_files_access",
                 { Environment.isExternalStorageManager() }
@@ -156,11 +158,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Location",
+        R.string.permission_group_location,
         listOf(
             PermissionItem(
-                "Location",
-                "Get device location",
+                R.string.permission_location,
+                R.string.permission_location_description,
                 android.Manifest.permission.ACCESS_FINE_LOCATION,
                 null,
                 { c -> checkPerm(c, android.Manifest.permission.ACCESS_FINE_LOCATION) }
@@ -168,18 +170,18 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Device Control",
+        R.string.permission_group_device_control,
         listOf(
             PermissionItem(
-                "Write Settings",
-                "Modify system settings (brightness)",
+                R.string.permission_write_settings,
+                R.string.permission_write_settings_description,
                 null,
                 "special:write_settings",
                 { c -> Settings.System.canWrite(c) }
             ),
             PermissionItem(
-                "Do Not Disturb",
-                "Silence/vibrate mode and DND",
+                R.string.permission_do_not_disturb,
+                R.string.permission_do_not_disturb_description,
                 null,
                 "special:dnd_access",
                 { c ->
@@ -188,8 +190,8 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 }
             ),
             PermissionItem(
-                "Usage Access",
-                "Read app usage and data stats",
+                R.string.permission_usage_access,
+                R.string.permission_usage_access_description,
                 null,
                 "special:usage_access",
                 { c ->
@@ -205,18 +207,16 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
             // isRelevant. The allow-external-apps half has to be done inside Termux either way;
             // the Guided setup link (PermissionsScreen → PermissionsSection) walks through it.
             PermissionItem(
-                "Termux Commands (Optional)",
-                "Run shell commands and install packages in Termux. Also needs " +
-                    "`allow-external-apps=true` in Termux's ~/.termux/termux.properties — use the " +
-                    "Guided setup link for step-by-step help.",
+                R.string.permission_termux_commands_optional,
+                R.string.permission_termux_commands_optional_description,
                 com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND,
                 null,
                 { c -> checkPerm(c, com.gotcha.tools.TermuxTool.PERMISSION_RUN_COMMAND) },
                 isRelevant = { c -> com.gotcha.tools.DeviceCapabilities.termuxUsable(c) }
             ),
             PermissionItem(
-                "Device Admin (Optional)",
-                "DANGEROUS: Lock screen, enforce password policy. Only enable if you really need these.",
+                R.string.permission_device_admin_optional,
+                R.string.permission_device_admin_optional_description,
                 null,
                 "special:device_admin",
                 { c ->
@@ -227,11 +227,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Notifications",
+        R.string.permission_group_notifications,
         listOf(
             PermissionItem(
-                "Show Notifications",
-                "Display server messages and reply alerts in the status bar",
+                R.string.permission_show_notifications,
+                R.string.permission_show_notifications_description,
                 android.Manifest.permission.POST_NOTIFICATIONS,
                 null,
                 // Below Android 13 (API 33) the permission is granted at install
@@ -244,18 +244,18 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "System Access",
+        R.string.permission_group_system_access,
         listOf(
             PermissionItem(
-                "Accessibility",
-                "Read screen, tap, swipe, type",
+                R.string.permission_accessibility,
+                R.string.permission_accessibility_description,
                 null,
                 "special:accessibility_access",
                 ::isAccessibilityGranted
             ),
             PermissionItem(
-                "Notification Listener",
-                "Read and dismiss notifications, media control",
+                R.string.permission_notification_listener,
+                R.string.permission_notification_listener_description,
                 null,
                 "special:notification_listener_access",
                 { c ->
@@ -267,8 +267,8 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
                 }
             ),
             PermissionItem(
-                "Display Over Apps",
-                "Show floating overlays",
+                R.string.permission_display_over_apps,
+                R.string.permission_display_over_apps_description,
                 null,
                 "special:overlay_access",
                 ::isOverlayGranted
@@ -276,11 +276,11 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
         )
     ),
     PermissionGroup(
-        "Health",
+        R.string.permission_group_health,
         listOf(
             PermissionItem(
-                "Health Connect",
-                "Read steps, sleep, heart rate, weight and workouts",
+                R.string.permission_health_connect,
+                R.string.permission_health_connect_description,
                 null,
                 ToolResult.HEALTH_CONNECT,
                 // Health Connect only reports grants from a suspend call, so this
@@ -295,16 +295,16 @@ fun allPermissionGroups(): List<PermissionGroup> = listOf(
  * Whether Gotcha's accessibility service is switched on.
  *
  * Named rather than inlined into the catalog above because the feature tour asks
- * the same question to decide when its "grant Accessibility" step is finished,
- * and two copies of this string comparison would be two chances to drift.
+ * the same question to decide when its "grant Accessibility" step is finished.
+ * It delegates rather than comparing the settings string itself: three copies of
+ * that comparison had already drifted into three different answers, which is how
+ * a disabled setting came to surface as an unrelated error (issue #76). This is
+ * the "has the user granted it" question, so it reads the setting rather than
+ * [com.gotcha.tools.DeviceCapabilities.accessibilityState] — a granted service
+ * that Android has unbound should still show as granted here.
  */
-fun isAccessibilityGranted(context: Context): Boolean {
-    val expected = "${context.packageName}/com.gotcha.service.GotchaAccessibilityService"
-    val enabled = Settings.Secure.getString(
-        context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-    ) ?: ""
-    return enabled.contains(expected, ignoreCase = true)
-}
+fun isAccessibilityGranted(context: Context): Boolean =
+    com.gotcha.tools.DeviceCapabilities.accessibilityEnabled(context)
 
 /** Whether "Display over other apps" is allowed — the assistive ball and Lens need it. */
 fun isOverlayGranted(context: Context): Boolean = Settings.canDrawOverlays(context)

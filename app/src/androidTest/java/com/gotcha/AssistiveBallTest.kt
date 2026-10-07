@@ -18,7 +18,6 @@ import com.gotcha.service.AssistiveBallService
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.ShellPermissions
 import com.gotcha.testutil.TestSeed
-import com.gotcha.ui.ASSISTIVE_BALL_CONTENT_DESCRIPTION
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -33,6 +32,11 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AssistiveBallTest {
+
+    /** The ball's accessibility label, in whatever language the device runs the app in. */
+    private val ballDescription: String =
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.assistive_ball_content_description)
 
     @get:Rule
     val composeRule = createEmptyComposeRule()
@@ -78,7 +82,8 @@ class AssistiveBallTest {
 
         composeRule.onNodeWithTag("chat_input").assertExists()
 
-        // The toggle lives in Settings ▸ Assistive Ball: drawer, category, switch.
+        // The toggle lives in Settings ▸ Assistive Ball and Wake Word: drawer,
+        // category, switch.
         composeRule.onNode(hasContentDescription("Open menu")).performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("Settings").performClick()
@@ -90,13 +95,13 @@ class AssistiveBallTest {
 
         assertTrue(
             "Ball overlay did not appear",
-            device.wait(Until.hasObject(By.desc(ASSISTIVE_BALL_CONTENT_DESCRIPTION)), 5_000)
+            device.wait(Until.hasObject(By.desc(ballDescription)), 5_000)
         )
 
         device.pressHome()
         assertTrue(
             "Ball did not survive returning home",
-            device.wait(Until.hasObject(By.desc(ASSISTIVE_BALL_CONTENT_DESCRIPTION)), 5_000)
+            device.wait(Until.hasObject(By.desc(ballDescription)), 5_000)
         )
 
         // The ball auto-docks to the screen edge (mostly off-screen, only a thin
@@ -106,7 +111,7 @@ class AssistiveBallTest {
         var menuOpened = false
         repeat(3) {
             if (!menuOpened) {
-                device.findObject(By.desc(ASSISTIVE_BALL_CONTENT_DESCRIPTION))?.click()
+                device.findObject(By.desc(ballDescription))?.click()
                 menuOpened = device.wait(Until.hasObject(By.textContains("Open App")), 2_000)
             }
         }

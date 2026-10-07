@@ -9,8 +9,10 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import com.gotcha.R
 import com.gotcha.agent.ScreenSnapshot
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -92,9 +94,9 @@ class ScreenCompanionController(
         if (triggerType == "Screenshot") {
             val prefLang = settings?.preferredLanguage ?: "English"
             onSmartActionPairReady(
-                "📸 Screenshot taken. Extract text?",
+                context.getString(R.string.companion_screenshot_extract),
                 "Extract the text from this screenshot.",
-                "🌐 Translate Screenshot",
+                context.getString(R.string.companion_screenshot_translate),
                 translateScreenshotPrompt(prefLang)
             )
             return
@@ -134,7 +136,7 @@ class ScreenCompanionController(
                     val visualQrEntities = try {
                         val bitmap = GotchaAccessibilityService.instance?.takeScreenshotBitmap()
                         if (bitmap != null) {
-                            val scanned = QrCodeScanner.scanBitmap(bitmap)
+                            val scanned = QrCodeScanner.scanBitmap(bitmap, context.stringLookup())
                             bitmap.recycle()
                             scanned
                         } else {
@@ -151,7 +153,8 @@ class ScreenCompanionController(
                             screenText,
                             allowChat = false,
                             targetCurrency = prefCurrency,
-                            targetLanguage = prefLang
+                            targetLanguage = prefLang,
+                            strings = context.stringLookup()
                         )
                     } else {
                         emptyList()

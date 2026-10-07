@@ -1,6 +1,9 @@
 package com.gotcha.connectors.notion
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.connectors.CredentialStore
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -14,6 +17,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 private class InMemoryStore : CredentialStore {
     private val map = mutableMapOf<String, String>()
@@ -22,7 +27,11 @@ private class InMemoryStore : CredentialStore {
     override fun clear(connectorId: String) { map.remove(connectorId) }
 }
 
+@RunWith(RobolectricTestRunner::class)
 class NotionToolsMutationTest {
+
+    /** Status text is string resources; Robolectric reads the English ones. */
+    private val strings = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     private lateinit var server: MockWebServer
     private lateinit var store: InMemoryStore
@@ -48,7 +57,7 @@ class NotionToolsMutationTest {
 
     private suspend fun connect() {
         server.enqueue(MockResponse().setBody("""{"name":"Gotcha bot"}"""))
-        connector.connect("secret_token")
+        connector.connect("secret_token", strings)
         server.takeRequest() // the /users/me validation call
     }
 

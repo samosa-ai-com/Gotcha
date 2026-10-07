@@ -35,8 +35,8 @@ android {
         applicationId = "com.gotcha"
         minSdk = 30
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.2.0"
+        versionCode = 7
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -185,7 +185,17 @@ android {
         }
     }
 
+    // Builds the app's LocaleConfig from the values-<lang>/ folders, so Android 13+
+    // lists Gotcha under per-app languages with exactly the translations it ships.
+    // Default (unqualified) strings are English; see res/resources.properties.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     lint {
+        // A string not yet translated falls back to English, so a partial
+        // translation is safe to ship; lint still lists what is missing.
+        warning += "MissingTranslation"
         abortOnError = true
         warningsAsErrors = false
         htmlReport = true
@@ -452,11 +462,11 @@ dependencies {
 
     // Instrumented tests
     androidTestImplementation(composeBom)
-    androidTestImplementation("androidx.test:core-ktx:1.6.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test:rules:1.6.1")
-    androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test:core-ktx:1.7.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test:rules:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit-ktx:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")

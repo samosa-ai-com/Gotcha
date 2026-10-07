@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -28,7 +29,9 @@ import java.util.concurrent.TimeUnit
  * 2. **An actual positive.** The parity test proves gated and ungated agree,
  *    which says nothing about whether either one still *detects*. This drives
  *    the pipeline with the device's own TTS saying the wake phrase — the model
- *    was trained on synthetic TTS positives, so this is a fair probe.
+ *    was trained on synthetic TTS positives, so this is a fair probe. A device
+ *    with no TTS engine at all (a bare emulator image, say) has no positive to
+ *    offer, and skips rather than reporting the missing engine as a failure.
  *
  * ```
  * ./gradlew :app:connectedDebugAndroidTest \
@@ -159,7 +162,20 @@ class WakeWordDetectionDiagnosticTest {
             ready.countDown()
         }
         assertTrue("TTS never initialised", ready.await(30, TimeUnit.SECONDS))
-        assertEquals("no TTS engine on this device", TextToSpeech.SUCCESS, status)
+        if (status != TextToSpeech.SUCCESS) {
+            // An emulator image can simply have no TTS engine to talk to, and
+            // then this test has no audio to drive the pipeline with: it could
+            // not tell anyone anything, and failing here would only ever report
+            // the missing engine. Skip loudly instead, handing the engine back.
+            // Not @Ignore'd for that reason — the batched-feed test above still
+            // runs everywhere, and this one still runs on a device with TTS.
+            tts.shutdown()
+            // Logged as well as assumed: a skipped test's reason does not make
+            // it into the XML report, so a reader would otherwise only see a
+            // test that vanished and no explanation of what it needed.
+            Log.w(TAG, "skipping the wake-phrase probe: no TTS engine on this device (status=$status)")
+            assumeTrue("no TTS engine on this device (status=$status) — nothing to feed the pipeline", false)
+        }
 
         val out = File(context.cacheDir, "wake-probe.wav")
         val done = CountDownLatch(1)

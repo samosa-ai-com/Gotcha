@@ -4,8 +4,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.gotcha.R
 import com.gotcha.agent.AgentEngine
 import com.gotcha.agent.AgentEvents
+import com.gotcha.agent.ForegroundControlRequest
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.PendingQuestion
 import com.gotcha.agent.ScreenSnapshot
@@ -18,15 +20,18 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.SpokenPhrases
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
 import com.gotcha.llm.visionUserMessage
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.Category
+import com.gotcha.tools.GotchaSettingsUpdate
 import com.gotcha.tools.ToolCategories
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
+import com.gotcha.ui.ForegroundControlIndicator
 import com.gotcha.ui.ScreenReadFlashOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -58,7 +63,7 @@ data class CallTranscriptItem(val id: Long, val kind: MessageKind, val text: Str
  * Call sessions persist to a separate "calls" directory (never the main chat
  * list) and are deleted — history and working dir — when the call ends.
  */
-@Suppress("TooManyFunctions")
+@Suppress("LargeClass", "TooManyFunctions")
 class CallSessionController(
     private val appContext: Context,
     private val scope: CoroutineScope,
@@ -70,6 +75,7 @@ class CallSessionController(
     private val callsRepo = ChatHistoryRepository(appContext, "calls")
     private val confirmationOverlay = ConfirmationOverlay(appContext)
     private val screenReadFlash = ScreenReadFlashOverlay(appContext)
+    private val foregroundControlIndicator = ForegroundControlIndicator(appContext)
 
     /** Survives service teardown so end-of-call deletion always completes. */
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -158,24 +164,34 @@ class CallSessionController(
     fun startCall(): Boolean {
         if (isActive()) return false
         if (buildClient() == null) {
-            onError("Set up your API key in Gotcha first.")
+            onError(appContext.getString(R.string.call_error_no_api_key))
             return false
         }
         val micGranted = ContextCompat.checkSelfPermission(
             appContext, android.Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
         if (!micGranted) {
-            onError("Microphone permission not granted. Enable it in Gotcha → Settings → Permissions.")
+            onError(appContext.getString(R.string.call_error_no_mic))
             return false
         }
 
         val s = settingsRepository.load()
-        val sttError = audioConfigError("Speech-to-text", s.sttProvider, s.effectiveSttBaseUrl, s.sttApiModel)
+        val sttError = audioConfigError(
+            appContext.getString(R.string.call_stt_label),
+            s.sttProvider,
+            s.effectiveSttBaseUrl,
+            s.sttApiModel
+        )
         if (sttError != null) {
             onError(sttError)
             return false
         }
-        val ttsError = audioConfigError("Text-to-speech", s.ttsProvider, s.effectiveTtsBaseUrl, s.ttsApiModel)
+        val ttsError = audioConfigError(
+            appContext.getString(R.string.call_tts_label),
+            s.ttsProvider,
+            s.effectiveTtsBaseUrl,
+            s.ttsApiModel
+        )
         if (ttsError != null) {
             onError(ttsError)
             return false
@@ -199,6 +215,11 @@ class CallSessionController(
                         "The new value will be used from the next message."
                 )
             },
+            onUpdateGotchaSettings = { plan ->
+                // settingsProvider reloads every round, so the next turn already sees this.
+                settingsRepository.save(plan.applyTo(settingsRepository.load()))
+                ToolResult.ok(GotchaSettingsUpdate.appliedMessage(plan))
+            },
             workingDirRoot = CALLS_WORKING_ROOT
         )
         newEngine.sessionId = java.util.UUID.randomUUID().toString()
@@ -213,9 +234,9 @@ class CallSessionController(
         narrationErrorReported = false
         _state.value = CallState.STARTING
         scope.launch {
-            val language = Language.fromLabel(s.preferredLanguage)
+            val language = s.effectiveVoiceLanguage
             if (!speakText(startGreeting(handsFree, language), language)) {
-                reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+                reportError(appContext.getString(R.string.call_error_tts_playback))
             }
             _state.value = CallState.READY
             if (!handsFree) {
@@ -302,7 +323,7 @@ class CallSessionController(
                     // never spoke.
                     val error = outcome.exceptionOrNull()
                     if (error != null && !SttEngine.isBenignSttError(error)) {
-                        reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                        reportError(friendlyAgentError(error as? Exception ?: Exception(error.message), appContext.stringLookup()))
                         endCall()
                         break
                     }
@@ -392,6 +413,7 @@ class CallSessionController(
         questionGate = null
         confirmationOverlay.dismiss()
         screenReadFlash.dismiss()
+        foregroundControlIndicator.dismiss()
         engine = null
 
         val id = endingEngine.sessionId
@@ -441,7 +463,7 @@ class CallSessionController(
      * untouched (still [READY] / [WAITING_USER]) so the user can tap again.
      */
     internal fun onMicStartFailed() {
-        reportError("Couldn't start the microphone — tap again to retry.")
+        reportError(appContext.getString(R.string.call_error_mic_start))
     }
 
     /** Stop the mic and send the recording for transcription + agent processing. */
@@ -453,7 +475,7 @@ class CallSessionController(
             _state.value = CallState.THINKING
             val s = settingsRepository.load()
             sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
-            val language = Language.fromLabel(s.preferredLanguage)
+            val language = s.effectiveVoiceLanguage
             val sttLanguage = s.sttLanguage.ifBlank { language.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(s.sttProvider, s.sttApiModel, sttLanguage)
             val text = result.getOrDefault("")
@@ -463,7 +485,7 @@ class CallSessionController(
                 // surface a dialog for actual STT failures (e.g. a bad API key/model).
                 val error = result.exceptionOrNull()
                 if (error != null && error.message != "No speech detected") {
-                    reportError(friendlyAgentError(error as? Exception ?: Exception(error.message)))
+                    reportError(friendlyAgentError(error as? Exception ?: Exception(error.message), appContext.stringLookup()))
                 }
                 _state.value = CallState.READY
                 return@launch
@@ -480,7 +502,7 @@ class CallSessionController(
      */
     private suspend fun finishTurn(text: String) {
         val s = settingsRepository.load()
-        val language = Language.fromLabel(s.preferredLanguage)
+        val language = s.effectiveVoiceLanguage
         _state.value = CallState.THINKING
 
         // API STT (Whisper-class) output is already punctuated and cased —
@@ -516,7 +538,7 @@ class CallSessionController(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            val msg = friendlyAgentError(e)
+            val msg = friendlyAgentError(e, appContext.stringLookup())
             reportError(msg)
             pendingReply = msg
         }
@@ -534,7 +556,7 @@ class CallSessionController(
         if (speakText(reply, language)) {
             triggerEndVibration()
         } else {
-            reportError("Couldn't play the voice reply — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_reply_playback))
         }
         onActionRingColor(null)
         if (autoEndOnReply) endCall() else _state.value = CallState.READY
@@ -668,12 +690,24 @@ class CallSessionController(
     }
 
     override fun onPermissionRequest(marker: String) {
-        reportError("A permission is needed that can't be granted during a call — open Gotcha to grant it.")
+        reportError(appContext.getString(R.string.call_error_permission))
+    }
+
+    /**
+     * Same answer for a runtime permission: the system dialog needs a foreground
+     * Activity, and this host is a call. Says so, and tells the engine it was
+     * not granted so the turn continues instead of stalling behind a prompt that
+     * will never appear.
+     */
+    override suspend fun awaitPermissionGrant(permission: String): Boolean {
+        onPermissionRequest(permission)
+        return false
     }
 
     override fun onScreenCaptureChrome(hide: Boolean) {
         // Never capture the pulse: drop any stale window before a capture starts.
         if (hide) screenReadFlash.dismiss()
+        foregroundControlIndicator.setCaptureHidden(hide)
         onCaptureChrome(hide)
     }
 
@@ -695,7 +729,7 @@ class CallSessionController(
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
         if (!speakText(prompt, currentLanguage())) {
-            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_tts_playback))
         }
         val gate = CompletableDeferred<String>()
         questionGate = gate
@@ -712,23 +746,63 @@ class CallSessionController(
      * Show a visual confirmation overlay over all apps for destructive actions.
      * Denies on timeout after 90 seconds.
      */
-    override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean {
+    override suspend fun awaitConfirmation(toolNames: List<String>, description: String): Boolean =
+        askOverScreen(appContext.getString(R.string.call_confirmation_needed, description), description)
+
+    /**
+     * The once-per-request ask before Gotcha controls another app (issue #98).
+     * A call sits over other apps, so it is asked the way confirmations are:
+     * spoken, and drawn over the screen. Denies on timeout.
+     */
+    override suspend fun awaitForegroundControl(request: ForegroundControlRequest): Boolean =
+        askOverScreen(
+            transcript = "${request.title(appContext.stringLookup())} ${request.promptText(appContext.stringLookup())}",
+            summary = request.promptText(appContext.stringLookup()),
+            title = request.title(appContext.stringLookup()),
+            allowLabel = appContext.getString(ForegroundControlRequest.ALLOW_LABEL),
+            denyLabel = appContext.getString(ForegroundControlRequest.DENY_LABEL)
+        )
+
+    /** Says a decision is needed, then waits on the overlay's Allow/Deny; denies on timeout. */
+    private suspend fun askOverScreen(
+        transcript: String,
+        summary: String,
+        title: String = appContext.getString(R.string.confirmation_title),
+        allowLabel: String = appContext.getString(R.string.action_allow),
+        denyLabel: String = appContext.getString(R.string.action_deny)
+    ): Boolean {
         _state.value = CallState.WAITING_USER
-        addTranscript(MessageKind.ASSISTANT, "Confirmation needed: $description")
+        addTranscript(MessageKind.ASSISTANT, transcript)
         val language = currentLanguage()
         if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
-            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_tts_playback))
         }
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
-            summary = description,
+            summary = summary,
             onAllow = { gate.complete(true) },
-            onDeny = { gate.complete(false) }
+            onDeny = { gate.complete(false) },
+            title = title,
+            allowLabel = allowLabel,
+            denyLabel = denyLabel
         )
-        val approved = withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
-        confirmationOverlay.dismiss()
-        _state.value = CallState.THINKING
-        return approved
+        return try {
+            withTimeoutOrNull(CONFIRM_TIMEOUT_MS) { gate.await() } ?: false
+        } finally {
+            confirmationOverlay.dismiss()
+            _state.value = CallState.THINKING
+        }
+    }
+
+    override fun onForegroundControlChanged(active: Boolean, appLabel: String?) {
+        if (active) {
+            foregroundControlIndicator.showControlling(
+                ForegroundControlRequest.controllingMessage(appLabel, appContext.stringLookup())
+            )
+        } else {
+            addTranscript(MessageKind.ASSISTANT, appContext.getString(ForegroundControlRequest.DONE_MESSAGE))
+            foregroundControlIndicator.showDone(appContext.getString(ForegroundControlRequest.DONE_MESSAGE))
+        }
     }
 
     // ---- Helpers ----
@@ -737,9 +811,9 @@ class CallSessionController(
         _transcript.value = _transcript.value + CallTranscriptItem(nextTranscriptId++, kind, text)
     }
 
-    /** Resolve the persisted [preferredLanguage] to a [Language]. */
+    /** The language this call is spoken and heard in — see `Settings.effectiveVoiceLanguage`. */
     private fun currentLanguage(): Language =
-        Language.fromLabel(settingsRepository.load().preferredLanguage)
+        settingsRepository.load().effectiveVoiceLanguage
 
     /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
     private fun reportError(message: String) {
@@ -785,19 +859,19 @@ class CallSessionController(
      */
     private fun audioConfigError(label: String, provider: AudioProvider, baseUrl: String, model: String): String? =
         when (provider) {
-            AudioProvider.NONE -> "$label is not configured. Set it up in Gotcha → Settings → Speech (TTS / STT)."
+            AudioProvider.NONE -> appContext.getString(R.string.call_audio_not_configured, label)
             AudioProvider.SAMOSA_AI -> when {
                 baseUrl.isBlank() ->
-                    "$label Samosa AI is not configured. Sign in from Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_samosa_not_configured, label)
                 model.isBlank() ->
-                    "$label model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_model_missing, label)
                 else -> null
             }
             AudioProvider.API -> when {
                 baseUrl.isBlank() || baseUrl.trim().toHttpUrlOrNull() == null ->
-                    "$label API URL is missing or invalid. Fix it in Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_url_invalid, label)
                 model.isBlank() ->
-                    "$label API model is not selected. Choose one in Gotcha → Settings → Speech (TTS / STT)."
+                    appContext.getString(R.string.call_audio_api_model_missing, label)
                 else -> null
             }
             AudioProvider.ANDROID -> null
@@ -854,7 +928,7 @@ class CallSessionController(
     internal fun onNarrationTtsFailed() {
         if (!narrationErrorReported) {
             narrationErrorReported = true
-            reportError("Couldn't play voice audio — check your Text-to-Speech settings.")
+            reportError(appContext.getString(R.string.call_error_tts_playback))
         } else {
             Log.w(TAG, "TTS narration failed during a call (already reported once)")
         }

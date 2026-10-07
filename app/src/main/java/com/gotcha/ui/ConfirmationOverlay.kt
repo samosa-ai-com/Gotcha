@@ -11,6 +11,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.ui.theme.OverlaySkin
 import com.gotcha.ui.theme.Skins
@@ -38,10 +39,17 @@ class ConfirmationOverlay(context: Context) {
     /** Whether we currently hold the "Display over other apps" permission. */
     fun canShow(): Boolean = Settings.canDrawOverlays(appContext)
 
-    fun show(summary: String, onAllow: () -> Unit, onDeny: () -> Unit) {
+    fun show(
+        summary: String,
+        onAllow: () -> Unit,
+        onDeny: () -> Unit,
+        title: String = appContext.getString(R.string.confirmation_title),
+        allowLabel: String = appContext.getString(R.string.action_allow),
+        denyLabel: String = appContext.getString(R.string.action_deny)
+    ) {
         mainHandler.post {
             removeView()
-            val card = buildCard(summary, onAllow, onDeny)
+            val card = buildCard(summary, onAllow, onDeny, title, allowLabel, denyLabel)
             try {
                 windowManager.addView(card, layoutParams(card))
                 view = card
@@ -66,7 +74,15 @@ class ConfirmationOverlay(context: Context) {
         view = null
     }
 
-    private fun buildCard(summary: String, onAllow: () -> Unit, onDeny: () -> Unit): View {
+    @Suppress("LongParameterList")
+    private fun buildCard(
+        summary: String,
+        onAllow: () -> Unit,
+        onDeny: () -> Unit,
+        titleText: String,
+        allowLabel: String,
+        denyLabel: String
+    ): View {
         val colors = overlaySkin(
             appContext,
             runCatching { SettingsRepository(appContext).load().skinId }
@@ -78,7 +94,7 @@ class ConfirmationOverlay(context: Context) {
         }
 
         val title = TextView(appContext).apply {
-            text = "Gotcha — confirm action"
+            text = titleText
             setTextColor(colors.onSurface)
             textSize = colors.titleSp
             typeface = colors.sans
@@ -100,8 +116,8 @@ class ConfirmationOverlay(context: Context) {
         // Platform [Button]s until now, which meant the one card that asks the
         // user to approve something was the one card drawn in someone else's
         // design. Allow is the accented one: it is the answer that does work.
-        buttonRow.addView(choice("Deny", colors, filled = false, onClick = onDeny))
-        buttonRow.addView(choice("Allow", colors, filled = true, onClick = onAllow))
+        buttonRow.addView(choice(denyLabel, colors, filled = false, onClick = onDeny))
+        buttonRow.addView(choice(allowLabel, colors, filled = true, onClick = onAllow))
 
         container.addView(title)
         container.addView(body)

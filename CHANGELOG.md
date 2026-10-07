@@ -3,6 +3,386 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **Gotcha in eight more languages** (#120). Gotcha's own screens, menus,
+  dialogs and notifications are now available in Hindi, Spanish, French,
+  German, Italian, Portuguese (Brazil), Japanese and Simplified Chinese, as
+  well as English. On Android 13 and later you can pick a language for Gotcha
+  alone, under Settings → Language or in Android's app language settings; on
+  Android 11 and 12, Gotcha follows the phone's language. Names, codes and the
+  legal agreements stay in English, and anything not yet translated shows in
+  English. The language Gotcha replies in is a separate setting and works as
+  before.
+- **Several attachments in one message** (#94). The composer's + button now
+  adds images and files to a message instead of replacing the last one, up to
+  10 per message, each shown in a strip above the composer where it can be
+  removed before sending. The sent message shows every image and document.
+  Files past the tenth, or documents too long to send together, are left out
+  with a message saying why, and the rest are still sent. When the model
+  turns the images down, Gotcha says to send fewer or smaller ones instead of
+  showing only the server's error.
+- **Dictate without the reply being read aloud** (#118). A new Speech setting,
+  "Read aloud replies to voice messages", decides whether the reply to a message
+  you sent with the microphone is spoken. It is on by default, so nothing
+  changes until you turn it off; then voice messages behave like typed ones and
+  are only read aloud when "Auto-read replies aloud" is on. The speaker icon
+  still reads any reply on demand.
+- **Tasks keep running when you leave Gotcha** (#105). While Gotcha works on a
+  task, a quiet "Gotcha is working on …" notification now keeps it running, so
+  Android no longer closes it to free memory when you switch to another app mid
+  task — which could stop the task halfway and lose its task-finished
+  notification. Tapping it opens the chat; its Stop button stops the task. It
+  goes away as soon as the task ends, replaced by the task-finished notification
+  if you are elsewhere. It follows the same naming settings as the others, and has
+  its own channel, "Task in progress". It names the chat by its title as soon as
+  Gotcha has made one. And if Android closes Gotcha mid-task anyway, the next
+  time you open it the chat ends with a note that the task was interrupted, and
+  the notification list has an "Interrupted" entry that opens it; send a message
+  there to pick up where it left off.
+- **A notification when Gotcha is waiting on you** (#108). When Gotcha pauses a
+  task to ask you something, or to ask "Allow these actions?", and you are not in
+  Gotcha to see it (you went to Termux to do what it asked, say, or the screen
+  went off), a notification now says so: "Gotcha has a question", with the chat
+  and the start of the question, following the same preview and naming settings
+  as the task-finished notification. Tapping it opens the chat with the question
+  waiting; answering, skipping, stopping the task or coming back to Gotcha clears
+  it. It has its own channel, "Waiting for your answer", so it can be silenced
+  apart from the others. A question now also waits ten minutes for an answer
+  instead of two, so there is time to go and do what it asked first.
+- **Commands in a box you can copy** (#109). A code block in a reply, or in a
+  question Gotcha asks, now sits in its own box: monospace, set apart from the
+  text around it, labelled with its language, and with a Copy button that copies
+  exactly the code and nothing else. A long command scrolls sideways instead of
+  breaking in the middle of a word, so a step like adding
+  `allow-external-apps=true` to Termux's settings can be copied and pasted
+  rather than retyped on a phone keyboard.
+- **Gotcha asks before it takes control of another app** (#98). The first time
+  a request needs to open an app, open a settings screen, read the screen or
+  tap, type and swipe in another app, Gotcha asks once: which app, why (your
+  request, quoted), what it may do there, and what saying no means. "Allow for
+  this request" covers every later step of that request, so a long task is not
+  interrupted again; "Deny" keeps Gotcha out of your apps until the request ends,
+  and it answers without them. The next message asks again. Tools that work in
+  the background never ask. While Gotcha is in control a small card at the top of
+  the screen says so, and when it lets go it says "Gotcha is done. You can use
+  your app again." — in the chat when you are in Gotcha, on that card when you
+  are not. The existing confirmations for uninstalling, deleting, sending email
+  and changing settings still ask every time.
+- **Import chats, and back them up** (#83). "Import chats" in the navigation
+  drawer reads back a chat exported as Markdown ("Export chat" in a chat's ⋮
+  menu), so a shared or saved conversation can be opened and continued. The
+  Markdown export holds text only, so an imported one has no images or
+  attachments and shows tool calls as the export did. For a complete copy, "Back
+  up chat" in the ⋮ menu and "Back up all chats" in the drawer save a
+  `.gotcha.json` file that imports back complete, for moving to a new phone or
+  restoring. Before saving, Gotcha says what a backup holds and offers to leave
+  images out. Before importing, it says what the file holds; when a chat is
+  already here in another version, you choose to keep both, replace yours or
+  skip it, and an unchanged copy is skipped. A damaged chat in a backup is
+  reported by name and the rest still import; a file from a newer Gotcha, one
+  that isn't a Gotcha chat, or one over 64 MB is refused with the reason. System
+  messages, in a Markdown file or a backup, come in as labelled notes, never as
+  system instructions, so a shared file can't use one to steer the assistant. The
+  Markdown export now also carries the chat's title.
+- **Gotcha's own notifications, and a list of them** (#100). Gotcha now works
+  out from your chats, on the phone, when a notification would actually help,
+  and nothing about how you use it is uploaded to decide. It reminds you about a
+  chat left unfinished (a task that failed or was stopped, or a question you
+  didn't answer, a few hours on); suggests a request you make regularly once
+  it's due again, opening a new chat with it ready to send; and nudges you after
+  a quiet spell (four days by default), offering your last chat back. A new
+  "Gotcha notifications" section in Settings → Notifications turns each of these
+  and the daily tip on or off, sets the quiet spell, quiet hours (22:00–08:00 by
+  default), and how many a day (two by default), and whether notifications may
+  name chats. The same occasion is never notified twice, one of a kind a day at
+  most, and the lock screen never shows the chat. A bell on the chat screen opens
+  the last 30 days of notifications — reminders, tips, finished tasks and
+  messages from Samosa AI — each opening where its notification did, and the
+  history can be cleared. A chat's new ⋮ menu (which also holds Export and the
+  share card) keeps it out of notifications altogether; Doctor chats start that
+  way. Task-finished notifications for such chats, or with naming off, say only
+  that a task finished.
+- **Daily tips** (#101). Once a day, at 10:00 by default, Gotcha sends a
+  notification suggesting one thing to try: reading your screen, catching up
+  on notifications, texting someone, planning the day. Tapping it opens a new
+  chat with the prompt already in the composer, to edit or send as it is. Tips
+  for tools you have never used come first, none repeats until ten others have
+  been shown, and no tip is sent on a day you have already used Gotcha. Tips for
+  device actions start the chat in Operator. On by default; Settings →
+  Notifications turns tips off or changes the time, and they have their own
+  "Daily tips" channel in Android's settings.
+- **The assistant can change Gotcha's settings, with your approval every time**
+  (#99). Ask it to turn off the reply chime, switch the skin, stop
+  scanning the clipboard or turn a connector off, and it proposes the change
+  through a new `update_gotcha_settings` tool. Nothing is written until you
+  approve a prompt that lists each setting with its current and new value and
+  says whether it touches privacy, notifications, permissions or device
+  control, and an approval never carries over to the next change. Only an
+  allowlist can be changed — notifications, reply and speech language, read
+  aloud, skin, proactive assistance, wake-word listening mode and sensitivity,
+  connectors and skills. API keys, sign-in, the model and run limits are out of
+  reach, and an unknown key or bad value is refused before you are asked
+  anything. Approved changes take effect at once (the skin repaints without a
+  restart), and both approvals and refusals go into the action log. Operator
+  mode only.
+- **Chat personas.** The starter chips said what to ask; nothing said who to ask.
+  A persona row now sits under the agent selector on an empty chat — **Doctor,
+  Chef, Fitness Coach, Tutor, Travel Planner, Handyman** — and picking one starts
+  the chat in that role, with the role's own instructions carried in the system
+  prompt for every turn of it. The role is chosen before the first message and
+  fixed from there: it is saved with the chat, so reopening one weeks later is
+  still answered in role (the top bar names it), and a new chat never inherits
+  the last one's. Each persona starts read-only in Monitor and the selector stays
+  live, so taking one into Operator is still your call, and a role never loosens
+  what the agent is allowed to do — the mode restrictions remain the last word.
+  Where a role shadows a regulated profession its prompt says so: the Doctor
+  never presents itself as your doctor, and routes emergencies to real care.
+  Picking a persona also swaps the "Try" chips under it for the role's own
+  (#117) — the Doctor offers "Check a symptom" and "Is this urgent?", the Chef
+  "Cook from my fridge" — in place of the device-control ones, which come back
+  when the persona is cleared. Every role's starters are things to ask it, so
+  they all work in Monitor.
+- **Search the settings.** Fifteen settings pages hold well over a hundred
+  controls between them, and finding one meant scrolling the list and guessing
+  which page owned it — "wake word" is under Assistive Ball, "API key" under AI
+  › AI Configuration. A search field now sits pinned above the settings list:
+  type what the control is called and the list narrows to the pages that hold
+  it, matching titles, summaries and the everyday words for the fields inside
+  ("read aloud", "dark mode", "otp", "accessibility"). Pages that live inside a
+  hub — Speech, AI Configuration, Legal — show up too, named with the hub they
+  sit in and opened in one tap, which the list itself can't do. Clearing the
+  field brings the whole list back. When the words name one control — "max
+  tool rounds", "otp", "wake word" — the result says so ("AI › AI
+  Configuration › Max tool rounds") and the page opens scrolled to it, briefly
+  highlighted, with a folded "Advanced settings" section opened if that is where
+  it sits (#92). Searching a page by its own name opens it at the top as before.
+- **Voice and language pickers name the language.** The Speech page listed raw
+  codes — `hi`, `en-us`, `af_heart` — with nothing saying which language each
+  one is. Transcription language entries now read like `hi — Hindi`, the field
+  shows the name of the code you typed, and TTS voices read like
+  `af_heart — English (United States), female` (the language and gender are
+  taken from the server, or read off Kokoro-style voice ids when it sends
+  none). The Samosa AI TTS and STT sections also link to the Samosa AI docs on
+  choosing a voice and language.
+- **Two sample chats on a fresh install.** The chat list opened on nothing at
+  all, so the one thing a first-time user couldn't find out was what Gotcha is
+  for. A new install now starts with two short transcripts that show it: a
+  device action with a follow-up in **Operator** (turn Wi-Fi on, then the
+  Bluetooth screen the agent opens because Android won't let it flip that switch
+  itself) and a question about the screen in **Monitor**. They are ordinary
+  chats — open them, carry them on, or delete them — and both the drawer row and
+  a line above the transcript say they're samples, so a demonstration is never
+  mistaken for something you said. Seeding happens once per install and only
+  into an empty list: upgrading keeps the chats you have, and deleting the
+  samples is final.
+- **The assistant can now answer questions about Gotcha itself.** There was a
+  tool for the company behind the app (`about_samosa_ai`) but none for the app,
+  so "what can you do?" and "which setting do I change to read replies aloud?"
+  were answered from the model's memory or by driving the Settings screens to
+  rediscover a path — both of which produce confident directions to places that
+  don't exist. A new `about_gotcha` tool reads a bundled handbook covering the
+  capability areas, Monitor vs Operator, the exact path to every settings page,
+  which permission each group of tools waits on and where it's granted, and the
+  safety model. It's read-only, so **Monitor** has it too. The handbook is
+  checked against the `SettingsPage` and `Capability` enums by a test, so
+  renaming a settings page fails the build rather than quietly leaving the agent
+  with a stale path.
+- **Starter prompts on the home screen.** A new chat used to be a greeting and an
+  empty composer, which says nothing about what Gotcha can be asked for. Three
+  suggestion chips now sit under the agent selector — drawn per session from a
+  set covering the things people least expect: driving the device, reading the
+  screen, going through the filesystem (`Find the largest files in my Downloads
+  folder and tell me what's safe to delete`, `Read the most recent PDF in my
+  Downloads and summarise it`) and handling messages. Tapping one **fills the
+  composer and stops there**: nothing is sent until you've read it, edited the
+  parts left blank, and pressed send yourself. Nor does a chip change the agent
+  mode on your behalf — the two device actions need Operator, the rest answer in
+  Monitor, and which mode you're in stays the selector's business.
+
+### Changed
+- **Every language setting on one page** (#74, #113, #114). "Preferred
+  Language" in Personal Info used to set three things at once: the language
+  Gotcha replies in, the voice that reads replies aloud, and the language it
+  transcribes, and its place next to your name made it look like the app's
+  own language. A new Settings → Language page now holds them apart: the app
+  language, the voice language (the same as the reply language unless you
+  choose another, so nothing changes until you do) and the reply language,
+  with the Test voice button. The transcription language override has moved
+  from Settings → AI → Speech to the same page, under the voice language it
+  overrides; the Speech page now shows it read-only, with a link to change
+  it. Both pages warn, and say what will happen, when the voice language and
+  the chosen speech models disagree: a text-to-speech model with no voice in
+  that language (Hindi replies read by an English voice), a hand-picked voice
+  in another language, a speech-to-text model that doesn't list the language,
+  or an override that forces transcription into a different one. Gotcha also
+  picks a voice in the voice language more often when the voice is left on
+  default: it now reads the language from Kokoro voice names like `hf_alpha`.
+- **Gotcha tells you that you can leave while it works** (#96). While a task
+  runs, a line in the chat now says that Gotcha is working in the background
+  and you can use another app meanwhile. It is not part of the conversation,
+  so it is never sent to the model or exported. Viewed from another chat, the
+  "Agent working in …" banner says the same and taps through to the running
+  chat.
+- **A task's notification shows how it went** (#115). The status bar icon now
+  tells a task's state without pulling down the shade: a running icon while it
+  works, then a tick, an error mark or a stop mark for done, failed and
+  stopped. When a task ends while you are elsewhere, its "Gotcha is working on
+  …" notification turns into the task-finished one, instead of one
+  disappearing and another arriving. The lock screen still shows only a
+  generic line.
+- **A calmer notifications bell** (#110). The bell's badge is now in Gotcha's
+  own colour instead of alarm red, the bell matches the other top-bar icons and
+  fills in while something is unread, and one unread notification shows as a dot
+  (a number from two up). In an open chat the bell has moved into the ⋮ menu as
+  "Notifications", with a dot on ⋮ while something is unread, so the chat's title
+  has room again.
+- **Permissions are asked for when they're needed, not at startup.** A fresh
+  install used to open with thirteen system permission dialogs in a row —
+  contacts, SMS, call log, camera, microphone, location — before you had asked
+  Gotcha for anything, which reads less like setup than like a shakedown.
+  Nothing is requested at launch now. The first time a tool actually reaches for
+  one, Gotcha says in a sentence what it is about to do with it — *Gotcha needs
+  your contacts to turn a name into a number, so asking it to call Priya reaches
+  the right Priya* — and only then does Android's own dialog appear; grant it and the
+  action you asked for carries straight on, rather than failing and having to be
+  repeated. "Not now" is a real answer, and the next request starts fresh. First
+  run works with nothing granted at all: every capability is still listed under
+  Settings › Permissions, each row now saying whether it is granted, ready to
+  switch on ahead of time. Turning one back off is no longer a toast naming a
+  four-level path you can't follow before it vanishes — the switch opens the
+  system screen that owns the permission. And on Android 13+, notification
+  permission is asked for when you switch server messages on, which is the only
+  moment it means anything.
+- **Settings → AI.** The model and the voice used to sit as two unrelated rows on
+  the settings list, as if choosing what Gotcha thinks with had nothing to do with
+  choosing what it speaks with. Both now live under a single `AI` row:
+  `AI Configuration` for the provider and models, `Speech (TTS / STT)` for voices
+  and transcription. The pages themselves are unchanged, and so is everything
+  already saved on them.
+- **Advanced settings are collapsed by default.** The knobs almost nobody needs —
+  sub-agent and navigator model overrides, the agent-loop limits, the API timeout,
+  the cache-clearing buttons, the podcast host voices — are now behind an
+  `Advanced settings` disclosure on the page they belong to, instead of standing
+  between a new install and the Save button. Nothing moved pages, and expanding
+  the section is never required to save.
+- **Settings → About.** The hub that collects the company page, the legal
+  agreements and the app updater is now titled `About` rather than `About Us`:
+  it holds more than company information, so the old title undersold it.
+  `About Samosa AI` and `Legal` still sit underneath it, unchanged.
+- **Settings → Assistive Ball and Wake Word.** The `Hey Gotcha` wake word has
+  always lived on the assistive-ball page — its listener runs inside the ball's
+  service and cannot outlive it — but the row said only `Assistive Ball`, so
+  there was nothing to tell you where the wake word was or why it switched
+  itself off. The row now names both, and the page states the dependency whether
+  the ball is on or off instead of only once it is already too late.
+
+### Fixed
+- **A clear message when Accessibility is off** (#76). A request that needed
+  to read the screen or tap in another app, with Gotcha's accessibility
+  service off, used to fail with an unrelated error. Gotcha now says the
+  service is needed and opens Settings → Accessibility. When the service is
+  switched on but Android has stopped it, which can happen after an update,
+  it says to switch Gotcha off and on again there, rather than telling you to
+  turn on something that is already on.
+- **Opening a chat marks its notifications read** (#116). Notifications in the
+  bell's list used to stay unread until you tapped them or opened the list.
+  Opening the chat they belong to, or coming back to it, now marks them read
+  and updates the bell's count; they stay in the list.
+- **"Open Android language settings" opens the language list** (#112). On some
+  phones the button flashed a blank screen and came back to Gotcha. It now
+  opens Android's language settings.
+- **Fixes from testing this release on a phone and an emulator.** The mic
+  button now asks for the microphone the first time you tap it, and starts
+  listening once you allow it; it used to say the permission was missing and
+  never ask (#79). A task that hit an error along the way, such as a web page
+  that refused to load, and then finished anyway is reported as Done instead of
+  Failed (#97). A new chat that Android closes before the first reply now keeps
+  your message and gets the "interrupted" note, instead of disappearing (#105).
+  Importing a backup whose screen and conversation don't match (a file edited
+  by hand) now shows the chat rebuilt from the conversation, so nothing the
+  assistant reads is hidden from you; the import preview says when this happens
+  (#83). And a setting opened from search stays on screen when the page above
+  it finishes loading, such as the Samosa account card on AI Configuration (#92).
+  A chat started with an image and no text is called "Image chat" instead of
+  having a blank name, and gets a proper title from the first message you write
+  in it (#95).
+- **Gotcha can change the screen timeout itself.** Asked to keep the screen on
+  longer, it used to try a shell command, then open a settings page and describe
+  it as if it could see it — on some phones, the wrong page. It now sets the timeout
+  directly (15 seconds to 30 minutes) with the same "Modify system settings"
+  access it uses for brightness, asks for that access the first time, and says
+  what the timeout was before. When it opens a settings page, it now names the
+  screen your phone actually opened and says what to look for, instead of
+  claiming a control is in front of you.
+- **A task keeps running when you swipe Gotcha away** (#111). Swiping Gotcha out
+  of your recent apps while it worked on a task, or pressing Back on its home
+  screen mid-task on Android 11, used to stop the task as if you had pressed
+  Stop. The task now goes on for as long as Android keeps Gotcha running, with
+  its "Gotcha is working on …" notification and its Stop button, and ends with
+  the usual task-finished notification. Opening Gotcha again mid-task, from its
+  icon or a notification, shows the running chat. A question or an "Allow these
+  actions?" it asks meanwhile still gets its "Gotcha has a question"
+  notification, and tapping it brings the question back; a request for an
+  Android permission, which needs Gotcha on screen, is answered "not allowed"
+  so the task can go on without it.
+- **A model that never answers no longer leaves the chat on "Thinking…"** (#104).
+  The API timeout used to default to 0, which meant never give up, so a model
+  server that accepted a request and then sent nothing kept the chat on
+  "Thinking…" until you pressed Stop. It now defaults to 3 minutes of silence:
+  after that the task ends with "The model didn't respond in time" and the
+  task-finished notification reports it as failed. A long reply that is still
+  arriving is never cut off. If you were on the old default of 0, the update
+  moves you to 3 minutes once; a timeout you set yourself is kept, and you can
+  still set 0 in Settings → AI → AI Configuration for no timeout.
+- **Gotcha remembers what you asked about an earlier photo** (#102). To save
+  space, Gotcha drops older images from what it sends the model. It used to
+  drop the whole message with them, so a question you sent with a photo, or the
+  text of a file you attached next to it, disappeared too. Now only the images
+  go, replaced by a short note, and your words and the file's text stay. Your
+  own images also no longer compete with the screenshots Gotcha takes while it
+  works: your 4 most recent image messages keep their images however many
+  screenshots come after them.
+- **Readable release notes in the update check** (#70). When Settings → About
+  found a new version, its notes were shown as raw Markdown, with `###`, `**`
+  and backticks spelled out and lines broken mid-sentence. They are now
+  formatted like a chat reply, the Download button sits above them, and long
+  notes open as a list of their headlines with "Show all release notes" for
+  the rest.
+- **The context meter keeps up with the chat** (#71). The row of bars under a
+  chat's title, showing how much of the model's context the chat has used, only
+  moved when you left the chat and came back; during a reply it stayed where it
+  was. It now moves after every step of a reply, and after the chat is
+  compacted. The bar being filled now fills gradually rather than in whole
+  twelfths, so a short exchange still shows up.
+- **Termux commands work when Termux is closed.** Running a command in Termux
+  failed with "app is in background" whenever Termux wasn't already running
+  (after swiping it away, say), even with Gotcha open on screen, and the
+  assistant then wrongly told you Gotcha was in the background. Gotcha now
+  starts Termux's command service in a way Android allows while Gotcha is open,
+  so the command runs and Termux starts on its own.
+- **Questions from Gotcha fit the screen** (#107). When Gotcha stopped to ask
+  something, the whole question was used as the dialog's title: a question with
+  a few steps filled the dialog in headline-sized type, couldn't be scrolled,
+  and pushed its answer button over the answer field. The dialog is now titled
+  "Gotcha has a question", and the question sits below as formatted text, with
+  lists, bold and commands in copyable boxes, scrolling when it is long. The
+  answer buttons and field are spaced out beneath it, and Skip is always there.
+- **Screenshots without the Night Light tint** (#78). On some phones a
+  screenshot taken from the Assistive Ball, or a Screen Lens capture, kept the
+  yellow Night Light tint, so the saved image and what the assistant saw both
+  had the wrong colours. A new switch on Settings › Assistive Ball and Wake
+  Word, "Night Light off for screenshots", turns Night Light off for a moment,
+  waits a few seconds for the colours to settle, captures, and turns it back on.
+  The screen shows its normal colours meanwhile, so the switch starts off. It
+  needs a one-time grant from a computer, `adb shell pm grant com.gotcha
+  android.permission.WRITE_SECURE_SETTINGS` (the page copies the command), or
+  root; without either, screenshots work as before. If Gotcha is closed in the
+  middle of a capture, Night Light comes back on the next time it starts.
+  Captures Gotcha takes on its own, such as scanning the screen for QR codes,
+  never touch Night Light.
+
+### Thanks
+- **[Techynoob](https://youtube.com/@techynoo1818)** for testing this release.
 
 ## [1.2.0]
 ### Added

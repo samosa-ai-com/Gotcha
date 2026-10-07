@@ -1,5 +1,6 @@
 package com.gotcha.connectors
 
+import com.gotcha.i18n.StringLookup
 import com.gotcha.llm.FunctionDefinition
 import com.gotcha.llm.ToolDefinition
 import com.gotcha.tools.AgentMode
@@ -147,7 +148,7 @@ class ConnectorGatingTest {
         override val description = ""
         override val toolNames = spec.ownedToolNames
         override fun isConnected() = connected
-        override fun statusLine() = ""
+        override fun statusLine(strings: StringLookup) = ""
         override fun disconnect() = Unit
     }
 

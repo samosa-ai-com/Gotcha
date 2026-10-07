@@ -1,6 +1,9 @@
 package com.gotcha.connectors.homeassistant
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.gotcha.connectors.CredentialStore
+import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.ToolRegistry
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
@@ -13,6 +16,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 private class RouterMemoryStore : CredentialStore {
     private val map = mutableMapOf<String, String>()
@@ -26,7 +31,11 @@ private class RouterMemoryStore : CredentialStore {
     }
 }
 
+@RunWith(RobolectricTestRunner::class)
 class HomeAssistantToolsTest {
+
+    /** Status text is string resources; Robolectric reads the English ones. */
+    private val strings = ApplicationProvider.getApplicationContext<Context>().stringLookup()
 
     private lateinit var server: MockWebServer
     private lateinit var connector: HomeAssistantConnector
@@ -50,7 +59,7 @@ class HomeAssistantToolsTest {
     private fun connect() = runTest {
         server.enqueue(MockResponse().setBody(initJson))
         server.enqueue(MockResponse().setBody(toolsJson))
-        connector.connect(server.url("/").toString(), "llat-1")
+        connector.connect(server.url("/").toString(), "llat-1", strings)
     }
 
     @Test

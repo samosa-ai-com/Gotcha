@@ -36,7 +36,6 @@ import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Accessibility label for the ball root view — used by UiAutomator to find the overlay. */
-const val ASSISTIVE_BALL_CONTENT_DESCRIPTION = "Gotcha assistive ball"
 
 /**
  * What the agent is doing, as far as the ball is concerned.
@@ -373,7 +372,12 @@ class AssistiveBallOverlay(context: Context) {
             if (showClose) {
                 // Not a menu row: nothing to line up with, so it stays centred.
                 container.addView(
-                    tapButton("Close", colors, iconRes = null, asMenuRow = false) { hideCard() }
+                    tapButton(
+                        appContext.getString(R.string.action_close),
+                        colors,
+                        iconRes = null,
+                        asMenuRow = false
+                    ) { hideCard() }
                 )
             }
             try {
@@ -429,7 +433,7 @@ class AssistiveBallOverlay(context: Context) {
         val size = dp(BALL_SIZE_DP)
         appliedSkinId = currentSkinId()
         return android.widget.ImageView(appContext).apply {
-            contentDescription = ASSISTIVE_BALL_CONTENT_DESCRIPTION
+            contentDescription = appContext.getString(R.string.assistive_ball_content_description)
             // The in-app mark. The launcher icon is adaptive now, so it would
             // draw at two-thirds size inside its own safe zone.
             setImageResource(R.drawable.gotcha_logo)
@@ -490,19 +494,29 @@ class AssistiveBallOverlay(context: Context) {
             orientation = LinearLayout.VERTICAL
         }
         appNavRow.addView(
-            tapButton("Open App", colors, R.drawable.ic_overlay_open_app, bold = true) {
+            tapButton(
+                appContext.getString(R.string.ball_open_app),
+                colors,
+                R.drawable.ic_overlay_open_app,
+                bold = true
+            ) {
                 removeMenu()
                 onOpenApp()
             }
         )
         appNavRow.addView(
-            tapButton("Screenshot", colors, R.drawable.ic_overlay_screenshot, bold = true) {
+            tapButton(
+                appContext.getString(R.string.ball_screenshot),
+                colors,
+                R.drawable.ic_overlay_screenshot,
+                bold = true
+            ) {
                 removeMenu()
                 onTakeScreenshot()
             }
         )
         appNavRow.addView(
-            tapButton("Lens", colors, R.drawable.ic_overlay_lens, bold = true) {
+            tapButton(appContext.getString(R.string.ball_lens), colors, R.drawable.ic_overlay_lens, bold = true) {
                 removeMenu()
                 onStartLens()
             }

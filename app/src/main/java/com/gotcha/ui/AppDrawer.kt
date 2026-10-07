@@ -10,7 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
@@ -32,9 +34,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
+import com.gotcha.agent.ChatTitle
 import com.gotcha.data.ChatSession
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -50,6 +57,8 @@ fun AppDrawerContent(
     onDeleteSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
+    onImportChats: () -> Unit = {},
+    onBackupAllChats: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -92,12 +101,12 @@ fun AppDrawerContent(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
-                "Gotcha",
+                stringResource(R.string.drawer_gotcha),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp)
             )
             NavigationDrawerItem(
-                label = { Text("New Chat") },
+                label = { Text(stringResource(R.string.drawer_new_chat)) },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
                 selected = false,
                 onClick = onNewChat,
@@ -106,7 +115,7 @@ fun AppDrawerContent(
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Text(
-                "Recent chats",
+                stringResource(R.string.drawer_recent_chats),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
@@ -120,10 +129,21 @@ fun AppDrawerContent(
                         label = {
                             Column {
                                 Text(
-                                    session.title,
+                                    ChatTitle.display(session.title, LocalContext.current.stringLookup()),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                // The one thing that distinguishes a seeded chat
+                                // from one the user held: said on the row rather
+                                // than only inside, so the list itself is honest.
+                                if (session.isSample) {
+                                    Text(
+                                        stringResource(R.string.drawer_sample_chat),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1
+                                    )
+                                }
                                 if (usage != null) {
                                     // Tabular figures: this counter ticks while a
                                     // reply streams, and proportional digits make
@@ -145,7 +165,7 @@ fun AppDrawerContent(
                             IconButton(onClick = { sessionToDelete = session.id }) {
                                 Icon(
                                     Icons.Outlined.Delete,
-                                    contentDescription = "Delete chat",
+                                    contentDescription = stringResource(R.string.drawer_delete_chat_2),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -157,7 +177,25 @@ fun AppDrawerContent(
             }
             HorizontalDivider()
             NavigationDrawerItem(
-                label = { Text("Connectors") },
+                label = { Text(stringResource(R.string.drawer_import_chats)) },
+                icon = { Icon(Icons.Default.FileOpen, contentDescription = null) },
+                selected = false,
+                onClick = onImportChats,
+                colors = itemColors,
+                modifier = itemModifier
+            )
+            if (sessions.isNotEmpty()) {
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.drawer_back_up_all_chats)) },
+                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
+                    selected = false,
+                    onClick = onBackupAllChats,
+                    colors = itemColors,
+                    modifier = itemModifier
+                )
+            }
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.drawer_connectors)) },
                 icon = { Icon(Icons.Default.Link, contentDescription = null) },
                 selected = false,
                 onClick = onOpenConnectors,
@@ -165,7 +203,7 @@ fun AppDrawerContent(
                 modifier = itemModifier
             )
             NavigationDrawerItem(
-                label = { Text("Settings") },
+                label = { Text(stringResource(R.string.drawer_settings)) },
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                 selected = false,
                 onClick = onOpenSettings,
@@ -177,11 +215,12 @@ fun AppDrawerContent(
     }
 
     sessionToDelete?.let { id ->
-        val title = sessions.find { it.id == id }?.title ?: "this chat"
+        val title = sessions.find { it.id == id }?.title?.let { ChatTitle.display(it, LocalContext.current.stringLookup()) }
+            ?: stringResource(R.string.drawer_this_chat)
         SkinAlertDialog(
             onDismissRequest = { sessionToDelete = null },
-            title = { Text("Delete Chat?") },
-            text = { Text("Are you sure you want to permanently delete \"$title\"? This action cannot be undone.") },
+            title = { Text(stringResource(R.string.drawer_delete_chat)) },
+            text = { Text(stringResource(R.string.drawer_delete_confirm, title)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -190,12 +229,12 @@ fun AppDrawerContent(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.drawer_delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { sessionToDelete = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.drawer_cancel))
                 }
             }
         )
@@ -206,14 +245,15 @@ fun AppDrawerContent(
  * Formats a per-chat context readout like "12,345 / 70,000 tokens (18%)".
  * Returns null when there's nothing meaningful to show yet.
  */
+@Composable
 private fun formatContextUsage(tokens: Int, maxContextTokens: Int): String? {
     if (tokens <= 0) return null
     fun grouped(n: Int): String = "%,d".format(n)
     return if (maxContextTokens > 0) {
         val percent = (tokens.toFloat() / maxContextTokens * 100f)
             .coerceIn(0f, 100f).toInt()
-        "${grouped(tokens)} / ${grouped(maxContextTokens)} · $percent%"
+        stringResource(R.string.drawer_context_usage, grouped(tokens), grouped(maxContextTokens), percent)
     } else {
-        "${grouped(tokens)} tokens"
+        stringResource(R.string.drawer_context_tokens, grouped(tokens))
     }
 }

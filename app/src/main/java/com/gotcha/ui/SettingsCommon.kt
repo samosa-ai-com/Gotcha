@@ -2,9 +2,13 @@ package com.gotcha.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -36,25 +42,42 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gotcha.BuildConfig
+import com.gotcha.R
 import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
+import com.gotcha.i18n.StringLookup
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.time.Duration
 import java.time.Instant
@@ -82,12 +105,13 @@ import kotlin.math.round
  *
  * Most pages hang directly off the home list. The exceptions declare a [parent]:
  * they are full pages, routed and titled like any other, but reached from inside
- * that parent instead of from the home list. [ABOUT] is the only such hub today,
- * collecting "who made this app and what did I agree to" into one row.
+ * that parent instead of from the home list. Two hubs exist: [AI], which collects
+ * everything the assistant thinks, hears and speaks with, and [ABOUT], which
+ * collects "who made this app and what did I agree to".
  */
 enum class SettingsPage(
-    val title: String,
-    val summary: String,
+    @StringRes val title: Int,
+    @StringRes val summary: Int,
     val testTag: String,
     /**
      * The page this one is reached from, or null for the home list. Doubles as
@@ -98,69 +122,83 @@ enum class SettingsPage(
     val parentPage: () -> SettingsPage? = { null }
 ) {
     PERSONAL_INFO(
-        "Personal Info",
-        "Who you are, language, currency, reply style",
+        R.string.settings_page_personal_info,
+        R.string.settings_page_personal_info_summary,
         "settings_personal_info_row"
     ),
+    LANGUAGE(
+        R.string.settings_page_language,
+        R.string.settings_page_language_summary,
+        "settings_language_row"
+    ),
+    AI(
+        R.string.settings_page_ai,
+        R.string.settings_page_ai_summary,
+        "settings_ai_row"
+    ),
     AI_CONFIG(
-        "AI Configuration",
-        "Provider, models, agent limits",
-        "settings_ai_config_row"
+        R.string.settings_page_ai_config,
+        R.string.settings_page_ai_config_summary,
+        "settings_ai_config_row",
+        { AI }
     ),
     SPEECH(
-        "Speech (TTS / STT)",
-        "Voices, transcription, read replies aloud",
-        "settings_speech_row"
+        R.string.settings_page_speech,
+        R.string.settings_page_speech_summary,
+        "settings_speech_row",
+        { AI }
     ),
     PERMISSIONS(
-        "Permissions",
-        "What the assistant is allowed to do",
+        R.string.settings_page_permissions,
+        R.string.settings_page_permissions_summary,
         "settings_permissions_row"
     ),
     TERMUX(
-        "Termux (Linux shell)",
-        "Run commands in a real Linux shell",
+        R.string.settings_page_termux,
+        R.string.settings_page_termux_summary,
         "settings_termux_row"
     ),
     SKILLS(
-        "Skills / Plugins",
-        "Built-in and community skills",
+        R.string.settings_page_skills,
+        R.string.settings_page_skills_summary,
         "settings_skills_row"
     ),
     PROACTIVE(
-        "Proactive Assistance",
-        "Offers, OTP detection, what may be scanned",
+        R.string.settings_page_proactive,
+        R.string.settings_page_proactive_summary,
         "settings_proactive_row"
     ),
     ASSISTIVE_BALL(
-        "Assistive Ball",
-        "Floating ball over other apps, hands-free calls",
+        // The wake word listens from inside the ball's service, so it is not a
+        // page of its own — the title says so to make it findable.
+        R.string.settings_page_assistive_ball,
+        R.string.settings_page_assistive_ball_summary,
         "settings_assistive_ball_row"
     ),
     APPEARANCE(
-        "Appearance",
-        "How the app looks",
+        R.string.settings_page_appearance,
+        R.string.settings_page_appearance_summary,
         "settings_appearance_row"
     ),
     NOTIFICATIONS(
-        "Notifications",
-        "How you're alerted when a reply arrives",
+        R.string.settings_page_notifications,
+        R.string.settings_page_notifications_summary,
         "settings_notifications_row"
     ),
     ABOUT(
-        "About Us",
-        "Samosa AI, other products, legal, contact",
+        R.string.settings_page_about,
+        R.string.settings_page_about_summary,
         "settings_about_row"
     ),
     ABOUT_SAMOSA(
-        "About Samosa AI",
-        "Mission, products, pricing, developers",
+        R.string.settings_page_about_samosa,
+        R.string.settings_page_about_samosa_summary,
         "settings_about_samosa_row",
         { ABOUT }
     ),
     LEGAL(
-        "Legal",
-        "Terms, disclaimer, data retention",
+        R.string.settings_page_legal,
+        R.string.settings_page_legal_summary,
         "settings_legal_row",
         { ABOUT }
     );
@@ -179,7 +217,9 @@ enum class SettingsPage(
 fun SettingsNavRow(
     page: SettingsPage,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Overrides the row label. Search results pass the "hub › page" path. */
+    title: String = stringResource(page.title)
 ) {
     Row(
         modifier = modifier
@@ -190,12 +230,12 @@ fun SettingsNavRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = page.title,
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = page.summary,
+                text = stringResource(page.summary),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -250,6 +290,10 @@ fun rememberSettingsOverlayState(): SettingsOverlayState {
 /**
  * The frame every settings page shares: a titled top bar with a back action, a
  * scrolling content column, and the overlay anchored on top of it.
+ *
+ * [header] is the one thing that sits outside the scrolling column, pinned
+ * between the top bar and the content — the settings home list puts its search
+ * field there so it stays reachable however far the list has scrolled.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,6 +301,7 @@ fun SettingsScaffold(
     title: String,
     onBack: () -> Unit,
     overlay: SettingsOverlayState,
+    header: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Scaffold(
@@ -272,20 +317,26 @@ fun SettingsScaffold(
                     TextButton(
                         onClick = onBack,
                         modifier = Modifier.testTag("settings_back")
-                    ) { Text("← Back") }
+                    ) { Text(stringResource(R.string.action_back)) }
                 }
             )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                content = content
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                header?.let {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { it() }
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = content
+                )
+            }
 
             // Centered rather than bottom-aligned: under the keyboard area BottomCenter
             // reads as a stray toast instead of feedback attached to the field that
@@ -345,21 +396,17 @@ internal fun parseBadgeColor(hex: String): Color = try {
     Color(0xFF6C757D)
 }
 
-/** Formats the remaining hours until the referral claim window expires. */
-internal fun formatRemainingClaimHours(
+/** Whole hours left to claim an invite code, or null once the window has closed. */
+internal fun remainingClaimHours(
     createdAt: String?,
     now: Instant = Instant.now()
-): String? {
+): Long? {
     if (createdAt.isNullOrBlank()) return null
     return try {
         val instant = Instant.parse(createdAt)
         val elapsedHours = Duration.between(instant, now).toHours()
         val remainingHours = com.gotcha.auth.REFERRAL_CLAIM_WINDOW_HOURS - elapsedHours
-        if (remainingHours > 0) {
-            "You have ${remainingHours}h left to claim an invite code."
-        } else {
-            null
-        }
+        remainingHours.takeIf { it > 0 }
     } catch (_: Exception) {
         null
     }
@@ -375,7 +422,7 @@ fun TierPill(tier: SamosaTier, modifier: Modifier = Modifier) {
         modifier = modifier
     ) {
         Text(
-            text = tier.displayName.ifBlank { "Free" },
+            text = tier.displayName.ifBlank { stringResource(R.string.samosa_tier_free) },
             color = Color.White,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
@@ -424,13 +471,12 @@ fun ReferAndEarnCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "🎁 Invite Friends, Earn Free Credits",
+                text = stringResource(R.string.referral_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Share your invite code — you both get bonus credits when a friend " +
-                    "signs up with it.",
+                text = stringResource(R.string.referral_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -443,7 +489,7 @@ fun ReferAndEarnCard(
                 ) {
                     Column {
                         Text(
-                            text = "Your invite code:",
+                            text = stringResource(R.string.referral_your_code),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -457,7 +503,7 @@ fun ReferAndEarnCard(
                     OutlinedButton(
                         onClick = { ReferralClipboardHelper.copyReferralCode(context, code) }
                     ) {
-                        Text("Copy Code")
+                        Text(stringResource(R.string.referral_copy_code))
                     }
                 }
 
@@ -471,12 +517,17 @@ fun ReferAndEarnCard(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Share Invite Link")
+                    Text(stringResource(R.string.referral_share_link))
                 }
 
                 val earnedCredits = formatScaledCredits(referral.creditsEarned)
                 Text(
-                    text = "You've referred ${referral.totalReferred} friends • $earnedCredits credits earned",
+                    text = pluralStringResource(
+                        R.plurals.referral_stats,
+                        referral.totalReferred,
+                        referral.totalReferred,
+                        earnedCredits
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -495,7 +546,7 @@ fun ReferAndEarnCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "🎁 Referred by",
+                            text = stringResource(R.string.referral_referred_by),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
@@ -513,15 +564,19 @@ fun ReferAndEarnCard(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
-                    text = "Enter Invite Code",
+                    text = stringResource(R.string.referral_enter_code),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                val remainingText = formatRemainingClaimHours(user.createdAt)
-                if (remainingText != null) {
+                val remainingHours = remainingClaimHours(user.createdAt)
+                if (remainingHours != null) {
                     Text(
-                        text = remainingText,
+                        text = pluralStringResource(
+                            R.plurals.referral_claim_hours_left,
+                            remainingHours.toInt(),
+                            remainingHours
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -535,7 +590,7 @@ fun ReferAndEarnCard(
                     OutlinedTextField(
                         value = claimInput,
                         onValueChange = { claimInput = it.uppercase().trim() },
-                        placeholder = { Text("AIR-XXXXXX") },
+                        placeholder = { Text(stringResource(R.string.referral_code_placeholder)) },
                         singleLine = true,
                         enabled = !referralBusy,
                         modifier = Modifier.weight(1f)
@@ -552,7 +607,7 @@ fun ReferAndEarnCard(
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
-                            Text("Apply")
+                            Text(stringResource(R.string.referral_apply))
                         }
                     }
                 }
@@ -609,13 +664,12 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "🌟 Got an audience? Let's team up",
+                text = stringResource(R.string.influencer_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "If you're an influencer with a solid following, we'd love to get " +
-                    "Samosa AI in your hands early — with perks to match.",
+                text = stringResource(R.string.influencer_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -630,7 +684,7 @@ fun InfluencerProgramCard(email: String = "", isInfluencer: Boolean = false, mod
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Apply as an Influencer")
+                Text(stringResource(R.string.influencer_apply))
             }
         }
     }
@@ -661,7 +715,7 @@ fun SamosaAuthSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = if (signedIn) "Signed in to Samosa AI" else "Not signed in",
+                text = stringResource(if (signedIn) R.string.samosa_signed_in else R.string.samosa_not_signed_in),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -689,14 +743,13 @@ fun SamosaAuthSection(
         }
         if (signedIn && creditsRemaining != null) {
             Text(
-                text = "Credits remaining: ${formatScaledCredits(creditsRemaining)}",
+                text = stringResource(R.string.samosa_credits_remaining, formatScaledCredits(creditsRemaining)),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
         if (!signedIn) {
             Text(
-                text = "Sign in with Google to use Samosa AI. Your OpenAI-compatible " +
-                    "settings are kept separately and are unaffected.",
+                text = stringResource(R.string.samosa_sign_in_hint),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -705,7 +758,7 @@ fun SamosaAuthSection(
                 onClick = onSignOut,
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(if (busy) "Please wait…" else "Log out") }
+            ) { Text(stringResource(if (busy) R.string.samosa_please_wait else R.string.samosa_log_out)) }
 
             if (user != null) {
                 ReferAndEarnCard(
@@ -727,8 +780,161 @@ fun SamosaAuthSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(signInModifier)
-            ) { Text(if (busy) "Signing in…" else "Sign in with Google") }
+            ) { Text(stringResource(if (busy) R.string.samosa_signing_in else R.string.samosa_sign_in)) }
         }
+    }
+}
+
+/**
+ * The field a settings search result asked the open page to point at (#92),
+ * and how the page says it has done so. [SettingsScreen] provides it; each
+ * field opts in through [settingsField] or [settingsHighlight], so no page
+ * needs a parameter for it.
+ */
+@Stable
+class SettingsHighlight(val field: SettingsField?, val onConsumed: () -> Unit) {
+    /**
+     * Set once the user touches the page. From then on the field is no longer
+     * kept in view, so a highlight never fights the user's own scrolling.
+     */
+    @Volatile
+    var userTouched = false
+}
+
+val LocalSettingsHighlight = compositionLocalOf { SettingsHighlight(field = null, onConsumed = {}) }
+
+/** Set on a field while a search result is pointing at it — what tests read. */
+val SettingsHighlighted = SemanticsPropertyKey<Boolean>("SettingsHighlighted")
+var SemanticsPropertyReceiver.settingsHighlighted by SettingsHighlighted
+
+private const val HIGHLIGHT_FADE_MS = 1_500
+
+/**
+ * How long a highlighted field is kept in view as the page settles around it.
+ * Under the Settings screen's lapse, which ends the highlight regardless.
+ */
+private const val FOLLOW_MS = 2_500L
+
+private const val HIGHLIGHT_ALPHA = 0.24f
+private val HighlightCorner = 8.dp
+
+/**
+ * Makes this node a place a settings search can land: when [tag] is the
+ * highlighted field, it scrolls into view and wears a tint that fades out, then
+ * the highlight is consumed so Back or a rotation can't replay it. Does not tag
+ * the node — see [settingsField] for the usual case.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.settingsHighlight(tag: String): Modifier {
+    val highlight = LocalSettingsHighlight.current
+    val isTarget = highlight.field?.testTag == tag
+    val requester = remember { BringIntoViewRequester() }
+    val tint = remember { Animatable(0f) }
+    // Where the field sits on screen, read only while it is the target.
+    var fieldTop by remember { mutableFloatStateOf(Float.NaN) }
+    if (isTarget) {
+        LaunchedEffect(highlight) {
+            tint.snapTo(1f)
+            // A frame first, so the field has been laid out — it may sit in a
+            // section that opened in this same composition.
+            withFrameNanos { }
+            requester.bringIntoView()
+            var fade = launch { tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS)) }
+            // Content above the field can still arrive after the jump (the Samosa
+            // account card loads once AI Configuration is open) and push it back
+            // off screen. Bring it back and light it again each time it moves,
+            // until the user touches the page.
+            val follow = launch {
+                snapshotFlow { fieldTop }.drop(1).collect {
+                    if (highlight.userTouched) return@collect
+                    requester.bringIntoView()
+                    fade.cancel()
+                    fade = launch {
+                        tint.snapTo(1f)
+                        tint.animateTo(0f, tween(HIGHLIGHT_FADE_MS))
+                    }
+                }
+            }
+            delay(FOLLOW_MS)
+            follow.cancel()
+            fade.join()
+            highlight.onConsumed()
+        }
+    }
+    val color = MaterialTheme.colorScheme.primary
+    return this
+        .bringIntoViewRequester(requester)
+        .onGloballyPositioned { if (isTarget) fieldTop = it.positionInRoot().y }
+        .semantics { if (isTarget) settingsHighlighted = true }
+        .drawBehind {
+            if (tint.value > 0f) {
+                drawRoundRect(
+                    color = color.copy(alpha = HIGHLIGHT_ALPHA * tint.value),
+                    cornerRadius = CornerRadius(HighlightCorner.toPx())
+                )
+            }
+        }
+}
+
+/** Tags a settings control and makes it a search landing spot, under one name. */
+@Composable
+fun Modifier.settingsField(tag: String): Modifier = testTag(tag).settingsHighlight(tag)
+
+/**
+ * A collapsed-by-default disclosure for the knobs a page has but most people
+ * never touch — model overrides, loop limits, timeouts. Keeps them one tap away
+ * without letting them crowd out the two or three controls that actually decide
+ * whether the app works.
+ *
+ * Uses the same text triangle as the permission groups rather than an icon font,
+ * so the settings pages keep one disclosure idiom.
+ *
+ * [testTag] tags the header row, which is the part a test clicks to expand.
+ * Expansion is remembered per page visit (`rememberSaveable`), so a rotation or
+ * a trip to Android Settings doesn't fold the section back up mid-edit. The
+ * fields inside stay hoisted in the calling screen, so collapsing the section
+ * never discards what was typed into it.
+ *
+ * A search result pointing at a field inside opens the section on arrival — the
+ * field isn't composed while folded, so there would be nothing to scroll to.
+ * It starts open rather than animating open, so the scroll lands on where the
+ * field will stay, not where it is halfway through the expansion.
+ */
+@Composable
+fun SettingsAdvancedSection(
+    testTag: String,
+    title: String = stringResource(R.string.settings_advanced),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val holdsHighlight = LocalSettingsHighlight.current.field?.section == testTag
+    var expanded by rememberSaveable { mutableStateOf(holdsHighlight) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .padding(vertical = 8.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (expanded) "▼ " else "▶ ",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+    AnimatedVisibility(visible = expanded) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
     }
 }
 
@@ -740,6 +946,9 @@ fun SamosaAuthSection(
  * toggleable and no-op silently. [switchContentDescription] names the `Switch`
  * for the same reason — it is what a UiAutomator/Maestro flow, which cannot see
  * test tags, has to aim at.
+ *
+ * [switchTestTag] is also the name a settings search result uses for the row;
+ * the whole row is what scrolls into view and tints (see [settingsHighlight]).
  *
  * [enabled] disables the `Switch` (greyed out, no tap effect) for a row whose
  * action depends on a prerequisite the user has not met yet; the caller should
@@ -757,7 +966,10 @@ fun SettingsToggleRow(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // The tint covers the label as well as the switch it names.
+            .then(if (switchTestTag != null) Modifier.settingsHighlight(switchTestTag) else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -788,12 +1000,12 @@ fun SettingsToggleRow(
 }
 
 /** Always produce a human-readable error string for a community-skill import failure. */
-fun formatImportError(t: Throwable): String {
+fun formatImportError(t: Throwable, text: StringLookup): String {
     val msg = t.message?.takeIf { it.isNotBlank() }
     val causeMsg = t.cause?.message?.takeIf { it.isNotBlank() }
     return when {
-        !msg.isNullOrBlank() -> "Import failed: $msg"
-        !causeMsg.isNullOrBlank() -> "Import failed: $causeMsg"
-        else -> "Import failed: ${t::class.java.simpleName}"
-    }
+        !msg.isNullOrBlank() -> msg
+        !causeMsg.isNullOrBlank() -> causeMsg
+        else -> t::class.java.simpleName
+    }.let { text(R.string.settings_import_failed, it) }
 }

@@ -55,6 +55,21 @@ object ToolDefinitions {
         schema { putJsonObject("properties") {} }
     )
 
+    val aboutGotcha = tool(
+        "about_gotcha",
+        "Get information about Gotcha — this app — from its bundled handbook: what it can do, " +
+            "Monitor vs Operator mode, the exact path to every setting (AI models and API keys, " +
+            "speech, language, permissions, Termux, skills, proactive assistance, the assistive " +
+            "ball and wake word, appearance, notifications), which permission or capability each " +
+            "group of tools needs and where the user turns it on, and the safety model. Call this " +
+            "for ANY question about the app's own features, limits or settings — 'what can you " +
+            "do', 'which setting do I change to…', 'why can't you do that', 'how do I set up a " +
+            "model / the wake word / Termux'. Answer from this rather than guessing from memory, " +
+            "and rather than reading or driving the Settings screens to rediscover a path. " +
+            "For the company, its other products, pricing or contact details, use about_samosa_ai.",
+        schema { putJsonObject("properties") {} }
+    )
+
     val updateUserProfile = tool(
         "update_user_profile",
         "Update the user's stored personal profile in Settings (occupation, background, " +
@@ -88,6 +103,29 @@ object ToolDefinitions {
                     )
                 }
             }
+        }
+    )
+
+    val updateGotchaSettings = tool(
+        "update_gotcha_settings",
+        "Change Gotcha's own settings when the user asks. Only the keys in `changes`; API " +
+            "keys, sign-in, the model and permissions are not settable (about_gotcha has their " +
+            "Settings path). The user approves every change; if they decline, don't retry " +
+            "unless asked. Change only what was asked.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("changes") {
+                    put("type", "object")
+                    put("description", "The settings to change and their new values. Include only these.")
+                    put("properties", GotchaSettingsUpdate.schemaProperties(staticSettingsCatalog()))
+                    put("additionalProperties", false)
+                }
+                putJsonObject("reason") {
+                    put("type", "string")
+                    put("description", "One short sentence shown to the user on the approval prompt: why.")
+                }
+            }
+            putJsonArray("required") { add("changes") }
         }
     )
 
@@ -223,6 +261,27 @@ object ToolDefinitions {
         }
     )
 
+    val setScreenTimeout = tool(
+        "set_screen_timeout",
+        "Set how long the screen stays on without a touch (the \"Screen timeout\" or, on some " +
+            "phones, \"Sleep\" setting). Changes it directly: no Settings page to find and no " +
+            "Accessibility needed. Requires the 'Modify system settings' special access, which the " +
+            "tool asks for when it is missing. Reports the previous value.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("seconds") {
+                    put("type", "integer")
+                    put(
+                        "description",
+                        "Timeout in seconds, ${SystemTool.MIN_SCREEN_TIMEOUT_S} to " +
+                            "${SystemTool.MAX_SCREEN_TIMEOUT_S} (30 minutes)."
+                    )
+                }
+            }
+            putJsonArray("required") { add("seconds") }
+        }
+    )
+
     val toggleWifi = tool(
         "toggle_wifi",
         "Turn Wi-Fi on or off. Android 10 and newer forbid apps from toggling the radio, so on " +
@@ -249,8 +308,9 @@ object ToolDefinitions {
             "battery_saver, display, sound, date_time, language, input_method, " +
             "storage, accessibility, default_apps, cast, developer_options, lock_screen, vpn, " +
             "device_admin. For anything not listed, use navigate_app instead. " +
-            "Prefer the direct tools where they exist — set_volume, set_brightness, set_dnd, " +
-            "set_ringer_mode and toggle_torch change those without leaving the app.",
+            "Prefer the direct tools where they exist — set_volume, set_brightness, " +
+            "set_screen_timeout, set_dnd, set_ringer_mode and toggle_torch change those without " +
+            "leaving the app.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("setting") {
@@ -1768,12 +1828,14 @@ object ToolDefinitions {
     val question = tool(
         "question",
         "Ask the user for a decision or clarification instead of guessing their intent. " +
-            "Offer concise options where you can.",
+            "Offer concise options where you can. The question is shown as Markdown under the " +
+            "title \"Gotcha has a question\": keep it short, and put any command the user must " +
+            "run in a fenced ```bash block so it gets a Copy button.",
         schema {
             putJsonObject("properties") {
                 putJsonObject("question") {
                     put("type", "string")
-                    put("description", "The question to ask the user.")
+                    put("description", "The question to ask the user, as Markdown.")
                 }
                 putJsonObject("options") {
                     put("type", "array")
@@ -2945,9 +3007,11 @@ object ToolDefinitions {
 
     val all: List<ToolDefinition> = listOf(
         aboutSamosaAi,
+        aboutGotcha,
         updateUserProfile,
+        updateGotchaSettings,
         dialNumber, getStorageInfo, getBatteryInfo, listFiles, readFile, writeFile,
-        openApp, setBrightness, toggleWifi, openSetting,
+        openApp, setBrightness, setScreenTimeout, toggleWifi, openSetting,
         setWallpaper, runCommand,
         // Tier 0–2 additions
         callNumber, readCallLog, findContact, addContact, sendSms, readRecentSms,

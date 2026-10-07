@@ -66,6 +66,46 @@ class SystemToolTest {
         assertEquals(127, Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS))
     }
 
+    // ---- set_screen_timeout ----
+
+    @Test
+    fun `set_screen_timeout rejects values outside Android's own range before touching settings`() {
+        assertFalse(tool.setScreenTimeout(SystemTool.MIN_SCREEN_TIMEOUT_S - 1).success)
+        assertFalse(tool.setScreenTimeout(SystemTool.MAX_SCREEN_TIMEOUT_S + 1).success)
+    }
+
+    @Test
+    fun `set_screen_timeout asks for WRITE_SETTINGS when it is not granted`() {
+        if (Settings.System.canWrite(context)) return
+
+        val result = tool.setScreenTimeout(1800)
+
+        assertFalse(result.message, result.success)
+        assertEquals(ToolResult.WRITE_SETTINGS, result.needsPermission)
+    }
+
+    @Test
+    fun `set_screen_timeout writes milliseconds and reports what it replaced`() {
+        if (!Settings.System.canWrite(context)) return
+        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT, 60_000)
+
+        val result = tool.setScreenTimeout(1800)
+
+        assertTrue(result.message, result.success)
+        assertEquals("Screen timeout 1 min → 30 min.", result.message)
+        assertEquals(
+            1_800_000,
+            Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_OFF_TIMEOUT)
+        )
+    }
+
+    @Test
+    fun `timeout labels read like the Settings app, including an OEM never`() {
+        assertEquals("30 s", SystemTool.timeoutLabel(30_000))
+        assertEquals("2 min", SystemTool.timeoutLabel(120_000))
+        assertEquals("never", SystemTool.timeoutLabel(Int.MAX_VALUE))
+    }
+
     // ---- get_battery_info ----
 
     @Test

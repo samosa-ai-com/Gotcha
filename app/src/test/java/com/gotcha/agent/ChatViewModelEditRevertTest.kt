@@ -70,7 +70,7 @@ class ChatViewModelEditRevertTest {
         setRunning(isBusy = true, runningSessionId = "session-A")
         val before = viewModel.uiState.value
 
-        viewModel.editMessage(targetId = 1L, newText = "Edited", imageBase64 = null)
+        viewModel.editMessage(targetId = 1L, newText = "Edited")
         ShadowLooper.idleMainLooper()
 
         assertEquals(before.messages, viewModel.uiState.value.messages)
@@ -82,7 +82,7 @@ class ChatViewModelEditRevertTest {
         setRunning(isBusy = false, runningSessionId = "session-other")
         val before = viewModel.uiState.value
 
-        viewModel.editMessage(targetId = 1L, newText = "Edited", imageBase64 = null)
+        viewModel.editMessage(targetId = 1L, newText = "Edited")
         ShadowLooper.idleMainLooper()
 
         assertEquals(before.messages, viewModel.uiState.value.messages)
@@ -105,7 +105,7 @@ class ChatViewModelEditRevertTest {
     fun `editMessage is a no-op when the input is blank and no image is attached`() {
         val before = viewModel.uiState.value
 
-        viewModel.editMessage(targetId = 1L, newText = "   ", imageBase64 = null)
+        viewModel.editMessage(targetId = 1L, newText = "   ")
         ShadowLooper.idleMainLooper()
 
         assertEquals(before.messages, viewModel.uiState.value.messages)

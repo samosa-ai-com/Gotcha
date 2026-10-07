@@ -9,14 +9,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.gotcha.R
 import com.gotcha.data.Settings
 
 /**
  * The Proactive Assistance page: whether the assistant volunteers help, and
  * which surfaces it may scan for the context to do so.
  *
- * Language and currency used to live here; they moved to
- * [PersonalInfoScreen] — they describe the user rather than this feature.
+ * Language and currency used to live here; they describe the user rather than
+ * this feature, so currency moved to [PersonalInfoScreen] and language on to
+ * [LanguageScreen].
  */
 @Composable
 fun ProactiveScreen(
@@ -44,46 +47,51 @@ fun ProactiveScreen(
         proactiveAutoCopyOtp = proactiveAutoCopyOtp
     )
 
-    SettingsScaffold(title = SettingsPage.PROACTIVE.title, onBack = onBack, overlay = overlay) {
+    SettingsScaffold(title = stringResource(SettingsPage.PROACTIVE.title), onBack = onBack, overlay = overlay) {
         SettingsToggleRow(
-            label = "Master Proactive Offers",
+            label = stringResource(R.string.proactive_master_proactive_offers),
             checked = proactiveEnabled,
             onCheckedChange = { proactiveEnabled = it },
-            isLarge = true
+            isLarge = true,
+            switchTestTag = "settings_proactive_enabled"
         )
         if (proactiveEnabled) {
             SettingsToggleRow(
-                label = "Scan Screen Content",
+                label = stringResource(R.string.proactive_scan_screen_content),
                 checked = proactiveScanScreen,
-                onCheckedChange = { proactiveScanScreen = it }
+                onCheckedChange = { proactiveScanScreen = it },
+                switchTestTag = "settings_proactive_scan_screen"
             )
             SettingsToggleRow(
-                label = "Scan Clipboard",
+                label = stringResource(R.string.proactive_scan_clipboard),
                 checked = proactiveScanClipboard,
-                onCheckedChange = { proactiveScanClipboard = it }
+                onCheckedChange = { proactiveScanClipboard = it },
+                switchTestTag = "settings_proactive_scan_clipboard"
             )
             SettingsToggleRow(
-                label = "Scan Notifications",
+                label = stringResource(R.string.proactive_scan_notifications),
                 checked = proactiveScanNotifications,
                 onCheckedChange = { proactiveScanNotifications = it }
             )
             SettingsToggleRow(
-                label = "Detect OTP / Codes",
+                label = stringResource(R.string.proactive_detect_otp_codes),
                 checked = proactiveOtpEnabled,
-                onCheckedChange = { proactiveOtpEnabled = it }
+                onCheckedChange = { proactiveOtpEnabled = it },
+                switchTestTag = "settings_proactive_otp"
             )
             SettingsToggleRow(
-                label = "Auto-Copy OTP to Clipboard",
+                label = stringResource(R.string.proactive_auto_copy_otp_to_clipboard),
                 checked = proactiveAutoCopyOtp,
                 onCheckedChange = { proactiveAutoCopyOtp = it }
             )
         }
+        val saved = stringResource(R.string.proactive_saved)
         Button(
             onClick = {
                 onSave { applyProactive(it) }
-                overlay.show("Saved Proactive Settings.")
+                overlay.show(saved)
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Save Proactive Settings") }
+        ) { Text(stringResource(R.string.proactive_save_proactive_settings)) }
     }
 }

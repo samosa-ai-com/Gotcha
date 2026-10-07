@@ -5,14 +5,17 @@ import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
+import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatRequest
 import com.gotcha.llm.LLMClient
+import com.gotcha.llm.visionUserMessage
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.ToolResult
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.mockwebserver.MockResponse
@@ -453,6 +456,117 @@ class AgentLoopTest {
         )
     }
 
+    // ---- foreground control (issue #98) ----
+
+    private fun addUserMessage(text: String) {
+        engine.history += com.gotcha.llm.ChatMessage(
+            role = "user",
+            content = kotlinx.serialization.json.JsonPrimitive(text)
+        )
+    }
+
+    @Test
+    fun `foreground control is asked once per request, naming the app and the reason`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        addUserMessage("Say hi to Sam on Chat App")
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "call_1")
+        enqueueToolCall("open_setting", """{"setting":"wifi"}""", id = "call_2")
+        enqueueTextReply("Done.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(
+            "a second foreground step in the same request must not ask again",
+            1,
+            events.foregroundControlRequests.size
+        )
+        val request = events.foregroundControlRequests.single()
+        assertEquals("open_app", request.toolName)
+        assertEquals("Chat App", request.appLabel)
+        assertTrue(
+            request.promptText(
+                ApplicationProvider.getApplicationContext<Context>().stringLookup()
+            ).contains("Say hi to Sam on Chat App")
+        )
+        assertEquals(listOf(true to "Chat App", false to "Chat App"), events.foregroundControlChanges)
+    }
+
+    @Test
+    fun `a new request asks again`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""")
+        enqueueTextReply("Opened.")
+        engine.run(AgentMode.OPERATOR)
+
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""")
+        enqueueTextReply("Opened again.")
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(2, events.foregroundControlRequests.size)
+    }
+
+    @Test
+    fun `denying foreground control blocks every foreground step in the request`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        events.foregroundControlAnswer = false
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "call_1")
+        enqueueToolCall("open_setting", """{"setting":"wifi"}""", id = "call_2")
+        enqueueTextReply("I left your apps alone.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("a denial is remembered for the request", 1, events.foregroundControlRequests.size)
+        assertTrue("control never started, so there is nothing to end", events.foregroundControlChanges.isEmpty())
+        assertTrue(
+            "the model should be told the user said no: ${events.uiMessages}",
+            events.uiMessages.count { it.contains("did not allow Gotcha") } == 2
+        )
+        val launched = org.robolectric.Shadows.shadowOf(
+            context as android.app.Application
+        ).nextStartedActivity
+        assertEquals("a denied open_app must not launch anything", null, launched)
+    }
+
+    @Test
+    fun `background tools never ask for foreground control`() = runTest {
+        enqueueToolCall("write_file", """{"path":"${File(workDir, "bg.txt").absolutePath}","content":"ok"}""")
+        enqueueTextReply("Written.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertTrue(events.foregroundControlRequests.isEmpty())
+        assertTrue(events.foregroundControlChanges.isEmpty())
+    }
+
+    @Test
+    fun `a sub-agent's foreground step is gated too`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        events.foregroundControlAnswer = false
+        enqueueToolCall("task", """{"description":"Chat","prompt":"open the chat app"}""", id = "call_1")
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "sub_1")
+        enqueueToolCall("ask_final_answer", """{"answer":"Not allowed to open it."}""", id = "sub_2")
+        enqueueTextReply("I couldn't open it.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(listOf("open_app"), events.foregroundControlRequests.map { it.toolName })
+    }
+
+    @Test
+    fun `the destructive-action confirmation still fires after foreground control is allowed`() = runTest {
+        installFakePackage("com.example.chat", "Chat App")
+        installFakePackage("com.example.victim", "Victim App")
+        events.confirmationAnswer = false
+        enqueueToolCall("open_app", """{"package_name":"com.example.chat"}""", id = "call_1")
+        enqueueToolCall("uninstall_app", """{"package_name":"com.example.victim"}""", id = "call_2")
+        enqueueTextReply("Left it installed.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, events.foregroundControlRequests.size)
+        assertTrue(events.confirmationRequests.any { it.contains("uninstall_app") })
+    }
+
     // ---- agent-mode enforcement, end to end ----
 
     @Test
@@ -542,6 +656,58 @@ class AgentLoopTest {
         assertFalse(events.runSummaries.single().succeeded)
     }
 
+    /**
+     * Saving the chat at the end of a run asks the same server for a title, and the
+     * run is not marked finished until that returns. After the model request has
+     * just failed (a timeout, #104), asking again would hold the chat on "Thinking…"
+     * for a second full timeout; the title waits for a run that reaches the model.
+     */
+    // runBlocking, not runTest: the title request's own timeout would expire at
+    // once in runTest's virtual time while the request waits on real network I/O.
+    @Test
+    fun `no title is requested after the model request failed, and the next good run makes one`() = runBlocking {
+        addUserMessage("Fix my wifi please")
+        server.enqueue(MockResponse().setResponseCode(500).setBody("boom"))
+
+        engine.run(AgentMode.OPERATOR)
+        engine.saveCurrentSession()
+
+        assertEquals("only the failed model request, no title request", 1, server.requestCount)
+        assertEquals(null, engine.generatedTitle)
+
+        enqueueToolCall("finish_task", """{"summary":"Done."}""")
+        enqueueTextReply("Wifi fix")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("Wifi fix", engine.generatedTitle)
+    }
+
+    /**
+     * An image sent with no text reaches the model as a single space (#95), so
+     * there is nothing to title yet: no title request, a name that isn't blank,
+     * and the first message with words in it titles the chat.
+     */
+    @Test
+    fun `a chat that opened with an image alone is titled by its first words`() = runBlocking {
+        engine.history += visionUserMessage("", "QUJD", "jpeg")
+        enqueueToolCall("finish_task", """{"summary":"A red box."}""")
+
+        engine.run(AgentMode.OPERATOR)
+        engine.saveCurrentSession()
+
+        assertEquals("only the model request, no title request", 1, server.requestCount)
+        assertEquals(ChatTitle.IMAGE_CHAT, engine.currentTitle())
+
+        addUserMessage("What colour is the box?")
+        enqueueToolCall("finish_task", """{"summary":"Red."}""")
+        enqueueTextReply("Box colour question")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals("Box colour question", engine.generatedTitle)
+    }
+
     @Test
     fun `finish_task emits a succeeded run summary`() = runTest {
         enqueueToolCall("finish_task", """{"summary":"All done."}""")
@@ -610,6 +776,89 @@ class AgentLoopTest {
             "expected a consent request, got ${events.permissionRequests}",
             events.permissionRequests.contains("special:screenshot_consent")
         )
+    }
+
+    // ---- permissions, asked for when they are needed (issue #79) ----
+
+    /**
+     * The whole point of dropping the first-launch permission burst: a tool that
+     * needs a runtime permission asks for it *here*, mid-turn, and the call is
+     * retried the moment it is granted. Without the retry the grant lands a beat
+     * too late — the model has already been told the tool failed, and the user
+     * has to repeat themselves after saying yes.
+     */
+    @Test
+    fun `a missing runtime permission is asked for mid-turn and the call retried on a grant`() = runTest {
+        enqueueToolCall("get_location", "{}")
+        enqueueTextReply("Here's where you are.")
+        events.permissionAnswer = { permission ->
+            org.robolectric.Shadows.shadowOf(
+                org.robolectric.RuntimeEnvironment.getApplication()
+            ).grantPermissions(permission)
+            true
+        }
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(
+            "the tool's own permission should have been asked for, not a Settings marker",
+            listOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+            events.permissionAsks
+        )
+        assertEquals(
+            "the call should have run twice: once to discover the gap, once with the grant",
+            2,
+            events.activities.count { it == "Running: get_location…" }
+        )
+        server.takeRequest()
+        val followUp = server.takeRequest().body.readUtf8()
+        assertFalse(
+            "the model was told about a permission that had just been granted:\n$followUp",
+            followUp.contains("Location permission is not granted")
+        )
+    }
+
+    /**
+     * "Not now" is a real answer. The tool's own message stands, the model is
+     * told, and nothing is retried behind the user's back.
+     */
+    @Test
+    fun `declining a permission leaves the tool failure as the answer`() = runTest {
+        enqueueToolCall("get_location", "{}")
+        enqueueTextReply("I can't see your location.")
+        events.permissionAnswer = { false }
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(1, events.activities.count { it == "Running: get_location…" })
+        server.takeRequest()
+        val followUp = server.takeRequest().body.readUtf8()
+        assertTrue(
+            "the model should have been told the permission is missing:\n$followUp",
+            followUp.contains("Location permission is not granted")
+        )
+    }
+
+    /**
+     * A special access has no runtime dialog — it lives on a Settings screen —
+     * so it goes out as a marker and the turn continues. It must be emitted
+     * exactly once: it used to be emitted twice per call, which opened the
+     * system settings screen, then opened it again.
+     */
+    @Test
+    fun `a special-access marker is emitted once and never asked as a runtime permission`() = runTest {
+        // Accessibility is off in this environment, so `tap` is withheld and the
+        // executor answers with the capability's marker.
+        enqueueToolCall("tap", """{"x":10,"y":10}""")
+        enqueueTextReply("I need accessibility access first.")
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertEquals(
+            listOf(ToolResult.ACCESSIBILITY_ACCESS),
+            events.permissionRequests
+        )
+        assertTrue("a special access must never reach the runtime path", events.permissionAsks.isEmpty())
     }
 
     /**

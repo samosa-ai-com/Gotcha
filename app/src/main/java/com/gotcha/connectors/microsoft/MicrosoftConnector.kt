@@ -1,6 +1,7 @@
 package com.gotcha.connectors.microsoft
 
 import android.util.Log
+import com.gotcha.R
 import com.gotcha.connectors.Connector
 import com.gotcha.connectors.CredentialStore
 import com.gotcha.connectors.mail.EmailFull
@@ -11,6 +12,7 @@ import com.gotcha.connectors.oauth.OAuth2Config
 import com.gotcha.connectors.oauth.OAuth2Helper
 import com.gotcha.connectors.oauth.OAuthInvalidGrant
 import com.gotcha.connectors.oauth.TokenSet
+import com.gotcha.i18n.StringLookup
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -115,26 +117,26 @@ class MicrosoftConnector(
 
     override fun isConnected(): Boolean = credentials?.needsReconnect == false
 
-    override fun statusLine(): String = when {
-        credentials == null -> "Not connected"
+    override fun statusLine(strings: StringLookup): String = when {
+        credentials == null -> strings(R.string.connector_not_connected)
         credentials?.needsReconnect == true ->
-            "Reconnect needed — the saved sign-in expired or was revoked."
-        else -> "Connected as ${credentials?.accountEmail}"
+            strings(R.string.microsoft_reconnect_needed)
+        else -> strings(R.string.connector_connected_as, credentials?.accountEmail.orEmpty())
     }
 
-    override suspend fun refreshTools(): String {
-        val creds = credentials ?: return "Not connected"
-        if (creds.needsReconnect) return statusLine()
+    override suspend fun refreshTools(strings: StringLookup): String {
+        val creds = credentials ?: return strings(R.string.connector_not_connected)
+        if (creds.needsReconnect) return statusLine(strings)
         return try {
             val tok = token(forceRefresh = true)
             val email = api.me(tok)
             if (email != creds.accountEmail) {
                 persist(creds.copy(accountEmail = email))
             }
-            statusLine()
+            statusLine(strings)
         } catch (e: Exception) {
             Log.w("MicrosoftConnector", "refreshTools failed; keeping current credentials", e)
-            statusLine()
+            statusLine(strings)
         }
     }
 

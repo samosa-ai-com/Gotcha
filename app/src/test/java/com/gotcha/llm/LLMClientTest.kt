@@ -8,11 +8,15 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import java.net.SocketTimeoutException
+import java.util.concurrent.TimeUnit
 
 class LLMClientTest {
 
@@ -322,5 +326,49 @@ class LLMClientTest {
             "the malformed fragment must never leave the client:\n$body",
             !body.contains("</summary>")
         )
+    }
+
+    /** A server that accepts the request and never answers must end the call, not hang it (#104). */
+    @Test
+    fun `a server that never responds times out`() = runTest {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val shortTimeout = LLMClient(
+            apiKey = "test-key",
+            baseUrl = server.url("/").toString(),
+            apiTimeoutSeconds = 1L
+        )
+        try {
+            shortTimeout.chat(listOf(ChatMessage(role = "user", content = JsonPrimitive("Hello?"))))
+            fail("expected the request to time out")
+        } catch (_: SocketTimeoutException) {
+            // expected
+        }
+    }
+
+    /**
+     * The timeout is a gap between bytes, not a cap on the whole request: a reply
+     * that takes longer than the timeout overall but keeps arriving is not cut off.
+     */
+    @Test
+    fun `a slow reply that keeps arriving is not cut off`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setBody("""{"choices":[{"message":{"role":"assistant","content":"slow but steady"}}]}""")
+                .throttleBody(32, 400, TimeUnit.MILLISECONDS)
+        )
+        val shortTimeout = LLMClient(
+            apiKey = "test-key",
+            baseUrl = server.url("/").toString(),
+            apiTimeoutSeconds = 1L
+        )
+        val response = shortTimeout.chat(listOf(ChatMessage(role = "user", content = JsonPrimitive("Take your time"))))
+        assertEquals("slow but steady", response.choices.first().message.textContent)
+    }
+
+    @Test
+    fun `the API timeout is split into OkHttp timeouts`() {
+        assertEquals(LlmTimeouts(15L, 180L, 180L), llmTimeouts(180L))
+        assertEquals(LlmTimeouts(5L, 5L, 5L), llmTimeouts(5L))
+        assertEquals("0 is the user asking for no timeout", LlmTimeouts(0L, 0L, 0L), llmTimeouts(0L))
     }
 }

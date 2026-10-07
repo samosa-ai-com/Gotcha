@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewModelScope
+import com.gotcha.R
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.data.GotchaStorage
 import com.gotcha.data.RunSummary
@@ -39,7 +40,7 @@ class SharePosterState(
     /** Opens the poster sheet for [runs] (single latest run or whole chat). */
     fun open(runs: List<RunSummary>) {
         if (runs.isEmpty()) {
-            Toast.makeText(context, "Nothing to share yet.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.share_nothing_yet), Toast.LENGTH_SHORT).show()
             return
         }
         this.runs = runs
@@ -60,7 +61,7 @@ class SharePosterState(
             result.fold(
                 onSuccess = { preview = it },
                 onFailure = { e ->
-                    error = e.message ?: "Could not generate the poster."
+                    error = e.message ?: context.getString(R.string.share_generate_failed)
                 }
             )
         }
@@ -81,12 +82,16 @@ class SharePosterState(
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Gotcha just did this for me")
+                putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.share_subject))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share your Gotcha moment"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_chooser_title)))
         } catch (e: Exception) {
-            Toast.makeText(context, "Could not share: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.share_failed, e.message.orEmpty()),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -98,9 +103,13 @@ class SharePosterState(
                 "gotcha_moment_${System.currentTimeMillis()}.png",
                 bitmap
             )
-            Toast.makeText(context, "Saved to $location", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.share_saved_to, location), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(context, "Could not save: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.share_save_failed, e.message.orEmpty()),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 

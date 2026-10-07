@@ -23,9 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.connectors.ConnectorRefreshScheduler
 import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.connectors.google.GoogleConnector
@@ -36,6 +39,7 @@ import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -174,6 +178,7 @@ private fun AutoRefreshHeader(
     onRefreshAll: suspend () -> Map<String, String>
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var isRefreshing by remember { mutableStateOf(false) }
     var syncFeedback by remember { mutableStateOf("") }
     var tick by remember { mutableStateOf(0) }
@@ -199,7 +204,11 @@ private fun AutoRefreshHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Auto Tool Sync", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    stringResource(R.string.connectors_auto_tool_sync),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
                 // Accessing `tick` forces recomposition when time passes
                 val minutesAgo = if (lastRefreshedAt > 0 && tick >= 0) {
                     ((System.currentTimeMillis() - lastRefreshedAt) / 60_000L).coerceAtLeast(0)
@@ -208,10 +217,14 @@ private fun AutoRefreshHeader(
                 }
 
                 Text(
-                    if (minutesAgo != null) {
-                        if (minutesAgo == 0L) "Last sync: Just now" else "Last sync: $minutesAgo min ago"
-                    } else {
-                        "Last sync: Never"
+                    when (minutesAgo) {
+                        null -> stringResource(R.string.connectors_last_sync_never)
+                        0L -> stringResource(R.string.connectors_last_sync_just_now)
+                        else -> pluralStringResource(
+                            R.plurals.connectors_last_sync_minutes,
+                            minutesAgo.toInt(),
+                            minutesAgo
+                        )
                     },
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -225,16 +238,21 @@ private fun AutoRefreshHeader(
                             val results = onRefreshAll()
                             isRefreshing = false
                             syncFeedback = if (results.isEmpty()) {
-                                "All active connectors are up to date."
+                                context.getString(R.string.connectors_all_up_to_date)
                             } else {
-                                "Refreshed ${results.size} connector(s): ${results.keys.joinToString(", ")}"
+                                context.resources.getQuantityString(
+                                    R.plurals.connectors_refreshed,
+                                    results.size,
+                                    results.size,
+                                    results.keys.joinToString(", ")
+                                )
                             }
                         }
                     }
                 },
                 enabled = !isRefreshing
             ) {
-                Text(if (isRefreshing) "Syncing…" else "Refresh All")
+                Text(stringResource(if (isRefreshing) R.string.connectors_syncing else R.string.connectors_refresh_all))
             }
         }
 
@@ -252,9 +270,11 @@ private fun AutoRefreshHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Interval", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.connectors_interval), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    AUTO_REFRESH_INTERVALS[sliderIndex].second,
+                    AUTO_REFRESH_INTERVALS[sliderIndex].let { (minutes, label) ->
+                        if (minutes == 0) stringResource(R.string.connectors_interval_off) else label
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -290,35 +310,31 @@ private fun HomeAssistantCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val saved = homeAssistant.credentials()
     val url = rememberTokenField(
-        "Home Assistant URL",
+        stringResource(R.string.connectors_home_assistant_url),
         saved?.baseUrl ?: "",
         keyboard = KeyboardType.Uri
     )
-    val token = rememberTokenField("Long-lived access token", "", secret = true)
+    val token = rememberTokenField(stringResource(R.string.connectors_long_lived_access_token), "", secret = true)
 
     TokenConnectorCard(
-        title = "Home Assistant",
-        statusLine = homeAssistant::statusLine,
+        title = stringResource(R.string.connectors_home_assistant),
+        statusLine = { homeAssistant.statusLine(strings) },
         isConnected = homeAssistant::isConnected,
         fields = listOf(url, token),
         headerTestTag = "connector_header_homeassistant",
-        blurb = "Control and query your smart home through Home Assistant's Model Context " +
-            "Protocol server. Its tools are defined by your server and scoped to the entities " +
-            "you expose to Assist.",
+        blurb = stringResource(R.string.connectors_control_and_query_your_smart),
         steps = listOf(
-            "1. In Home Assistant, add the \"Model Context Protocol Server\" integration " +
-                "(Settings ▸ Devices & services ▸ Add integration).",
-            "2. Create a long-lived access token: your profile ▸ Security ▸ Long-lived " +
-                "access tokens ▸ Create token.",
-            "3. Paste your Home Assistant URL (e.g. http://192.168.1.10:8123) and the token below.",
-            "4. Expose the devices you want the assistant to control: Settings ▸ Voice " +
-                "assistants ▸ Expose entities."
+            stringResource(R.string.connectors_1_in_home_assistant_add),
+            stringResource(R.string.connectors_2_create_a_long_lived),
+            stringResource(R.string.connectors_3_paste_your_home_assistant),
+            stringResource(R.string.connectors_4_expose_the_devices_you)
         ),
-        onConnect = { homeAssistant.connect(url.value, token.value) },
+        onConnect = { homeAssistant.connect(url.value, token.value, strings) },
         onDisconnect = homeAssistant::disconnect,
-        onRefresh = homeAssistant::refreshTools,
+        onRefresh = { homeAssistant.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -330,26 +346,25 @@ private fun NotionCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
-    val token = rememberTokenField("Internal integration token", "", secret = true)
+    val strings = LocalContext.current.stringLookup()
+    val token = rememberTokenField(stringResource(R.string.connectors_internal_integration_token), "", secret = true)
 
     TokenConnectorCard(
-        title = "Notion",
-        statusLine = notion::statusLine,
+        title = stringResource(R.string.connectors_notion),
+        statusLine = { notion.statusLine(strings) },
         isConnected = notion::isConnected,
         fields = listOf(token),
         headerTestTag = "connector_header_notion",
-        blurb = "Search, read and write Notion pages using an internal integration in your own " +
-            "workspace — no OAuth app to register.",
+        blurb = stringResource(R.string.connectors_search_read_and_write_notion),
         steps = listOf(
-            "1. Go to notion.so/my-integrations ▸ New integration, in your workspace.",
-            "2. Give it Read, Insert and Update content capabilities.",
-            "3. Copy the Internal Integration Secret and paste it below.",
-            "4. Important: open each page you want reachable and use ⋯ ▸ Connections ▸ " +
-                "add the integration. Pages that are not shared stay invisible to it."
+            stringResource(R.string.connectors_1_go_to_notion_so),
+            stringResource(R.string.connectors_2_give_it_read_insert),
+            stringResource(R.string.connectors_3_copy_the_internal_integration),
+            stringResource(R.string.connectors_4_important_open_each_page)
         ),
-        onConnect = { notion.connect(token.value) },
+        onConnect = { notion.connect(token.value, strings) },
         onDisconnect = notion::disconnect,
-        onRefresh = notion::refreshTools,
+        onRefresh = { notion.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -361,27 +376,44 @@ private fun ImapCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val saved = imap.credentials()
-    val email = rememberTokenField("Email address", saved?.email ?: "", keyboard = KeyboardType.Email)
-    val appPassword = rememberTokenField("App password", "", secret = true)
-    val imapHost = rememberTokenField("IMAP host", saved?.imapHost ?: "imap.gmail.com")
-    val imapPort = rememberTokenField("IMAP port", (saved?.imapPort ?: 993).toString(), keyboard = KeyboardType.Number)
-    val smtpHost = rememberTokenField("SMTP host", saved?.smtpHost ?: "smtp.gmail.com")
-    val smtpPort = rememberTokenField("SMTP port", (saved?.smtpPort ?: 465).toString(), keyboard = KeyboardType.Number)
+    val context = LocalContext.current
+    val email =
+        rememberTokenField(
+            stringResource(R.string.connectors_email_address),
+            saved?.email ?: "",
+            keyboard = KeyboardType.Email
+        )
+    val appPassword = rememberTokenField(stringResource(R.string.connectors_app_password), "", secret = true)
+    val imapHost =
+        rememberTokenField(stringResource(R.string.connectors_imap_host), saved?.imapHost ?: "imap.gmail.com")
+    val imapPort =
+        rememberTokenField(
+            stringResource(R.string.connectors_imap_port),
+            (saved?.imapPort ?: 993).toString(),
+            keyboard = KeyboardType.Number
+        )
+    val smtpHost =
+        rememberTokenField(stringResource(R.string.connectors_smtp_host), saved?.smtpHost ?: "smtp.gmail.com")
+    val smtpPort =
+        rememberTokenField(
+            stringResource(R.string.connectors_smtp_port),
+            (saved?.smtpPort ?: 465).toString(),
+            keyboard = KeyboardType.Number
+        )
     val fields = listOf(email, appPassword, imapHost, imapPort, smtpHost, smtpPort)
 
     TokenConnectorCard(
-        title = "Email (IMAP)",
-        statusLine = imap::statusLine,
+        title = stringResource(R.string.connectors_email_imap),
+        statusLine = { imap.statusLine(strings) },
         isConnected = imap::isConnected,
         fields = fields,
         headerTestTag = "connector_header_imap",
         steps = listOf(
-            "Needs an app password, not your regular password. Requires " +
-                "2-Step Verification to be enabled first.",
-            "Generate one at myaccount.google.com/apppasswords, or via " +
-                "Google Account ▸ Security ▸ 2-Step Verification ▸ App passwords.",
-            "Other providers: check their IMAP app-password documentation."
+            stringResource(R.string.connectors_needs_an_app_password_not),
+            stringResource(R.string.connectors_generate_one_at_myaccount_google),
+            stringResource(R.string.connectors_other_providers_check_their_imap)
         ),
         belowFields = {
             TextButton(onClick = {
@@ -389,7 +421,7 @@ private fun ImapCard(
                 imapPort.value = "993"
                 smtpHost.value = "smtp.gmail.com"
                 smtpPort.value = "465"
-            }) { Text("Use Gmail preset") }
+            }) { Text(stringResource(R.string.connectors_use_gmail_preset)) }
         },
         onConnect = {
             imap.connect(
@@ -402,10 +434,10 @@ private fun ImapCard(
                     smtpPort = smtpPort.value.toIntOrNull() ?: 465
                 )
             )
-            "Saved. Credentials are verified on first use."
+            context.getString(R.string.connectors_imap_saved)
         },
         onDisconnect = imap::disconnect,
-        onRefresh = imap::refreshTools,
+        onRefresh = { imap.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange
     )
@@ -417,6 +449,7 @@ private fun GoogleCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val context = LocalContext.current
     // Which Google services to request consent for. Adding one later needs a reconnect,
     // because the refresh token only carries the scopes granted at consent time.
@@ -442,8 +475,8 @@ private fun GoogleCard(
     }
 
     OAuthConnectorCard(
-        title = "Google (Gmail, Calendar)",
-        statusLine = google::statusLine,
+        title = stringResource(R.string.connectors_google_gmail_calendar),
+        statusLine = { google.statusLine(strings) },
         isConnected = google::isConnected,
         needsReconnect = google::needsReconnect,
         initialClientId = google.credentials()?.clientId ?: "",
@@ -451,32 +484,29 @@ private fun GoogleCard(
         flow = flow,
         headerTestTag = "connector_header_google",
         onDisconnect = google::disconnect,
-        onRefresh = google::refreshTools,
+        onRefresh = { google.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange,
-        blurb = "Full read/write Gmail and Google Calendar access using your own Google Cloud " +
-            "OAuth client — no shared app, no verification wait.",
+        blurb = stringResource(R.string.connectors_full_read_write_gmail_and),
         steps = listOf(
-            "1. Create a Google Cloud project.",
-            "2. Enable the Gmail API and/or the Google Calendar API — whichever you tick below.",
-            "3. Configure the OAuth consent screen (External, add yourself as a " +
-                "test user — or publish it to skip weekly reconnects).",
-            "4. Create a Desktop app OAuth client.",
-            "5. Paste its Client ID and secret below.",
-            "6. Tap Connect."
+            stringResource(R.string.connectors_1_create_a_google_cloud),
+            stringResource(R.string.connectors_2_enable_the_gmail_api),
+            stringResource(R.string.connectors_3_configure_the_oauth_consent),
+            stringResource(R.string.connectors_4_create_a_desktop_app),
+            stringResource(R.string.connectors_5_paste_its_client_id),
+            stringResource(R.string.connectors_6_tap_connect)
         ),
         extraFields = {
-            Text("Services to authorise:", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.connectors_services_to_authorise), style = MaterialTheme.typography.bodySmall)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = wantGmail, onCheckedChange = { wantGmail = it })
-                Text("Gmail", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.connectors_gmail), style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.width(16.dp))
                 Checkbox(checked = wantCalendar, onCheckedChange = { wantCalendar = it })
-                Text("Calendar", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.connectors_calendar), style = MaterialTheme.typography.bodyMedium)
             }
             Text(
-                "Changing this needs a reconnect — the saved sign-in only carries the scopes " +
-                    "granted at consent time.",
+                stringResource(R.string.connectors_changing_this_needs_a_reconnect),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -489,6 +519,7 @@ private fun MicrosoftCard(
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit
 ) {
+    val strings = LocalContext.current.stringLookup()
     val context = LocalContext.current
     // "common" covers personal and work accounts; a tenant id/domain locks it to one org.
     var tenant by remember {
@@ -504,8 +535,8 @@ private fun MicrosoftCard(
     }
 
     OAuthConnectorCard(
-        title = "Microsoft (Outlook, Calendar, To Do)",
-        statusLine = microsoft::statusLine,
+        title = stringResource(R.string.connectors_microsoft_outlook_calendar_to_do),
+        statusLine = { microsoft.statusLine(strings) },
         isConnected = microsoft::isConnected,
         needsReconnect = microsoft::needsReconnect,
         initialClientId = microsoft.credentials()?.clientId ?: "",
@@ -514,25 +545,22 @@ private fun MicrosoftCard(
         flow = flow,
         headerTestTag = "connector_header_microsoft",
         onDisconnect = microsoft::disconnect,
-        onRefresh = microsoft::refreshTools,
+        onRefresh = { microsoft.refreshTools(strings) },
         enabled = enabled,
         onEnabledChange = onEnabledChange,
-        blurb = "Outlook mail, calendar and To Do using your own Entra app registration. " +
-            "One sign-in covers all three.",
+        blurb = stringResource(R.string.connectors_outlook_mail_calendar_and_to),
         steps = listOf(
-            "1. Go to portal.azure.com ▸ Microsoft Entra ID ▸ App registrations ▸ New.",
-            "2. Under \"Redirect URI\" pick \"Public client/native\" and enter http://localhost.",
-            "3. In API permissions add delegated Microsoft Graph permissions: " +
-                "offline_access, User.Read, Mail.ReadWrite, Mail.Send, Calendars.ReadWrite, " +
-                "Tasks.ReadWrite.",
-            "4. Copy the Application (client) ID from the Overview page.",
-            "5. Paste it below and tap Connect. Leave Tenant as \"common\" for personal accounts."
+            stringResource(R.string.connectors_1_go_to_portal_azure),
+            stringResource(R.string.connectors_2_under_redirect_uri_pick),
+            stringResource(R.string.connectors_3_in_api_permissions_add),
+            stringResource(R.string.connectors_4_copy_the_application_client),
+            stringResource(R.string.connectors_5_paste_it_below_and)
         ),
         extraFields = {
             OutlinedTextField(
                 value = tenant,
                 onValueChange = { tenant = it },
-                label = { Text("Tenant (common, or your organisation's tenant ID)") },
+                label = { Text(stringResource(R.string.connectors_tenant_common_or_your_organisation)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

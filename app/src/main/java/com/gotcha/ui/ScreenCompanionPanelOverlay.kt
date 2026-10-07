@@ -18,6 +18,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.gotcha.R
 import com.gotcha.data.SettingsRepository
 import com.gotcha.ui.theme.OverlaySkin
 import com.gotcha.ui.theme.Skins
@@ -104,7 +105,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             setPadding(0, 0, 0, dp(12))
         }
         val titleText = TextView(appContext).apply {
-            text = "Screen Companion"
+            text = context.getString(R.string.companion_panel_screen_companion)
             setTextColor(colors.onSurface)
             textSize = colors.titleSp
             typeface = Typeface.create(colors.sans, Typeface.BOLD)
@@ -162,7 +163,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         chatContainer.addView(promptView)
 
         responseTextView = TextView(appContext).apply {
-            text = resultText ?: "Thinking..."
+            text = resultText ?: context.getString(R.string.companion_panel_thinking)
             setTextColor(colors.onSurface)
             textSize = colors.bodySp
             typeface = colors.sans
@@ -178,17 +179,21 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 0, 0, dp(12))
         }
-        val copyChip = createChip("Copy").apply {
+        val copyChip = createChip(context.getString(R.string.action_copy)).apply {
             setOnClickListener {
                 val text = responseTextView?.text?.toString()
                 if (!text.isNullOrBlank()) {
                     val cm = appContext.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     cm.setPrimaryClip(android.content.ClipData.newPlainText("Copied from Assistant", text))
-                    android.widget.Toast.makeText(appContext, "Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        appContext,
+                        context.getString(R.string.action_copied),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }
-        val shareChip = createChip("Share").apply {
+        val shareChip = createChip(context.getString(R.string.action_share)).apply {
             setOnClickListener {
                 val text = responseTextView?.text?.toString()
                 if (!text.isNullOrBlank()) {
@@ -197,7 +202,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
                         putExtra(android.content.Intent.EXTRA_TEXT, text)
                         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                    val chooser = android.content.Intent.createChooser(intent, "Share")
+                    val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.action_share))
                     chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                     appContext.startActivity(chooser)
                 }
@@ -218,7 +223,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         }
 
         val editText = EditText(appContext).apply {
-            hint = "Ask a follow-up..."
+            hint = context.getString(R.string.companion_panel_follow_up_hint)
             setHintTextColor(colors.onSurfaceVariant)
             setTextColor(colors.onSurface)
             typeface = colors.sans
@@ -247,7 +252,7 @@ class ScreenCompanionPanelOverlay(private val context: Context) {
         micButton = micBtn
 
         val sendButton = Button(appContext).apply {
-            text = "Send"
+            text = context.getString(R.string.companion_panel_send)
             // Was Color.CYAN — Deep Space, from before there was a second theme.
             setTextColor(colors.accent)
             typeface = colors.sans

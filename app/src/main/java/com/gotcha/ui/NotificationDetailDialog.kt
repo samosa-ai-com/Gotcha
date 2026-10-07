@@ -14,7 +14,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.gotcha.R
 import com.gotcha.notifications.NotificationPayload
 import com.gotcha.ui.theme.SkinAlertDialog
 
@@ -62,11 +64,11 @@ fun NotificationDetailDialog(
                         } catch (_: Exception) {}
                     }
                 ) {
-                    Text("Open Link")
+                    Text(stringResource(R.string.notification_detail_open_link))
                 }
             } else {
                 Button(onClick = onDismiss) {
-                    Text("OK")
+                    Text(stringResource(R.string.notification_detail_ok))
                 }
             }
         },
@@ -74,7 +76,7 @@ fun NotificationDetailDialog(
             val hasValidUrl = !payload.url.isNullOrBlank() && payload.url.startsWith("https://")
             if (hasValidUrl) {
                 TextButton(onClick = onDismiss) {
-                    Text("Close")
+                    Text(stringResource(R.string.notification_detail_close))
                 }
             }
         }

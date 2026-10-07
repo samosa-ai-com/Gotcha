@@ -16,6 +16,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.content.ContextCompat
 import com.gotcha.MainActivity
+import com.gotcha.R
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
 import com.gotcha.audio.TtsEngine
@@ -23,7 +24,7 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.WakeWordListeningMode
 import com.gotcha.data.settingsChangeNotifier
-import com.gotcha.i18n.Language
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
 import com.gotcha.util.GotchaLog
@@ -321,10 +322,12 @@ class AssistiveBallService : Service() {
                 // capture returns null and the prompt is left to the chat flow.
                 val compressed = if (attachScreenshot) {
                     showingActivity(com.gotcha.ui.BallActivity.ACTING) {
-                        com.gotcha.tools.ScreenPerception.compressScreenshot(
-                            maxDimension = 1024,
-                            quality = 85
-                        )
+                        DisplayTintGuard.get(applicationContext).withTintSuspended {
+                            com.gotcha.tools.ScreenPerception.compressScreenshot(
+                                maxDimension = 1024,
+                                quality = 85
+                            )
+                        }
                     }
                 } else {
                     null
@@ -349,7 +352,7 @@ class AssistiveBallService : Service() {
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
                     llmClient.chat(history.toList())
                 }
-                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 history.add(
                     com.gotcha.llm.ChatMessage(
                         "assistant",
@@ -358,7 +361,9 @@ class AssistiveBallService : Service() {
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
+                screenCompanionPanel.updateResponse(
+                    getString(R.string.companion_error, HumanReadableError.format(e, stringLookup()))
+                )
             }
         }
     }
@@ -369,18 +374,18 @@ class AssistiveBallService : Service() {
      * "Summarize link?" action — the earlier version wrongly attached a screenshot.
      */
     private fun handleFetchAndSummarize(url: String, history: MutableList<com.gotcha.llm.ChatMessage>) {
-        screenCompanionPanel.show("Summarize link:\n$url")
+        screenCompanionPanel.show(getString(R.string.companion_summarize_link, url))
         overlay.isPanelOpen = true
-        screenCompanionPanel.updateResponse("Fetching $url …")
+        screenCompanionPanel.updateResponse(getString(R.string.companion_fetching, url))
         scope.launch {
             val fetched = showingActivity(com.gotcha.ui.BallActivity.ACTING) {
                 withContext(Dispatchers.IO) { webFetchTool.fetch(url, "text") }
             }
             if (!fetched.success) {
-                screenCompanionPanel.updateResponse("Couldn't fetch the link: ${fetched.message}")
+                screenCompanionPanel.updateResponse(getString(R.string.companion_fetch_failed, fetched.message))
                 return@launch
             }
-            screenCompanionPanel.updateResponse("Summarizing …")
+            screenCompanionPanel.updateResponse(getString(R.string.companion_summarizing))
             try {
                 history.clear()
                 history.add(
@@ -403,13 +408,15 @@ class AssistiveBallService : Service() {
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
                     llmClient.chat(history.toList())
                 }
-                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 history.add(
                     com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
+                screenCompanionPanel.updateResponse(
+                    getString(R.string.companion_error, HumanReadableError.format(e, stringLookup()))
+                )
             }
         }
     }
@@ -476,7 +483,7 @@ class AssistiveBallService : Service() {
             val url = SmartActionDetector.extractUrl(clipText)
             if (url != null) {
                 GotchaLog.d("AssistiveBallService") { "Setting smart action: Summarize link ($url)" }
-                val fetch = SmartActionDetector.fetchAction(url)
+                val fetch = SmartActionDetector.fetchAction(url, stringLookup())
                 overlay.setSmartActionAvailable(fetch.label, fetch.prompt)
                 return@readClipboardWithFocus
             }
@@ -489,14 +496,15 @@ class AssistiveBallService : Service() {
                 clipText,
                 allowChat = true,
                 targetCurrency = preferredCurr,
-                targetLanguage = preferredLang
+                targetLanguage = preferredLang,
+                strings = stringLookup()
             )
 
             if (!isAlreadyTargetLang) {
-                val translateLabel = "🌐 Translate: ${SmartActionDetector.snippet(clipText, 20)}"
+                val translateLabel = getString(R.string.ball_translate_clip, SmartActionDetector.snippet(clipText, 20))
                 val translatePrompt = "Translate the copied text to $preferredLang:\n\n$clipText"
 
-                if (smart != null && !smart.label.contains("Translate", ignoreCase = true)) {
+                if (smart != null && smart.actionType != ActionType.LLM_TRANSLATE) {
                     overlay.setSmartActionPairAvailable(
                         translateLabel,
                         translatePrompt,
@@ -510,7 +518,7 @@ class AssistiveBallService : Service() {
                 overlay.setSmartActionAvailable(smart.label, smart.prompt)
             } else {
                 overlay.setSmartActionAvailable(
-                    "📋 Summarize: ${SmartActionDetector.snippet(clipText, 24)}",
+                    getString(R.string.ball_summarize_clip, SmartActionDetector.snippet(clipText, 24)),
                     "Summarize the copied text:\n\n$clipText"
                 )
             }
@@ -578,7 +586,7 @@ class AssistiveBallService : Service() {
                             this.type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, payload)
                         },
-                        "Share"
+                        getString(R.string.action_share)
                     )
                 SmartActionDetector.TYPE_CONTACT ->
                     Intent(Intent.ACTION_INSERT).apply {
@@ -593,7 +601,11 @@ class AssistiveBallService : Service() {
                 SmartActionDetector.TYPE_COPY -> {
                     val clipManager = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                     clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Gotcha", payload))
-                    android.widget.Toast.makeText(this, "Copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(
+                        this,
+                        getString(R.string.ball_copied_to_clipboard),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
                     null
                 }
                 SmartActionDetector.TYPE_CONVERT -> {
@@ -606,7 +618,7 @@ class AssistiveBallService : Service() {
                             if (result != null) {
                                 overlay.showCard(result, showClose = true)
                             } else {
-                                overlay.showError("Could not fetch exchange rate for $price")
+                                overlay.showError(getString(R.string.ball_could_not_fetch_exchange_rate, price))
                             }
                         }
                     }
@@ -617,7 +629,9 @@ class AssistiveBallService : Service() {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         } catch (e: Exception) {
-            overlay.showError("Couldn't open action: ${HumanReadableError.format(e)}")
+            overlay.showError(
+                getString(R.string.ball_couldn_t_open_action, HumanReadableError.format(e, stringLookup()))
+            )
         }
     }
 
@@ -639,8 +653,8 @@ class AssistiveBallService : Service() {
         )
         pendingCropImage = base64Jpeg
         overlay.isPanelOpen = true
-        screenCompanionPanel.show("📸 Region attached — ask a question about it below.")
-        screenCompanionPanel.updateResponse("Ask me anything about the selected region.")
+        screenCompanionPanel.show(getString(R.string.ball_region_attached_ask_a_question))
+        screenCompanionPanel.updateResponse(getString(R.string.ball_ask_me_anything_about_the))
     }
 
     /**
@@ -659,21 +673,23 @@ class AssistiveBallService : Service() {
         )
         activeCompanionHistory.add(com.gotcha.llm.visionUserMessage(prompt, base64Jpeg, "jpeg"))
         overlay.isPanelOpen = true
-        screenCompanionPanel.show("📸 Region attached")
-        screenCompanionPanel.updateResponse("Thinking...")
+        screenCompanionPanel.show(getString(R.string.ball_region_attached))
+        screenCompanionPanel.updateResponse(getString(R.string.ball_thinking))
         val currentHistory = activeCompanionHistory.toList()
         scope.launch {
             try {
                 val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
                     llmClient.chat(currentHistory)
                 }
-                val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                 activeCompanionHistory.add(
                     com.gotcha.llm.ChatMessage("assistant", kotlinx.serialization.json.JsonPrimitive(replyText))
                 )
                 screenCompanionPanel.updateResponse(replyText)
             } catch (e: Exception) {
-                screenCompanionPanel.updateResponse("Error: ${HumanReadableError.format(e)}")
+                screenCompanionPanel.updateResponse(
+                    getString(R.string.companion_error, HumanReadableError.format(e, stringLookup()))
+                )
             }
         }
     }
@@ -693,14 +709,14 @@ class AssistiveBallService : Service() {
                 }
                 val text = result.text.trim()
                 if (text.isBlank()) {
-                    showToast("No text found in selection")
+                    showToast(getString(R.string.ball_no_text_found_in_selection))
                 } else {
                     val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lens text", text))
-                    showToast("Copied to clipboard")
+                    showToast(getString(R.string.ball_copied_to_clipboard))
                 }
             } catch (e: Exception) {
-                showToast("Couldn't read text: ${HumanReadableError.format(e)}")
+                showToast(getString(R.string.ball_couldn_t_read_text, HumanReadableError.format(e, stringLookup())))
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
@@ -772,13 +788,13 @@ class AssistiveBallService : Service() {
                 }
                 activeCompanionHistory.add(userMsg)
                 val currentHistory = activeCompanionHistory.toList()
-                updateResponse("Thinking...")
+                updateResponse(getString(R.string.ball_thinking))
                 scope.launch {
                     try {
                         val response = showingActivity(com.gotcha.ui.BallActivity.THINKING) {
                             llmClient.chat(currentHistory)
                         }
-                        val replyText = response.choices.firstOrNull()?.message?.textContent ?: "No response"
+                        val replyText = response.choices.firstOrNull()?.message?.textContent ?: getString(R.string.companion_no_response)
                         activeCompanionHistory.add(
                             com.gotcha.llm.ChatMessage(
                                 "assistant",
@@ -787,7 +803,7 @@ class AssistiveBallService : Service() {
                         )
                         updateResponse(replyText)
                     } catch (e: Exception) {
-                        updateResponse("Error: ${HumanReadableError.format(e)}")
+                        updateResponse(getString(R.string.ball_error, HumanReadableError.format(e, stringLookup())))
                     }
                 }
             }
@@ -803,14 +819,14 @@ class AssistiveBallService : Service() {
         when {
             s.sttProvider == AudioProvider.ANDROID -> {
                 if (!hasMicPermission()) {
-                    overlay.showError("Microphone permission not granted.")
+                    overlay.showError(getString(R.string.ball_microphone_permission_not_granted))
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening(Language.fromLabel(s.preferredLanguage))) {
+                if (sttEngine.startAndroidListening(s.effectiveVoiceLanguage)) {
                     panelVoiceActive = true
                 } else {
-                    overlay.showError("Failed to start speech recognition.")
+                    overlay.showError(getString(R.string.ball_failed_to_start_speech_recognition))
                     screenCompanionPanel.setListening(false)
                 }
             }
@@ -827,19 +843,19 @@ class AssistiveBallService : Service() {
                     return
                 }
                 if (!hasMicPermission()) {
-                    overlay.showError("Microphone permission not granted.")
+                    overlay.showError(getString(R.string.ball_microphone_permission_not_granted))
                     screenCompanionPanel.setListening(false)
                     return
                 }
                 if (sttEngine.startRecording()) {
                     panelVoiceActive = true
                 } else {
-                    overlay.showError("Failed to start recording.")
+                    overlay.showError(getString(R.string.ball_failed_to_start_recording))
                     screenCompanionPanel.setListening(false)
                 }
             }
             else -> {
-                overlay.showError("No STT provider configured. Enable one in settings.")
+                overlay.showError(getString(R.string.ball_no_stt_provider_configured_enable))
                 screenCompanionPanel.setListening(false)
             }
         }
@@ -861,12 +877,16 @@ class AssistiveBallService : Service() {
         }
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         scope.launch {
-            val sttLanguage = s.sttLanguage.ifBlank { Language.fromLabel(s.preferredLanguage).iso639 }
+            val sttLanguage = s.sttLanguage.ifBlank { s.effectiveVoiceLanguage.iso639 }
             val result = sttEngine.stopListeningAndTranscribe(provider, s.sttApiModel, sttLanguage)
             screenCompanionPanel.setListening(false)
             result
                 .onSuccess { text -> if (text.isNotBlank()) screenCompanionPanel.appendVoiceInput(text) }
-                .onFailure { e -> overlay.showError("Transcription failed: ${HumanReadableError.format(e)}") }
+                .onFailure { e ->
+                    overlay.showError(
+                        getString(R.string.ball_transcription_failed, HumanReadableError.format(e, stringLookup()))
+                    )
+                }
         }
     }
 
@@ -874,7 +894,7 @@ class AssistiveBallService : Service() {
     private fun readPanelResponseAloud(text: String) {
         val s = settingsRepository.load()
         if (s.ttsProvider == AudioProvider.NONE) {
-            overlay.showError("No TTS provider configured. Enable one in settings.")
+            overlay.showError(getString(R.string.ball_no_tts_provider_configured_enable))
             screenCompanionPanel.setSpeaking(false)
             return
         }
@@ -885,7 +905,7 @@ class AssistiveBallService : Service() {
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
                 voice = s.ttsVoice,
-                language = Language.fromLabel(s.preferredLanguage)
+                language = s.effectiveVoiceLanguage
             )
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
@@ -1039,7 +1059,9 @@ class AssistiveBallService : Service() {
             try {
                 val service = GotchaAccessibilityService.instance
                 if (service == null) {
-                    withContext(Dispatchers.Main) { overlay.showError("Accessibility service not available") }
+                    withContext(
+                        Dispatchers.Main
+                    ) { overlay.showError(getString(R.string.ball_accessibility_service_not_available)) }
                     return@launch
                 }
                 withContext(Dispatchers.Main) {
@@ -1047,11 +1069,12 @@ class AssistiveBallService : Service() {
                     chatWindow.setVisibleForCapture(false)
                     screenCompanionPanel.setVisibleForCapture(false)
                 }
-                delay(250L)
-                var bitmap = service.takeScreenshotBitmap()
-                if (bitmap == null) {
-                    delay(800L)
-                    bitmap = service.takeScreenshotBitmap()
+                val bitmap = DisplayTintGuard.get(applicationContext).withTintSuspended {
+                    delay(250L)
+                    service.takeScreenshotBitmap() ?: run {
+                        delay(800L)
+                        service.takeScreenshotBitmap()
+                    }
                 }
                 withContext(Dispatchers.Main) {
                     overlay.showChromeAfterCapture()
@@ -1059,7 +1082,9 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setVisibleForCapture(true)
                 }
                 if (bitmap == null) {
-                    withContext(Dispatchers.Main) { overlay.showError("Screenshot failed — try again") }
+                    withContext(
+                        Dispatchers.Main
+                    ) { overlay.showError(getString(R.string.ball_screenshot_failed_try_again)) }
                     return@launch
                 }
                 val timestamp = java.text.SimpleDateFormat(
@@ -1079,7 +1104,9 @@ class AssistiveBallService : Service() {
                     overlay.showChromeAfterCapture()
                     chatWindow.setVisibleForCapture(true)
                     screenCompanionPanel.setVisibleForCapture(true)
-                    overlay.showError("Screenshot error: ${HumanReadableError.format(e)}")
+                    overlay.showError(
+                        getString(R.string.ball_screenshot_error, HumanReadableError.format(e, stringLookup()))
+                    )
                 }
             }
         }
@@ -1114,7 +1141,7 @@ class AssistiveBallService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val notification: Notification = Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("Gotcha assistive ball")
+            .setContentTitle(getString(R.string.assistive_ball_content_description))
             .setContentText("Tap the ball for call controls. Long-press it to start a voice call.")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(tapIntent)

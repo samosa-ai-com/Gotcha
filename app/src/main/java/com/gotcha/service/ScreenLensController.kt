@@ -12,6 +12,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import com.gotcha.R
+import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.MaxHeightScrollView
 import com.gotcha.ui.ScreenCropOverlayView
 import com.gotcha.ui.applyOverlayCard
@@ -127,7 +128,7 @@ class ScreenLensController(
                 rotationWatcher.start()
             } catch (_: Exception) {
                 cropOverlay = null
-                onError("Couldn't start Lens mode")
+                onError(appContext.getString(R.string.lens_couldn_t_start_lens_mode))
             }
         }
     }
@@ -154,7 +155,9 @@ class ScreenLensController(
         scope.launch {
             val service = GotchaAccessibilityService.instance
             if (service == null) {
-                withContext(Dispatchers.Main) { onError("Accessibility service not available") }
+                withContext(
+                    Dispatchers.Main
+                ) { onError(appContext.getString(R.string.lens_accessibility_service_not_available)) }
                 return@launch
             }
             val snapped = service.snapRegionToElements(padded).also {
@@ -169,18 +172,24 @@ class ScreenLensController(
             val preferredLang = settings?.preferredLanguage ?: "English"
             val preferredCurr = settings?.preferredCurrency ?: "USD"
             val contextualActions = regionText?.let {
-                SmartActionDetector.detectContextual(it, targetCurrency = preferredCurr, targetLanguage = preferredLang)
+                SmartActionDetector.detectContextual(
+                    it,
+                    targetCurrency = preferredCurr,
+                    targetLanguage = preferredLang,
+                    strings = appContext.stringLookup()
+                )
             } ?: emptyList()
 
             withContext(Dispatchers.Main) {
                 overlay?.setCaptureMode(true)
                 onCaptureChrome(true)
             }
-            kotlinx.coroutines.delay(250L)
-            var full = service.takeScreenshotBitmap()
-            if (full == null) {
-                kotlinx.coroutines.delay(600L)
-                full = service.takeScreenshotBitmap()
+            val full = DisplayTintGuard.get(appContext).withTintSuspended {
+                kotlinx.coroutines.delay(250L)
+                service.takeScreenshotBitmap() ?: run {
+                    kotlinx.coroutines.delay(600L)
+                    service.takeScreenshotBitmap()
+                }
             }
             withContext(Dispatchers.Main) {
                 onCaptureChrome(false)
@@ -189,7 +198,7 @@ class ScreenLensController(
             if (full == null) {
                 withContext(Dispatchers.Main) {
                     removeCropOverlay()
-                    onError("Screenshot failed — try again")
+                    onError(appContext.getString(R.string.lens_screenshot_failed_try_again))
                 }
                 return@launch
             }
@@ -198,7 +207,7 @@ class ScreenLensController(
             if (cropped == null) {
                 withContext(Dispatchers.Main) {
                     removeCropOverlay()
-                    onError("Selection was empty")
+                    onError(appContext.getString(R.string.lens_selection_was_empty))
                 }
                 return@launch
             }
@@ -251,14 +260,14 @@ class ScreenLensController(
 
         if (!cleanText.isNullOrBlank()) {
             chipsLayout.addView(
-                chipButton("Select", colors, R.drawable.ic_lens_select) {
+                chipButton(appContext.getString(R.string.lens_select), colors, R.drawable.ic_lens_select) {
                     showSelectableTextCard(cleanText)
                 }
             )
         }
 
         chipsLayout.addView(
-            chipButton("Copy", colors, R.drawable.ic_lens_copy) {
+            chipButton(appContext.getString(R.string.lens_copy), colors, R.drawable.ic_lens_copy) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -276,7 +285,7 @@ class ScreenLensController(
 
         if (!isAlreadyInPreferredLang) {
             chipsLayout.addView(
-                chipButton("Translate", colors, R.drawable.ic_lens_translate) {
+                chipButton(appContext.getString(R.string.lens_translate), colors, R.drawable.ic_lens_translate) {
                     val prompt = "Extract text from this screenshot, translate it to $preferredLang, " +
                         "and display both original and translated text."
                     encodePendingCrop { base64 -> onImagePrompt(base64, prompt) }
@@ -286,7 +295,7 @@ class ScreenLensController(
         }
 
         chipsLayout.addView(
-            chipButton("Save", colors, R.drawable.ic_lens_save) {
+            chipButton(appContext.getString(R.string.lens_save), colors, R.drawable.ic_lens_save) {
                 val crop = pendingCrop
                 if (crop != null && !crop.isRecycled) {
                     val cropCopy = runCatching { crop.copy(crop.config, false) }.getOrNull()
@@ -299,7 +308,7 @@ class ScreenLensController(
         )
 
         chipsLayout.addView(
-            chipButton("Ask", colors, R.drawable.ic_lens_ask) {
+            chipButton(appContext.getString(R.string.lens_ask), colors, R.drawable.ic_lens_ask) {
                 encodePendingCrop { base64 -> onAskAboutCrop(base64) }
                 cancel()
             }
@@ -417,7 +426,7 @@ class ScreenLensController(
         }
 
         val titleView = TextView(appContext).apply {
-            this.text = "Extracted Text"
+            this.text = appContext.getString(R.string.lens_extracted_text)
             textSize = colors.titleSp
             setTypeface(colors.sans, android.graphics.Typeface.BOLD)
             setTextColor(colors.onSurface)
@@ -450,19 +459,19 @@ class ScreenLensController(
         }
 
         btnRow.addView(
-            chipButton("Copy Selected", colors, filled = true) {
+            chipButton(appContext.getString(R.string.lens_copy_selected), colors, filled = true) {
                 copyTextSelection(textView, text)
             }
         )
 
         btnRow.addView(
-            chipButton("Copy All", colors, R.drawable.ic_lens_copy, filled = true) {
+            chipButton(appContext.getString(R.string.lens_copy_all), colors, R.drawable.ic_lens_copy, filled = true) {
                 copyTextToClipboard(text)
             }
         )
 
         btnRow.addView(
-            chipButton("Close", colors, filled = true) {
+            chipButton(appContext.getString(R.string.lens_close), colors, filled = true) {
                 cancel()
             }
         )
@@ -499,7 +508,7 @@ class ScreenLensController(
         } else {
             android.widget.Toast.makeText(
                 appContext,
-                "Select some text first, then tap Copy Selected",
+                appContext.getString(R.string.lens_select_some_text_first_then),
                 android.widget.Toast.LENGTH_SHORT
             ).show()
         }
@@ -512,7 +521,7 @@ class ScreenLensController(
         clipManager?.setPrimaryClip(android.content.ClipData.newPlainText("Extracted Text", content))
         android.widget.Toast.makeText(
             appContext,
-            "Copied to clipboard",
+            appContext.getString(R.string.lens_copied_to_clipboard),
             android.widget.Toast.LENGTH_SHORT
         ).show()
         cancel()
@@ -621,13 +630,13 @@ class ScreenLensController(
                 withContext(Dispatchers.Main) {
                     android.widget.Toast.makeText(
                         appContext,
-                        "Saved image to $location",
+                        appContext.getString(R.string.lens_saved_image_to, location),
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    onError("Failed to save image: ${e.message}")
+                    onError(appContext.getString(R.string.lens_failed_to_save_image, e.message))
                 }
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
@@ -666,7 +675,9 @@ class ScreenLensController(
             if (base64 != null) {
                 withContext(Dispatchers.Main) { onEncoded(base64) }
             } else {
-                withContext(Dispatchers.Main) { onError("Couldn't prepare the image") }
+                withContext(
+                    Dispatchers.Main
+                ) { onError(appContext.getString(R.string.lens_couldn_t_prepare_the_image)) }
             }
         }
     }
