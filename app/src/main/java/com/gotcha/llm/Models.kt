@@ -236,7 +236,10 @@ data class ChatRequest(
     val tools: List<ToolDefinition>? = null,
     val temperature: Float? = null,
     @SerialName("prompt_cache_key")
-    val promptCacheKey: String? = null
+    val promptCacheKey: String? = null,
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault
+    val stream: Boolean = false
 )
 
 @Serializable
