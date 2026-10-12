@@ -819,6 +819,7 @@ class AssistiveBallService : Service() {
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         when {
             s.sttProvider == AudioProvider.ANDROID -> {
+                sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
                 if (!hasMicPermission()) {
                     overlay.showError(getString(R.string.ball_microphone_permission_not_granted))
                     screenCompanionPanel.setListening(false)
@@ -827,7 +828,9 @@ class AssistiveBallService : Service() {
                 if (sttEngine.startAndroidListening(s.effectiveVoiceLanguage)) {
                     panelVoiceActive = true
                 } else {
-                    overlay.showError(getString(R.string.ball_failed_to_start_speech_recognition))
+                    overlay.showError(
+                        sttEngine.androidFailure ?: getString(R.string.ball_failed_to_start_speech_recognition)
+                    )
                     screenCompanionPanel.setListening(false)
                 }
             }
@@ -906,7 +909,9 @@ class AssistiveBallService : Service() {
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
                 voice = s.ttsVoice,
-                language = s.effectiveVoiceLanguage
+                language = s.effectiveVoiceLanguage,
+                androidEngine = s.androidTtsEngine,
+                androidVoice = s.androidTtsVoice
             )
             val missing = ttsEngine.lastLanguageUnavailable
             if (!spoke && missing != null) {

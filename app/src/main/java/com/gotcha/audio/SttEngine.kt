@@ -14,6 +14,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import com.gotcha.R
 import com.gotcha.i18n.Language
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CompletableDeferred
@@ -78,6 +79,32 @@ class SttEngine(
 
     /** Language for the current/next Android recognizer session. */
     private var currentLanguage = Language.ENGLISH
+
+    // Android Built-in recognizer choice; see [configureAndroid].
+    private var androidService = ""
+    private var androidOnDeviceOnly = false
+
+    /**
+     * Why the last Android listen failed in a way the user has to fix (no
+     * on-device recognition, the language not available), or null. Callers
+     * show it instead of a generic failure or "no speech".
+     */
+    @Volatile
+    var androidFailure: String? = null
+        private set
+
+    /** Choose Android Built-in's recognizer: [service] (blank = the phone's), or the on-device one. */
+    fun configureAndroid(service: String, onDeviceOnly: Boolean) {
+        androidService = service
+        androidOnDeviceOnly = onDeviceOnly
+    }
+
+    /** The recognizer [configureAndroid] chose, or null with [androidFailure] set. Main thread only. */
+    private fun createAndroidRecognizer(): SpeechRecognizer? {
+        val recognizer = AndroidSpeechInfo.createRecognizer(context, androidService, androidOnDeviceOnly)
+        if (recognizer == null) androidFailure = context.getString(R.string.stt_on_device_unavailable)
+        return recognizer
+    }
 
     /** The models available from the API (empty if provider is Android). */
     var apiSttModels: List<AudioModel> = emptyList()
@@ -182,7 +209,8 @@ class SttEngine(
                     } else {
                         Result.failure(Exception("No speech detected"))
                     }
-                is SttOutcome.Error -> Result.failure(Exception("Speech recognition failed: ${outcome.code}"))
+                is SttOutcome.Error ->
+                    Result.failure(Exception(androidFailure ?: "Speech recognition failed: ${outcome.code}"))
             }
         }
         provider.isApiBased() -> withContext(Dispatchers.IO) {
@@ -271,6 +299,11 @@ class SttEngine(
     /** Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening(). */
     fun startAndroidListening(language: Language = Language.ENGLISH): Boolean {
         if (isContinuousListening) return false
+        androidFailure = null
+        if (androidOnDeviceOnly && !AndroidSpeechInfo.hasOnDeviceRecognition(context)) {
+            androidFailure = context.getString(R.string.stt_on_device_unavailable)
+            return false
+        }
         currentLanguage = language
         listenGate = CompletableDeferred<String>()
         isContinuousListening = true
@@ -291,7 +324,13 @@ class SttEngine(
         currentPartialResult = "" // Reset for new segment
         var recognizer = currentRecognizer
         if (recognizer == null) {
-            val newRec = SpeechRecognizer.createSpeechRecognizer(context)
+            val newRec = createAndroidRecognizer()
+            if (newRec == null) {
+                isContinuousListening = false
+                unmuteBeep()
+                listenGate?.complete(buildFinalTranscript())
+                return
+            }
             currentRecognizer = newRec
             recognizer = newRec
             newRec.setRecognitionListener(object : RecognitionListener {
@@ -304,6 +343,10 @@ class SttEngine(
                 override fun onEndOfSpeech() { GotchaLog.d(TAG) { "onEndOfSpeech" } }
                 override fun onError(error: Int) {
                     GotchaLog.d(TAG) { "onError: $error" }
+                    AndroidSpeechInfo.fatalError(context, error, currentLanguage, androidOnDeviceOnly)?.let { message ->
+                        androidFailure = message
+                        isContinuousListening = false
+                    }
                     if (error == SpeechRecognizer.ERROR_CLIENT ||
                         error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
                         error == SpeechRecognizer.ERROR_SERVER
@@ -450,11 +493,16 @@ class SttEngine(
         }
         val gate = CompletableDeferred<SttOutcome>()
         onceGate = gate
+        androidFailure = null
         // SpeechRecognizer must be created and driven from the main thread.
         withContext(Dispatchers.Main) {
             try {
+                val recognizer = createAndroidRecognizer()
+                if (recognizer == null) {
+                    gate.complete(SttOutcome.Error(SpeechRecognizer.ERROR_CLIENT))
+                    return@withContext
+                }
                 muteBeep()
-                val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
                 currentRecognizer = recognizer
                 recognizer.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {}
@@ -464,6 +512,8 @@ class SttEngine(
                     override fun onEndOfSpeech() {}
                     override fun onError(error: Int) {
                         unmuteBeep()
+                        AndroidSpeechInfo.fatalError(context, error, language, androidOnDeviceOnly)
+                            ?.let { androidFailure = it }
                         gate.complete(SttOutcome.Error(error))
                         currentRecognizer?.destroy()
                         currentRecognizer = null
@@ -524,7 +574,7 @@ class SttEngine(
             provider == AudioProvider.ANDROID -> {
                 val text = stopAndroidListening()
                 if (text.isBlank()) {
-                    Result.failure(Exception("No speech detected"))
+                    Result.failure(Exception(androidFailure ?: NO_SPEECH_DETECTED))
                 } else {
                     Result.success(text)
                 }

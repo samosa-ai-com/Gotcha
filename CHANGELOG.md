@@ -13,15 +13,20 @@ All notable changes to Gotcha are documented here.
   right amount. Saved language and currency choices are kept.
 
 ### Changed
-- **Android Built-in speech says which engines it uses, and no longer reads in
-  the wrong voice** (#122). The Speech page shows the phone's text-to-speech
-  engine and speech recognizer by name, with buttons to Android's settings
-  where they are changed. When the phone has no voice for the voice language,
-  Gotcha no longer reads the reply with an English voice: it stays silent and
-  says the voice is missing, without repeating it on every reply. The Language
-  and Speech pages warn when the phone's text-to-speech has no voice for the
-  voice language, and, on Android 13 and later, when its recognizer doesn't
-  list it.
+- **Choose Android Built-in's speech engines, and see what runs where** (#122).
+  With Android Built-in selected, the Speech page lets you pick the
+  text-to-speech engine, its voice for the voice language and the speech
+  recognizer, each defaulting to the phone's own choice. Voices are marked as
+  on the phone, online or not downloaded, and a line under each section says
+  whether the voice language is spoken or recognised on the phone, needs the
+  internet, needs a download, or isn't supported (for the recognizer, on
+  Android 13 and later). On Android 12 and later, a
+  new "On-device only" switch keeps voice input off the network: if the phone
+  can't recognise the voice language on the device, voice input stops with a
+  message instead of going online. When the phone has no voice for the voice
+  language, Gotcha no longer reads the reply with an English voice: it stays
+  silent and says the voice is missing, without repeating it on every reply.
+  Settings → Language warns about all of these too.
 
 ## [1.3.0]
 ### Added

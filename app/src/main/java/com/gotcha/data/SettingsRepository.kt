@@ -153,6 +153,21 @@ data class Settings(
     val sttApiKey: String = "",
     val sttApiModel: String = "",
     val sttLanguage: String = "",
+    /**
+     * Android Built-in's text-to-speech engine, by package (`com.google.android.tts`);
+     * blank follows the phone's preferred engine. An engine that's been
+     * uninstalled falls back to the phone's, as Android does.
+     */
+    val androidTtsEngine: String = "",
+    /** A voice of [androidTtsEngine] by name; blank, or a voice in another language, uses the engine's own. */
+    val androidTtsVoice: String = "",
+    /** Android Built-in's speech recognizer, as a flattened component; blank follows the phone's. */
+    val androidSttService: String = "",
+    /**
+     * Recognise speech on the phone only (Android 12+). When the phone can't,
+     * voice input fails with a message rather than using a network recognizer.
+     */
+    val androidSttOnDeviceOnly: Boolean = false,
     val autoReadReplies: Boolean = false,
     /**
      * Speak the reply to a message sent by voice even when [autoReadReplies] is
@@ -619,6 +634,10 @@ class SettingsRepository(context: Context) : SettingsStore {
         sttApiKey = string(KEY_STT_API_KEY),
         sttApiModel = string(KEY_STT_API_MODEL),
         sttLanguage = string(KEY_STT_LANGUAGE),
+        androidTtsEngine = string(KEY_ANDROID_TTS_ENGINE),
+        androidTtsVoice = string(KEY_ANDROID_TTS_VOICE),
+        androidSttService = string(KEY_ANDROID_STT_SERVICE),
+        androidSttOnDeviceOnly = prefs.getBoolean(KEY_ANDROID_STT_ON_DEVICE_ONLY, false),
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
         autoReadVoiceReplies = prefs.getBoolean(KEY_AUTO_READ_VOICE, true),
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
@@ -712,6 +731,10 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_STT_API_KEY, settings.sttApiKey)
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
+            .putString(KEY_ANDROID_TTS_ENGINE, settings.androidTtsEngine)
+            .putString(KEY_ANDROID_TTS_VOICE, settings.androidTtsVoice)
+            .putString(KEY_ANDROID_STT_SERVICE, settings.androidSttService)
+            .putBoolean(KEY_ANDROID_STT_ON_DEVICE_ONLY, settings.androidSttOnDeviceOnly)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_AUTO_READ_VOICE, settings.autoReadVoiceReplies)
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
@@ -844,6 +867,10 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_STT_API_KEY = "stt_api_key"
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_STT_LANGUAGE = "stt_language"
+        const val KEY_ANDROID_TTS_ENGINE = "android_tts_engine"
+        const val KEY_ANDROID_TTS_VOICE = "android_tts_voice"
+        const val KEY_ANDROID_STT_SERVICE = "android_stt_service"
+        const val KEY_ANDROID_STT_ON_DEVICE_ONLY = "android_stt_on_device_only"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_AUTO_READ_VOICE = "auto_read_voice"
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"

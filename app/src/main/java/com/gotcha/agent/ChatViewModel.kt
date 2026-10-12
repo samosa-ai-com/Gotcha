@@ -12,7 +12,8 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.R
-import com.gotcha.audio.AndroidRecognizerInfo
+import com.gotcha.audio.AndroidSpeechInfo
+import com.gotcha.audio.AndroidSpeechQuery
 import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
@@ -809,26 +810,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         ttsEngine.speak(
             text = SpokenPhrases.callStarted(language),
             provider = AudioProvider.ANDROID,
-            language = language
+            language = language,
+            androidEngine = settings.androidTtsEngine,
+            androidVoice = settings.androidTtsVoice
         )
         return ttsEngine.lastLanguageUnavailable != language
     }
 
-    /**
-     * Android's built-in speech engines and whether they have [language], for
-     * the Speech and Language pages. Asks the shared TTS engine and the phone's
-     * default recognizer; either may answer unknown.
-     */
-    suspend fun androidSpeechStatus(language: Language): AndroidSpeechStatus {
-        val app = getApplication<Application>()
-        val ttsEngine = runner.ttsEngine
-        return AndroidSpeechStatus(
-            ttsEngine = ttsEngine.androidEngineName(),
-            ttsSupports = ttsEngine.androidSupports(language),
-            recognizer = AndroidRecognizerInfo.name(app),
-            recognizerSupports = AndroidRecognizerInfo.supports(app, language)
-        )
-    }
+    /** Android Built-in's engines and what they can do for a language, for the Speech and Language pages. */
+    suspend fun androidSpeechStatus(query: AndroidSpeechQuery): AndroidSpeechStatus =
+        AndroidSpeechInfo.probe(getApplication(), query)
 
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
@@ -847,11 +838,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     )
                     return
                 }
+                sttEngine.configureAndroid(settings.androidSttService, settings.androidSttOnDeviceOnly)
                 val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage)
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
-                    appendUi(MessageKind.ERROR, str(R.string.chat_vm_failed_to_start_speech_recognition))
+                    appendUi(
+                        MessageKind.ERROR,
+                        sttEngine.androidFailure ?: str(R.string.chat_vm_failed_to_start_speech_recognition)
+                    )
                 }
             }
             settings.sttProvider.isApiBased() -> {
@@ -915,6 +910,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     }
                     provider == AudioProvider.ANDROID -> {
                         transcript = sttEngine.stopAndroidListening()
+                        val failure = sttEngine.androidFailure
+                        if (transcript.isBlank() && failure != null) appendUi(MessageKind.ERROR, failure)
                     }
                 }
 

@@ -86,8 +86,9 @@ object SpeechLanguageCheck {
      * Why speech in [language] will not be transcribed properly by speech-to-text
      * [modelId] with transcription [override] (blank = follow [language]), or an
      * empty list when it will or nothing is known. For [AudioProvider.ANDROID],
-     * [androidSupports] says whether the phone's recognizer lists [language]
-     * (null = unknown); the override only applies to API providers.
+     * [androidSupports] says whether the phone's recognizer can take [language]
+     * (null = unknown), on the device when [androidOnDeviceOnly]; the override
+     * only applies to API providers.
      */
     fun sttWarnings(
         provider: AudioProvider,
@@ -96,14 +97,17 @@ object SpeechLanguageCheck {
         models: List<AudioModel>,
         language: Language,
         strings: StringLookup,
-        androidSupports: Boolean? = null
+        androidSupports: Boolean? = null,
+        androidOnDeviceOnly: Boolean = false
     ): List<String> {
         if (provider == AudioProvider.ANDROID) {
-            return if (androidSupports == false) {
-                listOf(strings(R.string.speech_check_android_stt_unsupported, strings(language.nameRes)))
+            if (androidSupports != false) return emptyList()
+            val res = if (androidOnDeviceOnly) {
+                R.string.speech_check_android_stt_not_on_device
             } else {
-                emptyList()
+                R.string.speech_check_android_stt_unsupported
             }
+            return listOf(strings(res, strings(language.nameRes)))
         }
         if (!provider.isApiBased()) return emptyList()
         val name = strings(language.nameRes)

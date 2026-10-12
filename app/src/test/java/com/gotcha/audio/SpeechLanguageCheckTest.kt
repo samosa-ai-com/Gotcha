@@ -204,6 +204,22 @@ class SpeechLanguageCheckTest {
     }
 
     @Test
+    fun `with on-device only, an unsupported language says voice input will stop`() {
+        val warnings = SpeechLanguageCheck.sttWarnings(
+            AudioProvider.ANDROID,
+            "",
+            "",
+            emptyList(),
+            Language.RUSSIAN,
+            strings,
+            androidSupports = false,
+            androidOnDeviceOnly = true
+        )
+        assertEquals(1, warnings.size)
+        assertTrue(warnings[0], "On-device only is on" in warnings[0])
+    }
+
+    @Test
     fun `Android support is ignored for API providers`() {
         assertNull(androidTts(false, provider = AudioProvider.API))
     }

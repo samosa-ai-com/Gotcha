@@ -184,6 +184,22 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
                 R.string.settings_field_stt_provider,
                 "stt, transcription, transcribe, speech to text"
             ),
+            field(
+                "settings_android_tts_engine",
+                R.string.settings_field_android_tts_engine,
+                "engine, samsung, google, android voice"
+            ),
+            field("settings_android_tts_voice", R.string.settings_field_android_tts_voice, "voice, android voice"),
+            field(
+                "settings_android_stt_service",
+                R.string.settings_field_android_stt_service,
+                "recognizer, recognition service, voice input"
+            ),
+            field(
+                "settings_android_stt_on_device",
+                R.string.settings_field_android_stt_on_device,
+                "offline, on device, on-device, network"
+            ),
             field("settings_auto_read_replies", R.string.settings_field_auto_read_replies, "read aloud, read replies"),
             field(
                 "settings_auto_read_voice_replies",

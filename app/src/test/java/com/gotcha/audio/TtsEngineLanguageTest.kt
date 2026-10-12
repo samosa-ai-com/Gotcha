@@ -5,9 +5,12 @@ import android.speech.tts.TextToSpeech
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.i18n.Language
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -51,11 +54,21 @@ class TtsEngineLanguageTest {
     }
 
     @Test
-    fun `androidSupports follows the installed voices`() = runBlocking {
-        assertEquals(false, ttsEngine.androidSupports(Language.RUSSIAN))
+    fun `a picked engine rebinds Android text-to-speech, the same one does not`() = runBlocking {
+        val first = ShadowTextToSpeech.getLastTextToSpeechInstance()
+        ttsEngine.speak("Привет", AudioProvider.ANDROID, language = Language.RUSSIAN)
+        assertSame("the phone's engine is already bound", first, ShadowTextToSpeech.getLastTextToSpeechInstance())
 
-        ShadowTextToSpeech.addLanguageAvailability(Language.RUSSIAN.locale)
-
-        assertTrue(ttsEngine.androidSupports(Language.RUSSIAN) == true)
+        // The new binding never initialises here, so speak gives up waiting; only the rebind matters.
+        withTimeoutOrNull(500) {
+            ttsEngine.speak(
+                "Привет",
+                AudioProvider.ANDROID,
+                language = Language.RUSSIAN,
+                androidEngine = "com.example.tts"
+            )
+        }
+        assertNotSame(first, ShadowTextToSpeech.getLastTextToSpeechInstance())
+        assertTrue("the old binding is released", shadowTts.isShutdown)
     }
 }

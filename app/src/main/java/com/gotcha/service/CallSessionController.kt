@@ -203,6 +203,7 @@ class CallSessionController(
         }
 
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
         ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
 
         val newEngine = AgentEngine(
@@ -450,6 +451,7 @@ class CallSessionController(
         if (current != CallState.READY && current != CallState.WAITING_USER) return
         val s = settingsRepository.load()
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
         val started = sttEngine.startListening(
             s.sttProvider,
             currentLanguage()
@@ -469,7 +471,7 @@ class CallSessionController(
      * untouched (still [READY] / [WAITING_USER]) so the user can tap again.
      */
     internal fun onMicStartFailed() {
-        reportError(appContext.getString(R.string.call_error_mic_start))
+        reportError(sttEngine.androidFailure ?: appContext.getString(R.string.call_error_mic_start))
     }
 
     /** Stop the mic and send the recording for transcription + agent processing. */
@@ -869,7 +871,9 @@ class CallSessionController(
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
             voice = voice,
-            language = language
+            language = language,
+            androidEngine = s.androidTtsEngine,
+            androidVoice = s.androidTtsVoice
         )
     }
 
@@ -937,7 +941,15 @@ class CallSessionController(
             } else {
                 ""
             }
-            val spoke = ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
+            val spoke = ttsEngine.speak(
+                text,
+                s.ttsProvider,
+                s.ttsApiModel,
+                voice,
+                language,
+                androidEngine = s.androidTtsEngine,
+                androidVoice = s.androidTtsVoice
+            )
             if (!spoke) onNarrationTtsFailed()
         }
     }

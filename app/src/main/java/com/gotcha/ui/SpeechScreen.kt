@@ -1,6 +1,5 @@
 package com.gotcha.ui
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
@@ -36,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.BuildConfig
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechQuery
 import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioLanguageLabels
 import com.gotcha.audio.AudioModel
@@ -47,7 +47,6 @@ import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinExposedDropdownMenu
 import kotlinx.coroutines.launch
-import android.provider.Settings as AndroidSettings
 
 /**
  * The Speech page: which engines synthesise and transcribe, the models and
@@ -79,8 +78,8 @@ fun SpeechScreen(
     },
     /** Opens Settings → Language, where every language setting lives. */
     onOpenLanguage: () -> Unit = {},
-    /** Android Built-in's engines and their support for a language; see [AndroidSpeechStatus]. */
-    onCheckAndroidSpeech: suspend (Language) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
+    /** Android Built-in's engines and what they can do for a language; see [AndroidSpeechStatus]. */
+    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
 ) {
     val initial = remember { load() }
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
@@ -94,6 +93,10 @@ fun SpeechScreen(
     var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
     var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
+    var androidTtsEngine by remember { mutableStateOf(initial.androidTtsEngine) }
+    var androidTtsVoice by remember { mutableStateOf(initial.androidTtsVoice) }
+    var androidSttService by remember { mutableStateOf(initial.androidSttService) }
+    var androidSttOnDeviceOnly by remember { mutableStateOf(initial.androidSttOnDeviceOnly) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var autoReadVoiceReplies by remember { mutableStateOf(initial.autoReadVoiceReplies) }
     // Samosa auth state, kept live as the user signs in / out.
@@ -150,6 +153,10 @@ fun SpeechScreen(
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
+        androidTtsEngine = androidTtsEngine,
+        androidTtsVoice = androidTtsVoice,
+        androidSttService = androidSttService,
+        androidSttOnDeviceOnly = androidSttOnDeviceOnly,
         autoReadReplies = autoReadReplies,
         autoReadVoiceReplies = autoReadVoiceReplies
     )
@@ -210,9 +217,17 @@ fun SpeechScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(ttsProvider == AudioProvider.ANDROID || sttProvider == AudioProvider.ANDROID, resumes) {
-        if (ttsProvider == AudioProvider.ANDROID || sttProvider == AudioProvider.ANDROID) {
-            androidSpeech = onCheckAndroidSpeech(initial.effectiveVoiceLanguage)
+    val usesAndroidSpeech = ttsProvider == AudioProvider.ANDROID || sttProvider == AudioProvider.ANDROID
+    LaunchedEffect(usesAndroidSpeech, androidTtsEngine, androidSttService, androidSttOnDeviceOnly, resumes) {
+        if (usesAndroidSpeech) {
+            androidSpeech = onCheckAndroidSpeech(
+                AndroidSpeechQuery(
+                    initial.effectiveVoiceLanguage,
+                    androidTtsEngine,
+                    androidSttService,
+                    androidSttOnDeviceOnly
+                )
+            )
         }
     }
 
@@ -400,13 +415,17 @@ fun SpeechScreen(
                     onClearVoice = { ttsVoice = "" }
                 )
             }
-            AudioProvider.ANDROID -> AndroidEngineSummary(
-                textRes = R.string.speech_android_tts_engine,
-                engine = androidSpeech.ttsEngine,
-                buttonRes = R.string.speech_android_change_tts,
-                settingsIntent = Intent(ACTION_TTS_SETTINGS),
-                failedRes = R.string.language_tts_settings_failed,
-                testTag = "settings_android_tts_engine"
+            AudioProvider.ANDROID -> AndroidTtsSettings(
+                status = androidSpeech,
+                language = initial.effectiveVoiceLanguage,
+                engine = androidTtsEngine,
+                onEngine = {
+                    // Voices belong to an engine; the new one starts on its own choice.
+                    if (it != androidTtsEngine) androidTtsVoice = ""
+                    androidTtsEngine = it
+                },
+                voice = androidTtsVoice,
+                onVoice = { androidTtsVoice = it }
             )
             AudioProvider.NONE -> Unit
         }
@@ -546,16 +565,17 @@ fun SpeechScreen(
                     onOpenLanguage = onOpenLanguage
                 )
             }
-            AudioProvider.ANDROID -> AndroidEngineSummary(
-                textRes = R.string.speech_android_stt_engine,
-                engine = androidSpeech.recognizer,
-                buttonRes = R.string.speech_android_change_stt,
-                settingsIntent = Intent(AndroidSettings.ACTION_VOICE_INPUT_SETTINGS),
-                failedRes = R.string.speech_android_voice_input_settings_failed,
-                testTag = "settings_android_stt_engine"
+            AudioProvider.ANDROID -> AndroidSttSettings(
+                status = androidSpeech,
+                language = initial.effectiveVoiceLanguage,
+                service = androidSttService,
+                onService = { androidSttService = it },
+                onDeviceOnly = androidSttOnDeviceOnly,
+                onOnDeviceOnly = { androidSttOnDeviceOnly = it }
             )
             AudioProvider.NONE -> Unit
         }
+        // Android Built-in's problems are shown by its own availability lines above.
         SpeechLanguageWarnings(
             listOfNotNull(
                 SpeechLanguageCheck.ttsWarning(
@@ -564,8 +584,7 @@ fun SpeechScreen(
                     ttsVoice,
                     availableTtsModels,
                     initial.effectiveVoiceLanguage,
-                    LocalContext.current.stringLookup(),
-                    androidSupports = androidSpeech.ttsSupports
+                    LocalContext.current.stringLookup()
                 )
             ) + SpeechLanguageCheck.sttWarnings(
                 sttProvider,
@@ -573,8 +592,7 @@ fun SpeechScreen(
                 initial.sttLanguage,
                 availableSttModels,
                 initial.effectiveVoiceLanguage,
-                LocalContext.current.stringLookup(),
-                androidSupports = androidSpeech.recognizerSupports
+                LocalContext.current.stringLookup()
             )
         )
         SettingsToggleRow(
@@ -838,40 +856,6 @@ private fun TranscriptionLanguageSummary(
         modifier = Modifier.testTag("settings_speech_open_language")
     ) { Text(stringResource(R.string.speech_change_in_settings_language)) }
 }
-
-/**
- * The phone engine Android Built-in uses, by name, and a button to the Android
- * screen where it is chosen (#122). Gotcha follows the phone's choice rather
- * than offering its own picker. [engine] is null until known.
- */
-@Composable
-private fun AndroidEngineSummary(
-    @StringRes textRes: Int,
-    engine: String?,
-    @StringRes buttonRes: Int,
-    settingsIntent: Intent,
-    @StringRes failedRes: Int,
-    testTag: String
-) {
-    val context = LocalContext.current
-    Text(
-        stringResource(textRes, engine ?: stringResource(R.string.speech_android_engine_unknown)),
-        style = MaterialTheme.typography.bodyMedium
-    )
-    TextButton(
-        onClick = {
-            try {
-                context.startActivity(settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            } catch (_: Exception) {
-                Toast.makeText(context, context.getString(failedRes), Toast.LENGTH_SHORT).show()
-            }
-        },
-        modifier = Modifier.testTag(testTag)
-    ) { Text(stringResource(buttonRes)) }
-}
-
-/** Android's text-to-speech settings: no public constant, but every version since 4.0 has it. */
-private const val ACTION_TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
 
 /** Inline link to the Samosa AI docs on choosing a voice and language. */
 @Composable

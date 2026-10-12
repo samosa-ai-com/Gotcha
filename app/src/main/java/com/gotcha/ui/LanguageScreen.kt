@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechQuery
 import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
@@ -89,7 +90,7 @@ fun LanguageScreen(
         Pair(emptyList(), emptyList())
     },
     /** Android Built-in's engines and their support for a language; see [AndroidSpeechStatus]. */
-    onCheckAndroidSpeech: suspend (Language) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
+    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
 ) {
     val initial = remember { load() }
     var preferredLanguage by rememberSaveable { mutableStateOf(initial.preferredLanguage) }
@@ -147,7 +148,16 @@ fun LanguageScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(resolvedVoiceLanguage, resumes) {
-        if (usesAndroidSpeech) androidSpeech = onCheckAndroidSpeech(resolvedVoiceLanguage)
+        if (usesAndroidSpeech) {
+            androidSpeech = onCheckAndroidSpeech(
+                AndroidSpeechQuery(
+                    resolvedVoiceLanguage,
+                    initial.androidTtsEngine,
+                    initial.androidSttService,
+                    initial.androidSttOnDeviceOnly
+                )
+            )
+        }
     }
 
     val speechWarnings = listOfNotNull(
@@ -167,7 +177,8 @@ fun LanguageScreen(
         sttModels,
         resolvedVoiceLanguage,
         LocalContext.current.stringLookup(),
-        androidSupports = androidSpeech.recognizerSupports
+        androidSupports = androidSpeech.recognizerSupports,
+        androidOnDeviceOnly = androidSpeech.sttOnDeviceOnly
     )
 
     SettingsScaffold(title = stringResource(SettingsPage.LANGUAGE.title), onBack = onBack, overlay = overlay) {

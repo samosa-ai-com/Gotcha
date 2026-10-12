@@ -1024,7 +1024,7 @@ class MainActivity : ComponentActivity() {
                             dispatcher.lastFetchedAt()
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
-                        onCheckAndroidSpeech = { language -> chatViewModel.androidSpeechStatus(language) },
+                        onCheckAndroidSpeech = { query -> chatViewModel.androidSpeechStatus(query) },
                         packageName = packageName,
                         assistiveBallEnabled = assistiveBallOn,
                         onToggleAssistiveBall = { enabled ->

@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechQuery
 import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.data.FeedbackChannel
@@ -108,8 +109,8 @@ fun SettingsScreen(
      * (synchronous, always-true) lets callers ignore voice testing.
      */
     onTestVoice: suspend (Language) -> Boolean? = { null },
-    /** Android Built-in's engines and their support for a language, for the Language and Speech pages. */
-    onCheckAndroidSpeech: suspend (Language) -> AndroidSpeechStatus = { AndroidSpeechStatus() },
+    /** Android Built-in's engines and what they can do for a language, for the Language and Speech pages. */
+    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() },
     packageName: String = "",
     /**
      * Whether the assistive-ball service is currently running. Not read from

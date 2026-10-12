@@ -769,7 +769,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
                     voice = voice,
-                    language = language
+                    language = language,
+                    androidEngine = settings.androidTtsEngine,
+                    androidVoice = settings.androidTtsVoice
                 )
                 val missing = ttsEngine.lastLanguageUnavailable
                 if (!spoke && missing != null && missing != voiceMissingToasted) {
