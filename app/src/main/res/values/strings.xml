@@ -31,6 +31,7 @@
     <string name="language_chinese">Chinese</string>
     <string name="language_italian">Italian</string>
     <string name="language_portuguese">Portuguese</string>
+    <string name="language_russian">Russian</string>
 
     <!-- Settings → Language -->
     <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>

@@ -15,6 +15,7 @@
     <string name="language_chinese">中国語</string>
     <string name="language_italian">イタリア語</string>
     <string name="language_portuguese">ポルトガル語</string>
+    <string name="language_russian">ロシア語</string>
     <string name="language_page_intro">Gotcha の言語設定をここにまとめています。アプリ画面の言語、Gotcha が話して聞き取る言語、回答を書く言語です。</string>
     <string name="language_display_title">アプリの言語</string>
     <string name="language_display_description">Gotcha のボタンや画面の言語です。変わるのは Gotcha だけで、スマートフォンの他の部分はそのままです。</string>

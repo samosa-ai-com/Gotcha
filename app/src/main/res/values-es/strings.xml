@@ -15,6 +15,7 @@
     <string name="language_chinese">Chino</string>
     <string name="language_italian">Italiano</string>
     <string name="language_portuguese">Portugués</string>
+    <string name="language_russian">Ruso</string>
     <string name="language_page_intro">Todos los idiomas que usa Gotcha, en un solo lugar: en qué idioma están las pantallas de la app, en cuál habla y escucha Gotcha, y en cuál escribe sus respuestas.</string>
     <string name="language_display_title">Idioma de la app</string>
     <string name="language_display_description">El idioma de los botones y pantallas de Gotcha. Solo cambia Gotcha; el resto del teléfono se queda como está.</string>

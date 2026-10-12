@@ -3,6 +3,14 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **Russian voice and replies, and roubles** (#122). Russian can now be picked
+  as the voice language and the reply language: Android speech is asked for
+  `ru-RU` and API speech-to-text for `ru`, and the short phrases Gotcha speaks
+  itself are in Russian. Gotcha's own screens stay in English. Personal Info
+  offers RUB as the preferred currency, and prices in roubles, such as
+  `1 234,56 ₽` or `990 руб.`, are found on screen and converted with the
+  right amount. Saved language and currency choices are kept.
 
 ## [1.3.0]
 ### Added
