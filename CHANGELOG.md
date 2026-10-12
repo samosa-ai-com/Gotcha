@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [1.3.0]
 ### Added
 - **Gotcha in eight more languages** (#120). Gotcha's own screens, menus,
   dialogs and notifications are now available in Hindi, Spanish, French,
