@@ -35,7 +35,7 @@
     <string name="language_test_voice">音声をテスト</string>
     <string name="language_test_voice_playing">再生中…</string>
     <string name="language_voice_data_missing_title">音声データがインストールされていません</string>
-    <string name="language_voice_data_missing_body">このデバイスには %1$s の Android 内蔵音声がないため、英語の音声が使われました。発音を直すには音声データをインストールしてください。</string>
+    <string name="language_voice_data_missing_body">このデバイスには %1$s の Android 内蔵音声がないため、Gotcha は %1$s を読み上げられません。音声データをインストールしてください。</string>
     <string name="language_voice_data_install">インストール</string>
     <string name="language_tts_settings_failed">テキスト読み上げの設定を開けませんでした。</string>
     <string name="language_reply_title">AI の回答の言語</string>
@@ -1228,6 +1228,15 @@
     <string name="speech_check_model_no_voice">テキスト読み上げモデル %1$s には %2$s の音声がないため、%2$s の回答は %3$s で読み上げられ、不自然に聞こえることがあります。%2$s の音声があるモデルを選ぶか、Android Built-in を使ってください。</string>
     <string name="speech_check_stt_forced">文字起こしが %1$s (%2$s) に固定されているため、%3$s で話した内容は %1$s として文字起こしされます。音声の言語に合わせるには固定を解除してください。</string>
     <string name="speech_check_stt_unlisted">文字起こしモデル %1$s は %2$s に対応していないため、%2$s で話した内容を正しく文字起こしできない場合があります。対応しているモデルを選んでください。</string>
+    <string name="speech_check_android_tts_missing">Android のテキスト読み上げに %1$s の音声がインストールされていないため、%1$s の返答は読み上げられません。Android のテキスト読み上げ設定で音声データをインストールするか、対応しているエンジンを選んでください。</string>
+    <string name="speech_check_android_stt_unsupported">Android の音声認識は %1$s に対応していないため、%1$s で話した内容を正しく文字起こしできない場合があります。Android の設定で別の音声入力サービスを選んでください。</string>
+    <string name="speech_android_tts_engine">テキスト読み上げエンジン: %1$s</string>
+    <string name="speech_android_stt_engine">音声認識: %1$s</string>
+    <string name="speech_android_engine_unknown">不明</string>
+    <string name="speech_android_change_tts">エンジンを変更</string>
+    <string name="speech_android_change_stt">音声入力を変更</string>
+    <string name="speech_android_voice_input_settings_failed">音声入力の設定を開けませんでした。</string>
+    <string name="speech_voice_not_installed">Android のテキスト読み上げに %1$s の音声がインストールされていないため、読み上げませんでした。設定 → 言語の「音声をテスト」からインストールしてください。</string>
     <string name="referral_copied">招待コードをコピーしました: %1$s</string>
     <string name="referral_share_text">Gotcha を試してみて！招待コード %1$s を使うとボーナスクレジットがもらえます: %2$s</string>
     <string name="referral_share_subject">Gotcha への招待</string>

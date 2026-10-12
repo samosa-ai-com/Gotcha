@@ -35,7 +35,7 @@
     <string name="language_test_voice">Prova la voce</string>
     <string name="language_test_voice_playing">Riproduzione…</string>
     <string name="language_voice_data_missing_title">Dati vocali non installati</string>
-    <string name="language_voice_data_missing_body">Il tuo dispositivo non ha la voce integrata di Android per %1$s. È stata usata quella inglese. Installa i dati vocali per correggere la pronuncia.</string>
+    <string name="language_voice_data_missing_body">Il tuo dispositivo non ha la voce integrata di Android per %1$s, quindi Gotcha non può leggere ad alta voce in %1$s. Installa i dati vocali per risolvere.</string>
     <string name="language_voice_data_install">Installa</string>
     <string name="language_tts_settings_failed">Impossibile aprire le impostazioni di sintesi vocale.</string>
     <string name="language_reply_title">Lingua delle risposte dell\'IA</string>
@@ -1228,6 +1228,15 @@
     <string name="speech_check_model_no_voice">Il modello di sintesi vocale %1$s non ha una voce in %2$s, quindi le risposte in %2$s saranno lette da %3$s e potrebbero non suonare bene. Scegli un modello con una voce in %2$s o usa Android Built-in.</string>
     <string name="speech_check_stt_forced">La trascrizione è forzata su %1$s (%2$s), quindi ciò che dici in %3$s verrà trascritto come %1$s. Rimuovi l\'impostazione forzata per seguire la lingua della voce.</string>
     <string name="speech_check_stt_unlisted">Il modello di trascrizione %1$s non elenca %2$s, quindi potrebbe trascrivere male ciò che dici in %2$s. Scegli un modello che lo elenchi.</string>
+    <string name="speech_check_android_tts_missing">La sintesi vocale di Android non ha una voce per %1$s installata, quindi le risposte in %1$s non verranno lette ad alta voce. Installa i dati vocali, o scegli un motore che li abbia, nelle impostazioni di sintesi vocale di Android.</string>
+    <string name="speech_check_android_stt_unsupported">Il riconoscimento vocale di Android non elenca %1$s, quindi potrebbe trascrivere male ciò che dici in %1$s. Scegli un altro servizio di input vocale nelle impostazioni di Android.</string>
+    <string name="speech_android_tts_engine">Motore di sintesi vocale: %1$s</string>
+    <string name="speech_android_stt_engine">Riconoscimento vocale: %1$s</string>
+    <string name="speech_android_engine_unknown">sconosciuto</string>
+    <string name="speech_android_change_tts">Cambia motore</string>
+    <string name="speech_android_change_stt">Cambia input vocale</string>
+    <string name="speech_android_voice_input_settings_failed">Impossibile aprire le impostazioni dell\'input vocale.</string>
+    <string name="speech_voice_not_installed">Nessuna voce per %1$s è installata per la sintesi vocale di Android, quindi questo testo non è stato letto ad alta voce. Installala con Prova la voce in Impostazioni → Lingua.</string>
     <string name="referral_copied">Codice invito copiato: %1$s</string>
     <string name="referral_share_text">Prova Gotcha: usa il mio codice invito %1$s per ottenere crediti bonus: %2$s</string>
     <string name="referral_share_subject">Invito a Gotcha</string>

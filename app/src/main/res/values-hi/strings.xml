@@ -35,7 +35,7 @@
     <string name="language_test_voice">आवाज़ जाँचें</string>
     <string name="language_test_voice_playing">चल रहा है…</string>
     <string name="language_voice_data_missing_title">आवाज़ का डेटा इंस्टॉल नहीं है</string>
-    <string name="language_voice_data_missing_body">आपके डिवाइस में %1$s के लिए Android की बिल्ट-इन आवाज़ नहीं है। इसलिए इसे अंग्रेज़ी में बोला गया। सही उच्चारण के लिए आवाज़ का डेटा इंस्टॉल करें।</string>
+    <string name="language_voice_data_missing_body">आपके डिवाइस में %1$s के लिए Android की बिल्ट-इन आवाज़ नहीं है, इसलिए Gotcha %1$s में पढ़कर नहीं सुना सकता। इसे ठीक करने के लिए आवाज़ का डेटा इंस्टॉल करें।</string>
     <string name="language_voice_data_install">इंस्टॉल करें</string>
     <string name="language_tts_settings_failed">टेक्स्ट-टू-स्पीच सेटिंग नहीं खुल सकी।</string>
     <string name="language_reply_title">AI जवाब की भाषा</string>
@@ -1228,6 +1228,15 @@
     <string name="speech_check_model_no_voice">टेक्स्ट-टू-स्पीच मॉडल %1$s में %2$s आवाज़ नहीं है, इसलिए %2$s जवाब %3$s पढ़ेगी और वे ठीक नहीं लग सकते। %2$s आवाज़ वाला मॉडल चुनें, या Android Built-in इस्तेमाल करें।</string>
     <string name="speech_check_stt_forced">ट्रांसक्रिप्शन %1$s (%2$s) पर तय है, इसलिए %3$s बोली %1$s के रूप में ट्रांसक्राइब होगी। आवाज़ की भाषा के अनुसार चलने के लिए ओवरराइड हटा दें।</string>
     <string name="speech_check_stt_unlisted">स्पीच-टू-टेक्स्ट मॉडल %1$s की सूची में %2$s नहीं है, इसलिए यह %2$s बोली को गलत ट्रांसक्राइब कर सकता है। ऐसा मॉडल चुनें जिसकी सूची में यह हो।</string>
+    <string name="speech_check_android_tts_missing">Android टेक्स्ट-टू-स्पीच में %1$s की कोई आवाज़ इंस्टॉल नहीं है, इसलिए %1$s जवाब पढ़कर नहीं सुनाए जाएँगे। Android की टेक्स्ट-टू-स्पीच सेटिंग में आवाज़ का डेटा इंस्टॉल करें, या ऐसा इंजन चुनें जिसमें यह हो।</string>
+    <string name="speech_check_android_stt_unsupported">Android की स्पीच पहचान की सूची में %1$s नहीं है, इसलिए यह %1$s बोली को गलत ट्रांसक्राइब कर सकती है। Android की सेटिंग में कोई दूसरी वॉइस इनपुट सेवा चुनें।</string>
+    <string name="speech_android_tts_engine">टेक्स्ट-टू-स्पीच इंजन: %1$s</string>
+    <string name="speech_android_stt_engine">स्पीच पहचान: %1$s</string>
+    <string name="speech_android_engine_unknown">पता नहीं</string>
+    <string name="speech_android_change_tts">इंजन बदलें</string>
+    <string name="speech_android_change_stt">वॉइस इनपुट बदलें</string>
+    <string name="speech_android_voice_input_settings_failed">वॉइस इनपुट सेटिंग नहीं खुल सकी।</string>
+    <string name="speech_voice_not_installed">Android टेक्स्ट-टू-स्पीच के लिए %1$s की कोई आवाज़ इंस्टॉल नहीं है, इसलिए इसे पढ़कर नहीं सुनाया गया। सेटिंग → भाषा में \"आवाज़ जाँचें\" से इसे इंस्टॉल करें।</string>
     <string name="referral_copied">इनवाइट कोड कॉपी हुआ: %1$s</string>
     <string name="referral_share_text">Gotcha आज़माएँ — बोनस क्रेडिट पाने के लिए मेरा इनवाइट कोड %1$s इस्तेमाल करें: %2$s</string>
     <string name="referral_share_subject">Gotcha का न्योता</string>

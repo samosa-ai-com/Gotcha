@@ -12,6 +12,17 @@ All notable changes to Gotcha are documented here.
   `1 234,56 ₽` or `990 руб.`, are found on screen and converted with the
   right amount. Saved language and currency choices are kept.
 
+### Changed
+- **Android Built-in speech says which engines it uses, and no longer reads in
+  the wrong voice** (#122). The Speech page shows the phone's text-to-speech
+  engine and speech recognizer by name, with buttons to Android's settings
+  where they are changed. When the phone has no voice for the voice language,
+  Gotcha no longer reads the reply with an English voice: it stays silent and
+  says the voice is missing, without repeating it on every reply. The Language
+  and Speech pages warn when the phone's text-to-speech has no voice for the
+  voice language, and, on Android 13 and later, when its recognizer doesn't
+  list it.
+
 ## [1.3.0]
 ### Added
 - **Gotcha in eight more languages** (#120). Gotcha's own screens, menus,

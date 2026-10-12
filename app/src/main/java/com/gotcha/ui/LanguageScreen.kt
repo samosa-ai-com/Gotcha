@@ -20,8 +20,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,11 +31,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SpeechLanguageCheck
@@ -81,7 +87,9 @@ fun LanguageScreen(
     onTestVoice: suspend (Language) -> Boolean? = { null },
     onRefreshAudioModels: suspend (Settings) -> Pair<List<AudioModel>, List<AudioModel>> = {
         Pair(emptyList(), emptyList())
-    }
+    },
+    /** Android Built-in's engines and their support for a language; see [AndroidSpeechStatus]. */
+    onCheckAndroidSpeech: suspend (Language) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
 ) {
     val initial = remember { load() }
     var preferredLanguage by rememberSaveable { mutableStateOf(initial.preferredLanguage) }
@@ -124,6 +132,24 @@ fun LanguageScreen(
     /** What the voice would actually use right now, without waiting for a save. */
     val resolvedVoiceLanguage = Language.fromLabel(voiceLanguage.ifBlank { preferredLanguage })
 
+    // Android Built-in has no model list to compare, so ask the phone's engines
+    // about the language being picked. Asked again on every return to the page,
+    // which is how the user comes back from installing voice data.
+    val usesAndroidSpeech = initial.ttsProvider == AudioProvider.ANDROID || initial.sttProvider == AudioProvider.ANDROID
+    var androidSpeech by remember { mutableStateOf(AndroidSpeechStatus()) }
+    var resumes by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumes++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resolvedVoiceLanguage, resumes) {
+        if (usesAndroidSpeech) androidSpeech = onCheckAndroidSpeech(resolvedVoiceLanguage)
+    }
+
     val speechWarnings = listOfNotNull(
         SpeechLanguageCheck.ttsWarning(
             initial.ttsProvider,
@@ -131,7 +157,8 @@ fun LanguageScreen(
             initial.ttsVoice,
             ttsModels,
             resolvedVoiceLanguage,
-            LocalContext.current.stringLookup()
+            LocalContext.current.stringLookup(),
+            androidSupports = androidSpeech.ttsSupports
         )
     ) + SpeechLanguageCheck.sttWarnings(
         initial.sttProvider,
@@ -139,7 +166,8 @@ fun LanguageScreen(
         sttLanguage,
         sttModels,
         resolvedVoiceLanguage,
-        LocalContext.current.stringLookup()
+        LocalContext.current.stringLookup(),
+        androidSupports = androidSpeech.recognizerSupports
     )
 
     SettingsScaffold(title = stringResource(SettingsPage.LANGUAGE.title), onBack = onBack, overlay = overlay) {

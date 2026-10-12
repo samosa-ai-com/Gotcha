@@ -12,6 +12,8 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.R
+import com.gotcha.audio.AndroidRecognizerInfo
+import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
@@ -797,8 +799,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
      * installed voice data without spinning up a second TtsEngine instance.
      *
      * Returns true when the requested language was actually used, false when
-     * the engine had to fall back to English because Android is missing the
-     * voice data. Returns null when TTS isn't configured at all.
+     * Android is missing the voice data and so nothing was spoken. Returns null
+     * when TTS isn't configured at all.
      */
     suspend fun testAndroidTts(language: Language): Boolean? {
         if (settings.ttsProvider == AudioProvider.NONE) return null
@@ -810,6 +812,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
             language = language
         )
         return ttsEngine.lastLanguageUnavailable != language
+    }
+
+    /**
+     * Android's built-in speech engines and whether they have [language], for
+     * the Speech and Language pages. Asks the shared TTS engine and the phone's
+     * default recognizer; either may answer unknown.
+     */
+    suspend fun androidSpeechStatus(language: Language): AndroidSpeechStatus {
+        val app = getApplication<Application>()
+        val ttsEngine = runner.ttsEngine
+        return AndroidSpeechStatus(
+            ttsEngine = ttsEngine.androidEngineName(),
+            ttsSupports = ttsEngine.androidSupports(language),
+            recognizer = AndroidRecognizerInfo.name(app),
+            recognizerSupports = AndroidRecognizerInfo.supports(app, language)
+        )
     }
 
     /** Start listening for speech input using the configured STT provider. */

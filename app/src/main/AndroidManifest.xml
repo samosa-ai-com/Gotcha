@@ -123,6 +123,14 @@
         <intent>
             <action android:name="android.intent.action.SHOW_ALARMS" />
         </intent>
+        <!-- Needed on API 30+ to name the phone's text-to-speech engine and speech
+             recognizer on the Speech page (#122). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <!-- Needed so compose_email can resolve an installed email app. -->
         <intent>
             <action android:name="android.intent.action.SENDTO" />

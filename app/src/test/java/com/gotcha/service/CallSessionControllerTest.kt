@@ -1,6 +1,7 @@
 package com.gotcha.service
 
 import android.app.Application
+import android.speech.tts.TextToSpeech
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.agent.MessageKind
 import com.gotcha.audio.AudioProvider
@@ -15,6 +16,7 @@ import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -24,6 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowTextToSpeech
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -297,6 +300,23 @@ class CallSessionControllerTest {
             controller.transcript.value.any {
                 it.kind == MessageKind.ERROR && it.text.contains("Couldn't start the microphone")
             }
+        )
+    }
+
+    @Test
+    fun `a missing Android voice is reported by name, once per call`() {
+        shadowOf(ShadowTextToSpeech.getLastTextToSpeechInstance()).onInitListener.onInit(TextToSpeech.SUCCESS)
+        val errors = mutableListOf<String>()
+        controller.onError = { errors.add(it) }
+
+        runBlocking { ttsEngine.speak("Привет", AudioProvider.ANDROID, language = Language.RUSSIAN) }
+        controller.onNarrationTtsFailed()
+        controller.onNarrationTtsFailed()
+
+        assertEquals("every reply fails the same way, so one notice is enough", 1, errors.size)
+        assertTrue(
+            "expected the missing-voice wording but got: ${errors.first()}",
+            errors.first().contains("No Russian voice is installed")
         )
     }
 

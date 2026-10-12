@@ -35,7 +35,7 @@
     <string name="language_test_voice">Stimme testen</string>
     <string name="language_test_voice_playing">Wird abgespielt…</string>
     <string name="language_voice_data_missing_title">Sprachdaten nicht installiert</string>
-    <string name="language_voice_data_missing_body">Dein Gerät hat keine integrierte Android-Stimme für %1$s. Der Text wurde stattdessen auf Englisch gesprochen. Installiere die Sprachdaten, um die Aussprache zu korrigieren.</string>
+    <string name="language_voice_data_missing_body">Dein Gerät hat keine integrierte Android-Stimme für %1$s, daher kann Gotcha %1$s nicht vorlesen. Installiere die Sprachdaten, um das zu beheben.</string>
     <string name="language_voice_data_install">Installieren</string>
     <string name="language_tts_settings_failed">Die Sprachausgabe-Einstellungen konnten nicht geöffnet werden.</string>
     <string name="language_reply_title">Antwortsprache der KI</string>
@@ -1228,6 +1228,15 @@
     <string name="speech_check_model_no_voice">Das Sprachausgabe-Modell %1$s hat keine Stimme für %2$s, daher liest %3$s die Antworten auf %2$s vor – das klingt womöglich nicht richtig. Wähle ein Modell mit einer Stimme für %2$s oder nutze Android Built-in.</string>
     <string name="speech_check_stt_forced">Die Transkription ist fest auf %1$s (%2$s) eingestellt, daher wird gesprochenes %3$s als %1$s transkribiert. Entferne die Festlegung, um der Sprachausgabe-Sprache zu folgen.</string>
     <string name="speech_check_stt_unlisted">Das Spracherkennungs-Modell %1$s führt %2$s nicht auf und transkribiert gesprochenes %2$s daher womöglich falsch. Wähle ein Modell, das es aufführt.</string>
+    <string name="speech_check_android_tts_missing">Die Android-Sprachausgabe hat keine Stimme für %1$s installiert, daher werden Antworten auf %1$s nicht vorgelesen. Installiere die Sprachdaten oder wähle eine Engine, die sie hat, in den Android-Einstellungen für die Sprachausgabe.</string>
+    <string name="speech_check_android_stt_unsupported">Die Android-Spracherkennung führt %1$s nicht auf und transkribiert gesprochenes %1$s daher womöglich falsch. Wähle in den Android-Einstellungen einen anderen Spracheingabedienst.</string>
+    <string name="speech_android_tts_engine">Sprachausgabe-Engine: %1$s</string>
+    <string name="speech_android_stt_engine">Spracherkennung: %1$s</string>
+    <string name="speech_android_engine_unknown">unbekannt</string>
+    <string name="speech_android_change_tts">Engine ändern</string>
+    <string name="speech_android_change_stt">Spracheingabe ändern</string>
+    <string name="speech_android_voice_input_settings_failed">Die Einstellungen für die Spracheingabe konnten nicht geöffnet werden.</string>
+    <string name="speech_voice_not_installed">Für die Android-Sprachausgabe ist keine Stimme für %1$s installiert, daher wurde dies nicht vorgelesen. Installiere sie mit „Stimme testen“ unter Einstellungen → Sprache.</string>
     <string name="referral_copied">Einladungscode kopiert: %1$s</string>
     <string name="referral_share_text">Probier Gotcha aus – mit meinem Einladungscode %1$s bekommst du Bonus-Credits: %2$s</string>
     <string name="referral_share_subject">Einladung zu Gotcha</string>

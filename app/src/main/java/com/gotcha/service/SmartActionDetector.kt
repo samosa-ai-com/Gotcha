@@ -1079,7 +1079,8 @@ object SmartActionDetector {
         val lang = languageName.lowercase()
         return when {
             lang.contains("english") -> {
-                val nonEnglishScripts = Regex("[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF\\u0600-\\u06FF\\u0400-\\u04FF]")
+                val nonEnglishScripts =
+                    Regex("[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF\\u0600-\\u06FF\\u0400-\\u04FF]")
                 if (nonEnglishScripts.containsMatchIn(clean)) return false
                 val nonEnglishDiacritics = Regex("[ñ¿¡áéíóúàèìòùâêîôûäöüßçœ]")
                 !nonEnglishDiacritics.containsMatchIn(clean.lowercase())

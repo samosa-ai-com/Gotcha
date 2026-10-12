@@ -53,7 +53,7 @@
     <string name="language_test_voice">Test voice</string>
     <string name="language_test_voice_playing">Playing…</string>
     <string name="language_voice_data_missing_title">Voice data not installed</string>
-    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s. It was spoken in English instead. Install the voice data to fix pronunciation.</string>
+    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s, so Gotcha can\'t read %1$s aloud. Install the voice data to fix this.</string>
     <string name="language_voice_data_install">Install</string>
     <string name="language_tts_settings_failed">Could not open text-to-speech settings.</string>
     <string name="language_reply_title">AI reply language</string>
@@ -1536,6 +1536,15 @@
     <string name="speech_check_model_no_voice">The text-to-speech model %1$s has no %2$s voice, so %2$s replies will be read by %3$s and may not sound right. Pick a model with a %2$s voice, or use Android Built-in.</string>
     <string name="speech_check_stt_forced">Transcription is forced to %1$s (%2$s), so %3$s speech will be transcribed as %1$s. Clear the override to follow the voice language.</string>
     <string name="speech_check_stt_unlisted">The speech-to-text model %1$s does not list %2$s, so it may transcribe %2$s speech wrongly. Pick a model that lists it.</string>
+    <string name="speech_check_android_tts_missing">Android text-to-speech has no %1$s voice installed, so %1$s replies won\'t be read aloud. Install the voice data, or pick an engine that has it, in Android\'s text-to-speech settings.</string>
+    <string name="speech_check_android_stt_unsupported">Android\'s speech recognizer doesn\'t list %1$s, so it may transcribe %1$s speech wrongly. Pick another voice input service in Android\'s settings.</string>
+    <string name="speech_android_tts_engine">Text-to-speech engine: %1$s</string>
+    <string name="speech_android_stt_engine">Speech recognizer: %1$s</string>
+    <string name="speech_android_engine_unknown">unknown</string>
+    <string name="speech_android_change_tts">Change engine</string>
+    <string name="speech_android_change_stt">Change voice input</string>
+    <string name="speech_android_voice_input_settings_failed">Could not open voice input settings.</string>
+    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Language.</string>
 
     <!-- Referral sharing -->
     <string name="referral_copied">Copied invite code: %1$s</string>

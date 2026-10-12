@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Locale
 
 /**
  * Text-to-Speech engine supporting two providers:
@@ -52,7 +51,12 @@ class TtsEngine(
     var apiTtsModels: List<AudioModel> = emptyList()
         private set
 
-    /** Set when [Language] has no installed Android TTS voice data — read by Settings for the install prompt. */
+    /**
+     * Set when the last [speak] used Android and found no installed voice for
+     * its [Language], so said nothing; null after any other speak. Read by
+     * Settings for the install prompt and by callers to say why nothing was
+     * read aloud.
+     */
     var lastLanguageUnavailable: Language? = null
         private set
 
@@ -95,6 +99,7 @@ class TtsEngine(
         voice: String = "",
         language: Language = Language.ENGLISH
     ): Boolean = withContext(Dispatchers.IO) {
+        lastLanguageUnavailable = null
         val sanitized = SpeechTextSanitizer.sanitize(text)
         if (sanitized.isBlank()) return@withContext true
         try {
@@ -112,11 +117,7 @@ class TtsEngine(
     }
 
     private suspend fun speakAndroid(text: String, language: Language): Boolean {
-        val tts = androidTts ?: return false
-        if (!androidReady) {
-            ttsInitGate.await()
-        }
-        if (!androidReady) return false
+        val tts = readyAndroidTts() ?: return false
 
         val gate = CompletableDeferred<Boolean>()
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -128,17 +129,43 @@ class TtsEngine(
             // and a suspended speak() would hang (e.g. pausing a voice call).
             override fun onStop(utteranceId: String?, interrupted: Boolean) { gate.complete(false) }
         })
-        val res = tts.setLanguage(language.locale)
-        val ok = res != TextToSpeech.LANG_MISSING_DATA && res != TextToSpeech.LANG_NOT_SUPPORTED
-        if (ok) {
-            lastLanguageUnavailable = null
-        } else {
+        // A missing voice says nothing rather than reading the text with an
+        // English one, which mangles it (#122); callers report why.
+        if (!isAvailable(tts.setLanguage(language.locale))) {
             lastLanguageUnavailable = language
-            tts.setLanguage(Locale.US)
+            return false
         }
         val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_utterance")
         return if (result == TextToSpeech.SUCCESS) gate.await() else false
     }
+
+    /**
+     * Whether Android's text-to-speech has a voice installed for [language],
+     * or null when the engine isn't available to ask.
+     */
+    suspend fun androidSupports(language: Language): Boolean? {
+        val tts = readyAndroidTts() ?: return null
+        return isAvailable(tts.isLanguageAvailable(language.locale))
+    }
+
+    /**
+     * The name of the engine Android's text-to-speech uses, or null when the
+     * engine isn't available to ask.
+     */
+    suspend fun androidEngineName(): String? {
+        val tts = readyAndroidTts() ?: return null
+        val engine = tts.defaultEngine ?: return null
+        return tts.engines.firstOrNull { it.name == engine }?.label ?: engine
+    }
+
+    private suspend fun readyAndroidTts(): TextToSpeech? {
+        val tts = androidTts ?: return null
+        if (!androidReady) ttsInitGate.await()
+        return tts.takeIf { androidReady }
+    }
+
+    private fun isAvailable(result: Int): Boolean =
+        result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
 
     private suspend fun speakApi(text: String, model: String, voice: String, language: Language): Boolean {
         val api = audioApi ?: return false

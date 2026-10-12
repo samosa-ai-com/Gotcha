@@ -35,7 +35,7 @@
     <string name="language_test_voice">Probar voz</string>
     <string name="language_test_voice_playing">Reproduciendo…</string>
     <string name="language_voice_data_missing_title">Datos de voz no instalados</string>
-    <string name="language_voice_data_missing_body">Tu dispositivo no tiene la voz integrada de Android para %1$s. Se ha leído en inglés. Instala los datos de voz para corregir la pronunciación.</string>
+    <string name="language_voice_data_missing_body">Tu dispositivo no tiene la voz integrada de Android para %1$s, así que Gotcha no puede leer en voz alta en %1$s. Instala los datos de voz para solucionarlo.</string>
     <string name="language_voice_data_install">Instalar</string>
     <string name="language_tts_settings_failed">No se pudieron abrir los ajustes de texto a voz.</string>
     <string name="language_reply_title">Idioma de respuesta de la IA</string>
@@ -1228,6 +1228,15 @@
     <string name="speech_check_model_no_voice">El modelo de texto a voz %1$s no tiene voz en %2$s, así que las respuestas en %2$s las leerá %3$s y puede que no suenen bien. Elige un modelo con voz en %2$s o usa Android Built-in.</string>
     <string name="speech_check_stt_forced">La transcripción está forzada a %1$s (%2$s), así que lo que digas en %3$s se transcribirá como %1$s. Quita la opción forzada para seguir el idioma de voz.</string>
     <string name="speech_check_stt_unlisted">El modelo de voz a texto %1$s no incluye %2$s, así que podría transcribir mal lo que digas en %2$s. Elige un modelo que lo incluya.</string>
+    <string name="speech_check_android_tts_missing">El texto a voz de Android no tiene instalada una voz en %1$s, así que las respuestas en %1$s no se leerán en voz alta. Instala los datos de voz, o elige un motor que la tenga, en los ajustes de texto a voz de Android.</string>
+    <string name="speech_check_android_stt_unsupported">El reconocimiento de voz de Android no incluye %1$s, así que podría transcribir mal lo que digas en %1$s. Elige otro servicio de entrada de voz en los ajustes de Android.</string>
+    <string name="speech_android_tts_engine">Motor de texto a voz: %1$s</string>
+    <string name="speech_android_stt_engine">Reconocimiento de voz: %1$s</string>
+    <string name="speech_android_engine_unknown">desconocido</string>
+    <string name="speech_android_change_tts">Cambiar motor</string>
+    <string name="speech_android_change_stt">Cambiar entrada de voz</string>
+    <string name="speech_android_voice_input_settings_failed">No se pudieron abrir los ajustes de entrada de voz.</string>
+    <string name="speech_voice_not_installed">No hay una voz en %1$s instalada para el texto a voz de Android, así que no se ha leído en voz alta. Instálala con Probar voz en Ajustes → Idioma.</string>
     <string name="referral_copied">Código de invitación copiado: %1$s</string>
     <string name="referral_share_text">Prueba Gotcha: usa mi código de invitación %1$s para conseguir créditos extra: %2$s</string>
     <string name="referral_share_subject">Invitación a Gotcha</string>

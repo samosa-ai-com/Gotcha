@@ -27,6 +27,7 @@ import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
+import com.gotcha.ui.nameRes
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CoroutineScope
@@ -900,13 +901,17 @@ class AssistiveBallService : Service() {
         }
         ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         scope.launch {
-            ttsEngine.speak(
+            val spoke = ttsEngine.speak(
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
                 voice = s.ttsVoice,
                 language = s.effectiveVoiceLanguage
             )
+            val missing = ttsEngine.lastLanguageUnavailable
+            if (!spoke && missing != null) {
+                overlay.showError(getString(R.string.speech_voice_not_installed, getString(missing.nameRes)))
+            }
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
         }

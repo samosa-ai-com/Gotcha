@@ -35,7 +35,7 @@
     <string name="language_test_voice">试听声音</string>
     <string name="language_test_voice_playing">正在播放…</string>
     <string name="language_voice_data_missing_title">未安装语音数据</string>
-    <string name="language_voice_data_missing_body">你的设备没有 %1$s 的 Android 内置语音，因此使用了英语语音。请安装语音数据以纠正发音。</string>
+    <string name="language_voice_data_missing_body">你的设备没有 %1$s 的 Android 内置语音，因此 Gotcha 无法朗读%1$s。请安装语音数据。</string>
     <string name="language_voice_data_install">安装</string>
     <string name="language_tts_settings_failed">无法打开文字转语音设置。</string>
     <string name="language_reply_title">AI 回复语言</string>
@@ -1228,6 +1228,15 @@
     <string name="speech_check_model_no_voice">文字转语音模型 %1$s 没有%2$s声音，因此%2$s回复将由%3$s朗读，听起来可能不对。请选择有%2$s声音的模型，或使用 Android Built-in。</string>
     <string name="speech_check_stt_forced">转写被强制设为%1$s（%2$s），因此你说的%3$s会被转写为%1$s。移除强制设置即可跟随语音语言。</string>
     <string name="speech_check_stt_unlisted">转写模型 %1$s 未列出%2$s，因此可能无法正确转写你说的%2$s。请选择列出该语言的模型。</string>
+    <string name="speech_check_android_tts_missing">Android 文字转语音没有安装 %1$s 语音，因此%1$s回复不会被朗读。请在 Android 的文字转语音设置中安装语音数据，或选择带有该语音的引擎。</string>
+    <string name="speech_check_android_stt_unsupported">Android 语音识别未列出%1$s，因此可能无法正确转写你说的%1$s。请在 Android 设置中选择其他语音输入服务。</string>
+    <string name="speech_android_tts_engine">文字转语音引擎：%1$s</string>
+    <string name="speech_android_stt_engine">语音识别：%1$s</string>
+    <string name="speech_android_engine_unknown">未知</string>
+    <string name="speech_android_change_tts">更换引擎</string>
+    <string name="speech_android_change_stt">更换语音输入</string>
+    <string name="speech_android_voice_input_settings_failed">无法打开语音输入设置。</string>
+    <string name="speech_voice_not_installed">Android 文字转语音没有安装 %1$s 语音，因此未朗读此内容。请在 设置 → 语言 中通过“试听声音”安装。</string>
     <string name="referral_copied">邀请码已复制：%1$s</string>
     <string name="referral_share_text">试试 Gotcha：使用我的邀请码 %1$s 获得奖励积分：%2$s</string>
     <string name="referral_share_subject">Gotcha 邀请</string>

@@ -2,6 +2,7 @@ package com.gotcha.agent
 
 import android.app.Application
 import android.app.Notification
+import android.widget.Toast
 import com.gotcha.GotchaApp
 import com.gotcha.R
 import com.gotcha.audio.AudioModel
@@ -13,6 +14,7 @@ import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.DocumentPart
@@ -34,6 +36,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.ui.ForegroundControlIndicator
+import com.gotcha.ui.nameRes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -746,6 +749,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
         setState { it.copy(isConfigured = false) }
     }
 
+    /** The last language whose missing Android voice was toasted, so auto-read doesn't repeat it every reply. */
+    private var voiceMissingToasted: Language? = null
+
     /** Speak the given text aloud using the configured TTS provider. */
     fun speak(text: String) {
         if (settings.ttsProvider == AudioProvider.NONE) return
@@ -758,13 +764,22 @@ class ChatRunner(private val app: Application) : AgentEvents {
                     .firstOrNull { it.id == settings.ttsApiModel }
                     ?.defaultVoiceFor(language) ?: "af_heart"
                 val voice = settings.ttsVoice.ifBlank { defaultVoice }
-                ttsEngine.speak(
+                val spoke = ttsEngine.speak(
                     text = text,
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
                     voice = voice,
                     language = language
                 )
+                val missing = ttsEngine.lastLanguageUnavailable
+                if (!spoke && missing != null && missing != voiceMissingToasted) {
+                    voiceMissingToasted = missing
+                    Toast.makeText(
+                        app,
+                        app.getString(R.string.speech_voice_not_installed, app.getString(missing.nameRes)),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             } finally {
                 setState { it.copy(isSpeaking = false) }
             }
