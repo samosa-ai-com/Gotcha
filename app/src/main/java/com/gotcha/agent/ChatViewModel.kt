@@ -839,7 +839,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     return
                 }
                 sttEngine.configureAndroid(settings.androidSttService, settings.androidSttOnDeviceOnly)
-                val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage)
+                // A failure no retry fixes ends listening at once, with the reason.
+                val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage) { reason ->
+                    _uiState.update { it.copy(isListening = false) }
+                    appendUi(MessageKind.ERROR, reason)
+                }
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
@@ -910,8 +914,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     }
                     provider == AudioProvider.ANDROID -> {
                         transcript = sttEngine.stopAndroidListening()
-                        val failure = sttEngine.androidFailure
-                        if (transcript.isBlank() && failure != null) appendUi(MessageKind.ERROR, failure)
                     }
                 }
 

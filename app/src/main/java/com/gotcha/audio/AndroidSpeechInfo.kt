@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.speech.RecognitionService
 import android.speech.RecognitionSupport
@@ -33,6 +35,7 @@ object AndroidSpeechInfo {
     /** Secure setting naming the default recognizer; not public API but readable. */
     private const val DEFAULT_RECOGNIZER_SETTING = "voice_recognition_service"
     private const val PROBE_TIMEOUT_MS = 5000L
+    private const val TAG_TIMEOUT_MS = 1500L
 
     suspend fun probe(context: Context, query: AndroidSpeechQuery): AndroidSpeechStatus {
         val tts = probeTts(context, query.ttsEngine, query.language)
@@ -249,6 +252,48 @@ object AndroidSpeechInfo {
             if (cont.isActive) cont.resume(null)
         }
     }
+
+    /**
+     * Asks [recognizer] which variant of [language] it has installed on the
+     * phone, for [onResult] on the main thread: `en-IN` on a phone whose
+     * offline English is Indian, though [Language.bcp47] says `en-US`. Null
+     * before Android 13, when nothing is installed, or when the recognizer
+     * can't say; the caller then asks for [Language.bcp47]. Main thread only.
+     */
+    fun installedTag(context: Context, recognizer: SpeechRecognizer, language: Language, onResult: (String?) -> Unit) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return onResult(null)
+        var answered = false
+        val answer = { tag: String? ->
+            if (!answered) {
+                answered = true
+                onResult(tag)
+            }
+        }
+        // Some recognizers never call back; listening must not wait on them.
+        Handler(Looper.getMainLooper()).postDelayed({ answer(null) }, TAG_TIMEOUT_MS)
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        try {
+            recognizer.checkRecognitionSupport(
+                intent,
+                context.mainExecutor,
+                object : RecognitionSupportCallback {
+                    override fun onSupportResult(support: RecognitionSupport) {
+                        answer(pickInstalledTag(language, support.installedOnDeviceLanguages))
+                    }
+
+                    override fun onError(error: Int) = answer(null)
+                }
+            )
+        } catch (_: Exception) {
+            answer(null)
+        }
+    }
+
+    /** [language] as installed: its own tag when listed, else the first variant of it, else null. */
+    internal fun pickInstalledTag(language: Language, installed: List<String>): String? =
+        installed.firstOrNull { it.replace('_', '-').equals(language.bcp47, ignoreCase = true) }
+            ?: installed.firstOrNull(language::matchesCode)
 
     /**
      * The message for a recognizer [error] no retry will fix, or null. Without

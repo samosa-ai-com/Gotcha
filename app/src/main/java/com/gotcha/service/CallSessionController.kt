@@ -454,7 +454,14 @@ class CallSessionController(
         sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
         val started = sttEngine.startListening(
             s.sttProvider,
-            currentLanguage()
+            currentLanguage(),
+            onAndroidFailure = { reason ->
+                // A failure no retry fixes: say so now and hand the mic back.
+                if (_state.value == CallState.LISTENING) {
+                    _state.value = CallState.READY
+                    reportError(reason)
+                }
+            }
         )
         if (started) {
             _state.value = CallState.LISTENING

@@ -825,7 +825,12 @@ class AssistiveBallService : Service() {
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening(s.effectiveVoiceLanguage)) {
+                val started = sttEngine.startAndroidListening(s.effectiveVoiceLanguage) { reason ->
+                    panelVoiceActive = false
+                    screenCompanionPanel.setListening(false)
+                    overlay.showError(reason)
+                }
+                if (started) {
                     panelVoiceActive = true
                 } else {
                     overlay.showError(

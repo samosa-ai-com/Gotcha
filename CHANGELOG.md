@@ -23,7 +23,10 @@ All notable changes to Gotcha are documented here.
   Android 13 and later). On Android 12 and later, a
   new "On-device only" switch keeps voice input off the network: if the phone
   can't recognise the voice language on the device, voice input stops with a
-  message instead of going online. When the phone has no voice for the voice
+  message instead of going online. On Android 13 and later Gotcha asks for the
+  variant of the language the phone has installed, so a phone with only Indian
+  English offline is asked for `en-IN`, not `en-US`. When a recognizer can't
+  take the language at all, voice input stops at once and says why. When the phone has no voice for the voice
   language, Gotcha no longer reads the reply with an English voice: it stays
   silent and says the voice is missing, without repeating it on every reply.
   Settings → Language warns about all of these too.

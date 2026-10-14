@@ -19,9 +19,11 @@ import com.gotcha.i18n.Language
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlin.coroutines.resume
 
 /** Result of a single hands-free listening turn ([SttEngine.listenOnceAndroid]). */
 sealed class SttOutcome {
@@ -41,6 +43,7 @@ sealed class SttOutcome {
  * - API provider: records audio via MediaRecorder, transcribes via API
  * - Android provider: uses SpeechRecognizer (live recognition)
  */
+@Suppress("TooManyFunctions")
 class SttEngine(
     private val context: Context,
     apiBaseUrl: String = "",
@@ -93,17 +96,66 @@ class SttEngine(
     var androidFailure: String? = null
         private set
 
+    /**
+     * Push-to-talk keeps its recognizer between sessions; set when
+     * [configureAndroid] changes the choice so the next session makes a new one.
+     */
+    @Volatile
+    private var recognizerStale = false
+
+    /** The language tag this push-to-talk session asks for, once known; see [listenWithInstalledTag]. */
+    private var sessionTag: String? = null
+
+    /** Told at once when this push-to-talk session fails for good; see [startAndroidListening]. */
+    private var sessionFailure: ((String) -> Unit)? = null
+
     /** Choose Android Built-in's recognizer: [service] (blank = the phone's), or the on-device one. */
     fun configureAndroid(service: String, onDeviceOnly: Boolean) {
+        if (service == androidService && onDeviceOnly == androidOnDeviceOnly) return
         androidService = service
         androidOnDeviceOnly = onDeviceOnly
+        recognizerStale = true
     }
 
-    /** The recognizer [configureAndroid] chose, or null with [androidFailure] set. Main thread only. */
-    private fun createAndroidRecognizer(): SpeechRecognizer? {
-        val recognizer = AndroidSpeechInfo.createRecognizer(context, androidService, androidOnDeviceOnly)
-        if (recognizer == null) androidFailure = context.getString(R.string.stt_on_device_unavailable)
-        return recognizer
+    /** The recognizer [configureAndroid] chose, or null when on-device recognition isn't there. Main thread only. */
+    private fun createAndroidRecognizer(): SpeechRecognizer? =
+        AndroidSpeechInfo.createRecognizer(context, androidService, androidOnDeviceOnly)
+
+    /**
+     * Start [recognizer] on the variant of [language] it has installed, so a
+     * phone whose offline English is Indian gets `en-IN` rather than the
+     * `en-US` it can't recognise (#122). Asks once per push-to-talk session;
+     * [start] runs on the main thread.
+     */
+    private fun listenWithInstalledTag(recognizer: SpeechRecognizer, language: Language, start: (String) -> Unit) {
+        sessionTag?.let { return start(it) }
+        AndroidSpeechInfo.installedTag(context, recognizer, language) { tag ->
+            val chosen = tag ?: language.bcp47
+            sessionTag = chosen
+            start(chosen)
+        }
+    }
+
+    /**
+     * End push-to-talk on a failure no retry will fix and say why now, not when
+     * the user next taps Stop: the mic would look like it was still listening.
+     * Main thread only.
+     */
+    private fun failSession(message: String) {
+        isContinuousListening = false
+        try {
+            currentRecognizer?.destroy()
+        } catch (_: Exception) {}
+        currentRecognizer = null
+        unmuteBeep()
+        listenGate?.complete(buildFinalTranscript())
+        val notify = sessionFailure
+        if (notify != null) {
+            androidFailure = null
+            notify(message)
+        } else {
+            androidFailure = message
+        }
     }
 
     /** The models available from the API (empty if provider is Android). */
@@ -296,10 +348,19 @@ class SttEngine(
 
     // ---- Android STT (SpeechRecognizer) ----
 
-    /** Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening(). */
-    fun startAndroidListening(language: Language = Language.ENGLISH): Boolean {
+    /**
+     * Start Android SpeechRecognizer. User speaks, then calls stopAndroidListening().
+     * [onFailure] hears at once, on the main thread, when the session fails in a
+     * way the user has to fix; without it the reason waits in [androidFailure].
+     */
+    fun startAndroidListening(
+        language: Language = Language.ENGLISH,
+        onFailure: ((String) -> Unit)? = null
+    ): Boolean {
         if (isContinuousListening) return false
         androidFailure = null
+        sessionFailure = onFailure
+        sessionTag = null
         if (androidOnDeviceOnly && !AndroidSpeechInfo.hasOnDeviceRecognition(context)) {
             androidFailure = context.getString(R.string.stt_on_device_unavailable)
             return false
@@ -322,13 +383,18 @@ class SttEngine(
             return
         }
         currentPartialResult = "" // Reset for new segment
+        if (recognizerStale) {
+            recognizerStale = false
+            try {
+                currentRecognizer?.destroy()
+            } catch (_: Exception) {}
+            currentRecognizer = null
+        }
         var recognizer = currentRecognizer
         if (recognizer == null) {
             val newRec = createAndroidRecognizer()
             if (newRec == null) {
-                isContinuousListening = false
-                unmuteBeep()
-                listenGate?.complete(buildFinalTranscript())
+                failSession(context.getString(R.string.stt_on_device_unavailable))
                 return
             }
             currentRecognizer = newRec
@@ -343,9 +409,9 @@ class SttEngine(
                 override fun onEndOfSpeech() { GotchaLog.d(TAG) { "onEndOfSpeech" } }
                 override fun onError(error: Int) {
                     GotchaLog.d(TAG) { "onError: $error" }
-                    AndroidSpeechInfo.fatalError(context, error, currentLanguage, androidOnDeviceOnly)?.let { message ->
-                        androidFailure = message
-                        isContinuousListening = false
+                    AndroidSpeechInfo.fatalError(context, error, currentLanguage, androidOnDeviceOnly)?.let {
+                        failSession(it)
+                        return
                     }
                     if (error == SpeechRecognizer.ERROR_CLIENT ||
                         error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
@@ -411,9 +477,17 @@ class SttEngine(
                 }
             })
         }
+        val active = recognizer ?: return
+        listenWithInstalledTag(active, currentLanguage) { tag ->
+            // Stopped, or replaced, while the recognizer was asked about its languages.
+            if (isContinuousListening && currentRecognizer === active) startCycle(active, tag)
+        }
+    }
+
+    private fun startCycle(recognizer: SpeechRecognizer, tag: String) {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage.bcp47)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
 
             // Prevent auto-stopping on pauses to mimic API-based continuous recording
@@ -427,7 +501,7 @@ class SttEngine(
         }
         try {
             muteBeep()
-            recognizer?.startListening(intent)
+            recognizer.startListening(intent)
         } catch (_: Exception) {
             unmuteBeep()
             isContinuousListening = false
@@ -499,6 +573,7 @@ class SttEngine(
             try {
                 val recognizer = createAndroidRecognizer()
                 if (recognizer == null) {
+                    androidFailure = context.getString(R.string.stt_on_device_unavailable)
                     gate.complete(SttOutcome.Error(SpeechRecognizer.ERROR_CLIENT))
                     return@withContext
                 }
@@ -530,9 +605,12 @@ class SttEngine(
                     override fun onSegmentResults(segmentResults: Bundle) {}
                     override fun onEndOfSegmentedSession() {}
                 })
+                val tag = suspendCancellableCoroutine { cont ->
+                    AndroidSpeechInfo.installedTag(context, recognizer, language) { if (cont.isActive) cont.resume(it) }
+                } ?: language.bcp47
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.bcp47)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag)
                     // Best-effort end-of-speech hint; the platform may ignore it.
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, silenceTimeoutMs)
                 }
@@ -552,10 +630,17 @@ class SttEngine(
 
     // ---- Provider-agnostic PTT ----
 
-    /** Start listening with the current provider. Returns false on failure. */
-    fun startListening(provider: AudioProvider, language: Language = Language.ENGLISH): Boolean {
+    /**
+     * Start listening with the current provider. Returns false on failure.
+     * [onAndroidFailure] is passed to [startAndroidListening].
+     */
+    fun startListening(
+        provider: AudioProvider,
+        language: Language = Language.ENGLISH,
+        onAndroidFailure: ((String) -> Unit)? = null
+    ): Boolean {
         return when {
-            provider == AudioProvider.ANDROID -> startAndroidListening(language)
+            provider == AudioProvider.ANDROID -> startAndroidListening(language, onAndroidFailure)
             provider.isApiBased() -> startRecording()
             else -> false
         }

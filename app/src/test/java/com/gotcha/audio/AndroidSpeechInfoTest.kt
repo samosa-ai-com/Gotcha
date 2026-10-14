@@ -80,6 +80,14 @@ class AndroidSpeechInfoTest {
     }
 
     @Test
+    fun `the installed variant of a language is picked, its own tag first`() {
+        assertEquals("en-US", AndroidSpeechInfo.pickInstalledTag(Language.ENGLISH, listOf("en-IN", "en-US")))
+        assertEquals("en-IN", AndroidSpeechInfo.pickInstalledTag(Language.ENGLISH, listOf("de-DE", "en-IN")))
+        assertEquals("pt_BR", AndroidSpeechInfo.pickInstalledTag(Language.PORTUGUESE, listOf("pt_BR")))
+        assertNull(AndroidSpeechInfo.pickInstalledTag(Language.RUSSIAN, listOf("en-IN")))
+    }
+
+    @Test
     fun `an online-only recognizer doesn't count when on-device only is on`() {
         val online = AndroidSpeechStatus(recognizerAvailability = SpeechAvailability.ONLINE)
         assertEquals(true, online.recognizerSupports)
