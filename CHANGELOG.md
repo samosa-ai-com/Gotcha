@@ -3,6 +3,33 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **Russian voice and replies, and roubles** (#122). Russian can now be picked
+  as the voice language and the reply language: Android speech is asked for
+  `ru-RU` and API speech-to-text for `ru`, and the short phrases Gotcha speaks
+  itself are in Russian. Gotcha's own screens stay in English. Personal Info
+  offers RUB as the preferred currency, and prices in roubles, such as
+  `1 234,56 ₽` or `990 руб.`, are found on screen and converted with the
+  right amount. Saved language and currency choices are kept.
+
+### Changed
+- **Choose Android Built-in's speech engines, and see what runs where** (#122).
+  With Android Built-in selected, the Speech page lets you pick the
+  text-to-speech engine, its voice for the voice language and the speech
+  recognizer, each defaulting to the phone's own choice. Voices are marked as
+  on the phone, online or not downloaded, and a line under each section says
+  whether the voice language is spoken or recognised on the phone, needs the
+  internet, needs a download, or isn't supported (for the recognizer, on
+  Android 13 and later). On Android 12 and later, a
+  new "On-device only" switch keeps voice input off the network: if the phone
+  can't recognise the voice language on the device, voice input stops with a
+  message instead of going online. On Android 13 and later Gotcha asks for the
+  variant of the language the phone has installed, so a phone with only Indian
+  English offline is asked for `en-IN`, not `en-US`. When a recognizer can't
+  take the language at all, voice input stops at once and says why. When the phone has no voice for the voice
+  language, Gotcha no longer reads the reply with an English voice: it stays
+  silent and says the voice is missing, without repeating it on every reply.
+  Settings → Language warns about all of these too.
 
 ## [1.3.0]
 ### Added

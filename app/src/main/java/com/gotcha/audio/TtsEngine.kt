@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Locale
 
 /**
  * Text-to-Speech engine supporting two providers:
@@ -33,8 +32,15 @@ class TtsEngine(
         null
     }
     private var androidTts: TextToSpeech? = null
+
+    @Volatile
     private var androidReady = false
+
+    @Volatile
     private var ttsInitGate = CompletableDeferred<Boolean>()
+
+    /** The engine [androidTts] was bound to ask for; blank = the phone's preferred one. */
+    private var androidEngine = ""
 
     @Volatile
     private var currentTrack: AudioTrack? = null
@@ -52,18 +58,39 @@ class TtsEngine(
     var apiTtsModels: List<AudioModel> = emptyList()
         private set
 
-    /** Set when [Language] has no installed Android TTS voice data — read by Settings for the install prompt. */
+    /**
+     * Set when the last [speak] used Android and found no installed voice for
+     * its [Language], so said nothing; null after any other speak. Read by
+     * Settings for the install prompt and by callers to say why nothing was
+     * read aloud.
+     */
     var lastLanguageUnavailable: Language? = null
         private set
 
     init {
-        try {
-            androidTts = TextToSpeech(context) { status ->
-                androidReady = (status == TextToSpeech.SUCCESS)
-                ttsInitGate.complete(androidReady)
-            }
+        bindAndroidTts("")
+    }
+
+    /** Bind Android text-to-speech to [engine] (blank = the phone's), dropping any earlier binding. */
+    private fun bindAndroidTts(engine: String) {
+        androidTts?.shutdown()
+        androidReady = false
+        val gate = CompletableDeferred<Boolean>()
+        ttsInitGate = gate
+        androidEngine = engine
+        androidTts = try {
+            TextToSpeech(
+                context,
+                { status ->
+                    // A binding replaced before it finished must not mark the new one ready.
+                    if (gate === ttsInitGate) androidReady = status == TextToSpeech.SUCCESS
+                    gate.complete(status == TextToSpeech.SUCCESS)
+                },
+                engine.ifBlank { null }
+            )
         } catch (_: Exception) {
-            ttsInitGate.complete(false)
+            gate.complete(false)
+            null
         }
     }
 
@@ -86,6 +113,8 @@ class TtsEngine(
 
     /**
      * Speak [text] using the given [provider] and optionally a specific [apiModel].
+     * [voice] is the API voice; [androidEngine] and [androidVoice] choose Android
+     * Built-in's engine and voice (blank = the phone's and the engine's own).
      * Returns true if speech was started successfully.
      */
     suspend fun speak(
@@ -93,14 +122,17 @@ class TtsEngine(
         provider: AudioProvider = AudioProvider.ANDROID,
         apiModel: String = "",
         voice: String = "",
-        language: Language = Language.ENGLISH
+        language: Language = Language.ENGLISH,
+        androidEngine: String = "",
+        androidVoice: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
+        lastLanguageUnavailable = null
         val sanitized = SpeechTextSanitizer.sanitize(text)
         if (sanitized.isBlank()) return@withContext true
         try {
             _isSpeaking.value = true
             when {
-                provider == AudioProvider.ANDROID -> speakAndroid(sanitized, language)
+                provider == AudioProvider.ANDROID -> speakAndroid(sanitized, language, androidEngine, androidVoice)
                 provider.isApiBased() -> speakApi(sanitized, apiModel, voice, language)
                 else -> false
             }
@@ -111,12 +143,9 @@ class TtsEngine(
         }
     }
 
-    private suspend fun speakAndroid(text: String, language: Language): Boolean {
-        val tts = androidTts ?: return false
-        if (!androidReady) {
-            ttsInitGate.await()
-        }
-        if (!androidReady) return false
+    private suspend fun speakAndroid(text: String, language: Language, engine: String, voiceName: String): Boolean {
+        if (engine != androidEngine) bindAndroidTts(engine)
+        val tts = readyAndroidTts() ?: return false
 
         val gate = CompletableDeferred<Boolean>()
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -128,17 +157,30 @@ class TtsEngine(
             // and a suspended speak() would hang (e.g. pausing a voice call).
             override fun onStop(utteranceId: String?, interrupted: Boolean) { gate.complete(false) }
         })
-        val res = tts.setLanguage(language.locale)
-        val ok = res != TextToSpeech.LANG_MISSING_DATA && res != TextToSpeech.LANG_NOT_SUPPORTED
-        if (ok) {
-            lastLanguageUnavailable = null
-        } else {
+        // A missing voice says nothing rather than reading the text with an
+        // English one, which mangles it (#122); callers report why.
+        if (!isAvailable(tts.setLanguage(language.locale))) {
             lastLanguageUnavailable = language
-            tts.setLanguage(Locale.US)
+            return false
+        }
+        // A voice picked for another language is left for when that one is spoken.
+        if (voiceName.isNotBlank()) {
+            tts.voices.orEmpty()
+                .firstOrNull { it.name == voiceName && language.matchesCode(it.locale.toLanguageTag()) }
+                ?.let(tts::setVoice)
         }
         val result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_utterance")
         return if (result == TextToSpeech.SUCCESS) gate.await() else false
     }
+
+    private suspend fun readyAndroidTts(): TextToSpeech? {
+        val tts = androidTts ?: return null
+        if (!androidReady) ttsInitGate.await()
+        return tts.takeIf { androidReady }
+    }
+
+    private fun isAvailable(result: Int): Boolean =
+        result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
 
     private suspend fun speakApi(text: String, model: String, voice: String, language: Language): Boolean {
         val api = audioApi ?: return false

@@ -36,6 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechQuery
+import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
@@ -107,6 +109,8 @@ fun SettingsScreen(
      * (synchronous, always-true) lets callers ignore voice testing.
      */
     onTestVoice: suspend (Language) -> Boolean? = { null },
+    /** Android Built-in's engines and what they can do for a language, for the Language and Speech pages. */
+    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() },
     packageName: String = "",
     /**
      * Whether the assistive-ball service is currently running. Not read from
@@ -197,7 +201,8 @@ fun SettingsScreen(
                     onSave = onSave,
                     onBack = backToHome,
                     onTestVoice = onTestVoice,
-                    onRefreshAudioModels = onRefreshAudioModels
+                    onRefreshAudioModels = onRefreshAudioModels,
+                    onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
                 SettingsPage.AI -> AiHubScreen(
                     onBack = backToHome,
@@ -225,7 +230,8 @@ fun SettingsScreen(
                     onSamosaSignOut = onSamosaSignOut,
                     onFetchSamosaProfile = onFetchSamosaProfile,
                     onClaimReferral = onClaimReferral,
-                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) },
+                    onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
                 SettingsPage.PERMISSIONS -> PermissionsScreen(
                     packageName = packageName,

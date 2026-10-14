@@ -22,8 +22,10 @@ import com.gotcha.ui.nameRes
  *  - **Speech to text.** The model is asked for the transcription override, or
  *    else the voice language. A model that does not list that language may
  *    transcribe it wrongly.
- *  - **Android built-in.** No model to compare; "Test voice" on the Language
- *    page reports missing voice data and falls back to English.
+ *  - **Android built-in.** No model to compare, so the caller asks Android
+ *    whether the phone's engine has the language (`androidSupports`). A text-to-
+ *    speech engine without the voice says nothing rather than reading the text
+ *    with an English voice (#122); a recognizer without it may mistranscribe.
  *
  * Only what the server publishes is judged: a model that lists no languages,
  * and no voices with one, gets no warning, because nothing is known about it.
@@ -36,6 +38,8 @@ object SpeechLanguageCheck {
     /**
      * Why [language] will not be spoken properly by text-to-speech [modelId] and
      * [voice] (blank = Gotcha picks one), or null when it will or nothing is known.
+     * For [AudioProvider.ANDROID], [androidSupports] says whether the phone's
+     * engine has a voice for [language] (null = unknown).
      */
     fun ttsWarning(
         provider: AudioProvider,
@@ -43,8 +47,16 @@ object SpeechLanguageCheck {
         voice: String,
         models: List<AudioModel>,
         language: Language,
-        strings: StringLookup
+        strings: StringLookup,
+        androidSupports: Boolean? = null
     ): String? {
+        if (provider == AudioProvider.ANDROID) {
+            return if (androidSupports == false) {
+                strings(R.string.speech_check_android_tts_missing, strings(language.nameRes))
+            } else {
+                null
+            }
+        }
         if (!provider.isApiBased()) return null
         val model = models.firstOrNull { it.id == modelId.trim() } ?: return null
         val name = strings(language.nameRes)
@@ -73,7 +85,10 @@ object SpeechLanguageCheck {
     /**
      * Why speech in [language] will not be transcribed properly by speech-to-text
      * [modelId] with transcription [override] (blank = follow [language]), or an
-     * empty list when it will or nothing is known.
+     * empty list when it will or nothing is known. For [AudioProvider.ANDROID],
+     * [androidSupports] says whether the phone's recognizer can take [language]
+     * (null = unknown), on the device when [androidOnDeviceOnly]; the override
+     * only applies to API providers.
      */
     fun sttWarnings(
         provider: AudioProvider,
@@ -81,8 +96,19 @@ object SpeechLanguageCheck {
         override: String,
         models: List<AudioModel>,
         language: Language,
-        strings: StringLookup
+        strings: StringLookup,
+        androidSupports: Boolean? = null,
+        androidOnDeviceOnly: Boolean = false
     ): List<String> {
+        if (provider == AudioProvider.ANDROID) {
+            if (androidSupports != false) return emptyList()
+            val res = if (androidOnDeviceOnly) {
+                R.string.speech_check_android_stt_not_on_device
+            } else {
+                R.string.speech_check_android_stt_unsupported
+            }
+            return listOf(strings(res, strings(language.nameRes)))
+        }
         if (!provider.isApiBased()) return emptyList()
         val name = strings(language.nameRes)
         val forced = override.trim()

@@ -27,6 +27,7 @@ import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.AssistiveBallOverlay
 import com.gotcha.ui.CallChatWindow
+import com.gotcha.ui.nameRes
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CoroutineScope
@@ -818,15 +819,23 @@ class AssistiveBallService : Service() {
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
         when {
             s.sttProvider == AudioProvider.ANDROID -> {
+                sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
                 if (!hasMicPermission()) {
                     overlay.showError(getString(R.string.ball_microphone_permission_not_granted))
                     screenCompanionPanel.setListening(false)
                     return
                 }
-                if (sttEngine.startAndroidListening(s.effectiveVoiceLanguage)) {
+                val started = sttEngine.startAndroidListening(s.effectiveVoiceLanguage) { reason ->
+                    panelVoiceActive = false
+                    screenCompanionPanel.setListening(false)
+                    overlay.showError(reason)
+                }
+                if (started) {
                     panelVoiceActive = true
                 } else {
-                    overlay.showError(getString(R.string.ball_failed_to_start_speech_recognition))
+                    overlay.showError(
+                        sttEngine.androidFailure ?: getString(R.string.ball_failed_to_start_speech_recognition)
+                    )
                     screenCompanionPanel.setListening(false)
                 }
             }
@@ -900,13 +909,19 @@ class AssistiveBallService : Service() {
         }
         ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
         scope.launch {
-            ttsEngine.speak(
+            val spoke = ttsEngine.speak(
                 text = text,
                 provider = s.ttsProvider,
                 apiModel = s.ttsApiModel,
                 voice = s.ttsVoice,
-                language = s.effectiveVoiceLanguage
+                language = s.effectiveVoiceLanguage,
+                androidEngine = s.androidTtsEngine,
+                androidVoice = s.androidTtsVoice
             )
+            val missing = ttsEngine.lastLanguageUnavailable
+            if (!spoke && missing != null) {
+                overlay.showError(getString(R.string.speech_voice_not_installed, getString(missing.nameRes)))
+            }
             // Playback completed (or was stopped) — reset the speaker icon.
             screenCompanionPanel.setSpeaking(false)
         }

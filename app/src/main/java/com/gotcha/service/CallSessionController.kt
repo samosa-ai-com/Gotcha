@@ -3,6 +3,7 @@ package com.gotcha.service
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import com.gotcha.R
 import com.gotcha.agent.AgentEngine
@@ -33,6 +34,7 @@ import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.ui.ForegroundControlIndicator
 import com.gotcha.ui.ScreenReadFlashOverlay
+import com.gotcha.ui.nameRes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -119,6 +121,9 @@ class CallSessionController(
      */
     private var narrationErrorReported = false
 
+    /** A missing Android voice is reported once per call; every reply would fail the same way. */
+    private var voiceMissingReported = false
+
     /**
      * Hands-free mode for wake-word calls: the mic opens by itself once the
      * call-started announcement is done and a VAD stops it after ~3 s of
@@ -198,6 +203,7 @@ class CallSessionController(
         }
 
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
         ttsEngine.configureApi(s.effectiveTtsBaseUrl, s.effectiveTtsApiKey)
 
         val newEngine = AgentEngine(
@@ -232,11 +238,12 @@ class CallSessionController(
         newEngine.setupWorkingDir()
         engine = newEngine
         narrationErrorReported = false
+        voiceMissingReported = false
         _state.value = CallState.STARTING
         scope.launch {
             val language = s.effectiveVoiceLanguage
             if (!speakText(startGreeting(handsFree, language), language)) {
-                reportError(appContext.getString(R.string.call_error_tts_playback))
+                reportSpeechFailure(R.string.call_error_tts_playback)
             }
             _state.value = CallState.READY
             if (!handsFree) {
@@ -444,9 +451,17 @@ class CallSessionController(
         if (current != CallState.READY && current != CallState.WAITING_USER) return
         val s = settingsRepository.load()
         sttEngine.configureApi(s.effectiveSttBaseUrl, s.effectiveSttApiKey)
+        sttEngine.configureAndroid(s.androidSttService, s.androidSttOnDeviceOnly)
         val started = sttEngine.startListening(
             s.sttProvider,
-            currentLanguage()
+            currentLanguage(),
+            onAndroidFailure = { reason ->
+                // A failure no retry fixes: say so now and hand the mic back.
+                if (_state.value == CallState.LISTENING) {
+                    _state.value = CallState.READY
+                    reportError(reason)
+                }
+            }
         )
         if (started) {
             _state.value = CallState.LISTENING
@@ -463,7 +478,7 @@ class CallSessionController(
      * untouched (still [READY] / [WAITING_USER]) so the user can tap again.
      */
     internal fun onMicStartFailed() {
-        reportError(appContext.getString(R.string.call_error_mic_start))
+        reportError(sttEngine.androidFailure ?: appContext.getString(R.string.call_error_mic_start))
     }
 
     /** Stop the mic and send the recording for transcription + agent processing. */
@@ -556,7 +571,7 @@ class CallSessionController(
         if (speakText(reply, language)) {
             triggerEndVibration()
         } else {
-            reportError(appContext.getString(R.string.call_error_reply_playback))
+            reportSpeechFailure(R.string.call_error_reply_playback)
         }
         onActionRingColor(null)
         if (autoEndOnReply) endCall() else _state.value = CallState.READY
@@ -729,7 +744,7 @@ class CallSessionController(
         }
         addTranscript(MessageKind.ASSISTANT, prompt)
         if (!speakText(prompt, currentLanguage())) {
-            reportError(appContext.getString(R.string.call_error_tts_playback))
+            reportSpeechFailure(R.string.call_error_tts_playback)
         }
         val gate = CompletableDeferred<String>()
         questionGate = gate
@@ -775,7 +790,7 @@ class CallSessionController(
         addTranscript(MessageKind.ASSISTANT, transcript)
         val language = currentLanguage()
         if (!speakText(SpokenPhrases.confirmationNeeded(language), language)) {
-            reportError(appContext.getString(R.string.call_error_tts_playback))
+            reportSpeechFailure(R.string.call_error_tts_playback)
         }
         val gate = CompletableDeferred<Boolean>()
         confirmationOverlay.show(
@@ -815,6 +830,22 @@ class CallSessionController(
     private fun currentLanguage(): Language =
         settingsRepository.load().effectiveVoiceLanguage
 
+    /**
+     * Report a failed [speakText]. A missing Android voice gets its own message,
+     * once per call; any other failure is reported with [messageRes].
+     */
+    private fun reportSpeechFailure(@StringRes messageRes: Int) {
+        val missing = ttsEngine.lastLanguageUnavailable
+        when {
+            missing == null -> reportError(appContext.getString(messageRes))
+            !voiceMissingReported -> {
+                voiceMissingReported = true
+                val name = appContext.getString(missing.nameRes)
+                reportError(appContext.getString(R.string.speech_voice_not_installed, name))
+            }
+        }
+    }
+
     /** Surface an error the same way everywhere: transcript entry + dialog + haptic. */
     private fun reportError(message: String) {
         addTranscript(MessageKind.ERROR, message)
@@ -847,7 +878,9 @@ class CallSessionController(
             provider = s.ttsProvider,
             apiModel = s.ttsApiModel,
             voice = voice,
-            language = language
+            language = language,
+            androidEngine = s.androidTtsEngine,
+            androidVoice = s.androidTtsVoice
         )
     }
 
@@ -915,7 +948,15 @@ class CallSessionController(
             } else {
                 ""
             }
-            val spoke = ttsEngine.speak(text, s.ttsProvider, s.ttsApiModel, voice, language)
+            val spoke = ttsEngine.speak(
+                text,
+                s.ttsProvider,
+                s.ttsApiModel,
+                voice,
+                language,
+                androidEngine = s.androidTtsEngine,
+                androidVoice = s.androidTtsVoice
+            )
             if (!spoke) onNarrationTtsFailed()
         }
     }
@@ -926,7 +967,9 @@ class CallSessionController(
      * repeats are logged only.
      */
     internal fun onNarrationTtsFailed() {
-        if (!narrationErrorReported) {
+        if (ttsEngine.lastLanguageUnavailable != null) {
+            reportSpeechFailure(R.string.call_error_tts_playback)
+        } else if (!narrationErrorReported) {
             narrationErrorReported = true
             reportError(appContext.getString(R.string.call_error_tts_playback))
         } else {

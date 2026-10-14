@@ -21,15 +21,22 @@ object CurrencyExchangeService {
         SmartActionDetector.extractCurrencyCode(price).ifBlank { "USD" }
 
     /**
-     * Strips non-numeric characters from [price] to extract the raw amount.
+     * The amount in [price], whatever separators it uses.
      *
-     * Assumes standard decimal format (e.g. "₹1,23,456.89" → 123456.89).
-     * European format with comma decimals ("1.234,56") is NOT supported and
-     * will produce an incorrect value.
+     * A final comma followed by one or two digits is the decimal mark
+     * ("1 234,56 ₽" → 1234.56, "1.234,56 €" → 1234.56); any other comma, and
+     * any space, groups thousands ("₹1,23,456.89" → 123456.89, "$1,234" → 1234).
      */
     fun parseAmount(price: String): Double? {
-        val clean = price.replace(Regex("[^0-9.]"), "").trim()
-        return clean.toDoubleOrNull()
+        // trim: "Rs. 500" leaves a leading dot that would read as 0.5.
+        val clean = price.replace(Regex("[^0-9.,]"), "").trim('.', ',')
+        val decimalComma = Regex(",\\d{1,2}$").containsMatchIn(clean)
+        val normalized = if (decimalComma) {
+            clean.replace(".", "").replace(',', '.')
+        } else {
+            clean.replace(",", "")
+        }
+        return normalized.toDoubleOrNull()
     }
 
     fun convert(price: String, targetCurrency: String): String? {

@@ -45,14 +45,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Robolectric downloads an android-all jar per @Config(sdk = ...) level on first
-      # run; without this every fresh runner pays that download again.
-      - name: Cache Robolectric android-all jars
-        uses: actions/cache@v5
-        with:
-          path: ~/.m2/repository/org/robolectric
-          key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
-          restore-keys: robolectric-
+      # No actions/cache for Robolectric: on this persistent self-hosted
+      # runner ~/.m2 survives between runs, so the jars are already warm —
+      # re-uploading 565 MB to GitHub on every dependency change only burns
+      # the org's 0.5 GB Actions storage quota (Oct 2026 incident).
 
       # No baselines: the whole repo must pass detekt and lint on every run.
       - name: Detekt
@@ -97,7 +93,7 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/testDebugUnitTest/
-          retention-days: 14
+          retention-days: 1
 
   # GMD's own emulator handling never booted on these runners and swallowed
   # the emulator's stderr; running the same emulator via emulator-runner
@@ -149,21 +145,20 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Cache the system image, the AVD, and its boot snapshot so runs after
-      # the first skip the ~1 GB image download and the slow cold boot. The
-      # snapshot is generated once on cache miss (the echo-only runner step),
-      # and test runs boot from it with -no-snapshot-save so the cached clean
-      # state is never overwritten.
-      - name: AVD cache
-        uses: actions/cache@v5
+      # AVD snapshot state lives on the runner's own disk
+      # (~/.android/avd + ~/Android/Sdk/system-images persist between runs),
+      # so no actions/cache upload is needed — it only burned org storage
+      # quota (Oct 2026 incident). The snapshot is (re)generated below
+      # whenever the AVD is missing; test runs boot from it with
+      # -no-snapshot-save so the clean state is never overwritten.
+      - name: Check for existing AVD snapshot
         id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-            /usr/local/lib/android/sdk/system-images/*
-            ~/Android/Sdk/system-images/*
-          key: avd-34-aosp_atd-pixel_6
+        run: |
+          if [ -d ~/.android/avd/ci-34.avd ]; then
+            echo "cache-hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -213,7 +208,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
-          retention-days: 14
+          retention-days: 1
 
   # Sharding (-Pandroid.testInstrumentationRunnerArguments.numShards/shardIndex plus a
   # `shard` matrix axis) is deliberately deferred until the instrumented suite exceeds
@@ -290,18 +285,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Same caching scheme as instrumented-smoke; the api-34 key is shared
-      # with that job since the AVD definition is identical.
-      - name: AVD cache
-        uses: actions/cache@v5
+      # Same local-disk scheme as instrumented-smoke; the api-34 AVD is
+      # shared with that job since the AVD definition is identical.
+      - name: Check for existing AVD snapshot
         id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-            /usr/local/lib/android/sdk/system-images/*
-            ~/Android/Sdk/system-images/*
-          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-${{ matrix.profile }}
+        run: |
+          if [ -d ~/.android/avd/ci-${{ matrix.api-level }}.avd ]; then
+            echo "cache-hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -344,4 +337,4 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
-          retention-days: 14
+          retention-days: 1

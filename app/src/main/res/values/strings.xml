@@ -31,6 +31,7 @@
     <string name="language_chinese">Chinese</string>
     <string name="language_italian">Italian</string>
     <string name="language_portuguese">Portuguese</string>
+    <string name="language_russian">Russian</string>
 
     <!-- Settings → Language -->
     <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
@@ -52,7 +53,7 @@
     <string name="language_test_voice">Test voice</string>
     <string name="language_test_voice_playing">Playing…</string>
     <string name="language_voice_data_missing_title">Voice data not installed</string>
-    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s. It was spoken in English instead. Install the voice data to fix pronunciation.</string>
+    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s, so Gotcha can\'t read %1$s aloud. Install the voice data to fix this.</string>
     <string name="language_voice_data_install">Install</string>
     <string name="language_tts_settings_failed">Could not open text-to-speech settings.</string>
     <string name="language_reply_title">AI reply language</string>
@@ -160,6 +161,10 @@
     <string name="settings_field_stt_language">Transcription language</string>
     <string name="settings_field_max_tool_rounds">Max tool rounds</string>
     <string name="settings_field_stt_provider">STT provider</string>
+    <string name="settings_field_android_tts_engine">Text-to-speech engine</string>
+    <string name="settings_field_android_tts_voice">Android voice</string>
+    <string name="settings_field_android_stt_service">Speech recognizer</string>
+    <string name="settings_field_android_stt_on_device">On-device speech recognition</string>
     <string name="settings_field_pause_night_light">Night Light off for screenshots</string>
 
     <!-- Settings home -->
@@ -1535,6 +1540,39 @@
     <string name="speech_check_model_no_voice">The text-to-speech model %1$s has no %2$s voice, so %2$s replies will be read by %3$s and may not sound right. Pick a model with a %2$s voice, or use Android Built-in.</string>
     <string name="speech_check_stt_forced">Transcription is forced to %1$s (%2$s), so %3$s speech will be transcribed as %1$s. Clear the override to follow the voice language.</string>
     <string name="speech_check_stt_unlisted">The speech-to-text model %1$s does not list %2$s, so it may transcribe %2$s speech wrongly. Pick a model that lists it.</string>
+    <string name="speech_check_android_tts_missing">Android text-to-speech has no %1$s voice installed, so %1$s replies won\'t be read aloud. Install the voice data, or pick an engine that has it, in Android\'s text-to-speech settings.</string>
+    <string name="speech_check_android_stt_unsupported">Android\'s speech recognizer doesn\'t list %1$s, so it may transcribe %1$s speech wrongly. Pick another voice input service in Android\'s settings.</string>
+    <string name="speech_android_voice_input_settings_failed">Could not open voice input settings.</string>
+    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Language.</string>
+    <string name="speech_android_tts_engine">Text-to-speech engine</string>
+    <string name="speech_android_stt_engine">Speech recognizer</string>
+    <string name="speech_android_phone_default">Phone\'s choice (%1$s)</string>
+    <string name="speech_android_phone_default_unknown">Phone\'s choice</string>
+    <string name="speech_android_voice">Voice for %1$s</string>
+    <string name="speech_android_voice_default">Engine\'s choice</string>
+    <string name="speech_android_voice_on_device">%1$s · on the phone</string>
+    <string name="speech_android_voice_online">%1$s · online</string>
+    <string name="speech_android_voice_downloadable">%1$s · not downloaded</string>
+    <string name="speech_android_tts_on_device">%1$s is spoken on the phone and works offline.</string>
+    <string name="speech_android_tts_online">%1$s is spoken by the engine\'s server, so it needs the internet.</string>
+    <string name="speech_android_tts_downloadable">This engine has a %1$s voice, but it isn\'t downloaded yet. Download it in Android\'s text-to-speech settings.</string>
+    <string name="speech_android_tts_available">This engine supports %1$s.</string>
+    <string name="speech_android_tts_unsupported">This engine has no %1$s voice. Pick another engine.</string>
+    <string name="speech_android_stt_on_device">%1$s is recognised on the phone and works offline.</string>
+    <string name="speech_android_stt_online">%1$s is recognised on the recognizer\'s server, so it needs the internet.</string>
+    <string name="speech_android_stt_downloadable">%1$s can be recognised on the phone once it\'s downloaded in Android\'s settings.</string>
+    <string name="speech_android_stt_available">This recognizer supports %1$s.</string>
+    <string name="speech_android_stt_unsupported">This recognizer doesn\'t support %1$s.</string>
+    <string name="speech_android_on_device_only">On-device only</string>
+    <string name="speech_android_on_device_only_description">Recognise speech on the phone, never over the network. When the phone can\'t do that for the voice language, voice input stops with a message. The recognizer above isn\'t used while this is on.</string>
+    <string name="speech_android_on_device_none">This phone has no on-device speech recognition, so On-device only can\'t be turned on.</string>
+    <string name="speech_android_on_device_needs_12">On-device only needs Android 12 or later.</string>
+    <string name="speech_android_tts_settings">Android text-to-speech settings</string>
+    <string name="speech_android_voice_input_settings">Android voice input settings</string>
+    <string name="stt_on_device_unavailable">This phone can\'t recognise speech on the device. Turn off On-device only under Settings → AI → Speech.</string>
+    <string name="stt_language_not_on_device">%1$s isn\'t downloaded for on-device speech recognition. Download it in Android\'s settings, or turn off On-device only under Settings → AI → Speech.</string>
+    <string name="stt_language_unsupported">The speech recognizer can\'t recognise %1$s. Pick another one under Settings → AI → Speech.</string>
+    <string name="speech_check_android_stt_not_on_device">On-device only is on, but %1$s can\'t be recognised on this phone yet, so voice input will stop with a message. Download it in Android\'s settings, or turn off On-device only.</string>
 
     <!-- Referral sharing -->
     <string name="referral_copied">Copied invite code: %1$s</string>
