@@ -216,6 +216,36 @@ class ModelsTest {
     }
 
     @Test
+    fun `chat request explicitly disables streaming even with encodeDefaults off`() {
+        val request = ChatRequest("test-model", listOf(ChatMessage("user", JsonPrimitive("hi"))))
+        val obj = json.parseToJsonElement(json.encodeToString(ChatRequest.serializer(), request)).jsonObject
+
+        assertEquals(JsonPrimitive(false), obj["stream"])
+        assertEquals(setOf("model", "messages", "stream"), obj.keys)
+    }
+
+    @Test
+    fun `chat request preserves optional fields and positional prompt cache key`() {
+        val tool = ToolDefinition(
+            function = FunctionDefinition("test_tool", "Test tool", buildJsonObject { put("type", "object") })
+        )
+        val request = ChatRequest(
+            "test-model",
+            listOf(ChatMessage("user", JsonPrimitive("hi"))),
+            listOf(tool),
+            0.5f,
+            "session-1"
+        )
+        val obj = json.parseToJsonElement(json.encodeToString(ChatRequest.serializer(), request)).jsonObject
+
+        assertEquals(JsonPrimitive(false), obj["stream"])
+        assertEquals(JsonPrimitive("session-1"), obj["prompt_cache_key"])
+        assertEquals(JsonPrimitive(0.5f), obj["temperature"])
+        assertEquals("function", obj["tools"]!!.jsonArray.single().jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals(request, json.decodeFromString(ChatRequest.serializer(), obj.toString()))
+    }
+
+    @Test
     fun `chat response decoding ignores unknown keys`() {
         val response = json.decodeFromString(
             ChatResponse.serializer(),

@@ -5,6 +5,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -101,6 +103,32 @@ class LLMClientTest {
         )
 
         assertEquals("Hi there", response.choices.single().message.textContent)
+    }
+
+    @Test
+    fun `chat sends explicit non-streaming JSON and parses an ordinary JSON reply`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setBody("""{"choices":[{"message":{"role":"assistant","content":"pong"}}]}""")
+                .setHeader("Content-Type", "application/json")
+        )
+        val messages = listOf(ChatMessage("user", JsonPrimitive("ping")))
+
+        val response = client.chat(messages, listOf(dummyTool), temperature = 0.5f, sessionId = "session-1")
+
+        val request = requireNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+        assertEquals("POST", request.method)
+        assertEquals("/chat/completions", request.path)
+        assertTrue(request.getHeader("Content-Type")!!.startsWith("application/json"))
+        assertEquals("session-1", request.getHeader("X-Session-Id"))
+        val body = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+        assertEquals(JsonPrimitive(false), body["stream"])
+        assertEquals(JsonPrimitive("chai-small"), body["model"])
+        assertEquals(JsonPrimitive(0.5f), body["temperature"])
+        assertEquals(JsonPrimitive("session-1"), body["prompt_cache_key"])
+        assertEquals(JsonPrimitive("ping"), body["messages"]!!.jsonArray.single().jsonObject["content"])
+        assertEquals(JsonPrimitive("function"), body["tools"]!!.jsonArray.single().jsonObject["type"])
+        assertEquals("pong", response.choices.single().message.textContent)
     }
 
     @Test
