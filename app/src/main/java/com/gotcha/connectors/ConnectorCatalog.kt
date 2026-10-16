@@ -105,7 +105,19 @@ object ConnectorCatalog {
         hasDynamicTools = true
     )
 
-    val all: List<ConnectorSpec> = listOf(IMAP, GOOGLE, MICROSOFT, NOTION, HOME_ASSISTANT)
+    /**
+     * The user's own MCP servers (issue #130). Server-defined like Home
+     * Assistant: every tool is registered at connect time, named
+     * `mcp_<server>__<tool>`.
+     */
+    val MCP = ConnectorSpec(
+        id = "mcp",
+        displayName = "MCP servers",
+        ownedToolNames = emptySet(),
+        hasDynamicTools = true
+    )
+
+    val all: List<ConnectorSpec> = listOf(IMAP, GOOGLE, MICROSOFT, NOTION, HOME_ASSISTANT, MCP)
 
     fun byId(id: String): ConnectorSpec? = all.firstOrNull { it.id == id }
 

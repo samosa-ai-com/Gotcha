@@ -45,7 +45,7 @@ class HomeAssistantToolsTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
         connector = HomeAssistantConnector(RouterMemoryStore(), HomeAssistantMcpClient())
         router = HomeAssistantTools { connector }
     }
@@ -53,7 +53,7 @@ class HomeAssistantToolsTest {
     @After
     fun tearDown() {
         server.shutdown()
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
     }
 
     private fun connect() = runTest {
