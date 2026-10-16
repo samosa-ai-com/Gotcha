@@ -67,6 +67,12 @@ gotcha:
     # GotchaLog.kt is the one sanctioned place raw Log.d/Log.v appears (behind
     # BuildConfig.DEBUG). Everything else must route through the facade.
     excludes: ["**/GotchaLog.kt"]
+  UnskinnedPopup:
+    active: true
+    # The theme package is where the Skin* wrappers call the Material originals.
+    excludes: ["**/ui/theme/**"]
+  GlassRoleAlphaOverride:
+    active: true
 
 formatting:
   MaximumLineLength:
