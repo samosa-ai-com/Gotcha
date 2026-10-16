@@ -270,12 +270,17 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
                 "settings_server_messages_enabled",
                 R.string.settings_field_server_messages_enabled,
                 "announcements, sync"
+            ),
+            field(
+                "settings_update_notifications_enabled",
+                R.string.settings_field_update_notifications_enabled,
+                "update, updates, new version, release"
             )
         )
     )
     SettingsPage.ABOUT -> SettingsSearchEntry(
         page,
-        words("version, contact, support, company, samosa")
+        words("version, update, check for updates, contact, support, company, samosa")
     )
     SettingsPage.ABOUT_SAMOSA -> SettingsSearchEntry(
         page,

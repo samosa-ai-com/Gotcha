@@ -100,6 +100,7 @@ class LocalNotifier(private val context: Context) {
         const val ACTION_OPEN_LOCAL_NOTIFICATION = "com.gotcha.ACTION_OPEN_LOCAL_NOTIFICATION"
         const val EXTRA_DRAFT_PROMPT = "com.gotcha.DRAFT_PROMPT"
         const val EXTRA_DRAFT_MODE = "com.gotcha.DRAFT_MODE"
+        const val EXTRA_OPEN_UPDATE = "com.gotcha.OPEN_UPDATE"
 
         internal fun notificationId(category: NotificationCategory): Int = 0x7100 + category.ordinal
 
@@ -111,6 +112,7 @@ class LocalNotifier(private val context: Context) {
                     putExtra(EXTRA_DRAFT_PROMPT, target.prompt)
                     putExtra(EXTRA_DRAFT_MODE, target.mode.name)
                 }
+                NotificationTarget.Update -> putExtra(EXTRA_OPEN_UPDATE, true)
                 NotificationTarget.Home -> Unit
             }
         }

@@ -65,6 +65,7 @@ fun NotificationsScreen(
     var taskFinished by remember { mutableStateOf(initial.chatCompletionNotificationsEnabled) }
     var taskPreview by remember { mutableStateOf(initial.chatCompletionPreview) }
     var serverMessagesEnabled by remember { mutableStateOf(initial.serverMessagesEnabled) }
+    var updateNotifications by remember { mutableStateOf(initial.updateNotificationsEnabled) }
     var lastFetched by remember { mutableStateOf(initial.serverMessagesLastFetchedAt) }
     var isSyncing by remember { mutableStateOf(false) }
 
@@ -240,6 +241,36 @@ fun NotificationsScreen(
             stringResource(R.string.notifications_last_synced, formatRelative(lastFetched)),
             style = MaterialTheme.typography.bodySmall
         )
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.notifications_app_updates),
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            stringResource(R.string.notifications_app_updates_description),
+            style = MaterialTheme.typography.bodySmall
+        )
+        SettingsToggleRow(
+            label = stringResource(R.string.notifications_notify_about_new_versions),
+            checked = updateNotifications,
+            onCheckedChange = {
+                updateNotifications = it
+                onSave { s -> s.copy(updateNotificationsEnabled = it) }
+                if (it && !canPost && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            isLarge = true,
+            switchTestTag = "settings_update_notifications_enabled"
+        )
+        if (updateNotifications && !canPost) {
+            Text(
+                stringResource(R.string.notifications_notifications_are_blocked_for_gotcha),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
     }
 }
 

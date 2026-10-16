@@ -1391,4 +1391,13 @@
         <item>告诉我你需要什么。</item>
         <item>听你吩咐：我能做什么？</item>
     </string-array>
+    <string name="notification_category_app_update">应用更新</string>
+    <string name="channel_app_updates">应用更新</string>
+    <string name="channel_app_updates_description">Gotcha 发布新版本时的通知</string>
+    <string name="update_notification_title">Gotcha %1$s 已推出</string>
+    <string name="update_notification_body">点按即可下载并安装。</string>
+    <string name="notifications_app_updates">应用更新</string>
+    <string name="notifications_app_updates_description">Gotcha 每天大约两次从 GitHub（raw.githubusercontent.com）下载一个小文件，查看是否有新版本。该请求不包含任何关于你的信息；与任何下载一样，GitHub 能看到你的 IP 地址。</string>
+    <string name="notifications_notify_about_new_versions">有新版本时通知我</string>
+    <string name="settings_field_update_notifications_enabled">更新通知</string>
 </resources>

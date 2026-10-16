@@ -31,6 +31,7 @@ data class InboxEntry(
 
     val target: NotificationTarget
         get() = when {
+            categoryOrNull == NotificationCategory.APP_UPDATE -> NotificationTarget.Update
             sessionId != null -> NotificationTarget.Chat(sessionId)
             prompt != null -> NotificationTarget.Draft(
                 prompt,

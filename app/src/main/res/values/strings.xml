@@ -1637,4 +1637,13 @@
         <item quantity="one">\"%1$s\": %2$d system message imported as a note, not an instruction.</item>
         <item quantity="other">\"%1$s\": %2$d system messages imported as notes, not instructions.</item>
     </plurals>
+    <string name="notification_category_app_update">App update</string>
+    <string name="channel_app_updates">App updates</string>
+    <string name="channel_app_updates_description">A notification when a new version of Gotcha is released</string>
+    <string name="update_notification_title">Gotcha %1$s is available</string>
+    <string name="update_notification_body">Tap to download and install it.</string>
+    <string name="notifications_app_updates">App updates</string>
+    <string name="notifications_app_updates_description">About twice a day, Gotcha downloads a small file from GitHub (raw.githubusercontent.com) to see whether a new version is out. The request carries nothing about you; GitHub sees your IP address, as with any download.</string>
+    <string name="notifications_notify_about_new_versions">Notify me about new versions</string>
+    <string name="settings_field_update_notifications_enabled">Update notifications</string>
 </resources>
