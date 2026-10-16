@@ -103,9 +103,9 @@ object ConnectorRegistry {
      * Tool names to withhold from the model right now, because every connector
      * that could serve them is disconnected or disabled. Falls back to hiding
      * all connector-owned tools before [init] runs — nothing can serve them at
-     * that point either. Home Assistant's MCP tools are server-defined, so the
-     * compile-time catalog cannot enumerate them: whatever is currently
-     * registered is hidden whenever that connector is not usable.
+     * that point either. Server-defined tools (such as Home Assistant's) are
+     * not in the compile-time catalog: whatever a connector has registered is
+     * hidden whenever that connector is not usable.
      */
     fun hiddenToolNames(disabledConnectors: Set<String>): Set<String> =
         hiddenToolNamesFor(activeIds(disabledConnectors))
@@ -117,8 +117,8 @@ object ConnectorRegistry {
      */
     internal fun hiddenToolNamesFor(activeIds: Set<String>): Set<String> =
         ConnectorCatalog.hiddenTools(activeIds).toMutableSet().also { hidden ->
-            if (ConnectorCatalog.HOME_ASSISTANT.id !in activeIds) {
-                hidden += ToolRegistry.dynamicTools
+            ToolRegistry.dynamicToolsByOwner.forEach { (owner, names) ->
+                if (owner !in activeIds) hidden += names
             }
         }
 
