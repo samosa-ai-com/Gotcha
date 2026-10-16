@@ -1410,4 +1410,13 @@
         <item>बताइए आपको क्या चाहिए।</item>
         <item>आपकी सेवा में — मैं क्या करूँ?</item>
     </string-array>
+    <string name="notification_category_app_update">ऐप अपडेट</string>
+    <string name="channel_app_updates">ऐप अपडेट</string>
+    <string name="channel_app_updates_description">Gotcha का नया वर्शन आने पर एक सूचना</string>
+    <string name="update_notification_title">Gotcha %1$s उपलब्ध है</string>
+    <string name="update_notification_body">डाउनलोड और इंस्टॉल करने के लिए टैप करें।</string>
+    <string name="notifications_app_updates">ऐप अपडेट</string>
+    <string name="notifications_app_updates_description">दिन में लगभग दो बार Gotcha यह देखने के लिए GitHub (raw.githubusercontent.com) से एक छोटी फ़ाइल डाउनलोड करता है कि नया वर्शन आया है या नहीं। इस अनुरोध में आपके बारे में कुछ नहीं होता; किसी भी डाउनलोड की तरह GitHub आपका IP पता देखता है।</string>
+    <string name="notifications_notify_about_new_versions">नए वर्शन के बारे में सूचित करें</string>
+    <string name="settings_field_update_notifications_enabled">अपडेट सूचनाएँ</string>
 </resources>

@@ -44,7 +44,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun AboutScreen(
     onBack: () -> Unit,
-    onOpenPage: (SettingsPage) -> Unit
+    onOpenPage: (SettingsPage) -> Unit,
+    checkUpdateOnOpen: Boolean = false,
+    onUpdateCheckStarted: () -> Unit = {}
 ) {
     val overlay = rememberSettingsOverlayState()
 
@@ -58,7 +60,7 @@ fun AboutScreen(
             )
         }
         HorizontalDivider(thickness = 1.dp)
-        AppUpdateSection()
+        AppUpdateSection(checkOnOpen = checkUpdateOnOpen, onCheckStarted = onUpdateCheckStarted)
         HorizontalDivider(thickness = 1.dp)
     }
 }
@@ -135,14 +137,39 @@ private val LINKS = listOf(
     R.string.about_link_email to "mailto:contact@samosa-ai.com"
 )
 
+/**
+ * Version, update check, download and install. [checkOnOpen] starts the check
+ * straight away, for an update notification's tap (issue #126), so the page
+ * opens on the offer rather than on a button; [onCheckStarted] clears it.
+ */
 @Composable
-fun AppUpdateSection() {
+fun AppUpdateSection(checkOnOpen: Boolean = false, onCheckStarted: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val updateManager = remember { AppUpdateManager.shared }
     var status by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Idle) }
     var busy by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    fun check() {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                status = UpdateStatus.Checking
+                status = updateManager.checkForUpdate()
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    LaunchedEffect(checkOnOpen) {
+        if (checkOnOpen) {
+            onCheckStarted()
+            check()
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -177,18 +204,7 @@ fun AppUpdateSection() {
 
         when (val currentStatus = status) {
             is UpdateStatus.Idle -> {
-                Button(onClick = {
-                    if (busy) return@Button
-                    busy = true
-                    scope.launch {
-                        try {
-                            status = UpdateStatus.Checking
-                            status = updateManager.checkForUpdate()
-                        } finally {
-                            busy = false
-                        }
-                    }
-                }) {
+                Button(onClick = ::check) {
                     Text(stringResource(R.string.about_check_for_updates))
                 }
             }
@@ -280,18 +296,7 @@ fun AppUpdateSection() {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
-                    Button(onClick = {
-                        if (busy) return@Button
-                        busy = true
-                        scope.launch {
-                            try {
-                                status = UpdateStatus.Checking
-                                status = updateManager.checkForUpdate()
-                            } finally {
-                                busy = false
-                            }
-                        }
-                    }) {
+                    Button(onClick = ::check) {
                         Text(stringResource(R.string.about_retry_check))
                     }
                 }

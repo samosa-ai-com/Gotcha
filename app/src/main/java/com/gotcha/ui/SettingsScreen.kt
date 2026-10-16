@@ -144,7 +144,13 @@ fun SettingsScreen(
     highlightField: String? = null,
     onHighlightConsumed: () -> Unit = {},
     /** Opens a page from a search result, pointed at the field the query named. */
-    onOpenSearchResult: (SettingsPage, String?) -> Unit = { target, _ -> onPageChange(target) }
+    onOpenSearchResult: (SettingsPage, String?) -> Unit = { target, _ -> onPageChange(target) },
+    /**
+     * True when About should check for an update as it opens: an update
+     * notification was tapped (issue #126). Cleared through [onUpdateCheckStarted].
+     */
+    checkUpdateOnOpen: Boolean = false,
+    onUpdateCheckStarted: () -> Unit = {}
 ) {
     // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
     // the home list otherwise. Only the list itself exits Settings.
@@ -264,7 +270,9 @@ fun SettingsScreen(
                 )
                 SettingsPage.ABOUT -> AboutScreen(
                     onBack = backToHome,
-                    onOpenPage = onPageChange
+                    onOpenPage = onPageChange,
+                    checkUpdateOnOpen = checkUpdateOnOpen,
+                    onUpdateCheckStarted = onUpdateCheckStarted
                 )
                 SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
                     context = androidx.compose.ui.platform.LocalContext.current,
