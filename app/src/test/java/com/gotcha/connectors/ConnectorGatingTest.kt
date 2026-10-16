@@ -187,7 +187,7 @@ class ConnectorGatingTest {
     @Test
     fun `catalog ids match the connector ids the registry uses`() {
         assertEquals(
-            setOf("imap", "google", "microsoft", "notion", "homeassistant"),
+            setOf("imap", "google", "microsoft", "notion", "homeassistant", "mcp"),
             ConnectorCatalog.all.map { it.id }.toSet()
         )
     }
