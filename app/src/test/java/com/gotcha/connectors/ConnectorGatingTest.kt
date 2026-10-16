@@ -232,7 +232,7 @@ class ConnectorGatingTest {
 
     @Test
     fun `registered dynamic tools are hidden unless home assistant is active`() {
-        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.setDynamicTools("homeassistant", dynamicTools, readOnlyNames = setOf("HassGetState"))
         try {
             // No active connector → nothing can serve the registered tools.
             assertTrue("HassGetState" in ConnectorRegistry.hiddenToolNamesFor(emptySet()))
@@ -243,13 +243,13 @@ class ConnectorGatingTest {
             // Another connector being active does not expose HA's tools.
             assertTrue("HassGetState" in ConnectorRegistry.hiddenToolNamesFor(setOf("imap")))
         } finally {
-            ToolRegistry.clearDynamicTools()
+            ToolRegistry.clearAllDynamicTools()
         }
     }
 
     @Test
     fun `dynamic tools follow the monitor operator split`() {
-        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.setDynamicTools("homeassistant", dynamicTools, readOnlyNames = setOf("HassGetState"))
         try {
             assertTrue("HassGetState" in ToolRegistry.monitorTools)
             assertFalse("HassTurnOn" in ToolRegistry.monitorTools)
@@ -265,13 +265,13 @@ class ConnectorGatingTest {
             val subAgent = ToolRegistry.toolsForSubAgent().map { it.function.name }
             assertTrue(subAgent.containsAll(setOf("HassGetState", "HassTurnOn")))
         } finally {
-            ToolRegistry.clearDynamicTools()
+            ToolRegistry.clearAllDynamicTools()
         }
     }
 
     @Test
     fun `hidden dynamic tools are dropped from every agent surface`() {
-        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.setDynamicTools("homeassistant", dynamicTools, readOnlyNames = setOf("HassGetState"))
         try {
             val hidden = ConnectorRegistry.hiddenToolNamesFor(emptySet())
             assertTrue(
@@ -286,14 +286,62 @@ class ConnectorGatingTest {
                 ToolRegistry.toolsForSubAgent(hidden).none { it.function.name in hidden }
             )
         } finally {
-            ToolRegistry.clearDynamicTools()
+            ToolRegistry.clearAllDynamicTools()
+        }
+    }
+
+    private fun tool(name: String) =
+        ToolDefinition(function = FunctionDefinition(name, "d", buildJsonObject { put("type", "object") }))
+
+    @Test
+    fun `each owner's dynamic tools are hidden and cleared on their own`() {
+        ToolRegistry.setDynamicTools("homeassistant", dynamicTools, readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.setDynamicTools("mcp", listOf(tool("mcp_docs__search")), readOnlyNames = emptySet())
+        try {
+            assertEquals("mcp", ToolRegistry.dynamicOwnerOf("mcp_docs__search"))
+            assertEquals("homeassistant", ToolRegistry.dynamicOwnerOf("HassTurnOn"))
+
+            val haOnly = ConnectorRegistry.hiddenToolNamesFor(setOf("homeassistant"))
+            assertFalse("HassTurnOn" in haOnly)
+            assertTrue("mcp_docs__search" in haOnly)
+            val mcpOnly = ConnectorRegistry.hiddenToolNamesFor(setOf("mcp"))
+            assertTrue("HassTurnOn" in mcpOnly)
+            assertFalse("mcp_docs__search" in mcpOnly)
+
+            // Re-registering one owner leaves the other's tools alone.
+            ToolRegistry.setDynamicTools("mcp", emptyList(), readOnlyNames = emptySet())
+            assertEquals(setOf("HassGetState", "HassTurnOn"), ToolRegistry.dynamicTools)
+            ToolRegistry.clearDynamicTools("homeassistant")
+            assertTrue(ToolRegistry.dynamicTools.isEmpty())
+        } finally {
+            ToolRegistry.clearAllDynamicTools()
+        }
+    }
+
+    @Test
+    fun `a dynamic tool cannot take a name a built-in or another owner already has`() {
+        ToolRegistry.setDynamicTools("homeassistant", dynamicTools, readOnlyNames = setOf("HassGetState"))
+        try {
+            val registered = ToolRegistry.setDynamicTools(
+                "mcp",
+                listOf(tool("webfetch"), tool("HassTurnOn"), tool("mcp_docs__search")),
+                readOnlyNames = setOf("webfetch", "mcp_docs__search")
+            )
+            assertEquals(setOf("mcp_docs__search"), registered)
+            assertEquals("homeassistant", ToolRegistry.dynamicOwnerOf("HassTurnOn"))
+            assertEquals(null, ToolRegistry.dynamicOwnerOf("webfetch"))
+            assertTrue(
+                ToolRegistry.definition("webfetch") in ToolRegistry.allDefinitions()
+            )
+        } finally {
+            ToolRegistry.clearAllDynamicTools()
         }
     }
 
     @Test
     fun `cleared dynamic tools are not exposed anywhere`() {
-        ToolRegistry.setDynamicTools(dynamicTools, readOnlyNames = setOf("HassGetState"))
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.setDynamicTools("homeassistant", dynamicTools, readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.clearAllDynamicTools()
         assertTrue(ToolRegistry.dynamicTools.isEmpty())
         assertTrue(ToolRegistry.toolsForAgent(AgentMode.OPERATOR).none { it.function.name == "HassGetState" })
         assertTrue(ToolRegistry.toolsForAgent(AgentMode.MONITOR).none { it.function.name == "HassGetState" })
