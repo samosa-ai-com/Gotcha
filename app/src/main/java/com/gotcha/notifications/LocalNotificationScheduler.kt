@@ -9,6 +9,7 @@ import android.util.Log
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.stringLookup
+import com.gotcha.updater.runUpdateCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -113,12 +114,22 @@ class DailyTipAlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** The periodic reminder check. Not exported. */
+/**
+ * The periodic reminder check, which also carries the update check (issue #126):
+ * that one limits itself to about twice a day. Not exported.
+ */
 class ReminderCheckReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext
-        runAsync("ReminderCheck") { runLocalNotificationCheck(app, includeTip = false) }
+        runAsync("ReminderCheck") {
+            // finally: a failed reminder check must not skip the update check.
+            try {
+                runLocalNotificationCheck(app, includeTip = false)
+            } finally {
+                runUpdateCheck(app)
+            }
+        }
     }
 }
 

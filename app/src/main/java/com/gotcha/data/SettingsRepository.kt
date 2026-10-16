@@ -237,6 +237,11 @@ data class Settings(
     val pauseNightLightForScreenshots: Boolean = false,
     /** Server-driven notifications from `<SAMOSA_API_URL>/v1/gotcha/notifications`. */
     val serverMessagesEnabled: Boolean = true,
+    /**
+     * A notification when a newer Gotcha is published (issue #126), from a
+     * background check of update.json about twice a day. On by default.
+     */
+    val updateNotificationsEnabled: Boolean = true,
     /** Epoch millis of the last successful server-messages fetch. 0 = never. */
     val serverMessagesLastFetchedAt: Long = 0L,
     /** Last seen ETag from the notifications endpoint; round-tripped in `If-None-Match`. */
@@ -705,6 +710,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         }.getOrDefault(WakeWordListeningMode.ALWAYS),
         pauseNightLightForScreenshots = prefs.getBoolean(KEY_PAUSE_NIGHT_LIGHT, false),
         serverMessagesEnabled = prefs.getBoolean(KEY_SERVER_MESSAGES_ENABLED, true),
+        updateNotificationsEnabled = prefs.getBoolean(KEY_UPDATE_NOTIFICATIONS_ENABLED, true),
         serverMessagesLastFetchedAt = prefs.getLong(KEY_SERVER_MESSAGES_LAST_FETCHED, 0L),
         serverMessagesEtag = string(KEY_SERVER_MESSAGES_ETAG),
         skinId = resolvedSkinId(),
@@ -798,6 +804,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_WAKE_WORD_LISTENING_MODE, settings.wakeWordListeningMode.name)
             .putBoolean(KEY_PAUSE_NIGHT_LIGHT, settings.pauseNightLightForScreenshots)
             .putBoolean(KEY_SERVER_MESSAGES_ENABLED, settings.serverMessagesEnabled)
+            .putBoolean(KEY_UPDATE_NOTIFICATIONS_ENABLED, settings.updateNotificationsEnabled)
             .putLong(KEY_SERVER_MESSAGES_LAST_FETCHED, settings.serverMessagesLastFetchedAt)
             .putString(KEY_SERVER_MESSAGES_ETAG, settings.serverMessagesEtag)
             .putString(KEY_SKIN_ID, settings.skinId)
@@ -934,6 +941,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_WAKE_WORD_LISTENING_MODE = "wake_word_listening_mode"
         const val KEY_PAUSE_NIGHT_LIGHT = "pause_night_light_for_screenshots"
         const val KEY_SERVER_MESSAGES_ENABLED = "server_messages_enabled"
+        const val KEY_UPDATE_NOTIFICATIONS_ENABLED = "update_notifications_enabled"
         const val KEY_SERVER_MESSAGES_LAST_FETCHED = "server_messages_last_fetched"
         const val KEY_SERVER_MESSAGES_ETAG = "server_messages_etag"
         const val KEY_SKIN_ID = "skin_id"
