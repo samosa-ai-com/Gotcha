@@ -1391,4 +1391,48 @@
         <item>告诉我你需要什么。</item>
         <item>听你吩咐：我能做什么？</item>
     </string-array>
+    <string name="mcp_card_title">MCP 服务器</string>
+    <string name="mcp_card_blurb">添加你自己的 Model Context Protocol 服务器。Gotcha 通过 Streamable HTTP 连接，列出每个服务器的工具，并在该服务器开启时让助手使用它们。</string>
+    <string name="mcp_card_monitor_note">服务器标为只读的工具可在观察模式中使用，其余工具仅限操作模式。</string>
+    <string name="mcp_card_trust">服务器的工具说明和结果会原样传给助手，并可能左右它的行为。请只添加你信任的服务器。</string>
+    <string name="mcp_add_server">添加服务器</string>
+    <string name="mcp_field_name">名称</string>
+    <string name="mcp_field_url">服务器 URL</string>
+    <string name="mcp_field_token">Bearer 令牌（可选）</string>
+    <string name="mcp_field_headers">额外请求头（可选）</string>
+    <string name="mcp_field_headers_hint">每行一个，格式为 Name: value</string>
+    <string name="mcp_test_connection">测试连接</string>
+    <string name="mcp_testing">正在测试…</string>
+    <string name="mcp_save">保存</string>
+    <string name="mcp_saving">正在保存…</string>
+    <string name="mcp_cancel">取消</string>
+    <string name="mcp_edit">编辑</string>
+    <string name="mcp_remove">移除</string>
+    <string name="mcp_remove_confirm">再点一次即可移除 %1$s</string>
+    <string name="mcp_show_tools">工具（%1$d）</string>
+    <string name="mcp_hide_tools">隐藏工具</string>
+    <string name="mcp_tool_read_only">只读：观察和操作</string>
+    <string name="mcp_tool_operator">仅限操作</string>
+    <string name="mcp_server_off">已关闭</string>
+    <string name="mcp_server_status">%1$s · %2$s</string>
+    <string name="mcp_no_tools">此服务器不提供任何工具。</string>
+    <string name="mcp_status_summary">%2$d 个服务器中 %1$d 个已开启 · %3$d 个工具</string>
+    <plurals name="mcp_tools_count">
+        <item quantity="other">%1$d 个工具</item>
+    </plurals>
+    <string name="mcp_connected">已连接到 %1$s：%2$s。</string>
+    <string name="mcp_tools_capped">只使用前 %1$d 个。</string>
+    <string name="mcp_removed_while_saving">该服务器在此期间已被移除。</string>
+    <string name="mcp_error_name">请输入服务器名称。</string>
+    <string name="mcp_error_bad_url">请输入以 https:// 开头的完整 URL（在本地网络中也可用 http://）。</string>
+    <string name="mcp_error_cleartext">本地网络之外的服务器请使用 https。通过 http 发送的令牌或请求头可能在途中被读取。</string>
+    <string name="mcp_error_bad_header">每个请求头单独一行，格式为 Name: value。</string>
+    <string name="mcp_error_auth">服务器拒绝了令牌或请求头（HTTP %1$d）。请检查后重试。</string>
+    <string name="mcp_error_not_found">此 URL 没有响应（HTTP 404）。请检查地址及其路径，通常是 /mcp。</string>
+    <string name="mcp_error_old_transport">此服务器使用旧版 HTTP+SSE 传输，Gotcha 暂不支持。如果服务器有 Streamable HTTP 地址，请改用该地址。</string>
+    <string name="mcp_error_not_mcp">服务器有响应，但不是 MCP 服务器的响应：%1$s</string>
+    <string name="mcp_error_http">服务器返回了 HTTP %1$d：%2$s</string>
+    <string name="mcp_error_rpc">服务器返回了错误：%1$s</string>
+    <string name="mcp_error_network">无法连接到服务器：%1$s</string>
+    <string name="mcp_error_bad_token">令牌和请求头的值只能包含普通 ASCII 字符。</string>
 </resources>

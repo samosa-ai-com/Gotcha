@@ -4,6 +4,15 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **Your own MCP servers** (#130). Connectors has a new **MCP servers** card:
+  add any Model Context Protocol server that speaks Streamable HTTP, with an
+  optional bearer token or extra headers, test the connection, and see the
+  tools it offers. While a server is on, the assistant can use its tools in
+  Operator, and the ones the server marks read-only in Monitor too. Each
+  server has its own switch, and Remove deletes it with its stored token.
+  A token or header is only sent over plain http to a server on your local
+  network.
+  See [docs/mcp-servers.md](docs/mcp-servers.md).
 - **Russian voice and replies, and roubles** (#122). Russian can now be picked
   as the voice language and the reply language: Android speech is asked for
   `ru-RU` and API speech-to-text for `ru`, and the short phrases Gotcha speaks

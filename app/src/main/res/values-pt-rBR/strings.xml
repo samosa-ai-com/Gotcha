@@ -1429,4 +1429,49 @@
         <item>Me diga do que você precisa.</item>
         <item>Às ordens: o que posso fazer?</item>
     </string-array>
+    <string name="mcp_card_title">Servidores MCP</string>
+    <string name="mcp_card_blurb">Adicione seus próprios servidores Model Context Protocol. O Gotcha se conecta por Streamable HTTP, lista as ferramentas de cada servidor e deixa o assistente usá-las enquanto aquele servidor estiver ativado.</string>
+    <string name="mcp_card_monitor_note">As ferramentas que um servidor marca como somente leitura podem ser usadas no modo Observador. Todas as outras são só para o modo Operador.</string>
+    <string name="mcp_card_trust">As descrições e os resultados das ferramentas de um servidor chegam ao assistente como estão e podem direcioná-lo. Adicione só servidores em que você confia.</string>
+    <string name="mcp_add_server">Adicionar servidor</string>
+    <string name="mcp_field_name">Nome</string>
+    <string name="mcp_field_url">URL do servidor</string>
+    <string name="mcp_field_token">Token Bearer (opcional)</string>
+    <string name="mcp_field_headers">Cabeçalhos extras (opcional)</string>
+    <string name="mcp_field_headers_hint">Um por linha, como Nome: valor</string>
+    <string name="mcp_test_connection">Testar conexão</string>
+    <string name="mcp_testing">Testando…</string>
+    <string name="mcp_save">Salvar</string>
+    <string name="mcp_saving">Salvando…</string>
+    <string name="mcp_cancel">Cancelar</string>
+    <string name="mcp_edit">Editar</string>
+    <string name="mcp_remove">Remover</string>
+    <string name="mcp_remove_confirm">Toque de novo para remover %1$s</string>
+    <string name="mcp_show_tools">Ferramentas (%1$d)</string>
+    <string name="mcp_hide_tools">Ocultar ferramentas</string>
+    <string name="mcp_tool_read_only">Somente leitura: Observador e Operador</string>
+    <string name="mcp_tool_operator">Só Operador</string>
+    <string name="mcp_server_off">Desativado</string>
+    <string name="mcp_server_status">%1$s · %2$s</string>
+    <string name="mcp_no_tools">Este servidor não oferece ferramentas.</string>
+    <string name="mcp_status_summary">%1$d de %2$d servidores ativos · %3$d ferramentas</string>
+    <plurals name="mcp_tools_count">
+        <item quantity="one">%1$d ferramenta</item>
+        <item quantity="other">%1$d ferramentas</item>
+    </plurals>
+    <string name="mcp_connected">Conectado a %1$s: %2$s.</string>
+    <string name="mcp_tools_capped">Só as primeiras %1$d são usadas.</string>
+    <string name="mcp_removed_while_saving">Esse servidor foi removido nesse meio-tempo.</string>
+    <string name="mcp_error_name">Digite um nome para o servidor.</string>
+    <string name="mcp_error_bad_url">Digite uma URL completa que comece com https:// (ou http:// na sua rede local).</string>
+    <string name="mcp_error_cleartext">Use https para um servidor fora da sua rede local. Um token ou cabeçalho enviado por http pode ser lido no caminho.</string>
+    <string name="mcp_error_bad_header">Escreva cada cabeçalho em uma linha, como Nome: valor.</string>
+    <string name="mcp_error_auth">O servidor recusou o token ou os cabeçalhos (HTTP %1$d). Confira e tente de novo.</string>
+    <string name="mcp_error_not_found">Nada respondeu nesta URL (HTTP 404). Confira o endereço, incluindo o caminho, que muitas vezes é /mcp.</string>
+    <string name="mcp_error_old_transport">Este servidor usa o transporte HTTP+SSE antigo, que o Gotcha ainda não suporta. Use o endereço Streamable HTTP do servidor, se houver.</string>
+    <string name="mcp_error_not_mcp">O servidor respondeu, mas não como um servidor MCP: %1$s</string>
+    <string name="mcp_error_http">O servidor retornou HTTP %1$d: %2$s</string>
+    <string name="mcp_error_rpc">O servidor retornou um erro: %1$s</string>
+    <string name="mcp_error_network">Não foi possível acessar o servidor: %1$s</string>
+    <string name="mcp_error_bad_token">O token e os valores dos cabeçalhos só podem conter caracteres ASCII simples.</string>
 </resources>

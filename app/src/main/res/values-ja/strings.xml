@@ -1391,4 +1391,48 @@
         <item>必要なことを教えてください。</item>
         <item>何なりとお申し付けください。</item>
     </string-array>
+    <string name="mcp_card_title">MCP サーバー</string>
+    <string name="mcp_card_blurb">自分の Model Context Protocol サーバーを追加します。Gotcha は Streamable HTTP で接続し、各サーバーのツールを一覧にして、そのサーバーがオンの間はアシスタントが使えるようにします。</string>
+    <string name="mcp_card_monitor_note">サーバーが読み取り専用としているツールはモニターでも使えます。それ以外のツールはオペレーター専用です。</string>
+    <string name="mcp_card_trust">サーバーのツールの説明と結果はそのままアシスタントに渡り、その動きに影響することがあります。信頼できるサーバーだけを追加してください。</string>
+    <string name="mcp_add_server">サーバーを追加</string>
+    <string name="mcp_field_name">名前</string>
+    <string name="mcp_field_url">サーバーの URL</string>
+    <string name="mcp_field_token">Bearer トークン（任意）</string>
+    <string name="mcp_field_headers">追加のヘッダー（任意）</string>
+    <string name="mcp_field_headers_hint">1 行に 1 つ、Name: value の形で</string>
+    <string name="mcp_test_connection">接続をテスト</string>
+    <string name="mcp_testing">テスト中…</string>
+    <string name="mcp_save">保存</string>
+    <string name="mcp_saving">保存中…</string>
+    <string name="mcp_cancel">キャンセル</string>
+    <string name="mcp_edit">編集</string>
+    <string name="mcp_remove">削除</string>
+    <string name="mcp_remove_confirm">もう一度タップすると %1$s を削除します</string>
+    <string name="mcp_show_tools">ツール（%1$d）</string>
+    <string name="mcp_hide_tools">ツールを隠す</string>
+    <string name="mcp_tool_read_only">読み取り専用：モニターとオペレーター</string>
+    <string name="mcp_tool_operator">オペレーターのみ</string>
+    <string name="mcp_server_off">オフ</string>
+    <string name="mcp_server_status">%1$s · %2$s</string>
+    <string name="mcp_no_tools">このサーバーにはツールがありません。</string>
+    <string name="mcp_status_summary">%2$d 台中 %1$d 台がオン · ツール %3$d 個</string>
+    <plurals name="mcp_tools_count">
+        <item quantity="other">ツール %1$d 個</item>
+    </plurals>
+    <string name="mcp_connected">%1$s に接続しました：%2$s。</string>
+    <string name="mcp_tools_capped">使われるのは最初の %1$d 個だけです。</string>
+    <string name="mcp_removed_while_saving">そのサーバーはその間に削除されました。</string>
+    <string name="mcp_error_name">サーバーの名前を入力してください。</string>
+    <string name="mcp_error_bad_url">https:// で始まる完全な URL を入力してください（ローカルネットワークでは http:// も可）。</string>
+    <string name="mcp_error_cleartext">ローカルネットワーク外のサーバーには https を使ってください。http で送ったトークンやヘッダーは途中で読まれるおそれがあります。</string>
+    <string name="mcp_error_bad_header">ヘッダーは 1 行に 1 つ、Name: value の形で書いてください。</string>
+    <string name="mcp_error_auth">サーバーがトークンまたはヘッダーを拒否しました（HTTP %1$d）。確認してもう一度お試しください。</string>
+    <string name="mcp_error_not_found">この URL からは応答がありません（HTTP 404）。パス（多くは /mcp）も含めてアドレスを確認してください。</string>
+    <string name="mcp_error_old_transport">このサーバーは古い HTTP+SSE トランスポートを使っていて、Gotcha はまだ対応していません。サーバーに Streamable HTTP のアドレスがあればそちらを使ってください。</string>
+    <string name="mcp_error_not_mcp">サーバーは応答しましたが、MCP サーバーとしての応答ではありません：%1$s</string>
+    <string name="mcp_error_http">サーバーが HTTP %1$d を返しました：%2$s</string>
+    <string name="mcp_error_rpc">サーバーがエラーを返しました：%1$s</string>
+    <string name="mcp_error_network">サーバーに接続できません：%1$s</string>
+    <string name="mcp_error_bad_token">トークンとヘッダーの値には半角の ASCII 文字しか使えません。</string>
 </resources>

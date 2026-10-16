@@ -710,7 +710,7 @@ class ToolExecutor(
 
     /** The connector half of [unavailableResult] — no device grant to deep-link to. */
     private fun connectorUnavailableMessage(name: String): String {
-        // Dynamic tools (such as Home Assistant's) are registered at runtime, so the
+        // Dynamic tools (Home Assistant, MCP servers) are registered at runtime, so the
         // compile-time catalog cannot know them; name the owning connector explicitly.
         ToolRegistry.dynamicOwnerOf(name)?.let { owner ->
             val connector = ConnectorCatalog.byId(owner)?.displayName ?: owner

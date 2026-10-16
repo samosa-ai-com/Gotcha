@@ -9,6 +9,8 @@ import com.gotcha.connectors.homeassistant.HomeAssistantConnector
 import com.gotcha.connectors.homeassistant.HomeAssistantTools
 import com.gotcha.connectors.imap.ImapConnector
 import com.gotcha.connectors.mail.EmailTools
+import com.gotcha.connectors.mcp.McpServerTools
+import com.gotcha.connectors.mcp.McpServersConnector
 import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.microsoft.TaskTools
 import com.gotcha.connectors.notion.NotionConnector
@@ -51,7 +53,8 @@ object ConnectorRegistry {
             val microsoft = MicrosoftConnector(store)
             val notion = NotionConnector(store)
             val homeAssistant = HomeAssistantConnector(store)
-            connectors = listOf(imap, google, microsoft, notion, homeAssistant)
+            val mcp = McpServersConnector(store)
+            connectors = listOf(imap, google, microsoft, notion, homeAssistant, mcp)
 
             val email = EmailTools(appContext, imap, google, microsoft)
             emailTools = email
@@ -66,7 +69,8 @@ object ConnectorRegistry {
                     microsoft = { microsoft }
                 ),
                 NotionTools { notion },
-                HomeAssistantTools { homeAssistant }
+                HomeAssistantTools { homeAssistant },
+                McpServerTools { mcp }
             )
             initialized = true
         }
@@ -103,7 +107,7 @@ object ConnectorRegistry {
      * Tool names to withhold from the model right now, because every connector
      * that could serve them is disconnected or disabled. Falls back to hiding
      * all connector-owned tools before [init] runs — nothing can serve them at
-     * that point either. Server-defined tools (such as Home Assistant's) are
+     * that point either. Server-defined tools (Home Assistant, MCP servers) are
      * not in the compile-time catalog: whatever a connector has registered is
      * hidden whenever that connector is not usable.
      */

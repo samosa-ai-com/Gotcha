@@ -82,6 +82,7 @@ one-time setup walkthrough.
 * 🛡️ [**Safety & Permissions**](https://samosa-ai.com/gotcha/docs/safety-permissions) — capability tiers, confirmation gates, audit log.
 * ❓ [**FAQ & Known Limitations**](https://samosa-ai.com/gotcha/docs/faq) — backend compatibility and rough edges.
 * ✅ [**Feature Test Coverage**](docs/FEATURE_TEST_COVERAGE.md) — every tool and how it's verified.
+* 🔌 [**MCP Servers**](docs/mcp-servers.md) — add your own Model Context Protocol servers and use their tools.
 
 ## 🧪 Beta Testers
 
