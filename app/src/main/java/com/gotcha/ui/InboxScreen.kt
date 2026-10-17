@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,6 +28,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.notifications.InboxEntry
+import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.ui.theme.fade
 
 /**
  * The in-app notification inbox (issue #100): everything Gotcha has notified
@@ -81,7 +82,7 @@ fun InboxScreen(
     }
 
     if (confirmClear) {
-        AlertDialog(
+        SkinAlertDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text(stringResource(R.string.inbox_clear_notification_history)) },
             text = {
@@ -111,7 +112,7 @@ private fun InboxRow(entry: InboxEntry, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = scheme.surfaceVariant.copy(alpha = 0.5f),
+        color = scheme.surfaceVariant.fade(0.5f),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)

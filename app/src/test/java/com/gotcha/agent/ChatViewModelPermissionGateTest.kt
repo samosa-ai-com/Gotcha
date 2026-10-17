@@ -1,11 +1,14 @@
 package com.gotcha.agent
 
 import android.app.Application
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.async
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -50,6 +53,22 @@ class ChatViewModelPermissionGateTest {
 
     @After
     fun tearDown() {
+        // The runner's startup (chat migration, sample seeding) and the
+        // ViewModel's first session listing hop to Dispatchers.IO and come back
+        // on Main. Resetting Main while one of them is on its way back trips the
+        // test dispatcher's concurrency check — "Dispatchers.Main is used
+        // concurrently with setting it" — which failed CI intermittently. A test
+        // that never yields only starts that work as runTest finishes, so the
+        // race was widest right here. Let it all land first.
+        runTest(dispatcher) {
+            viewModel.runner.startup.join()
+            val work = viewModel.viewModelScope.coroutineContext.job
+            while (true) {
+                val active = work.children.filter { it.isActive }.toList()
+                if (active.isEmpty()) break
+                active.joinAll()
+            }
+        }
         kotlinx.coroutines.Dispatchers.resetMain()
     }
 
