@@ -2,6 +2,7 @@ package com.gotcha.updater
 
 import android.Manifest
 import android.app.Application
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.Settings
@@ -11,6 +12,9 @@ import com.gotcha.notifications.LocalNotifier
 import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.testsupport.FakeAndroidKeyStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -26,6 +30,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 
 /** The background update check and its notification (issue #126). */
 @RunWith(RobolectricTestRunner::class)
@@ -61,7 +66,9 @@ class UpdateNotificationsTest {
     private fun trustedUrl(versionCode: Int) =
         "https://github.com/samosa-ai-com/Gotcha/releases/download/v1.$versionCode.0/gotcha.apk"
 
-    private fun check(now: Long = noon, online: Boolean = true) = runBlocking {
+    private fun check(now: Long = noon, online: Boolean = true) = runBlocking { checkNow(now, online) }
+
+    private suspend fun checkNow(now: Long = noon, online: Boolean = true) =
         runUpdateCheck(
             application,
             now = now,
@@ -71,6 +78,15 @@ class UpdateNotificationsTest {
             zone = zone,
             isOnline = { online }
         )
+
+    /** What the user does in Android's settings; an app cannot raise a channel's importance itself. */
+    private fun setChannelImportance(importance: Int) {
+        val channel = manager.getNotificationChannel(UpdateNotifier.CHANNEL_ID)
+        if (channel == null) {
+            manager.createNotificationChannel(NotificationChannel(UpdateNotifier.CHANNEL_ID, "Updates", importance))
+        } else {
+            channel.importance = importance
+        }
     }
 
     private fun posted() = shadowOf(manager).allNotifications
@@ -187,5 +203,39 @@ class UpdateNotificationsTest {
 
         server.enqueue(manifest(8))
         assertEquals(UpdateCheckOutcome.NOTIFIED, check(noon + 2 * 60 * 60 * 1000L))
+    }
+
+    @Test
+    fun `with the updates channel muted, nothing is fetched or recorded`() {
+        setChannelImportance(NotificationManager.IMPORTANCE_NONE)
+
+        assertEquals(UpdateCheckOutcome.CANNOT_POST, check())
+        assertEquals(0, server.requestCount)
+        assertTrue(LocalNotificationStore(application).entries().isEmpty())
+
+        // Unmuted later: the same version is still announced.
+        setChannelImportance(NotificationManager.IMPORTANCE_DEFAULT)
+        server.enqueue(manifest(8))
+        assertEquals(UpdateCheckOutcome.NOTIFIED, check(noon + 1))
+        assertEquals(1, posted().size)
+    }
+
+    @Test
+    fun `overlapping checks fetch and announce a version once`() {
+        // Slow enough that the second check starts while the first waits on the network.
+        server.enqueue(manifest(8).setBodyDelay(300, TimeUnit.MILLISECONDS))
+        server.enqueue(manifest(8))
+
+        val outcomes = runBlocking {
+            List(2) { async(Dispatchers.IO) { checkNow() } }.awaitAll()
+        }
+
+        assertEquals(
+            listOf(UpdateCheckOutcome.NOTIFIED, UpdateCheckOutcome.NOT_DUE),
+            outcomes.sortedBy { it.ordinal }.reversed()
+        )
+        assertEquals(1, server.requestCount)
+        assertEquals(1, posted().size)
+        assertEquals(1, LocalNotificationStore(application).entries().size)
     }
 }

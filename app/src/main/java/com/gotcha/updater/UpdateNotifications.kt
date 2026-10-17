@@ -20,6 +20,8 @@ import com.gotcha.notifications.LocalNotifier.Companion.putTargetExtras
 import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.inQuietHours
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.ZoneId
 
@@ -47,6 +49,13 @@ internal fun updateCheckDue(now: Long, lastCheckedAt: Long): Boolean =
 
 /** What one background check did, for tests and the log. */
 enum class UpdateCheckOutcome { OFF, CANNOT_POST, NOT_DUE, OFFLINE, QUIET_HOURS, FAILED, UP_TO_DATE, NOTIFIED }
+
+/**
+ * App start and the reminder alarm can both start a check. Without this, two
+ * overlapping checks read the same timestamps, fetch the same manifest, and
+ * each announce the same version.
+ */
+private val updateCheckLock = Mutex()
 
 /** When the check last ran and which version was last announced. Not personal, so not encrypted. */
 internal class UpdateCheckStore(private val prefs: SharedPreferences) {
@@ -92,10 +101,11 @@ internal suspend fun runUpdateCheck(
     installedVersionCode: Int = BuildConfig.VERSION_CODE,
     zone: ZoneId = ZoneId.systemDefault(),
     isOnline: () -> Boolean = { hasValidatedNetwork(context) }
-): UpdateCheckOutcome {
+): UpdateCheckOutcome = updateCheckLock.withLock {
     val settings = SettingsRepository(context).load()
     if (!settings.updateNotificationsEnabled) return UpdateCheckOutcome.OFF
     val notifier = UpdateNotifier(context)
+    // Includes the updates channel: a post to a muted one is silently dropped.
     if (!notifier.canPost()) return UpdateCheckOutcome.CANNOT_POST
     val store = UpdateCheckStore(context)
     if (!updateCheckDue(now, store.lastCheckedAt)) return UpdateCheckOutcome.NOT_DUE
@@ -122,7 +132,7 @@ internal suspend fun runUpdateCheck(
     )
     if (!notify || !notifier.post(info, LocalNotificationStore(context))) return UpdateCheckOutcome.UP_TO_DATE
     store.lastNotifiedVersionCode = info.versionCode
-    return UpdateCheckOutcome.NOTIFIED
+    UpdateCheckOutcome.NOTIFIED
 }
 
 /** An alarm has no network constraint, so the check asks for itself. */
@@ -140,7 +150,18 @@ private fun hasValidatedNetwork(context: Context): Boolean {
  */
 class UpdateNotifier(private val context: Context) {
 
-    fun canPost(): Boolean = ChatCompletionNotifier(context).canPost()
+    /**
+     * The app may post and the user has not muted this channel. Android drops a
+     * post to a muted channel without a word, so posting there would mark the
+     * version announced and lose it. A channel not created yet is created on
+     * the first post with default importance, so it counts as on.
+     */
+    fun canPost(): Boolean {
+        if (!ChatCompletionNotifier(context).canPost()) return false
+        val channel = context.getSystemService(NotificationManager::class.java)
+            ?.getNotificationChannel(CHANNEL_ID) ?: return true
+        return channel.importance != NotificationManager.IMPORTANCE_NONE
+    }
 
     @Suppress("MissingPermission") // canPost() checks it.
     fun post(info: AppUpdateInfo, inbox: LocalNotificationStore): Boolean {
