@@ -91,7 +91,7 @@ class HomeAssistantConnector(
             store.clear(id)
             credentials = null
         }
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearDynamicTools(ID)
     }
 
     /**
@@ -172,6 +172,7 @@ class HomeAssistantConnector(
     /** Registers [tools] with [ToolRegistry]; read-only names go to the Monitor slice. */
     private fun registerTools(tools: List<McpToolSchema>) {
         ToolRegistry.setDynamicTools(
+            ID,
             tools.map { ToolDefinition(function = FunctionDefinition(it.name, it.description, it.inputSchema)) },
             readOnlyNames = tools.filter { isReadOnlyTool(it.name) }
                 .mapTo(mutableSetOf()) { it.name }

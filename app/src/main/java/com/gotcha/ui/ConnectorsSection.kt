@@ -35,6 +35,7 @@ import com.gotcha.connectors.google.GoogleConnector
 import com.gotcha.connectors.homeassistant.HomeAssistantConnector
 import com.gotcha.connectors.imap.ImapConnector
 import com.gotcha.connectors.imap.ImapCredentials
+import com.gotcha.connectors.mcp.McpServersConnector
 import com.gotcha.connectors.microsoft.MicrosoftConnector
 import com.gotcha.connectors.notion.NotionConnector
 import com.gotcha.connectors.oauth.OAuthConnectFlow
@@ -64,6 +65,7 @@ fun ConnectorsSection() {
     val microsoft = remember(registry) { registry.byId("microsoft") as MicrosoftConnector }
     val notion = remember(registry) { registry.byId("notion") as NotionConnector }
     val homeAssistant = remember(registry) { registry.byId("homeassistant") as HomeAssistantConnector }
+    val mcp = remember(registry) { registry.byId(McpServersConnector.ID) as McpServersConnector }
 
     // The one piece of connector state that is *not* a credential, so it lives in
     // Settings rather than the connector's own encrypted blob.
@@ -134,6 +136,8 @@ fun ConnectorsSection() {
         NotionCard(notion, "notion" !in disabled) { setEnabled("notion", it) }
         HorizontalDivider(thickness = 1.dp)
         HomeAssistantCard(homeAssistant, "homeassistant" !in disabled) { setEnabled("homeassistant", it) }
+        HorizontalDivider(thickness = 1.dp)
+        McpServersCard(mcp, McpServersConnector.ID !in disabled) { setEnabled(McpServersConnector.ID, it) }
     }
 }
 

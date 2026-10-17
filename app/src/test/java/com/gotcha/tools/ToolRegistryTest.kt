@@ -64,14 +64,14 @@ class ToolRegistryTest {
         val def = ToolDefinition(
             function = FunctionDefinition("HassGetState", "Ask for the state of an entity", schema)
         )
-        ToolRegistry.setDynamicTools(listOf(def), readOnlyNames = setOf("HassGetState"))
+        ToolRegistry.setDynamicTools("homeassistant", listOf(def), readOnlyNames = setOf("HassGetState"))
         try {
             assertTrue(ToolRegistry.contains("HassGetState"))
             assertEquals(def, ToolRegistry.definition("HassGetState"))
             // Tools that were never registered stay unknown.
             assertTrue(!ToolRegistry.contains("HassTurnOn"))
         } finally {
-            ToolRegistry.clearDynamicTools()
+            ToolRegistry.clearAllDynamicTools()
         }
     }
 

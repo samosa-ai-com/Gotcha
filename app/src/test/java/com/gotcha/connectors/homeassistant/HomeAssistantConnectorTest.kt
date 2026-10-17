@@ -49,13 +49,13 @@ class HomeAssistantConnectorTest {
         server.start()
         store = InMemoryCredentialStore()
         connector = HomeAssistantConnector(store, HomeAssistantMcpClient())
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
     }
 
     @After
     fun tearDown() {
         server.shutdown()
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
     }
 
     private fun baseUrl(): String = server.url("/").toString()
@@ -150,7 +150,7 @@ class HomeAssistantConnectorTest {
         assertEquals(setOf("HassGetState", "HassTurnOn", "GetLiveContext"), reloaded.toolNames)
         assertTrue(ToolRegistry.contains("HassGetState"))
         assertTrue(ToolRegistry.contains("HassTurnOn"))
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
     }
 
     @Test
