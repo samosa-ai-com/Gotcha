@@ -57,14 +57,27 @@ fun SkinAlertDialog(
  * `Dialog { Surface { … } }` falls into the same trap as the Material alert
  * dialog: `Surface` defaults to the translucent `surface` role, so the screen
  * underneath reads through it on every glass skin.
+ *
+ * The content colour is set explicitly because `Surface` cannot derive one:
+ * `contentColorFor` only recognises the scheme's own roles, and
+ * [Skin.menuContainer] is not one of them, so a bare `Surface` hands its
+ * children whatever `LocalContentColor` happens to be ambient — dark text on a
+ * dark skin's dark panel. `onSurface` is the colour [SkinContrastTest] checks
+ * against [Skin.menuContainer].
  */
 @Composable
 fun SkinDialog(
     onDismissRequest: () -> Unit,
     shape: Shape = MaterialTheme.shapes.extraLarge,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
     content: @Composable () -> Unit
 ) {
     Dialog(onDismissRequest = onDismissRequest) {
-        Surface(shape = shape, color = LocalSkin.current.menuContainer, content = content)
+        Surface(
+            shape = shape,
+            color = LocalSkin.current.menuContainer,
+            contentColor = contentColor,
+            content = content
+        )
     }
 }
