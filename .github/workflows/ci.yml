@@ -1,23 +1,82 @@
 name: CI
 
 # CI runs on the self-hosted BeyondMax runner (no GitHub Actions minutes).
-# `build` runs automatically on PRs/pushes to main/development.
-# Instrumented jobs run only on manual workflow_dispatch to avoid
-# queue-blocking the single runner (one job at a time).
+# It handles one job at a time, so every redundant run delays the next one:
+# - `build` runs on PRs to main/development and on pushes to development.
+#   A push to development skips `build` while an open PR from development
+#   already builds the same commit (see the dedupe job).
+# - Pushes to main don't run CI: main's ruleset only takes PRs, and each
+#   PR's run already built the merge result.
+# - Changes that touch only update.json / CHANGELOG.md (the release
+#   manifest PR) don't run CI: nothing here compiles, lints or tests them.
+# - Instrumented jobs run only on manual workflow_dispatch; `build` joins
+#   them only when the run_build input is set.
 
 on:
   pull_request:
     branches: [main, development]
+    paths-ignore:
+      - update.json
+      - CHANGELOG.md
   push:
-    branches: [main, development]
+    branches: [development]
+    paths-ignore:
+      - update.json
+      - CHANGELOG.md
   workflow_dispatch:
+    inputs:
+      run_build:
+        description: "Also run the build job (detekt, unit tests, lint, assemble)"
+        type: boolean
+        default: false
 
+# Manual runs get their own group so they never cancel a push/PR build of
+# the same branch, and are never cancelled themselves: a second manual run
+# is usually deliberate, and the instrumented matrix is too costly to drop.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  # Decides whether `build` runs. GitHub-hosted (free for this public repo)
+  # so the check never waits behind, or holds up, the self-hosted runner.
+  dedupe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_BUILD: ${{ inputs.run_build }}
+        run: |
+          SKIP=false
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$RUN_BUILD" != "true" ]; then
+            echo "Manual run without run_build: only the instrumented jobs run."
+            SKIP=true
+          elif [ "$EVENT" = "push" ]; then
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            # Same-repo PRs only: a fork's branch that happens to share the
+            # name must not suppress our build. On an API error, build anyway.
+            PRS=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
+              --json number,isCrossRepository \
+              --jq '[.[] | select(.isCrossRepository | not) | "#\(.number)"] | join(" ")') || PRS=""
+            if [ -n "$PRS" ]; then
+              echo "Open PR $PRS from $BRANCH builds this commit; skipping the push build."
+              SKIP=true
+            fi
+          fi
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: dedupe
+    # !cancelled() instead of the implicit success(): if dedupe itself fails,
+    # its output is empty and build runs rather than silently skipping.
+    if: ${{ !cancelled() && needs.dedupe.outputs.skip != 'true' }}
     runs-on: [self-hosted, chanakya] # BeyondMax self-hosted — 0 minutes. TerminalToolTest shells out to POSIX `sh` — do not move to windows/macos
     timeout-minutes: 30
     # The coverage comment needs pull-requests: write. Without it the jacoco-report
