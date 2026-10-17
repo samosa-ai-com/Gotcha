@@ -228,4 +228,57 @@ class McpHttpClientTest {
         closed.shutdown()
         assertEquals(McpFailure.NETWORK, failureOf { client.session(McpEndpoint(url)).initialize() }.kind)
     }
+
+    @Test
+    fun `a redirect is not followed, so the secret header stays put`() = runTest {
+        val elsewhere = MockWebServer().apply { start() }
+        val redirecting = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) = MockResponse()
+                    .setResponseCode(307)
+                    .setHeader("Location", elsewhere.url("/mcp").toString())
+            }
+            start()
+        }
+        // Even a client built to follow redirects is made not to.
+        val following = McpHttpClient(OkHttpClient.Builder().followRedirects(true).followSslRedirects(true).build())
+        try {
+            val e = failureOf {
+                following.session(
+                    McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
+                ).initialize()
+            }
+            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(307, e.httpCode)
+            assertEquals(elsewhere.url("/mcp").toString(), e.detail)
+            assertEquals(0, elsewhere.requestCount)
+        } finally {
+            redirecting.shutdown()
+            elsewhere.shutdown()
+        }
+    }
+
+    @Test
+    fun `an event line that never ends is cut at the cap, not buffered whole`() = runTest {
+        val cap = 4 * 1024 * 1024
+        val endless = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                // Past the cap with no newline, then the server goes quiet. A reader that
+                // waits for the end of the line would sit here until the read timeout.
+                override fun dispatch(request: RecordedRequest) = MockResponse()
+                    .setHeader("Content-Type", "text/event-stream")
+                    .setBody("data: " + "x".repeat(cap + cap / 4))
+                    .throttleBody(cap + 64L * 1024, 2, TimeUnit.SECONDS)
+            }
+            start()
+        }
+        val impatient = McpHttpClient(OkHttpClient.Builder().readTimeout(1, TimeUnit.SECONDS).build())
+        try {
+            val e = failureOf { impatient.session(McpEndpoint(endless.url("/mcp").toString())).initialize() }
+            assertEquals(McpFailure.NOT_MCP, e.kind)
+            assertTrue(e.detail, e.detail.contains("larger than"))
+        } finally {
+            endless.shutdown()
+        }
+    }
 }

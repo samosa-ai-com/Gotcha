@@ -23,7 +23,8 @@ headers are kept in Gotcha's encrypted connector store on the phone.
 Plain `http://` works for servers on your own network: `localhost`, `.local` and `.lan`
 names, and private, link-local and Tailscale (100.64.0.0/10) addresses. A token or header
 sent over `http://` to anywhere else could be read on the way, so Gotcha asks for `https://`
-there.
+there. For the same reason Gotcha never follows a redirect: the token and headers would go to
+a URL it never checked.
 
 ## What the assistant gets
 
@@ -64,6 +65,7 @@ known tools and shows the error under the server.
 | The server refused the token or headers (HTTP 401/403) | The token, or the header name and value. |
 | Nothing answered at this URL (HTTP 404) | The path: many servers serve MCP at `/mcp`. |
 | This server uses the older HTTP+SSE transport | Look for a Streamable HTTP endpoint in the server's docs. |
+| The server returned HTTP 301/302/307/308 and a URL | The server moved: enter the URL it names. |
 | The server answered, but not as an MCP server | The URL points at a web page or another API. |
 | Couldn't reach the server | The address, the network, and whether the server is running. |
 

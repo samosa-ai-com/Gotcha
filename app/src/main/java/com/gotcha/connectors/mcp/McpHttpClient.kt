@@ -21,7 +21,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okio.Buffer
 import okio.BufferedSource
+import okio.ForwardingSource
+import okio.Source
+import okio.buffer
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -98,18 +102,23 @@ data class McpEndpoint(val url: String, val headers: Map<String, String> = empty
  *  - reads a `text/event-stream` reply event by event and stops at the
  *    response whose id matches, skipping the server's own notifications and
  *    requests, so a stream the server keeps open cannot hang the call;
- *  - caps how much of a reply it reads.
+ *  - caps how much of a reply it reads, counted as bytes arrive;
+ *  - never follows a redirect, since the token and headers would go with it
+ *    to a URL [validateMcpServer] never saw, perhaps over plain http.
  *
  * Stdio servers and the older HTTP+SSE transport are out of scope; the latter
  * is recognised and reported as [McpFailure.OLD_TRANSPORT].
  */
 class McpHttpClient(
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .callTimeout(90, TimeUnit.SECONDS)
         .build()
 ) {
+
+    /** Whatever client is passed in, redirects are off: a 3xx fails as [McpFailure.HTTP] instead. */
+    private val client = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     /** One server's session. Requests on it are serialized, which also keeps re-initialising race-free. */
     inner class Session internal constructor(val endpoint: McpEndpoint) {
@@ -290,7 +299,9 @@ class McpHttpClient(
         e as? McpException ?: McpException(McpFailure.NETWORK, e.message ?: e.javaClass.simpleName, cause = e)
 
     private fun httpFailure(session: Session, r: Response, firstRequest: Boolean): McpException {
-        val detail = runCatching { r.peekBody(ERROR_BODY_CHARS.toLong()).string() }.getOrDefault("").trim()
+        // For a redirect, where it points is the useful part: the user can enter that URL instead.
+        val detail = r.header("Location").takeIf { r.isRedirect }
+            ?: runCatching { r.peekBody(ERROR_BODY_CHARS.toLong()).string() }.getOrDefault("").trim()
         return when (r.code) {
             401, 403 -> McpException(McpFailure.AUTH, detail, r.code)
             // The old transport answers POSTs on its SSE URL with 404/405 and
@@ -317,11 +328,12 @@ class McpHttpClient(
 
     private fun readResponse(r: Response, id: Long): JsonObject {
         val body = r.body ?: notMcp("empty body")
+        val source = CappedSource(body.source(), MAX_REPLY_BYTES).buffer()
         val type = r.header("Content-Type").orEmpty()
         return if (type.startsWith("text/event-stream")) {
-            readEventStream(body.source(), id)
+            readEventStream(source, id)
         } else {
-            val text = body.source().readCapped()
+            val text = source.readUtf8()
             val element = parseJson(text) ?: notMcp(text.take(ERROR_BODY_CHARS))
             matching(element, id) ?: notMcp("no response with id $id")
         }
@@ -334,11 +346,8 @@ class McpHttpClient(
      */
     private fun readEventStream(source: BufferedSource, id: Long): JsonObject {
         val data = StringBuilder()
-        var read = 0L
         while (true) {
             val line = source.readUtf8Line() ?: break
-            read += line.length + 1
-            if (read > MAX_REPLY_BYTES) notMcp("reply larger than $MAX_REPLY_BYTES bytes")
             when {
                 line.isEmpty() -> {
                     if (data.isNotEmpty()) {
@@ -356,9 +365,20 @@ class McpHttpClient(
         notMcp("event stream ended without a response")
     }
 
-    private fun BufferedSource.readCapped(): String {
-        if (!request(MAX_REPLY_BYTES + 1)) return readUtf8()
-        notMcp("reply larger than $MAX_REPLY_BYTES bytes")
+    /**
+     * Fails once more than [cap] bytes have come off the network. It sits under
+     * the buffer, so it also bounds a line that never ends: `readUtf8Line`
+     * would otherwise buffer all of it before anyone could count.
+     */
+    private class CappedSource(delegate: Source, private val cap: Long) : ForwardingSource(delegate) {
+        private var total = 0L
+
+        override fun read(sink: Buffer, byteCount: Long): Long {
+            val n = super.read(sink, minOf(byteCount, cap - total + 1))
+            if (n > 0) total += n
+            if (total > cap) notMcp("reply larger than $cap bytes")
+            return n
+        }
     }
 
     private fun parseJson(text: String): JsonElement? =
