@@ -1391,4 +1391,13 @@
         <item>必要なことを教えてください。</item>
         <item>何なりとお申し付けください。</item>
     </string-array>
+    <string name="notification_category_app_update">アプリの更新</string>
+    <string name="channel_app_updates">アプリの更新</string>
+    <string name="channel_app_updates_description">Gotcha の新しいバージョンが公開されたときの通知</string>
+    <string name="update_notification_title">Gotcha %1$s が利用可能です</string>
+    <string name="update_notification_body">タップしてダウンロードとインストールを行います。</string>
+    <string name="notifications_app_updates">アプリの更新</string>
+    <string name="notifications_app_updates_description">Gotcha は 1 日に 2 回ほど、新しいバージョンが出ているかを確かめるために GitHub（raw.githubusercontent.com）から小さなファイルをダウンロードします。このリクエストにあなたに関する情報は含まれません。ほかのダウンロードと同じく、GitHub には IP アドレスが見えます。</string>
+    <string name="notifications_notify_about_new_versions">新しいバージョンを通知する</string>
+    <string name="settings_field_update_notifications_enabled">更新の通知</string>
 </resources>

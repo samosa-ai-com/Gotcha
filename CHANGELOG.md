@@ -4,6 +4,12 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **A notification when a new version is out** (#126). About twice a day,
+  Gotcha checks GitHub for a newer release and, once per version, posts a
+  notification. Tapping it opens Settings ▸ About, already checking, with the
+  download ready. The check skips quiet hours and stays silent when offline.
+  It can be turned off under Settings ▸ Notifications ▸ App updates, or muted
+  through its own "App updates" channel in Android's settings.
 - **Russian voice and replies, and roubles** (#122). Russian can now be picked
   as the voice language and the reply language: Android speech is asked for
   `ru-RU` and API speech-to-text for `ru`, and the short phrases Gotcha speaks

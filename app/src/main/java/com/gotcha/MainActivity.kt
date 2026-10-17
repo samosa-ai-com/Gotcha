@@ -93,6 +93,7 @@ import com.gotcha.ui.tour.TourNavigation
 import com.gotcha.ui.tour.TourOverlay
 import com.gotcha.ui.tour.TourPlace
 import com.gotcha.ui.tour.rememberTourHost
+import com.gotcha.updater.runUpdateCheck
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -152,6 +153,9 @@ class MainActivity : ComponentActivity() {
      * offering one is tapped: a daily tip (issue #101) or a routine (#100).
      */
     private var openDraftRequested by mutableStateOf<NotificationTarget.Draft?>(null)
+
+    /** Set when an update notification (or its inbox entry) is tapped: Settings ▸ About, checking (issue #126). */
+    private var openUpdateRequested by mutableStateOf(false)
 
     /** Gotcha's own notification history: the inbox, its unread count, per-chat privacy (issue #100). */
     private val localNotificationStore by lazy { LocalNotificationStore(applicationContext) }
@@ -332,6 +336,10 @@ class MainActivity : ComponentActivity() {
         // notification alarms are armed here too. Re-arming is idempotent.
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { LocalNotificationScheduler.scheduleAll(applicationContext) }
+            // Re-arming pushes the 4-hour check back, so someone who opens Gotcha
+            // more often than that would never reach the update check through the
+            // alarm alone. It limits itself to about twice a day (issue #126).
+            runCatching { runUpdateCheck(applicationContext) }
         }
 
         // Tools report what they need the moment they need it. A special-access
@@ -590,6 +598,10 @@ class MainActivity : ComponentActivity() {
             // Consumed, as above: a recreation must not open another chat.
             intent.removeExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)
         }
+        if (intent?.getBooleanExtra(LocalNotifier.EXTRA_OPEN_UPDATE, false) == true) {
+            openUpdateRequested = true
+            intent.removeExtra(LocalNotifier.EXTRA_OPEN_UPDATE)
+        }
         intent?.getStringExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)?.let { entryId ->
             intent.removeExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)
             lifecycleScope.launch(Dispatchers.IO) {
@@ -636,6 +648,7 @@ class MainActivity : ComponentActivity() {
         when (val target = entry.target) {
             is NotificationTarget.Chat -> openSessionRequested = target.sessionId
             is NotificationTarget.Draft -> openDraftRequested = target
+            NotificationTarget.Update -> openUpdateRequested = true
             NotificationTarget.Home -> Unit
         }
     }
@@ -774,6 +787,9 @@ class MainActivity : ComponentActivity() {
         // rotation the page is back where it was, and a replayed highlight would
         // point at something the user has already been shown.
         var settingsHighlight by remember { mutableStateOf<String?>(null) }
+        // About runs its update check on arrival once, after an update notification's tap.
+        // Not saveable either: a rotation must not check again.
+        var checkUpdateOnOpen by remember { mutableStateOf(false) }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         var showFeedbackSheet by remember { mutableStateOf(false) }
         var showReferralInviteDialog by remember { mutableStateOf(false) }
@@ -837,6 +853,17 @@ class MainActivity : ComponentActivity() {
                 currentRoute = Route.HOME
                 chatViewModel.startChatFromTip(draft.prompt, draft.mode)
                 openDraftRequested = null
+            }
+        }
+
+        // A tapped update notification: About, which checks and offers the download.
+        LaunchedEffect(openUpdateRequested) {
+            if (openUpdateRequested) {
+                currentRoute = Route.SETTINGS
+                settingsPage = SettingsPage.ABOUT
+                settingsHighlight = null
+                checkUpdateOnOpen = true
+                openUpdateRequested = false
             }
         }
 
@@ -1042,7 +1069,9 @@ class MainActivity : ComponentActivity() {
                         onOpenSearchResult = { page, field ->
                             settingsPage = page
                             settingsHighlight = field
-                        }
+                        },
+                        checkUpdateOnOpen = checkUpdateOnOpen,
+                        onUpdateCheckStarted = { checkUpdateOnOpen = false }
                     )
                 }
                 Route.INBOX -> {

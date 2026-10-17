@@ -1429,4 +1429,13 @@
         <item>Dimmi cosa ti serve.</item>
         <item>Al tuo servizio: cosa posso fare?</item>
     </string-array>
+    <string name="notification_category_app_update">Aggiornamento dell\'app</string>
+    <string name="channel_app_updates">Aggiornamenti dell\'app</string>
+    <string name="channel_app_updates_description">Una notifica quando esce una nuova versione di Gotcha</string>
+    <string name="update_notification_title">Gotcha %1$s è disponibile</string>
+    <string name="update_notification_body">Tocca per scaricarla e installarla.</string>
+    <string name="notifications_app_updates">Aggiornamenti dell\'app</string>
+    <string name="notifications_app_updates_description">Circa due volte al giorno Gotcha scarica un piccolo file da GitHub (raw.githubusercontent.com) per vedere se è uscita una nuova versione. La richiesta non contiene nulla su di te; GitHub vede il tuo indirizzo IP, come per qualsiasi download.</string>
+    <string name="notifications_notify_about_new_versions">Avvisami delle nuove versioni</string>
+    <string name="settings_field_update_notifications_enabled">Notifiche di aggiornamento</string>
 </resources>

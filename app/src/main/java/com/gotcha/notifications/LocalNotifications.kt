@@ -25,7 +25,10 @@ enum class NotificationCategory(@StringRes val label: Int, val proactive: Boolea
     INACTIVITY(R.string.notification_category_reminder, proactive = true),
     DAILY_TIP(R.string.notification_category_daily_tip, proactive = true),
     TASK_FINISHED(R.string.notification_category_task_finished, proactive = false),
-    SERVER(R.string.notification_category_server, proactive = false)
+    SERVER(R.string.notification_category_server, proactive = false),
+
+    /** A newer Gotcha is published (issue #126). Last, so the ids of the others keep their ordinals. */
+    APP_UPDATE(R.string.notification_category_app_update, proactive = false)
 }
 
 /** Where tapping a notification (or its inbox entry) goes. */
@@ -38,6 +41,9 @@ sealed interface NotificationTarget {
 
     /** A new chat in [mode], with [prompt] in the composer and not sent. */
     data class Draft(val prompt: String, val mode: AgentMode) : NotificationTarget
+
+    /** Settings ▸ About, checking for the update the notification announced (issue #126). */
+    data object Update : NotificationTarget
 }
 
 /**
@@ -134,6 +140,7 @@ private fun categoryEnabled(category: NotificationCategory, settings: Settings):
     NotificationCategory.DAILY_TIP -> settings.dailyTipsEnabled
     NotificationCategory.TASK_FINISHED -> settings.chatCompletionNotificationsEnabled
     NotificationCategory.SERVER -> settings.serverMessagesEnabled
+    NotificationCategory.APP_UPDATE -> settings.updateNotificationsEnabled
 }
 
 /**
