@@ -23,6 +23,7 @@ import com.gotcha.audio.TtsEngine
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.data.WakeWordListeningMode
+import com.gotcha.data.coalescedSettingsListener
 import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.AssistiveBallOverlay
@@ -84,11 +85,12 @@ class AssistiveBallService : Service() {
     private lateinit var settingsPrefs: SharedPreferences
 
     /** Reacts to wake-word settings edits while the ball is running. */
-    private val wakeWordSettingsWatcher = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+    // Coalesced: every save notifies once per setting, and this reads them all.
+    private val wakeWordSettingsWatcher = coalescedSettingsListener {
         val s = settingsRepository.load()
         if (!s.wakeWordEnabled || !s.assistiveBallEnabled) {
             wakeWordDetector.release()
-            return@OnSharedPreferenceChangeListener
+            return@coalescedSettingsListener
         }
         // The key arrives encrypted; compare the value read back instead (see
         // settingsChangeNotifier's note). Restarting with a new threshold or a

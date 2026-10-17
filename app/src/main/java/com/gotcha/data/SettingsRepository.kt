@@ -2,9 +2,12 @@ package com.gotcha.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
 import com.gotcha.i18n.Language
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * When the wake-word listener is allowed to run, relative to the screen state.
@@ -495,6 +498,36 @@ internal const val SETTINGS_PREFS_FILE = "gotcha_settings"
 fun settingsChangeNotifier(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(SETTINGS_PREFS_FILE, Context.MODE_PRIVATE)
 
+/**
+ * A [settingsChangeNotifier] listener that runs [onChange] once per burst of
+ * writes, on [handler]'s thread, instead of once per key.
+ *
+ * [SettingsRepository.save] rewrites every key, and each value is re-encrypted
+ * under a fresh IV, so the framework sees every key as changed: one save is
+ * one notification per setting, delivered synchronously inside `apply()` on
+ * the saving thread. A listener that reads settings back on each of those
+ * multiplies the decrypts by the number of keys, which on a slow phone is
+ * seconds on the main thread — long enough for an ANR from tapping a skin.
+ *
+ * Posting means [onChange] runs after the burst, so it reads the finished
+ * write; the pending flag keeps the burst to a single post. Hold the returned
+ * listener in a field: the framework keeps listeners weakly.
+ */
+fun coalescedSettingsListener(
+    handler: Handler = Handler(Looper.getMainLooper()),
+    onChange: () -> Unit
+): SharedPreferences.OnSharedPreferenceChangeListener {
+    val pending = AtomicBoolean(false)
+    return SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        if (pending.compareAndSet(false, true)) {
+            handler.post {
+                pending.set(false)
+                onChange()
+            }
+        }
+    }
+}
+
 internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
 internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
 internal const val SKIN_VELLUM = "vellum"
@@ -544,6 +577,12 @@ class SettingsRepository(context: Context) : SettingsStore {
      */
     private fun string(key: String, default: String = ""): String =
         prefs.getString(key, default) ?: default
+
+    /**
+     * Just the skin, for the listeners that repaint on a change: one decrypt
+     * where [load] does one per setting.
+     */
+    fun loadSkinId(): String = resolvedSkinId()
 
     /** Reads the stored skin, running the one-shot migration if it has not run. */
     private fun resolvedSkinId(): String {

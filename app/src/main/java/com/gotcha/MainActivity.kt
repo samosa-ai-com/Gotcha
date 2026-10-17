@@ -192,13 +192,13 @@ class MainActivity : ComponentActivity() {
     /**
      * Repaints when the skin is written from outside the Appearance screen — the
      * assistant's update_gotcha_settings (issue #99) — without a restart. Held in a
-     * field: SharedPreferences keeps listeners weakly.
+     * field: SharedPreferences keeps listeners weakly. Coalesced, because every
+     * save notifies once per setting (see [com.gotcha.data.coalescedSettingsListener]).
      */
-    private val appearanceListener =
-        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> syncAppearance() }
+    private val appearanceListener = com.gotcha.data.coalescedSettingsListener { syncAppearance() }
 
     private fun syncAppearance() {
-        val latest = settingsRepository.load().appearance()
+        val latest = Appearance(skinId = settingsRepository.loadSkinId())
         if (latest != appearance) {
             appearance = latest
             applyLaunchBackground()
