@@ -2,12 +2,15 @@ package com.gotcha.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 /**
  * The assistive ball is built once and then lives as long as the service, so it
@@ -71,5 +74,28 @@ class SettingsChangeNotifierTest {
         // The ball unregisters on dismiss; a listener that kept firing would be
         // repainting a window that is no longer on screen.
         assertTrue("unregister must actually detach", fired[0] == 0)
+    }
+
+    @Test
+    fun `a coalesced listener runs once for a save that touches every key`() {
+        val fired = intArrayOf(0)
+        val watcher = coalescedSettingsListener { fired[0]++ }
+        listener = watcher
+        val prefs = settingsChangeNotifier(context)
+        prefs.registerOnSharedPreferenceChangeListener(watcher)
+
+        // What SettingsRepository.save looks like from here: every key in one
+        // apply, each with a new value (re-encryption gives every one a new IV).
+        prefs.edit().apply { repeat(58) { putString("burst_key_$it", "v$it") } }.apply()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        // Per key, MainActivity re-read the settings 58 times inside one tap
+        // and the skin picker ANR'd on a slow phone.
+        assertEquals("one save must be one callback", 1, fired[0])
+
+        prefs.edit().putString("burst_key_0", "again").apply()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("a later save must still be heard", 2, fired[0])
+        prefs.unregisterOnSharedPreferenceChangeListener(watcher)
     }
 }
