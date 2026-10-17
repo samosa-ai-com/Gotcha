@@ -17,7 +17,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +41,7 @@ import com.gotcha.agent.skills.SkillRegistry
 import com.gotcha.data.Settings
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.SkinAlertDialog
+import com.gotcha.ui.theme.SkinDialog
 import kotlinx.coroutines.launch
 
 /**
@@ -185,58 +185,59 @@ fun SkillsScreen(
             modifier = Modifier.fillMaxWidth()
         ) { Text(stringResource(R.string.skills_paste_json)) }
         if (pasteOpen) {
-            androidx.compose.ui.window.Dialog(onDismissRequest = {
-                pasteOpen = false
-                communitySkillPasteJson = ""
-            }) {
-                Surface(shape = MaterialTheme.shapes.medium) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+            SkinDialog(
+                onDismissRequest = {
+                    pasteOpen = false
+                    communitySkillPasteJson = ""
+                },
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.skills_paste_community_skill_json),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    OutlinedTextField(
+                        value = communitySkillPasteJson,
+                        onValueChange = { communitySkillPasteJson = it },
+                        label = { Text(stringResource(R.string.skills_skill_json)) },
+                        modifier = Modifier.fillMaxWidth().height(220.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            stringResource(R.string.skills_paste_community_skill_json),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        OutlinedTextField(
-                            value = communitySkillPasteJson,
-                            onValueChange = { communitySkillPasteJson = it },
-                            label = { Text(stringResource(R.string.skills_skill_json)) },
-                            modifier = Modifier.fillMaxWidth().height(220.dp),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.End,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            TextButton(onClick = {
-                                pasteOpen = false
+                        TextButton(onClick = {
+                            pasteOpen = false
+                            communitySkillPasteJson = ""
+                        }) { Text(stringResource(R.string.skills_cancel)) }
+                        TextButton(onClick = {
+                            val src = communitySkillPasteJson.trim()
+                            if (src.isEmpty()) {
+                                overlay.show(localContext.getString(R.string.skills_paste_json_first))
+                                return@TextButton
+                            }
+                            communityImportBusy = true
+                            pasteOpen = false
+                            overlay.show(localContext.getString(R.string.skills_importing_skill), sticky = true)
+                            scope.launch {
+                                val result = runCatching {
+                                    SkillRegistry.importCommunity(src)
+                                }
+                                communityImportBusy = false
                                 communitySkillPasteJson = ""
-                            }) { Text(stringResource(R.string.skills_cancel)) }
-                            TextButton(onClick = {
-                                val src = communitySkillPasteJson.trim()
-                                if (src.isEmpty()) {
-                                    overlay.show(localContext.getString(R.string.skills_paste_json_first))
-                                    return@TextButton
+                                result.onSuccess { skill ->
+                                    communitySkillRefreshTick++
+                                    overlay.show(localContext.getString(R.string.skills_imported, skill.id))
+                                }.onFailure { e ->
+                                    overlay.show(formatImportError(e, localContext.stringLookup()))
                                 }
-                                communityImportBusy = true
-                                pasteOpen = false
-                                overlay.show(localContext.getString(R.string.skills_importing_skill), sticky = true)
-                                scope.launch {
-                                    val result = runCatching {
-                                        SkillRegistry.importCommunity(src)
-                                    }
-                                    communityImportBusy = false
-                                    communitySkillPasteJson = ""
-                                    result.onSuccess { skill ->
-                                        communitySkillRefreshTick++
-                                        overlay.show(localContext.getString(R.string.skills_imported, skill.id))
-                                    }.onFailure { e ->
-                                        overlay.show(formatImportError(e, localContext.stringLookup()))
-                                    }
-                                }
-                            }) { Text(stringResource(R.string.skills_import)) }
-                        }
+                            }
+                        }) { Text(stringResource(R.string.skills_import)) }
                     }
                 }
             }
