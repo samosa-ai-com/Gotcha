@@ -226,6 +226,10 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("plugin, skill, community, import, mcp")
     )
+    SettingsPage.SCHEDULED_TASKS -> SettingsSearchEntry(
+        page,
+        words("schedule, scheduled, routine, recurring, repeat, automation, cron, every morning, daily, weekly")
+    )
     SettingsPage.PROACTIVE -> SettingsSearchEntry(
         page,
         words("privacy"),

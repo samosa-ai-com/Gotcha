@@ -239,6 +239,43 @@
       "manualSteps": "With a timer running, ask 'what timers are running?'; confirm the remaining time is right."
     },
     {
+      "tool": "schedule_agent_task",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ScheduledTaskToolTest",
+        "com.gotcha.agent.ScheduleTaskLoopTest",
+        "com.gotcha.agent.ScheduledRunTest",
+        "com.gotcha.scheduled.ScheduledTaskPlannerTest",
+        "com.gotcha.scheduled.ScheduledTaskScheduleTest"
+      ],
+      "notes": "argument checks before any prompt, the cap on agent-made tasks, approval on every create (denial saves nothing), the mode capped at the chat's, files read on approval, withheld from Monitor, sub-agents and scheduled runs; the schedule math and the runs it starts"
+    },
+    {
+      "tool": "edit_scheduled_task",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ScheduledTaskToolTest"
+      ],
+      "notes": "only the named fields change, a new schedule is re-armed, pausing clears the next run, unknown ids and empty edits are refused"
+    },
+    {
+      "tool": "list_scheduled_tasks",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ScheduledTaskToolTest",
+        "com.gotcha.agent.ScheduleTaskLoopTest"
+      ],
+      "notes": "each task with its id, schedule and prompt; the one schedule tool Monitor is offered"
+    },
+    {
+      "tool": "delete_scheduled_task",
+      "tier": "ROBOLECTRIC",
+      "tests": [
+        "com.gotcha.tools.ScheduledTaskToolTest"
+      ],
+      "notes": "returns the destructive-delete confirmation marker; the task is only removed once confirmed"
+    },
+    {
       "tool": "edit_alarm",
       "tier": "MANUAL_ONLY",
       "reason": "Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier.",

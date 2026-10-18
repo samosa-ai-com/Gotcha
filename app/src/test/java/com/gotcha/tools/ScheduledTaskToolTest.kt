@@ -1,0 +1,252 @@
+package com.gotcha.tools
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.gotcha.agent.ComposerAttachment
+import com.gotcha.scheduled.RepeatKind
+import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskStore
+import com.gotcha.testsupport.FakeAndroidKeyStore
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.File
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+/**
+ * The scheduled-task tools' own checks (issue #132): what a request must hold
+ * before the user is asked anything, and what an approved one saves.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class ScheduledTaskToolTest {
+
+    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val zone = ZoneId.of("UTC")
+    private val now = LocalDateTime.parse("2026-10-18T12:00").atZone(zone).toInstant().toEpochMilli()
+    private lateinit var store: ScheduledTaskStore
+    private lateinit var tool: ScheduledTaskTool
+
+    @Before
+    fun setUp() {
+        FakeAndroidKeyStore.setUp()
+        store = ScheduledTaskStore(context)
+        store.all().forEach { store.delete(it.id) }
+        tool = ScheduledTaskTool(context, store, zone = { zone }, clock = { now })
+    }
+
+    private fun args(json: String): JsonObject = Json.parseToJsonElement(json) as JsonObject
+
+    private fun request(result: ToolResult): ScheduleRequest {
+        assertTrue(result.message, result.success)
+        assertTrue(result.message, result.message.startsWith(ScheduledTaskTool.CONFIRM_PREFIX))
+        return ScheduledTaskTool.decodePayload(result.message.removePrefix(ScheduledTaskTool.CONFIRM_PREFIX))!!
+    }
+
+    @Test
+    fun `a valid create asks for approval and saves nothing yet`() {
+        val result = tool.prepareCreate(
+            args(
+                """{"name":"News","prompt":"Summarise the news","start":"2026-10-19T08:00","repeat":"weekly","weekdays":["mon","fri"]}"""
+            )
+        )
+
+        val request = request(result)
+        assertEquals("2026-10-19T08:00", request.startLocal)
+        assertEquals(RepeatKind.WEEKLY, request.repeat!!.kind)
+        assertEquals(listOf(1, 5), request.repeat!!.weekdays)
+        assertTrue(store.all().isEmpty())
+    }
+
+    @Test
+    fun `a create missing its fields or with bad ones is refused before any prompt`() {
+        assertFalse(tool.prepareCreate(args("""{"prompt":"p","start":"2026-10-19T08:00"}""")).success)
+        assertFalse(tool.prepareCreate(args("""{"name":"n","start":"2026-10-19T08:00"}""")).success)
+        assertFalse(tool.prepareCreate(args("""{"name":"n","prompt":"p"}""")).success)
+        val badStart = tool.prepareCreate(args("""{"name":"n","prompt":"p","start":"tomorrow"}"""))
+        assertTrue(badStart.message, badStart.message.contains("YYYY-MM-DDTHH:MM"))
+        val badRepeat = tool.prepareCreate(
+            args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00","repeat":"minutely"}""")
+        )
+        assertTrue(badRepeat.message, badRepeat.message.contains("Invalid 'repeat'"))
+        val badDay = tool.prepareCreate(
+            args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00","repeat":"weekly","weekdays":["funday"]}""")
+        )
+        assertTrue(badDay.message, badDay.message.contains("Invalid weekday"))
+        val badInterval = tool.prepareCreate(
+            args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00","repeat":"hourly","interval":0}""")
+        )
+        assertTrue(badInterval.message, badInterval.message.contains("Invalid 'interval'"))
+    }
+
+    @Test
+    fun `a one-time task in the past is refused`() {
+        val result = tool.prepareCreate(args("""{"name":"n","prompt":"p","start":"2026-10-18T11:00"}"""))
+        assertFalse(result.success)
+        assertTrue(result.message, result.message.contains("already passed"))
+    }
+
+    @Test
+    fun `the agent can set up only so many tasks`() {
+        repeat(ScheduledTaskTool.MAX_AGENT_TASKS) {
+            store.put(
+                ScheduledTask(
+                    id = "a$it",
+                    name = "n",
+                    prompt = "p",
+                    startLocal = "2026-10-19T08:00",
+                    createdByAgent = true
+                )
+            )
+        }
+        // The user's own don't count.
+        store.put(ScheduledTask(id = "u", name = "n", prompt = "p", startLocal = "2026-10-19T08:00"))
+
+        val result = tool.prepareCreate(args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00"}"""))
+
+        assertFalse(result.success)
+        assertTrue(result.message, result.message.contains("the most allowed"))
+    }
+
+    @Test
+    fun `an approved create is saved, armed and capped at the chat's mode`() {
+        val request = request(
+            tool.prepareCreate(
+                args(
+                    """{"name":"News","prompt":"Summarise","start":"2026-10-19T08:00","repeat":"daily",""" +
+                        """"mode":"operator","same_chat":true}"""
+                )
+            )
+        )
+
+        val result = tool.apply(request, sessionId = "chat-1", chatMode = AgentMode.MONITOR)
+
+        assertTrue(result.message, result.success)
+        val saved = store.all().single()
+        assertEquals(AgentMode.MONITOR, saved.mode)
+        assertTrue(saved.createdByAgent)
+        assertTrue(saved.sameChat)
+        assertEquals("chat-1", saved.chatSessionId)
+        assertEquals(LocalDateTime.parse("2026-10-19T08:00").atZone(zone).toInstant().toEpochMilli(), saved.nextRunAt)
+        assertTrue(result.message, result.message.contains(saved.id))
+    }
+
+    @Test
+    fun `the mode defaults to the chat's`() {
+        val request = request(tool.prepareCreate(args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00"}""")))
+        tool.apply(request, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+        assertEquals(AgentMode.OPERATOR, store.all().single().mode)
+    }
+
+    @Test
+    fun `files are checked when asked and read when approved`() {
+        val notes = File(context.filesDir, "notes.txt").apply { writeText("Buy milk") }
+        val missing = tool.prepareCreate(
+            args(
+                """{"name":"n","prompt":"p","start":"2026-10-19T08:00","files":["${File(
+                    context.filesDir,
+                    "nope.txt"
+                ).path}"]}"""
+            )
+        )
+        assertFalse(missing.success)
+
+        val request = request(
+            tool.prepareCreate(
+                args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00","files":["${notes.path}"]}""")
+            )
+        )
+        tool.apply(request, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+
+        val saved = store.all().single()
+        assertEquals(listOf("notes.txt"), saved.attachmentNames)
+        val document = store.loadAttachments(saved)!!.single() as ComposerAttachment.Document
+        assertTrue(document.attachment.text, document.attachment.text.contains("Buy milk"))
+    }
+
+    @Test
+    fun `an edit changes only what it names and re-arms a new schedule`() {
+        store.put(
+            ScheduledTask(
+                id = "t",
+                name = "Old",
+                prompt = "Old prompt",
+                startLocal = "2026-10-19T08:00",
+                nextRunAt = 1L
+            )
+        )
+
+        val request = request(tool.prepareEdit(args("""{"task_id":"t","start":"2026-10-20T09:00","enabled":false}""")))
+        assertNull(request.name)
+        tool.apply(request, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+
+        val saved = store.get("t")!!
+        assertEquals("Old", saved.name)
+        assertEquals("Old prompt", saved.prompt)
+        assertEquals("2026-10-20T09:00", saved.startLocal)
+        assertFalse(saved.enabled)
+        assertNull(saved.dueAt)
+    }
+
+    @Test
+    fun `an edit of an unknown task or with nothing in it is refused`() {
+        assertTrue(tool.prepareEdit(args("""{"task_id":"nope","name":"x"}""")).message.contains("No scheduled task"))
+        store.put(ScheduledTask(id = "t", name = "n", prompt = "p", startLocal = "2026-10-19T08:00"))
+        assertTrue(tool.prepareEdit(args("""{"task_id":"t"}""")).message.contains("Nothing to change"))
+    }
+
+    @Test
+    fun `the approval prompt shows the whole task`() {
+        val request = request(
+            tool.prepareCreate(
+                args(
+                    """{"name":"News","prompt":"Summarise the news","start":"2026-10-19T08:00","repeat":"daily","interval":2}"""
+                )
+            )
+        )
+
+        val prompt = tool.describe(request, AgentMode.OPERATOR)
+
+        assertTrue(prompt, prompt.contains("Name: News"))
+        assertTrue(prompt, prompt.contains("every 2 days at 08:00"))
+        assertTrue(prompt, prompt.contains("Mode: Operator"))
+        assertTrue(prompt, prompt.contains("a new chat each time"))
+        assertTrue(prompt, prompt.contains("Prompt: Summarise the news"))
+        assertTrue(prompt, prompt.contains("without asking you first"))
+    }
+
+    @Test
+    fun `list shows each task with its id, and delete asks first`() {
+        store.put(ScheduledTask(id = "t", name = "News", prompt = "Summarise", startLocal = "2026-10-19T08:00"))
+
+        val listed = tool.list().message
+        assertTrue(listed, listed.contains("t: \"News\""))
+        assertTrue(listed, listed.contains("prompt: Summarise"))
+
+        val delete = tool.prepareDelete(args("""{"task_id":"t"}"""))
+        assertEquals("${ScheduledTaskTool.DELETE_CONFIRM_PREFIX}t:News", delete.message)
+        assertNotNull(store.get("t"))
+
+        assertTrue(tool.doDelete("t").success)
+        assertNull(store.get("t"))
+    }
+
+    @Test
+    fun `weekdays and start times are read the ways a model writes them`() {
+        assertEquals(1, ScheduledTaskTool.parseWeekday("Monday"))
+        assertEquals(7, ScheduledTaskTool.parseWeekday("su"))
+        assertEquals(3, ScheduledTaskTool.parseWeekday("3"))
+        assertNull(ScheduledTaskTool.parseWeekday("m"))
+        assertEquals(LocalDateTime.parse("2026-10-19T08:00"), ScheduledTaskTool.parseStart("2026-10-19 08:00:30"))
+    }
+}

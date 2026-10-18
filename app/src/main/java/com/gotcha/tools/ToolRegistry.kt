@@ -102,7 +102,8 @@ object ToolRegistry {
         "uninstall_app",
         "delete_calendar_event",
         "delete_alarm",
-        "delete_timer"
+        "delete_timer",
+        "delete_scheduled_task"
     )
 
     /**
@@ -119,7 +120,7 @@ object ToolRegistry {
         "get_app_usage", "get_data_usage",
         "open_app", "list_installed_apps",
         "list_files", "read_file", "grep", "glob",
-        "todowrite", "list_alarms", "list_timers", "show_alarms",
+        "todowrite", "list_alarms", "list_timers", "show_alarms", "list_scheduled_tasks",
         "question",
         "sleep",
         "finish_task",
@@ -141,19 +142,30 @@ object ToolRegistry {
     val monitorTools: Set<String>
         get() = baseMonitorTools + ConnectorCatalog.monitorTools + dynamicSet.readOnlyNames
 
+    /** Tools a sub-agent never gets; see [subAgentTools]. */
+    private val subAgentExcluded = setOf(
+        "task",
+        "navigate_app",
+        "finish_task",
+        "update_user_profile",
+        "update_gotcha_settings",
+        "schedule_agent_task",
+        "edit_scheduled_task",
+        "delete_scheduled_task"
+    )
+
     /**
      * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
      * further), minus finish_task, which ends the *top-level* run — a sub-agent
      * reports back with ask_final_answer instead — minus update_user_profile,
      * whose modify-and-extend directive lives only in the top-level Operator prompt,
-     * and minus update_gotcha_settings, whose approval prompt belongs to the run the
-     * user is watching, not to a delegated one.
+     * and minus update_gotcha_settings and the scheduled-task writes, whose approval
+     * prompts belong to the run the user is watching, not to a delegated one.
      * Dynamic tools are included while registered; they are hidden by the
      * hidden-tools mechanism when their connector is not active.
      */
     val subAgentTools: Set<String>
-        get() = definitions.keys + dynamicSet.definitions.keys -
-            setOf("task", "navigate_app", "finish_task", "update_user_profile", "update_gotcha_settings")
+        get() = definitions.keys + dynamicSet.definitions.keys - subAgentExcluded
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
@@ -497,8 +509,7 @@ object ToolRegistry {
 
     fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> {
         val dynamic = dynamicSet
-        val allowed = definitions.keys + dynamic.definitions.keys -
-            setOf("task", "navigate_app", "finish_task", "update_user_profile", "update_gotcha_settings")
+        val allowed = definitions.keys + dynamic.definitions.keys - subAgentExcluded
         return (definitions + dynamic.definitions)
             .filterKeys { it in allowed && it !in hiddenTools }
             .values.toList()

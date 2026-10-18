@@ -28,6 +28,7 @@ object ToolCategories {
         "call_number", "send_sms", "add_contact",
         "create_calendar_event", "edit_calendar_event",
         "set_alarm", "set_timer", "snooze_alarm", "dismiss_timer",
+        "schedule_agent_task", "edit_scheduled_task", "delete_scheduled_task",
         "take_photo",
         "start_audio_recording", "stop_audio_recording",
         "pause_audio_recording", "resume_audio_recording",

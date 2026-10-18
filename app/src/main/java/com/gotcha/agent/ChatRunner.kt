@@ -27,6 +27,10 @@ import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.RunOutcome
+import com.gotcha.scheduled.ScheduledStart
+import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskRuns
+import com.gotcha.scheduled.TaskRunStatus
 import com.gotcha.service.ChatRunService
 import com.gotcha.service.RunningChat
 import com.gotcha.tools.AgentMode
@@ -213,6 +217,12 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     /** Next UiMessage id in [RunState.transcript]. */
     private var nextTranscriptId = 0L
+
+    /**
+     * The scheduled task whose run is in flight (issue #132), or null for a run
+     * the user started. Its outcome goes into the task's history.
+     */
+    private var scheduledTask: ScheduledTask? = null
 
     /** Agent mode of the session currently bound to [engine]. */
     internal var engineAgent: AgentMode = AgentMode.MONITOR
@@ -450,6 +460,41 @@ class ChatRunner(private val app: Application) : AgentEvents {
     }
 
     /**
+     * Starts the run of scheduled [task] (issue #132), with its prompt and
+     * [attachments] as the user's message: in a new chat, or at the end of the
+     * task's chat in same-chat mode, falling back to a new chat when that one
+     * is gone. Never runs alongside another run. The screen is left where it is:
+     * it only follows the run when the user is already looking at that chat.
+     */
+    internal suspend fun startScheduled(task: ScheduledTask, attachments: List<ComposerAttachment>): ScheduledStart {
+        startup.join()
+        if (isRunning || agentJob?.isActive == true) return ScheduledStart.Busy
+        val saved = task.chatSessionId?.takeIf { task.sameChat }?.let { historyRepository.loadSession(it) }
+        // Loading the chat suspended: a send may have started meanwhile.
+        if (isRunning || agentJob?.isActive == true) return ScheduledStart.Busy
+        // The alarm may have started the process: with no screen ever shown,
+        // nothing has said yet that Gotcha is out of sight.
+        if ((app as? GotchaApp)?.hasStartedActivity == false) appInForeground = false
+        if (saved != null) {
+            bindSaved(saved, task.mode, saved.displayMessages)
+        } else {
+            bindFresh(java.util.UUID.randomUUID().toString(), task.mode)
+            engine.sessionPersonaId = task.personaId
+        }
+        val runningId = engine.sessionId ?: return ScheduledStart.Failed("No chat to run in.")
+        scheduledTask = task
+        engine.scheduledRun = true
+        currentRunIsVoice = false
+        val msg = buildUserMessage(task.prompt, attachments)
+        engine.history += msg
+        appendTranscript(MessageKind.USER, userDisplayText(task.prompt, msg, attachments), attachments = attachments)
+        // Main.immediate: executeRun marks the run busy and starts the keep-alive
+        // service before this returns, while the alarm's grace period still holds.
+        agentJob = scope.launch { executeRun(engineAgent, runningId) }
+        return ScheduledStart.Started(runningId)
+    }
+
+    /**
      * Replaces the user message [targetId] in [view] with [text] and
      * [attachments] (null keeps the original ones), drops everything after it
      * and runs the agent again.
@@ -616,6 +661,20 @@ class ChatRunner(private val app: Application) : AgentEvents {
                             else -> RunOutcome.DONE
                         }
                     )
+                }
+                scheduledTask?.let { task ->
+                    scheduledTask = null
+                    engine.scheduledRun = false
+                    val status = when {
+                        stopped || engine.isDiscarded(runningId) -> TaskRunStatus.STOPPED
+                        runEndedOnError -> TaskRunStatus.FAILED
+                        else -> TaskRunStatus.DONE
+                    }
+                    val error = _state.value.transcript.lastOrNull { it.kind == MessageKind.ERROR }?.text
+                        ?.takeIf { status == TaskRunStatus.FAILED }
+                    withContext(Dispatchers.IO) {
+                        runCatching { ScheduledTaskRuns.recordOutcome(app, task.id, runningId, status, error) }
+                    }
                 }
                 // In the background the ongoing notification turns into the
                 // finished one, in the same slot (issue #115).
@@ -1053,8 +1112,10 @@ class ChatRunner(private val app: Application) : AgentEvents {
         // Issue #100: a chat kept out of notifications, or chats not to be named
         // at all, get a notification that says only that a task finished.
         val named = mayNameChat(sessionId)
+        // A scheduled run is named after its task (issue #132), which says more than a new chat's title.
+        val chatTitle = scheduledTask?.name ?: engine.currentTitle()
         val title = if (named) {
-            ChatCompletionNotifier.notificationTitle(engine.currentTitle(), outcome, app.stringLookup())
+            ChatCompletionNotifier.notificationTitle(chatTitle, outcome, app.stringLookup())
         } else {
             app.getString(ChatCompletionNotifier.anonymousTitle(outcome))
         }
@@ -1066,7 +1127,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
         )
         return completionNotifier.build(
             sessionId = sessionId,
-            chatTitle = engine.currentTitle(),
+            chatTitle = chatTitle,
             outcome = outcome,
             reply = reply,
             preview = settings.chatCompletionPreview,

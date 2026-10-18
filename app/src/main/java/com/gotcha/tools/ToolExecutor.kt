@@ -62,6 +62,13 @@ class ToolExecutor(
     private val smsTool = SmsTool(appContext)
     private val calendarTool = CalendarTool(appContext)
     private val alarmTool = AlarmTool(appContext)
+
+    /**
+     * The scheduled-task tools (issue #132). The engine reaches it directly to
+     * describe and save a request the user approved. Lazy: its store opens
+     * encrypted prefs, which only the schedule tools need.
+     */
+    val scheduledTaskTool by lazy { ScheduledTaskTool(appContext) }
     private val deviceTool = DeviceTool(appContext)
     private val locationTool = LocationTool(appContext)
     private val appsTool = AppsTool(appContext)
@@ -413,6 +420,10 @@ class ToolExecutor(
                 minutes = args.requireInt("minutes"),
                 system = args["system"]?.jsonPrimitive?.booleanOrNull ?: false
             )
+            "schedule_agent_task" -> scheduledTaskTool.prepareCreate(args)
+            "edit_scheduled_task" -> scheduledTaskTool.prepareEdit(args)
+            "list_scheduled_tasks" -> scheduledTaskTool.list()
+            "delete_scheduled_task" -> scheduledTaskTool.prepareDelete(args)
             "list_alarms" -> alarmTool.listAlarms()
             "list_timers" -> alarmTool.listTimers()
             "show_alarms" -> alarmTool.showAlarms()
