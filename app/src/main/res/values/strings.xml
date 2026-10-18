@@ -768,6 +768,12 @@
     <string name="feedback_send_feedback">Send feedback</string>
     <string name="feedback_open_form">Open form</string>
     <string name="feedback_cancel">Cancel</string>
+    <string name="star_prompt_title">Enjoying Gotcha?</string>
+    <string name="star_prompt_body">If you are, a star on GitHub helps others find it. If not, tell us what to fix.</string>
+    <string name="star_prompt_body_no_feedback">If you are, a star on GitHub helps others find it.</string>
+    <string name="star_prompt_star">Star on GitHub</string>
+    <string name="star_prompt_feedback">Give feedback</string>
+    <string name="star_prompt_not_now">Not now</string>
     <string name="feedback_if_you_provide_successful_feedback">If you provide successful feedback, after validation you may be eligible for 100 credits per feedback, up to 500 credits per day.</string>
     <string name="feedback_this_is_pre_filled_into">This is pre-filled into the form — you can edit or remove anything before submitting. Nothing is sent until you press Submit in the form.</string>
 

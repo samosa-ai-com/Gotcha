@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">フィードバックを送る</string>
     <string name="feedback_open_form">フォームを開く</string>
     <string name="feedback_cancel">キャンセル</string>
+    <string name="star_prompt_title">Gotcha を気に入っていただけていますか？</string>
+    <string name="star_prompt_body">気に入っていただけたら、GitHub でスターを付けると他の人が見つけやすくなります。そうでなければ、改善点を教えてください。</string>
+    <string name="star_prompt_body_no_feedback">気に入っていただけたら、GitHub でスターを付けると他の人が見つけやすくなります。</string>
+    <string name="star_prompt_star">GitHub でスターを付ける</string>
+    <string name="star_prompt_feedback">フィードバックを送る</string>
+    <string name="star_prompt_not_now">後で</string>
     <string name="feedback_if_you_provide_successful_feedback">フィードバックが採用されると、確認後にフィードバック 1 件につき 100 クレジット、1 日最大 500 クレジットがもらえる場合があります。</string>
     <string name="feedback_this_is_pre_filled_into">これらはフォームに事前入力されます。送信前に編集や削除ができます。フォームで送信を押すまで、何も送信されません。</string>
     <string name="chat_transfer_ok">OK</string>

@@ -210,6 +210,10 @@ android {
         unitTests.all { test ->
             val updatingCoverageDocs = providers.gradleProperty("updateCoverageDocs").getOrElse("false")
             test.systemProperty("gotcha.coverage.update", updatingCoverageDocs)
+            // The whole suite runs in one Robolectric JVM, and Gradle's 512 MB default
+            // left it on the edge: one more test class reordered the run and
+            // AppUpdateManagerTest's 2 MB download test ran out of heap.
+            test.maxHeapSize = "1g"
             // testing/sample-documents/ doubles as the fixtures for SampleDocumentsTest; pass
             // the absolute path so the test reads the single committed copy instead of keeping
             // a second one under src/test/resources.

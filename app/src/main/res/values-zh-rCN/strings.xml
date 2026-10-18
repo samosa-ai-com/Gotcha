@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">发送反馈</string>
     <string name="feedback_open_form">打开表单</string>
     <string name="feedback_cancel">取消</string>
+    <string name="star_prompt_title">喜欢 Gotcha 吗？</string>
+    <string name="star_prompt_body">如果喜欢，在 GitHub 上点个星能帮助更多人发现它。如果不喜欢，请告诉我们需要改进什么。</string>
+    <string name="star_prompt_body_no_feedback">如果喜欢，在 GitHub 上点个星能帮助更多人发现它。</string>
+    <string name="star_prompt_star">在 GitHub 上点星</string>
+    <string name="star_prompt_feedback">提交反馈</string>
+    <string name="star_prompt_not_now">以后再说</string>
     <string name="feedback_if_you_provide_successful_feedback">如果你的反馈被采纳，经核实后每条反馈可能获得 100 积分，每天最多 500 积分。</string>
     <string name="feedback_this_is_pre_filled_into">这些内容会预先填入表单：提交前你可以编辑或删除。在表单中点按“提交”之前不会发送任何内容。</string>
     <string name="chat_transfer_ok">确定</string>

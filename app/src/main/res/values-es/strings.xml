@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">Enviar comentarios</string>
     <string name="feedback_open_form">Abrir formulario</string>
     <string name="feedback_cancel">Cancelar</string>
+    <string name="star_prompt_title">¿Te gusta Gotcha?</string>
+    <string name="star_prompt_body">Si es así, una estrella en GitHub ayuda a que otros lo descubran. Si no, cuéntanos qué mejorar.</string>
+    <string name="star_prompt_body_no_feedback">Si es así, una estrella en GitHub ayuda a que otros lo descubran.</string>
+    <string name="star_prompt_star">Dar una estrella en GitHub</string>
+    <string name="star_prompt_feedback">Enviar comentarios</string>
+    <string name="star_prompt_not_now">Ahora no</string>
     <string name="feedback_if_you_provide_successful_feedback">Si tus comentarios resultan útiles, tras validarlos podrías recibir 100 créditos por cada uno, hasta 500 créditos al día.</string>
     <string name="feedback_this_is_pre_filled_into">Esto se rellena en el formulario: puedes editar o quitar lo que quieras antes de enviarlo. No se envía nada hasta que pulses Enviar en el formulario.</string>
     <string name="chat_transfer_ok">Aceptar</string>

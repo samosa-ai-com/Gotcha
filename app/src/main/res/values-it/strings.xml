@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">Invia feedback</string>
     <string name="feedback_open_form">Apri modulo</string>
     <string name="feedback_cancel">Annulla</string>
+    <string name="star_prompt_title">Ti piace Gotcha?</string>
+    <string name="star_prompt_body">Se sì, una stella su GitHub aiuta altri a scoprirlo. Se no, dicci cosa migliorare.</string>
+    <string name="star_prompt_body_no_feedback">Se sì, una stella su GitHub aiuta altri a scoprirlo.</string>
+    <string name="star_prompt_star">Metti una stella su GitHub</string>
+    <string name="star_prompt_feedback">Invia feedback</string>
+    <string name="star_prompt_not_now">Non ora</string>
     <string name="feedback_if_you_provide_successful_feedback">Se il tuo feedback viene accolto, dopo la verifica potresti ricevere 100 crediti per feedback, fino a 500 crediti al giorno.</string>
     <string name="feedback_this_is_pre_filled_into">Questi dati vengono precompilati nel modulo: puoi modificarli o rimuoverli prima dell\'invio. Non viene inviato nulla finché non premi Invia nel modulo.</string>
     <string name="chat_transfer_ok">OK</string>
