@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +69,7 @@ import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.TaskRun
 import com.gotcha.scheduled.TaskRunStatus
+import com.gotcha.service.ChatRunService
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.SkinAlertDialog
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +109,11 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     var deleting by remember { mutableStateOf<ScheduledTask?>(null) }
     val tasks = remember(tick) { store.all() }
     val canRunUnattended = remember(tick) { ScheduledTaskScheduler.canRunUnattended(context) }
+
+    // A run ending records its result just before the keep-alive service stops,
+    // so the list is read again each time a run starts or ends.
+    val running by ChatRunService.running.collectAsState()
+    LaunchedEffect(running?.sessionId) { tick++ }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {

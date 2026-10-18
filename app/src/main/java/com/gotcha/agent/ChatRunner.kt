@@ -479,7 +479,10 @@ class ChatRunner(private val app: Application) : AgentEvents {
         // nothing has said yet that Gotcha is out of sight.
         if ((app as? GotchaApp)?.hasStartedActivity == false) appInForeground = false
         if (saved != null) {
-            bindSaved(saved, task.mode, saved.displayMessages)
+            // The run uses the task's mode, but the chat keeps its own: a task
+            // must not leave the user's chat switched to another mode.
+            val chatMode = saved.agentMode?.let { runCatching { AgentMode.valueOf(it) }.getOrNull() } ?: AgentMode.MONITOR
+            bindSaved(saved, chatMode, saved.displayMessages)
         } else {
             bindFresh(java.util.UUID.randomUUID().toString(), task.mode)
             engine.sessionPersonaId = task.personaId
@@ -493,7 +496,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
         appendTranscript(MessageKind.USER, userDisplayText(task.prompt, msg, attachments), attachments = attachments)
         // Main.immediate: executeRun marks the run busy and starts the keep-alive
         // service before this returns, while the alarm's grace period still holds.
-        agentJob = scope.launch { executeRun(engineAgent, runningId) }
+        agentJob = scope.launch { executeRun(task.mode, runningId) }
         return ScheduledStart.Started(runningId)
     }
 

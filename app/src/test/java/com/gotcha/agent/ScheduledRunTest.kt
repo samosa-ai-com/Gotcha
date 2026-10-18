@@ -175,6 +175,31 @@ class ScheduledRunTest {
     }
 
     @Test
+    fun `a same-chat run keeps the chat's own mode`() {
+        runBlocking {
+            historyRepository.saveSession(
+                ChatSession(
+                    id = "operator-chat",
+                    title = "Kept",
+                    lastModified = 0L,
+                    messages = listOf(ChatMessage(role = "user", content = JsonPrimitive("Earlier"))),
+                    agentMode = AgentMode.OPERATOR.name
+                )
+            )
+        }
+        // The task runs in Monitor; the chat stays an Operator chat.
+        task(sameChat = true, chat = "operator-chat")
+
+        runNow("news")
+        waitForRunToFinish()
+
+        assertEquals(
+            AgentMode.OPERATOR.name,
+            runBlocking { historyRepository.loadSession("operator-chat") }!!.agentMode
+        )
+    }
+
+    @Test
     fun `a same-chat task whose chat is gone starts one and keeps it`() {
         task(sameChat = true, chat = "deleted")
 
