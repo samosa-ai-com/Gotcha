@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">Feedback senden</string>
     <string name="feedback_open_form">Formular öffnen</string>
     <string name="feedback_cancel">Abbrechen</string>
+    <string name="star_prompt_title">Gefällt dir Gotcha?</string>
+    <string name="star_prompt_body">Wenn ja, hilft ein Stern auf GitHub anderen, es zu finden. Wenn nicht, sag uns, was wir verbessern sollen.</string>
+    <string name="star_prompt_body_no_feedback">Wenn ja, hilft ein Stern auf GitHub anderen, es zu finden.</string>
+    <string name="star_prompt_star">Stern auf GitHub geben</string>
+    <string name="star_prompt_feedback">Feedback geben</string>
+    <string name="star_prompt_not_now">Später</string>
     <string name="feedback_if_you_provide_successful_feedback">Wenn dein Feedback hilfreich ist, kannst du nach Prüfung 100 Credits pro Feedback erhalten, bis zu 500 Credits pro Tag.</string>
     <string name="feedback_this_is_pre_filled_into">Das wird ins Formular vorausgefüllt – du kannst vor dem Absenden alles bearbeiten oder entfernen. Nichts wird gesendet, bevor du im Formular auf Senden tippst.</string>
     <string name="chat_transfer_ok">OK</string>

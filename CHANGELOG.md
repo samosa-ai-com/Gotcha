@@ -4,6 +4,11 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
+- **"Enjoying Gotcha?"** Three days after install, and then at most every
+  five days, Home asks whether you enjoy Gotcha: yes opens the GitHub repo to
+  star it, no opens the feedback form. Either answer ends the ask for good, and
+  so does waving it off four times. It only appears while you are idle on Home
+  with nothing else open.
 - **A notification when a new version is out** (#126). About twice a day,
   Gotcha checks GitHub for a newer release and, once per version, posts a
   notification. Tapping it opens Settings ▸ About, already checking, with the

@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">फ़ीडबैक भेजें</string>
     <string name="feedback_open_form">फ़ॉर्म खोलें</string>
     <string name="feedback_cancel">रद्द करें</string>
+    <string name="star_prompt_title">क्या आपको Gotcha पसंद आ रहा है?</string>
+    <string name="star_prompt_body">अगर हाँ, तो GitHub पर एक स्टार दूसरों को इसे ढूँढने में मदद करता है। अगर नहीं, तो हमें बताएँ क्या सुधारें।</string>
+    <string name="star_prompt_body_no_feedback">अगर हाँ, तो GitHub पर एक स्टार दूसरों को इसे ढूँढने में मदद करता है।</string>
+    <string name="star_prompt_star">GitHub पर स्टार दें</string>
+    <string name="star_prompt_feedback">फ़ीडबैक दें</string>
+    <string name="star_prompt_not_now">अभी नहीं</string>
     <string name="feedback_if_you_provide_successful_feedback">अगर आपका फ़ीडबैक उपयोगी रहा, तो जाँच के बाद आपको हर फ़ीडबैक पर 100 क्रेडिट मिल सकते हैं, एक दिन में अधिकतम 500 क्रेडिट।</string>
     <string name="feedback_this_is_pre_filled_into">यह फ़ॉर्म में पहले से भरा जाता है — सबमिट करने से पहले आप कुछ भी बदल या हटा सकते हैं। फ़ॉर्म में Submit दबाने तक कुछ नहीं भेजा जाता।</string>
     <string name="chat_transfer_ok">ठीक है</string>

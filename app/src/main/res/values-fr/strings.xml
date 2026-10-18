@@ -628,6 +628,12 @@
     <string name="feedback_send_feedback">Envoyer un avis</string>
     <string name="feedback_open_form">Ouvrir le formulaire</string>
     <string name="feedback_cancel">Annuler</string>
+    <string name="star_prompt_title">Vous aimez Gotcha ?</string>
+    <string name="star_prompt_body">Si oui, une étoile sur GitHub aide d\'autres personnes à le découvrir. Sinon, dites-nous quoi améliorer.</string>
+    <string name="star_prompt_body_no_feedback">Si oui, une étoile sur GitHub aide d\'autres personnes à le découvrir.</string>
+    <string name="star_prompt_star">Mettre une étoile sur GitHub</string>
+    <string name="star_prompt_feedback">Donner un avis</string>
+    <string name="star_prompt_not_now">Plus tard</string>
     <string name="feedback_if_you_provide_successful_feedback">Si votre avis est retenu, après validation vous pourriez recevoir 100 crédits par avis, jusqu\'à 500 crédits par jour.</string>
     <string name="feedback_this_is_pre_filled_into">Ceci est prérempli dans le formulaire : vous pouvez tout modifier ou supprimer avant l\'envoi. Rien n\'est envoyé avant que vous appuyiez sur Envoyer dans le formulaire.</string>
     <string name="chat_transfer_ok">OK</string>
