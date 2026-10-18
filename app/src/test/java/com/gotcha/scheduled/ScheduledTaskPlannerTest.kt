@@ -105,6 +105,95 @@ class ScheduledTaskPlannerTest {
         assertEquals(2, failedAgain.history.size)
     }
 
+    private fun hourly(now: Long = at("2026-10-19T07:00")) = ScheduledTaskPlanner.armed(
+        ScheduledTask(
+            id = "h",
+            name = "n",
+            prompt = "p",
+            startLocal = "2026-10-19T08:00",
+            repeat = Repeat(RepeatKind.HOURLY)
+        ),
+        now,
+        zone
+    )
+
+    @Test
+    fun `a retry that would land after the next scheduled time is left to that run`() {
+        val started = ScheduledTaskPlanner.started(hourly(), "chat", at("2026-10-19T08:00"), zone)
+        assertEquals(at("2026-10-19T09:00"), started.nextRunAt)
+
+        // Failed at 08:55: a retry at 09:05 would come after the 09:00 run.
+        val late = ScheduledTaskPlanner.finished(started, TaskRunStatus.FAILED, "chat", null, at("2026-10-19T08:55"))
+        assertNull(late.retryAt)
+        assertEquals(0, late.retriesUsed)
+        assertEquals(at("2026-10-19T09:00"), late.dueAt)
+        assertEquals(TaskRunStatus.FAILED, late.lastRun!!.status)
+
+        // Failed at 08:30: the retry at 08:40 comes first, and keeps 09:00 as it is.
+        val early = ScheduledTaskPlanner.finished(started, TaskRunStatus.FAILED, "chat", null, at("2026-10-19T08:30"))
+        assertEquals(at("2026-10-19T08:40"), early.retryAt)
+        val retried = ScheduledTaskPlanner.started(early, "chat", at("2026-10-19T08:40"), zone)
+        assertEquals(at("2026-10-19T09:00"), retried.nextRunAt)
+        assertEquals(1, retried.retriesUsed)
+    }
+
+    @Test
+    fun `a retry delivered after the next scheduled time is one run for both`() {
+        val started = ScheduledTaskPlanner.started(hourly(), "chat", at("2026-10-19T08:00"), zone)
+        val failed = ScheduledTaskPlanner.finished(started, TaskRunStatus.FAILED, "chat", null, at("2026-10-19T08:30"))
+        // The phone slept through 08:40 and woke at 09:01.
+        val now = at("2026-10-19T09:01")
+        assertEquals(ScheduledTaskPlanner.Decision.Run, ScheduledTaskPlanner.decide(failed, now, zone))
+        val run = ScheduledTaskPlanner.started(failed, "chat", now, zone)
+        assertEquals(at("2026-10-19T10:00"), run.nextRunAt)
+        assertNull(run.retryAt)
+        assertEquals(0, run.retriesUsed)
+    }
+
+    @Test
+    fun `a new occurrence that comes while an older one waits on a busy runner replaces it`() {
+        val waiting = ScheduledTaskPlanner.busy(hourly(), at("2026-10-19T08:00"), zone)
+        assertEquals(at("2026-10-19T09:00"), waiting.nextRunAt)
+        val recheck = at("2026-10-19T08:58")
+        val stillWaiting = ScheduledTaskPlanner.busy(waiting.copy(retryAt = recheck), recheck, zone)
+        assertEquals(at("2026-10-19T08:00"), stillWaiting.busySince)
+
+        // 09:00 comes while 08:00 still waits: 08:00 is given up, and 09:00 waits on its own.
+        val now = at("2026-10-19T09:00")
+        val replaced = ScheduledTaskPlanner.busy(stillWaiting, now, zone)
+        assertEquals(TaskRunStatus.SKIPPED_BUSY, replaced.lastRun!!.status)
+        assertEquals(now, replaced.busySince)
+        assertEquals(at("2026-10-19T10:00"), replaced.nextRunAt)
+        assertEquals(now + ScheduledTaskPlanner.BUSY_RECHECK_MS, replaced.dueAt)
+    }
+
+    @Test
+    fun `a quick pause and resume keeps a pending retry`() {
+        val now = at("2026-10-19T08:00")
+        val started = ScheduledTaskPlanner.started(daily(), "chat", now, zone)
+        val failed = ScheduledTaskPlanner.finished(started, TaskRunStatus.FAILED, "chat", null, now + minute)
+
+        val paused = ScheduledTaskPlanner.toggled(failed, false, now + 2 * minute, zone)
+        assertNull(paused.dueAt)
+        val resumed = ScheduledTaskPlanner.toggled(paused, true, now + 3 * minute, zone)
+        assertEquals(failed.retryAt, resumed.retryAt)
+        assertEquals(1, resumed.retriesUsed)
+        assertEquals(failed.dueAt, resumed.dueAt)
+    }
+
+    @Test
+    fun `a resume after the retry's time drops it and moves the schedule past the pause`() {
+        val now = at("2026-10-19T08:00")
+        val started = ScheduledTaskPlanner.started(daily(), "chat", now, zone)
+        val failed = ScheduledTaskPlanner.finished(started, TaskRunStatus.FAILED, "chat", null, now + minute)
+        val paused = ScheduledTaskPlanner.toggled(failed, false, now + 2 * minute, zone)
+
+        val resumed = ScheduledTaskPlanner.toggled(paused, true, at("2026-10-21T12:00"), zone)
+        assertNull(resumed.retryAt)
+        assertEquals(0, resumed.retriesUsed)
+        assertEquals(at("2026-10-22T08:00"), resumed.nextRunAt)
+    }
+
     @Test
     fun `a task with no retries gives a failure up at once`() {
         val now = at("2026-10-19T08:00")

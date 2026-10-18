@@ -119,19 +119,33 @@ object ScheduledTaskRuns {
     }
 }
 
-/** The scheduled-task alarm going off. Not exported: only Gotcha's own PendingIntent fires it. */
+/**
+ * The scheduled-task alarm going off. Not exported: only Gotcha's own PendingIntent fires it.
+ *
+ * The pass (decrypting the store, loading files, starting the runner, for every
+ * due task) can outlast a broadcast's time on a cold start, and Android may
+ * then kill the process before the starts are recorded or the alarm re-armed.
+ * So a handoff alarm is armed first, before any of that work, and cleared once
+ * the pass is done; a pass cut short is made again when it fires. Making it
+ * again is safe: a task whose start was recorded is no longer due, and one
+ * whose start was not had its run killed with the process.
+ */
 class ScheduledTaskReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext as Application
         if (intent.action != ACTION_FIRE) return
+        ScheduledTaskScheduler.armHandoff(app)
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 ScheduledTaskRuns.fireDue(app)
             } catch (e: Exception) {
                 Log.w(TAG, "Scheduled task work failed", e)
+                // fireDue re-arms only when it finishes; without this the next task would never fire.
+                runCatching { ScheduledTaskScheduler.reschedule(app) }
             } finally {
+                ScheduledTaskScheduler.cancelHandoff(app)
                 pending.finish()
             }
         }

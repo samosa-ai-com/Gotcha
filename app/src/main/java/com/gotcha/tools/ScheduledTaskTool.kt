@@ -2,7 +2,10 @@ package com.gotcha.tools
 
 import android.content.Context
 import com.gotcha.agent.AttachmentFiles
+import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ComposerAttachment
+import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.i18n.stringLookup
 import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledTask
@@ -65,7 +68,11 @@ class ScheduledTaskTool(
     private val context: Context,
     private val store: ScheduledTaskStore = ScheduledTaskStore(context),
     private val zone: () -> ZoneId = { ZoneId.systemDefault() },
-    private val clock: () -> Long = { System.currentTimeMillis() }
+    private val clock: () -> Long = { System.currentTimeMillis() },
+    /** The title of chat [String], or null when it is no longer saved. */
+    private val chatTitle: suspend (String) -> String? = { id ->
+        ChatHistoryRepository(context).loadSession(id)?.title?.let { ChatTitle.display(it, context.stringLookup()) }
+    }
 ) {
 
     private val fileResolver by lazy { FileResolver(context) }
@@ -173,14 +180,17 @@ class ScheduledTaskTool(
 
     /**
      * What the user is asked to approve for [request]: the whole task as it
-     * would be saved, in plain words. [chatMode] caps the task's mode.
+     * would be saved, in plain words. [sessionId] is the chat it was asked
+     * from, as for [apply]; [chatMode] caps the task's mode.
      */
-    fun describe(request: ScheduleRequest, chatMode: AgentMode): String {
+    suspend fun describe(request: ScheduleRequest, sessionId: String?, chatMode: AgentMode): String {
         val existing = request.taskId?.let { store.get(it) }
         val start = (request.startLocal ?: existing?.startLocal)?.let(LocalDateTime::parse)
         val repeat = request.repeat ?: existing?.repeat ?: Repeat()
         val mode = resolveMode(request, existing, chatMode)
         val sameChat = request.sameChat ?: existing?.sameChat ?: false
+        // The chat a same-chat task will run in, as apply() works it out, when it is not this one.
+        val otherChat = existing?.chatSessionId?.takeIf { sameChat && request.sameChat != true && it != sessionId }
         val files = request.files?.map { File(it).name } ?: existing?.attachmentNames.orEmpty()
         return buildString {
             append(if (existing == null) "Schedule a new task" else "Change the scheduled task \"${existing.name}\"")
@@ -188,7 +198,14 @@ class ScheduledTaskTool(
             append("Name: ${request.name ?: existing?.name}\n")
             if (start != null) append("When: ${describeSchedule(start, repeat)}\n")
             append("Mode: ${mode.name.lowercase().replaceFirstChar { it.uppercase() }}\n")
-            append(if (sameChat) "Runs in: this chat, each time\n" else "Runs in: a new chat each time\n")
+            append(
+                when {
+                    !sameChat -> "Runs in: a new chat each time\n"
+                    otherChat == null -> "Runs in: this chat, each time\n"
+                    else -> chatTitle(otherChat)?.let { "Runs in: the chat \"$it\" (not this one), each time\n" }
+                        ?: "Runs in: the chat it was set up for, which is no longer saved (not this one)\n"
+                }
+            )
             if (files.isNotEmpty()) append("Files: ${files.joinToString()}\n")
             request.enabled?.let { append(if (it) "Turns the task on\n" else "Pauses the task\n") }
             append("Prompt: ${request.prompt ?: existing?.prompt}")
@@ -204,9 +221,7 @@ class ScheduledTaskTool(
         val now = clock()
         val existing = request.taskId?.let { store.get(it) ?: return unknownTask(it) }
         val attachments = request.files?.let {
-            loadFiles(
-                it
-            ).getOrElse { e -> return ToolResult.error(e.message.orEmpty()) }
+            loadFiles(it).getOrElse { e -> return ToolResult.error(e.message.orEmpty()) }
         }
         val sameChat = request.sameChat ?: existing?.sameChat ?: false
         val base = existing ?: ScheduledTask(
@@ -233,9 +248,7 @@ class ScheduledTaskTool(
             enabled = request.enabled ?: base.enabled,
             attachmentNames = attachments?.map { it.name } ?: base.attachmentNames
         )
-        val scheduleChanged = existing == null || edited.startLocal != existing.startLocal ||
-            edited.repeat != existing.repeat || edited.enabled != existing.enabled
-        val saved = if (scheduleChanged) ScheduledTaskPlanner.armed(edited, now, zone()) else edited
+        val saved = ScheduledTaskPlanner.edited(existing, edited, now, zone())
         if (attachments != null) store.saveAttachments(saved.id, attachments)
         store.put(saved)
         ScheduledTaskScheduler.reschedule(context)

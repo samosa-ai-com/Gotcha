@@ -41,6 +41,39 @@ object ScheduledTaskPlanner {
             busySince = null
         )
 
+    /**
+     * [task] switched on or off from Settings. Pausing keeps everything as it is.
+     * Resuming keeps a retry or a busy wait that is still ahead, so a quick
+     * off/on loses nothing; one whose time passed during the pause was cancelled
+     * by it. The scheduled time moves on past the pause the same way.
+     */
+    fun toggled(task: ScheduledTask, enabled: Boolean, now: Long, zone: ZoneId): ScheduledTask {
+        if (!enabled) return task.copy(enabled = false)
+        if (task.enabled) return task
+        val nextRunAt = task.nextRunAt?.takeIf { it > now } ?: nextOccurrence(task, now, zone)
+        val retryAt = task.retryAt?.takeIf { it > now && (nextRunAt == null || it < nextRunAt) }
+        return task.copy(
+            enabled = true,
+            nextRunAt = nextRunAt,
+            retryAt = retryAt,
+            retriesUsed = if (retryAt != null) task.retriesUsed else 0,
+            busySince = if (retryAt != null) task.busySince else null
+        )
+    }
+
+    /**
+     * [edited] as saved over [existing] (null for a new task): re-armed when its
+     * schedule changed, [toggled] when only on/off did, and otherwise left with
+     * its times as they are.
+     */
+    fun edited(existing: ScheduledTask?, edited: ScheduledTask, now: Long, zone: ZoneId): ScheduledTask = when {
+        existing == null || edited.startLocal != existing.startLocal || edited.repeat != existing.repeat ->
+            armed(edited, now, zone)
+        edited.enabled != existing.enabled ->
+            toggled(edited.copy(enabled = existing.enabled), edited.enabled, now, zone)
+        else -> edited
+    }
+
     fun decide(task: ScheduledTask, now: Long, zone: ZoneId): Decision {
         val due = task.dueAt ?: return Decision.Wait
         if (due > now + DUE_SLACK_MS) return Decision.Wait
@@ -59,14 +92,28 @@ object ScheduledTaskPlanner {
      * [BUSY_GIVE_UP_MS]. The occurrence is claimed as the wait starts (the task
      * moves to its next time, and the wait is a [ScheduledTask.retryAt]), or its
      * time, now past, would stay the soonest alarm and fire again at once.
+     *
+     * When the next scheduled time comes while an earlier occurrence is still
+     * waiting, the earlier one is given up as [TaskRunStatus.SKIPPED_BUSY] and
+     * the new one starts a wait of its own: one run can't stand for two
+     * occurrences, and the new one gets its full [BUSY_GIVE_UP_MS].
      */
     fun busy(task: ScheduledTask, now: Long, zone: ZoneId): ScheduledTask {
+        val newOccurrence = scheduleIsDue(task, now)
+        val skipped = TaskRun(at = now, status = TaskRunStatus.SKIPPED_BUSY)
+        if (newOccurrence && task.busySince != null) {
+            return task.withRun(skipped).copy(
+                nextRunAt = nextAfter(task, now, zone),
+                retryAt = now + BUSY_RECHECK_MS,
+                retriesUsed = 0,
+                busySince = now
+            )
+        }
         val since = task.busySince ?: now
         if (now - since >= BUSY_GIVE_UP_MS) {
-            return task.copy(retryAt = null, retriesUsed = 0, busySince = null)
-                .withRun(TaskRun(at = now, status = TaskRunStatus.SKIPPED_BUSY))
+            return task.copy(retryAt = null, retriesUsed = 0, busySince = null).withRun(skipped)
         }
-        val claimed = if (scheduleIsDue(task, now)) {
+        val claimed = if (newOccurrence) {
             task.copy(nextRunAt = nextAfter(task, now, zone), retriesUsed = 0)
         } else {
             task
@@ -77,6 +124,8 @@ object ScheduledTaskPlanner {
     /**
      * The run has started: the occurrence is used up, so the task moves to its
      * next time now. A failure that comes back later may still set [ScheduledTask.retryAt].
+     * A retry delivered so late (the phone asleep, say) that the next scheduled
+     * time has come too is one run for both, and counts as the new occurrence.
      */
     fun started(task: ScheduledTask, sessionId: String, now: Long, zone: ZoneId): ScheduledTask {
         val newOccurrence = scheduleIsDue(task, now)
@@ -92,7 +141,9 @@ object ScheduledTaskPlanner {
     /**
      * The run in [sessionId] ended with [status]. A failure is tried again after
      * the task's retry delay while it has retries left; every other outcome, and
-     * the last failure, closes the occurrence.
+     * the last failure, closes the occurrence. So does a failure whose retry
+     * would come no sooner than the next scheduled time: that run takes the
+     * retry's place, rather than the retry using up the next occurrence.
      */
     fun finished(
         task: ScheduledTask,
@@ -102,11 +153,10 @@ object ScheduledTaskPlanner {
         now: Long
     ): ScheduledTask {
         val recorded = task.withRun(TaskRun(at = now, status = status, sessionId = sessionId, detail = detail))
-        return if (status == TaskRunStatus.FAILED && task.retriesUsed < task.maxRetries) {
-            recorded.copy(
-                retryAt = now + task.retryDelayMinutes.coerceAtLeast(1) * MINUTE_MS,
-                retriesUsed = task.retriesUsed + 1
-            )
+        val retryAt = now + task.retryDelayMinutes.coerceAtLeast(1) * MINUTE_MS
+        val beforeNext = task.nextRunAt?.let { retryAt < it } ?: true
+        return if (status == TaskRunStatus.FAILED && task.retriesUsed < task.maxRetries && beforeNext) {
+            recorded.copy(retryAt = retryAt, retriesUsed = task.retriesUsed + 1)
         } else {
             recorded.copy(retryAt = null, retriesUsed = 0)
         }

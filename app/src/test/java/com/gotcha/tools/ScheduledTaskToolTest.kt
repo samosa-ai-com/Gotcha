@@ -7,6 +7,7 @@ import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledTask
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.testsupport.FakeAndroidKeyStore
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals
@@ -42,7 +43,13 @@ class ScheduledTaskToolTest {
         FakeAndroidKeyStore.setUp()
         store = ScheduledTaskStore(context)
         store.all().forEach { store.delete(it.id) }
-        tool = ScheduledTaskTool(context, store, zone = { zone }, clock = { now })
+        tool = ScheduledTaskTool(
+            context,
+            store,
+            zone = { zone },
+            clock = { now },
+            chatTitle = { id -> if (id == "news-chat") "Morning news" else null }
+        )
     }
 
     private fun args(json: String): JsonObject = Json.parseToJsonElement(json) as JsonObject
@@ -206,7 +213,7 @@ class ScheduledTaskToolTest {
     }
 
     @Test
-    fun `the approval prompt shows the whole task`() {
+    fun `the approval prompt shows the whole task`() = runTest {
         val request = request(
             tool.prepareCreate(
                 args(
@@ -215,7 +222,7 @@ class ScheduledTaskToolTest {
             )
         )
 
-        val prompt = tool.describe(request, AgentMode.OPERATOR)
+        val prompt = tool.describe(request, sessionId = "chat", chatMode = AgentMode.OPERATOR)
 
         assertTrue(prompt, prompt.contains("Name: News"))
         assertTrue(prompt, prompt.contains("every 2 days at 08:00"))
@@ -223,6 +230,42 @@ class ScheduledTaskToolTest {
         assertTrue(prompt, prompt.contains("a new chat each time"))
         assertTrue(prompt, prompt.contains("Prompt: Summarise the news"))
         assertTrue(prompt, prompt.contains("without asking you first"))
+    }
+
+    @Test
+    fun `an edit asked from another chat names the chat a same-chat task stays in`() = runTest {
+        store.put(
+            ScheduledTask(
+                id = "t",
+                name = "News",
+                prompt = "Summarise",
+                startLocal = "2026-10-19T08:00",
+                sameChat = true,
+                chatSessionId = "news-chat"
+            )
+        )
+
+        val rename = request(tool.prepareEdit(args("""{"task_id":"t","name":"Headlines"}""")))
+        val prompt = tool.describe(rename, sessionId = "other-chat", chatMode = AgentMode.OPERATOR)
+        assertTrue(prompt, prompt.contains("Runs in: the chat \"Morning news\" (not this one)"))
+        tool.apply(rename, sessionId = "other-chat", chatMode = AgentMode.OPERATOR)
+        assertEquals("news-chat", store.get("t")!!.chatSessionId)
+
+        // Asked from the pinned chat itself, it is "this chat".
+        val fromPinned = tool.describe(rename, sessionId = "news-chat", chatMode = AgentMode.OPERATOR)
+        assertTrue(fromPinned, fromPinned.contains("Runs in: this chat, each time"))
+
+        // same_chat=true moves it here, and says so.
+        val repin = request(tool.prepareEdit(args("""{"task_id":"t","same_chat":true}""")))
+        val repinPrompt = tool.describe(repin, sessionId = "other-chat", chatMode = AgentMode.OPERATOR)
+        assertTrue(repinPrompt, repinPrompt.contains("Runs in: this chat, each time"))
+        tool.apply(repin, sessionId = "other-chat", chatMode = AgentMode.OPERATOR)
+        assertEquals("other-chat", store.get("t")!!.chatSessionId)
+
+        // A pinned chat that was deleted is not passed off as this one.
+        store.put(store.get("t")!!.copy(chatSessionId = "gone"))
+        val orphan = tool.describe(rename, sessionId = "other-chat", chatMode = AgentMode.OPERATOR)
+        assertTrue(orphan, orphan.contains("no longer saved"))
     }
 
     @Test

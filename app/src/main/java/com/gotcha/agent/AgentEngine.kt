@@ -1158,7 +1158,7 @@ class AgentEngine(
         } else {
             val approved = events.awaitConfirmation(
                 listOf(call.function.name),
-                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, agent) }
+                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) }
             )
             val decided = if (approved) {
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }

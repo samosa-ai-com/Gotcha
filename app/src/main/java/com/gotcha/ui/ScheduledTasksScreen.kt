@@ -122,11 +122,13 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
         onDispose { lifecycle.removeObserver(observer) }
     }
 
-    /** Saves [task] as edited, re-armed, and the alarm with it. */
-    fun changed(task: ScheduledTask) {
+    /** Switches [task] on or off, keeping a pending retry or busy wait (see [ScheduledTaskPlanner.toggled]). */
+    fun toggled(task: ScheduledTask, enabled: Boolean) {
         scope.launch {
             withContext(Dispatchers.IO) {
-                store.put(ScheduledTaskPlanner.armed(task, System.currentTimeMillis(), ZoneId.systemDefault()))
+                store.update(task.id) {
+                    ScheduledTaskPlanner.toggled(it, enabled, System.currentTimeMillis(), ZoneId.systemDefault())
+                }
                 ScheduledTaskScheduler.reschedule(context)
             }
             tick++
@@ -160,7 +162,7 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
             } else {
                 TaskRow(
                     task = task,
-                    onEnabledChange = { changed(task.copy(enabled = it)) },
+                    onEnabledChange = { toggled(task, it) },
                     onEdit = { editing = task.id },
                     onRunNow = {
                         scope.launch {
