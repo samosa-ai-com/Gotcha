@@ -120,7 +120,6 @@ jobs:
 
       # Report-only: the feature-coverage manifest is the gate, not a percentage.
       # See the comment on the kover block in app/build.gradle.kts.
-      # PRs into main only — see the header comment.
       - name: Coverage report
         if: github.event_name == 'pull_request' && github.base_ref == 'main'
         run: ./gradlew :app:koverXmlReport :app:koverHtmlReport --stacktrace
