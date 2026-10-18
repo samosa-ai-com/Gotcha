@@ -9,6 +9,7 @@ import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.llm.ToolCall
 import com.gotcha.llm.withValidToolCallArguments
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
@@ -132,11 +133,7 @@ class SubAgentSession(
             for (call in toolCalls) {
                 val toolName = call.function.name
                 blockedOn?.let { permission ->
-                    val skipped = "Not run: an earlier call in this step needs $permission, " +
-                        "which is not granted."
-                    history.add(ChatMessage(role = "tool", content = JsonPrimitive(skipped), toolCallId = call.id))
-                    collectedSteps.add("$toolName → skipped: needs $permission")
-                    onStep(toolName, "completed", "skipped: needs $permission")
+                    skipCall(call, permission, history)
                     continue
                 }
                 onStep(toolName, "running", "")
@@ -181,14 +178,7 @@ class SubAgentSession(
                     )
                 )
 
-                // Report reasoning text that sometimes comes alongside tool calls
-                if (message.hasText && collectedSteps.none { it.startsWith("reasoning:") }) {
-                    val thought = message.textContent.take(120)
-                    if (thought.isNotBlank()) {
-                        collectedSteps.add("reasoning: $thought")
-                        onStep("reasoning", "completed", thought)
-                    }
-                }
+                reportReasoning(message)
             }
 
             if (activeTokenCount > settings.maxContextTokens * 0.8) {
@@ -198,6 +188,25 @@ class SubAgentSession(
 
         val msg = "Task exceeded $maxRounds tool rounds without producing a final answer."
         return SubAgentOutput(msg, collectedSteps.toList())
+    }
+
+    /** Reports reasoning text that sometimes comes alongside tool calls, once per run. */
+    private fun reportReasoning(message: ChatMessage) {
+        if (!message.hasText || collectedSteps.any { it.startsWith("reasoning:") }) return
+        val thought = message.textContent.take(120)
+        if (thought.isNotBlank()) {
+            collectedSteps.add("reasoning: $thought")
+            onStep("reasoning", "completed", thought)
+        }
+    }
+
+    /** Answers [call] without running it, as one planned after [permission] was refused. */
+    private fun skipCall(call: ToolCall, permission: String, history: MutableList<ChatMessage>) {
+        val toolName = call.function.name
+        val skipped = "Not run: an earlier call in this step needs $permission, which is not granted."
+        history.add(ChatMessage(role = "tool", content = JsonPrimitive(skipped), toolCallId = call.id))
+        collectedSteps.add("$toolName → skipped: needs $permission")
+        onStep(toolName, "completed", "skipped: needs $permission")
     }
 
     /**

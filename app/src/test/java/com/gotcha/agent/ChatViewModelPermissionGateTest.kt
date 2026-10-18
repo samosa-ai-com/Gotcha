@@ -7,9 +7,9 @@ import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -134,28 +134,29 @@ class ChatViewModelPermissionGateTest {
     }
 
     @Test
-    fun `a special access raised behind another app opens its Settings screen once Gotcha is back`() = runTest(dispatcher) {
-        // App navigation stops on a missing access with another app in front.
-        // Settings can't be opened from there, so the ask waits for onStart
-        // instead of being dropped or blocked (issue #133).
-        val delivered = mutableListOf<String>()
-        val collector = launch { viewModel.permissionRequests.collect { delivered += it } }
-        runCurrent()
-        viewModel.setForeground(false)
+    fun `a special access raised behind another app opens its Settings screen once Gotcha is back`() =
+        runTest(dispatcher) {
+            // App navigation stops on a missing access with another app in front.
+            // Settings can't be opened from there, so the ask waits for onStart
+            // instead of being dropped or blocked (issue #133).
+            val delivered = mutableListOf<String>()
+            val collector = launch { viewModel.permissionRequests.collect { delivered += it } }
+            runCurrent()
+            viewModel.setForeground(false)
 
-        viewModel.runner.onPermissionRequest(com.gotcha.tools.ToolResult.ACCESSIBILITY_ACCESS)
-        runCurrent()
-        assertTrue("Settings was opened from behind another app: $delivered", delivered.isEmpty())
+            viewModel.runner.onPermissionRequest(com.gotcha.tools.ToolResult.ACCESSIBILITY_ACCESS)
+            runCurrent()
+            assertTrue("Settings was opened from behind another app: $delivered", delivered.isEmpty())
 
-        viewModel.setForeground(true)
-        runCurrent()
-        assertEquals(listOf(com.gotcha.tools.ToolResult.ACCESSIBILITY_ACCESS), delivered)
+            viewModel.setForeground(true)
+            runCurrent()
+            assertEquals(listOf(com.gotcha.tools.ToolResult.ACCESSIBILITY_ACCESS), delivered)
 
-        // Handed over once, not again on every return to the app.
-        viewModel.setForeground(false)
-        viewModel.setForeground(true)
-        runCurrent()
-        assertEquals(1, delivered.size)
-        collector.cancel()
-    }
+            // Handed over once, not again on every return to the app.
+            viewModel.setForeground(false)
+            viewModel.setForeground(true)
+            runCurrent()
+            assertEquals(1, delivered.size)
+            collector.cancel()
+        }
 }
