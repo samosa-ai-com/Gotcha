@@ -1584,9 +1584,11 @@ class AgentEngine(
      * and service statuses (PRD §14.1).
      *
      * The working directory and date/time are intentionally excluded — they are
-     * provided via [runContextMessage] placed after the conversation history
-     * so that this block stays fully static and the server-side KV cache
-     * for the [env block + history] prefix is preserved across calls.
+     * provided via [runContextMessage] placed after the conversation history,
+     * so the per-chat directory and per-call timestamp no longer invalidate the
+     * server-side KV cache for the [env block + history] prefix. The rest of the
+     * block can still change between calls (service, VPN, Termux and connector
+     * state), but only when that state does.
      */
     private fun buildEnvironmentString(agent: AgentMode): String {
         val app = appContext

@@ -380,6 +380,7 @@ class PromptCacheAndTokenOptimizationTest {
         val engine = newEngine()
         val first = "/storage/emulated/0/Gotcha/chats/First-Chat_aaaa1111"
         val second = "/storage/emulated/0/Gotcha/chats/Second-Chat_bbbb2222"
+        val savedWorkingDir = com.gotcha.tools.FileResolver.WORKING_DIR_BASE
         try {
             com.gotcha.tools.FileResolver.WORKING_DIR_BASE = first
             val prefixFirst = engine.systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR).textContent
@@ -396,8 +397,7 @@ class PromptCacheAndTokenOptimizationTest {
             assertTrue(tailSecond.textContent.contains("Working directory: $second"))
             assertTrue(tailSecond.textContent.contains("Current date/time: "))
         } finally {
-            com.gotcha.tools.FileResolver.WORKING_DIR_BASE =
-                com.gotcha.data.GotchaStorage.root().absolutePath
+            com.gotcha.tools.FileResolver.WORKING_DIR_BASE = savedWorkingDir
         }
     }
 
