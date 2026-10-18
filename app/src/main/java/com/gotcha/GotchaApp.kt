@@ -1,6 +1,8 @@
 package com.gotcha
 
+import android.app.Activity
 import android.app.Application
+import android.os.Bundle
 import android.util.Log
 import com.gotcha.agent.ChatRunner
 import java.io.File
@@ -29,8 +31,33 @@ class GotchaApp : Application() {
      */
     val chatRunner: ChatRunner by lazy { ChatRunner(this) }
 
+    @Volatile
+    private var startedActivities = 0
+
+    /**
+     * True while any of Gotcha's screens is started. False in a process an alarm
+     * started with no screen at all, which a scheduled task's run needs to know
+     * (issue #132): nothing else has told the runner it is out of sight.
+     */
+    val hasStartedActivity: Boolean get() = startedActivities > 0
+
     override fun onCreate() {
         super.onCreate()
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) {
+                startedActivities++
+            }
+
+            override fun onActivityStopped(activity: Activity) {
+                startedActivities = (startedActivities - 1).coerceAtLeast(0)
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+            override fun onActivityDestroyed(activity: Activity) = Unit
+        })
         // pdfbox ships its glyph tables as Android assets; the resource loader
         // needs a Context before the first PDF text extraction (DocumentParser).
         com.gotcha.tools.DocumentParser.init(this)

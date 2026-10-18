@@ -164,6 +164,11 @@ enum class SettingsPage(
         R.string.settings_page_skills_summary,
         "settings_skills_row"
     ),
+    SCHEDULED_TASKS(
+        R.string.settings_page_scheduled_tasks,
+        R.string.settings_page_scheduled_tasks_summary,
+        "settings_scheduled_tasks_row"
+    ),
     PROACTIVE(
         R.string.settings_page_proactive,
         R.string.settings_page_proactive_summary,

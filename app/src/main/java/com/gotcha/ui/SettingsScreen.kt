@@ -125,6 +125,8 @@ fun SettingsScreen(
     onStartTour: () -> Unit = {},
     /** Opens the in-app feedback consent sheet (hidden when no form is configured). */
     onSendFeedback: () -> Unit = {},
+    /** Leaves Settings for chat [String], e.g. the one a scheduled task's run went into. */
+    onOpenChat: (String) -> Unit = {},
     /**
      * Which sub-page is open; null is the home list.
      *
@@ -249,6 +251,10 @@ fun SettingsScreen(
                     load = load,
                     onSave = onSave,
                     onBack = backToHome
+                )
+                SettingsPage.SCHEDULED_TASKS -> ScheduledTasksScreen(
+                    onBack = backToHome,
+                    onOpenChat = onOpenChat
                 )
                 SettingsPage.PROACTIVE -> ProactiveScreen(
                     load = load,
