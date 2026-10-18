@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -44,7 +46,9 @@ fun FeedbackSheet(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.feedback_send_feedback)) },
         text = {
-            Column {
+            // Scrolls: in landscape the dialog's text area is shorter than the
+            // toggles, and without it they overflow and draw over each other.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     text = stringResource(R.string.feedback_if_you_provide_successful_feedback),
                     style = MaterialTheme.typography.bodySmall,
