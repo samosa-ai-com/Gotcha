@@ -27,14 +27,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.withResumed
+import androidx.lifecycle.repeatOnLifecycle
+import com.gotcha.agent.ChatTransferState
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.AudioModel
@@ -90,9 +93,9 @@ import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
 import com.gotcha.ui.StarPromptDialog
-import com.gotcha.ui.isStarPromptDue
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
+import com.gotcha.ui.starPromptDueAt
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -830,9 +833,11 @@ class MainActivity : ComponentActivity() {
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         var showFeedbackSheet by remember { mutableStateOf(false) }
         var showReferralInviteDialog by remember { mutableStateOf(false) }
-        var showStarPrompt by remember { mutableStateOf(false) }
-        // At most one "Enjoying Gotcha?" ask per launch, whatever its cooldown says.
-        var starPromptConsidered by rememberSaveable { mutableStateOf(false) }
+        // Saveable, so a rotation keeps the "Enjoying Gotcha?" ask on screen
+        // rather than losing one that has already started its cooldown.
+        var showStarPrompt by rememberSaveable { mutableStateOf(false) }
+        // At most one ask per launch, whatever its cooldown says.
+        var starPromptShownThisLaunch by rememberSaveable { mutableStateOf(false) }
         var referralPrefillCode by remember { mutableStateOf<String?>(null) }
         var referralClaimBusy by remember { mutableStateOf(false) }
         var referralClaimError by remember { mutableStateOf<String?>(null) }
@@ -863,37 +868,45 @@ class MainActivity : ComponentActivity() {
 
         // The "Enjoying Gotcha?" ask, only while the user is idle on Home with
         // nothing else in front of them. Any of that changing cancels the wait.
-        val starPromptQuiet = !starPromptConsidered &&
+        val starPromptQuiet = !starPromptShownThisLaunch &&
             legalAcceptedVersion == LEGAL_VERSION &&
             !tour.controller.isRunning &&
             currentRoute == Route.HOME &&
             !drawerState.isOpen &&
             !state.isBusy &&
             state.pendingPermission == null &&
+            state.pendingConfirmation == null &&
+            state.pendingForegroundControl == null &&
+            state.pendingQuestion == null &&
             !state.askNotificationPermission &&
             !askMicPermission &&
+            blockedPermissionAsk == null &&
+            chatTransferState == ChatTransferState.Idle &&
             !showFeedbackSheet &&
             !showReferralInviteDialog &&
             notificationPayload == null &&
             sharePoster.runs == null
+        val starPromptStillQuiet by rememberUpdatedState(starPromptQuiet)
         LaunchedEffect(starPromptQuiet) {
             if (!starPromptQuiet) return@LaunchedEffect
-            delay(STAR_PROMPT_DELAY_MS)
-            lifecycle.withResumed { }
-            starPromptConsidered = true
-            val now = System.currentTimeMillis()
             val installedAt = runCatching {
                 packageManager.getPackageInfo(packageName, 0).firstInstallTime
-            }.getOrDefault(now)
-            if (isStarPromptDue(
-                    now = now,
+            }.getOrDefault(System.currentTimeMillis())
+            // Restarted on every return to the foreground, so the wait is idle
+            // time on a visible Home. It also waits out a due time still ahead,
+            // so an app left open across it asks without a relaunch.
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                val dueAt = starPromptDueAt(
                     installedAt = installedAt,
                     lastShownAt = starPrompt.lastShownAt(),
                     dismissals = starPrompt.dismissals(),
                     answered = starPrompt.answered()
-                )
-            ) {
-                starPrompt.markShown(now)
+                ) ?: return@repeatOnLifecycle
+                delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
+                // Something that opened this frame hasn't cancelled the wait yet.
+                if (!starPromptStillQuiet) return@repeatOnLifecycle
+                starPrompt.markShown(System.currentTimeMillis())
+                starPromptShownThisLaunch = true
                 showStarPrompt = true
             }
         }

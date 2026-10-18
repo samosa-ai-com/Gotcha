@@ -14,7 +14,7 @@ class StarPromptStore(private val prefs: SharedPreferences) {
 
     fun dismissals(): Int = prefs.getInt(KEY_DISMISSALS, 0)
 
-    /** Recorded as the ask appears, so one the process died under still waits out its cooldown. */
+    /** Recorded as the ask appears, so one that the process died under still waits out its cooldown. */
     fun markShown(at: Long) {
         prefs.edit().putLong(KEY_LAST_SHOWN, at).apply()
     }

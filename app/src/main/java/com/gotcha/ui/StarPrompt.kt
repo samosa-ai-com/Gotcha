@@ -31,22 +31,20 @@ internal const val STAR_PROMPT_COOLDOWN_MS = 5L * DAY_MS
 internal const val STAR_PROMPT_MAX_DISMISSALS = 4
 
 /**
- * Whether the "Enjoying Gotcha?" ask is due. [answered] is set once the user
- * tapped either answer (star or feedback), which ends the ask for good; a plain
- * dismissal only counts towards [STAR_PROMPT_MAX_DISMISSALS]. [lastShownAt] is
- * zero until the first ask.
+ * When the "Enjoying Gotcha?" ask is next due, or null once it never will be.
+ * [answered] is set once the user tapped either answer (star or feedback),
+ * which ends the ask for good; a plain dismissal only counts towards
+ * [STAR_PROMPT_MAX_DISMISSALS]. [lastShownAt] is zero until the first ask.
  */
-internal fun isStarPromptDue(
-    now: Long,
+internal fun starPromptDueAt(
     installedAt: Long,
     lastShownAt: Long,
     dismissals: Int,
     answered: Boolean
-): Boolean = when {
-    answered -> false
-    dismissals >= STAR_PROMPT_MAX_DISMISSALS -> false
-    now - installedAt < STAR_PROMPT_FIRST_AFTER_MS -> false
-    else -> lastShownAt == 0L || now - lastShownAt >= STAR_PROMPT_COOLDOWN_MS
+): Long? = when {
+    answered -> null
+    dismissals >= STAR_PROMPT_MAX_DISMISSALS -> null
+    else -> maxOf(installedAt + STAR_PROMPT_FIRST_AFTER_MS, lastShownAt + STAR_PROMPT_COOLDOWN_MS)
 }
 
 /**
