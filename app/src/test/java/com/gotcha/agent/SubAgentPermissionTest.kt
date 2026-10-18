@@ -164,4 +164,42 @@ class SubAgentPermissionTest {
             subFollowUp.contains("did not grant") && subFollowUp.contains("Do not retry")
         )
     }
+
+    /**
+     * The calls after a declined one in the same response were planned before
+     * the model heard "no", so they must not run; each still answers its call
+     * id, or the next request is malformed.
+     */
+    @Test
+    fun `a declined permission stops the rest of that response's calls`() = runTest {
+        enqueueToolCall("task", """{"description":"Locate","prompt":"Find where I am and save it"}""")
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"choices":[{"message":{"role":"assistant","tool_calls":[
+                  {"id":"sub_1","type":"function","function":{"name":"get_location","arguments":"{}"}},
+                  {"id":"sub_2","type":"function","function":{"name":"write_file",
+                   "arguments":${"""{"path":"where.txt","content":"here"}""".toJsonStringLiteral()}}}
+                ]}}]}
+                """.trimIndent()
+            )
+        )
+        enqueueToolCall("ask_final_answer", """{"answer":"No location access."}""", id = "sub_3")
+        enqueueTextReply("I can't see your location.")
+        events.permissionAnswer = { false }
+
+        engine.run(AgentMode.OPERATOR)
+
+        assertFalse(
+            "a call ran after the user declined the permission before it",
+            workDir.walkTopDown().any { it.name == "where.txt" }
+        )
+        server.takeRequest()
+        server.takeRequest()
+        val subFollowUp = server.takeRequest().body.readUtf8()
+        assertTrue(
+            "the skipped call has no result of its own:\n$subFollowUp",
+            subFollowUp.contains("\"tool_call_id\":\"sub_2\"") && subFollowUp.contains("Not run")
+        )
+    }
 }

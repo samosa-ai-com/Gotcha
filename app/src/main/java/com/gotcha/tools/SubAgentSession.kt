@@ -124,8 +124,21 @@ class SubAgentSession(
                 return SubAgentOutput(answer, collectedSteps.toList())
             }
 
+            // A permission still missing ends this response's calls: the rest were
+            // planned before the model heard it, and running them would act
+            // after the user declined. Each still gets a result, which the next
+            // request needs for every call (issue #133).
+            var blockedOn: String? = null
             for (call in toolCalls) {
                 val toolName = call.function.name
+                blockedOn?.let { permission ->
+                    val skipped = "Not run: an earlier call in this step needs $permission, " +
+                        "which is not granted."
+                    history.add(ChatMessage(role = "tool", content = JsonPrimitive(skipped), toolCallId = call.id))
+                    collectedSteps.add("$toolName → skipped: needs $permission")
+                    onStep(toolName, "completed", "skipped: needs $permission")
+                    continue
+                }
                 onStep(toolName, "running", "")
                 collectedSteps.add("$toolName → (running)")
 
@@ -154,6 +167,7 @@ class SubAgentSession(
                 }
 
                 val result = withPermissionResolved(execute()) { execute() }
+                blockedOn = result.needsPermission
 
                 val summary = result.message.take(80)
                 collectedSteps[collectedSteps.lastIndex] = "$toolName → ${if (result.success) "completed" else "failed"}: $summary"
@@ -191,19 +205,26 @@ class SubAgentSession(
      * agent does, instead of leaving it as prose in this session's private
      * history where nobody sees it (issue #133).
      *
-     * Each permission is asked for once per run. Whatever is still missing
-     * afterwards gets a note telling the sub-agent to stop and report, so the
-     * parent hears a clear "this needs X" rather than a retry loop.
+     * Each permission is asked for once per run, including one that only shows
+     * up when the retry after a grant hits a second permission. Whatever is
+     * still missing afterwards has been asked for, and gets a note telling the
+     * sub-agent to stop and report, so the parent hears a clear "this needs X"
+     * rather than a retry loop.
      */
     private suspend fun withPermissionResolved(
         result: ToolResult,
         retry: suspend () -> ToolResult
     ): ToolResult {
-        val permission = result.needsPermission ?: return result
-        val resolved = if (askedPermissions.add(permission)) resolvePermission(result, retry) else result
+        var resolved = result
+        while (true) {
+            val permission = resolved.needsPermission ?: return resolved
+            if (!askedPermissions.add(permission)) break
+            resolved = resolvePermission(resolved, retry)
+        }
         val stillMissing = resolved.needsPermission ?: return resolved
         val note = if (stillMissing.startsWith("special:")) {
-            "Gotcha has opened the Settings screen where the user can turn this on."
+            "The user has to turn $stillMissing on in Settings; Gotcha takes them " +
+                "there once it is in front."
         } else {
             "The user did not grant $stillMissing, or Gotcha could not ask for it from here."
         }

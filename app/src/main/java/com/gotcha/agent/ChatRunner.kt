@@ -2,6 +2,7 @@ package com.gotcha.agent
 
 import android.app.Application
 import android.app.Notification
+import android.os.SystemClock
 import android.widget.Toast
 import com.gotcha.GotchaApp
 import com.gotcha.R
@@ -57,6 +58,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * What the chat screen shows of the session bound to [ChatRunner]'s engine and
@@ -247,11 +249,14 @@ class ChatRunner(private val app: Application) : AgentEvents {
     /**
      * Special-access markers ("special:*") the Activity should deep-link to.
      * Runtime permissions travel as [RunState.pendingPermission] instead —
-     * they need an answer, and this is a fire-and-forget signal, dropped when
-     * no Activity is there to take it.
+     * they need an answer, and this is a fire-and-forget signal. One raised
+     * while Gotcha is out of sight is held until it is back in front.
      */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
+
+    /** A special-access marker waiting for Gotcha to be in front; see [onPermissionRequest]. */
+    private val heldSpecialAccess = AtomicReference<Pair<String, Long>?>(null)
 
     /**
      * Bumped when the runner adds an inbox entry of its own (an interrupted
@@ -650,6 +655,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
      */
     fun setForeground(foreground: Boolean, recreating: Boolean = false) {
         this.foreground.value = foreground
+        if (foreground) deliverHeldSpecialAccess()
         // A question or confirmation left on screen is out of sight now; back
         // in the app, its dialog is showing again.
         when {
@@ -842,8 +848,24 @@ class ChatRunner(private val app: Application) : AgentEvents {
         setState { it.copy(subAgentRunning = running, subAgentCurrentAction = currentAction) }
     }
 
+    /**
+     * A special-access marker opens its Settings screen, which only a started
+     * Activity can do: launched from behind another app it is blocked, and with
+     * no Activity at all the event has no collector. So the marker is held while
+     * Gotcha is out of sight and handed over at the next onStart, as long as
+     * that is within [HELD_ACCESS_MS] (issue #133). App navigation hits this
+     * whenever it stops on a missing access with another app in front.
+     */
     override fun onPermissionRequest(marker: String) {
-        _permissionRequests.tryEmit(marker)
+        heldSpecialAccess.set(marker to SystemClock.elapsedRealtime())
+        // Read after the write: either this sees the foreground or the
+        // setForeground(true) racing it sees the marker, so it is never stranded.
+        if (appInForeground) deliverHeldSpecialAccess()
+    }
+
+    private fun deliverHeldSpecialAccess() {
+        val (marker, heldAt) = heldSpecialAccess.getAndSet(null) ?: return
+        if (SystemClock.elapsedRealtime() - heldAt <= HELD_ACCESS_MS) _permissionRequests.tryEmit(marker)
     }
 
     /**
@@ -851,14 +873,13 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * [RunState.pendingPermission] explains why and raises the system dialog,
      * then answers through [onPermissionResult].
      *
-     * A runtime dialog can only be raised by a foreground Activity, so a
-     * backgrounded run says "not granted" immediately rather than stalling the
-     * agent behind a prompt nobody can see — the tool's own error message
-     * already tells the model (and, on screen, the user) what is missing.
-     *
-     * It does wait [FOREGROUND_RETURN_MS] for the app to come back first: app
-     * navigation relaunches Gotcha as it finishes and then hands up the
+     * A runtime dialog can only be raised by a foreground Activity. A
+     * backgrounded run waits [FOREGROUND_RETURN_MS] for Gotcha to come back —
+     * app navigation relaunches it as it finishes and then hands up the
      * permission it hit, and the ask would otherwise beat onStart (issue #133).
+     * Still out of sight after that, it says "not granted" rather than stall the
+     * agent behind a prompt nobody can see; the tool's own error message
+     * already tells the model (and, on screen, the user) what is missing.
      */
     override suspend fun awaitPermissionGrant(permission: String): Boolean {
         if (withTimeoutOrNull(FOREGROUND_RETURN_MS) { foreground.first { it } } == null) return false
@@ -1162,6 +1183,13 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
         /** How long a permission ask waits for Gotcha to come to the front. */
         const val FOREGROUND_RETURN_MS = 3_000L
+
+        /**
+         * How long a special-access ask made out of sight waits for Gotcha to
+         * come back; see [onPermissionRequest]. Later than this, a Settings
+         * screen opening on its own would be a surprise.
+         */
+        const val HELD_ACCESS_MS = 120_000L
 
         /** How long a question waits; see [awaitQuestionAnswer]. */
         const val QUESTION_TIMEOUT_MS = 600_000L
