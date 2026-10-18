@@ -24,6 +24,7 @@ import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.GotchaSettingsUpdate
+import com.gotcha.tools.ScheduledTaskTool
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
@@ -34,7 +35,9 @@ import com.gotcha.ui.personaById
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -108,6 +111,14 @@ class AgentEngine(
      * so splicing it into the system message keeps index 0 cache-stable.
      */
     var sessionPersonaId: String? = null
+
+    /**
+     * True while the run was started by a scheduled task rather than by the user
+     * (issue #132). The schedule tools are withheld from it, so a prompt injected
+     * into an unattended run can't schedule more of them.
+     */
+    @Volatile
+    var scheduledRun: Boolean = false
 
     /**
      * Stable key for the provider's server-side prompt KV cache
@@ -711,6 +722,19 @@ class AgentEngine(
                         handleDeleteConfirm("CONFIRM_DELETE_TIMER:", "timer", call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_CALENDAR_EVENT:")) {
                         handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
+                    } else if (result.success &&
+                        result.message.startsWith(ScheduledTaskTool.DELETE_CONFIRM_PREFIX)
+                    ) {
+                        handleDeleteConfirm(
+                            ScheduledTaskTool.DELETE_CONFIRM_PREFIX,
+                            "scheduled_task",
+                            call,
+                            result
+                        )
+                    } else if (result.success &&
+                        result.message.startsWith(ScheduledTaskTool.CONFIRM_PREFIX)
+                    ) {
+                        handleScheduleTaskConfirm(call, result, agent)
                     } else if (result.success && result.message.startsWith("CONFIRM_SEND_EMAIL:")) {
                         handleSendEmailConfirm(call, result)
                     } else if (result.success &&
@@ -1118,6 +1142,47 @@ class AgentEngine(
         )
     }
 
+    /**
+     * Handles a tool result prefixed with CONFIRM_SCHEDULE_TASK:base64(request)
+     * (issue #132). A scheduled task runs the agent later with nobody watching,
+     * so every create and every edit asks, showing the task exactly as it would
+     * be saved. Its mode is capped at [agent], this run's own. Nothing is saved
+     * unless the user allows it; an unanswered prompt counts as declined.
+     */
+    private suspend fun handleScheduleTaskConfirm(call: ToolCall, result: ToolResult, agent: AgentMode) {
+        val request = ScheduledTaskTool.decodePayload(
+            result.message.removePrefix(ScheduledTaskTool.CONFIRM_PREFIX)
+        )
+        var declined = false
+        val outcome = if (request == null) {
+            ToolResult.error("Failed to read the scheduled task request. Nothing was saved.")
+        } else {
+            val approved = events.awaitConfirmation(
+                listOf(call.function.name),
+                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) }
+            )
+            val decided = if (approved) {
+                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }
+            } else {
+                declined = true
+                ToolResult.error(
+                    "The user declined; nothing was scheduled or changed. Do not retry unless the user asks again."
+                )
+            }
+            toolExecutor.actionLog.record(
+                call.function.name,
+                (if (approved) "(approved) " else "(denied) ") + (request.taskId ?: request.name.orEmpty()),
+                decided
+            )
+            decided
+        }
+        history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)
+        events.onUi(
+            if (outcome.success || declined) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: ${outcome.message}"
+        )
+    }
+
     private suspend fun handleDeleteConfirm(confirmPrefix: String, kind: String, call: ToolCall, result: ToolResult) {
         val body = result.message.removePrefix(confirmPrefix)
         val parts = body.split(":", limit = 2)
@@ -1131,6 +1196,8 @@ class AgentEngine(
                 "alarm" -> toolExecutor.executeDeleteAlarm(id.toLong())
                 "timer" -> toolExecutor.executeDeleteTimer(id.toLong())
                 "calendar_event" -> toolExecutor.executeDeleteCalendarEvent(id.toLong())
+                "scheduled_task" -> withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.doDelete(id) }
+                    .also { toolExecutor.actionLog.record("delete_scheduled_task", "(confirmed) $id", it) }
                 else -> return
             }
         } else {
@@ -1270,7 +1337,9 @@ class AgentEngine(
      */
     private fun hiddenTools(): Set<String> =
         ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
-            DeviceCapabilities.hiddenToolNames(appContext)
+            DeviceCapabilities.hiddenToolNames(appContext) +
+            // A run a schedule started can't plant, re-enable or widen tasks (issue #132).
+            (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet())
 
     /**
      * A separate system message carrying only the current date/time.

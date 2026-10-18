@@ -1127,6 +1127,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
             }
             historyRepository.deleteSession(id)
             localNotificationStore.forgetChat(id)
+            // A same-chat task pinned to it starts a new chat next time (issue #132).
+            withContext(Dispatchers.IO) {
+                runCatching { com.gotcha.scheduled.ScheduledTaskStore(getApplication()).forgetChat(id) }
+            }
             if (_uiState.value.activeSessionId == id) {
                 clearChat()
             } else if (wasBound) {

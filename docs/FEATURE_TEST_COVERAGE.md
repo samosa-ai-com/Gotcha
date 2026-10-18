@@ -14,12 +14,12 @@ Every tool the assistant can call is listed below, together with how it is verif
 | Tier | Tools | What it means |
 |---|---:|---|
 | `UNIT` | 24 | Plain JVM unit test — no Android framework needed. |
-| `ROBOLECTRIC` | 30 | JVM test against Robolectric's Android framework, often across several API levels. |
+| `ROBOLECTRIC` | 34 | JVM test against Robolectric's Android framework, often across several API levels. |
 | `INSTRUMENTED` | 0 | Runs on a real device or emulator (`app/src/androidTest`). |
 | `MANUAL_ONLY` | 64 | No automated test — verified by hand, see the checklist below. |
-| **Total** | **118** | |
+| **Total** | **122** | |
 
-**54 of 118** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
+**58 of 122** tools are covered by an automated test; the remaining 64 are manual-QA-only with a recorded reason.
 
 ## Foreground tools (act on the screen)
 
@@ -55,6 +55,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `create_task` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `delete_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `delete_calendar_event` | `UNIT` | `CalendarToolsTest` — connector path only; destructive, so also gated by the confirmation flow |
+| `delete_scheduled_task` | `ROBOLECTRIC` | `ScheduledTaskToolTest` — returns the destructive-delete confirmation marker; the task is only removed once confirmed |
 | `delete_timer` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `disable_camera` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `dismiss_notifications` | `MANUAL_ONLY` | Needs NotificationListenerService bound with the user's explicit grant; not bindable from a test host. |
@@ -62,6 +63,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `edit` | `ROBOLECTRIC` | `FileToolsTest` — unique match, replaceAll, no-match and blank-argument rejection |
 | `edit_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `edit_calendar_event` | `UNIT` | `CalendarToolsTest` — connector path only; the on-device CalendarProvider path is manual |
+| `edit_scheduled_task` | `ROBOLECTRIC` | `ScheduledTaskToolTest` — only the named fields change, a new schedule is re-armed, pausing clears the next run, unknown ids and empty edits are refused |
 | `hide_overlay` | `MANUAL_ONLY` | Draws a real SYSTEM_ALERT_WINDOW; needs the 'Display over other apps' grant and a visible screen to verify. |
 | `lock_screen` | `MANUAL_ONLY` | Needs an active Device Admin registration, which cannot be granted non-interactively. |
 | `mark_email_read` | `UNIT` | `EmailToolsTest` — read/unread toggle routed to the right backend |
@@ -77,6 +79,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `run_command` | `UNIT` | `TerminalToolTest` — argument splitting, timeout, exit codes, output truncation |
 | `run_root_command` | `MANUAL_ONLY` | Requires a rooted device and an interactive superuser grant. |
 | `run_termux_command` | `ROBOLECTRIC` | `TermuxToolTest`, `ActionLogRedactionTest` — installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand |
+| `schedule_agent_task` | `ROBOLECTRIC` | `ScheduledTaskToolTest`, `ScheduleTaskLoopTest`, `ScheduledRunTest`, `ScheduledTaskPlannerTest`, `ScheduledTaskScheduleTest` — argument checks before any prompt, the cap on agent-made tasks, approval on every create (denial saves nothing), the mode capped at the chat's, files read on approval, withheld from Monitor, sub-agents and scheduled runs; the schedule math and the runs it starts |
 | `send_email` | `UNIT` | `EmailToolsTest`, `MimeMessageBuilderTest` — confirmation flow, recipient handling, MIME construction with attachments |
 | `send_sms` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `set_alarm` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
@@ -133,6 +136,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `list_emails` | `UNIT` | `EmailToolsTest` — backend routing, unread filter, result limits |
 | `list_files` | `ROBOLECTRIC` | `FileToolsTest` — flat and recursive listings |
 | `list_installed_apps` | `ROBOLECTRIC` | `AppsToolTest` — listing, system-app marking, counts, search filtering |
+| `list_scheduled_tasks` | `ROBOLECTRIC` | `ScheduledTaskToolTest`, `ScheduleTaskLoopTest` — each task with its id, schedule and prompt; the one schedule tool Monitor is offered |
 | `list_tasks` | `MANUAL_ONLY` | Routed to a live Microsoft Graph account; only the underlying GraphApi has JVM coverage today. |
 | `list_timers` | `MANUAL_ONLY` | Needs an Android Context and a system service with real device state; no JVM-tier coverage yet — scheduled for the Robolectric tier. |
 | `notion_delete_item` | `UNIT` | `NotionToolsMutationTest` — page trash patch vs block delete request shapes |

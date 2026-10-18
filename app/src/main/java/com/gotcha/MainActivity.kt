@@ -61,6 +61,10 @@ import com.gotcha.notifications.NotificationDispatcher
 import com.gotcha.notifications.NotificationPayload
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.ServerMessages
+import com.gotcha.scheduled.ScheduledStart
+import com.gotcha.scheduled.ScheduledTaskNotifier
+import com.gotcha.scheduled.ScheduledTaskRuns
+import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.AgentMode
@@ -336,6 +340,9 @@ class MainActivity : ComponentActivity() {
         // notification alarms are armed here too. Re-arming is idempotent.
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { LocalNotificationScheduler.scheduleAll(applicationContext) }
+            // An alarm already past fires at once, so a task due while Gotcha could
+            // not run it gets its turn now (issue #132).
+            runCatching { ScheduledTaskScheduler.reschedule(applicationContext) }
             // Re-arming pushes the 4-hour check back, so someone who opens Gotcha
             // more often than that would never reach the update check through the
             // alarm alone. It limits itself to about twice a day (issue #126).
@@ -598,6 +605,11 @@ class MainActivity : ComponentActivity() {
             // Consumed, as above: a recreation must not open another chat.
             intent.removeExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)
         }
+        intent?.getStringExtra(ScheduledTaskNotifier.EXTRA_RUN_TASK_ID)?.let { taskId ->
+            // Consumed, as above: a recreation must not run the task again.
+            intent.removeExtra(ScheduledTaskNotifier.EXTRA_RUN_TASK_ID)
+            runScheduledTask(taskId)
+        }
         if (intent?.getBooleanExtra(LocalNotifier.EXTRA_OPEN_UPDATE, false) == true) {
             openUpdateRequested = true
             intent.removeExtra(LocalNotifier.EXTRA_OPEN_UPDATE)
@@ -623,6 +635,24 @@ class MainActivity : ComponentActivity() {
                 body = body.orEmpty(),
                 url = url
             )
+        }
+    }
+
+    /**
+     * A tap on a scheduled task's "tap to run" notification (issue #132): the
+     * task runs now, and its chat opens to show it working.
+     */
+    private fun runScheduledTask(taskId: String) {
+        ScheduledTaskNotifier(this).cancel(taskId)
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { ScheduledTaskRuns.runNow(application, taskId) }
+            when (result) {
+                is ScheduledStart.Started -> openSessionRequested = result.sessionId
+                ScheduledStart.Busy ->
+                    Toast.makeText(this@MainActivity, R.string.scheduled_run_now_busy, Toast.LENGTH_LONG).show()
+                is ScheduledStart.Failed ->
+                    Toast.makeText(this@MainActivity, result.detail, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -1059,6 +1089,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onStartTour = { startTour() },
                         onSendFeedback = { showFeedbackSheet = true },
+                        onOpenChat = { id ->
+                            chatViewModel.openSession(id)
+                            currentRoute = Route.HOME
+                        },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it

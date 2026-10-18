@@ -11,6 +11,8 @@ name: CI
 #   manifest PR) don't run CI: nothing here compiles, lints or tests them.
 # - Instrumented jobs run only on manual workflow_dispatch; `build` joins
 #   them only when the run_build input is set.
+# - Coverage (Kover report + PR comment) runs only on PRs into main;
+#   PRs into development and pushes skip it.
 
 on:
   pull_request:
@@ -119,12 +121,13 @@ jobs:
       # Report-only: the feature-coverage manifest is the gate, not a percentage.
       # See the comment on the kover block in app/build.gradle.kts.
       - name: Coverage report
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         run: ./gradlew :app:koverXmlReport :app:koverHtmlReport --stacktrace
 
       # Kover emits JaCoCo-format XML, so this action reads it directly. Thresholds are 0
       # on purpose — it posts total + changed-files coverage and never fails the build.
       - name: Post coverage on the PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         uses: madrapps/jacoco-report@v1.7
         with:
           paths: app/build/reports/kover/report.xml
