@@ -71,6 +71,12 @@ All notable changes to Gotcha are documented here.
   won't ask twice in one task. App navigation stops at the step that needs a
   permission or a Settings switch and asks once Gotcha is back on screen. It
   no longer mentions the permission in passing at the end.
+- **Faster first replies in a new chat with prompt caching** (#121). Each
+  chat's folder was named near the top of what Gotcha sends the AI, so a new
+  chat, or the second message after a chat got its title, couldn't reuse the
+  cached start of the request. The folder now comes after the
+  conversation instead. Local servers such as llama-server skip reprocessing
+  thousands of tokens, and providers that discount cached input charge less.
 
 ## [1.3.0]
 ### Added
