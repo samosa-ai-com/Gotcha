@@ -191,7 +191,8 @@ class AgentEngine(
                             }
                         )
                     },
-                    sessionId = sessionId?.let { "${it}_task" }
+                    sessionId = sessionId?.let { "${it}_task" },
+                    resolvePermission = ::resolvePermission
                 )
                 val output = subSession.run()
                 val stepsEncoded = output.steps.joinToString("\n")
@@ -1272,18 +1273,44 @@ class AgentEngine(
      *
      * Anything other than a grant (declined, no Activity to ask from, a host
      * that cannot ask at all) returns [result] untouched.
+     *
+     * `task` and `navigate_app` are not retried: each is a whole run of steps,
+     * and replaying one repeats whatever it already did (a message typed, a
+     * button pressed). The model is told the grant landed and decides whether
+     * to call it again (issue #133).
      */
     private suspend fun resolveMissingPermission(
         call: ToolCall,
         agent: AgentMode,
         result: ToolResult
     ): ToolResult {
+        val name = call.function.name
+        if (name in REPLAYING_TOOLS) {
+            return resolvePermission(result) {
+                ToolResult.error(
+                    "${result.message}\nThe user has now granted ${result.needsPermission}. " +
+                        "Call $name again to carry on from where it stopped."
+                )
+            }
+        }
+        return resolvePermission(result) { executeCall(call, agent) }
+    }
+
+    /**
+     * The ask behind [resolveMissingPermission], shared with the sub-agent and
+     * navigator sessions so a tool they run reaches the same prompt the main
+     * agent's tools do (issue #133). [retry] runs only after a runtime grant.
+     */
+    private suspend fun resolvePermission(
+        result: ToolResult,
+        retry: suspend () -> ToolResult
+    ): ToolResult {
         val permission = result.needsPermission ?: return result
         if (permission.startsWith("special:")) {
             events.onPermissionRequest(permission)
             return result
         }
-        return if (events.awaitPermissionGrant(permission)) executeCall(call, agent) else result
+        return if (events.awaitPermissionGrant(permission)) retry() else result
     }
 
     private suspend fun executeCall(call: ToolCall, agent: AgentMode): ToolResult {
@@ -1904,6 +1931,9 @@ class AgentEngine(
     }
 
     companion object {
+        /** Tools that run many steps of their own; see [resolveMissingPermission]. */
+        private val REPLAYING_TOOLS = setOf("task", "navigate_app")
+
         /**
          * Returns a copy of [messages] with old screen observations and old images
          * culled. The original list (and [history]) is NOT modified.

@@ -57,6 +57,16 @@ All notable changes to Gotcha are documented here.
   silent and says the voice is missing, without repeating it on every reply.
   Settings → Language warns about all of these too.
 
+### Fixed
+- **Permission asks from delegated tasks and app navigation** (#133). When a
+  task handed to a sub-agent needed a permission, such as location, the
+  sub-agent noted the failure and went on, and no prompt ever appeared. It now
+  shows the same prompt the assistant does. If you allow it, the step runs
+  again. If you don't, the sub-agent stops and says what it needed, and it
+  won't ask twice in one task. App navigation stops at the step that needs a
+  permission or a Settings switch and asks once Gotcha is back on screen. It
+  no longer mentions the permission in passing at the end.
+
 ## [1.3.0]
 ### Added
 - **Gotcha in eight more languages** (#120). Gotcha's own screens, menus,
