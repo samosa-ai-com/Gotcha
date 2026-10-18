@@ -8,6 +8,7 @@
     <string name="legal_consent_title" translatable="false">Before you continue</string>
     <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
     <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
+    <string name="legal_consent_age_label" translatable="false">I confirm that I am at least 18 years old.</string>
     <string name="legal_consent_agree" translatable="false">I agree</string>
     <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
     <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>

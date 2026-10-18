@@ -44,7 +44,8 @@ import com.gotcha.ui.theme.SkinAlertDialog
  * "I agree" button. All three legal documents (Terms, Disclaimer, Data
  * Retention) are shown inline up front, and the "I have read and accept…"
  * checkbox sits at the very end, after the documents, since it attests to
- * having read them. The button stays disabled until that checkbox is ticked.
+ * having read them, followed by an "I am at least 18" checkbox. The button
+ * stays disabled until both are ticked.
  *
  * Re-prompted by [com.gotcha.MainActivity] whenever the stored
  * [com.gotcha.data.Settings.legalAcceptedVersion] doesn't match the current
@@ -57,6 +58,7 @@ fun LegalConsentDialog(
 ) {
     val context = LocalContext.current
     var accepted by remember { mutableStateOf(false) }
+    var ageConfirmed by remember { mutableStateOf(false) }
     var termsText by remember { mutableStateOf<String?>(null) }
     var disclaimerText by remember { mutableStateOf<String?>(null) }
     var privacyText by remember { mutableStateOf<String?>(null) }
@@ -135,45 +137,68 @@ fun LegalConsentDialog(
 
                 HorizontalDivider(thickness = 1.dp)
 
-                // The acceptance row, last so it comes after the user has had
-                // the chance to read everything above it. Whole row is
-                // clickable so the user can hit anywhere on the label, not
-                // just the small checkbox target.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = accepted,
-                            role = Role.Checkbox,
-                            onValueChange = { accepted = it }
-                        )
-                        .padding(vertical = 4.dp)
-                        .testTag("legal_consent_toggle_row"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = accepted,
-                        onCheckedChange = null,
-                        modifier = Modifier.testTag("legal_consent_toggle_checkbox")
-                    )
-                    Text(
-                        text = stringResource(R.string.legal_consent_toggle_label),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                // The acceptance rows, last so they come after the user has
+                // had the chance to read everything above them.
+                ConsentToggleRow(
+                    checked = accepted,
+                    onCheckedChange = { accepted = it },
+                    label = stringResource(R.string.legal_consent_toggle_label),
+                    tag = "legal_consent_toggle"
+                )
+                ConsentToggleRow(
+                    checked = ageConfirmed,
+                    onCheckedChange = { ageConfirmed = it },
+                    label = stringResource(R.string.legal_consent_age_label),
+                    tag = "legal_consent_age"
+                )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = onAgree,
-                enabled = accepted,
+                enabled = accepted && ageConfirmed,
                 modifier = Modifier.testTag("legal_consent_agree_button")
             ) { Text(stringResource(R.string.legal_consent_agree)) }
         }
         // No dismissButton — the dialog has no "later" path on purpose.
     )
+}
+
+/**
+ * A checkbox with its label. The whole row is clickable so the user can hit
+ * anywhere on the label, not just the small checkbox target.
+ */
+@Composable
+private fun ConsentToggleRow(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    label: String,
+    tag: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = onCheckedChange
+            )
+            .padding(vertical = 4.dp)
+            .testTag("${tag}_row"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            modifier = Modifier.testTag("${tag}_checkbox")
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+    }
 }
 
 /**
