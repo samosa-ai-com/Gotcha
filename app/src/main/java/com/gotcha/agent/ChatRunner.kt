@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -150,9 +151,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * Set by the Activity in onStart/onStop; drives whether gates notify and use
      * the overlay. Once the Activity is gone its last onStop left this false.
      */
-    @Volatile
-    var appInForeground = true
-        private set
+    val appInForeground: Boolean get() = foreground.value
+    private val foreground = MutableStateFlow(true)
 
     internal val engine = AgentEngine(
         appContext = app,
@@ -649,7 +649,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * within a moment and should not raise a notification.
      */
     fun setForeground(foreground: Boolean, recreating: Boolean = false) {
-        appInForeground = foreground
+        this.foreground.value = foreground
         // A question or confirmation left on screen is out of sight now; back
         // in the app, its dialog is showing again.
         when {
@@ -855,9 +855,13 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * backgrounded run says "not granted" immediately rather than stalling the
      * agent behind a prompt nobody can see — the tool's own error message
      * already tells the model (and, on screen, the user) what is missing.
+     *
+     * It does wait [FOREGROUND_RETURN_MS] for the app to come back first: app
+     * navigation relaunches Gotcha as it finishes and then hands up the
+     * permission it hit, and the ask would otherwise beat onStart (issue #133).
      */
     override suspend fun awaitPermissionGrant(permission: String): Boolean {
-        if (!appInForeground) return false
+        if (withTimeoutOrNull(FOREGROUND_RETURN_MS) { foreground.first { it } } == null) return false
         val gate = CompletableDeferred<Boolean>()
         permissionGate = gate
         setState { it.copy(activity = null, pendingPermission = permission) }
@@ -1155,6 +1159,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+
+        /** How long a permission ask waits for Gotcha to come to the front. */
+        const val FOREGROUND_RETURN_MS = 3_000L
 
         /** How long a question waits; see [awaitQuestionAnswer]. */
         const val QUESTION_TIMEOUT_MS = 600_000L

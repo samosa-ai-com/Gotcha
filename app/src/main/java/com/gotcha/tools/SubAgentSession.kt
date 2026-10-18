@@ -34,11 +34,21 @@ class SubAgentSession(
     private val description: String,
     private val prompt: String,
     private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
-    private val sessionId: String? = null
+    private val sessionId: String? = null,
+    /**
+     * The main agent's permission ask (issue #133): opens the Settings screen for
+     * a special access, or raises the runtime prompt and runs `retry` on a grant.
+     * Returns the result to keep. The default asks nobody, for hosts with no UI.
+     */
+    private val resolvePermission: suspend (result: ToolResult, retry: suspend () -> ToolResult) -> ToolResult =
+        { result, _ -> result }
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private var activeTokenCount = 0
     private val collectedSteps = mutableListOf<String>()
+
+    /** Permissions already asked for in this run, so a retrying model can't re-prompt. */
+    private val askedPermissions = mutableSetOf<String>()
 
     suspend fun run(): SubAgentOutput {
         val model = settings.subAgentModel.ifBlank { settings.model }
@@ -129,7 +139,7 @@ class SubAgentSession(
                     continue
                 }
 
-                val result = try {
+                suspend fun execute(): ToolResult = try {
                     toolExecutor.execute(
                         call.function.name,
                         args,
@@ -142,6 +152,8 @@ class SubAgentSession(
                 } catch (e: Throwable) {
                     ToolResult.error("Tool '${call.function.name}' failed: ${e.message}")
                 }
+
+                val result = withPermissionResolved(execute()) { execute() }
 
                 val summary = result.message.take(80)
                 collectedSteps[collectedSteps.lastIndex] = "$toolName → ${if (result.success) "completed" else "failed"}: $summary"
@@ -172,6 +184,33 @@ class SubAgentSession(
 
         val msg = "Task exceeded $maxRounds tool rounds without producing a final answer."
         return SubAgentOutput(msg, collectedSteps.toList())
+    }
+
+    /**
+     * Puts a tool's missing permission in front of the user, the way the main
+     * agent does, instead of leaving it as prose in this session's private
+     * history where nobody sees it (issue #133).
+     *
+     * Each permission is asked for once per run. Whatever is still missing
+     * afterwards gets a note telling the sub-agent to stop and report, so the
+     * parent hears a clear "this needs X" rather than a retry loop.
+     */
+    private suspend fun withPermissionResolved(
+        result: ToolResult,
+        retry: suspend () -> ToolResult
+    ): ToolResult {
+        val permission = result.needsPermission ?: return result
+        val resolved = if (askedPermissions.add(permission)) resolvePermission(result, retry) else result
+        val stillMissing = resolved.needsPermission ?: return resolved
+        val note = if (stillMissing.startsWith("special:")) {
+            "Gotcha has opened the Settings screen where the user can turn this on."
+        } else {
+            "The user did not grant $stillMissing, or Gotcha could not ask for it from here."
+        }
+        return resolved.copy(
+            message = "${resolved.message}\n$note Do not retry this tool. Finish with " +
+                "ask_final_answer, saying which step could not be done and what it needs."
+        )
     }
 
     /** Builds the system + user messages that seed the sub-agent conversation. */

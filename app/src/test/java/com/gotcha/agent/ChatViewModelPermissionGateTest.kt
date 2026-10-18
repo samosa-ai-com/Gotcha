@@ -10,6 +10,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -113,5 +114,21 @@ class ChatViewModelPermissionGateTest {
 
         assertFalse(granted)
         assertNull("nothing should be queued for a screen that isn't there", viewModel.uiState.value.pendingPermission)
+    }
+
+    @Test
+    fun `an ask made as the app comes back to the front waits for it`() = runTest(dispatcher) {
+        // App navigation relaunches Gotcha as it finishes, then hands up the
+        // permission it hit; the ask must not lose that race to onStart (#133).
+        viewModel.setForeground(false)
+
+        val gate = async { viewModel.runner.awaitPermissionGrant(android.Manifest.permission.CAMERA) }
+        advanceTimeBy(500)
+        viewModel.setForeground(true)
+        runCurrent()
+
+        assertEquals(android.Manifest.permission.CAMERA, viewModel.uiState.value.pendingPermission)
+        viewModel.onPermissionResult(true)
+        assertTrue(gate.await())
     }
 }
