@@ -125,6 +125,21 @@ class ScheduledRunTest {
     }
 
     @Test
+    fun `with no AI set up the task is not started, and says why`() {
+        SettingsRepository(application).save(Settings(provider = LlmProvider.SAMOSA_AI))
+        runner().refreshSettings()
+        task()
+
+        val result = runNow("news")
+
+        assertTrue(result is ScheduledStart.Failed)
+        assertTrue(!runner().isRunning)
+        val run = store.get("news")!!.lastRun!!
+        assertEquals(TaskRunStatus.NOT_STARTED, run.status)
+        assertTrue(run.detail!!, run.detail!!.contains("isn't set up"))
+    }
+
+    @Test
     fun `a run out of sight ends in a notification named after the task`() {
         task()
 

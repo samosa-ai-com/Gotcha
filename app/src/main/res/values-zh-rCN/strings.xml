@@ -1452,6 +1452,7 @@
     <string name="scheduled_needs_tap_public_title">有一个定时任务到时间了</string>
     <string name="scheduled_task_gone">此任务已不存在。</string>
     <string name="scheduled_task_files_missing">随此任务保存的文件已无法读取。请在设置中重新添加。</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha 的 AI 尚未设置。请在设置 ▸ AI 中登录或添加 API 密钥。</string>
     <string name="scheduled_task_needs_exact_alarms">等待点按：Gotcha 无法设置精确闹钟。</string>
     <string name="settings_page_scheduled_tasks">定时任务</string>
     <string name="settings_page_scheduled_tasks_summary">Gotcha 在设定时间自行运行的提示词</string>

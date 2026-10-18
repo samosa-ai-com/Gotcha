@@ -1699,6 +1699,7 @@
     <string name="scheduled_needs_tap_public_title">A scheduled task is due</string>
     <string name="scheduled_task_gone">This task no longer exists.</string>
     <string name="scheduled_task_files_missing">The files saved with this task can\'t be read any more. Add them again in Settings.</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha\'s AI isn\'t set up. Sign in or add an API key in Settings ▸ AI.</string>
     <string name="scheduled_task_needs_exact_alarms">Waiting for a tap: Gotcha may not set exact alarms.</string>
     <string name="settings_page_scheduled_tasks">Scheduled tasks</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts Gotcha runs by itself at set times</string>

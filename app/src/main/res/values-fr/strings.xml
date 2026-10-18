@@ -1491,6 +1491,7 @@
     <string name="scheduled_needs_tap_public_title">Une tâche planifiée est à faire</string>
     <string name="scheduled_task_gone">Cette tâche n’existe plus.</string>
     <string name="scheduled_task_files_missing">Les fichiers enregistrés avec cette tâche ne sont plus lisibles. Ajoutez-les de nouveau dans les paramètres.</string>
+    <string name="scheduled_task_ai_not_set_up">L’IA de Gotcha n’est pas configurée. Connectez-vous ou ajoutez une clé API dans Paramètres ▸ IA.</string>
     <string name="scheduled_task_needs_exact_alarms">En attente d’un appui : Gotcha ne peut pas définir d’alarmes exactes.</string>
     <string name="settings_page_scheduled_tasks">Tâches planifiées</string>
     <string name="settings_page_scheduled_tasks_summary">Des prompts que Gotcha exécute seul à heure fixe</string>

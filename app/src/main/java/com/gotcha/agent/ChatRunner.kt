@@ -469,6 +469,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
     internal suspend fun startScheduled(task: ScheduledTask, attachments: List<ComposerAttachment>): ScheduledStart {
         startup.join()
         if (isRunning || agentJob?.isActive == true) return ScheduledStart.Busy
+        // With no model the engine returns without a word, which would read as "Done".
+        // The chat screen can't send then either.
+        if (client == null) return ScheduledStart.Failed(app.getString(R.string.scheduled_task_ai_not_set_up))
         val saved = task.chatSessionId?.takeIf { task.sameChat }?.let { historyRepository.loadSession(it) }
         // Loading the chat suspended: a send may have started meanwhile.
         if (isRunning || agentJob?.isActive == true) return ScheduledStart.Busy

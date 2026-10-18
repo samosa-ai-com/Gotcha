@@ -1472,6 +1472,7 @@
     <string name="scheduled_needs_tap_public_title">Eine geplante Aufgabe ist fällig</string>
     <string name="scheduled_task_gone">Diese Aufgabe gibt es nicht mehr.</string>
     <string name="scheduled_task_files_missing">Die mit dieser Aufgabe gespeicherten Dateien lassen sich nicht mehr lesen. Füge sie in den Einstellungen erneut hinzu.</string>
+    <string name="scheduled_task_ai_not_set_up">Die KI von Gotcha ist nicht eingerichtet. Melde dich an oder füge unter Einstellungen ▸ KI einen API-Schlüssel hinzu.</string>
     <string name="scheduled_task_needs_exact_alarms">Wartet auf ein Tippen: Gotcha darf keine exakten Wecker stellen.</string>
     <string name="settings_page_scheduled_tasks">Geplante Aufgaben</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts, die Gotcha zu festen Zeiten selbst ausführt</string>

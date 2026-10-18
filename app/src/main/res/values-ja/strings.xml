@@ -1452,6 +1452,7 @@
     <string name="scheduled_needs_tap_public_title">スケジュールしたタスクの時間です</string>
     <string name="scheduled_task_gone">このタスクはもうありません。</string>
     <string name="scheduled_task_files_missing">このタスクに保存したファイルを読み込めなくなりました。設定でもう一度追加してください。</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha の AI が設定されていません。設定 ▸ AI でサインインするか API キーを追加してください。</string>
     <string name="scheduled_task_needs_exact_alarms">タップ待ち：Gotcha は正確なアラームを設定できません。</string>
     <string name="settings_page_scheduled_tasks">スケジュールしたタスク</string>
     <string name="settings_page_scheduled_tasks_summary">決めた時刻に Gotcha が自分で実行するプロンプト</string>

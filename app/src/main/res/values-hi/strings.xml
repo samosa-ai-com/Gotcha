@@ -1472,6 +1472,7 @@
     <string name="scheduled_needs_tap_public_title">एक शेड्यूल किए गए काम का समय हो गया</string>
     <string name="scheduled_task_gone">यह काम अब मौजूद नहीं है।</string>
     <string name="scheduled_task_files_missing">इस काम के साथ सहेजी गई फ़ाइलें अब पढ़ी नहीं जा सकतीं। सेटिंग में उन्हें फिर से जोड़ें।</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha का AI सेट नहीं है। साइन इन करें या सेटिंग ▸ AI में API कुंजी जोड़ें।</string>
     <string name="scheduled_task_needs_exact_alarms">टैप का इंतज़ार: Gotcha सटीक अलार्म सेट नहीं कर सकता।</string>
     <string name="settings_page_scheduled_tasks">शेड्यूल किए गए काम</string>
     <string name="settings_page_scheduled_tasks_summary">प्रॉम्प्ट जिन्हें Gotcha तय समय पर खुद चलाता है</string>

@@ -1491,6 +1491,7 @@
     <string name="scheduled_needs_tap_public_title">Hora de uma tarefa agendada</string>
     <string name="scheduled_task_gone">Esta tarefa não existe mais.</string>
     <string name="scheduled_task_files_missing">Os arquivos salvos com esta tarefa não podem mais ser lidos. Adicione-os de novo nas Configurações.</string>
+    <string name="scheduled_task_ai_not_set_up">A IA do Gotcha não está configurada. Entre ou adicione uma chave de API em Configurações ▸ IA.</string>
     <string name="scheduled_task_needs_exact_alarms">Aguardando um toque: o Gotcha não pode definir alarmes exatos.</string>
     <string name="settings_page_scheduled_tasks">Tarefas agendadas</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts que o Gotcha roda sozinho em horários definidos</string>
