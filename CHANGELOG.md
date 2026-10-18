@@ -19,6 +19,17 @@ All notable changes to Gotcha are documented here.
   A token or header is only sent over plain http to a server on your local
   network.
   See [docs/mcp-servers.md](docs/mcp-servers.md).
+- **Scheduled tasks** (#132). Settings ▸ Scheduled tasks holds prompts Gotcha
+  runs by itself at set times: once, every few hours or days, on chosen
+  weekdays, or monthly. Each run is an ordinary agent run in a new chat, or
+  added to the same chat every time, and can take files with it. Each task
+  shows its next run and a history of its runs, failures included, with a
+  link to the chat each one went into. A failed run is retried. You can also
+  ask for one in a chat ("every weekday at 8, summarise my unread mail"): in
+  Operator, Gotcha shows you the whole task and only saves it once you
+  approve. A run a schedule started can't set up more tasks. Without
+  "Alarms & reminders" allowed, a task asks you to tap a notification
+  instead of starting on its own.
 - **Russian voice and replies, and roubles** (#122). Russian can now be picked
   as the voice language and the reply language: Android speech is asked for
   `ru-RU` and API speech-to-text for `ru`, and the short phrases Gotcha speaks
