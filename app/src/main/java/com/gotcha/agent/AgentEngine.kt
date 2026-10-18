@@ -579,12 +579,12 @@ class AgentEngine(
             // Build message array optimized for prompt caching:
             //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile)
             //   2. Conversation history (4-turn screen observation retention window)
-            //   3. Current timestamp (system message at tail)
+            //   3. Working directory + current timestamp (system message at tail)
             //   4. Active skills index summary (user message at tail)
             val messages = buildList {
                 add(systemPromptMessage(agent))
                 addAll(cullOldObservations(trimmedHistory()))
-                add(currentTimestampMessage())
+                add(runContextMessage())
                 addAll(activeSkillsMessages(agent))
             }
             val response = try {
@@ -1342,16 +1342,27 @@ class AgentEngine(
             (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet())
 
     /**
-     * A separate system message carrying only the current date/time.
+     * A separate system message carrying the facts that differ per chat or per
+     * call: the working directory and the current date/time.
      * Placed after the conversation history so the Index 0 static System Prompt +
-     * history prefix stays in the KV cache while the timestamp is always fresh.
+     * history prefix stays in the KV cache while these stay fresh. The working
+     * directory used to sit in `<env>`; being unique to each chat (and renamed
+     * once the title arrives), it changed the prefix ahead of everything that
+     * follows, so a new chat reused almost none of the cache (issue #121).
      */
-    private fun currentTimestampMessage(): ChatMessage {
+    internal fun runContextMessage(): ChatMessage {
         val dateTime = java.text.SimpleDateFormat(
             "EEE MMM dd yyyy, HH:mm:ss 'UTC'Z",
             java.util.Locale.US
         ).apply { timeZone = java.util.TimeZone.getDefault() }.format(java.util.Date())
-        return ChatMessage(role = "system", content = JsonPrimitive("Current date/time: $dateTime"))
+        return ChatMessage(
+            role = "system",
+            content = JsonPrimitive(
+                "Working directory: ${FileResolver.WORKING_DIR_BASE}\n" +
+                    "(Relative paths in read_file/write_file/list_files resolve against the working directory.)\n" +
+                    "Current date/time: $dateTime"
+            )
+        )
     }
 
     /**
@@ -1572,8 +1583,8 @@ class AgentEngine(
      * Builds the environment info string with device info, agent mode,
      * and service statuses (PRD §14.1).
      *
-     * The date/time is intentionally excluded — it is provided via
-     * [currentTimestampMessage] placed after the conversation history
+     * The working directory and date/time are intentionally excluded — they are
+     * provided via [runContextMessage] placed after the conversation history
      * so that this block stays fully static and the server-side KV cache
      * for the [env block + history] prefix is preserved across calls.
      */
@@ -1652,8 +1663,6 @@ class AgentEngine(
             )
             appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
             appendLine("  App version: $versionName")
-            appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
-            appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
             // Connector state, rebuilt every call. The active list is what lets the
             // model notice a connector that appeared mid-conversation: its own
             // earlier turns may say "no account is connected", and a tool quietly
