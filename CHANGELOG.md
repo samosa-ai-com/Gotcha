@@ -42,6 +42,10 @@ All notable changes to Gotcha are documented here.
   offers RUB as the preferred currency, and prices in roubles, such as
   `1 234,56 ₽` or `990 руб.`, are found on screen and converted with the
   right amount. Saved language and currency choices are kept.
+- **Age confirmation on first launch.** The legal consent dialog on a new
+  install now also asks you to confirm you are at least 18; "I agree" stays
+  off until both boxes are ticked. If you already accepted, you aren't asked
+  again.
 
 ### Changed
 - **Choose Android Built-in's speech engines, and see what runs where** (#122).

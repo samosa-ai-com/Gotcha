@@ -983,5 +983,9 @@ class SettingsRepository(context: Context) : SettingsStore {
  * dialog re-prompts whenever the stored accepted version is older than this
  * constant, so non-material edits (typo fixes, formatting) should leave it
  * unchanged.
+ *
+ * The dialog's "I am at least 18" checkbox was added without a bump, on
+ * purpose: it applies to new installs only, and users who already accepted
+ * version 2 are not asked again. A later bump will ask everyone for it.
  */
 const val LEGAL_VERSION: String = "2"

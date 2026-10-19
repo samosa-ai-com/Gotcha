@@ -45,7 +45,9 @@ import com.gotcha.ui.theme.SkinAlertDialog
  * Retention) are shown inline up front, and the "I have read and accept…"
  * checkbox sits at the very end, after the documents, since it attests to
  * having read them, followed by an "I am at least 18" checkbox. The button
- * stays disabled until both are ticked.
+ * stays disabled until both are ticked. The age checkbox reaches new installs
+ * only: it came without a [com.gotcha.data.LEGAL_VERSION] bump, so users who
+ * had already accepted aren't shown the dialog again for it.
  *
  * Re-prompted by [com.gotcha.MainActivity] whenever the stored
  * [com.gotcha.data.Settings.legalAcceptedVersion] doesn't match the current
