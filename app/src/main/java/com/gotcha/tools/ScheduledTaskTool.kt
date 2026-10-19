@@ -223,34 +223,43 @@ class ScheduledTaskTool(
         val attachments = request.files?.let {
             loadFiles(it).getOrElse { e -> return ToolResult.error(e.message.orEmpty()) }
         }
-        val sameChat = request.sameChat ?: existing?.sameChat ?: false
-        val base = existing ?: ScheduledTask(
-            id = UUID.randomUUID().toString(),
-            name = request.name.orEmpty(),
-            prompt = request.prompt.orEmpty(),
-            startLocal = request.startLocal ?: return missing("start"),
-            createdByAgent = true,
-            createdAt = now
-        )
-        val edited = base.copy(
-            name = request.name ?: base.name,
-            prompt = request.prompt ?: base.prompt,
-            startLocal = request.startLocal ?: base.startLocal,
-            repeat = request.repeat ?: base.repeat,
-            agentMode = resolveMode(request, existing, chatMode).name,
-            sameChat = sameChat,
-            // Asked from this chat: "the same chat" is this one.
-            chatSessionId = if (sameChat && (request.sameChat == true || base.chatSessionId == null)) {
-                sessionId
-            } else {
-                base.chatSessionId
-            },
-            enabled = request.enabled ?: base.enabled,
-            attachmentNames = attachments?.map { it.name } ?: base.attachmentNames
-        )
-        val saved = ScheduledTaskPlanner.edited(existing, edited, now, zone())
+        val mode = resolveMode(request, existing, chatMode).name
+        fun edit(base: ScheduledTask): ScheduledTask {
+            val sameChat = request.sameChat ?: base.sameChat
+            return base.copy(
+                name = request.name ?: base.name,
+                prompt = request.prompt ?: base.prompt,
+                startLocal = request.startLocal ?: base.startLocal,
+                repeat = request.repeat ?: base.repeat,
+                agentMode = mode,
+                sameChat = sameChat,
+                // Asked from this chat: "the same chat" is this one.
+                chatSessionId = if (sameChat && (request.sameChat == true || base.chatSessionId == null)) {
+                    sessionId
+                } else {
+                    base.chatSessionId
+                },
+                enabled = request.enabled ?: base.enabled,
+                attachmentNames = attachments?.map { it.name } ?: base.attachmentNames
+            )
+        }
+        val saved = if (existing == null) {
+            val created = ScheduledTask(
+                id = UUID.randomUUID().toString(),
+                name = request.name.orEmpty(),
+                prompt = request.prompt.orEmpty(),
+                startLocal = request.startLocal ?: return missing("start"),
+                createdByAgent = true,
+                createdAt = now
+            )
+            ScheduledTaskPlanner.edited(null, edit(created), now, zone()).also(store::put)
+        } else {
+            // Over the task as stored now, so a run that ended since the
+            // approval was asked keeps its history and next time.
+            store.update(existing.id) { current -> ScheduledTaskPlanner.edited(current, edit(current), now, zone()) }
+                ?: return unknownTask(existing.id)
+        }
         if (attachments != null) store.saveAttachments(saved.id, attachments)
-        store.put(saved)
         ScheduledTaskScheduler.reschedule(context)
         val next = saved.dueAt?.let(::formatInstant) ?: "none"
         return ToolResult.ok(

@@ -63,6 +63,7 @@ import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledStart
 import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskForm
 import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskRuns
 import com.gotcha.scheduled.ScheduledTaskScheduler
@@ -387,6 +388,7 @@ private fun TaskEditor(
     }
 
     val unreadable = stringResource(R.string.scheduled_file_unreadable)
+    val taskGone = stringResource(R.string.scheduled_task_gone)
     val tooMany = stringResource(R.string.scheduled_too_many_files, ComposerAttachment.MAX_PER_MESSAGE)
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
@@ -568,15 +570,7 @@ private fun TaskEditor(
                         else -> ""
                     }
                     if (error.isNotEmpty()) return@Button
-                    val task = (
-                        initial ?: ScheduledTask(
-                            id = UUID.randomUUID().toString(),
-                            name = "",
-                            prompt = "",
-                            startLocal = "",
-                            createdAt = System.currentTimeMillis()
-                        )
-                        ).copy(
+                    val form = ScheduledTaskForm(
                         name = name.trim(),
                         prompt = prompt.trim(),
                         startLocal = startAt.toString(),
@@ -588,19 +582,38 @@ private fun TaskEditor(
                         agentMode = mode.name,
                         personaId = personaId,
                         sameChat = sameChat,
-                        chatSessionId = if (sameChat) chatSessionId else null,
+                        chatSessionId = chatSessionId,
+                        openedWithChatId = initial?.chatSessionId,
                         maxRetries = retries,
                         attachmentNames = files.map { it.name }
                     )
                     scope.launch {
-                        withContext(Dispatchers.IO) {
-                            store.saveAttachments(task.id, files)
-                            store.put(
-                                ScheduledTaskPlanner.armed(task, System.currentTimeMillis(), ZoneId.systemDefault())
-                            )
-                            ScheduledTaskScheduler.reschedule(context)
+                        val saved = withContext(Dispatchers.IO) {
+                            val now = System.currentTimeMillis()
+                            val zone = ZoneId.systemDefault()
+                            val saved = if (initial == null) {
+                                val created = form.applyTo(
+                                    ScheduledTask(
+                                        id = UUID.randomUUID().toString(),
+                                        name = "",
+                                        prompt = "",
+                                        startLocal = "",
+                                        createdAt = now
+                                    )
+                                )
+                                ScheduledTaskPlanner.armed(created, now, zone).also(store::put)
+                            } else {
+                                // Over the task as stored now: a run may have
+                                // changed it while the form was open.
+                                form.saveOver(store, initial.id, now, zone)
+                            }
+                            saved?.let {
+                                store.saveAttachments(it.id, files)
+                                ScheduledTaskScheduler.reschedule(context)
+                            }
+                            saved
                         }
-                        onSaved()
+                        if (saved == null) error = taskGone else onSaved()
                     }
                 },
                 modifier = Modifier.testTag("scheduled_save")
