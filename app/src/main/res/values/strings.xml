@@ -8,6 +8,7 @@
     <string name="legal_consent_title" translatable="false">Before you continue</string>
     <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
     <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
+    <string name="legal_consent_age_label" translatable="false">I confirm that I am at least 18 years old.</string>
     <string name="legal_consent_agree" translatable="false">I agree</string>
     <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
     <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
@@ -31,6 +32,7 @@
     <string name="language_chinese">Chinese</string>
     <string name="language_italian">Italian</string>
     <string name="language_portuguese">Portuguese</string>
+    <string name="language_russian">Russian</string>
 
     <!-- Settings → Language -->
     <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
@@ -52,7 +54,7 @@
     <string name="language_test_voice">Test voice</string>
     <string name="language_test_voice_playing">Playing…</string>
     <string name="language_voice_data_missing_title">Voice data not installed</string>
-    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s. It was spoken in English instead. Install the voice data to fix pronunciation.</string>
+    <string name="language_voice_data_missing_body">Your device doesn\'t have Android\'s built-in voice for %1$s, so Gotcha can\'t read %1$s aloud. Install the voice data to fix this.</string>
     <string name="language_voice_data_install">Install</string>
     <string name="language_tts_settings_failed">Could not open text-to-speech settings.</string>
     <string name="language_reply_title">AI reply language</string>
@@ -160,6 +162,10 @@
     <string name="settings_field_stt_language">Transcription language</string>
     <string name="settings_field_max_tool_rounds">Max tool rounds</string>
     <string name="settings_field_stt_provider">STT provider</string>
+    <string name="settings_field_android_tts_engine">Text-to-speech engine</string>
+    <string name="settings_field_android_tts_voice">Android voice</string>
+    <string name="settings_field_android_stt_service">Speech recognizer</string>
+    <string name="settings_field_android_stt_on_device">On-device speech recognition</string>
     <string name="settings_field_pause_night_light">Night Light off for screenshots</string>
 
     <!-- Settings home -->
@@ -763,6 +769,12 @@
     <string name="feedback_send_feedback">Send feedback</string>
     <string name="feedback_open_form">Open form</string>
     <string name="feedback_cancel">Cancel</string>
+    <string name="star_prompt_title">Enjoying Gotcha?</string>
+    <string name="star_prompt_body">If you are, a star on GitHub helps others find it. If not, tell us what to fix.</string>
+    <string name="star_prompt_body_no_feedback">If you are, a star on GitHub helps others find it.</string>
+    <string name="star_prompt_star">Star on GitHub</string>
+    <string name="star_prompt_feedback">Give feedback</string>
+    <string name="star_prompt_not_now">Not now</string>
     <string name="feedback_if_you_provide_successful_feedback">If you provide successful feedback, after validation you may be eligible for 100 credits per feedback, up to 500 credits per day.</string>
     <string name="feedback_this_is_pre_filled_into">This is pre-filled into the form — you can edit or remove anything before submitting. Nothing is sent until you press Submit in the form.</string>
 
@@ -1535,6 +1547,39 @@
     <string name="speech_check_model_no_voice">The text-to-speech model %1$s has no %2$s voice, so %2$s replies will be read by %3$s and may not sound right. Pick a model with a %2$s voice, or use Android Built-in.</string>
     <string name="speech_check_stt_forced">Transcription is forced to %1$s (%2$s), so %3$s speech will be transcribed as %1$s. Clear the override to follow the voice language.</string>
     <string name="speech_check_stt_unlisted">The speech-to-text model %1$s does not list %2$s, so it may transcribe %2$s speech wrongly. Pick a model that lists it.</string>
+    <string name="speech_check_android_tts_missing">Android text-to-speech has no %1$s voice installed, so %1$s replies won\'t be read aloud. Install the voice data, or pick an engine that has it, in Android\'s text-to-speech settings.</string>
+    <string name="speech_check_android_stt_unsupported">Android\'s speech recognizer doesn\'t list %1$s, so it may transcribe %1$s speech wrongly. Pick another voice input service in Android\'s settings.</string>
+    <string name="speech_android_voice_input_settings_failed">Could not open voice input settings.</string>
+    <string name="speech_voice_not_installed">No %1$s voice is installed for Android text-to-speech, so this wasn\'t read aloud. Install it with Test voice in Settings → Language.</string>
+    <string name="speech_android_tts_engine">Text-to-speech engine</string>
+    <string name="speech_android_stt_engine">Speech recognizer</string>
+    <string name="speech_android_phone_default">Phone\'s choice (%1$s)</string>
+    <string name="speech_android_phone_default_unknown">Phone\'s choice</string>
+    <string name="speech_android_voice">Voice for %1$s</string>
+    <string name="speech_android_voice_default">Engine\'s choice</string>
+    <string name="speech_android_voice_on_device">%1$s · on the phone</string>
+    <string name="speech_android_voice_online">%1$s · online</string>
+    <string name="speech_android_voice_downloadable">%1$s · not downloaded</string>
+    <string name="speech_android_tts_on_device">%1$s is spoken on the phone and works offline.</string>
+    <string name="speech_android_tts_online">%1$s is spoken by the engine\'s server, so it needs the internet.</string>
+    <string name="speech_android_tts_downloadable">This engine has a %1$s voice, but it isn\'t downloaded yet. Download it in Android\'s text-to-speech settings.</string>
+    <string name="speech_android_tts_available">This engine supports %1$s.</string>
+    <string name="speech_android_tts_unsupported">This engine has no %1$s voice. Pick another engine.</string>
+    <string name="speech_android_stt_on_device">%1$s is recognised on the phone and works offline.</string>
+    <string name="speech_android_stt_online">%1$s is recognised on the recognizer\'s server, so it needs the internet.</string>
+    <string name="speech_android_stt_downloadable">%1$s can be recognised on the phone once it\'s downloaded in Android\'s settings.</string>
+    <string name="speech_android_stt_available">This recognizer supports %1$s.</string>
+    <string name="speech_android_stt_unsupported">This recognizer doesn\'t support %1$s.</string>
+    <string name="speech_android_on_device_only">On-device only</string>
+    <string name="speech_android_on_device_only_description">Recognise speech on the phone, never over the network. When the phone can\'t do that for the voice language, voice input stops with a message. The recognizer above isn\'t used while this is on.</string>
+    <string name="speech_android_on_device_none">This phone has no on-device speech recognition, so On-device only can\'t be turned on.</string>
+    <string name="speech_android_on_device_needs_12">On-device only needs Android 12 or later.</string>
+    <string name="speech_android_tts_settings">Android text-to-speech settings</string>
+    <string name="speech_android_voice_input_settings">Android voice input settings</string>
+    <string name="stt_on_device_unavailable">This phone can\'t recognise speech on the device. Turn off On-device only under Settings → AI → Speech.</string>
+    <string name="stt_language_not_on_device">%1$s isn\'t downloaded for on-device speech recognition. Download it in Android\'s settings, or turn off On-device only under Settings → AI → Speech.</string>
+    <string name="stt_language_unsupported">The speech recognizer can\'t recognise %1$s. Pick another one under Settings → AI → Speech.</string>
+    <string name="speech_check_android_stt_not_on_device">On-device only is on, but %1$s can\'t be recognised on this phone yet, so voice input will stop with a message. Download it in Android\'s settings, or turn off On-device only.</string>
 
     <!-- Referral sharing -->
     <string name="referral_copied">Copied invite code: %1$s</string>
@@ -1598,5 +1643,149 @@
     <plurals name="import_system_as_notes">
         <item quantity="one">\"%1$s\": %2$d system message imported as a note, not an instruction.</item>
         <item quantity="other">\"%1$s\": %2$d system messages imported as notes, not instructions.</item>
+    </plurals>
+    <string name="notification_category_app_update">App update</string>
+    <string name="channel_app_updates">App updates</string>
+    <string name="channel_app_updates_description">A notification when a new version of Gotcha is released</string>
+    <string name="update_notification_title">Gotcha %1$s is available</string>
+    <string name="update_notification_body">Tap to download and install it.</string>
+    <string name="notifications_app_updates">App updates</string>
+    <string name="notifications_app_updates_description">About twice a day, Gotcha downloads a small file from GitHub (raw.githubusercontent.com) to see whether a new version is out. The request carries nothing about you; GitHub sees your IP address, as with any download.</string>
+    <string name="notifications_notify_about_new_versions">Notify me about new versions</string>
+    <string name="settings_field_update_notifications_enabled">Update notifications</string>
+    <string name="mcp_card_title">MCP servers</string>
+    <string name="mcp_card_blurb">Add your own Model Context Protocol servers. Gotcha connects over Streamable HTTP, lists each server\'s tools, and lets the assistant use them while that server is switched on.</string>
+    <string name="mcp_card_monitor_note">Tools a server marks as read-only can be used in Monitor. All its other tools are for Operator only.</string>
+    <string name="mcp_card_trust">A server\'s tool descriptions and results go to the assistant as they are, and can steer it. Add only servers you trust.</string>
+    <string name="mcp_add_server">Add server</string>
+    <string name="mcp_field_name">Name</string>
+    <string name="mcp_field_url">Server URL</string>
+    <string name="mcp_field_token">Bearer token (optional)</string>
+    <string name="mcp_field_headers">Extra headers (optional)</string>
+    <string name="mcp_field_headers_hint">One per line, as Name: value</string>
+    <string name="mcp_test_connection">Test connection</string>
+    <string name="mcp_testing">Testing…</string>
+    <string name="mcp_save">Save</string>
+    <string name="mcp_saving">Saving…</string>
+    <string name="mcp_cancel">Cancel</string>
+    <string name="mcp_edit">Edit</string>
+    <string name="mcp_remove">Remove</string>
+    <string name="mcp_remove_confirm">Tap again to remove %1$s</string>
+    <string name="mcp_show_tools">Tools (%1$d)</string>
+    <string name="mcp_hide_tools">Hide tools</string>
+    <string name="mcp_tool_read_only">Read-only: Monitor and Operator</string>
+    <string name="mcp_tool_operator">Operator only</string>
+    <string name="mcp_server_off">Switched off</string>
+    <string name="mcp_server_status">%1$s · %2$s</string>
+    <string name="mcp_no_tools">This server offers no tools.</string>
+    <string name="mcp_status_summary">%1$d of %2$d servers on · %3$d tools</string>
+    <plurals name="mcp_tools_count">
+        <item quantity="one">%1$d tool</item>
+        <item quantity="other">%1$d tools</item>
+    </plurals>
+    <string name="mcp_connected">Connected to %1$s: %2$s.</string>
+    <string name="mcp_tools_capped">Only the first %1$d are used.</string>
+    <string name="mcp_removed_while_saving">That server was removed in the meantime.</string>
+    <string name="mcp_error_name">Enter a name for the server.</string>
+    <string name="mcp_error_bad_url">Enter a full URL that starts with https:// (or http:// on your local network).</string>
+    <string name="mcp_error_cleartext">Use https for a server outside your local network. A token or header sent over http can be read on the way.</string>
+    <string name="mcp_error_bad_header">Write each header on its own line, as Name: value.</string>
+    <string name="mcp_error_auth">The server refused the token or headers (HTTP %1$d). Check them and try again.</string>
+    <string name="mcp_error_not_found">Nothing answered at this URL (HTTP 404). Check the address, including its path, which is often /mcp.</string>
+    <string name="mcp_error_old_transport">This server uses the older HTTP+SSE transport, which Gotcha doesn\'t support yet. Use the server\'s Streamable HTTP address if it has one.</string>
+    <string name="mcp_error_not_mcp">The server answered, but not as an MCP server: %1$s</string>
+    <string name="mcp_error_http">The server returned HTTP %1$d: %2$s</string>
+    <string name="mcp_error_rpc">The server returned an error: %1$s</string>
+    <string name="mcp_error_network">Couldn\'t reach the server: %1$s</string>
+    <string name="mcp_error_bad_token">The token and header values can only contain plain ASCII characters.</string>
+    <!-- Scheduled tasks (issue #132) -->
+    <string name="channel_scheduled_tasks">Scheduled tasks</string>
+    <string name="channel_scheduled_tasks_description">A scheduled task that needs a tap to run</string>
+    <string name="scheduled_needs_tap_title">“%1$s” is due</string>
+    <string name="scheduled_needs_tap_body">Tap to run it now. To have tasks run on their own, allow Gotcha to set alarms and reminders.</string>
+    <string name="scheduled_needs_tap_public_title">A scheduled task is due</string>
+    <string name="scheduled_task_gone">This task no longer exists.</string>
+    <string name="scheduled_task_files_missing">The files saved with this task can\'t be read any more. Add them again in Settings.</string>
+    <string name="scheduled_task_ai_not_set_up">Gotcha\'s AI isn\'t set up. Sign in or add an API key in Settings ▸ AI.</string>
+    <string name="scheduled_task_needs_exact_alarms">Waiting for a tap: Gotcha may not set exact alarms.</string>
+    <string name="settings_page_scheduled_tasks">Scheduled tasks</string>
+    <string name="settings_page_scheduled_tasks_summary">Prompts Gotcha runs by itself at set times</string>
+    <string name="scheduled_intro">Gotcha sends itself a prompt at the time you set and works on it like any chat. The result lands in a chat, with a notification when you\'re away.</string>
+    <string name="scheduled_empty">No scheduled tasks yet. Add one here, or ask Gotcha in a chat, e.g. “every weekday at 8, summarise my unread mail”.</string>
+    <string name="scheduled_add_task">Add a task</string>
+    <string name="scheduled_exact_alarm_hint">Gotcha may not set exact alarms, so a task can\'t start on its own: it will ask you to tap a notification instead.</string>
+    <string name="scheduled_exact_alarm_allow">Allow alarms and reminders</string>
+    <string name="scheduled_set_up_by_gotcha">Set up by Gotcha in a chat</string>
+    <string name="scheduled_paused">Paused</string>
+    <string name="scheduled_no_more_runs">No more runs</string>
+    <string name="scheduled_next_run">Next: %1$s</string>
+    <string name="scheduled_target_new_chat">A new chat each time</string>
+    <string name="scheduled_target_same_chat">The same chat each time</string>
+    <string name="scheduled_last_run">Last run: %1$s, %2$s</string>
+    <string name="scheduled_edit">Edit</string>
+    <string name="scheduled_run_now">Run now</string>
+    <string name="scheduled_run_now_started">Started. It\'s running in its chat.</string>
+    <string name="scheduled_run_now_busy">Gotcha is busy with another task. Try again when it ends.</string>
+    <string name="scheduled_history">History</string>
+    <string name="scheduled_hide_history">Hide history</string>
+    <string name="scheduled_open_chat">Open chat</string>
+    <string name="scheduled_delete">Delete</string>
+    <string name="scheduled_delete_title">Delete “%1$s”?</string>
+    <string name="scheduled_delete_body">The task and its history are removed. The chats its runs went into are kept.</string>
+    <string name="scheduled_cancel">Cancel</string>
+    <string name="scheduled_save">Save</string>
+    <string name="scheduled_field_name">Name</string>
+    <string name="scheduled_field_prompt">What Gotcha should do</string>
+    <string name="scheduled_field_when">First run</string>
+    <string name="scheduled_field_repeat">Repeat</string>
+    <string name="scheduled_repeat_none">Once</string>
+    <string name="scheduled_repeat_hourly">Every few hours</string>
+    <string name="scheduled_repeat_daily">Every few days</string>
+    <string name="scheduled_repeat_weekly">Weekly</string>
+    <string name="scheduled_repeat_monthly">Monthly</string>
+    <string name="scheduled_field_every_hours">Every how many hours</string>
+    <string name="scheduled_field_every_days">Every how many days</string>
+    <string name="scheduled_field_mode">Mode</string>
+    <string name="scheduled_mode_hint">Monitor can only look and report. Operator can act on your phone, with nobody watching: choose it only for a task that needs it.</string>
+    <string name="scheduled_field_persona">Persona</string>
+    <string name="scheduled_persona_none">None</string>
+    <string name="scheduled_field_target">Where it runs</string>
+    <string name="scheduled_same_chat_hint">Each run is added to this chat, so Gotcha sees the earlier runs.</string>
+    <string name="scheduled_chat_first_run">A new chat, kept for later runs</string>
+    <string name="scheduled_field_files">Files sent with the prompt</string>
+    <string name="scheduled_add_files">Add files</string>
+    <string name="scheduled_remove_file">Remove</string>
+    <string name="scheduled_field_retries">If a run fails</string>
+    <string name="scheduled_unattended_hint">A run that needs your answer waits two minutes for it, then goes on as if you said no.</string>
+    <string name="scheduled_file_unreadable">Some files couldn\'t be read and were left out.</string>
+    <string name="scheduled_too_many_files">At most %1$d files can go with a task.</string>
+    <string name="scheduled_error_name">Give the task a name.</string>
+    <string name="scheduled_error_prompt">Say what Gotcha should do.</string>
+    <string name="scheduled_error_past">That time has passed. Pick a later one, or a repeat.</string>
+    <string name="scheduled_error_interval">Use a number from 1 to %1$d.</string>
+    <string name="scheduled_error_too_much_text">Those documents hold too much text for one task. Remove some.</string>
+    <string name="scheduled_schedule_every_hour">Every hour</string>
+    <string name="scheduled_schedule_every_day">Every day at %1$s</string>
+    <string name="scheduled_schedule_once">Once, %1$s</string>
+    <string name="scheduled_schedule_weekly">Every %1$s at %2$s</string>
+    <string name="scheduled_schedule_monthly">Monthly on day %1$d at %2$s</string>
+    <string name="scheduled_status_done">Done</string>
+    <string name="scheduled_status_failed">Failed</string>
+    <string name="scheduled_status_stopped">Stopped</string>
+    <string name="scheduled_status_missed">Missed: the phone was off or asleep</string>
+    <string name="scheduled_status_skipped_busy">Skipped: Gotcha was busy</string>
+    <string name="scheduled_status_needs_tap">Waiting for a tap</string>
+    <string name="scheduled_status_not_started">Couldn\'t start</string>
+    <plurals name="scheduled_schedule_hours">
+        <item quantity="one">Every %1$d hour</item>
+        <item quantity="other">Every %1$d hours</item>
+    </plurals>
+    <plurals name="scheduled_schedule_days">
+        <item quantity="one">Every %1$d day at %2$s</item>
+        <item quantity="other">Every %1$d days at %2$s</item>
+    </plurals>
+    <plurals name="scheduled_retries">
+        <item quantity="one">Retry %1$d time</item>
+        <item quantity="other">Retry %1$d times</item>
     </plurals>
 </resources>

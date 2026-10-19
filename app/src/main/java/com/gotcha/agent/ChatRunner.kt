@@ -2,6 +2,8 @@ package com.gotcha.agent
 
 import android.app.Application
 import android.app.Notification
+import android.os.SystemClock
+import android.widget.Toast
 import com.gotcha.GotchaApp
 import com.gotcha.R
 import com.gotcha.audio.AudioModel
@@ -13,6 +15,7 @@ import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.DocumentPart
@@ -25,6 +28,10 @@ import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.notifications.NotificationCategory
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.RunOutcome
+import com.gotcha.scheduled.ScheduledStart
+import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskRuns
+import com.gotcha.scheduled.TaskRunStatus
 import com.gotcha.service.ChatRunService
 import com.gotcha.service.RunningChat
 import com.gotcha.tools.AgentMode
@@ -34,6 +41,7 @@ import com.gotcha.tools.ToolResult
 import com.gotcha.tools.mergeProfileUpdate
 import com.gotcha.ui.ConfirmationOverlay
 import com.gotcha.ui.ForegroundControlIndicator
+import com.gotcha.ui.nameRes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -47,12 +55,14 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * What the chat screen shows of the session bound to [ChatRunner]'s engine and
@@ -147,9 +157,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * Set by the Activity in onStart/onStop; drives whether gates notify and use
      * the overlay. Once the Activity is gone its last onStop left this false.
      */
-    @Volatile
-    var appInForeground = true
-        private set
+    val appInForeground: Boolean get() = foreground.value
+    private val foreground = MutableStateFlow(true)
 
     internal val engine = AgentEngine(
         appContext = app,
@@ -211,6 +220,12 @@ class ChatRunner(private val app: Application) : AgentEvents {
     /** Next UiMessage id in [RunState.transcript]. */
     private var nextTranscriptId = 0L
 
+    /**
+     * The scheduled task whose run is in flight (issue #132), or null for a run
+     * the user started. Its outcome goes into the task's history.
+     */
+    private var scheduledTask: ScheduledTask? = null
+
     /** Agent mode of the session currently bound to [engine]. */
     internal var engineAgent: AgentMode = AgentMode.MONITOR
 
@@ -244,11 +259,14 @@ class ChatRunner(private val app: Application) : AgentEvents {
     /**
      * Special-access markers ("special:*") the Activity should deep-link to.
      * Runtime permissions travel as [RunState.pendingPermission] instead —
-     * they need an answer, and this is a fire-and-forget signal, dropped when
-     * no Activity is there to take it.
+     * they need an answer, and this is a fire-and-forget signal. One raised
+     * while Gotcha is out of sight is held until it is back in front.
      */
     private val _permissionRequests = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val permissionRequests: SharedFlow<String> = _permissionRequests.asSharedFlow()
+
+    /** A special-access marker waiting for Gotcha to be in front; see [onPermissionRequest]. */
+    private val heldSpecialAccess = AtomicReference<Pair<String, Long>?>(null)
 
     /**
      * Bumped when the runner adds an inbox entry of its own (an interrupted
@@ -447,6 +465,47 @@ class ChatRunner(private val app: Application) : AgentEvents {
     }
 
     /**
+     * Starts the run of scheduled [task] (issue #132), with its prompt and
+     * [attachments] as the user's message: in a new chat, or at the end of the
+     * task's chat in same-chat mode, falling back to a new chat when that one
+     * is gone. Never runs alongside another run. The screen is left where it is:
+     * it only follows the run when the user is already looking at that chat.
+     */
+    internal suspend fun startScheduled(task: ScheduledTask, attachments: List<ComposerAttachment>): ScheduledStart {
+        startup.join()
+        if (isRunning || agentJob?.isActive == true) return ScheduledStart.Busy
+        // With no model the engine returns without a word, which would read as "Done".
+        // The chat screen can't send then either.
+        if (client == null) return ScheduledStart.Failed(app.getString(R.string.scheduled_task_ai_not_set_up))
+        val saved = task.chatSessionId?.takeIf { task.sameChat }?.let { historyRepository.loadSession(it) }
+        // Loading the chat suspended: a send may have started meanwhile.
+        if (isRunning || agentJob?.isActive == true) return ScheduledStart.Busy
+        // The alarm may have started the process: with no screen ever shown,
+        // nothing has said yet that Gotcha is out of sight.
+        if ((app as? GotchaApp)?.hasStartedActivity == false) foreground.value = false
+        if (saved != null) {
+            // The run uses the task's mode, but the chat keeps its own: a task
+            // must not leave the user's chat switched to another mode.
+            val chatMode = saved.agentMode?.let { runCatching { AgentMode.valueOf(it) }.getOrNull() } ?: AgentMode.MONITOR
+            bindSaved(saved, chatMode, saved.displayMessages)
+        } else {
+            bindFresh(java.util.UUID.randomUUID().toString(), task.mode)
+            engine.sessionPersonaId = task.personaId
+        }
+        val runningId = engine.sessionId ?: return ScheduledStart.Failed("No chat to run in.")
+        scheduledTask = task
+        engine.scheduledRun = true
+        currentRunIsVoice = false
+        val msg = buildUserMessage(task.prompt, attachments)
+        engine.history += msg
+        appendTranscript(MessageKind.USER, userDisplayText(task.prompt, msg, attachments), attachments = attachments)
+        // Main.immediate: executeRun marks the run busy and starts the keep-alive
+        // service before this returns, while the alarm's grace period still holds.
+        agentJob = scope.launch { executeRun(task.mode, runningId) }
+        return ScheduledStart.Started(runningId)
+    }
+
+    /**
      * Replaces the user message [targetId] in [view] with [text] and
      * [attachments] (null keeps the original ones), drops everything after it
      * and runs the agent again.
@@ -614,6 +673,20 @@ class ChatRunner(private val app: Application) : AgentEvents {
                         }
                     )
                 }
+                scheduledTask?.let { task ->
+                    scheduledTask = null
+                    engine.scheduledRun = false
+                    val status = when {
+                        stopped || engine.isDiscarded(runningId) -> TaskRunStatus.STOPPED
+                        runEndedOnError -> TaskRunStatus.FAILED
+                        else -> TaskRunStatus.DONE
+                    }
+                    val error = _state.value.transcript.lastOrNull { it.kind == MessageKind.ERROR }?.text
+                        ?.takeIf { status == TaskRunStatus.FAILED }
+                    withContext(Dispatchers.IO) {
+                        runCatching { ScheduledTaskRuns.recordOutcome(app, task.id, runningId, status, error) }
+                    }
+                }
                 // In the background the ongoing notification turns into the
                 // finished one, in the same slot (issue #115).
                 if (finished != null) {
@@ -646,7 +719,8 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * within a moment and should not raise a notification.
      */
     fun setForeground(foreground: Boolean, recreating: Boolean = false) {
-        appInForeground = foreground
+        this.foreground.value = foreground
+        if (foreground) deliverHeldSpecialAccess()
         // A question or confirmation left on screen is out of sight now; back
         // in the app, its dialog is showing again.
         when {
@@ -746,6 +820,9 @@ class ChatRunner(private val app: Application) : AgentEvents {
         setState { it.copy(isConfigured = false) }
     }
 
+    /** The last language whose missing Android voice was toasted, so auto-read doesn't repeat it every reply. */
+    private var voiceMissingToasted: Language? = null
+
     /** Speak the given text aloud using the configured TTS provider. */
     fun speak(text: String) {
         if (settings.ttsProvider == AudioProvider.NONE) return
@@ -758,13 +835,24 @@ class ChatRunner(private val app: Application) : AgentEvents {
                     .firstOrNull { it.id == settings.ttsApiModel }
                     ?.defaultVoiceFor(language) ?: "af_heart"
                 val voice = settings.ttsVoice.ifBlank { defaultVoice }
-                ttsEngine.speak(
+                val spoke = ttsEngine.speak(
                     text = text,
                     provider = settings.ttsProvider,
                     apiModel = settings.ttsApiModel,
                     voice = voice,
-                    language = language
+                    language = language,
+                    androidEngine = settings.androidTtsEngine,
+                    androidVoice = settings.androidTtsVoice
                 )
+                val missing = ttsEngine.lastLanguageUnavailable
+                if (!spoke && missing != null && missing != voiceMissingToasted) {
+                    voiceMissingToasted = missing
+                    Toast.makeText(
+                        app,
+                        app.getString(R.string.speech_voice_not_installed, app.getString(missing.nameRes)),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             } finally {
                 setState { it.copy(isSpeaking = false) }
             }
@@ -825,8 +913,24 @@ class ChatRunner(private val app: Application) : AgentEvents {
         setState { it.copy(subAgentRunning = running, subAgentCurrentAction = currentAction) }
     }
 
+    /**
+     * A special-access marker opens its Settings screen, which only a started
+     * Activity can do: launched from behind another app it is blocked, and with
+     * no Activity at all the event has no collector. So the marker is held while
+     * Gotcha is out of sight and handed over at the next onStart, as long as
+     * that is within [HELD_ACCESS_MS] (issue #133). App navigation hits this
+     * whenever it stops on a missing access with another app in front.
+     */
     override fun onPermissionRequest(marker: String) {
-        _permissionRequests.tryEmit(marker)
+        heldSpecialAccess.set(marker to SystemClock.elapsedRealtime())
+        // Read after the write: either this sees the foreground or the
+        // setForeground(true) racing it sees the marker, so it is never stranded.
+        if (appInForeground) deliverHeldSpecialAccess()
+    }
+
+    private fun deliverHeldSpecialAccess() {
+        val (marker, heldAt) = heldSpecialAccess.getAndSet(null) ?: return
+        if (SystemClock.elapsedRealtime() - heldAt <= HELD_ACCESS_MS) _permissionRequests.tryEmit(marker)
     }
 
     /**
@@ -834,13 +938,16 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * [RunState.pendingPermission] explains why and raises the system dialog,
      * then answers through [onPermissionResult].
      *
-     * A runtime dialog can only be raised by a foreground Activity, so a
-     * backgrounded run says "not granted" immediately rather than stalling the
-     * agent behind a prompt nobody can see — the tool's own error message
+     * A runtime dialog can only be raised by a foreground Activity. A
+     * backgrounded run waits [FOREGROUND_RETURN_MS] for Gotcha to come back —
+     * app navigation relaunches it as it finishes and then hands up the
+     * permission it hit, and the ask would otherwise beat onStart (issue #133).
+     * Still out of sight after that, it says "not granted" rather than stall the
+     * agent behind a prompt nobody can see; the tool's own error message
      * already tells the model (and, on screen, the user) what is missing.
      */
     override suspend fun awaitPermissionGrant(permission: String): Boolean {
-        if (!appInForeground) return false
+        if (withTimeoutOrNull(FOREGROUND_RETURN_MS) { foreground.first { it } } == null) return false
         val gate = CompletableDeferred<Boolean>()
         permissionGate = gate
         setState { it.copy(activity = null, pendingPermission = permission) }
@@ -1036,8 +1143,10 @@ class ChatRunner(private val app: Application) : AgentEvents {
         // Issue #100: a chat kept out of notifications, or chats not to be named
         // at all, get a notification that says only that a task finished.
         val named = mayNameChat(sessionId)
+        // A scheduled run is named after its task (issue #132), which says more than a new chat's title.
+        val chatTitle = scheduledTask?.name ?: engine.currentTitle()
         val title = if (named) {
-            ChatCompletionNotifier.notificationTitle(engine.currentTitle(), outcome, app.stringLookup())
+            ChatCompletionNotifier.notificationTitle(chatTitle, outcome, app.stringLookup())
         } else {
             app.getString(ChatCompletionNotifier.anonymousTitle(outcome))
         }
@@ -1049,7 +1158,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
         )
         return completionNotifier.build(
             sessionId = sessionId,
-            chatTitle = engine.currentTitle(),
+            chatTitle = chatTitle,
             outcome = outcome,
             reply = reply,
             preview = settings.chatCompletionPreview,
@@ -1138,6 +1247,16 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     companion object {
         const val GATE_TIMEOUT_MS = 120_000L
+
+        /** How long a permission ask waits for Gotcha to come to the front. */
+        const val FOREGROUND_RETURN_MS = 3_000L
+
+        /**
+         * How long a special-access ask made out of sight waits for Gotcha to
+         * come back; see [onPermissionRequest]. Later than this, a Settings
+         * screen opening on its own would be a surprise.
+         */
+        const val HELD_ACCESS_MS = 120_000L
 
         /** How long a question waits; see [awaitQuestionAnswer]. */
         const val QUESTION_TIMEOUT_MS = 600_000L

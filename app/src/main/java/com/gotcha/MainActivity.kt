@@ -27,13 +27,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.gotcha.agent.ChatTransferState
 import com.gotcha.agent.ChatViewModel
 import com.gotcha.audio.AudioApi
 import com.gotcha.audio.AudioModel
@@ -47,6 +51,7 @@ import com.gotcha.data.FeedbackPrefill
 import com.gotcha.data.LEGAL_VERSION
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.StarPromptStore
 import com.gotcha.data.computeFeedbackStats
 import com.gotcha.i18n.stringLookup
 import com.gotcha.llm.ChatMessage
@@ -61,6 +66,10 @@ import com.gotcha.notifications.NotificationDispatcher
 import com.gotcha.notifications.NotificationPayload
 import com.gotcha.notifications.NotificationTarget
 import com.gotcha.notifications.ServerMessages
+import com.gotcha.scheduled.ScheduledStart
+import com.gotcha.scheduled.ScheduledTaskNotifier
+import com.gotcha.scheduled.ScheduledTaskRuns
+import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.AgentMode
@@ -72,6 +81,7 @@ import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ChatTransferDialogs
 import com.gotcha.ui.ConnectorsScreen
 import com.gotcha.ui.FeedbackSheet
+import com.gotcha.ui.GITHUB_REPO_URL
 import com.gotcha.ui.InboxScreen
 import com.gotcha.ui.NotificationDetailDialog
 import com.gotcha.ui.PermissionAsk
@@ -82,8 +92,10 @@ import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
+import com.gotcha.ui.StarPromptDialog
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
+import com.gotcha.ui.starPromptDueAt
 import com.gotcha.ui.theme.GotchaTheme
 import com.gotcha.ui.theme.SkinBackdrop
 import com.gotcha.ui.theme.Skins
@@ -93,8 +105,10 @@ import com.gotcha.ui.tour.TourNavigation
 import com.gotcha.ui.tour.TourOverlay
 import com.gotcha.ui.tour.TourPlace
 import com.gotcha.ui.tour.rememberTourHost
+import com.gotcha.updater.runUpdateCheck
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
@@ -136,6 +150,7 @@ class MainActivity : ComponentActivity() {
 
     private val chatViewModel: ChatViewModel by viewModels()
     private lateinit var settingsRepository: SettingsRepository
+    private val starPrompt: StarPromptStore by lazy { StarPromptStore(settingsRepository.prefs) }
     private lateinit var samosaAuthManager: SamosaAuthManager
 
     /** Active notification payload for display in scrollable dialog. */
@@ -152,6 +167,9 @@ class MainActivity : ComponentActivity() {
      * offering one is tapped: a daily tip (issue #101) or a routine (#100).
      */
     private var openDraftRequested by mutableStateOf<NotificationTarget.Draft?>(null)
+
+    /** Set when an update notification (or its inbox entry) is tapped: Settings ▸ About, checking (issue #126). */
+    private var openUpdateRequested by mutableStateOf(false)
 
     /** Gotcha's own notification history: the inbox, its unread count, per-chat privacy (issue #100). */
     private val localNotificationStore by lazy { LocalNotificationStore(applicationContext) }
@@ -192,13 +210,13 @@ class MainActivity : ComponentActivity() {
     /**
      * Repaints when the skin is written from outside the Appearance screen — the
      * assistant's update_gotcha_settings (issue #99) — without a restart. Held in a
-     * field: SharedPreferences keeps listeners weakly.
+     * field: SharedPreferences keeps listeners weakly. Coalesced, because every
+     * save notifies once per setting (see [com.gotcha.data.coalescedSettingsListener]).
      */
-    private val appearanceListener =
-        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> syncAppearance() }
+    private val appearanceListener = com.gotcha.data.coalescedSettingsListener { syncAppearance() }
 
     private fun syncAppearance() {
-        val latest = settingsRepository.load().appearance()
+        val latest = Appearance(skinId = settingsRepository.loadSkinId())
         if (latest != appearance) {
             appearance = latest
             applyLaunchBackground()
@@ -332,6 +350,13 @@ class MainActivity : ComponentActivity() {
         // notification alarms are armed here too. Re-arming is idempotent.
         lifecycleScope.launch(Dispatchers.IO) {
             runCatching { LocalNotificationScheduler.scheduleAll(applicationContext) }
+            // An alarm already past fires at once, so a task due while Gotcha could
+            // not run it gets its turn now (issue #132).
+            runCatching { ScheduledTaskScheduler.reschedule(applicationContext) }
+            // Re-arming pushes the 4-hour check back, so someone who opens Gotcha
+            // more often than that would never reach the update check through the
+            // alarm alone. It limits itself to about twice a day (issue #126).
+            runCatching { runUpdateCheck(applicationContext) }
         }
 
         // Tools report what they need the moment they need it. A special-access
@@ -590,6 +615,15 @@ class MainActivity : ComponentActivity() {
             // Consumed, as above: a recreation must not open another chat.
             intent.removeExtra(LocalNotifier.EXTRA_DRAFT_PROMPT)
         }
+        intent?.getStringExtra(ScheduledTaskNotifier.EXTRA_RUN_TASK_ID)?.let { taskId ->
+            // Consumed, as above: a recreation must not run the task again.
+            intent.removeExtra(ScheduledTaskNotifier.EXTRA_RUN_TASK_ID)
+            runScheduledTask(taskId)
+        }
+        if (intent?.getBooleanExtra(LocalNotifier.EXTRA_OPEN_UPDATE, false) == true) {
+            openUpdateRequested = true
+            intent.removeExtra(LocalNotifier.EXTRA_OPEN_UPDATE)
+        }
         intent?.getStringExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)?.let { entryId ->
             intent.removeExtra(LocalNotificationStore.EXTRA_INBOX_ENTRY_ID)
             lifecycleScope.launch(Dispatchers.IO) {
@@ -611,6 +645,24 @@ class MainActivity : ComponentActivity() {
                 body = body.orEmpty(),
                 url = url
             )
+        }
+    }
+
+    /**
+     * A tap on a scheduled task's "tap to run" notification (issue #132): the
+     * task runs now, and its chat opens to show it working.
+     */
+    private fun runScheduledTask(taskId: String) {
+        ScheduledTaskNotifier(this).cancel(taskId)
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { ScheduledTaskRuns.runNow(application, taskId) }
+            when (result) {
+                is ScheduledStart.Started -> openSessionRequested = result.sessionId
+                ScheduledStart.Busy ->
+                    Toast.makeText(this@MainActivity, R.string.scheduled_run_now_busy, Toast.LENGTH_LONG).show()
+                is ScheduledStart.Failed ->
+                    Toast.makeText(this@MainActivity, result.detail, Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -636,6 +688,7 @@ class MainActivity : ComponentActivity() {
         when (val target = entry.target) {
             is NotificationTarget.Chat -> openSessionRequested = target.sessionId
             is NotificationTarget.Draft -> openDraftRequested = target
+            NotificationTarget.Update -> openUpdateRequested = true
             NotificationTarget.Home -> Unit
         }
     }
@@ -774,9 +827,17 @@ class MainActivity : ComponentActivity() {
         // rotation the page is back where it was, and a replayed highlight would
         // point at something the user has already been shown.
         var settingsHighlight by remember { mutableStateOf<String?>(null) }
+        // About runs its update check on arrival once, after an update notification's tap.
+        // Not saveable either: a rotation must not check again.
+        var checkUpdateOnOpen by remember { mutableStateOf(false) }
         var assistiveBallOn by remember { mutableStateOf(initial.assistiveBallEnabled) }
         var showFeedbackSheet by remember { mutableStateOf(false) }
         var showReferralInviteDialog by remember { mutableStateOf(false) }
+        // Saveable, so a rotation keeps the "Enjoying Gotcha?" ask on screen
+        // rather than losing one that has already started its cooldown.
+        var showStarPrompt by rememberSaveable { mutableStateOf(false) }
+        // At most one ask per launch, whatever its cooldown says.
+        var starPromptShownThisLaunch by rememberSaveable { mutableStateOf(false) }
         var referralPrefillCode by remember { mutableStateOf<String?>(null) }
         var referralClaimBusy by remember { mutableStateOf(false) }
         var referralClaimError by remember { mutableStateOf<String?>(null) }
@@ -804,6 +865,51 @@ class MainActivity : ComponentActivity() {
         )
 
         LaunchedEffect(Unit) { chatViewModel.refreshSettings() }
+
+        // The "Enjoying Gotcha?" ask, only while the user is idle on Home with
+        // nothing else in front of them. Any of that changing cancels the wait.
+        val starPromptQuiet = !starPromptShownThisLaunch &&
+            legalAcceptedVersion == LEGAL_VERSION &&
+            !tour.controller.isRunning &&
+            currentRoute == Route.HOME &&
+            !drawerState.isOpen &&
+            !state.isBusy &&
+            state.pendingPermission == null &&
+            state.pendingConfirmation == null &&
+            state.pendingForegroundControl == null &&
+            state.pendingQuestion == null &&
+            !state.askNotificationPermission &&
+            !askMicPermission &&
+            blockedPermissionAsk == null &&
+            chatTransferState == ChatTransferState.Idle &&
+            !showFeedbackSheet &&
+            !showReferralInviteDialog &&
+            notificationPayload == null &&
+            sharePoster.runs == null
+        val starPromptStillQuiet by rememberUpdatedState(starPromptQuiet)
+        LaunchedEffect(starPromptQuiet) {
+            if (!starPromptQuiet) return@LaunchedEffect
+            val installedAt = runCatching {
+                packageManager.getPackageInfo(packageName, 0).firstInstallTime
+            }.getOrDefault(System.currentTimeMillis())
+            // Restarted on every return to the foreground, so the wait is idle
+            // time on a visible Home. It also waits out a due time still ahead,
+            // so an app left open across it asks without a relaunch.
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                val dueAt = starPromptDueAt(
+                    installedAt = installedAt,
+                    lastShownAt = starPrompt.lastShownAt(),
+                    dismissals = starPrompt.dismissals(),
+                    answered = starPrompt.answered()
+                ) ?: return@repeatOnLifecycle
+                delay(maxOf(STAR_PROMPT_DELAY_MS, dueAt - System.currentTimeMillis()))
+                // Something that opened this frame hasn't cancelled the wait yet.
+                if (!starPromptStillQuiet) return@repeatOnLifecycle
+                starPrompt.markShown(System.currentTimeMillis())
+                starPromptShownThisLaunch = true
+                showStarPrompt = true
+            }
+        }
 
         // Keep the drawer's session list fresh: on open, and after a run finishes
         // (picks up the auto-generated title once the first exchange is saved).
@@ -837,6 +943,17 @@ class MainActivity : ComponentActivity() {
                 currentRoute = Route.HOME
                 chatViewModel.startChatFromTip(draft.prompt, draft.mode)
                 openDraftRequested = null
+            }
+        }
+
+        // A tapped update notification: About, which checks and offers the download.
+        LaunchedEffect(openUpdateRequested) {
+            if (openUpdateRequested) {
+                currentRoute = Route.SETTINGS
+                settingsPage = SettingsPage.ABOUT
+                settingsHighlight = null
+                checkUpdateOnOpen = true
+                openUpdateRequested = false
             }
         }
 
@@ -1024,6 +1141,7 @@ class MainActivity : ComponentActivity() {
                             dispatcher.lastFetchedAt()
                         },
                         onTestVoice = { language -> chatViewModel.testAndroidTts(language) },
+                        onCheckAndroidSpeech = { query -> chatViewModel.androidSpeechStatus(query) },
                         packageName = packageName,
                         assistiveBallEnabled = assistiveBallOn,
                         onToggleAssistiveBall = { enabled ->
@@ -1031,6 +1149,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onStartTour = { startTour() },
                         onSendFeedback = { showFeedbackSheet = true },
+                        onOpenChat = { id ->
+                            chatViewModel.openSession(id)
+                            currentRoute = Route.HOME
+                        },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it
@@ -1041,7 +1163,9 @@ class MainActivity : ComponentActivity() {
                         onOpenSearchResult = { page, field ->
                             settingsPage = page
                             settingsHighlight = field
-                        }
+                        },
+                        checkUpdateOnOpen = checkUpdateOnOpen,
+                        onUpdateCheckStarted = { checkUpdateOnOpen = false }
                     )
                 }
                 Route.INBOX -> {
@@ -1198,6 +1322,33 @@ class MainActivity : ComponentActivity() {
                             ).show()
                         }
                     }
+                }
+            )
+        }
+
+        if (showStarPrompt) {
+            StarPromptDialog(
+                onStar = {
+                    showStarPrompt = false
+                    starPrompt.markAnswered()
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_REPO_URL)))
+                    } catch (_: Exception) {
+                        Toast.makeText(this@MainActivity, GITHUB_REPO_URL, Toast.LENGTH_LONG).show()
+                    }
+                },
+                onFeedback = if (FeedbackChannel.isConfigured()) {
+                    {
+                        showStarPrompt = false
+                        starPrompt.markAnswered()
+                        showFeedbackSheet = true
+                    }
+                } else {
+                    null
+                },
+                onDismiss = {
+                    showStarPrompt = false
+                    starPrompt.markDismissed()
                 }
             )
         }
@@ -1367,6 +1518,9 @@ class MainActivity : ComponentActivity() {
          * prompt so instrumentation never faces the system dialog (test-only).
          */
         const val KEY_SUPPRESS_MEDIA_PROJECTION_PROMPT = "suppress_media_projection_prompt"
+
+        /** How long Home must stay quiet before the "Enjoying Gotcha?" ask appears. */
+        private const val STAR_PROMPT_DELAY_MS = 1_500L
 
         /** Lifecycle owner for CameraX binding. Set in onCreate, valid while activity lives. */
         @Volatile

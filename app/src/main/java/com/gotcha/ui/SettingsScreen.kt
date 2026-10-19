@@ -36,6 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechQuery
+import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
@@ -107,6 +109,8 @@ fun SettingsScreen(
      * (synchronous, always-true) lets callers ignore voice testing.
      */
     onTestVoice: suspend (Language) -> Boolean? = { null },
+    /** Android Built-in's engines and what they can do for a language, for the Language and Speech pages. */
+    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() },
     packageName: String = "",
     /**
      * Whether the assistive-ball service is currently running. Not read from
@@ -121,6 +125,8 @@ fun SettingsScreen(
     onStartTour: () -> Unit = {},
     /** Opens the in-app feedback consent sheet (hidden when no form is configured). */
     onSendFeedback: () -> Unit = {},
+    /** Leaves Settings for chat [String], e.g. the one a scheduled task's run went into. */
+    onOpenChat: (String) -> Unit = {},
     /**
      * Which sub-page is open; null is the home list.
      *
@@ -140,7 +146,13 @@ fun SettingsScreen(
     highlightField: String? = null,
     onHighlightConsumed: () -> Unit = {},
     /** Opens a page from a search result, pointed at the field the query named. */
-    onOpenSearchResult: (SettingsPage, String?) -> Unit = { target, _ -> onPageChange(target) }
+    onOpenSearchResult: (SettingsPage, String?) -> Unit = { target, _ -> onPageChange(target) },
+    /**
+     * True when About should check for an update as it opens: an update
+     * notification was tapped (issue #126). Cleared through [onUpdateCheckStarted].
+     */
+    checkUpdateOnOpen: Boolean = false,
+    onUpdateCheckStarted: () -> Unit = {}
 ) {
     // Back leaves the sub-page for whatever it hangs off — its hub if it has one,
     // the home list otherwise. Only the list itself exits Settings.
@@ -197,7 +209,8 @@ fun SettingsScreen(
                     onSave = onSave,
                     onBack = backToHome,
                     onTestVoice = onTestVoice,
-                    onRefreshAudioModels = onRefreshAudioModels
+                    onRefreshAudioModels = onRefreshAudioModels,
+                    onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
                 SettingsPage.AI -> AiHubScreen(
                     onBack = backToHome,
@@ -225,7 +238,8 @@ fun SettingsScreen(
                     onSamosaSignOut = onSamosaSignOut,
                     onFetchSamosaProfile = onFetchSamosaProfile,
                     onClaimReferral = onClaimReferral,
-                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
+                    onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) },
+                    onCheckAndroidSpeech = onCheckAndroidSpeech
                 )
                 SettingsPage.PERMISSIONS -> PermissionsScreen(
                     packageName = packageName,
@@ -237,6 +251,10 @@ fun SettingsScreen(
                     load = load,
                     onSave = onSave,
                     onBack = backToHome
+                )
+                SettingsPage.SCHEDULED_TASKS -> ScheduledTasksScreen(
+                    onBack = backToHome,
+                    onOpenChat = onOpenChat
                 )
                 SettingsPage.PROACTIVE -> ProactiveScreen(
                     load = load,
@@ -258,7 +276,9 @@ fun SettingsScreen(
                 )
                 SettingsPage.ABOUT -> AboutScreen(
                     onBack = backToHome,
-                    onOpenPage = onPageChange
+                    onOpenPage = onPageChange,
+                    checkUpdateOnOpen = checkUpdateOnOpen,
+                    onUpdateCheckStarted = onUpdateCheckStarted
                 )
                 SettingsPage.ABOUT_SAMOSA -> AboutSamosaScreen(
                     context = androidx.compose.ui.platform.LocalContext.current,

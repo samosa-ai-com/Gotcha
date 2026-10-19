@@ -38,6 +38,8 @@ Everything runs in **one self-contained app on your phone**. Bring your own API 
 
 Grab the latest `.apk` from [**GitHub Releases**](https://github.com/samosa-ai-com/Gotcha/releases/latest), then follow the **[Getting Started Guide](https://samosa-ai.com/gotcha/docs/getting-started)** — or watch the [**video walkthrough**](https://www.youtube.com/watch?v=Zk5-dtqRB64) above. 🛠️
 
+Once installed, Gotcha tells you when a new version is out. About twice a day it downloads [`update.json`](update.json) from GitHub; the request carries no account or device identifier, though GitHub sees your IP address as with any download. Tapping the notification opens **Settings ▸ About**, which downloads the APK, checks its SHA-256 and hands it to Android's installer. Turn it off under **Settings ▸ Notifications ▸ App updates**.
+
 Building from source instead? 👇
 
 ```bash
@@ -82,6 +84,7 @@ one-time setup walkthrough.
 * 🛡️ [**Safety & Permissions**](https://samosa-ai.com/gotcha/docs/safety-permissions) — capability tiers, confirmation gates, audit log.
 * ❓ [**FAQ & Known Limitations**](https://samosa-ai.com/gotcha/docs/faq) — backend compatibility and rough edges.
 * ✅ [**Feature Test Coverage**](docs/FEATURE_TEST_COVERAGE.md) — every tool and how it's verified.
+* 🔌 [**MCP Servers**](docs/mcp-servers.md) — add your own Model Context Protocol servers and use their tools.
 
 ## 🧪 Beta Testers
 

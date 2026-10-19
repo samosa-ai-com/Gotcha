@@ -3,6 +3,84 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **"Enjoying Gotcha?"** Three days after install, and then at most every
+  five days, Home asks whether you enjoy Gotcha: yes opens the GitHub repo to
+  star it, no opens the feedback form. Either answer ends the ask for good, and
+  so does waving it off four times. It only appears while you are idle on Home
+  with nothing else open.
+- **A notification when a new version is out** (#126). About twice a day,
+  Gotcha checks GitHub for a newer release and, once per version, posts a
+  notification. Tapping it opens Settings ▸ About, already checking, with the
+  download ready. The check skips quiet hours and stays silent when offline.
+  It can be turned off under Settings ▸ Notifications ▸ App updates, or muted
+  through its own "App updates" channel in Android's settings.
+- **Your own MCP servers** (#130). Connectors has a new **MCP servers** card:
+  add any Model Context Protocol server that speaks Streamable HTTP, with an
+  optional bearer token or extra headers, test the connection, and see the
+  tools it offers. While a server is on, the assistant can use its tools in
+  Operator, and the ones the server marks read-only in Monitor too. Each
+  server has its own switch, and Remove deletes it with its stored token.
+  A token or header is only sent over plain http to a server on your local
+  network.
+  See [docs/mcp-servers.md](docs/mcp-servers.md).
+- **Scheduled tasks** (#132). Settings ▸ Scheduled tasks holds prompts Gotcha
+  runs by itself at set times: once, every few hours or days, on chosen
+  weekdays, or monthly. Each run is an ordinary agent run in a new chat, or
+  added to the same chat every time, and can take files with it. Each task
+  shows its next run and a history of its runs, failures included, with a
+  link to the chat each one went into. A failed run is retried. You can also
+  ask for one in a chat ("every weekday at 8, summarise my unread mail"): in
+  Operator, Gotcha shows you the whole task and only saves it once you
+  approve. A run a schedule started can't set up more tasks. Without
+  "Alarms & reminders" allowed, a task asks you to tap a notification
+  instead of starting on its own.
+- **Russian voice and replies, and roubles** (#122). Russian can now be picked
+  as the voice language and the reply language: Android speech is asked for
+  `ru-RU` and API speech-to-text for `ru`, and the short phrases Gotcha speaks
+  itself are in Russian. Gotcha's own screens stay in English. Personal Info
+  offers RUB as the preferred currency, and prices in roubles, such as
+  `1 234,56 ₽` or `990 руб.`, are found on screen and converted with the
+  right amount. Saved language and currency choices are kept.
+- **Age confirmation on first launch.** The legal consent dialog on a new
+  install now also asks you to confirm you are at least 18; "I agree" stays
+  off until both boxes are ticked. If you already accepted, you aren't asked
+  again.
+
+### Changed
+- **Choose Android Built-in's speech engines, and see what runs where** (#122).
+  With Android Built-in selected, the Speech page lets you pick the
+  text-to-speech engine, its voice for the voice language and the speech
+  recognizer, each defaulting to the phone's own choice. Voices are marked as
+  on the phone, online or not downloaded, and a line under each section says
+  whether the voice language is spoken or recognised on the phone, needs the
+  internet, needs a download, or isn't supported (for the recognizer, on
+  Android 13 and later). On Android 12 and later, a
+  new "On-device only" switch keeps voice input off the network: if the phone
+  can't recognise the voice language on the device, voice input stops with a
+  message instead of going online. On Android 13 and later Gotcha asks for the
+  variant of the language the phone has installed, so a phone with only Indian
+  English offline is asked for `en-IN`, not `en-US`. When a recognizer can't
+  take the language at all, voice input stops at once and says why. When the phone has no voice for the voice
+  language, Gotcha no longer reads the reply with an English voice: it stays
+  silent and says the voice is missing, without repeating it on every reply.
+  Settings → Language warns about all of these too.
+
+### Fixed
+- **Permission asks from delegated tasks and app navigation** (#133). When a
+  task handed to a sub-agent needed a permission, such as location, the
+  sub-agent noted the failure and went on, and no prompt ever appeared. It now
+  shows the same prompt the assistant does. If you allow it, the step runs
+  again. If you don't, the sub-agent stops and says what it needed, and it
+  won't ask twice in one task. App navigation stops at the step that needs a
+  permission or a Settings switch and asks once Gotcha is back on screen. It
+  no longer mentions the permission in passing at the end.
+- **Faster first replies in a new chat with prompt caching** (#121). Each
+  chat's folder was named near the top of what Gotcha sends the AI, so a new
+  chat, or the second message after a chat got its title, couldn't reuse the
+  cached start of the request. The folder now comes after the
+  conversation instead. Local servers such as llama-server skip reprocessing
+  thousands of tokens, and providers that discount cached input charge less.
 
 ## [1.3.0]
 ### Added

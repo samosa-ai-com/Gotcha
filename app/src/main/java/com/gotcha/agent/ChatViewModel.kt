@@ -12,6 +12,9 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechInfo
+import com.gotcha.audio.AndroidSpeechQuery
+import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
 import com.gotcha.audio.SttEngine
@@ -797,8 +800,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
      * installed voice data without spinning up a second TtsEngine instance.
      *
      * Returns true when the requested language was actually used, false when
-     * the engine had to fall back to English because Android is missing the
-     * voice data. Returns null when TTS isn't configured at all.
+     * Android is missing the voice data and so nothing was spoken. Returns null
+     * when TTS isn't configured at all.
      */
     suspend fun testAndroidTts(language: Language): Boolean? {
         if (settings.ttsProvider == AudioProvider.NONE) return null
@@ -807,10 +810,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         ttsEngine.speak(
             text = SpokenPhrases.callStarted(language),
             provider = AudioProvider.ANDROID,
-            language = language
+            language = language,
+            androidEngine = settings.androidTtsEngine,
+            androidVoice = settings.androidTtsVoice
         )
         return ttsEngine.lastLanguageUnavailable != language
     }
+
+    /** Android Built-in's engines and what they can do for a language, for the Speech and Language pages. */
+    suspend fun androidSpeechStatus(query: AndroidSpeechQuery): AndroidSpeechStatus =
+        AndroidSpeechInfo.probe(getApplication(), query)
 
     /** Start listening for speech input using the configured STT provider. */
     fun startListening() {
@@ -829,11 +838,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                     )
                     return
                 }
-                val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage)
+                sttEngine.configureAndroid(settings.androidSttService, settings.androidSttOnDeviceOnly)
+                // A failure no retry fixes ends listening at once, with the reason.
+                val started = sttEngine.startAndroidListening(settings.effectiveVoiceLanguage) { reason ->
+                    _uiState.update { it.copy(isListening = false) }
+                    appendUi(MessageKind.ERROR, reason)
+                }
                 if (started) {
                     _uiState.update { it.copy(isListening = true) }
                 } else {
-                    appendUi(MessageKind.ERROR, str(R.string.chat_vm_failed_to_start_speech_recognition))
+                    appendUi(
+                        MessageKind.ERROR,
+                        sttEngine.androidFailure ?: str(R.string.chat_vm_failed_to_start_speech_recognition)
+                    )
                 }
             }
             settings.sttProvider.isApiBased() -> {
@@ -1110,6 +1127,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
             }
             historyRepository.deleteSession(id)
             localNotificationStore.forgetChat(id)
+            // A same-chat task pinned to it starts a new chat next time (issue #132).
+            withContext(Dispatchers.IO) {
+                runCatching { com.gotcha.scheduled.ScheduledTaskStore(getApplication()).forgetChat(id) }
+            }
             if (_uiState.value.activeSessionId == id) {
                 clearChat()
             } else if (wasBound) {

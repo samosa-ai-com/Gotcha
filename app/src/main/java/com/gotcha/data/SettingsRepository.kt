@@ -2,9 +2,12 @@ package com.gotcha.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
 import com.gotcha.i18n.Language
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * When the wake-word listener is allowed to run, relative to the screen state.
@@ -153,6 +156,21 @@ data class Settings(
     val sttApiKey: String = "",
     val sttApiModel: String = "",
     val sttLanguage: String = "",
+    /**
+     * Android Built-in's text-to-speech engine, by package (`com.google.android.tts`);
+     * blank follows the phone's preferred engine. An engine that's been
+     * uninstalled falls back to the phone's, as Android does.
+     */
+    val androidTtsEngine: String = "",
+    /** A voice of [androidTtsEngine] by name; blank, or a voice in another language, uses the engine's own. */
+    val androidTtsVoice: String = "",
+    /** Android Built-in's speech recognizer, as a flattened component; blank follows the phone's. */
+    val androidSttService: String = "",
+    /**
+     * Recognise speech on the phone only (Android 12+). When the phone can't,
+     * voice input fails with a message rather than using a network recognizer.
+     */
+    val androidSttOnDeviceOnly: Boolean = false,
     val autoReadReplies: Boolean = false,
     /**
      * Speak the reply to a message sent by voice even when [autoReadReplies] is
@@ -219,6 +237,11 @@ data class Settings(
     val pauseNightLightForScreenshots: Boolean = false,
     /** Server-driven notifications from `<SAMOSA_API_URL>/v1/gotcha/notifications`. */
     val serverMessagesEnabled: Boolean = true,
+    /**
+     * A notification when a newer Gotcha is published (issue #126), from a
+     * background check of update.json about twice a day. On by default.
+     */
+    val updateNotificationsEnabled: Boolean = true,
     /** Epoch millis of the last successful server-messages fetch. 0 = never. */
     val serverMessagesLastFetchedAt: Long = 0L,
     /** Last seen ETag from the notifications endpoint; round-tripped in `If-None-Match`. */
@@ -480,6 +503,36 @@ internal const val SETTINGS_PREFS_FILE = "gotcha_settings"
 fun settingsChangeNotifier(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(SETTINGS_PREFS_FILE, Context.MODE_PRIVATE)
 
+/**
+ * A [settingsChangeNotifier] listener that runs [onChange] once per burst of
+ * writes, on [handler]'s thread, instead of once per key.
+ *
+ * [SettingsRepository.save] rewrites every key, and each value is re-encrypted
+ * under a fresh IV, so the framework sees every key as changed: one save is
+ * one notification per setting, delivered synchronously inside `apply()` on
+ * the saving thread. A listener that reads settings back on each of those
+ * multiplies the decrypts by the number of keys, which on a slow phone is
+ * seconds on the main thread — long enough for an ANR from tapping a skin.
+ *
+ * Posting means [onChange] runs after the burst, so it reads the finished
+ * write; the pending flag keeps the burst to a single post. Hold the returned
+ * listener in a field: the framework keeps listeners weakly.
+ */
+fun coalescedSettingsListener(
+    handler: Handler = Handler(Looper.getMainLooper()),
+    onChange: () -> Unit
+): SharedPreferences.OnSharedPreferenceChangeListener {
+    val pending = AtomicBoolean(false)
+    return SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        if (pending.compareAndSet(false, true)) {
+            handler.post {
+                pending.set(false)
+                onChange()
+            }
+        }
+    }
+}
+
 internal const val SKIN_DEEP_SPACE_DARK = "deepspace"
 internal const val SKIN_DEEP_SPACE_LIGHT = "deepspace_light"
 internal const val SKIN_VELLUM = "vellum"
@@ -529,6 +582,12 @@ class SettingsRepository(context: Context) : SettingsStore {
      */
     private fun string(key: String, default: String = ""): String =
         prefs.getString(key, default) ?: default
+
+    /**
+     * Just the skin, for the listeners that repaint on a change: one decrypt
+     * where [load] does one per setting.
+     */
+    fun loadSkinId(): String = resolvedSkinId()
 
     /** Reads the stored skin, running the one-shot migration if it has not run. */
     private fun resolvedSkinId(): String {
@@ -619,6 +678,10 @@ class SettingsRepository(context: Context) : SettingsStore {
         sttApiKey = string(KEY_STT_API_KEY),
         sttApiModel = string(KEY_STT_API_MODEL),
         sttLanguage = string(KEY_STT_LANGUAGE),
+        androidTtsEngine = string(KEY_ANDROID_TTS_ENGINE),
+        androidTtsVoice = string(KEY_ANDROID_TTS_VOICE),
+        androidSttService = string(KEY_ANDROID_STT_SERVICE),
+        androidSttOnDeviceOnly = prefs.getBoolean(KEY_ANDROID_STT_ON_DEVICE_ONLY, false),
         autoReadReplies = prefs.getBoolean(KEY_AUTO_READ, false),
         autoReadVoiceReplies = prefs.getBoolean(KEY_AUTO_READ_VOICE, true),
         notifyVibrationEnabled = prefs.getBoolean(KEY_NOTIFY_VIBRATION, true),
@@ -647,6 +710,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         }.getOrDefault(WakeWordListeningMode.ALWAYS),
         pauseNightLightForScreenshots = prefs.getBoolean(KEY_PAUSE_NIGHT_LIGHT, false),
         serverMessagesEnabled = prefs.getBoolean(KEY_SERVER_MESSAGES_ENABLED, true),
+        updateNotificationsEnabled = prefs.getBoolean(KEY_UPDATE_NOTIFICATIONS_ENABLED, true),
         serverMessagesLastFetchedAt = prefs.getLong(KEY_SERVER_MESSAGES_LAST_FETCHED, 0L),
         serverMessagesEtag = string(KEY_SERVER_MESSAGES_ETAG),
         skinId = resolvedSkinId(),
@@ -712,6 +776,10 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_STT_API_KEY, settings.sttApiKey)
             .putString(KEY_STT_API_MODEL, settings.sttApiModel)
             .putString(KEY_STT_LANGUAGE, settings.sttLanguage)
+            .putString(KEY_ANDROID_TTS_ENGINE, settings.androidTtsEngine)
+            .putString(KEY_ANDROID_TTS_VOICE, settings.androidTtsVoice)
+            .putString(KEY_ANDROID_STT_SERVICE, settings.androidSttService)
+            .putBoolean(KEY_ANDROID_STT_ON_DEVICE_ONLY, settings.androidSttOnDeviceOnly)
             .putBoolean(KEY_AUTO_READ, settings.autoReadReplies)
             .putBoolean(KEY_AUTO_READ_VOICE, settings.autoReadVoiceReplies)
             .putBoolean(KEY_NOTIFY_VIBRATION, settings.notifyVibrationEnabled)
@@ -736,6 +804,7 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_WAKE_WORD_LISTENING_MODE, settings.wakeWordListeningMode.name)
             .putBoolean(KEY_PAUSE_NIGHT_LIGHT, settings.pauseNightLightForScreenshots)
             .putBoolean(KEY_SERVER_MESSAGES_ENABLED, settings.serverMessagesEnabled)
+            .putBoolean(KEY_UPDATE_NOTIFICATIONS_ENABLED, settings.updateNotificationsEnabled)
             .putLong(KEY_SERVER_MESSAGES_LAST_FETCHED, settings.serverMessagesLastFetchedAt)
             .putString(KEY_SERVER_MESSAGES_ETAG, settings.serverMessagesEtag)
             .putString(KEY_SKIN_ID, settings.skinId)
@@ -844,6 +913,10 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_STT_API_KEY = "stt_api_key"
         const val KEY_STT_API_MODEL = "stt_api_model"
         const val KEY_STT_LANGUAGE = "stt_language"
+        const val KEY_ANDROID_TTS_ENGINE = "android_tts_engine"
+        const val KEY_ANDROID_TTS_VOICE = "android_tts_voice"
+        const val KEY_ANDROID_STT_SERVICE = "android_stt_service"
+        const val KEY_ANDROID_STT_ON_DEVICE_ONLY = "android_stt_on_device_only"
         const val KEY_AUTO_READ = "auto_read"
         const val KEY_AUTO_READ_VOICE = "auto_read_voice"
         const val KEY_NOTIFY_VIBRATION = "notify_vibration"
@@ -868,6 +941,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_WAKE_WORD_LISTENING_MODE = "wake_word_listening_mode"
         const val KEY_PAUSE_NIGHT_LIGHT = "pause_night_light_for_screenshots"
         const val KEY_SERVER_MESSAGES_ENABLED = "server_messages_enabled"
+        const val KEY_UPDATE_NOTIFICATIONS_ENABLED = "update_notifications_enabled"
         const val KEY_SERVER_MESSAGES_LAST_FETCHED = "server_messages_last_fetched"
         const val KEY_SERVER_MESSAGES_ETAG = "server_messages_etag"
         const val KEY_SKIN_ID = "skin_id"
@@ -909,5 +983,9 @@ class SettingsRepository(context: Context) : SettingsStore {
  * dialog re-prompts whenever the stored accepted version is older than this
  * constant, so non-material edits (typo fixes, formatting) should leave it
  * unchanged.
+ *
+ * The dialog's "I am at least 18" checkbox was added without a bump, on
+ * purpose: it applies to new installs only, and users who already accepted
+ * version 2 are not asked again. A later bump will ask everyone for it.
  */
 const val LEGAL_VERSION: String = "2"

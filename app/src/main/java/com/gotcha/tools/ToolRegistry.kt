@@ -16,45 +16,82 @@ object ToolRegistry {
     private val definitions: Map<String, ToolDefinition> =
         ToolDefinitions.all.associateBy { it.function.name }
 
-    // ---- dynamic tools (server-defined, e.g. Home Assistant MCP) ----
+    // ---- dynamic tools (server-defined: Home Assistant, user-added MCP servers) ----
 
-    /**
-     * Tools whose schemas come from an external server rather than the compile-time
-     * catalog. A connector registers them after connecting and clears them on
-     * disconnect; [ToolRegistry] does not know their names ahead of time, so the
-     * compile-time [definitions] map never sees them. The whole set is held as one
-     * immutable snapshot and swapped atomically via [@Volatile], so a reader (per-turn
-     * schema assembly) always sees a consistent (definitions, read-only names) pair —
-     * never definitions from one registration with read-only names from the previous.
-     */
-    private data class DynamicToolSet(
+    /** One owner's registered tools: its connector id's slice of the dynamic set. */
+    private data class OwnerTools(
         val definitions: Map<String, ToolDefinition>,
         val readOnlyNames: Set<String>
     )
 
+    /**
+     * Tools whose schemas come from an external server rather than the compile-time
+     * catalog, kept per owner: the id of the connector that registered them. A
+     * connector registers its slice after connecting and clears it on disconnect,
+     * without touching another connector's. [ToolRegistry] does not know their names
+     * ahead of time, so the compile-time [definitions] map never sees them.
+     *
+     * The whole set is held as one immutable snapshot and swapped atomically via
+     * [@Volatile], so a reader (per-turn schema assembly) always sees a consistent
+     * (definitions, read-only names, owners) triple — never definitions from one
+     * registration with read-only names from the previous. Writers serialize on
+     * [dynamicLock], because each one rebuilds the snapshot from the current one.
+     */
+    private class DynamicToolSet(val byOwner: Map<String, OwnerTools>) {
+        val definitions: Map<String, ToolDefinition> =
+            byOwner.values.fold(emptyMap()) { acc, owner -> acc + owner.definitions }
+        val readOnlyNames: Set<String> = byOwner.values.flatMapTo(mutableSetOf()) { it.readOnlyNames }
+        val ownerOf: Map<String, String> =
+            byOwner.flatMap { (owner, tools) -> tools.definitions.keys.map { it to owner } }.toMap()
+    }
+
     @Volatile
-    private var dynamicSet = DynamicToolSet(emptyMap(), emptySet())
+    private var dynamicSet = DynamicToolSet(emptyMap())
+
+    private val dynamicLock = Any()
 
     /**
-     * Replaces the whole dynamic tool set with [tools]. Connectors call this after
-     * a successful connect (and again on refresh); names in [readOnlyNames] are the
-     * only dynamic tools offered to Monitor.
+     * Replaces [owner]'s dynamic tools with [tools]. Connectors call this after a
+     * successful connect (and again on refresh); names in [readOnlyNames] are the
+     * only ones of them offered to Monitor.
+     *
+     * A server picks its own tool names, so a name already taken — by a built-in
+     * tool or by another owner — is dropped rather than allowed to shadow the tool
+     * the model and the executor already know by that name. Returns the names that
+     * were registered.
      */
-    fun setDynamicTools(tools: Collection<ToolDefinition>, readOnlyNames: Set<String>) {
-        dynamicSet = DynamicToolSet(
-            tools.associateBy { it.function.name },
-            readOnlyNames.toSet()
-        )
+    fun setDynamicTools(owner: String, tools: Collection<ToolDefinition>, readOnlyNames: Set<String>): Set<String> =
+        synchronized(dynamicLock) {
+            val current = dynamicSet
+            val taken = definitions.keys + current.ownerOf.filterValues { it != owner }.keys
+            val kept = tools.filter { it.function.name !in taken }.associateBy { it.function.name }
+            val slice = OwnerTools(kept, readOnlyNames.filterTo(mutableSetOf()) { it in kept })
+            dynamicSet = DynamicToolSet(
+                if (kept.isEmpty()) current.byOwner - owner else current.byOwner + (owner to slice)
+            )
+            kept.keys
+        }
+
+    /** Unregisters [owner]'s dynamic tools (used on connector disconnect). */
+    fun clearDynamicTools(owner: String) {
+        synchronized(dynamicLock) { dynamicSet = DynamicToolSet(dynamicSet.byOwner - owner) }
     }
 
-    /** Unregisters every dynamic tool (used on connector disconnect). */
-    fun clearDynamicTools() {
-        dynamicSet = DynamicToolSet(emptyMap(), emptySet())
+    /** Unregisters every owner's dynamic tools. Tests use it to start clean. */
+    fun clearAllDynamicTools() {
+        synchronized(dynamicLock) { dynamicSet = DynamicToolSet(emptyMap()) }
     }
 
-    /** Names of the currently registered dynamic tools. */
+    /** Names of the currently registered dynamic tools, of every owner. */
     val dynamicTools: Set<String>
         get() = dynamicSet.definitions.keys
+
+    /** The registered dynamic tools, grouped by owner (connector id). */
+    val dynamicToolsByOwner: Map<String, Set<String>>
+        get() = dynamicSet.byOwner.mapValues { it.value.definitions.keys }
+
+    /** The connector id that registered dynamic tool [name], or null if none did. */
+    fun dynamicOwnerOf(name: String): String? = dynamicSet.ownerOf[name]
 
     // Empty by design: AgentEngine.requestConfirmation() auto-approves, so an
     // entry here would imply a gate that does not exist. send_email has its own
@@ -65,7 +102,8 @@ object ToolRegistry {
         "uninstall_app",
         "delete_calendar_event",
         "delete_alarm",
-        "delete_timer"
+        "delete_timer",
+        "delete_scheduled_task"
     )
 
     /**
@@ -82,7 +120,7 @@ object ToolRegistry {
         "get_app_usage", "get_data_usage",
         "open_app", "list_installed_apps",
         "list_files", "read_file", "grep", "glob",
-        "todowrite", "list_alarms", "list_timers", "show_alarms",
+        "todowrite", "list_alarms", "list_timers", "show_alarms", "list_scheduled_tasks",
         "question",
         "sleep",
         "finish_task",
@@ -104,19 +142,30 @@ object ToolRegistry {
     val monitorTools: Set<String>
         get() = baseMonitorTools + ConnectorCatalog.monitorTools + dynamicSet.readOnlyNames
 
+    /** Tools a sub-agent never gets; see [subAgentTools]. */
+    private val subAgentExcluded = setOf(
+        "task",
+        "navigate_app",
+        "finish_task",
+        "update_user_profile",
+        "update_gotcha_settings",
+        "schedule_agent_task",
+        "edit_scheduled_task",
+        "delete_scheduled_task"
+    )
+
     /**
      * Full Operator tool set minus task + navigate_app (sub-agents cannot delegate
      * further), minus finish_task, which ends the *top-level* run — a sub-agent
      * reports back with ask_final_answer instead — minus update_user_profile,
      * whose modify-and-extend directive lives only in the top-level Operator prompt,
-     * and minus update_gotcha_settings, whose approval prompt belongs to the run the
-     * user is watching, not to a delegated one.
+     * and minus update_gotcha_settings and the scheduled-task writes, whose approval
+     * prompts belong to the run the user is watching, not to a delegated one.
      * Dynamic tools are included while registered; they are hidden by the
      * hidden-tools mechanism when their connector is not active.
      */
     val subAgentTools: Set<String>
-        get() = definitions.keys + dynamicSet.definitions.keys -
-            setOf("task", "navigate_app", "finish_task", "update_user_profile", "update_gotcha_settings")
+        get() = definitions.keys + dynamicSet.definitions.keys - subAgentExcluded
 
     /** Tools available to the App Navigator sub-agent. */
     val navigatorTools: Set<String> = setOf(
@@ -460,8 +509,7 @@ object ToolRegistry {
 
     fun toolsForSubAgent(hiddenTools: Set<String> = emptySet()): List<ToolDefinition> {
         val dynamic = dynamicSet
-        val allowed = definitions.keys + dynamic.definitions.keys -
-            setOf("task", "navigate_app", "finish_task", "update_user_profile", "update_gotcha_settings")
+        val allowed = definitions.keys + dynamic.definitions.keys - subAgentExcluded
         return (definitions + dynamic.definitions)
             .filterKeys { it in allowed && it !in hiddenTools }
             .values.toList()

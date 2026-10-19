@@ -42,7 +42,10 @@ class AppNavigatorSession(
     private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
     private val sessionId: String? = null,
     private val onCaptureChrome: (hide: Boolean) -> Unit = { },
-    private val onScreenReadDone: () -> Unit = { }
+    private val onScreenReadDone: () -> Unit = { },
+    private val accessibilityState: () -> AccessibilityState = {
+        DeviceCapabilities.accessibilityState(appContext)
+    }
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val maxSteps = settings.maxNavigationToolCalls
@@ -137,6 +140,18 @@ class AppNavigatorSession(
                 }
                 actionLog.add("Step $step: ${call.function.name} → $summary")
                 onStep(call.function.name, "completed", summary)
+                // Stop here rather than log it and step on: the user can't be asked
+                // while another app is in front, so the marker goes to the parent,
+                // which asks once Gotcha is back (issue #133).
+                result.needsPermission?.let { permission ->
+                    return AppNavigatorOutput(
+                        finalAnswer = "Navigation stopped at step $step: ${call.function.name} " +
+                            "needs $permission, which is not granted. ${result.message}",
+                        steps = actionLog.toList(),
+                        success = false,
+                        needsPermission = permission
+                    )
+                }
             }
 
             // Wait for animations/transitions to settle before the next observation
@@ -254,7 +269,7 @@ class AppNavigatorSession(
      * error of issue #76, arrived at slowly and expensively.
      */
     private fun blockedOnAccessibility(): AppNavigatorOutput? {
-        val state = DeviceCapabilities.accessibilityState(appContext)
+        val state = accessibilityState()
         if (state == AccessibilityState.AVAILABLE) return null
         val reason = if (state == AccessibilityState.ENABLED_BUT_NOT_BOUND) {
             "the Gotcha accessibility service is switched on but is not running"

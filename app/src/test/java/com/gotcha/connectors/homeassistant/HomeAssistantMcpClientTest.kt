@@ -31,13 +31,13 @@ class HomeAssistantMcpClientTest {
         server = MockWebServer()
         server.start()
         client = HomeAssistantMcpClient()
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
     }
 
     @After
     fun tearDown() {
         server.shutdown()
-        ToolRegistry.clearDynamicTools()
+        ToolRegistry.clearAllDynamicTools()
     }
 
     private fun endpoint(): String = server.url("/api/mcp").toString()

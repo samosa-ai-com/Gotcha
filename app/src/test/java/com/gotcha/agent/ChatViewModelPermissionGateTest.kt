@@ -1,12 +1,17 @@
 package com.gotcha.agent
 
 import android.app.Application
+import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.data.Settings
 import com.gotcha.data.SettingsRepository
 import com.gotcha.testsupport.FakeAndroidKeyStore
 import kotlinx.coroutines.async
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -50,6 +55,22 @@ class ChatViewModelPermissionGateTest {
 
     @After
     fun tearDown() {
+        // The runner's startup (chat migration, sample seeding) and the
+        // ViewModel's first session listing hop to Dispatchers.IO and come back
+        // on Main. Resetting Main while one of them is on its way back trips the
+        // test dispatcher's concurrency check — "Dispatchers.Main is used
+        // concurrently with setting it" — which failed CI intermittently. A test
+        // that never yields only starts that work as runTest finishes, so the
+        // race was widest right here. Let it all land first.
+        runTest(dispatcher) {
+            viewModel.runner.startup.join()
+            val work = viewModel.viewModelScope.coroutineContext.job
+            while (true) {
+                val active = work.children.filter { it.isActive }.toList()
+                if (active.isEmpty()) break
+                active.joinAll()
+            }
+        }
         kotlinx.coroutines.Dispatchers.resetMain()
     }
 
@@ -95,4 +116,47 @@ class ChatViewModelPermissionGateTest {
         assertFalse(granted)
         assertNull("nothing should be queued for a screen that isn't there", viewModel.uiState.value.pendingPermission)
     }
+
+    @Test
+    fun `an ask made as the app comes back to the front waits for it`() = runTest(dispatcher) {
+        // App navigation relaunches Gotcha as it finishes, then hands up the
+        // permission it hit; the ask must not lose that race to onStart (#133).
+        viewModel.setForeground(false)
+
+        val gate = async { viewModel.runner.awaitPermissionGrant(android.Manifest.permission.CAMERA) }
+        advanceTimeBy(500)
+        viewModel.setForeground(true)
+        runCurrent()
+
+        assertEquals(android.Manifest.permission.CAMERA, viewModel.uiState.value.pendingPermission)
+        viewModel.onPermissionResult(true)
+        assertTrue(gate.await())
+    }
+
+    @Test
+    fun `a special access raised behind another app opens its Settings screen once Gotcha is back`() =
+        runTest(dispatcher) {
+            // App navigation stops on a missing access with another app in front.
+            // Settings can't be opened from there, so the ask waits for onStart
+            // instead of being dropped or blocked (issue #133).
+            val delivered = mutableListOf<String>()
+            val collector = launch { viewModel.permissionRequests.collect { delivered += it } }
+            runCurrent()
+            viewModel.setForeground(false)
+
+            viewModel.runner.onPermissionRequest(com.gotcha.tools.ToolResult.ACCESSIBILITY_ACCESS)
+            runCurrent()
+            assertTrue("Settings was opened from behind another app: $delivered", delivered.isEmpty())
+
+            viewModel.setForeground(true)
+            runCurrent()
+            assertEquals(listOf(com.gotcha.tools.ToolResult.ACCESSIBILITY_ACCESS), delivered)
+
+            // Handed over once, not again on every return to the app.
+            viewModel.setForeground(false)
+            viewModel.setForeground(true)
+            runCurrent()
+            assertEquals(1, delivered.size)
+            collector.cancel()
+        }
 }

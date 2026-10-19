@@ -123,6 +123,14 @@
         <intent>
             <action android:name="android.intent.action.SHOW_ALARMS" />
         </intent>
+        <!-- Needed on API 30+ to name the phone's text-to-speech engine and speech
+             recognizer on the Speech page (#122). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <!-- Needed so compose_email can resolve an installed email app. -->
         <intent>
             <action android:name="android.intent.action.SENDTO" />
@@ -277,9 +285,10 @@
             android:name=".notifications.ReminderCheckReceiver"
             android:exported="false" />
 
-        <!-- Re-arms those alarms, which a reboot, an app update or a clock change would
-             otherwise lose or misplace. All four broadcasts are protected and exempt from the
-             implicit-broadcast limits. -->
+        <!-- Re-arms those alarms and the scheduled tasks' one, which a reboot, an app update or
+             a clock change would otherwise lose or misplace. All five broadcasts are protected
+             and exempt from the implicit-broadcast limits; the last one is sent when the
+             exact-alarm grant changes. -->
         <receiver
             android:name=".notifications.NotificationRescheduleReceiver"
             android:exported="true">
@@ -288,8 +297,16 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- Scheduled tasks (issue #132): the alarm that starts a task's run, and the tap on a
+             task's "tap to run" notification. Not exported: only Gotcha's own PendingIntents
+             fire it. -->
+        <receiver
+            android:name=".scheduled.ScheduledTaskReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".tools.WakeWordBootReceiver"

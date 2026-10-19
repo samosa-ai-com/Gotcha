@@ -14,22 +14,29 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.BuildConfig
 import com.gotcha.R
+import com.gotcha.audio.AndroidSpeechQuery
+import com.gotcha.audio.AndroidSpeechStatus
 import com.gotcha.audio.AudioLanguageLabels
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.AudioProvider
@@ -70,7 +77,9 @@ fun SpeechScreen(
         Result.failure(Exception("Not supported"))
     },
     /** Opens Settings → Language, where every language setting lives. */
-    onOpenLanguage: () -> Unit = {}
+    onOpenLanguage: () -> Unit = {},
+    /** Android Built-in's engines and what they can do for a language; see [AndroidSpeechStatus]. */
+    onCheckAndroidSpeech: suspend (AndroidSpeechQuery) -> AndroidSpeechStatus = { AndroidSpeechStatus() }
 ) {
     val initial = remember { load() }
     var ttsProvider by remember { mutableStateOf(initial.ttsProvider) }
@@ -84,6 +93,10 @@ fun SpeechScreen(
     var sttApiBaseUrl by remember { mutableStateOf(initial.sttApiBaseUrl) }
     var sttApiKey by remember { mutableStateOf(initial.sttApiKey) }
     var sttApiModel by remember { mutableStateOf(initial.sttApiModel) }
+    var androidTtsEngine by remember { mutableStateOf(initial.androidTtsEngine) }
+    var androidTtsVoice by remember { mutableStateOf(initial.androidTtsVoice) }
+    var androidSttService by remember { mutableStateOf(initial.androidSttService) }
+    var androidSttOnDeviceOnly by remember { mutableStateOf(initial.androidSttOnDeviceOnly) }
     var autoReadReplies by remember { mutableStateOf(initial.autoReadReplies) }
     var autoReadVoiceReplies by remember { mutableStateOf(initial.autoReadVoiceReplies) }
     // Samosa auth state, kept live as the user signs in / out.
@@ -140,6 +153,10 @@ fun SpeechScreen(
         sttApiBaseUrl = sttApiBaseUrl.trim(),
         sttApiKey = sttApiKey.trim(),
         sttApiModel = sttApiModel.trim(),
+        androidTtsEngine = androidTtsEngine,
+        androidTtsVoice = androidTtsVoice,
+        androidSttService = androidSttService,
+        androidSttOnDeviceOnly = androidSttOnDeviceOnly,
         autoReadReplies = autoReadReplies,
         autoReadVoiceReplies = autoReadVoiceReplies
     )
@@ -185,6 +202,32 @@ fun SpeechScreen(
             sttProvider == AudioProvider.API || sttProvider == AudioProvider.SAMOSA_AI
         ) {
             refreshAudioModelsAction()
+        }
+    }
+
+    // Asked only once Android Built-in is picked, since probing binds the phone's
+    // engines, and again on every return, which may be from changing them.
+    var androidSpeech by remember { mutableStateOf(AndroidSpeechStatus()) }
+    var resumes by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumes++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val usesAndroidSpeech = ttsProvider == AudioProvider.ANDROID || sttProvider == AudioProvider.ANDROID
+    LaunchedEffect(usesAndroidSpeech, androidTtsEngine, androidSttService, androidSttOnDeviceOnly, resumes) {
+        if (usesAndroidSpeech) {
+            androidSpeech = onCheckAndroidSpeech(
+                AndroidSpeechQuery(
+                    initial.effectiveVoiceLanguage,
+                    androidTtsEngine,
+                    androidSttService,
+                    androidSttOnDeviceOnly
+                )
+            )
         }
     }
 
@@ -372,7 +415,19 @@ fun SpeechScreen(
                     onClearVoice = { ttsVoice = "" }
                 )
             }
-            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
+            AudioProvider.ANDROID -> AndroidTtsSettings(
+                status = androidSpeech,
+                language = initial.effectiveVoiceLanguage,
+                engine = androidTtsEngine,
+                onEngine = {
+                    // Voices belong to an engine; the new one starts on its own choice.
+                    if (it != androidTtsEngine) androidTtsVoice = ""
+                    androidTtsEngine = it
+                },
+                voice = androidTtsVoice,
+                onVoice = { androidTtsVoice = it }
+            )
+            AudioProvider.NONE -> Unit
         }
         // ---- Podcast hosts (synthesize_podcast_dialogue) ----
         // Advanced: only two-host podcast generation reads these, and the
@@ -510,8 +565,17 @@ fun SpeechScreen(
                     onOpenLanguage = onOpenLanguage
                 )
             }
-            AudioProvider.ANDROID, AudioProvider.NONE -> Unit
+            AudioProvider.ANDROID -> AndroidSttSettings(
+                status = androidSpeech,
+                language = initial.effectiveVoiceLanguage,
+                service = androidSttService,
+                onService = { androidSttService = it },
+                onDeviceOnly = androidSttOnDeviceOnly,
+                onOnDeviceOnly = { androidSttOnDeviceOnly = it }
+            )
+            AudioProvider.NONE -> Unit
         }
+        // Android Built-in's problems are shown by its own availability lines above.
         SpeechLanguageWarnings(
             listOfNotNull(
                 SpeechLanguageCheck.ttsWarning(

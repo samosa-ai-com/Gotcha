@@ -142,6 +142,47 @@ class SmartActionDetectorTest {
         assertTrue(currency!!.actions.any { it.label.contains("Convert") })
     }
 
+    private fun rouble(text: String, target: String = "USD") =
+        SmartActionDetector.detectAll(text, targetCurrency = target, strings = strings)
+            .firstOrNull { it.type == EntityType.CURRENCY }
+
+    @Test
+    fun `detectAll finds rouble prices written the Russian way`() {
+        for ((text, price) in listOf(
+            "Цена 1 500 ₽" to "1 500 ₽",
+            "Цена 1\u00A0234,56\u00A0₽ сегодня" to "1\u00A0234,56\u00A0₽",
+            "Всего 1 234,56 руб. с доставкой" to "1 234,56 руб.",
+            "Стоит 990 рублей" to "990 рублей",
+            "Price 2500 RUB" to "2500 RUB",
+            "Price ₽1,500.50" to "₽1,500.50",
+            "Price ₽ 1 500" to "₽ 1 500"
+        )) {
+            val currency = rouble(text)
+            assertNotNull("Should detect a rouble price in '$text'", currency)
+            assertEquals(price, currency!!.rawValue)
+            assertEquals("RUB", SmartActionDetector.extractCurrencyCode(currency.rawValue))
+            assertTrue(currency.actions.any { it.label.contains("Convert to USD") })
+        }
+    }
+
+    @Test
+    fun `rouble prices are not converted to RUB`() {
+        val currency = rouble("Цена 1 500 ₽", target = "RUB")
+        assertNotNull(currency)
+        assertFalse(currency!!.actions.any { it.label.contains("Convert") })
+    }
+
+    @Test
+    fun `a dollar price offers conversion to RUB`() {
+        val currency = rouble("Price is $50.00", target = "RUB")
+        assertTrue(currency!!.actions.any { it.label.contains("Convert to RUB") })
+    }
+
+    @Test
+    fun `words that start like руб are not roubles`() {
+        assertNull(rouble("Нужно 5 рубашек"))
+    }
+
     @Test
     fun `detectAll still finds plain digit currency amounts`() {
         val entities = SmartActionDetector.detectAll("Price is ₹1250", strings = strings)
@@ -155,6 +196,13 @@ class SmartActionDetectorTest {
         assertFalse(SmartActionDetector.isTextInLanguage("Hola amigo ¿cómo estás?", "English"))
         assertTrue(SmartActionDetector.isTextInLanguage("Hola amigo ¿cómo estás?", "Spanish"))
         assertTrue(SmartActionDetector.isTextInLanguage("आप कैसे हैं", "Hindi"))
+    }
+
+    @Test
+    fun `isTextInLanguage recognises Russian`() {
+        assertTrue(SmartActionDetector.isTextInLanguage("Как у тебя дела?", "Russian"))
+        assertFalse(SmartActionDetector.isTextInLanguage("How are you doing?", "Russian"))
+        assertFalse(SmartActionDetector.isTextInLanguage("Как у тебя дела?", "English"))
     }
 
     @Test

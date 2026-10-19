@@ -772,7 +772,7 @@ fun ChatScreen(
                                         Icons.Default.Stop,
                                         contentDescription = stringResource(R.string.chat_stop_recording),
                                         modifier = Modifier.size(20.dp),
-                                        tint = Color.White
+                                        tint = MaterialTheme.colorScheme.onError
                                     )
                                 }
                             }

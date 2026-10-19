@@ -2,7 +2,6 @@ package com.gotcha.ui
 
 import android.animation.ValueAnimator
 import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -24,6 +23,7 @@ import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import com.gotcha.R
 import com.gotcha.data.SettingsRepository
+import com.gotcha.data.coalescedSettingsListener
 import com.gotcha.data.settingsChangeNotifier
 import com.gotcha.service.EntityType
 import com.gotcha.service.ProactiveSessionItem
@@ -151,13 +151,11 @@ class AssistiveBallOverlay(context: Context) {
      * list per instance and Appearance saves through an instance of its own.
      *
      * The key is ignored: it arrives encrypted, and `save` writes every setting
-     * at once so almost anything fires this. Reading the skin back and
-     * comparing is the only thing that works, and it is what makes the listener
-     * cheap enough not to care how often it runs.
+     * at once so almost anything fires this — once per setting. Reading the
+     * skin back and comparing is the only thing that works, so the burst is
+     * coalesced into one read (see [coalescedSettingsListener]).
      */
-    private val skinWatcher = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-        mainHandler.post { restyleIfSkinChanged() }
-    }
+    private val skinWatcher = coalescedSettingsListener(mainHandler) { restyleIfSkinChanged() }
 
     /** Put the ball back on screen after the display changes shape. */
     private fun handleScreenChanged(previous: Size, current: Size) {
@@ -187,7 +185,7 @@ class AssistiveBallOverlay(context: Context) {
     }
 
     private fun currentSkinId(): String =
-        runCatching { settingsRepository.load().skinId }.getOrDefault(Skins.OVERLAY_FALLBACK_ID)
+        runCatching { settingsRepository.loadSkinId() }.getOrDefault(Skins.OVERLAY_FALLBACK_ID)
 
     /** The active skin, translated for View code. */
     private fun palette(): OverlaySkin = overlaySkin(appContext, currentSkinId())

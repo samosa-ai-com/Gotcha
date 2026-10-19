@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -93,6 +94,35 @@ class AgentPromptTest {
         )
         buildEngine(mode, settings).apply { sessionPersonaId = personaId }.run(mode)
         return server.takeRequest().body.readUtf8()
+    }
+
+    @Test
+    fun `working directory reaches the wire once, after the history, not in the system prefix`() = runTest {
+        // Issue #121: a per-chat path in the first system message broke prefix-cache
+        // reuse across chats, so it must ride in the tail message after the history.
+        server.enqueue(
+            MockResponse().setBody("""{"choices":[{"message":{"role":"assistant","content":"ok"}}]}""")
+        )
+        val engine = buildEngine(AgentMode.OPERATOR)
+        engine.history += com.gotcha.llm.ChatMessage(
+            role = "user",
+            content = kotlinx.serialization.json.JsonPrimitive("hello")
+        )
+        engine.run(AgentMode.OPERATOR)
+        val messages = kotlinx.serialization.json.Json.parseToJsonElement(server.takeRequest().body.readUtf8())
+            .let { it as kotlinx.serialization.json.JsonObject }["messages"]
+            .let { it as kotlinx.serialization.json.JsonArray }
+            .map { it as kotlinx.serialization.json.JsonObject }
+        fun role(i: Int) = (messages[i]["role"] as kotlinx.serialization.json.JsonPrimitive).content
+        fun text(i: Int) = messages[i]["content"].toString()
+
+        val userIndex = messages.indices.single { role(it) == "user" && text(it).contains("hello") }
+        val withPath = messages.indices.filter { text(it).contains("Working directory: ${workDir.absolutePath}") }
+        assertEquals("system", role(0))
+        assertFalse(text(0).contains("Working directory"))
+        assertEquals(listOf(userIndex + 1), withPath)
+        assertEquals("system", role(withPath.single()))
+        assertTrue(text(withPath.single()).contains("Current date/time: "))
     }
 
     @Test

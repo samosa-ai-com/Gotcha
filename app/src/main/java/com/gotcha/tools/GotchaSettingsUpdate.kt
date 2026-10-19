@@ -189,6 +189,13 @@ object GotchaSettingsUpdate {
             setOf(SettingImpact.NOTIFICATIONS),
             { it.serverMessagesEnabled },
             { s, v -> s.copy(serverMessagesEnabled = v) }
+        ),
+        boolSpec(
+            "update_notifications",
+            "A notification when a new Gotcha version is released",
+            setOf(SettingImpact.NOTIFICATIONS),
+            { it.updateNotificationsEnabled },
+            { s, v -> s.copy(updateNotificationsEnabled = v) }
         )
     )
 

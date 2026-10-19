@@ -75,6 +75,7 @@ import com.gotcha.auth.ReferralClipboardHelper
 import com.gotcha.auth.SamosaTier
 import com.gotcha.auth.SamosaUser
 import com.gotcha.i18n.StringLookup
+import com.gotcha.ui.theme.fade
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -162,6 +163,11 @@ enum class SettingsPage(
         R.string.settings_page_skills,
         R.string.settings_page_skills_summary,
         "settings_skills_row"
+    ),
+    SCHEDULED_TASKS(
+        R.string.settings_page_scheduled_tasks,
+        R.string.settings_page_scheduled_tasks_summary,
+        "settings_scheduled_tasks_row"
     ),
     PROACTIVE(
         R.string.settings_page_proactive,
@@ -537,7 +543,7 @@ fun ReferAndEarnCard(
             if (referredByCode != null) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.secondaryContainer.fade(0.5f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
