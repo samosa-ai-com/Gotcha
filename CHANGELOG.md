@@ -4,11 +4,6 @@ All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
 ### Added
-- **"Enjoying Gotcha?"** Three days after install, and then at most every
-  five days, Home asks whether you enjoy Gotcha: yes opens the GitHub repo to
-  star it, no opens the feedback form. Either answer ends the ask for good, and
-  so does waving it off four times. It only appears while you are idle on Home
-  with nothing else open.
 - **A notification when a new version is out** (#126). About twice a day,
   Gotcha checks GitHub for a newer release and, once per version, posts a
   notification. Tapping it opens Settings ▸ About, already checking, with the
@@ -81,6 +76,16 @@ All notable changes to Gotcha are documented here.
   cached start of the request. The folder now comes after the
   conversation instead. Local servers such as llama-server skip reprocessing
   thousands of tokens, and providers that discount cached input charge less.
+- **Readable dialogs in every skin** (#137). The "Clear notification
+  history?" dialog and the Skills "Paste JSON" dialog were see-through in
+  glass skins, and inbox cards had nearly invisible grey text. Dialogs are now
+  solid, and their buttons are easy to read in Orchid and Aura. The
+  stop-recording button in Deep Space Dark is easier to see.
+- **Switching skins no longer freezes Gotcha** (#141). Tapping a skin in
+  Settings ▸ Appearance could stall the screen long enough for Android's
+  "Gotcha isn't responding" dialog. Skin changes now apply much faster.
+- **The feedback form scrolls in landscape.** Its switches used to overlap
+  when the phone was turned sideways.
 
 ## [1.3.0]
 ### Added
