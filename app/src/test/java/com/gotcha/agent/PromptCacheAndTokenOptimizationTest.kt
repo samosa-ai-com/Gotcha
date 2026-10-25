@@ -367,10 +367,45 @@ class PromptCacheAndTokenOptimizationTest {
 
     @Test
     fun `AgentEngine systemPromptMessage combines instructions and environment into Index 0 System message`() {
+        val msg = newEngine().systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR)
+        assertEquals("system", msg.role)
+        val text = msg.textContent
+        assertTrue("Should contain core Operator instructions", text.contains("You are Gotcha"))
+        assertTrue("Should contain env block", text.contains("<env>"))
+        assertTrue("Should contain device model info", text.contains("Device model:"))
+    }
+
+    @Test
+    fun `working directory rides in the tail context message, not the cached system prefix`() {
+        val engine = newEngine()
+        val first = "/storage/emulated/0/Gotcha/chats/First-Chat_aaaa1111"
+        val second = "/storage/emulated/0/Gotcha/chats/Second-Chat_bbbb2222"
+        val savedWorkingDir = com.gotcha.tools.FileResolver.WORKING_DIR_BASE
+        try {
+            com.gotcha.tools.FileResolver.WORKING_DIR_BASE = first
+            val prefixFirst = engine.systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR).textContent
+            val tailFirst = engine.runContextMessage()
+            com.gotcha.tools.FileResolver.WORKING_DIR_BASE = second
+            val prefixSecond = engine.systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR).textContent
+            val tailSecond = engine.runContextMessage()
+
+            // Issue #121: a per-chat path in the Index 0 message broke prefix-cache reuse across chats.
+            assertFalse("Prefix must not name the working directory", prefixFirst.contains("Working directory"))
+            assertEquals("Prefix must not change with the chat's directory", prefixFirst, prefixSecond)
+            assertEquals("system", tailFirst.role)
+            assertTrue(tailFirst.textContent.contains("Working directory: $first"))
+            assertTrue(tailSecond.textContent.contains("Working directory: $second"))
+            assertTrue(tailSecond.textContent.contains("Current date/time: "))
+        } finally {
+            com.gotcha.tools.FileResolver.WORKING_DIR_BASE = savedWorkingDir
+        }
+    }
+
+    private fun newEngine(): AgentEngine {
         com.gotcha.testsupport.FakeAndroidKeyStore.setUp()
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         val repository = com.gotcha.data.ChatHistoryRepository(context)
-        val engine = AgentEngine(
+        return AgentEngine(
             appContext = context,
             events = object : AgentEvents {
                 override fun onUi(
@@ -392,11 +427,5 @@ class PromptCacheAndTokenOptimizationTest {
             settingsProvider = { com.gotcha.data.Settings() },
             clientProvider = { null }
         )
-        val msg = engine.systemPromptMessage(com.gotcha.tools.AgentMode.OPERATOR)
-        assertEquals("system", msg.role)
-        val text = msg.textContent
-        assertTrue("Should contain core Operator instructions", text.contains("You are Gotcha"))
-        assertTrue("Should contain env block", text.contains("<env>"))
-        assertTrue("Should contain device model info", text.contains("Device model:"))
     }
 }

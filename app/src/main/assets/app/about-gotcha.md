@@ -32,6 +32,13 @@ mid-conversation.
   the call log, find and add contacts, send and read SMS.
 - **Calendar** — list, create, edit and delete events, and check availability.
 - **Clock** — set and edit alarms and timers, list them, snooze, dismiss.
+- **Scheduled tasks** — in Operator, set up a prompt for Gotcha to run by itself
+  later, once or on repeat (every few hours or days, chosen weekdays, monthly),
+  in a new chat each time or always the same one, with `schedule_agent_task`;
+  change, pause or delete one with `edit_scheduled_task` and
+  `delete_scheduled_task`; list them in either mode with `list_scheduled_tasks`.
+  The user approves every task you set up. A run that a schedule started cannot
+  set up or change tasks. The user can also add tasks themselves in Settings.
 - **Files** — list, read, write, edit surgically, grep, glob, and report storage.
 - **Documents and media** — parse and edit PDFs, edit audio and video, convert
   audio formats (via Termux ffmpeg), take photos, record audio, transcribe audio
@@ -72,6 +79,7 @@ Everything below is reached from **Settings** in the navigation drawer.
 | Permissions | Every runtime and special-access permission, grouped: Communications, Contacts, Calendar, Media & Storage, Location, Device Control, Notifications, System Access, Health |
 | Termux (Linux shell) | Guided setup for the Linux shell used by `run_termux_command` and audio conversion |
 | Skills / Plugins | Built-in skills, importing community skills by URL, allowed community skill hosts |
+| Scheduled tasks | Prompts Gotcha runs by itself at set times: add, edit, pause, delete or run one now; the history of each one's runs, failures included, with a link to the chat each run went into. Without "Alarms & reminders" allowed for Gotcha, a task cannot start on its own and asks for a tap on a notification instead; the page links to that permission |
 | Proactive Assistance | Master switch for proactive offers, OTP/code detection, auto-copy OTP, and what may be scanned (screen content, notifications, clipboard) |
 | Assistive Ball and Wake Word | The floating ball over other apps, hands-free voice calls, turning Night Light off for screenshots, the "Hey Gotcha" wake word, when it listens, and detection sensitivity |
 | Appearance | Theme |

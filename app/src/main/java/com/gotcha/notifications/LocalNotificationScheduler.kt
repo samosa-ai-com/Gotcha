@@ -9,6 +9,8 @@ import android.util.Log
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.stringLookup
+import com.gotcha.scheduled.ScheduledTaskScheduler
+import com.gotcha.updater.runUpdateCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -78,7 +80,7 @@ private fun BroadcastReceiver.runAsync(tag: String, block: suspend () -> Unit) {
 
 /**
  * Re-arms the alarms after a reboot, an app update or a clock change — none of
- * which an alarm survives at the right time. Exported only because those
+ * which an alarm survives at the right time — scheduled tasks' included. Exported only because those
  * broadcasts come from the system; it never posts anything itself.
  */
 class NotificationRescheduleReceiver : BroadcastReceiver() {
@@ -86,16 +88,31 @@ class NotificationRescheduleReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in RESCHEDULE_ACTIONS) return
         val app = context.applicationContext
-        runAsync(TAG) { LocalNotificationScheduler.scheduleAll(app) }
+        runAsync(TAG) {
+            // finally: a failure arming one set of alarms must not leave the other unarmed.
+            try {
+                if (intent.action != ACTION_EXACT_ALARM_PERMISSION_CHANGED) LocalNotificationScheduler.scheduleAll(app)
+            } finally {
+                ScheduledTaskScheduler.reschedule(app)
+            }
+        }
     }
 
     private companion object {
         const val TAG = "NotificationReschedule"
+
+        /**
+         * The exact-alarm grant changing: scheduled tasks (issue #132) switch
+         * between an exact alarm and a window. AlarmManager's constant is API 31+.
+         */
+        const val ACTION_EXACT_ALARM_PERMISSION_CHANGED =
+            "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
         val RESCHEDULE_ACTIONS = setOf(
             Intent.ACTION_BOOT_COMPLETED,
             Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIMEZONE_CHANGED,
-            Intent.ACTION_TIME_CHANGED
+            Intent.ACTION_TIME_CHANGED,
+            ACTION_EXACT_ALARM_PERMISSION_CHANGED
         )
     }
 }
@@ -113,12 +130,22 @@ class DailyTipAlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** The periodic reminder check. Not exported. */
+/**
+ * The periodic reminder check, which also carries the update check (issue #126):
+ * that one limits itself to about twice a day. Not exported.
+ */
 class ReminderCheckReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext
-        runAsync("ReminderCheck") { runLocalNotificationCheck(app, includeTip = false) }
+        runAsync("ReminderCheck") {
+            // finally: a failed reminder check must not skip the update check.
+            try {
+                runLocalNotificationCheck(app, includeTip = false)
+            } finally {
+                runUpdateCheck(app)
+            }
+        }
     }
 }
 

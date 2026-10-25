@@ -3005,6 +3005,129 @@ object ToolDefinitions {
         }
     )
 
+    // ---- Scheduled tasks (issue #132) ----
+
+    /** The fields schedule_agent_task and edit_scheduled_task share. */
+    private fun kotlinx.serialization.json.JsonObjectBuilder.scheduledTaskFields() {
+        putJsonObject("name") {
+            put("type", "string")
+            put("description", "Short name the user will recognise, e.g. 'Morning news'.")
+        }
+        putJsonObject("prompt") {
+            put("type", "string")
+            put(
+                "description",
+                "The instruction sent as the user's message each time the task fires. It runs with no " +
+                    "one watching and none of this conversation unless same_chat is true, so make it " +
+                    "self-contained: say what to do and how to report back."
+            )
+        }
+        putJsonObject("start") {
+            put("type", "string")
+            put(
+                "description",
+                "First run, in the phone's local time: YYYY-MM-DDTHH:MM, e.g. 2026-10-19T08:00. Its time of " +
+                    "day (and weekday, day of month) anchors the repeat."
+            )
+        }
+        putJsonObject("repeat") {
+            put("type", "string")
+            putJsonArray("enum") { listOf("none", "hourly", "daily", "weekly", "monthly").forEach { add(it) } }
+            put("description", "How it comes round again. Default none (once).")
+        }
+        putJsonObject("interval") {
+            put("type", "integer")
+            put("description", "For hourly or daily: every N hours or days. Default 1.")
+        }
+        putJsonObject("weekdays") {
+            put("type", "array")
+            putJsonObject("items") { put("type", "string") }
+            put("description", "For weekly: days to run, e.g. [\"mon\",\"wed\",\"fri\"]. Default the start's weekday.")
+        }
+        putJsonObject("same_chat") {
+            put("type", "boolean")
+            put(
+                "description",
+                "True to add each run to this chat (it keeps the conversation); false (default) to start a " +
+                    "new chat each time."
+            )
+        }
+        putJsonObject("mode") {
+            put("type", "string")
+            putJsonArray("enum") {
+                add("monitor")
+                add("operator")
+            }
+            put(
+                "description",
+                "Mode the runs use; never more than this chat's. Default this chat's mode. Prefer monitor " +
+                    "when the task only reads or reports."
+            )
+        }
+        putJsonObject("files") {
+            put("type", "array")
+            putJsonObject("items") { put("type", "string") }
+            put("description", "Paths of files sent with the prompt each time (read once, when saved). At most 10.")
+        }
+    }
+
+    val scheduleAgentTask = tool(
+        "schedule_agent_task",
+        "Schedule a prompt for Gotcha to run by itself later, once or on repeat, e.g. 'every weekday " +
+            "at 8, summarise my unread mail'. Each run is a normal agent run whose result lands in a chat " +
+            "and a notification. The user approves the exact task before it is saved; if they decline, " +
+            "don't retry unless asked. For a plain reminder or alarm use set_alarm or the calendar instead.",
+        schema {
+            putJsonObject("properties") { scheduledTaskFields() }
+            putJsonArray("required") {
+                add("name")
+                add("prompt")
+                add("start")
+            }
+        }
+    )
+
+    val editScheduledTask = tool(
+        "edit_scheduled_task",
+        "Change, pause or resume a scheduled task. Pass task_id (from list_scheduled_tasks) and only " +
+            "the fields to change. The user approves the change.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("task_id") {
+                    put("type", "string")
+                    put("description", "The task's id, from list_scheduled_tasks.")
+                }
+                scheduledTaskFields()
+                putJsonObject("enabled") {
+                    put("type", "boolean")
+                    put("description", "False to pause the task, true to resume it.")
+                }
+            }
+            putJsonArray("required") { add("task_id") }
+        }
+    )
+
+    val listScheduledTasks = tool(
+        "list_scheduled_tasks",
+        "List the scheduled tasks with their ids, schedules, next and last runs, and prompts.",
+        schema { putJsonObject("properties") {} }
+    )
+
+    val deleteScheduledTask = tool(
+        "delete_scheduled_task",
+        "Delete a scheduled task for good. The user confirms first. To stop it for a while, pause it " +
+            "with edit_scheduled_task instead.",
+        schema {
+            putJsonObject("properties") {
+                putJsonObject("task_id") {
+                    put("type", "string")
+                    put("description", "The task's id, from list_scheduled_tasks.")
+                }
+            }
+            putJsonArray("required") { add("task_id") }
+        }
+    )
+
     val all: List<ToolDefinition> = listOf(
         aboutSamosaAi,
         aboutGotcha,
@@ -3018,6 +3141,7 @@ object ToolDefinitions {
         listCalendarEvents, createCalendarEvent, editCalendarEvent, deleteCalendarEvent,
         checkAvailability,
         setAlarm, setTimer, listAlarms, listTimers, editAlarm, deleteAlarm, deleteTimer,
+        scheduleAgentTask, editScheduledTask, listScheduledTasks, deleteScheduledTask,
         toggleTorch, setVolume, getVolume, setRingerMode, vibrate, setDnd,
         getLocation, listInstalledApps, uninstallApp, getAppUsage, getDataUsage,
         getClipboard, setClipboard, takePhoto, startAudioRecording, stopAudioRecording,

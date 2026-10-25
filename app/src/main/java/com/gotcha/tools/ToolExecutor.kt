@@ -62,6 +62,13 @@ class ToolExecutor(
     private val smsTool = SmsTool(appContext)
     private val calendarTool = CalendarTool(appContext)
     private val alarmTool = AlarmTool(appContext)
+
+    /**
+     * The scheduled-task tools (issue #132). The engine reaches it directly to
+     * describe and save a request the user approved. Lazy: its store opens
+     * encrypted prefs, which only the schedule tools need.
+     */
+    val scheduledTaskTool by lazy { ScheduledTaskTool(appContext) }
     private val deviceTool = DeviceTool(appContext)
     private val locationTool = LocationTool(appContext)
     private val appsTool = AppsTool(appContext)
@@ -413,6 +420,10 @@ class ToolExecutor(
                 minutes = args.requireInt("minutes"),
                 system = args["system"]?.jsonPrimitive?.booleanOrNull ?: false
             )
+            "schedule_agent_task" -> scheduledTaskTool.prepareCreate(args)
+            "edit_scheduled_task" -> scheduledTaskTool.prepareEdit(args)
+            "list_scheduled_tasks" -> scheduledTaskTool.list()
+            "delete_scheduled_task" -> scheduledTaskTool.prepareDelete(args)
             "list_alarms" -> alarmTool.listAlarms()
             "list_timers" -> alarmTool.listTimers()
             "show_alarms" -> alarmTool.showAlarms()
@@ -710,10 +721,11 @@ class ToolExecutor(
 
     /** The connector half of [unavailableResult] — no device grant to deep-link to. */
     private fun connectorUnavailableMessage(name: String): String {
-        // Dynamic tools (e.g. Home Assistant MCP) are registered at runtime, so the
+        // Dynamic tools (Home Assistant, MCP servers) are registered at runtime, so the
         // compile-time catalog cannot know them; name the owning connector explicitly.
-        if (name in ToolRegistry.dynamicTools) {
-            return "Tool '$name' is unavailable: it needs ${ConnectorCatalog.HOME_ASSISTANT.displayName}, which is not " +
+        ToolRegistry.dynamicOwnerOf(name)?.let { owner ->
+            val connector = ConnectorCatalog.byId(owner)?.displayName ?: owner
+            return "Tool '$name' is unavailable: it needs $connector, which is not " +
                 "connected or is switched off. Tell the user to set it up in the drawer " +
                 "menu ▸ Connectors; do not retry."
         }

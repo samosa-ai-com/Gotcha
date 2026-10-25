@@ -186,9 +186,25 @@ object SmartActionDetector {
         Pattern.CASE_INSENSITIVE
     )
 
+    /**
+     * A rouble amount. Russian writes `1 234,56 ₽`: spaces (often no-break ones)
+     * group the thousands and a comma marks the decimals. English sites write
+     * `₽1,234.50`, so comma grouping is accepted too.
+     */
+    private const val RUB_AMOUNT =
+        "(?:\\d{1,3}(?:[ \\u00A0\\u202F]\\d{3})+|\\d{1,3}(?:,\\d{3})+|\\d{1,7})(?:[.,]\\d{1,2})?"
+    private const val RUB_SPACE = "[\\s\\u00A0\\u202F]?"
+
+    /**
+     * Prices written with a symbol or code before or after the amount. Roubles
+     * have their own branches (see [RUB_AMOUNT]); Cyrillic `руб.` ends in a
+     * lookahead rather than `\b`, which newer JVMs apply to ASCII letters only.
+     */
     private val currencyPattern: Pattern = Pattern.compile(
         "([¥€£$]|₹|INR|Rs\\.?)\\s?\\d{1,6}(?:,\\d{2,3})*(?:\\.\\d{2})?\\b" +
-            "|\\b\\d{1,6}(?:,\\d{2,3})*(?:\\.\\d{2})?\\s?(USD|EUR|GBP|INR|JPY|CAD|AUD|₹|Rs\\.?)\\b",
+            "|\\b\\d{1,6}(?:,\\d{2,3})*(?:\\.\\d{2})?\\s?(USD|EUR|GBP|INR|JPY|CNY|CAD|AUD|₹|Rs\\.?)\\b" +
+            "|(?<![\\d.,])$RUB_AMOUNT$RUB_SPACE(?:₽|RUB|[Рр]уб(?:лей|ля|ль|\\.)?)(?![\\p{L}\\d])" +
+            "|(?:₽|\\bRUB)$RUB_SPACE$RUB_AMOUNT(?!\\d)",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -697,6 +713,7 @@ object SmartActionDetector {
         price.contains("€") || price.contains("EUR", ignoreCase = true) -> "EUR"
         price.contains("£") || price.contains("GBP", ignoreCase = true) -> "GBP"
         price.contains("¥") || price.contains("JPY", ignoreCase = true) -> "JPY"
+        price.contains("₽") || price.contains("RUB", ignoreCase = true) || price.contains("руб", ignoreCase = true) -> "RUB"
         price.contains("CNY", ignoreCase = true) -> "CNY"
         price.contains("CAD", ignoreCase = true) -> "CAD"
         price.contains("AUD", ignoreCase = true) -> "AUD"
@@ -1062,7 +1079,8 @@ object SmartActionDetector {
         val lang = languageName.lowercase()
         return when {
             lang.contains("english") -> {
-                val nonEnglishScripts = Regex("[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF\\u0600-\\u06FF]")
+                val nonEnglishScripts =
+                    Regex("[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF\\u0600-\\u06FF\\u0400-\\u04FF]")
                 if (nonEnglishScripts.containsMatchIn(clean)) return false
                 val nonEnglishDiacritics = Regex("[ñ¿¡áéíóúàèìòùâêîôûäöüßçœ]")
                 !nonEnglishDiacritics.containsMatchIn(clean.lowercase())
@@ -1070,6 +1088,7 @@ object SmartActionDetector {
             lang.contains("hindi") -> Regex("[\\u0900-\\u097F]").containsMatchIn(clean)
             lang.contains("japanese") -> Regex("[\\u3040-\\u30FF\\u4E00-\\u9FFF]").containsMatchIn(clean)
             lang.contains("chinese") -> Regex("[\\u4E00-\\u9FFF]").containsMatchIn(clean)
+            lang.contains("russian") -> Regex("[\\u0400-\\u04FF]").containsMatchIn(clean)
             lang.contains("spanish") -> {
                 Regex("[ñ¿¡áéíóú]").containsMatchIn(clean.lowercase()) ||
                     clean.lowercase().split("\\s+".toRegex())

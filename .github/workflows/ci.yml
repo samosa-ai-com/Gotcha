@@ -1,23 +1,84 @@
 name: CI
 
 # CI runs on the self-hosted BeyondMax runner (no GitHub Actions minutes).
-# `build` runs automatically on PRs/pushes to main/development.
-# Instrumented jobs run only on manual workflow_dispatch to avoid
-# queue-blocking the single runner (one job at a time).
+# It handles one job at a time, so every redundant run delays the next one:
+# - `build` runs on PRs to main/development and on pushes to development.
+#   A push to development skips `build` while an open PR from development
+#   already builds the same commit (see the dedupe job).
+# - Pushes to main don't run CI: main's ruleset only takes PRs, and each
+#   PR's run already built the merge result.
+# - Changes that touch only update.json / CHANGELOG.md (the release
+#   manifest PR) don't run CI: nothing here compiles, lints or tests them.
+# - Instrumented jobs run only on manual workflow_dispatch; `build` joins
+#   them only when the run_build input is set.
+# - Coverage (Kover report + PR comment) runs only on PRs into main;
+#   PRs into development and pushes skip it.
 
 on:
   pull_request:
     branches: [main, development]
+    paths-ignore:
+      - update.json
+      - CHANGELOG.md
   push:
-    branches: [main, development]
+    branches: [development]
+    paths-ignore:
+      - update.json
+      - CHANGELOG.md
   workflow_dispatch:
+    inputs:
+      run_build:
+        description: "Also run the build job (detekt, unit tests, lint, assemble)"
+        type: boolean
+        default: false
 
+# Manual runs get their own group so they never cancel a push/PR build of
+# the same branch, and are never cancelled themselves: a second manual run
+# is usually deliberate, and the instrumented matrix is too costly to drop.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
+  # Decides whether `build` runs. GitHub-hosted (free for this public repo)
+  # so the check never waits behind, or holds up, the self-hosted runner.
+  dedupe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_BUILD: ${{ inputs.run_build }}
+        run: |
+          SKIP=false
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$RUN_BUILD" != "true" ]; then
+            echo "Manual run without run_build: only the instrumented jobs run."
+            SKIP=true
+          elif [ "$EVENT" = "push" ]; then
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            # Same-repo PRs only: a fork's branch that happens to share the
+            # name must not suppress our build. On an API error, build anyway.
+            PRS=$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
+              --json number,isCrossRepository \
+              --jq '[.[] | select(.isCrossRepository | not) | "#\(.number)"] | join(" ")') || PRS=""
+            if [ -n "$PRS" ]; then
+              echo "Open PR $PRS from $BRANCH builds this commit; skipping the push build."
+              SKIP=true
+            fi
+          fi
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: dedupe
+    # !cancelled() instead of the implicit success(): if dedupe itself fails,
+    # its output is empty and build runs rather than silently skipping.
+    if: ${{ !cancelled() && needs.dedupe.outputs.skip != 'true' }}
     runs-on: [self-hosted, chanakya] # BeyondMax self-hosted — 0 minutes. TerminalToolTest shells out to POSIX `sh` — do not move to windows/macos
     timeout-minutes: 30
     # The coverage comment needs pull-requests: write. Without it the jacoco-report
@@ -45,14 +106,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Robolectric downloads an android-all jar per @Config(sdk = ...) level on first
-      # run; without this every fresh runner pays that download again.
-      - name: Cache Robolectric android-all jars
-        uses: actions/cache@v5
-        with:
-          path: ~/.m2/repository/org/robolectric
-          key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
-          restore-keys: robolectric-
+      # No actions/cache for Robolectric: on this persistent self-hosted
+      # runner ~/.m2 survives between runs, so the jars are already warm —
+      # re-uploading 565 MB to GitHub on every dependency change only burns
+      # the org's 0.5 GB Actions storage quota (Oct 2026 incident).
 
       # No baselines: the whole repo must pass detekt and lint on every run.
       - name: Detekt
@@ -64,12 +121,13 @@ jobs:
       # Report-only: the feature-coverage manifest is the gate, not a percentage.
       # See the comment on the kover block in app/build.gradle.kts.
       - name: Coverage report
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         run: ./gradlew :app:koverXmlReport :app:koverHtmlReport --stacktrace
 
       # Kover emits JaCoCo-format XML, so this action reads it directly. Thresholds are 0
       # on purpose — it posts total + changed-files coverage and never fails the build.
       - name: Post coverage on the PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
         uses: madrapps/jacoco-report@v1.7
         with:
           paths: app/build/reports/kover/report.xml
@@ -97,7 +155,7 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/testDebugUnitTest/
-          retention-days: 14
+          retention-days: 1
 
   # GMD's own emulator handling never booted on these runners and swallowed
   # the emulator's stderr; running the same emulator via emulator-runner
@@ -149,21 +207,20 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Cache the system image, the AVD, and its boot snapshot so runs after
-      # the first skip the ~1 GB image download and the slow cold boot. The
-      # snapshot is generated once on cache miss (the echo-only runner step),
-      # and test runs boot from it with -no-snapshot-save so the cached clean
-      # state is never overwritten.
-      - name: AVD cache
-        uses: actions/cache@v5
+      # AVD snapshot state lives on the runner's own disk
+      # (~/.android/avd + ~/Android/Sdk/system-images persist between runs),
+      # so no actions/cache upload is needed — it only burned org storage
+      # quota (Oct 2026 incident). The snapshot is (re)generated below
+      # whenever the AVD is missing; test runs boot from it with
+      # -no-snapshot-save so the clean state is never overwritten.
+      - name: Check for existing AVD snapshot
         id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-            /usr/local/lib/android/sdk/system-images/*
-            ~/Android/Sdk/system-images/*
-          key: avd-34-aosp_atd-pixel_6
+        run: |
+          if [ -d ~/.android/avd/ci-34.avd ]; then
+            echo "cache-hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -213,7 +270,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
-          retention-days: 14
+          retention-days: 1
 
   # Sharding (-Pandroid.testInstrumentationRunnerArguments.numShards/shardIndex plus a
   # `shard` matrix axis) is deliberately deferred until the instrumented suite exceeds
@@ -290,18 +347,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Same caching scheme as instrumented-smoke; the api-34 key is shared
-      # with that job since the AVD definition is identical.
-      - name: AVD cache
-        uses: actions/cache@v5
+      # Same local-disk scheme as instrumented-smoke; the api-34 AVD is
+      # shared with that job since the AVD definition is identical.
+      - name: Check for existing AVD snapshot
         id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-            /usr/local/lib/android/sdk/system-images/*
-            ~/Android/Sdk/system-images/*
-          key: avd-${{ matrix.api-level }}-${{ matrix.target }}-${{ matrix.profile }}
+        run: |
+          if [ -d ~/.android/avd/ci-${{ matrix.api-level }}.avd ]; then
+            echo "cache-hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create AVD and generate snapshot for caching
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -344,4 +399,4 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
-          retention-days: 14
+          retention-days: 1

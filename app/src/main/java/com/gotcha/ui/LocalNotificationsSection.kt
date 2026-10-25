@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -36,6 +35,7 @@ import com.gotcha.data.Settings
 import com.gotcha.notifications.LocalNotificationScheduler
 import com.gotcha.notifications.LocalNotificationStore
 import com.gotcha.notifications.inQuietHours
+import com.gotcha.ui.theme.SkinAlertDialog
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -204,7 +204,7 @@ internal fun LocalNotificationsSection(
     }
 
     if (confirmClear) {
-        AlertDialog(
+        SkinAlertDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text(stringResource(R.string.local_notifications_clear_notification_history)) },
             text = {

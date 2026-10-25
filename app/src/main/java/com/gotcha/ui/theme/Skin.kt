@@ -47,6 +47,9 @@ enum class Backdrop {
  * @param grain film-grain opacity over the ground, 0f–1f.
  * @param scrim a veil of [ground] over the wallpaper, 0f–1f, so body text is
  *   never fighting whatever the wallpaper is doing underneath it.
+ * @param popup what dialogs and menus paint, when the derived default (see
+ *   [menuContainer]) leaves the accent or the dim ink below 4.5:1 on it.
+ *   SkinContrastTest says when a skin needs one.
  */
 data class Skin(
     val id: String,
@@ -60,7 +63,8 @@ data class Skin(
     val frost: Dp = 0.dp,
     val grain: Float = 0f,
     val scrim: Float = 0f,
-    val corner: Dp = 20.dp
+    val corner: Dp = 20.dp,
+    val popup: Color? = null
 ) {
     /**
      * Radius for the small stuff — inline images, the reasoning block, status
@@ -97,9 +101,12 @@ data class Skin(
      *
      * Named for menus because they were the first to need it; see
      * [com.gotcha.ui.theme.SkinAlertDialog] for the other caller.
+     *
+     * A skin can override it with [popup]: on Orchid the composited panel is a
+     * light lilac that coral buttons all but vanish into.
      */
     val menuContainer: Color
-        get() = scheme.surface.over(ground)
+        get() = popup ?: scheme.surface.over(ground)
 
     /**
      * The same skin with the glass taken out: panels composited down onto their
@@ -132,6 +139,17 @@ private fun ColorScheme.flattenOnto(ground: Color): ColorScheme = copy(
     surfaceVariant = surfaceVariant.over(ground),
     secondaryContainer = secondaryContainer.over(ground)
 )
+
+/**
+ * This colour at [fraction] of its own opacity.
+ *
+ * `copy(alpha = 0.5f)` *replaces* the alpha rather than scaling it. On Deep
+ * Space's opaque roles the two are the same, which is how it slips through
+ * review; on a glass skin `surfaceVariant` is already ~19% white, and replacing
+ * that with 50% paints a pale grey slab that the dim ink beside it vanishes
+ * into. Fade a scheme role with this, never with `copy(alpha = …)`.
+ */
+fun Color.fade(fraction: Float): Color = copy(alpha = alpha * fraction)
 
 private fun Color.over(background: Color): Color {
     if (alpha >= 1f) return this
@@ -284,7 +302,9 @@ object Skins {
         frost = 20.dp,
         grain = 0.06f,
         scrim = 0.05f,
-        corner = 22.dp
+        corner = 22.dp,
+        // The derived panel grey leaves the rose at 4.3:1; one step darker clears it.
+        popup = AuraContainerHigh
     )
 
     /** The icon's white field as an interface. The one skin that survives sun. */
@@ -328,7 +348,10 @@ object Skins {
         grain = 0.12f,
         // The Arc read is a generous radius; it is half of why that look reads
         // as soft even though the colour is shouting.
-        corner = 26.dp
+        corner = 26.dp,
+        // Coral on the derived lilac panel measured 1.7:1 on a phone. Dialogs sit
+        // on the ramp's violet, deepened until coral clears 5:1.
+        popup = OrchidPopup
     )
 
     /** The launcher icon's low-poly geometry, blown up to wallpaper scale. */

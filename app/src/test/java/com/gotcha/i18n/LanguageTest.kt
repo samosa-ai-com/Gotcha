@@ -42,7 +42,7 @@ class LanguageTest {
         // so this list is the single source of truth.
         val expected = listOf(
             "English", "Spanish", "French", "German", "Hindi",
-            "Japanese", "Chinese", "Italian", "Portuguese"
+            "Japanese", "Chinese", "Italian", "Portuguese", "Russian"
         )
         assertEquals(expected, Language.labels)
     }

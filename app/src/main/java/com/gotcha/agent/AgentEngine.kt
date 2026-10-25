@@ -24,6 +24,7 @@ import com.gotcha.tools.AppNavigatorSession
 import com.gotcha.tools.DeviceCapabilities
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.GotchaSettingsUpdate
+import com.gotcha.tools.ScheduledTaskTool
 import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.SubAgentSession
 import com.gotcha.tools.ToolExecutor
@@ -34,7 +35,9 @@ import com.gotcha.ui.personaById
 import com.gotcha.util.GotchaLog
 import com.gotcha.util.HumanReadableError
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -110,6 +113,14 @@ class AgentEngine(
     var sessionPersonaId: String? = null
 
     /**
+     * True while the run was started by a scheduled task rather than by the user
+     * (issue #132). The schedule tools are withheld from it, so a prompt injected
+     * into an unattended run can't schedule more of them.
+     */
+    @Volatile
+    var scheduledRun: Boolean = false
+
+    /**
      * Stable key for the provider's server-side prompt KV cache
      * (`prompt_cache_key` / `X-Session-Id`), independent of [sessionId] which
      * also serves as per-session file identity. Defaults to [sessionId] when
@@ -180,7 +191,8 @@ class AgentEngine(
                             }
                         )
                     },
-                    sessionId = sessionId?.let { "${it}_task" }
+                    sessionId = sessionId?.let { "${it}_task" },
+                    resolvePermission = ::resolvePermission
                 )
                 val output = subSession.run()
                 val stepsEncoded = output.steps.joinToString("\n")
@@ -567,12 +579,12 @@ class AgentEngine(
             // Build message array optimized for prompt caching:
             //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile)
             //   2. Conversation history (4-turn screen observation retention window)
-            //   3. Current timestamp (system message at tail)
+            //   3. Working directory + current timestamp (system message at tail)
             //   4. Active skills index summary (user message at tail)
             val messages = buildList {
                 add(systemPromptMessage(agent))
                 addAll(cullOldObservations(trimmedHistory()))
-                add(currentTimestampMessage())
+                add(runContextMessage())
                 addAll(activeSkillsMessages(agent))
             }
             val response = try {
@@ -710,6 +722,19 @@ class AgentEngine(
                         handleDeleteConfirm("CONFIRM_DELETE_TIMER:", "timer", call, result)
                     } else if (result.success && result.message.startsWith("CONFIRM_DELETE_CALENDAR_EVENT:")) {
                         handleDeleteConfirm("CONFIRM_DELETE_CALENDAR_EVENT:", "calendar_event", call, result)
+                    } else if (result.success &&
+                        result.message.startsWith(ScheduledTaskTool.DELETE_CONFIRM_PREFIX)
+                    ) {
+                        handleDeleteConfirm(
+                            ScheduledTaskTool.DELETE_CONFIRM_PREFIX,
+                            "scheduled_task",
+                            call,
+                            result
+                        )
+                    } else if (result.success &&
+                        result.message.startsWith(ScheduledTaskTool.CONFIRM_PREFIX)
+                    ) {
+                        handleScheduleTaskConfirm(call, result, agent)
                     } else if (result.success && result.message.startsWith("CONFIRM_SEND_EMAIL:")) {
                         handleSendEmailConfirm(call, result)
                     } else if (result.success &&
@@ -1117,6 +1142,47 @@ class AgentEngine(
         )
     }
 
+    /**
+     * Handles a tool result prefixed with CONFIRM_SCHEDULE_TASK:base64(request)
+     * (issue #132). A scheduled task runs the agent later with nobody watching,
+     * so every create and every edit asks, showing the task exactly as it would
+     * be saved. Its mode is capped at [agent], this run's own. Nothing is saved
+     * unless the user allows it; an unanswered prompt counts as declined.
+     */
+    private suspend fun handleScheduleTaskConfirm(call: ToolCall, result: ToolResult, agent: AgentMode) {
+        val request = ScheduledTaskTool.decodePayload(
+            result.message.removePrefix(ScheduledTaskTool.CONFIRM_PREFIX)
+        )
+        var declined = false
+        val outcome = if (request == null) {
+            ToolResult.error("Failed to read the scheduled task request. Nothing was saved.")
+        } else {
+            val approved = events.awaitConfirmation(
+                listOf(call.function.name),
+                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) }
+            )
+            val decided = if (approved) {
+                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }
+            } else {
+                declined = true
+                ToolResult.error(
+                    "The user declined; nothing was scheduled or changed. Do not retry unless the user asks again."
+                )
+            }
+            toolExecutor.actionLog.record(
+                call.function.name,
+                (if (approved) "(approved) " else "(denied) ") + (request.taskId ?: request.name.orEmpty()),
+                decided
+            )
+            decided
+        }
+        history += ChatMessage(role = "tool", content = JsonPrimitive(outcome.message), toolCallId = call.id)
+        events.onUi(
+            if (outcome.success || declined) MessageKind.TOOL else MessageKind.ERROR,
+            "${call.function.name}: ${outcome.message}"
+        )
+    }
+
     private suspend fun handleDeleteConfirm(confirmPrefix: String, kind: String, call: ToolCall, result: ToolResult) {
         val body = result.message.removePrefix(confirmPrefix)
         val parts = body.split(":", limit = 2)
@@ -1130,6 +1196,8 @@ class AgentEngine(
                 "alarm" -> toolExecutor.executeDeleteAlarm(id.toLong())
                 "timer" -> toolExecutor.executeDeleteTimer(id.toLong())
                 "calendar_event" -> toolExecutor.executeDeleteCalendarEvent(id.toLong())
+                "scheduled_task" -> withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.doDelete(id) }
+                    .also { toolExecutor.actionLog.record("delete_scheduled_task", "(confirmed) $id", it) }
                 else -> return
             }
         } else {
@@ -1205,18 +1273,44 @@ class AgentEngine(
      *
      * Anything other than a grant (declined, no Activity to ask from, a host
      * that cannot ask at all) returns [result] untouched.
+     *
+     * `task` and `navigate_app` are not retried: each is a whole run of steps,
+     * and replaying one repeats whatever it already did (a message typed, a
+     * button pressed). The model is told the grant landed and decides whether
+     * to call it again (issue #133).
      */
     private suspend fun resolveMissingPermission(
         call: ToolCall,
         agent: AgentMode,
         result: ToolResult
     ): ToolResult {
+        val name = call.function.name
+        if (name in REPLAYING_TOOLS) {
+            return resolvePermission(result) {
+                ToolResult.error(
+                    "${result.message}\nThe user has now granted ${result.needsPermission}. " +
+                        "Call $name again to carry on from where it stopped."
+                )
+            }
+        }
+        return resolvePermission(result) { executeCall(call, agent) }
+    }
+
+    /**
+     * The ask behind [resolveMissingPermission], shared with the sub-agent and
+     * navigator sessions so a tool they run reaches the same prompt the main
+     * agent's tools do (issue #133). [retry] runs only after a runtime grant.
+     */
+    private suspend fun resolvePermission(
+        result: ToolResult,
+        retry: suspend () -> ToolResult
+    ): ToolResult {
         val permission = result.needsPermission ?: return result
         if (permission.startsWith("special:")) {
             events.onPermissionRequest(permission)
             return result
         }
-        return if (events.awaitPermissionGrant(permission)) executeCall(call, agent) else result
+        return if (events.awaitPermissionGrant(permission)) retry() else result
     }
 
     private suspend fun executeCall(call: ToolCall, agent: AgentMode): ToolResult {
@@ -1243,19 +1337,32 @@ class AgentEngine(
      */
     private fun hiddenTools(): Set<String> =
         ConnectorRegistry.hiddenToolNames(settings.disabledConnectors) +
-            DeviceCapabilities.hiddenToolNames(appContext)
+            DeviceCapabilities.hiddenToolNames(appContext) +
+            // A run a schedule started can't plant, re-enable or widen tasks (issue #132).
+            (if (scheduledRun) ScheduledTaskTool.TOOL_NAMES else emptySet())
 
     /**
-     * A separate system message carrying only the current date/time.
+     * A separate system message carrying the facts that differ per chat or per
+     * call: the working directory and the current date/time.
      * Placed after the conversation history so the Index 0 static System Prompt +
-     * history prefix stays in the KV cache while the timestamp is always fresh.
+     * history prefix stays in the KV cache while these stay fresh. The working
+     * directory used to sit in `<env>`; being unique to each chat (and renamed
+     * once the title arrives), it changed the prefix ahead of everything that
+     * follows, so a new chat reused almost none of the cache (issue #121).
      */
-    private fun currentTimestampMessage(): ChatMessage {
+    internal fun runContextMessage(): ChatMessage {
         val dateTime = java.text.SimpleDateFormat(
             "EEE MMM dd yyyy, HH:mm:ss 'UTC'Z",
             java.util.Locale.US
         ).apply { timeZone = java.util.TimeZone.getDefault() }.format(java.util.Date())
-        return ChatMessage(role = "system", content = JsonPrimitive("Current date/time: $dateTime"))
+        return ChatMessage(
+            role = "system",
+            content = JsonPrimitive(
+                "Working directory: ${FileResolver.WORKING_DIR_BASE}\n" +
+                    "(Relative paths in read_file/write_file/list_files resolve against the working directory.)\n" +
+                    "Current date/time: $dateTime"
+            )
+        )
     }
 
     /**
@@ -1476,10 +1583,12 @@ class AgentEngine(
      * Builds the environment info string with device info, agent mode,
      * and service statuses (PRD §14.1).
      *
-     * The date/time is intentionally excluded — it is provided via
-     * [currentTimestampMessage] placed after the conversation history
-     * so that this block stays fully static and the server-side KV cache
-     * for the [env block + history] prefix is preserved across calls.
+     * The working directory and date/time are intentionally excluded — they are
+     * provided via [runContextMessage] placed after the conversation history,
+     * so the per-chat directory and per-call timestamp no longer invalidate the
+     * server-side KV cache for the [env block + history] prefix. The rest of the
+     * block can still change between calls (service, VPN, Termux and connector
+     * state), but only when that state does.
      */
     private fun buildEnvironmentString(agent: AgentMode): String {
         val app = appContext
@@ -1556,8 +1665,6 @@ class AgentEngine(
             )
             appendLine("  VPN active: ${if (vpnActive) "yes" else "no"}")
             appendLine("  App version: $versionName")
-            appendLine("  Working directory: ${FileResolver.WORKING_DIR_BASE}")
-            appendLine("  (Relative paths in read_file/write_file/list_files resolve against the working directory.)")
             // Connector state, rebuilt every call. The active list is what lets the
             // model notice a connector that appeared mid-conversation: its own
             // earlier turns may say "no account is connected", and a tool quietly
@@ -1835,6 +1942,9 @@ class AgentEngine(
     }
 
     companion object {
+        /** Tools that run many steps of their own; see [resolveMissingPermission]. */
+        private val REPLAYING_TOOLS = setOf("task", "navigate_app")
+
         /**
          * Returns a copy of [messages] with old screen observations and old images
          * culled. The original list (and [history]) is NOT modified.

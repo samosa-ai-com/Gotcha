@@ -68,7 +68,7 @@ import kotlinx.coroutines.launch
  * switch toggles the body.
  */
 @Composable
-private fun ConnectorHeader(
+internal fun ConnectorHeader(
     title: String,
     status: String,
     expanded: Boolean,
@@ -153,7 +153,7 @@ private fun EnabledRow(
  * credentials yet — the "tap to set up" affordance hint.
  */
 @Composable
-private fun disconnectedHint(status: String): String =
+internal fun disconnectedHint(status: String): String =
     if (status == stringResource(R.string.connector_not_connected)) {
         stringResource(R.string.connector_cards_not_connected_hint)
     } else {

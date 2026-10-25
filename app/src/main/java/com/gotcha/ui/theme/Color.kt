@@ -82,6 +82,9 @@ val OrchidOutline = Color(0xFFB878BE)
 val OrchidOnCoral = Color(0xFF45061F)
 val OrchidCoralContainer = Color(0xFF6E1443)
 
+/** Dialogs and menus: deep enough that coral and the dim ink both clear 4.5:1. */
+val OrchidPopup = Color(0xFF4A1052)
+
 // ---- Nocturne: the icon's facets at wallpaper scale, behind dark glass ----
 val NocturneGround = Color(0xFF0A050E)
 val NocturnePanel = Color(0x8F1A1020)
@@ -102,9 +105,12 @@ val NocturneOnMagentaContainer = Color(0xFFF7D9F2)
 // Glass is for chrome you look past; a sheet you are reading from needs a
 // ground of its own, or the screen behind it reads straight through the text.
 //
-// Material 3 routes all of those through the surfaceContainer* roles, so
-// setting them opaque here fixes the drawer, dialogs and menus in one move,
-// while `surface` and `surfaceVariant` stay translucent for the in-page chrome.
+// The drawer and sheets read the surfaceContainer* roles, so setting them
+// opaque here covers those, while `surface` and `surfaceVariant` stay
+// translucent for the in-page chrome. Dialogs and menus do NOT: Material 3
+// 1.2 paints AlertDialog and DropdownMenu from `surface` (plus a rose tonal
+// tint), which is why SkinAlertDialog and SkinDropdownMenu exist. The
+// `gotcha` detekt rule set enforces both.
 
 val AuraContainerLowest = Color(0xFF050506)
 val AuraContainerLow = Color(0xFF0A0A0B)

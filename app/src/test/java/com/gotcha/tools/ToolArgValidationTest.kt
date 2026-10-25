@@ -132,6 +132,8 @@ class ToolArgValidationTest {
          * - `update_gotcha_settings` is likewise refused to sub-agents: its approval prompt
          *   belongs to the run the user is watching. `GotchaSettingsUpdateTest` and
          *   `SettingsUpdateLoopTest` cover its argument checks at the top level.
+         * - the scheduled-task writes are refused to sub-agents for the same reason;
+         *   `ScheduledTaskToolTest` covers their argument checks.
          */
         val NOT_PARAMETER_NAMED = setOf(
             "create_task",
@@ -143,7 +145,10 @@ class ToolArgValidationTest {
             "notion_mark_todo",
             "notion_delete_item",
             "set_timer",
-            "update_gotcha_settings"
+            "update_gotcha_settings",
+            "schedule_agent_task",
+            "edit_scheduled_task",
+            "delete_scheduled_task"
         )
     }
 }

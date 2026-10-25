@@ -9,6 +9,7 @@ import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.Settings
 import com.gotcha.llm.ChatMessage
 import com.gotcha.llm.LLMClient
+import com.gotcha.llm.ToolCall
 import com.gotcha.llm.withValidToolCallArguments
 import com.gotcha.util.GotchaLog
 import kotlinx.coroutines.CancellationException
@@ -34,11 +35,21 @@ class SubAgentSession(
     private val description: String,
     private val prompt: String,
     private val onStep: (action: String, status: String, detail: String) -> Unit = { _, _, _ -> },
-    private val sessionId: String? = null
+    private val sessionId: String? = null,
+    /**
+     * The main agent's permission ask (issue #133): opens the Settings screen for
+     * a special access, or raises the runtime prompt and runs `retry` on a grant.
+     * Returns the result to keep. The default asks nobody, for hosts with no UI.
+     */
+    private val resolvePermission: suspend (result: ToolResult, retry: suspend () -> ToolResult) -> ToolResult =
+        { result, _ -> result }
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private var activeTokenCount = 0
     private val collectedSteps = mutableListOf<String>()
+
+    /** Permissions already asked for in this run, so a retrying model can't re-prompt. */
+    private val askedPermissions = mutableSetOf<String>()
 
     suspend fun run(): SubAgentOutput {
         val model = settings.subAgentModel.ifBlank { settings.model }
@@ -114,8 +125,17 @@ class SubAgentSession(
                 return SubAgentOutput(answer, collectedSteps.toList())
             }
 
+            // A permission still missing ends this response's calls: the rest were
+            // planned before the model heard it, and running them would act
+            // after the user declined. Each still gets a result, which the next
+            // request needs for every call (issue #133).
+            var blockedOn: String? = null
             for (call in toolCalls) {
                 val toolName = call.function.name
+                blockedOn?.let { permission ->
+                    skipCall(call, permission, history)
+                    continue
+                }
                 onStep(toolName, "running", "")
                 collectedSteps.add("$toolName → (running)")
 
@@ -129,7 +149,7 @@ class SubAgentSession(
                     continue
                 }
 
-                val result = try {
+                suspend fun execute(): ToolResult = try {
                     toolExecutor.execute(
                         call.function.name,
                         args,
@@ -143,6 +163,9 @@ class SubAgentSession(
                     ToolResult.error("Tool '${call.function.name}' failed: ${e.message}")
                 }
 
+                val result = withPermissionResolved(execute()) { execute() }
+                blockedOn = result.needsPermission
+
                 val summary = result.message.take(80)
                 collectedSteps[collectedSteps.lastIndex] = "$toolName → ${if (result.success) "completed" else "failed"}: $summary"
                 onStep(toolName, "completed", summary)
@@ -155,14 +178,7 @@ class SubAgentSession(
                     )
                 )
 
-                // Report reasoning text that sometimes comes alongside tool calls
-                if (message.hasText && collectedSteps.none { it.startsWith("reasoning:") }) {
-                    val thought = message.textContent.take(120)
-                    if (thought.isNotBlank()) {
-                        collectedSteps.add("reasoning: $thought")
-                        onStep("reasoning", "completed", thought)
-                    }
-                }
+                reportReasoning(message)
             }
 
             if (activeTokenCount > settings.maxContextTokens * 0.8) {
@@ -172,6 +188,59 @@ class SubAgentSession(
 
         val msg = "Task exceeded $maxRounds tool rounds without producing a final answer."
         return SubAgentOutput(msg, collectedSteps.toList())
+    }
+
+    /** Reports reasoning text that sometimes comes alongside tool calls, once per run. */
+    private fun reportReasoning(message: ChatMessage) {
+        if (!message.hasText || collectedSteps.any { it.startsWith("reasoning:") }) return
+        val thought = message.textContent.take(120)
+        if (thought.isNotBlank()) {
+            collectedSteps.add("reasoning: $thought")
+            onStep("reasoning", "completed", thought)
+        }
+    }
+
+    /** Answers [call] without running it, as one planned after [permission] was refused. */
+    private fun skipCall(call: ToolCall, permission: String, history: MutableList<ChatMessage>) {
+        val toolName = call.function.name
+        val skipped = "Not run: an earlier call in this step needs $permission, which is not granted."
+        history.add(ChatMessage(role = "tool", content = JsonPrimitive(skipped), toolCallId = call.id))
+        collectedSteps.add("$toolName → skipped: needs $permission")
+        onStep(toolName, "completed", "skipped: needs $permission")
+    }
+
+    /**
+     * Puts a tool's missing permission in front of the user, the way the main
+     * agent does, instead of leaving it as prose in this session's private
+     * history where nobody sees it (issue #133).
+     *
+     * Each permission is asked for once per run, including one that only shows
+     * up when the retry after a grant hits a second permission. Whatever is
+     * still missing afterwards has been asked for, and gets a note telling the
+     * sub-agent to stop and report, so the parent hears a clear "this needs X"
+     * rather than a retry loop.
+     */
+    private suspend fun withPermissionResolved(
+        result: ToolResult,
+        retry: suspend () -> ToolResult
+    ): ToolResult {
+        var resolved = result
+        while (true) {
+            val permission = resolved.needsPermission ?: return resolved
+            if (!askedPermissions.add(permission)) break
+            resolved = resolvePermission(resolved, retry)
+        }
+        val stillMissing = resolved.needsPermission ?: return resolved
+        val note = if (stillMissing.startsWith("special:")) {
+            "The user has to turn $stillMissing on in Settings; Gotcha takes them " +
+                "there once it is in front."
+        } else {
+            "The user did not grant $stillMissing, or Gotcha could not ask for it from here."
+        }
+        return resolved.copy(
+            message = "${resolved.message}\n$note Do not retry this tool. Finish with " +
+                "ask_final_answer, saying which step could not be done and what it needs."
+        )
     }
 
     /** Builds the system + user messages that seed the sub-agent conversation. */
