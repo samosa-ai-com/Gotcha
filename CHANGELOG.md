@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [1.4.0]
 ### Added
 - **A notification when a new version is out** (#126). About twice a day,
   Gotcha checks GitHub for a newer release and, once per version, posts a
