@@ -29,6 +29,11 @@ object GotchaStorage {
         get() = overrideRootPath ?: File(Environment.getExternalStorageDirectory(), "Gotcha").absolutePath
         set(value) { overrideRootPath = value }
 
+    /** Clears a test override so later tests see the real default again. */
+    fun resetRootPathForTests() {
+        overrideRootPath = null
+    }
+
     enum class Kind(val dirName: String) {
         PICTURES("Pictures"),
         RECORDINGS("Recordings"),
@@ -38,6 +43,13 @@ object GotchaStorage {
 
     fun root(): File = File(rootPath)
     fun chatsRoot(): File = File(root(), "chats")
+    fun memoryRoot(): File = File(root(), "memory")
+    fun soulFile(): File = File(memoryRoot(), "SOUL.md")
+    fun memoryIndexFile(): File = File(memoryRoot(), "MEMORY.md")
+    fun memoryUserFile(): File = File(memoryRoot(), "user.md")
+    fun memoryAreasDir(): File = File(memoryRoot(), "areas")
+    fun memoryPeopleDir(): File = File(memoryRoot(), "people")
+    fun memoryNotesDir(): File = File(memoryRoot(), "notes")
     fun callsRoot(): File = File(root(), "calls")
     fun archiveRoot(): File = File(root(), "old_chats")
     fun screenshotsRoot(): File = File(root(), "Screenshots")

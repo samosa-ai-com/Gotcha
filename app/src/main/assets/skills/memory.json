@@ -1,0 +1,9 @@
+{
+    "id": "memory",
+    "targetPackageNames": ["*"],
+    "title": "Persistent Memory Skills",
+    "description": "How to use Gotcha persistent memory under Gotcha/memory.",
+    "requiresTools": ["read_file"],
+    "keywords": ["memory", "soul", "remember", "persona", "user card"],
+    "instructions": "Gotcha persistent memory lives under Gotcha/memory next to chats. SOUL.md is identity and behavior. MEMORY.md is the master map with navigational addresses, never facts. user.md is synced from Settings Personal Info. Detail lives in people/, areas/, notes/ with frontmatter title, area, type, tags, updated.\n\nSession start: SOUL.md and MEMORY.md are already injected as [memory_startup] with absolute paths. Follow them for the whole chat. Load detail files only when the task needs them, with read_file or grep using ABSOLUTE paths. Never resolve memory paths relative to the chat working directory, which is a different folder. Never bulk read the folder.\n\nWrites: OPERATOR only with write_file or edit using absolute paths. In MONITOR, read only, never write. One fact in one place, link by path, never copy-paste content. Keep SOUL.md under 1500 chars and MEMORY.md under 1500 chars so session start stays cheap. Never store passwords, OTPs, API tokens, or private keys in memory files.\n\nAreas start as People, Work, Personal, Health. You may rename, add, or archive an area by editing MEMORY.md plus its hub file in areas/. Update MEMORY.md counts and links when you add a note that starts or advances a thread."
+}

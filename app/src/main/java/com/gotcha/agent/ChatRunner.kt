@@ -173,6 +173,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 ?: return@AgentEngine ToolResult.ok("No material change — profile left as is.")
             settingsRepository.save(merged.updated)
             settings = merged.updated
+            com.gotcha.data.MemoryStore.syncUserFile(merged.updated)
             // Surface the change to the user: the profile is silently re-injected into every
             // future prompt, so a prompt-injected update_user_profile call must not go
             // unnoticed. A TOOL bubble in the transcript gives the user a chance to catch
@@ -790,6 +791,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
     /** Re-reads settings; call after the settings screen saves. */
     fun refreshSettings() {
         settings = settingsRepository.load()
+        com.gotcha.data.MemoryStore.ensureDefaults(settings)
         client = if (settings.isConfigured) {
             LLMClient(
                 apiKey = settings.effectiveApiKey,
