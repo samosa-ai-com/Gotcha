@@ -1745,7 +1745,7 @@
     <string name="mcp_tools_capped">Only the first %1$d are used.</string>
     <string name="mcp_removed_while_saving">That server was removed in the meantime.</string>
     <string name="mcp_error_name">Enter a name for the server.</string>
-    <string name="mcp_error_bad_url">Enter a full URL that starts with https:// (or http:// on your local network).</string>
+    <string name="mcp_error_bad_url">Enter a full URL starting with http:// or https://.</string>
     <string name="mcp_error_cleartext">Use https for a server outside your local network. A token or header sent over http can be read on the way.</string>
     <string name="mcp_error_bad_header">Write each header on its own line, as Name: value.</string>
     <string name="mcp_error_auth">The server refused the token or headers (HTTP %1$d). Check them and try again.</string>
@@ -1753,6 +1753,7 @@
     <string name="mcp_error_old_transport">This server uses the older HTTP+SSE transport, which Gotcha doesn\'t support yet. Use the server\'s Streamable HTTP address if it has one.</string>
     <string name="mcp_error_not_mcp">The server answered, but not as an MCP server: %1$s</string>
     <string name="mcp_error_http">The server returned HTTP %1$d: %2$s</string>
+    <string name="mcp_error_redirect">The server redirects to %1$s, which Gotcha won\'t follow on its own. Enter that address instead.</string>
     <string name="mcp_error_rpc">The server returned an error: %1$s</string>
     <string name="mcp_error_network">Couldn\'t reach the server: %1$s</string>
     <string name="mcp_error_bad_token">The token and header values can only contain plain ASCII characters.</string>

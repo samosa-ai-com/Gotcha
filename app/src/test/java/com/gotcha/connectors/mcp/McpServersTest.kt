@@ -47,19 +47,21 @@ class McpServersTest {
     }
 
     @Test
-    fun `http is fine locally, or with nothing secret, but not with a token over the internet`() {
+    fun `http is fine locally or with nothing secret, and warns otherwise`() {
         assertNull(validateMcpServer("https://mcp.example.com/mcp", "t", emptyMap()))
         assertNull(validateMcpServer("http://192.168.1.20:8080/mcp", "t", emptyMap()))
         assertNull(validateMcpServer("http://homeassistant.local:8123/mcp", "t", emptyMap()))
         assertNull(validateMcpServer("http://mcp.example.com/mcp", "", emptyMap()))
-        assertEquals(
-            McpConfigProblem.CLEARTEXT_WITH_SECRET,
-            validateMcpServer("http://mcp.example.com/mcp", "t", emptyMap())
-        )
-        assertEquals(
-            McpConfigProblem.CLEARTEXT_WITH_SECRET,
-            validateMcpServer("http://8.8.8.8/mcp", "", mapOf("X-Api-Key" to "k"))
-        )
+        // Both schemes are accepted now (issue #154): cleartext with a secret
+        // validates, but still earns the warning.
+        assertNull(validateMcpServer("http://mcp.example.com/mcp", "t", emptyMap()))
+        assertNull(validateMcpServer("http://8.8.8.8/mcp", "", mapOf("X-Api-Key" to "k")))
+        assertFalse(isCleartextWithSecret("https://mcp.example.com/mcp", "t", emptyMap()))
+        assertFalse(isCleartextWithSecret("http://192.168.1.20:8080/mcp", "t", emptyMap()))
+        assertFalse(isCleartextWithSecret("http://mcp.example.com/mcp", "", emptyMap()))
+        assertTrue(isCleartextWithSecret("http://mcp.example.com/mcp", "t", emptyMap()))
+        assertTrue(isCleartextWithSecret("http://8.8.8.8/mcp", "", mapOf("X-Api-Key" to "k")))
+        assertFalse(isCleartextWithSecret("not a url", "t", emptyMap()))
         assertEquals(McpConfigProblem.BAD_URL, validateMcpServer("mcp.example.com", "", emptyMap()))
         assertEquals(McpConfigProblem.BAD_URL, validateMcpServer("ftp://mcp.example.com", "", emptyMap()))
         assertEquals(McpConfigProblem.BAD_HEADER, validateMcpServer("https://x.com", "", mapOf("Bad Name" to "v")))

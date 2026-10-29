@@ -20,11 +20,17 @@ assistant can call them while that server is switched on.
 why it failed. **Save** tests again and stores the server only if it answers. The token and
 headers are kept in Gotcha's encrypted connector store on the phone.
 
-Plain `http://` works for servers on your own network: `localhost`, `.local` and `.lan`
-names, and private, link-local and Tailscale (100.64.0.0/10) addresses. A token or header
-sent over `http://` to anywhere else could be read on the way, so Gotcha asks for `https://`
-there. For the same reason Gotcha never follows a redirect: the token and headers would go to
-a URL it never checked.
+Both `http://` and `https://` addresses are accepted. When a token or header
+would travel over plain `http://` outside your own network (`localhost`,
+`.local` and `.lan` names, private, link-local and Tailscale addresses), the
+card keeps working but warns that it could be read on the way — prefer
+`https://` there. Redirects are followed when they cannot leak anything: the
+same address (scheme, host and port), or an `http://` to `https://` upgrade on
+the same host, with later requests staying on the upgraded address. Anything
+else — another host or port, or a downgrade back to plain `http://` — is
+refused, naming where it points so you can enter that address instead. A
+missing trailing slash is forgiven too: when the server answers 404 on one of
+`/mcp` and `/mcp/`, Gotcha tries the other spelling once.
 
 ## What the assistant gets
 
