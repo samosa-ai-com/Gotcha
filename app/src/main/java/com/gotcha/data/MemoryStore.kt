@@ -1080,11 +1080,12 @@ object MemoryStore {
         runCatching { java.time.ZoneId.systemDefault().id }.getOrNull() ?: "UTC"
 
     fun formatDateForMemory(nowMillis: Long = System.currentTimeMillis()): String {
+        // LocalDate.ofInstant needs API 34; atZone + toLocalDate works from 26.
         val instant = java.time.Instant.ofEpochMilli(nowMillis)
         return runCatching {
-            java.time.LocalDate.ofInstant(instant, java.time.ZoneId.systemDefault()).toString()
+            instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
         }.getOrDefault(
-            java.time.LocalDate.ofInstant(instant, java.time.ZoneOffset.UTC).toString()
+            instant.atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
         )
     }
 
