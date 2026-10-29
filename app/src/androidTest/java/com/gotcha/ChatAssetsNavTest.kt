@@ -2,20 +2,25 @@ package com.gotcha
 
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.gotcha.data.GotchaStorage
 import com.gotcha.testutil.MockLlm
 import com.gotcha.testutil.TestSeed
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
-/** Chat ⋮ menu ▸ Chat assets opens the per-chat file list; back returns. */
+/** Chat ⋮ menu ▸ Chat assets: browse folders, long-press for actions. */
 @RunWith(AndroidJUnit4::class)
 class ChatAssetsNavTest {
 
@@ -29,6 +34,7 @@ class ChatAssetsNavTest {
     fun tearDown() {
         runCatching { scenario?.close() }
         mockLlm.shutdown()
+        GotchaStorage.resetRootPathForTests()
     }
 
     @Test
@@ -36,13 +42,67 @@ class ChatAssetsNavTest {
         mockLlm.start()
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl)
-        // The ⋮ menu only renders on an open chat, and home is message-less:
-        // seed one exchanged line and open it from the drawer.
+        seedSessionWithMessage(context, "assets-nav-empty", "Assets empty")
+        openChatFromDrawer("Assets empty")
+
+        // A fresh seeded chat has no folder: the empty state must show.
+        composeRule.onNodeWithTag("chat_options").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_assets").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_assets_empty").assertExists()
+
+        composeRule.onNodeWithTag("chat_assets_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_input").assertExists()
+    }
+
+    @Test
+    fun chatMenu_assets_browsesFoldersAndDeletes() {
+        mockLlm.start()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl)
+        seedSessionWithMessage(context, "assets-nav-test", "Assets nav")
+        // Point the chat-folder root at app-private storage: shared external
+        // storage needs All-files access the test device may not have, and the
+        // screen reads this same override in-process.
+        GotchaStorage.rootPath = File(context.filesDir, "assets-test-root").absolutePath
+        val chatDir = GotchaStorage.findOrCreateChatDir("assets-nav-test", "Assets nav")
+        File(chatDir, "docs").mkdirs()
+        File(chatDir, "docs/report.txt").writeText("hello")
+        openChatFromDrawer("Assets nav")
+
+        composeRule.onNodeWithTag("chat_options").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_assets").performClick()
+        composeRule.waitForIdle()
+
+        // Into the subfolder, long-press the file, delete it with confirm.
+        composeRule.onNodeWithText("docs").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("report.txt").assertExists()
+        composeRule.onNodeWithText("report.txt").performTouchInput { longClick() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_asset_share").assertExists()
+        composeRule.onNodeWithTag("chat_asset_delete").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_asset_delete_yes").performClick()
+        composeRule.waitUntil(5000) {
+            composeRule.onAllNodesWithText("report.txt").fetchSemanticsNodes().isEmpty()
+        }
+
+        // Back up to the chat folder: the file is gone, the folder remains.
+        composeRule.onNodeWithTag("chat_assets_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("docs").assertExists()
+    }
+
+    private fun seedSessionWithMessage(context: android.content.Context, id: String, title: String) {
         kotlinx.coroutines.runBlocking {
             com.gotcha.data.ChatHistoryRepository(context).saveSession(
                 com.gotcha.data.ChatSession(
-                    id = "assets-nav-test",
-                    title = "Assets nav",
+                    id = id,
+                    title = title,
                     lastModified = System.currentTimeMillis(),
                     messages = listOf(
                         com.gotcha.llm.ChatMessage(
@@ -61,23 +121,15 @@ class ChatAssetsNavTest {
                 touch = true
             )
         }
+    }
+
+    private fun openChatFromDrawer(title: String) {
         scenario = ActivityScenario.launch(MainActivity::class.java)
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("chat_input").assertExists()
         composeRule.onNode(hasContentDescription("Open menu")).performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Assets nav").performClick()
+        composeRule.onNodeWithText(title).performClick()
         composeRule.waitForIdle()
-
-        // A fresh seeded chat has no folder: the empty state must show.
-        composeRule.onNodeWithTag("chat_options").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("chat_assets").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("chat_assets_empty").assertExists()
-
-        composeRule.onNodeWithTag("chat_assets_back").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("chat_input").assertExists()
     }
 }

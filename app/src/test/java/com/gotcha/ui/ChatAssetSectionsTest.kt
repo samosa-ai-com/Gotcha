@@ -8,7 +8,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 
-/** Pure grouping behind ChatAssetsScreen: no Android framework needed. */
+/** Pure listing behind ChatAssetsScreen: no Android framework needed. */
 class ChatAssetSectionsTest {
 
     @get:Rule
@@ -23,46 +23,42 @@ class ChatAssetSectionsTest {
     }
 
     @Test
-    fun `empty folder has no sections`() {
-        assertTrue(chatAssetSections(tmp.root).isEmpty())
+    fun `empty folder has no entries`() {
+        assertTrue(chatDirEntries(tmp.root).isEmpty())
     }
 
     @Test
-    fun `kinds come first loose files last newest first`() {
-        val chatDir = tmp.root
-        file(File(chatDir, "Pictures"), "old.png", 1000)
-        file(File(chatDir, "Pictures"), "new.png", 3000)
-        file(chatDir, "note.md", 2000)
+    fun `folders first alphabetical then files newest first`() {
+        val dir = tmp.root
+        file(File(dir, "zebra"), "a.txt", 1000)
+        file(File(dir, "apple"), "b.txt", 1000)
+        file(File(dir, "Pictures"), "old.png", 1000)
+        file(File(dir, "Pictures"), "new.png", 3000)
+        file(dir, "note.md", 2000)
 
-        val sections = chatAssetSections(chatDir)
+        val entries = chatDirEntries(dir)
 
-        assertEquals(
-            listOf(GotchaStorage.Kind.PICTURES, null),
-            sections.map { it.kind }
+        val folders = entries.filterIsInstance<ChatAssetEntry.Folder>().map { it.name }
+        assertEquals(listOf("apple", "Pictures", "zebra"), folders)
+        val files = entries.filterIsInstance<ChatAssetEntry.Asset>()
+        assertEquals(listOf("new.png", "old.png", "note.md"), files.map { it.name })
+        assertTrue(files[0].detail.startsWith("PNG · "))
+        // Every folder sorts before every file.
+        assertTrue(
+            entries.indexOfLast { it is ChatAssetEntry.Folder } <
+                entries.indexOfFirst { it is ChatAssetEntry.Asset }
         )
-        assertEquals(listOf("new.png", "old.png"), sections[0].items.map { it.name })
-        assertEquals(listOf("note.md"), sections[1].items.map { it.name })
-        assertTrue(sections[0].items[0].detail.startsWith("PNG · "))
     }
 
     @Test
-    fun `empty kind folders are skipped`() {
-        val chatDir = tmp.root
-        File(chatDir, "Recordings").mkdirs()
-        file(chatDir, "audio.m4a", 1000)
+    fun `dot entries stay hidden`() {
+        val dir = tmp.root
+        file(File(dir, GotchaStorage.Kind.DEBUG.dirName), "trace.txt", 1000)
+        file(dir, ".nomedia", 1000)
+        file(dir, "visible.txt", 1000)
 
-        val sections = chatAssetSections(chatDir)
+        val entries = chatDirEntries(dir)
 
-        // Only the loose file: the empty Recordings dir adds no section.
-        assertEquals(1, sections.size)
-        assertEquals(null, sections[0].kind)
-    }
-
-    @Test
-    fun `debug folders are not listed`() {
-        val chatDir = tmp.root
-        file(File(chatDir, GotchaStorage.Kind.DEBUG.dirName), "trace.txt", 1000)
-
-        assertTrue(chatAssetSections(chatDir).isEmpty())
+        assertEquals(listOf("visible.txt"), entries.map { it.name })
     }
 }
