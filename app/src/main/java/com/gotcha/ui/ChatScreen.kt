@@ -127,6 +127,7 @@ fun ChatScreen(
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
     onBackupChat: () -> Unit = {},
+    onOpenChatAssets: () -> Unit = {},
     onReturnToRunning: () -> Unit = {},
     onCreateShareCard: () -> Unit = {},
     onEditMessage: (Long, String, List<ComposerAttachment>) -> Unit = { _, _, _ -> },
@@ -303,6 +304,7 @@ fun ChatScreen(
                         ChatOptionsMenu(
                             onExportChat = onExportChat,
                             onBackupChat = onBackupChat,
+                            onOpenChatAssets = onOpenChatAssets,
                             onCreateShareCard = onCreateShareCard,
                             shareEnabled = !state.isBusy,
                             keptOutOfNotifications = chatKeptOutOfNotifications,
@@ -960,6 +962,7 @@ private fun UnreadBadge(count: Int, showCount: Boolean, modifier: Modifier = Mod
 private fun ChatOptionsMenu(
     onExportChat: () -> Unit,
     onBackupChat: () -> Unit,
+    onOpenChatAssets: () -> Unit,
     onCreateShareCard: () -> Unit,
     shareEnabled: Boolean,
     keptOutOfNotifications: Boolean,
@@ -1026,6 +1029,14 @@ private fun ChatOptionsMenu(
                     onBackupChat()
                 },
                 modifier = Modifier.testTag("chat_backup")
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_assets)) },
+                onClick = {
+                    expanded = false
+                    onOpenChatAssets()
+                },
+                modifier = Modifier.testTag("chat_assets")
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.chat_create_share_card)) },

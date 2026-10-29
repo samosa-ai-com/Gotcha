@@ -1091,6 +1091,14 @@
     <string name="chat_export_chat">Export chat</string>
     <string name="chat_back_up_chat">Back up chat</string>
     <string name="chat_create_share_card">Create share card</string>
+    <string name="chat_assets">Chat assets</string>
+    <string name="chat_assets_title">Chat assets</string>
+    <string name="chat_assets_empty">No files yet. Things Gotcha creates for this chat land here.</string>
+    <string name="chat_assets_pictures">Pictures</string>
+    <string name="chat_assets_recordings">Recordings</string>
+    <string name="chat_assets_screenshots">Screenshots</string>
+    <string name="chat_assets_other_files">Other files</string>
+    <string name="chat_assets_open_failed">Couldn\'t open that file.</string>
     <string name="chat_keep_out_of_notifications">Keep out of notifications</string>
     <string name="chat_stop_reading_aloud">Stop reading aloud</string>
     <string name="chat_gotcha_logo">Gotcha logo</string>

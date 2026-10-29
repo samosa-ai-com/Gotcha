@@ -77,6 +77,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
+import com.gotcha.ui.ChatAssetsScreen
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ChatTransferDialogs
 import com.gotcha.ui.ConnectorsScreen
@@ -114,7 +115,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS, INBOX }
+enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -859,6 +860,9 @@ class MainActivity : ComponentActivity() {
         var settingsPage by rememberSaveable {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
+        // The chat whose assets ChatAssetsScreen shows; set on the tap that
+        // navigates there, alongside the route, like settingsPage is for Settings.
+        var assetsSessionId by rememberSaveable { mutableStateOf<String?>(null) }
         // The field a settings search result opened settingsPage on. Only that
         // tap sets it; every other way of changing page clears it, so it can't
         // outlive the visit it was meant for. Deliberately not saveable: after a
@@ -1231,6 +1235,14 @@ class MainActivity : ComponentActivity() {
                     BackHandler { leaveConnectors() }
                     ConnectorsScreen(onBack = leaveConnectors)
                 }
+                Route.CHAT_ASSETS -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    // Both are saveable and always set together; a null id
+                    // only shows a blank frame rather than navigating mid-compose.
+                    assetsSessionId?.let { id ->
+                        ChatAssetsScreen(sessionId = id, onBack = { currentRoute = Route.HOME })
+                    }
+                }
                 Route.HOME -> {
                     // Back from an active chat returns to a fresh home (new session,
                     // new greeting); on an empty home the default back exits the app.
@@ -1276,6 +1288,12 @@ class MainActivity : ComponentActivity() {
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
                         onBackupChat = { state.activeSessionId?.let(chatTransfer::startBackup) },
+                        onOpenChatAssets = {
+                            state.activeSessionId?.let { id ->
+                                assetsSessionId = id
+                                currentRoute = Route.CHAT_ASSETS
+                            }
+                        },
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },

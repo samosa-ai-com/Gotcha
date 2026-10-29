@@ -102,8 +102,9 @@ if needed.
 Settings, on their own Connectors screen.
 
 **Whole-library chat backup and import live in Settings ▸ Chats.** A chat's ⋮ menu has
-**Export chat** (shares the conversation as readable Markdown) and **Back up
-chat** (saves the whole chat to a `.gotcha.json` file, images optional). Settings ▸ Chats has
+**Export chat** (shares the conversation as readable Markdown), **Back up
+chat** (saves the whole chat to a `.gotcha.json` file, images optional), and
+**Chat assets** (the files Gotcha created for that chat). Settings ▸ Chats has
 **Back up all chats** and **Import chats**, which reads
 either kind of file back. A Markdown export imports as text only, without its
 images, attachments or full tool arguments; a backup restores everything. In
