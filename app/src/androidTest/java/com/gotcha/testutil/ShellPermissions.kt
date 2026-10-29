@@ -21,6 +21,11 @@ object ShellPermissions {
 
     fun revokeOverlay() = shell("appops set $PACKAGE_NAME SYSTEM_ALERT_WINDOW deny")
 
+    /** RECORD_AUDIO grant state drives the ball's mic-gated start path (issue #148). */
+    fun revokeMic() = shell("pm revoke $PACKAGE_NAME android.permission.RECORD_AUDIO")
+
+    fun grantMic() = shell("pm grant $PACKAGE_NAME android.permission.RECORD_AUDIO")
+
     fun enableAccessibilityService() {
         shell(
             "settings put secure enabled_accessibility_services " +

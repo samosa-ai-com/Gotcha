@@ -16,7 +16,7 @@ class WakeWordBootReceiver : BroadcastReceiver() {
         // Microphone-type foreground services throw without RECORD_AUDIO
         // (issue #148): stay off quietly after a reboot that cleared the
         // grant. The toggle asks again when the user re-enables the ball.
-        if (androidx.core.content.ContextCompat.checkSelfPermission(
+        if (ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.RECORD_AUDIO
             ) != android.content.pm.PackageManager.PERMISSION_GRANTED

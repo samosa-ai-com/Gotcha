@@ -356,7 +356,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 Toast.makeText(
                     this,
-                    "The floating ball needs microphone access to run.",
+                    getString(R.string.ball_microphone_permission_not_granted),
                     Toast.LENGTH_LONG
                 ).show()
                 persistAssistiveBall(false)
