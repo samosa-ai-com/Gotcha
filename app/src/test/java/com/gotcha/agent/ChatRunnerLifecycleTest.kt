@@ -332,6 +332,81 @@ class ChatRunnerLifecycleTest {
     }
 
     @Test
+    fun `a mode switch is announced immediately before the next user message`() = withSilentModel { requestHeld ->
+        val runner = runner()
+        runner.bindFresh("mode-notice", AgentMode.MONITOR)
+        runner.pendingModeNotice = ModeNotice("mode-notice", AgentMode.OPERATOR)
+        runner.send(
+            ViewedChat("mode-notice", emptyList(), AgentMode.OPERATOR, personaId = null),
+            "hi",
+            emptyList(),
+            isVoice = false
+        )
+        awaitModelRequest(requestHeld)
+
+        val history = runner.engine.history
+        val notice = history.indexOfFirst { it.role == "system" && "Switched to Operator" in it.textContent }
+        val user = history.indexOfFirst { it.role == "user" }
+        assertTrue("mode notice missing", notice >= 0)
+        assertTrue("notice must precede the user message", user > notice)
+        assertNull("notice is one-shot", runner.pendingModeNotice)
+
+        runner.stop()
+        waitForRunToFinish()
+    }
+
+    @Test
+    fun `a mode switch waits for its own chat's send`() = withSilentModel { requestHeld ->
+        val runner = runner()
+        runner.bindFresh("mode-notice-a", AgentMode.MONITOR)
+        runner.pendingModeNotice = ModeNotice("mode-notice-a", AgentMode.OPERATOR)
+        runner.send(
+            ViewedChat("mode-notice-b", emptyList(), AgentMode.OPERATOR, personaId = null),
+            "hi",
+            emptyList(),
+            isVoice = false
+        )
+        awaitModelRequest(requestHeld)
+
+        assertTrue(
+            "no mode notice in the other chat",
+            runner.engine.history.none { it.role == "system" && "Switched to" in it.textContent }
+        )
+        assertEquals(
+            "notice kept for its own chat",
+            ModeNotice("mode-notice-a", AgentMode.OPERATOR),
+            runner.pendingModeNotice
+        )
+
+        runner.stop()
+        waitForRunToFinish()
+
+        // Back in its own chat, the notice goes out ahead of the message.
+        runner.send(
+            ViewedChat("mode-notice-a", emptyList(), AgentMode.OPERATOR, personaId = null),
+            "hey",
+            emptyList(),
+            isVoice = false
+        )
+        val deadline = System.currentTimeMillis() + 5_000
+        while (System.currentTimeMillis() < deadline &&
+            runner.engine.history.none { it.role == "user" && "hey" in it.textContent }
+        ) {
+            ShadowLooper.idleMainLooper()
+            Thread.sleep(10)
+        }
+        val history = runner.engine.history
+        val notice = history.indexOfFirst { it.role == "system" && "Switched to Operator" in it.textContent }
+        val user = history.indexOfFirst { it.role == "user" && "hey" in it.textContent }
+        assertTrue("mode notice missing", notice >= 0)
+        assertTrue("notice must precede the user message", user > notice)
+        assertNull("notice is one-shot", runner.pendingModeNotice)
+
+        runner.stop()
+        waitForRunToFinish()
+    }
+
+    @Test
     fun `a second send before the first run starts is refused`() {
         // Saved, and not the chat the engine is on, so the first send suspends
         // loading it from disk before the run shows as busy.

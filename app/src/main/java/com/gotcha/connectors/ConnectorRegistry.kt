@@ -80,6 +80,18 @@ object ConnectorRegistry {
 
     fun byId(id: String): Connector? = connectors.firstOrNull { it.id == id }
 
+    /**
+     * Names of the user's MCP servers that are switched on, for the system
+     * prompt: Monitor withholds their acting tools, so without this line it
+     * cannot even suggest switching to Operator. Empty before init, and when
+     * the whole connector is switched off (it then contributes no tools).
+     */
+    fun enabledMcpServerNames(disabledConnectors: Set<String>): List<String> {
+        if (McpServersConnector.ID in disabledConnectors) return emptyList()
+        return (byId(McpServersConnector.ID) as? McpServersConnector)
+            ?.servers()?.filter { it.enabled }?.map { it.name }.orEmpty()
+    }
+
     /** Connectors that are connected and not switched off by the user. */
     fun active(disabledConnectors: Set<String>): List<Connector> =
         connectors.filter { it.isActive(disabledConnectors) }

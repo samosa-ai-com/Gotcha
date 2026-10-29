@@ -55,7 +55,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * A document the user picked from the system picker. The extracted [text] is what
@@ -973,22 +972,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
         _uiState.update { it.copy(activeAgent = next) }
         // Instruct the LLM ("you" = the agent) and show the user a separate,
         // user-facing notice — the history wording reads wrong in the chat UI.
-        val llmMsg = when (next) {
-            AgentMode.MONITOR ->
-                "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. " +
-                    "No changes to the device are permitted.]"
-            AgentMode.OPERATOR -> "[System: Switched to Operator. You are now permitted to make changes to the device.]"
-        }
         val uiMsg = when (next) {
             AgentMode.MONITOR ->
                 str(R.string.chat_vm_switched_to_monitor_mode_the)
             AgentMode.OPERATOR ->
                 str(R.string.chat_vm_switched_to_operator_mode_the)
         }
-        // Only inject into the LLM history when the viewed chat is the engine's;
-        // otherwise the mode is applied at the next send (run(engineAgent)).
+        // The announcement itself waits for the next send (ChatRunner queues
+        // it ahead of the new user message): injected mid-transcript it would
+        // age behind turns of the old mode, and mid-run the tools are fixed
+        // for the run anyway.
+        runner.pendingModeNotice = ModeNotice(_uiState.value.activeSessionId, next)
         if (viewingEngineSession()) {
-            runner.engine.history += ChatMessage(role = "system", content = JsonPrimitive(llmMsg))
             runner.engineAgent = next
         }
         appendUi(MessageKind.ASSISTANT, uiMsg)

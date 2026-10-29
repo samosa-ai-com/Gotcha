@@ -90,7 +90,10 @@ class AgentEngine(
     /** Supplies the current on-screen transcript to persist alongside history. */
     private val displayMessagesProvider: () -> List<UiMessage> = { emptyList() },
     /** Supplies the active agent mode to persist so it survives restarts. */
-    private val agentModeProvider: () -> AgentMode? = { null }
+    private val agentModeProvider: () -> AgentMode? = { null },
+    /** Names of the user's enabled MCP servers, for Monitor's prompt line. */
+    private val mcpServerNamesProvider: () -> List<String> =
+        { ConnectorRegistry.enabledMcpServerNames(settingsProvider().disabledConnectors) }
 ) {
 
     /** LLM-shaped history (excludes the system prompt, which is prepended per call). */
@@ -1719,6 +1722,20 @@ class AgentEngine(
                     "  Connected accounts, usable right now via their tools: " +
                         active.joinToString(", ") { it.displayName }
                 )
+            }
+            // Monitor withholds acting MCP tools, so without this line it can
+            // neither see them nor suggest the switch that would unlock them.
+            // Operator already has the tools (server-named in their
+            // descriptions), so it needs no such line.
+            if (agent == AgentMode.MONITOR) {
+                val mcpNames = mcpServerNamesProvider()
+                if (mcpNames.isNotEmpty()) {
+                    appendLine(
+                        "  Connected MCP servers: " + mcpNames.joinToString(", ") + ". " +
+                            "Their tools need Operator mode unless marked read-only — " +
+                            "suggest switching if the user asks for one."
+                    )
+                }
             }
             val unconfigured = ConnectorRegistry.unconfigured()
             if (unconfigured.isNotEmpty()) {

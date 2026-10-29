@@ -62,14 +62,15 @@ class AgentPromptTest {
         ShadowExternalStorageManager.resetGranted()
     }
 
-    private fun buildEngine(mode: AgentMode, settings: Settings = testSettings()): AgentEngine {
+    private fun buildEngine(mode: AgentMode, settings: Settings = testSettings(), mcpNames: List<String> = emptyList()): AgentEngine {
         val engine = AgentEngine(
             appContext = context,
             events = RecordingAgentEvents(),
             historyRepository = ChatHistoryRepository(context, "agent-prompt-test-chats"),
             settingsProvider = { settings },
             clientProvider = { LLMClient(apiKey = "test-key", baseUrl = server.url("/").toString()) },
-            workingDirRoot = workDir.absolutePath
+            workingDirRoot = workDir.absolutePath,
+            mcpServerNamesProvider = { mcpNames }
         )
         engine.sessionId = "agent-prompt-test-$mode"
         FileResolver.WORKING_DIR_BASE = workDir.absolutePath
@@ -87,12 +88,13 @@ class AgentPromptTest {
     private suspend fun requestBodyFor(
         mode: AgentMode,
         settings: Settings = testSettings(),
-        personaId: String? = null
+        personaId: String? = null,
+        mcpNames: List<String> = emptyList()
     ): String {
         server.enqueue(
             MockResponse().setBody("""{"choices":[{"message":{"role":"assistant","content":"ok"}}]}""")
         )
-        buildEngine(mode, settings).apply { sessionPersonaId = personaId }.run(mode)
+        buildEngine(mode, settings, mcpNames).apply { sessionPersonaId = personaId }.run(mode)
         return server.takeRequest().body.readUtf8()
     }
 
@@ -235,5 +237,53 @@ class AgentPromptTest {
         val persona = body.indexOf("has chosen the Doctor persona")
         val reminder = body.indexOf("You are in MONITOR (read-only) mode")
         assertTrue(persona in 0 until reminder)
+    }
+
+    @Test
+    fun `one engine switching modes sends the new mode's prompt`() = runTest {
+        // The reported doubt: after Monitor -> Operator, does the next run go
+        // out with Operator's prompt, or stale Monitor wording? One engine,
+        // two turns, two wire bodies.
+        repeat(2) {
+            server.enqueue(
+                MockResponse().setBody("""{"choices":[{"message":{"role":"assistant","content":"ok"}}]}""")
+            )
+        }
+        val engine = buildEngine(AgentMode.MONITOR)
+        engine.history += com.gotcha.llm.ChatMessage(
+            role = "user",
+            content = kotlinx.serialization.json.JsonPrimitive("look around")
+        )
+        engine.run(AgentMode.MONITOR)
+        val first = server.takeRequest().body.readUtf8()
+        assertTrue(first.contains("You are in MONITOR (read-only) mode"))
+
+        engine.history += com.gotcha.llm.ChatMessage(
+            role = "user",
+            content = kotlinx.serialization.json.JsonPrimitive("now change it")
+        )
+        engine.run(AgentMode.OPERATOR)
+        val second = server.takeRequest().body.readUtf8()
+        assertTrue(second.contains("You are in OPERATOR mode"))
+        assertTrue(!second.contains("You are in MONITOR (read-only) mode"))
+    }
+
+    @Test
+    fun `MONITOR prompt names connected MCP servers and suggests Operator`() = runTest {
+        val body = requestBodyFor(AgentMode.MONITOR, mcpNames = listOf("stub-markdown"))
+        assertTrue(body.contains("Connected MCP servers: stub-markdown"))
+        assertTrue(body.contains("suggest switching"))
+    }
+
+    @Test
+    fun `OPERATOR prompt carries no MCP switch line`() = runTest {
+        val body = requestBodyFor(AgentMode.OPERATOR, mcpNames = listOf("stub-markdown"))
+        assertTrue(!body.contains("need Operator mode"))
+    }
+
+    @Test
+    fun `MONITOR prompt without MCP servers names none`() = runTest {
+        val body = requestBodyFor(AgentMode.MONITOR)
+        assertTrue(!body.contains("Connected MCP servers"))
     }
 }

@@ -107,6 +107,24 @@ data class ViewedChat(
 )
 
 /**
+ * A mode switch queued for announcement: the chat it happened in, and the
+ * mode the next send in that chat must announce.
+ */
+internal data class ModeNotice(val sessionId: String?, val mode: AgentMode)
+
+/**
+ * The mode-change announcement a switch queues for the next send. Worded as
+ * the switch itself speaking, placed immediately before the new user message.
+ */
+internal fun modeNoticeText(mode: AgentMode): String = when (mode) {
+    AgentMode.MONITOR ->
+        "[System: Switched to Monitor (read-only). You may now ONLY inspect and observe. " +
+            "No changes to the device are permitted.]"
+    AgentMode.OPERATOR ->
+        "[System: Switched to Operator. You are now permitted to make changes to the device.]"
+}
+
+/**
  * Owns the chat agent and the run in progress, for as long as the process lives
  * (issue #111). A run used to live in `ChatViewModel.viewModelScope`, so it ended
  * whenever `MainActivity` finished: swiped out of Recents, or Back on the home
@@ -229,6 +247,17 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     /** Agent mode of the session currently bound to [engine]. */
     internal var engineAgent: AgentMode = AgentMode.MONITOR
+
+    /**
+     * A mode switch waiting for its announcement, scoped to the chat where the
+     * switch happened. Set by every switch, consumed by the next send in that
+     * chat: the notice lands in history immediately before the new user
+     * message, so it is the freshest context the model reads — however long
+     * the transcript of the previous mode runs. A second switch before the
+     * send replaces it, so only the latest mode is ever announced. Sends in
+     * other chats leave it alone: the notice belongs to the switch interaction.
+     */
+    internal var pendingModeNotice: ModeNotice? = null
 
     /**
      * True when the run in flight has so far ended on an error bubble (LLM
@@ -457,6 +486,10 @@ class ChatRunner(private val app: Application) : AgentEvents {
             // previous run finished while the user browsed elsewhere, the engine
             // may still point at that older session — reload the viewed one.
             bindForSend(view)
+            pendingModeNotice?.takeIf { it.sessionId == view.sessionId }?.let { notice ->
+                pendingModeNotice = null
+                engine.history += ChatMessage(role = "system", content = JsonPrimitive(modeNoticeText(notice.mode)))
+            }
             val msg = buildUserMessage(text, attachments)
             engine.history += msg
             appendTranscript(MessageKind.USER, userDisplayText(text, msg, attachments), attachments = attachments)

@@ -346,4 +346,11 @@ class ConnectorGatingTest {
         assertTrue(ToolRegistry.toolsForAgent(AgentMode.OPERATOR).none { it.function.name == "HassGetState" })
         assertTrue(ToolRegistry.toolsForAgent(AgentMode.MONITOR).none { it.function.name == "HassGetState" })
     }
+
+    @Test
+    fun `a switched-off MCP connector names no servers for the prompt`() {
+        // The short-circuit must hold without a populated registry: a prompt
+        // line naming servers whose connector contributes no tools would lie.
+        assertTrue(ConnectorRegistry.enabledMcpServerNames(setOf("mcp")).isEmpty())
+    }
 }
