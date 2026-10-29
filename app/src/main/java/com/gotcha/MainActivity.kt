@@ -334,6 +334,35 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    /** Set while the ball's microphone rationale is up, before its system prompt. */
+    private var askBallMicPermission by mutableStateOf(false)
+
+    /**
+     * The microphone, asked when the assistive-ball toggle is flipped on
+     * without a mic grant (issue #148). The ball service starts as a
+     * microphone-type foreground service, which throws SecurityException —
+     * killing the whole app — when RECORD_AUDIO is missing. A grant starts the
+     * ball straight away and the toggle follows the service's real state via
+     * the isRunning collector; a permanent denial says where the switch lives.
+     */
+    private val ballMicPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                startForegroundService(AssistiveBallService.startIntent(this))
+                persistAssistiveBall(true)
+            } else if (!shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+                blockedPermissionAsk = runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO, this@MainActivity.stringLookup())
+                persistAssistiveBall(false)
+            } else {
+                Toast.makeText(
+                    this,
+                    getString(R.string.ball_microphone_permission_not_granted),
+                    Toast.LENGTH_LONG
+                ).show()
+                persistAssistiveBall(false)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleOwner = this
@@ -752,6 +781,15 @@ class MainActivity : ComponentActivity() {
                 persistAssistiveBall(false)
                 return false
             }
+            // Microphone-type foreground services throw SecurityException
+            // without RECORD_AUDIO (issue #148): ask first, start on grant.
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                askBallMicPermission = true
+                persistAssistiveBall(false)
+                return false
+            }
             startForegroundService(AssistiveBallService.startIntent(this))
             persistAssistiveBall(true)
             return true
@@ -880,6 +918,7 @@ class MainActivity : ComponentActivity() {
             state.pendingQuestion == null &&
             !state.askNotificationPermission &&
             !askMicPermission &&
+            !askBallMicPermission &&
             blockedPermissionAsk == null &&
             chatTransferState == ChatTransferState.Idle &&
             !showFeedbackSheet &&
@@ -1405,6 +1444,24 @@ class MainActivity : ComponentActivity() {
                 ask = ask,
                 onAllow = { notificationPermissionLauncher.launch(ask.permission) },
                 onDeny = { chatViewModel.onNotificationPermissionResult(false) }
+            )
+        }
+
+        if (askBallMicPermission) {
+            val ask =
+                remember {
+                    runtimePermissionAsk(
+                        android.Manifest.permission.RECORD_AUDIO,
+                        this@MainActivity.stringLookup()
+                    )
+                }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = {
+                    askBallMicPermission = false
+                    ballMicPermissionLauncher.launch(ask.permission)
+                },
+                onDeny = { askBallMicPermission = false }
             )
         }
 
