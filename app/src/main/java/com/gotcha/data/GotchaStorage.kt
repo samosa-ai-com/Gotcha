@@ -50,6 +50,7 @@ object GotchaStorage {
     fun memoryAreasDir(): File = File(memoryRoot(), "areas")
     fun memoryPeopleDir(): File = File(memoryRoot(), "people")
     fun memoryNotesDir(): File = File(memoryRoot(), "notes")
+    fun memoryRawDir(): File = File(memoryRoot(), "raw")
     fun callsRoot(): File = File(root(), "calls")
     fun archiveRoot(): File = File(root(), "old_chats")
     fun screenshotsRoot(): File = File(root(), "Screenshots")
