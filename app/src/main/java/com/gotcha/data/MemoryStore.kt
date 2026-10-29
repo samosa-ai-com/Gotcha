@@ -112,7 +112,7 @@ object MemoryStore {
             appendLine("<soul_md>")
             if (soul != null) {
                 appendLine(soul.text)
-                if (soul.truncated > 0) appendLine("... truncated, ${soul.truncated} chars omitted ...")
+                if (soul.truncated) appendLine("... truncated, showing first $SOUL_CAP_CHARS chars ...")
             } else {
                 appendLine("(missing - continue with Personal Info)")
             }
@@ -121,7 +121,7 @@ object MemoryStore {
             appendLine("<memory_md>")
             if (index != null) {
                 appendLine(index.text)
-                if (index.truncated > 0) appendLine("... truncated, ${index.truncated} chars omitted ...")
+                if (index.truncated) appendLine("... truncated, showing first $MEMORY_CAP_CHARS chars ...")
             } else {
                 appendLine("(missing - continue with Personal Info)")
             }
@@ -188,8 +188,10 @@ object MemoryStore {
 
     /**
      * Builds the node-link graph: one node per markdown file plus one per raw
-     * file, edges from [[links]] resolved against relative paths first
-     * (areas/work.md) then bare names (work.md), deduplicated.
+     * file, edges from [[links]] resolved source-relative first
+     * (notes/plan from notes/trip.md), then vault-relative (areas/work.md),
+     * then a bare name only when it is unique. Dangling and self links and
+     * ambiguous bare names produce no edge. Deduplicated.
      *
      * Node ids are memory-relative paths (areas/work.md, raw/memo.mp3), so two
      * sections can hold same-named files without colliding. Link targets are
@@ -199,13 +201,7 @@ object MemoryStore {
     fun buildGraph(snapshot: SecondBrainSnapshot): BrainGraph {
         val nodes = mutableListOf<BrainNode>()
         val byFull = mutableMapOf<String, String>()
-        val byBase = mutableMapOf<String, String>()
         fun norm(path: String): String = path.lowercase().removeSuffix(".md").removeSuffix(".markdown")
-        fun addNode(id: String, label: String, kind: String) {
-            nodes.add(BrainNode(id, label, kind))
-            byFull.putIfAbsent(norm(id), id)
-            byBase.putIfAbsent(norm(id.substringAfterLast('/')), id)
-        }
         fun relId(file: BrainFile, fallback: String): String {
             val abs = file.absolutePath
             if (abs.isNotBlank()) {
@@ -218,6 +214,10 @@ object MemoryStore {
         }
         data class Source(val id: String, val file: BrainFile)
         val sources = mutableListOf<Source>()
+        fun addNode(id: String, label: String, kind: String) {
+            nodes.add(BrainNode(id, label, kind))
+            byFull.putIfAbsent(norm(id), id)
+        }
         fun addSource(file: BrainFile?, fallbackId: String, label: String, kind: String) {
             if (file == null) return
             val id = relId(file, fallbackId)
@@ -231,16 +231,34 @@ object MemoryStore {
         snapshot.people.forEach { addSource(it, "people/${it.name}", it.name.removeSuffix(".md"), "person") }
         snapshot.notes.forEach { addSource(it, "notes/${it.name}", it.name.removeSuffix(".md"), "note") }
         snapshot.raw.forEach { addSource(it, "raw/${it.name}", it.name, "raw") }
-        fun resolve(target: String): String? {
-            val normTarget = norm(target.trim())
-            if (normTarget.isEmpty()) return null
-            return byFull[normTarget] ?: byBase[normTarget] ?: byBase[normTarget.substringAfterLast('/')]
+        fun resolve(target: String, sourceId: String): String? {
+            val raw = target.trim()
+            if (raw.isEmpty()) return null
+            val sourceDir = sourceId.substringBeforeLast('/', "")
+            // (a) Relative to the source file's directory, then (b) vault-relative.
+            val candidates = buildList {
+                if (sourceDir.isNotEmpty()) {
+                    add("$sourceDir/$raw")
+                    add("$sourceDir/$raw.md")
+                    add("$sourceDir/$raw.markdown")
+                }
+                add(raw)
+                add("$raw.md")
+                add("$raw.markdown")
+            }
+            candidates.forEach { candidate ->
+                byFull[norm(candidate)]?.let { return it }
+            }
+            // (c) Bare-name fallback only when it names exactly one node.
+            val base = norm(raw).substringAfterLast('/')
+            val matches = nodes.filter { norm(it.id).substringAfterLast('/') == base }.map { it.id }
+            return matches.singleOrNull()
         }
         val edges = mutableSetOf<BrainEdge>()
         sources.forEach { source ->
             if (!source.file.isMarkdown) return@forEach
             parseWikiLinks(fullTextForLinks(source.file)).forEach { target ->
-                val toId = resolve(target)
+                val toId = resolve(target, source.id)
                 if (toId != null && toId != source.id) edges.add(BrainEdge(source.id, toId))
             }
         }
@@ -408,7 +426,7 @@ object MemoryStore {
         return try {
             if (!dir.exists() || !dir.isDirectory) return emptyList()
             dir.listFiles()
-                ?.filter { it.isFile && it.name.endsWith(".md") }
+                ?.filter { it.isFile && it.name.substringAfterLast('.', "").lowercase() == "md" }
                 ?.sortedBy { it.name.lowercase() }
                 ?.mapNotNull { loadBrainFile(it) }
                 .orEmpty()
@@ -431,20 +449,20 @@ object MemoryStore {
         }
     }
 
-    internal data class CappedText(val text: String, val truncated: Int)
+    internal data class CappedText(val text: String, val truncated: Boolean)
 
+    /**
+     * Bounded read for session startup: streams at most cap+1 chars so a huge
+     * or malformed file can never stall a run or exhaust the heap.
+     */
     internal fun readCapped(file: File, cap: Int): CappedText? {
-        return try {
-            if (!file.exists()) return null
-            val raw = file.readText().trim()
-            if (raw.isEmpty()) return null
-            if (raw.length <= cap) {
-                CappedText(raw, 0)
-            } else {
-                CappedText(raw.take(cap), raw.length - cap)
-            }
-        } catch (_: Exception) {
-            null
+        val text = readUpTo(file, cap) ?: return null
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return null
+        return if (text.length <= cap) {
+            CappedText(trimmed, false)
+        } else {
+            CappedText(trimmed.take(cap), true)
         }
     }
 

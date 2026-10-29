@@ -243,6 +243,50 @@ class AgentEngineOverheadTest {
             engine.history.any { it.role == "user" && it.textContent == "hi" }
         )
     }
+
+    /**
+     * Issue #156 review — successful compaction must not drop the memory
+     * context for the request that triggered it. The outgoing model request
+     * after compaction carries exactly one [memory_startup] message.
+     */
+    @Test
+    fun `compaction preserves the memory startup message`() = runTest {
+        // Point memory at an isolated dir so the test never touches real files.
+        val memoryDir = File(workDir, "memory-test").apply { mkdirs() }
+        val previousRoot = runCatching { com.gotcha.data.GotchaStorage.rootPath }.getOrNull()
+        com.gotcha.data.GotchaStorage.rootPath = File(memoryDir, "Gotcha").absolutePath
+        try {
+            com.gotcha.data.MemoryStore.ensureDefaults(Settings())
+            engine.tokenCount = (Settings().maxContextTokens * 0.85).toInt()
+            enqueueCompactionSummary("Compacted.")
+            enqueueTextReplyWithoutUsage("done")
+            engine.history += com.gotcha.llm.ChatMessage(
+                role = "user",
+                content = kotlinx.serialization.json.JsonPrimitive("hi")
+            )
+            engine.run(AgentMode.OPERATOR)
+            // Two server hits: the compaction summary call, then the real turn.
+            assertEquals(2, server.requestCount)
+            server.takeRequest()
+            val mainRequest = server.takeRequest().body.readUtf8()
+            val histDump = engine.history.map { m -> m.role + ":" + m.textContent.contains(com.gotcha.data.MemoryStore.STARTUP_MARKER) }
+            // Count real startup messages (content starting with the marker),
+            // not the pointer block merely naming it.
+            val startupHits = "\"content\":\"\\[memory_startup\\]".toRegex()
+                .findAll(mainRequest).count()
+            assertEquals(
+                "post-compaction request must carry exactly one memory startup message; history=$histDump",
+                1,
+                startupHits
+            )
+        } finally {
+            if (previousRoot != null) {
+                com.gotcha.data.GotchaStorage.rootPath = previousRoot
+            } else {
+                com.gotcha.data.GotchaStorage.resetRootPathForTests()
+            }
+        }
+    }
 }
 
 /**

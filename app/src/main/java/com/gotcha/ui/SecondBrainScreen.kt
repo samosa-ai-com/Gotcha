@@ -40,6 +40,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
@@ -189,7 +190,52 @@ fun SecondBrainScreen(onBack: () -> Unit) {
  */
 @Composable
 private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
-    val graph = remember(snapshot) { MemoryStore.buildGraph(snapshot) }
+    // Graph building re-reads files and runs the quadratic layout: off the
+    // main thread with a loading state so big vaults cannot freeze Settings.
+    var prepared by remember(snapshot) { mutableStateOf<PreparedGraph?>(null) }
+    LaunchedEffect(snapshot) {
+        prepared = withContext(Dispatchers.Default) {
+            val graph = MemoryStore.buildGraph(snapshot)
+            val indexById = graph.nodes.mapIndexed { index, node -> node.id to index }.toMap()
+            val pairs = graph.edges.mapNotNull { edge ->
+                val a = indexById[edge.fromId]
+                val b = indexById[edge.toId]
+                if (a != null && b != null) a to b else null
+            }
+            val iterations = (16000 / maxOf(1, graph.nodes.size)).coerceIn(40, 160)
+            val points = MemoryStore.forceLayout(graph.nodes.size, pairs, iterations)
+            val depths = List(graph.nodes.size) { nodeZ(it) }
+            // Turn the flat layout cloud onto its side: spread runs front-to-back
+            // (z) so the starting side view shows the full cloud, depth runs across.
+            val sideways = points.indices.map { i -> Offset(depths[i], points[i].y) }
+            val sidewaysDepths = points.indices.map { i -> points[i].x }
+            val (confined, confinedZ) = MemoryStore.confineToBrain(sideways, sidewaysDepths)
+            PreparedGraph(graph, confined, confinedZ)
+        }
+    }
+    val ready = prepared
+    if (ready == null) {
+        Text(
+            stringResource(R.string.second_brain_graph_loading),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag("settings_second_brain_graph_loading")
+        )
+        return
+    }
+    GraphCanvas(snapshot = snapshot, prepared = ready)
+}
+
+private data class PreparedGraph(
+    val graph: MemoryStore.BrainGraph,
+    val layout: List<Offset>,
+    val layoutZ: List<Float>
+)
+
+@Composable
+private fun GraphCanvas(snapshot: MemoryStore.SecondBrainSnapshot, prepared: PreparedGraph) {
+    val graph = prepared.graph
+    val layout = prepared.layout
+    val layoutZ = prepared.layoutZ
     var selectedId by remember(graph) { mutableStateOf<String?>(null) }
     var zoom by remember(graph) { mutableStateOf(1f) }
     // Starting view is a three-quarter turn: cerebellum and brainstem sit at
@@ -201,23 +247,6 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
     // True while a double-tap-drag is spinning the globe; the transform
     // detector ignores slide input meanwhile so one motion never does both.
     val yawLock = remember(graph) { mutableStateOf(false) }
-    val placed = remember(graph) {
-        val indexById = graph.nodes.mapIndexed { index, node -> node.id to index }.toMap()
-        val pairs = graph.edges.mapNotNull { edge ->
-            val a = indexById[edge.fromId]
-            val b = indexById[edge.toId]
-            if (a != null && b != null) a to b else null
-        }
-        val points = MemoryStore.forceLayout(graph.nodes.size, pairs)
-        val depths = List(graph.nodes.size) { nodeZ(it) }
-        // Turn the flat layout cloud onto its side: spread runs front-to-back
-        // (z) so the starting side view shows the full cloud, depth runs across.
-        val sideways = points.indices.map { i -> Offset(depths[i], points[i].y) }
-        val sidewaysDepths = points.indices.map { i -> points[i].x }
-        MemoryStore.confineToBrain(sideways, sidewaysDepths)
-    }
-    val layout: List<Offset> = placed.first
-    val layoutZ: List<Float> = placed.second
     val degree = remember(graph) {
         graph.nodes.associate { node ->
             node.id to graph.edges.count { it.fromId == node.id || it.toId == node.id }
@@ -629,11 +658,14 @@ private fun neuronScreenRadius(width: Float, height: Float): Float {
 private data class BrainFiring(val edgeIdx: Int, val startMs: Long, val durationMs: Long, val reverse: Boolean)
 
 /** Curve control point shared by thread drawing and pulse travel. */
+/** Curve control point: bend scales with the edge length (capped), never with
+ * canvas position, so equal links bend equally wherever they sit. */
 private fun edgeControl(from: Offset, to: Offset): Offset {
     val mid = (from + to) / 2f
     val normal = Offset(-(to.y - from.y), to.x - from.x)
     val normalLen = normal.getDistance().coerceAtLeast(1f)
-    return mid + normal / normalLen * (from.getDistance() * 0.12f + 18f)
+    val edgeLen = (to - from).getDistance().coerceAtMost(400f)
+    return mid + normal / normalLen * (edgeLen * 0.12f + 18f)
 }
 
 /** Point on a quadratic bezier at t, for segmented gradient edges. */
@@ -670,28 +702,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrainShell(map:
             390f * bump * taper * sin(lat),
             620f * bump * cos(lat) * sin(lon)
         )
-    }
-    fun sampleSphere(
-        center: OffsetTriple,
-        radius: Float,
-        lonSteps: Int = 16,
-        latSteps: Int = 5
-    ): List<OffsetTriple> {
-        val out = mutableListOf<OffsetTriple>()
-        for (li in 0 until lonSteps) {
-            val lon = 2f * Math.PI.toFloat() * li / lonSteps
-            for (si in 0..latSteps) {
-                val lat = -1.2f + 2.4f * si / latSteps
-                out.add(
-                    OffsetTriple(
-                        center.x + radius * cos(lat) * cos(lon),
-                        center.y + radius * sin(lat),
-                        center.z + radius * cos(lat) * sin(lon)
-                    )
-                )
-            }
-        }
-        return out
     }
     // Sample the surface, project, silhouette via convex hull.
     val samples = mutableListOf<Offset>()
@@ -905,7 +915,10 @@ private fun BrainSection(heading: String, file: MemoryStore.BrainFile, tag: Stri
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
         if (expanded) {
@@ -929,7 +942,10 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
         if (expanded) {
@@ -948,7 +964,10 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { fileExpanded = !fileExpanded }
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = if (fileExpanded) "Collapse" else "Expand"
+                            ) { fileExpanded = !fileExpanded }
                             .padding(vertical = 2.dp)
                             .testTag("settings_second_brain_${tag}_$index")
                     )

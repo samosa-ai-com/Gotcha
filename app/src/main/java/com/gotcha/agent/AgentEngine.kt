@@ -500,6 +500,11 @@ class AgentEngine(
             val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 history.clear()
+                // Compaction must not drop the memory context the Index 0
+                // pointer promises: restore the startup message first so the
+                // request that triggered compaction still carries SOUL.md and
+                // MEMORY.md (issue #156 review).
+                MemoryStore.buildStartupMessage()?.let { history.add(it) }
                 history.add(ChatMessage(role = "assistant", content = JsonPrimitive(summary)))
                 if (preserveLast != null) {
                     history.add(preserveLast)

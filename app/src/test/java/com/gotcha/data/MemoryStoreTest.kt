@@ -152,6 +152,45 @@ class MemoryStoreTest {
     }
 
     @Test
+    fun `bare links prefer the source directory`() {
+        MemoryStore.ensureDefaults(Settings())
+        GotchaStorage.memoryNotesDir().mkdirs()
+        GotchaStorage.memoryPeopleDir().mkdirs()
+        File(GotchaStorage.memoryNotesDir(), "plan.md").writeText("Note plan.")
+        File(GotchaStorage.memoryPeopleDir(), "plan.md").writeText("Person plan.")
+        File(GotchaStorage.memoryNotesDir(), "trip.md").writeText("Trip. See [[plan]].")
+        val snap = MemoryStore.loadSnapshot()
+        val graph = MemoryStore.buildGraph(snap)
+        val edge = graph.edges.singleOrNull { it.fromId == "notes/trip.md" }
+        assertNotNull(edge)
+        assertEquals("notes/plan.md", edge!!.toId)
+    }
+
+    @Test
+    fun `ambiguous bare names draw no edge`() {
+        MemoryStore.ensureDefaults(Settings())
+        GotchaStorage.memoryNotesDir().mkdirs()
+        GotchaStorage.memoryPeopleDir().mkdirs()
+        File(GotchaStorage.memoryNotesDir(), "plan.md").writeText("Note plan.")
+        File(GotchaStorage.memoryPeopleDir(), "plan.md").writeText("Person plan.")
+        File(GotchaStorage.memoryAreasDir(), "hub.md").writeText("Hub. See [[plan]].")
+        val snap = MemoryStore.loadSnapshot()
+        val graph = MemoryStore.buildGraph(snap)
+        assertTrue(graph.edges.none { it.fromId == "areas/hub.md" })
+    }
+
+    @Test
+    fun `startup read stays bounded on huge files`() {
+        MemoryStore.ensureDefaults(Settings())
+        val big = "y".repeat(2_000_000)
+        GotchaStorage.soulFile().writeText(big)
+        val capped = MemoryStore.readCapped(GotchaStorage.soulFile(), MemoryStore.SOUL_CAP_CHARS)
+        assertNotNull(capped)
+        assertTrue(capped!!.truncated)
+        assertTrue(capped.text.length <= MemoryStore.SOUL_CAP_CHARS)
+    }
+
+    @Test
     fun `graph keeps same-named files apart`() {
         MemoryStore.ensureDefaults(Settings())
         GotchaStorage.memoryNotesDir().mkdirs()

@@ -86,6 +86,7 @@
     <string name="second_brain_open_failed">No app on this phone can open that file type.</string>
     <string name="second_brain_tab_list">List</string>
     <string name="second_brain_tab_graph">Graph</string>
+    <string name="second_brain_graph_loading">Growing the brain…</string>
     <string name="second_brain_graph_hint">Drag to slide, two fingers to zoom and rotate, double-tap and drag to spin the brain. Tap a neuron to focus its connections, double-tap to reset.</string>
     <string name="second_brain_graph_reset">Reset view</string>
     <string name="second_brain_graph_neighbors"> · %1$d connected</string>
