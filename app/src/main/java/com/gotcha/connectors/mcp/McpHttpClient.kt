@@ -16,6 +16,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -63,6 +64,9 @@ enum class McpFailure {
     /** It answered, but not with MCP's JSON-RPC. */
     NOT_MCP,
 
+    /** A redirect the client will not follow itself (another host, a downgrade). */
+    REDIRECT,
+
     /** Any other HTTP status. */
     HTTP,
 
@@ -103,8 +107,12 @@ data class McpEndpoint(val url: String, val headers: Map<String, String> = empty
  *    response whose id matches, skipping the server's own notifications and
  *    requests, so a stream the server keeps open cannot hang the call;
  *  - caps how much of a reply it reads, counted as bytes arrive;
- *  - never follows a redirect, since the token and headers would go with it
- *    to a URL [validateMcpServer] never saw, perhaps over plain http.
+ *  - follows a redirect only when it cannot leak anything: same origin
+ *    (scheme, host and port), or an http-to-https upgrade on the same host.
+ *    Anything else — another host, a port change, an https-to-http downgrade —
+ *    fails as [McpFailure.REDIRECT] naming where it points, so the user can
+ *    enter that URL themselves instead of sending the token somewhere
+ *    [validateMcpServer] never saw, perhaps over plain http.
  *
  * Stdio servers and the older HTTP+SSE transport are out of scope; the latter
  * is recognised and reported as [McpFailure.OLD_TRANSPORT].
@@ -117,7 +125,7 @@ class McpHttpClient(
         .build()
 ) {
 
-    /** Whatever client is passed in, redirects are off: a 3xx fails as [McpFailure.HTTP] instead. */
+    /** Whatever client is passed in, redirects are handled above, not by OkHttp. */
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     /** One server's session. Requests on it are serialized, which also keeps re-initialising race-free. */
@@ -280,25 +288,66 @@ class McpHttpClient(
         }
 
     private fun post(session: Session, out: Outgoing, firstRequest: Boolean): Reply {
+        var url = session.endpoint.url
+        var lastCode = 0
+        repeat(MAX_REDIRECTS + 1) {
+            val response = executePost(session, out, url)
+            try {
+                if (response.isSuccessful) {
+                    val sessionId = response.header(HEADER_SESSION_ID)
+                    val message = if (out.id == null) null else readResponse(response, out.id)
+                    return Reply(message, sessionId)
+                }
+                lastCode = response.code
+                val location = response.header("Location")
+                // Only the codes that keep POST semantics are replayed (301,
+                // 302, 307, 308). A 300 or 303 answers a GET instead, so those
+                // fail here rather than repeat a side-effecting tool call.
+                if (response.code in FOLLOW_CODES && location != null) {
+                    url = redirectTarget(url, location, response.code)
+                } else {
+                    throw httpFailure(session, response, firstRequest, url)
+                }
+            } finally {
+                response.close()
+            }
+        }
+        throw McpException(McpFailure.HTTP, "too many redirects", lastCode)
+    }
+
+    /**
+     * Where a redirect points, when it is safe to follow: the same origin
+     * (scheme, host and port — the token stays where the user put it), or an
+     * http-to-https upgrade on the same host. Anything else throws
+     * [McpFailure.REDIRECT] carrying the destination, so the caller can ask
+     * the user to enter that URL instead. Relative locations resolve against
+     * the request URL. Visible for tests.
+     */
+    internal fun redirectTarget(currentUrl: String, location: String, code: Int): String {
+        val base = currentUrl.toHttpUrlOrNull()
+        val target = base?.resolve(location)
+        if (base == null || target == null) throw McpException(McpFailure.REDIRECT, location, code)
+        val sameOrigin = target.scheme == base.scheme && target.host == base.host && target.port == base.port
+        val upgrade = base.scheme == "http" && target.scheme == "https" && target.host == base.host
+        if (!sameOrigin && !upgrade) throw McpException(McpFailure.REDIRECT, target.toString(), code)
+        return target.toString()
+    }
+
+    private fun executePost(session: Session, out: Outgoing, url: String): Response {
         val builder = Request.Builder()
-            .url(session.endpoint.url)
+            .url(url)
             .header("Accept", "application/json, text/event-stream")
             .post(out.body.toString().toRequestBody(jsonMediaType))
         session.endpoint.headers.forEach { (k, v) -> builder.header(k, v) }
         session.headers().forEach { (k, v) -> builder.header(k, v) }
-        return client.newCall(builder.build()).execute().use { r ->
-            if (!r.isSuccessful) throw httpFailure(session, r, firstRequest)
-            val sessionId = r.header(HEADER_SESSION_ID)
-            val message = if (out.id == null) null else readResponse(r, out.id)
-            Reply(message, sessionId)
-        }
+        return client.newCall(builder.build()).execute()
     }
 
     /** Socket, TLS and timeout errors, and headers OkHttp refuses, as [McpFailure.NETWORK]. */
     private fun asMcp(e: Exception): McpException =
         e as? McpException ?: McpException(McpFailure.NETWORK, e.message ?: e.javaClass.simpleName, cause = e)
 
-    private fun httpFailure(session: Session, r: Response, firstRequest: Boolean): McpException {
+    private fun httpFailure(session: Session, r: Response, firstRequest: Boolean, url: String): McpException {
         // For a redirect, where it points is the useful part: the user can enter that URL instead.
         val detail = r.header("Location").takeIf { r.isRedirect }
             ?: runCatching { r.peekBody(ERROR_BODY_CHARS.toLong()).string() }.getOrDefault("").trim()
@@ -306,7 +355,7 @@ class McpHttpClient(
             401, 403 -> McpException(McpFailure.AUTH, detail, r.code)
             // The old transport answers POSTs on its SSE URL with 404/405 and
             // streams an `endpoint` event to a GET instead.
-            400, 404, 405 -> if (firstRequest && speaksOldTransport(session)) {
+            400, 404, 405 -> if (firstRequest && speaksOldTransport(session, url)) {
                 McpException(McpFailure.OLD_TRANSPORT, detail, r.code)
             } else if (r.code == 404) {
                 McpException(McpFailure.NOT_FOUND, detail, r.code)
@@ -318,8 +367,8 @@ class McpHttpClient(
     }
 
     /** True when a GET opens an event stream: the 2024-11-05 HTTP+SSE transport. Reads only the headers. */
-    private fun speaksOldTransport(session: Session): Boolean = runCatching {
-        val builder = Request.Builder().url(session.endpoint.url).header("Accept", "text/event-stream").get()
+    private fun speaksOldTransport(session: Session, url: String): Boolean = runCatching {
+        val builder = Request.Builder().url(url).header("Accept", "text/event-stream").get()
         session.endpoint.headers.forEach { (k, v) -> builder.header(k, v) }
         client.newCall(builder.build()).execute().use { r ->
             r.isSuccessful && r.header("Content-Type").orEmpty().startsWith("text/event-stream")
@@ -440,6 +489,10 @@ class McpHttpClient(
         const val HEADER_PROTOCOL_VERSION = "MCP-Protocol-Version"
 
         private const val MAX_TOOL_PAGES = 20
+        private const val MAX_REDIRECTS = 5
+
+        /** Redirect codes replayed as POST; 300/303 answer a GET instead. */
+        private val FOLLOW_CODES = setOf(301, 302, 307, 308)
         private const val MAX_REPLY_BYTES = 4L * 1024 * 1024
         private const val MAX_OUTPUT_CHARS = 50_000
         private const val ERROR_BODY_CHARS = 300

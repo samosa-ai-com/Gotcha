@@ -230,7 +230,7 @@ class McpHttpClientTest {
     }
 
     @Test
-    fun `a redirect is not followed, so the secret header stays put`() = runTest {
+    fun `a cross-origin redirect is refused, so the secret header stays put`() = runTest {
         val elsewhere = MockWebServer().apply { start() }
         val redirecting = MockWebServer().apply {
             dispatcher = object : Dispatcher() {
@@ -248,7 +248,7 @@ class McpHttpClientTest {
                     McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
                 ).initialize()
             }
-            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(McpFailure.REDIRECT, e.kind)
             assertEquals(307, e.httpCode)
             assertEquals(elsewhere.url("/mcp").toString(), e.detail)
             assertEquals(0, elsewhere.requestCount)
@@ -256,6 +256,115 @@ class McpHttpClientTest {
             redirecting.shutdown()
             elsewhere.shutdown()
         }
+    }
+
+    @Test
+    fun `a same-origin redirect is followed with the headers intact`() = runTest {
+        val redirecting = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/mcp") {
+                        return MockResponse()
+                            .setResponseCode(307)
+                            .setHeader("Location", "/mcp/")
+                    }
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val info = client.session(
+                McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
+            ).initialize()
+            assertEquals("Docs", info.name)
+            // Both hops carried the secret: same origin, so nothing leaked.
+            redirecting.takeRequest(5, TimeUnit.SECONDS)
+            val followed = redirecting.takeRequest(5, TimeUnit.SECONDS)!!
+            assertEquals("/mcp/", followed.path)
+            assertEquals("secret", followed.getHeader("X-API-Key"))
+        } finally {
+            redirecting.shutdown()
+        }
+    }
+
+    @Test
+    fun `a same-origin 303 is not replayed as POST`() = runTest {
+        val redirecting = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) = MockResponse()
+                    .setResponseCode(303)
+                    .setHeader("Location", "/mcp/")
+            }
+            start()
+        }
+        try {
+            val e = failureOf {
+                client.session(McpEndpoint(redirecting.url("/mcp").toString())).initialize()
+            }
+            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(303, e.httpCode)
+            assertEquals(1, redirecting.requestCount)
+        } finally {
+            redirecting.shutdown()
+        }
+    }
+
+    @Test
+    fun `redirect loops fail instead of spinning`() = runTest {
+        val looping = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) = MockResponse()
+                    .setResponseCode(307)
+                    .setHeader("Location", "/mcp")
+            }
+            start()
+        }
+        try {
+            val e = failureOf {
+                client.session(McpEndpoint(looping.url("/mcp").toString())).initialize()
+            }
+            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(307, e.httpCode)
+            // 1 initial + 5 followed hops, then give up.
+            assertEquals(6, looping.requestCount)
+        } finally {
+            looping.shutdown()
+        }
+    }
+
+    @Test
+    fun `redirect targets are classified without sending anything`() {
+        val client = McpHttpClient()
+        // Same origin, absolute or relative: follow.
+        assertEquals(
+            "http://h:1/mcp/",
+            client.redirectTarget("http://h:1/mcp", "/mcp/", 307)
+        )
+        assertEquals(
+            "http://h:1/other",
+            client.redirectTarget("http://h:1/mcp", "http://h:1/other", 301)
+        )
+        // An http-to-https upgrade on the same host: follow.
+        assertEquals(
+            "https://h/mcp",
+            client.redirectTarget("http://h/mcp", "https://h/mcp", 307)
+        )
+        // Another host, another port, or a downgrade: refuse with the destination.
+        assertEquals("http://other/mcp", failureTarget("http://h/mcp", "http://other/mcp"))
+        assertEquals("http://h:2/mcp", failureTarget("http://h:1/mcp", "http://h:2/mcp"))
+        assertEquals("http://h/mcp", failureTarget("https://h/mcp", "http://h/mcp"))
+    }
+
+    private fun failureTarget(current: String, location: String): String {
+        try {
+            McpHttpClient().redirectTarget(current, location, 307)
+        } catch (e: McpException) {
+            assertEquals(McpFailure.REDIRECT, e.kind)
+            return e.detail
+        }
+        fail("expected a redirect refusal")
+        error("unreachable")
     }
 
     @Test

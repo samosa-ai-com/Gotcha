@@ -85,6 +85,24 @@ class McpServersConnectorTest {
     }
 
     @Test
+    fun `connected message carries the cleartext warning when one is due`() {
+        val config = McpServerConfig(
+            id = "x",
+            name = "Remote",
+            url = "http://mcp.example.com/mcp"
+        )
+        assertEquals(
+            "Connected to mcp.example.com: 0 tools. Use https for a server outside your local network. " +
+                "A token or header sent over http can be read on the way.",
+            connector.connectedMessage("http://mcp.example.com/mcp", "t", emptyMap(), config, 0, strings)
+        )
+        assertEquals(
+            "Connected to mcp.example.com: 0 tools.",
+            connector.connectedMessage("https://mcp.example.com/mcp", "t", emptyMap(), config, 0, strings)
+        )
+    }
+
+    @Test
     fun `a server that cannot be reached is not saved, and says why`() = runTest {
         fake.requiredAuth = "Bearer right"
 

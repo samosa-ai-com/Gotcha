@@ -1753,6 +1753,7 @@
     <string name="mcp_error_old_transport">This server uses the older HTTP+SSE transport, which Gotcha doesn\'t support yet. Use the server\'s Streamable HTTP address if it has one.</string>
     <string name="mcp_error_not_mcp">The server answered, but not as an MCP server: %1$s</string>
     <string name="mcp_error_http">The server returned HTTP %1$d: %2$s</string>
+    <string name="mcp_error_redirect">The server redirects to %1$s, which Gotcha won\'t follow on its own. Enter that address instead.</string>
     <string name="mcp_error_rpc">The server returned an error: %1$s</string>
     <string name="mcp_error_network">Couldn\'t reach the server: %1$s</string>
     <string name="mcp_error_bad_token">The token and header values can only contain plain ASCII characters.</string>

@@ -155,7 +155,9 @@ class McpServersConnector(
             register()
             config
         }
-        return true to connectedMessage(saved, probe.tools.size, strings)
+        // Plain http outside the local network stays allowed, with the warning
+        // attached: both schemes are accepted (issue #154).
+        return true to connectedMessage(url, token, headers, saved, probe.tools.size, strings)
     }
 
     fun remove(id: String) {
@@ -261,11 +263,23 @@ class McpServersConnector(
         routes = newRoutes.filterKeys { it in registered }
     }
 
-    private fun connectedMessage(config: McpServerConfig, offered: Int, strings: StringLookup): String {
+    internal fun connectedMessage(
+        url: String,
+        token: String,
+        headers: Map<String, String>,
+        config: McpServerConfig,
+        offered: Int,
+        strings: StringLookup
+    ): String {
         val label = config.serverName.ifBlank { hostOf(config.url) }
         val tools = strings.quantity(R.plurals.mcp_tools_count, config.tools.size, config.tools.size)
         val capped = if (offered > MAX_TOOLS) " " + strings(R.string.mcp_tools_capped, MAX_TOOLS) else ""
-        return strings(R.string.mcp_connected, label, tools) + capped
+        val warning = if (isCleartextWithSecret(url, token, headers)) {
+            " " + strings(R.string.mcp_error_cleartext)
+        } else {
+            ""
+        }
+        return strings(R.string.mcp_connected, label, tools) + capped + warning
     }
 
     fun failureMessage(e: McpException, strings: StringLookup): String = when (e.kind) {
@@ -273,6 +287,7 @@ class McpServersConnector(
         McpFailure.NOT_FOUND -> strings(R.string.mcp_error_not_found)
         McpFailure.OLD_TRANSPORT -> strings(R.string.mcp_error_old_transport)
         McpFailure.NOT_MCP -> strings(R.string.mcp_error_not_mcp, e.detail.take(DETAIL_CHARS))
+        McpFailure.REDIRECT -> strings(R.string.mcp_error_redirect, e.detail.take(DETAIL_CHARS))
         McpFailure.HTTP -> strings(R.string.mcp_error_http, e.httpCode, e.detail.take(DETAIL_CHARS))
         McpFailure.RPC -> strings(R.string.mcp_error_rpc, e.detail.take(DETAIL_CHARS))
         McpFailure.NETWORK -> strings(R.string.mcp_error_network, e.detail.take(DETAIL_CHARS))
@@ -293,7 +308,6 @@ class McpServersConnector(
 
         fun problemMessage(problem: McpConfigProblem, strings: StringLookup): String = when (problem) {
             McpConfigProblem.BAD_URL -> strings(R.string.mcp_error_bad_url)
-            McpConfigProblem.CLEARTEXT_WITH_SECRET -> strings(R.string.mcp_error_cleartext)
             McpConfigProblem.BAD_HEADER -> strings(R.string.mcp_error_bad_header)
             McpConfigProblem.BAD_TOKEN -> strings(R.string.mcp_error_bad_token)
         }
