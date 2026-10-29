@@ -5,6 +5,8 @@ import com.gotcha.agent.AttachmentFiles
 import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.GotchaStorage
+import com.gotcha.data.MemoryStore
 import com.gotcha.i18n.stringLookup
 import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
@@ -15,6 +17,7 @@ import com.gotcha.scheduled.ScheduledTaskStore
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -47,7 +50,11 @@ data class ScheduleRequest(
     val sameChat: Boolean? = null,
     val mode: String? = null,
     val files: List<String>? = null,
-    val enabled: Boolean? = null
+    val enabled: Boolean? = null,
+    /** Absolute path of the memory note linked both ways, or null to leave the link as it is. */
+    val memoryNote: String? = null,
+    /** True when `memory_note` was passed blank: unlink the task from its note. */
+    val clearMemoryNote: Boolean = false
 ) {
     val isCreate: Boolean get() = taskId == null
 }
@@ -98,6 +105,13 @@ class ScheduledTaskTool(
         }
         val mode = parseMode(args).getOrElse { return ToolResult.error(it.message.orEmpty()) }
         val files = checkFiles(args).getOrElse { return ToolResult.error(it.message.orEmpty()) }
+        val memoryNote = checkMemoryNoteArg(
+            args,
+            fileResolver
+        ).getOrElse { return ToolResult.error(it.message.orEmpty()) }
+        val clearMemoryNote = args["memory_note"]?.let { element ->
+            element is JsonPrimitive && element !is JsonNull && element.content.trim().isEmpty()
+        } ?: false
         return confirm(
             ScheduleRequest(
                 name = name,
@@ -106,7 +120,9 @@ class ScheduledTaskTool(
                 repeat = repeat,
                 sameChat = args.boolean("same_chat") ?: false,
                 mode = mode?.name,
-                files = files
+                files = files,
+                memoryNote = memoryNote,
+                clearMemoryNote = clearMemoryNote
             )
         )
     }
@@ -126,6 +142,10 @@ class ScheduledTaskTool(
         }
         val mode = parseMode(args).getOrElse { return ToolResult.error(it.message.orEmpty()) }
         val files = checkFiles(args).getOrElse { return ToolResult.error(it.message.orEmpty()) }
+        val memoryNote = checkMemoryNoteArg(
+            args,
+            fileResolver
+        ).getOrElse { return ToolResult.error(it.message.orEmpty()) }
         val request = ScheduleRequest(
             taskId = existing.id,
             name = args.string("name")?.trim()?.take(MAX_NAME)?.ifEmpty { null },
@@ -135,7 +155,11 @@ class ScheduledTaskTool(
             sameChat = args.boolean("same_chat"),
             mode = mode?.name,
             files = files,
-            enabled = args.boolean("enabled")
+            enabled = args.boolean("enabled"),
+            memoryNote = memoryNote,
+            clearMemoryNote = args["memory_note"]?.let { element ->
+                element is JsonPrimitive && element !is JsonNull && element.content.trim().isEmpty()
+            } ?: false
         )
         if (request == ScheduleRequest(taskId = existing.id)) {
             return ToolResult.error("Nothing to change: pass at least one field to edit.")
@@ -156,6 +180,7 @@ class ScheduledTaskTool(
                     append("; ${task.mode.name.lowercase()} mode")
                     append(if (task.sameChat) "; same chat" else "; new chat each time")
                     if (task.attachmentNames.isNotEmpty()) append("; files: ${task.attachmentNames.joinToString()}")
+                    task.memoryNotePath?.let { append("; memory note: ${shortenMemoryPath(it)}") }
                     append(if (task.createdByAgent) "; set up by you" else "; set up by the user")
                     task.lastRun?.let { append("; last run: ${it.status.name.lowercase()} at ${formatInstant(it.at)}") }
                     append("\n  prompt: ${task.prompt.take(LIST_PROMPT_CHARS)}")
@@ -207,6 +232,7 @@ class ScheduledTaskTool(
                 }
             )
             if (files.isNotEmpty()) append("Files: ${files.joinToString()}\n")
+            appendMemoryNoteLine(request, existing)
             request.enabled?.let { append(if (it) "Turns the task on\n" else "Pauses the task\n") }
             append("Prompt: ${request.prompt ?: existing?.prompt}")
         }
@@ -240,7 +266,12 @@ class ScheduledTaskTool(
                     base.chatSessionId
                 },
                 enabled = request.enabled ?: base.enabled,
-                attachmentNames = attachments?.map { it.name } ?: base.attachmentNames
+                attachmentNames = attachments?.map { it.name } ?: base.attachmentNames,
+                memoryNotePath = if (request.clearMemoryNote) {
+                    null
+                } else {
+                    request.memoryNote ?: base.memoryNotePath
+                }
             )
         }
         val saved = if (existing == null) {
@@ -315,6 +346,15 @@ class ScheduledTaskTool(
         )
     }
 
+    /** Approval line for the task's memory link: set, kept, or removed. */
+    private fun StringBuilder.appendMemoryNoteLine(request: ScheduleRequest, existing: ScheduledTask?) {
+        if (request.clearMemoryNote && existing?.memoryNotePath != null) {
+            append("Memory note: (removed)\n")
+            return
+        }
+        (request.memoryNote ?: existing?.memoryNotePath)?.let { append("Memory note: $it\n") }
+    }
+
     /** The `files` argument, each checked to be a readable file and made canonical. */
     private fun checkFiles(args: JsonObject): Result<List<String>?> {
         val paths = (args["files"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content?.trim() }
@@ -379,7 +419,11 @@ class ScheduledTaskTool(
         LocalDateTime.ofInstant(Instant.ofEpochMilli(at), zone()).format(DISPLAY_FORMAT)
 
     private fun JsonObject.string(key: String): String? =
-        (this[key] as? JsonPrimitive)?.takeIf { it.isString || it.content.isNotEmpty() }?.content
+        when (val element = this[key]) {
+            is JsonNull -> null
+            is JsonPrimitive -> element.takeIf { it.isString || it.content.isNotEmpty() }?.content
+            else -> null
+        }
 
     private fun JsonObject.boolean(key: String): Boolean? =
         (this[key] as? JsonPrimitive)?.let { it.booleanOrNull ?: it.content.trim().toBooleanStrictOrNull() }
@@ -446,4 +490,44 @@ class ScheduledTaskTool(
             }
         }
     }
+}
+
+/** The `memory_note` argument: an existing memory record (people/, areas/, notes/), canonicalised. */
+private fun checkMemoryNoteArg(args: JsonObject, fileResolver: FileResolver): Result<String?> {
+    val element = args["memory_note"] ?: return Result.success(null)
+    if (element is JsonNull) return Result.success(null)
+    val raw = (element as? JsonPrimitive)?.content?.trim().orEmpty()
+    if (raw.isEmpty()) return Result.success(null)
+    val file = when (val resolved = fileResolver.resolveForRead(raw)) {
+        is FileResolver.ResolveResult.Ok -> resolved.file
+        is FileResolver.ResolveResult.PermissionNeeded ->
+            return Result.failure(IllegalArgumentException(resolved.result.message))
+        is FileResolver.ResolveResult.Error ->
+            return Result.failure(IllegalArgumentException(resolved.message))
+    }
+    if (!file.isFile || !file.canRead()) {
+        return Result.failure(IllegalArgumentException("No readable file at '$raw'."))
+    }
+    if (MemoryStore.recordDirKind(file) == null) {
+        return Result.failure(
+            IllegalArgumentException(
+                "'$raw' is not a memory note, person card or area hub: " +
+                    "link a file under Gotcha/memory people/, areas/ or notes/."
+            )
+        )
+    }
+    return Result.success(file.canonicalPath)
+}
+
+/** Memory-root-relative display path (`notes/plan.md`), so same-named files stay apart in listings. */
+private fun shortenMemoryPath(path: String): String {
+    return runCatching {
+        val root = GotchaStorage.memoryRoot().canonicalPath
+        val canonical = File(path).canonicalPath
+        if (canonical.startsWith(root + File.separator)) {
+            canonical.removePrefix(root + File.separator)
+        } else {
+            File(path).name
+        }
+    }.getOrDefault(File(path).name)
 }

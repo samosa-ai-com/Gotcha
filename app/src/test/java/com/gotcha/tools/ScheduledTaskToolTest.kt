@@ -3,6 +3,9 @@ package com.gotcha.tools
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.gotcha.agent.ComposerAttachment
+import com.gotcha.data.GotchaStorage
+import com.gotcha.data.MemoryStore
+import com.gotcha.data.Settings
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledTask
 import com.gotcha.scheduled.ScheduledTaskStore
@@ -153,6 +156,219 @@ class ScheduledTaskToolTest {
         val request = request(tool.prepareCreate(args("""{"name":"n","prompt":"p","start":"2026-10-19T08:00"}""")))
         tool.apply(request, sessionId = "chat", chatMode = AgentMode.OPERATOR)
         assertEquals(AgentMode.OPERATOR, store.all().single().mode)
+    }
+
+    // ---- memory note links (Second Brain Phase 2) ----
+
+    private fun withMemoryNote(name: String = "plan.md", block: (note: File) -> Unit) {
+        val savedRoot = GotchaStorage.rootPath
+        GotchaStorage.rootPath = File(context.filesDir, "sched-mem-test/Gotcha").absolutePath
+        try {
+            MemoryStore.ensureDefaults(Settings())
+            val note = File(GotchaStorage.memoryNotesDir(), name)
+            note.writeText(
+                listOf(
+                    "---",
+                    "title: Plan",
+                    "area: Personal",
+                    "type: note",
+                    "updated: 2026-10-29",
+                    "---",
+                    "",
+                    "Body.",
+                    ""
+                ).joinToString("\n")
+            )
+            block(note)
+        } finally {
+            GotchaStorage.rootPath = savedRoot
+            File(context.filesDir, "sched-mem-test").deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `a create with a memory note saves the link`() {
+        withMemoryNote { note ->
+            val result = tool.prepareCreate(
+                args(
+                    """{"name":"Plan","prompt":"Work the plan","start":"2026-10-19T08:00",""" +
+                        """"memory_note":"${note.absolutePath}"}"""
+                )
+            )
+
+            val req = request(result)
+            assertEquals(note.canonicalPath, req.memoryNote)
+            val applied = tool.apply(req, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            assertTrue(applied.message, applied.success)
+            assertEquals(note.canonicalPath, store.all().single().memoryNotePath)
+        }
+    }
+
+    @Test
+    fun `a create rejects a memory note outside memory`() {
+        val outside = File(context.filesDir, "outside.md").apply { writeText("# Outside\n") }
+        try {
+            val result = tool.prepareCreate(
+                args(
+                    """{"name":"Plan","prompt":"Work the plan","start":"2026-10-19T08:00",""" +
+                        """"memory_note":"${outside.absolutePath}"}"""
+                )
+            )
+            assertFalse(result.message, result.success)
+            assertTrue(result.message, result.message.contains("not a memory"))
+        } finally {
+            outside.delete()
+        }
+    }
+
+    @Test
+    fun `an edit can link a note and the listing names it`() {
+        withMemoryNote { note ->
+            val created = request(
+                tool.prepareCreate(args("""{"name":"Plan","prompt":"Work it","start":"2026-10-19T08:00"}"""))
+            )
+            tool.apply(created, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            val task = store.all().single()
+            assertNull(task.memoryNotePath)
+
+            val edited = request(
+                tool.prepareEdit(
+                    args("""{"task_id":"${task.id}","memory_note":"${note.absolutePath}"}""")
+                )
+            )
+            assertEquals(note.canonicalPath, edited.memoryNote)
+            tool.apply(edited, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            assertEquals(note.canonicalPath, store.all().single().memoryNotePath)
+            assertTrue(tool.list().message, tool.list().message.contains("memory note"))
+        }
+    }
+
+    @Test
+    fun `an edit with a blank memory note clears the link`() {
+        withMemoryNote { note ->
+            val created = request(
+                tool.prepareCreate(
+                    args(
+                        """{"name":"Plan","prompt":"Work it","start":"2026-10-19T08:00",""" +
+                            """"memory_note":"${note.absolutePath}"}"""
+                    )
+                )
+            )
+            tool.apply(created, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            val task = store.all().single()
+            assertEquals(note.canonicalPath, task.memoryNotePath)
+
+            val cleared = request(
+                tool.prepareEdit(args("""{"task_id":"${task.id}","memory_note":""}"""))
+            )
+            assertTrue(cleared.clearMemoryNote)
+            tool.apply(cleared, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            assertNull(store.all().single().memoryNotePath)
+        }
+    }
+
+    @Test
+    fun `the approval names a removed memory note`() = runTest {
+        store.put(
+            ScheduledTask(
+                id = "t1",
+                name = "Plan",
+                prompt = "p",
+                startLocal = "2026-10-19T08:00",
+                memoryNotePath = "/mem/notes/plan.md"
+            )
+        )
+        val words = tool.describe(
+            ScheduleRequest(taskId = "t1", clearMemoryNote = true),
+            sessionId = "chat",
+            chatMode = AgentMode.OPERATOR
+        )
+        assertTrue(words, words.contains("(removed)"))
+    }
+
+    @Test
+    fun `an edit with an explicit null memory note keeps the link`() {
+        withMemoryNote { note ->
+            val created = request(
+                tool.prepareCreate(
+                    args(
+                        """{"name":"Plan","prompt":"Work it","start":"2026-10-19T08:00",""" +
+                            """"memory_note":"${note.absolutePath}"}"""
+                    )
+                )
+            )
+            tool.apply(created, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            val task = store.all().single()
+
+            val kept = request(
+                tool.prepareEdit(
+                    args("""{"task_id":"${task.id}","name":"Renamed","memory_note":null}""")
+                )
+            )
+            assertNull(kept.memoryNote)
+            assertFalse(kept.clearMemoryNote)
+            tool.apply(kept, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            val saved = store.all().single()
+            assertEquals("Renamed", saved.name)
+            assertEquals(note.canonicalPath, saved.memoryNotePath)
+        }
+    }
+
+    @Test
+    fun `a create with a blank memory note shows no link line`() = runTest {
+        var created: ScheduleRequest? = null
+        withMemoryNote {
+            created = request(
+                tool.prepareCreate(
+                    args("""{"name":"Plan","prompt":"Work it","start":"2026-10-19T08:00","memory_note":""}""")
+                )
+            )
+            assertTrue(created!!.clearMemoryNote)
+        }
+        val words = tool.describe(created!!, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+        assertFalse(words, words.contains("Memory note"))
+    }
+
+    @Test
+    fun `an edit can point a task at a different note`() {
+        withMemoryNote { first ->
+            val people = GotchaStorage.memoryPeopleDir().apply { mkdirs() }
+            val second = File(people, "plan.md")
+            second.writeText(
+                listOf(
+                    "---",
+                    "title: Person Plan",
+                    "area: People",
+                    "type: person",
+                    "updated: 2026-10-29",
+                    "---",
+                    "",
+                    "Body.",
+                    ""
+                ).joinToString("\n")
+            )
+            val created = request(
+                tool.prepareCreate(
+                    args(
+                        """{"name":"Plan","prompt":"Work it","start":"2026-10-19T08:00",""" +
+                            """"memory_note":"${first.absolutePath}"}"""
+                    )
+                )
+            )
+            tool.apply(created, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            val task = store.all().single()
+
+            val moved = request(
+                tool.prepareEdit(
+                    args("""{"task_id":"${task.id}","memory_note":"${second.absolutePath}"}""")
+                )
+            )
+            tool.apply(moved, sessionId = "chat", chatMode = AgentMode.OPERATOR)
+            // Same-named files stay apart in the listing.
+            val listing = tool.list().message
+            assertTrue(listing, listing.contains("people/plan.md"))
+            assertFalse(listing, listing.contains("notes/plan.md"))
+        }
     }
 
     @Test

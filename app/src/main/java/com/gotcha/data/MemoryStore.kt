@@ -175,9 +175,16 @@ object MemoryStore {
     /** Matches Obsidian-style links: [[path]] or [[path|label]]. */
     val wikiLinkRegex = Regex("""\[\[([^\]|]+)(?:\|[^\]]*)?]]""")
 
-    /** Extracts link targets from markdown, in order, deduplicated. */
+    /** Fenced code blocks (backtick or tilde, closed or running to end of file): links inside examples are not real links. */
+    private val fenceRegex = Regex("(?s)(```|~~~).*?(\\1|\\Z)")
+
+    /** Extracts link targets from markdown prose, in order, deduplicated. */
     fun parseWikiLinks(markdown: String): List<String> =
-        wikiLinkRegex.findAll(markdown).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.distinct().toList()
+        wikiLinkRegex.findAll(fenceRegex.replace(markdown, ""))
+            .map { it.groupValues[1].trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .toList()
 
     /** One node on the Second Brain graph. */
     data class BrainNode(val id: String, val label: String, val kind: String)
@@ -201,30 +208,66 @@ object MemoryStore {
      * [LINK_SCAN_CAP_CHARS].
      */
     fun buildGraph(snapshot: SecondBrainSnapshot): BrainGraph {
+        val index = buildNodeIndex(snapshot)
+        return BrainGraph(index.nodes, graphEdges(index, null).toList())
+    }
+
+    /**
+     * Graph edges from [index]. When [texts] is supplied the preloaded bounded
+     * file contents are used; otherwise each file is read on demand. Sharing
+     * one read per file keeps the health check cheap on large vaults.
+     */
+    private fun graphEdges(index: NodeIndex, texts: Map<String, String>?): Set<BrainEdge> {
+        val edges = mutableSetOf<BrainEdge>()
+        index.sources.forEach { source ->
+            if (!source.file.isMarkdown) return@forEach
+            val text = texts?.get(source.id) ?: fullTextForLinks(source.file)
+            parseWikiLinks(text).forEach { target ->
+                val toId = resolveGraphLink(target, source.id, index)
+                if (toId != null && toId != source.id) edges.add(BrainEdge(source.id, toId))
+            }
+        }
+        return edges
+    }
+
+    /** One link source: a graph node id plus its file. */
+    private data class GraphSource(val id: String, val file: BrainFile)
+
+    /** Graph nodes, link sources and the normalized path index, shared by the graph and health checks. */
+    private data class NodeIndex(
+        val nodes: List<BrainNode>,
+        val sources: List<GraphSource>,
+        val byFull: Map<String, String>
+    )
+
+    private fun normGraphPath(path: String): String =
+        path.lowercase().removeSuffix(".md").removeSuffix(".markdown")
+
+    /** Memory-relative id (areas/work.md) from the absolute path, or [fallback]. */
+    fun relativeMemoryId(file: BrainFile, fallback: String): String {
+        val abs = file.absolutePath
+        if (abs.isNotBlank()) {
+            val root = runCatching { GotchaStorage.memoryRoot().absolutePath }.getOrNull()
+            if (root != null && abs.startsWith(root)) {
+                return abs.removePrefix(root).trimStart('/')
+            }
+        }
+        return fallback
+    }
+
+    private fun buildNodeIndex(snapshot: SecondBrainSnapshot): NodeIndex {
         val nodes = mutableListOf<BrainNode>()
         val byFull = mutableMapOf<String, String>()
-        fun norm(path: String): String = path.lowercase().removeSuffix(".md").removeSuffix(".markdown")
-        fun relId(file: BrainFile, fallback: String): String {
-            val abs = file.absolutePath
-            if (abs.isNotBlank()) {
-                val root = runCatching { GotchaStorage.memoryRoot().absolutePath }.getOrNull()
-                if (root != null && abs.startsWith(root)) {
-                    return abs.removePrefix(root).trimStart('/')
-                }
-            }
-            return fallback
-        }
-        data class Source(val id: String, val file: BrainFile)
-        val sources = mutableListOf<Source>()
+        val sources = mutableListOf<GraphSource>()
         fun addNode(id: String, label: String, kind: String) {
             nodes.add(BrainNode(id, label, kind))
-            byFull.putIfAbsent(norm(id), id)
+            byFull.putIfAbsent(normGraphPath(id), id)
         }
         fun addSource(file: BrainFile?, fallbackId: String, label: String, kind: String) {
             if (file == null) return
-            val id = relId(file, fallbackId)
+            val id = relativeMemoryId(file, fallbackId)
             addNode(id, label, kind)
-            sources.add(Source(id, file))
+            sources.add(GraphSource(id, file))
         }
         addSource(snapshot.soul, "SOUL.md", "SOUL", "soul")
         addSource(snapshot.memoryIndex, "MEMORY.md", "MEMORY", "map")
@@ -233,38 +276,252 @@ object MemoryStore {
         snapshot.people.forEach { addSource(it, "people/${it.name}", it.name.removeSuffix(".md"), "person") }
         snapshot.notes.forEach { addSource(it, "notes/${it.name}", it.name.removeSuffix(".md"), "note") }
         snapshot.raw.forEach { addSource(it, "raw/${it.name}", it.name, "raw") }
-        fun resolve(target: String, sourceId: String): String? {
-            val raw = target.trim()
-            if (raw.isEmpty()) return null
-            val sourceDir = sourceId.substringBeforeLast('/', "")
-            // (a) Relative to the source file's directory, then (b) vault-relative.
-            val candidates = buildList {
-                if (sourceDir.isNotEmpty()) {
-                    add("$sourceDir/$raw")
-                    add("$sourceDir/$raw.md")
-                    add("$sourceDir/$raw.markdown")
+        return NodeIndex(nodes, sources, byFull)
+    }
+
+    /**
+     * Resolves one [[link]] target to a node id, or null when dangling,
+     * self-pointing or ambiguous. Source-relative first, vault-relative
+     * second, unique bare names last.
+     */
+    private fun resolveGraphLink(target: String, sourceId: String, index: NodeIndex): String? {
+        val raw = target.trim()
+        if (raw.isEmpty()) return null
+        graphCandidates(raw, sourceId).forEach { candidate ->
+            index.byFull[normGraphPath(candidate)]?.let { return it }
+        }
+        // (c) Bare-name fallback only when it names exactly one node.
+        val base = normGraphPath(raw).substringAfterLast('/')
+        return index.nodes
+            .filter { normGraphPath(it.id).substringAfterLast('/') == base }
+            .map { it.id }
+            .singleOrNull()
+    }
+
+    /** Ordered lookup paths for a link target: source-relative, then vault-relative. */
+    private fun graphCandidates(raw: String, sourceId: String): List<String> {
+        val sourceDir = sourceId.substringBeforeLast('/', "")
+        return buildList {
+            if (sourceDir.isNotEmpty()) {
+                add("$sourceDir/$raw")
+                add("$sourceDir/$raw.md")
+                add("$sourceDir/$raw.markdown")
+            }
+            add(raw)
+            add("$raw.md")
+            add("$raw.markdown")
+        }
+    }
+
+    /**
+     * True when [target] matches several nodes by bare name without matching
+     * any relative or vault path: ambiguous, not missing. The graph draws no
+     * edge for these either, so health does not report them as dangling.
+     */
+    private fun hasAmbiguousMatches(target: String, sourceId: String, index: NodeIndex): Boolean {
+        val raw = target.trim()
+        if (raw.isEmpty()) return false
+        if (graphCandidates(raw, sourceId).any { index.byFull.containsKey(normGraphPath(it)) }) return false
+        val base = normGraphPath(raw).substringAfterLast('/')
+        return index.nodes.count { normGraphPath(it.id).substringAfterLast('/') == base } > 1
+    }
+
+    /** One [[link]] that points nowhere (or at its own file). */
+    data class DanglingLink(val fromId: String, val target: String)
+
+    /** One detail record that fails the schema, with its reasons. */
+    data class RecordProblem(val fileId: String, val errors: List<String>)
+
+    /** One note whose `task_ref` names a task id no scheduled task carries. */
+    data class TaskNoteRef(val fileId: String, val taskId: String)
+
+    /** One scheduled task for the health check: id, display name and linked note path. */
+    data class TaskLink(val id: String, val name: String, val notePath: String?)
+
+    /** One note whose `task_ref` names a task that points at a different note (or nowhere). */
+    data class TaskMismatch(val fileId: String, val taskId: String, val linkedPath: String?)
+
+    /** One scheduled task whose linked note no longer exists in the vault. */
+    data class StaleTaskLink(val taskName: String, val path: String)
+
+    /** Orphan dashboard: everything that keeps the Second Brain from hanging together. */
+    data class BrainHealth(
+        val unlinked: List<String>,
+        val dangling: List<DanglingLink>,
+        val invalid: List<RecordProblem>,
+        val unknownTasks: List<TaskNoteRef>,
+        val mismatchedTasks: List<TaskMismatch> = emptyList(),
+        val staleTaskLinks: List<StaleTaskLink> = emptyList(),
+        val unscanned: List<String> = emptyList()
+    ) {
+        val isClean: Boolean
+            get() = unlinked.isEmpty() && dangling.isEmpty() && invalid.isEmpty() &&
+                unknownTasks.isEmpty() && mismatchedTasks.isEmpty() &&
+                staleTaskLinks.isEmpty() && unscanned.isEmpty()
+        val issueCount: Int
+            get() = unlinked.size + dangling.size + invalid.size + unknownTasks.size +
+                mismatchedTasks.size + staleTaskLinks.size + unscanned.size
+    }
+
+    /** Root files are navigation hubs, not content: never reported as unlinked. */
+    private val healthRootIds = setOf("SOUL.md", "MEMORY.md", "user.md")
+
+    /**
+     * Checks the whole vault for orphans: nodes with no links in or out,
+     * [[links]] that resolve nowhere, detail records failing the schema, notes
+     * whose `task_ref` names an unknown or mismatched task, tasks pointing at
+     * deleted notes, and files too large for the link scan. Each file is read
+     * once, bounded by [LINK_SCAN_CAP_CHARS].
+     */
+    fun checkHealth(
+        snapshot: SecondBrainSnapshot,
+        taskLinks: List<TaskLink> = emptyList()
+    ): BrainHealth {
+        val index = buildNodeIndex(snapshot)
+        val texts = index.sources
+            .filter { it.file.isMarkdown }
+            .associate { it.id to fullText(it.file) }
+        val linked = graphEdges(index, texts).flatMap { listOf(it.fromId, it.toId) }.toSet()
+        val unlinked = index.nodes
+            .map { it.id }
+            .filter { it !in linked && it !in healthRootIds }
+            .sorted()
+        val dangling = danglingFor(index, texts)
+        val byTaskId = taskLinks.associateBy { it.id }
+        val vaultNotePaths = detailFiles(snapshot).mapNotNull { (file, _) ->
+            runCatching { File(file.absolutePath).canonicalPath }.getOrNull()
+        }.toSet()
+        val invalid = mutableListOf<RecordProblem>()
+        val unknownTasks = mutableListOf<TaskNoteRef>()
+        val mismatched = mutableListOf<TaskMismatch>()
+        val unscanned = mutableListOf<String>()
+        detailFiles(snapshot).forEach { (file, dirKind) ->
+            val id = relativeMemoryId(file, "$dirKind/${file.name}")
+            val full = texts[id] ?: fullText(file)
+            if ((texts[id]?.length ?: 0) > LINK_SCAN_CAP_CHARS) unscanned.add(id)
+            val check = validateRecord(file.name, full, dirKind)
+            if (!check.valid) invalid.add(RecordProblem(id, check.errors))
+            frontmatterOf(full)?.get("task_ref")?.takeIf { it.isNotBlank() }?.let { ref ->
+                val task = byTaskId[ref]
+                when {
+                    task == null -> unknownTasks.add(TaskNoteRef(id, ref))
+                    task.notePath == null || !samePath(task.notePath, file.absolutePath) ->
+                        mismatched.add(TaskMismatch(id, ref, task.notePath))
                 }
-                add(raw)
-                add("$raw.md")
-                add("$raw.markdown")
-            }
-            candidates.forEach { candidate ->
-                byFull[norm(candidate)]?.let { return it }
-            }
-            // (c) Bare-name fallback only when it names exactly one node.
-            val base = norm(raw).substringAfterLast('/')
-            val matches = nodes.filter { norm(it.id).substringAfterLast('/') == base }.map { it.id }
-            return matches.singleOrNull()
-        }
-        val edges = mutableSetOf<BrainEdge>()
-        sources.forEach { source ->
-            if (!source.file.isMarkdown) return@forEach
-            parseWikiLinks(fullTextForLinks(source.file)).forEach { target ->
-                val toId = resolve(target, source.id)
-                if (toId != null && toId != source.id) edges.add(BrainEdge(source.id, toId))
             }
         }
-        return BrainGraph(nodes, edges.toList())
+        val stale = taskLinks.mapNotNull { task ->
+            val path = task.notePath ?: return@mapNotNull null
+            if (vaultNotePaths.none { samePath(it, path) }) StaleTaskLink(task.name, path) else null
+        }
+        return BrainHealth(
+            unlinked.sorted(),
+            dangling,
+            invalid,
+            unknownTasks,
+            mismatched,
+            stale,
+            unscanned.sorted()
+        )
+    }
+
+    /** Every detail record with its top-level dir for schema checks. */
+    private fun detailFiles(snapshot: SecondBrainSnapshot): List<Pair<BrainFile, String>> =
+        snapshot.areas.map { it to "areas" } +
+            snapshot.people.map { it to "people" } +
+            snapshot.notes.map { it to "notes" }
+
+    /** Links that resolve nowhere, in stable order. Self-links count: they draw nothing. */
+    fun findDanglingLinks(snapshot: SecondBrainSnapshot): List<DanglingLink> {
+        val index = buildNodeIndex(snapshot)
+        val texts = index.sources.associate { it.id to fullText(it.file) }
+        return danglingFor(index, texts)
+    }
+
+    /**
+     * Dangling links from preloaded [texts]. Ambiguous bare names are skipped:
+     * they match several files rather than none.
+     */
+    private fun danglingFor(index: NodeIndex, texts: Map<String, String>): List<DanglingLink> {
+        return index.sources
+            .filter { it.file.isMarkdown }
+            .flatMap { source ->
+                val text = texts[source.id] ?: fullText(source.file)
+                parseWikiLinks(text).mapNotNull { target ->
+                    val toId = resolveGraphLink(target, source.id, index)
+                    when {
+                        toId == null && !hasAmbiguousMatches(target, source.id, index) ->
+                            DanglingLink(source.id, target)
+                        toId != null && toId == source.id -> DanglingLink(source.id, target)
+                        else -> null
+                    }
+                }
+            }
+            .distinct()
+            .sortedWith(compareBy({ it.fromId }, { it.target }))
+    }
+
+    /** True when two paths name the same file, best-effort. */
+    private fun samePath(a: String, b: String): Boolean {
+        if (a == b) return true
+        return runCatching { File(a).canonicalPath == File(b).canonicalPath }.getOrDefault(false)
+    }
+
+    /** Frontmatter values of [content], or null when it carries none. Errors are ignored. */
+    private fun frontmatterOf(content: String): Map<String, String>? {
+        val lines = content.lines()
+        if (lines.isEmpty() || lines[0].trim() != "---") return null
+        val end = lines.drop(1).indexOfFirst { it.trim() == "---" }
+        if (end < 0) return null
+        val values = mutableMapOf<String, String>()
+        parseFrontmatterLines("", lines.drop(1).take(end), values, mutableListOf())
+        return values
+    }
+
+    /** Full text for checks that must see past the viewer preview cap. */
+    private fun fullText(file: BrainFile): String {
+        val abs = file.absolutePath
+        if (abs.isNotBlank()) {
+            readUpTo(File(abs), LINK_SCAN_CAP_CHARS)?.let { return it }
+        }
+        return file.content
+    }
+
+    /**
+     * Duplicate guard: slug of a title or file name, so "Asha Sharma",
+     * "asha-sharma.md" and "Asha-Sharma" all compare equal. The agent checks
+     * this (and greps) before creating a person, area or note.
+     */
+    fun slugify(text: String): String =
+        text.lowercase()
+            .map { if (it.isLetterOrDigit()) it else '-' }
+            .joinToString("")
+            .replace(Regex("-+"), "-")
+            .trim('-')
+
+    /** Strips a real record extension (.md, .markdown); dots inside titles are kept. */
+    private fun stripRecordExtension(name: String): String {
+        val lower = name.lowercase()
+        return when {
+            lower.endsWith(".markdown") -> name.dropLast(".markdown".length)
+            lower.endsWith(".md") -> name.dropLast(".md".length)
+            else -> name
+        }
+    }
+
+    /**
+     * Ids of existing records that likely duplicate [title]: same slug as the
+     * file base name or the frontmatter title. Empty when there is no clash.
+     */
+    fun findPossibleDuplicates(title: String, snapshot: SecondBrainSnapshot): List<String> {
+        val slug = slugify(stripRecordExtension(title.substringAfterLast('/')))
+        if (slug.isEmpty()) return emptyList()
+        return detailFiles(snapshot).mapNotNull { (file, dirKind) ->
+            val id = relativeMemoryId(file, "$dirKind/${file.name}")
+            val baseSlug = slugify(stripRecordExtension(id.substringAfterLast('/')))
+            val titleSlug = frontmatterOf(file.content)?.get("title")?.let { slugify(it) }
+            if (slug == baseSlug || slug == titleSlug) id else null
+        }.distinct().sorted()
     }
 
     /** Max chars scanned per file for [[link]] parsing (preview cap stays smaller). */
@@ -428,7 +685,7 @@ object MemoryStore {
         return try {
             if (!dir.exists() || !dir.isDirectory) return emptyList()
             dir.listFiles()
-                ?.filter { it.isFile && it.name.substringAfterLast('.', "").lowercase() == "md" }
+                ?.filter { it.isFile && it.name.substringAfterLast('.', "").lowercase() in setOf("md", "markdown") }
                 ?.sortedBy { it.name.lowercase() }
                 ?.mapNotNull { loadBrainFile(it) }
                 .orEmpty()
@@ -480,7 +737,8 @@ object MemoryStore {
     val RECORD_REQUIRED_KEYS = setOf("title", "area", "type", "updated")
     val RECORD_ALLOWED_KEYS = setOf(
         "title", "area", "type", "tags", "updated",
-        "source", "source_file", "stage", "project", "summary"
+        "source", "source_file", "stage", "project", "summary",
+        "next_action", "task_ref"
     )
 
     /** Record types. Hub files in areas/ use `area`. */
@@ -627,8 +885,10 @@ object MemoryStore {
                 }
             }
         }
-        if (values.containsKey("source") && values["source"].isNullOrBlank()) {
-            errors.add("$fileName: 'source' is present but blank.")
+        listOf("source", "source_file", "next_action", "task_ref").forEach { key ->
+            if (values.containsKey(key) && values[key].isNullOrBlank()) {
+                errors.add("$fileName: '$key' is present but blank.")
+            }
         }
     }
 
