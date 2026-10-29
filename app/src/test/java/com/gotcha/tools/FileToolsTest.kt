@@ -2,6 +2,9 @@ package com.gotcha.tools
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.data.GotchaStorage
+import com.gotcha.data.MemoryStore
+import com.gotcha.data.Settings
 import com.gotcha.testsupport.ShadowExternalStorageManager
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -119,6 +122,146 @@ class FileToolsTest {
         fileTool.writeFile(target.absolutePath, "replaced")
 
         assertEquals("replaced", target.readText())
+    }
+
+    // ---- memory schema gate (Second Brain Phase 1) ----
+
+    private fun withMemoryRoot(block: () -> Unit) {
+        val savedRoot = GotchaStorage.rootPath
+        GotchaStorage.rootPath = File(workDir, "Gotcha").absolutePath
+        try {
+            MemoryStore.ensureDefaults(Settings())
+            block()
+        } finally {
+            GotchaStorage.rootPath = savedRoot
+        }
+    }
+
+    private fun goodMemoryRecord(): String = listOf(
+        "---",
+        "title: Trip Plan",
+        "area: Personal",
+        "type: note",
+        "tags: [travel]",
+        "updated: 2026-10-29",
+        "---",
+        "",
+        "# Trip Plan",
+        "",
+        "Body here.",
+        ""
+    ).joinToString("\n")
+
+    @Test
+    fun `write_file rejects memory records with bad frontmatter`() {
+        withMemoryRoot {
+            val target = File(GotchaStorage.memoryNotesDir(), "bad.md").absolutePath
+
+            val result = fileTool.writeFile(target, "# No frontmatter\n\nBody.\n")
+
+            assertFalse(result.message, result.success)
+            assertTrue(result.message, result.message.contains("frontmatter"))
+            assertFalse(File(target).exists())
+        }
+    }
+
+    @Test
+    fun `write_file accepts memory records with valid frontmatter`() {
+        withMemoryRoot {
+            val target = File(GotchaStorage.memoryNotesDir(), "good.md").absolutePath
+
+            val result = fileTool.writeFile(target, goodMemoryRecord())
+
+            assertTrue(result.message, result.success)
+            assertTrue(File(target).exists())
+        }
+    }
+
+    @Test
+    fun `edit rejects changes that break memory frontmatter`() {
+        withMemoryRoot {
+            val target = File(GotchaStorage.memoryNotesDir(), "note.md").absolutePath
+            assertTrue(fileTool.writeFile(target, goodMemoryRecord()).success)
+
+            val bad = editTool.edit(target, "type: note", "type: nonsense", replaceAll = false)
+            assertFalse(bad.message, bad.success)
+            assertTrue(bad.message, bad.message.contains("nonsense"))
+            assertTrue(File(target).readText().contains("type: note"))
+
+            val good = editTool.edit(target, "Body here.", "Body updated.", replaceAll = false)
+            assertTrue(good.message, good.success)
+        }
+    }
+
+    @Test
+    fun `write_file append without frontmatter is rejected`() {
+        withMemoryRoot {
+            val target = File(GotchaStorage.memoryNotesDir(), "appended.md").absolutePath
+
+            val result = fileTool.writeFile(target, "# No frontmatter\n", append = true)
+
+            assertFalse(result.message, result.success)
+            assertTrue(result.message, result.message.contains("frontmatter"))
+            assertFalse(File(target).exists())
+        }
+    }
+
+    @Test
+    fun `write_file appends body to a valid record`() {
+        withMemoryRoot {
+            val target = File(GotchaStorage.memoryNotesDir(), "append-ok.md").absolutePath
+            assertTrue(fileTool.writeFile(target, goodMemoryRecord()).success)
+
+            val result = fileTool.writeFile(target, "\nMore body.\n", append = true)
+
+            assertTrue(result.message, result.success)
+            assertTrue(File(target).readText().contains("More body."))
+        }
+    }
+
+    @Test
+    fun `write_file rejects binary writes to memory records`() {
+        withMemoryRoot {
+            val target = File(GotchaStorage.memoryNotesDir(), "bin.md").absolutePath
+
+            val result = fileTool.writeFile(target, "aGk=", binary = true)
+
+            assertFalse(result.message, result.success)
+            assertTrue(result.message, result.message.contains("Markdown text"))
+            assertFalse(File(target).exists())
+        }
+    }
+
+    @Test
+    fun `write_file rejects replacing dated notes but edit can link forward`() {
+        withMemoryRoot {
+            val dated = listOf(
+                "---",
+                "title: Sync",
+                "area: Personal",
+                "type: note",
+                "updated: 2026-10-20",
+                "---",
+                "",
+                "Old decision.",
+                ""
+            ).joinToString("\n")
+            val target = File(GotchaStorage.memoryNotesDir(), "2026-10-20-sync.md").absolutePath
+            assertTrue(fileTool.writeFile(target, dated).success)
+
+            val overwrite = fileTool.writeFile(target, dated.replace("Old decision.", "New decision."))
+            assertFalse(overwrite.message, overwrite.success)
+            assertTrue(overwrite.message, overwrite.message.contains("append-only"))
+            assertTrue(File(target).readText().contains("Old decision."))
+
+            val link = editTool.edit(
+                target,
+                "Old decision.",
+                "Superseded by [[notes/2026-10-29-sync.md]]\n\nOld decision.",
+                replaceAll = false
+            )
+            assertTrue(link.message, link.success)
+        }
     }
 
     // ---- list_files ----

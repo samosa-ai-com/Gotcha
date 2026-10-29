@@ -293,4 +293,244 @@ class MemoryStoreTest {
         assertEquals(points[1], keptPoints[1])
         assertEquals(points[2], keptPoints[2])
     }
+
+    // ---- Second Brain Phase 1: record schema, digest, history, timezone ----
+
+    private fun goodRecord(): String = listOf(
+        "---",
+        "title: Trip Plan",
+        "area: Personal",
+        "type: note",
+        "tags: [travel, japan-2026]",
+        "updated: 2026-10-29",
+        "source: user chat",
+        "source_file: raw/memo.mp3",
+        "---",
+        "",
+        "# Trip Plan",
+        "",
+        "See [[areas/personal.md]].",
+        ""
+    ).joinToString("\n")
+
+    @Test
+    fun `seeded area hubs carry valid frontmatter`() {
+        MemoryStore.ensureDefaults(Settings())
+        GotchaStorage.memoryAreasDir().listFiles()!!.forEach { hub ->
+            val check = MemoryStore.validateRecord(hub.name, hub.readText())
+            assertTrue("${hub.name}: ${check.errors}", check.valid)
+        }
+    }
+
+    @Test
+    fun `validateRecord accepts a complete record`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord("trip.md", goodRecord())
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `validateRecord rejects missing frontmatter`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord("trip.md", "# No frontmatter\n\nBody.\n")
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("frontmatter") })
+    }
+
+    @Test
+    fun `validateRecord rejects bad fields`() {
+        MemoryStore.ensureDefaults(Settings())
+        val bad = listOf(
+            "---",
+            "title: ",
+            "area: Atlantis",
+            "type: nonsense",
+            "tags: [Bad Tag, ok]",
+            "updated: 29-10-2026",
+            "mystery: 1",
+            "---",
+            "",
+            "Body.",
+            ""
+        ).joinToString("\n")
+        val check = MemoryStore.validateRecord("bad.md", bad)
+        assertFalse(check.valid)
+        val joined = check.errors.joinToString("\n")
+        assertTrue(joined, joined.contains("'title'"))
+        assertTrue(joined, joined.contains("Atlantis"))
+        assertTrue(joined, joined.contains("nonsense"))
+        assertTrue(joined, joined.contains("Bad Tag"))
+        assertTrue(joined, joined.contains("updated"))
+        assertTrue(joined, joined.contains("mystery"))
+    }
+
+    @Test
+    fun `validateRecord rejects empty bodies`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord(
+            "empty.md",
+            "---\ntitle: T\narea: Work\ntype: note\nupdated: 2026-10-29\n---\n"
+        )
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("empty body") })
+    }
+
+    @Test
+    fun `parseTags handles inline lists and single slugs`() {
+        assertEquals(listOf("travel", "japan-2026"), MemoryStore.parseTags("[travel, japan-2026]"))
+        assertEquals(emptyList<String>(), MemoryStore.parseTags("[]"))
+        assertEquals(listOf("solo"), MemoryStore.parseTags("solo"))
+    }
+
+    @Test
+    fun `isKnownArea accepts starter and custom hubs`() {
+        MemoryStore.ensureDefaults(Settings())
+        assertTrue(MemoryStore.isKnownArea("Work"))
+        assertTrue(MemoryStore.isKnownArea("work"))
+        File(GotchaStorage.memoryAreasDir(), "sidequest.md").writeText("# Sidequest\n")
+        assertTrue(MemoryStore.isKnownArea("sidequest"))
+        assertFalse(MemoryStore.isKnownArea("Atlantis"))
+    }
+
+    @Test
+    fun `isDetailRecord gates only detail markdown`() {
+        MemoryStore.ensureDefaults(Settings())
+        assertTrue(MemoryStore.isDetailRecord(File(GotchaStorage.memoryNotesDir(), "trip.md")))
+        assertTrue(MemoryStore.isDetailRecord(File(GotchaStorage.memoryPeopleDir(), "asha.markdown")))
+        assertFalse(MemoryStore.isDetailRecord(GotchaStorage.soulFile()))
+        assertFalse(MemoryStore.isDetailRecord(GotchaStorage.memoryIndexFile()))
+        assertFalse(MemoryStore.isDetailRecord(GotchaStorage.memoryUserFile()))
+        assertFalse(MemoryStore.isDetailRecord(File(GotchaStorage.memoryRawDir(), "memo.mp3")))
+        assertFalse(MemoryStore.isDetailRecord(File(GotchaStorage.memoryNotesDir(), "clip.mp3")))
+    }
+
+    @Test
+    fun `listStaleRaw flags files older than 30 days`() {
+        MemoryStore.ensureDefaults(Settings())
+        val rawDir = GotchaStorage.memoryRawDir().apply { mkdirs() }
+        val old = File(rawDir, "old-memo.mp3").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            setLastModified(System.currentTimeMillis() - 40L * 24 * 60 * 60 * 1000)
+        }
+        val fresh = File(rawDir, "fresh.txt").apply { writeText("new") }
+        val stale = MemoryStore.listStaleRaw()
+        assertTrue(stale.map { it.name }.contains(old.name))
+        assertFalse(stale.map { it.name }.contains(fresh.name))
+    }
+
+    @Test
+    fun `isEphemeralPath spots staging paths`() {
+        assertTrue(MemoryStore.isEphemeralPath("/tmp/voice.mp3"))
+        assertTrue(MemoryStore.isEphemeralPath("/data/cache/memo.pdf"))
+        assertTrue(MemoryStore.isEphemeralPath("/sdcard/Temp/clip.mp4"))
+        assertTrue(MemoryStore.isEphemeralPath("/sdcard/Download/draft.tmp"))
+        assertFalse(MemoryStore.isEphemeralPath("/sdcard/Documents/paper.pdf"))
+    }
+
+    @Test
+    fun `isDatedNote detects dated names`() {
+        assertTrue(MemoryStore.isDatedNote("2026-10-29-sync.md"))
+        assertFalse(MemoryStore.isDatedNote("trip.md"))
+        assertFalse(MemoryStore.isDatedNote("2026-13-99-bogus.md"))
+    }
+
+    @Test
+    fun `memory dates use the device timezone`() {
+        assertTrue(MemoryStore.deviceTimezoneId().isNotBlank())
+        val expected = java.time.LocalDate.ofInstant(
+            java.time.Instant.ofEpochMilli(0),
+            java.time.ZoneId.systemDefault()
+        ).toString()
+        assertEquals(expected, MemoryStore.formatDateForMemory(0))
+        assertTrue(MemoryStore.formatDateForMemory().matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+    }
+
+    // ---- Codex review follow-ups ----
+
+    private fun record(type: String, area: String, tags: String = "[x]"): String = listOf(
+        "---",
+        "title: T",
+        "area: $area",
+        "type: $type",
+        "tags: $tags",
+        "updated: 2026-10-29",
+        "---",
+        "",
+        "Body.",
+        ""
+    ).joinToString("\n")
+
+    @Test
+    fun `validateRecord treats quoted empty values as blank`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord(
+            "q.md",
+            "---\ntitle: \"\"\narea: Work\ntype: note\nupdated: 2026-10-29\n---\n\nBody.\n"
+        )
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("'title'") })
+    }
+
+    @Test
+    fun `validateRecord rejects commas inside quoted tags`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord("t.md", record("note", "Work", "[\"bad,tag\"]"))
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("bad,tag") })
+    }
+
+    @Test
+    fun `validateRecord accepts block scalars`() {
+        MemoryStore.ensureDefaults(Settings())
+        val body = listOf(
+            "---",
+            "title: T",
+            "area: Work",
+            "type: note",
+            "updated: 2026-10-29",
+            "summary: |",
+            "  first line without a colon",
+            "  second: still part of the value",
+            "---",
+            "",
+            "Body.",
+            ""
+        ).joinToString("\n")
+        val check = MemoryStore.validateRecord("b.md", body)
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `validateRecord enforces type per directory`() {
+        MemoryStore.ensureDefaults(Settings())
+        val misplaced = MemoryStore.validateRecord("work.md", record("note", "Work"), "areas")
+        assertFalse(misplaced.valid)
+        assertTrue(misplaced.errors.any { it.contains("areas/") })
+        assertTrue(MemoryStore.validateRecord("work.md", record("area", "Work"), "areas").valid)
+        assertTrue(MemoryStore.validateRecord("asha.md", record("person", "People"), "people").valid)
+        assertTrue(MemoryStore.validateRecord("sync.md", record("decision", "Work"), "notes").valid)
+        // Without directory context the type check stays lenient.
+        assertTrue(MemoryStore.validateRecord("work.md", record("note", "Work")).valid)
+    }
+
+    @Test
+    fun `area bootstrap accepts the new hub name`() {
+        MemoryStore.ensureDefaults(Settings())
+        assertFalse(MemoryStore.isKnownArea("Research"))
+        val check = MemoryStore.validateRecord("Research.md", record("area", "Research"), "areas")
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `ensureDefaults migrates legacy hubs`() {
+        MemoryStore.ensureDefaults(Settings())
+        val hub = File(GotchaStorage.memoryAreasDir(), "work.md")
+        hub.writeText("# Work\n\nLegacy plain markdown.\n")
+        MemoryStore.ensureDefaults(Settings())
+        val text = hub.readText()
+        assertTrue(text.lines().first() == "---")
+        assertTrue(text.contains("Legacy plain markdown."))
+        val check = MemoryStore.validateRecord(hub.name, text, "areas")
+        assertTrue(check.errors.toString(), check.valid)
+    }
 }

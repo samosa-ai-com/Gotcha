@@ -17,7 +17,7 @@ import java.io.File
  * with read_file/grep. The stable <memory> pointer in the system prompt
  * costs about 60 tokens per turn.
  */
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LargeClass")
 object MemoryStore {
 
     const val SOUL_CAP_CHARS = 1500
@@ -77,6 +77,7 @@ object MemoryStore {
                 index.writeText(defaultMemoryIndex())
             }
             ensureAreaHubs()
+            migrateLegacyHubs()
             syncUserFile(settings)
         }
     }
@@ -132,6 +133,7 @@ object MemoryStore {
             appendLine("2. MEMORY.md is the map. Load detail files only when the task needs them.")
             appendLine("3. If a file is missing, continue with Personal Info and note it once.")
             appendLine("4. user.md is synced from Settings Personal Info. Do not duplicate it into notes.")
+            appendLine("5. Before writing memory, load the full protocol: search_skills('memory').")
         }
         return ChatMessage(role = "system", content = JsonPrimitive(body))
     }
@@ -466,6 +468,314 @@ object MemoryStore {
         }
     }
 
+    /**
+     * Record schema for people/, areas/ and notes/ detail files (Phase 1).
+     *
+     * Every record carries YAML frontmatter between leading `---` lines:
+     * required `title`, `area`, `type`, `updated` (ISO yyyy-MM-dd); optional
+     * `tags` (slug list), `source` (where the fact came from), `source_file`
+     * (raw file this was digested from), `stage`, `project`, `summary`.
+     * SOUL.md, MEMORY.md, user.md and raw/ files are not records.
+     */
+    val RECORD_REQUIRED_KEYS = setOf("title", "area", "type", "updated")
+    val RECORD_ALLOWED_KEYS = setOf(
+        "title", "area", "type", "tags", "updated",
+        "source", "source_file", "stage", "project", "summary"
+    )
+
+    /** Record types. Hub files in areas/ use `area`. */
+    val RECORD_TYPES = setOf("person", "note", "meeting", "decision", "reference", "area", "contact-card")
+
+    /** Starter area vocabulary. Users may add areas; validation also accepts existing hubs. */
+    val STARTER_AREAS = setOf("People", "Work", "Personal", "Health")
+
+    private val slugRegex = Regex("^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    private val isoDateRegex = Regex("^\\d{4}-\\d{2}-\\d{2}$")
+    private val datedNameRegex = Regex("^\\d{4}-\\d{2}-\\d{2}")
+
+    data class RecordValidation(val valid: Boolean, val errors: List<String>)
+
+    /**
+     * Validates a detail record's frontmatter and body. Returns every problem
+     * found so the agent can speak the fix back. Pure string logic, no I/O
+     * except the area-vocabulary check against existing hub files.
+     *
+     * @param dirKind top-level memory dir (`areas`, `people`, `notes`) for
+     * type-vs-directory checks; null skips them.
+     */
+    fun validateRecord(fileName: String, content: String, dirKind: String? = null): RecordValidation {
+        val errors = mutableListOf<String>()
+        val lines = content.lines()
+        if (lines.isEmpty() || lines[0].trim() != "---") {
+            return RecordValidation(
+                false,
+                listOf(
+                    "$fileName: missing frontmatter. Start the file with a --- block " +
+                        "carrying ${RECORD_REQUIRED_KEYS.sorted().joinToString(", ")}."
+                )
+            )
+        }
+        val end = lines.drop(1).indexOfFirst { it.trim() == "---" }
+        if (end < 0) {
+            return RecordValidation(false, listOf("$fileName: frontmatter never closed with ---."))
+        }
+        val values = mutableMapOf<String, String>()
+        parseFrontmatterLines(fileName, lines.drop(1).take(end), values, errors)
+        val base = fileName.substringAfterLast('/').substringBeforeLast('.')
+        checkRecordFields(fileName, base, dirKind, values, errors)
+        val body = lines.drop(1 + end + 1).joinToString("\n").trim()
+        if (body.isEmpty()) errors.add("$fileName: empty body. Facts live in the body, not the map.")
+        return RecordValidation(errors.isEmpty(), errors)
+    }
+
+    /** Parses `key: value` lines into [values], collecting syntax problems. */
+    private fun parseFrontmatterLines(
+        fileName: String,
+        fmLines: List<String>,
+        values: MutableMap<String, String>,
+        errors: MutableList<String>
+    ) {
+        var inBlock = false
+        fmLines.forEach { raw ->
+            if (inBlock) {
+                // Continuation of a `key: |` block scalar: indented or blank
+                // lines belong to the value, not to new keys.
+                if (raw.isBlank() || raw.startsWith(" ") || raw.startsWith("\t")) return@forEach
+                inBlock = false
+            }
+            val line = raw.trim()
+            if (line.isEmpty() || line.startsWith("#")) return@forEach
+            val key = line.substringBefore(':', "").trim()
+            if (!line.contains(':') || key.isEmpty()) {
+                errors.add("$fileName: malformed frontmatter line '$line' (expected key: value).")
+                return@forEach
+            }
+            if (values.containsKey(key)) errors.add("$fileName: duplicate frontmatter key '$key'.")
+            val value = unquote(line.substringAfter(':').trim())
+            values[key] = value
+            if (value == "|" || value == ">") inBlock = true
+        }
+    }
+
+    /** Strips one layer of surrounding single or double quotes, so `title: ""` counts as blank. */
+    private fun unquote(value: String): String {
+        if (value.length < 2) return value
+        val doubleQuoted = value.startsWith('"') && value.endsWith('"')
+        val singleQuoted = value.startsWith('\'') && value.endsWith('\'')
+        if (doubleQuoted || singleQuoted) return value.substring(1, value.length - 1)
+        return value
+    }
+
+    /** Checks keys, types, areas, dates and tags against the record schema. */
+    private fun checkRecordFields(
+        fileName: String,
+        fileBase: String,
+        dirKind: String?,
+        values: Map<String, String>,
+        errors: MutableList<String>
+    ) {
+        values.keys.filter { it !in RECORD_ALLOWED_KEYS }.sorted().forEach { key ->
+            errors.add(
+                "$fileName: unknown frontmatter key '$key' " +
+                    "(allowed: ${RECORD_ALLOWED_KEYS.sorted().joinToString(", ")})."
+            )
+        }
+        RECORD_REQUIRED_KEYS.sorted().forEach { key ->
+            if (values[key].isNullOrBlank()) errors.add("$fileName: missing required frontmatter key '$key'.")
+        }
+        values["type"]?.takeIf { it.isNotBlank() }?.let { type ->
+            if (type !in RECORD_TYPES) {
+                errors.add(
+                    "$fileName: unknown type '$type' " +
+                        "(allowed: ${RECORD_TYPES.sorted().joinToString(", ")})."
+                )
+            } else if (dirKind != null && !typeFitsDirectory(dirKind, type)) {
+                errors.add(
+                    "$fileName: type '$type' does not belong in $dirKind/ " +
+                        "(areas/ holds type area, people/ holds person, notes/ holds notes)."
+                )
+            }
+        }
+        values["area"]?.takeIf { it.isNotBlank() }?.let { area ->
+            // Bootstrap rule: writing areas/<name>.md with area <name> IS the
+            // hub creation, so it passes before the hub exists.
+            val bootstrapping = dirKind == "areas" && area.equals(fileBase, ignoreCase = true)
+            if (!bootstrapping && !isKnownArea(area)) {
+                errors.add(
+                    "$fileName: unknown area '$area'. Use an existing area hub or " +
+                        "create the area in MEMORY.md plus areas/ first."
+                )
+            }
+        }
+        values["updated"]?.takeIf { it.isNotBlank() }?.let { updated ->
+            val valid = isoDateRegex.matches(updated) &&
+                runCatching {
+                    java.time.LocalDate.parse(updated)
+                    true
+                }.getOrDefault(false)
+            if (!valid) {
+                errors.add("$fileName: 'updated' must be an ISO date (yyyy-MM-dd), got '$updated'.")
+            }
+        }
+        values["tags"]?.let { rawTags ->
+            parseTags(rawTags).forEach { tag ->
+                if (!slugRegex.matches(tag)) {
+                    errors.add(
+                        "$fileName: tag '$tag' breaks the slug rule " +
+                            "(lowercase letters, digits, single hyphens only)."
+                    )
+                }
+            }
+        }
+        if (values.containsKey("source") && values["source"].isNullOrBlank()) {
+            errors.add("$fileName: 'source' is present but blank.")
+        }
+    }
+
+    /** Parses a `tags:` value: inline `[a, b]` list or a single slug. */
+    fun parseTags(raw: String): List<String> {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+            return splitInlineList(trimmed.removePrefix("[").removeSuffix("]"))
+        }
+        return listOf(unquote(trimmed)).filter { it.isNotEmpty() }
+    }
+
+    /** Splits an inline `[...]` list on commas outside quotes, so `["bad,tag"]` stays one value. */
+    private fun splitInlineList(inner: String): List<String> {
+        val out = mutableListOf<String>()
+        val cur = StringBuilder()
+        var quote: Char? = null
+        fun flush() {
+            val tag = unquote(cur.toString().trim())
+            if (tag.isNotEmpty()) out.add(tag)
+            cur.clear()
+        }
+        inner.forEach { ch ->
+            when {
+                quote != null && ch == quote -> {
+                    cur.append(ch)
+                    quote = null
+                }
+                quote == null && (ch == '"' || ch == '\'') -> {
+                    cur.append(ch)
+                    quote = ch
+                }
+                quote == null && ch == ',' -> flush()
+                else -> cur.append(ch)
+            }
+        }
+        flush()
+        return out
+    }
+
+    /** True when [type] belongs in [dirKind]: hubs in areas/, cards in people/, notes in notes/. */
+    private fun typeFitsDirectory(dirKind: String, type: String): Boolean = when (dirKind) {
+        "areas" -> type == "area"
+        "people" -> type == "person" || type == "contact-card"
+        "notes" -> type == "note" || type == "meeting" || type == "decision" || type == "reference"
+        else -> true
+    }
+
+    /** True when [area] matches the starter vocabulary or an existing hub file. */
+    fun isKnownArea(area: String): Boolean {
+        if (STARTER_AREAS.any { it.equals(area, ignoreCase = true) }) return true
+        return runCatching {
+            GotchaStorage.memoryAreasDir().listFiles()
+                ?.filter { it.isFile }
+                ?.map { it.nameWithoutExtension }
+                ?.any { it.equals(area, ignoreCase = true) } ?: false
+        }.getOrDefault(false)
+    }
+
+    /**
+     * True when [file] is a people/areas/notes detail record: the only memory
+     * files the schema (and the write gate) applies to.
+     */
+    fun isDetailRecord(file: File): Boolean = recordDirKind(file) != null
+
+    /**
+     * Top-level memory dir (`areas`, `people`, `notes`) for a detail record,
+     * or null when [file] is not one. The write gates pass it to
+     * [validateRecord] for type-vs-directory checks.
+     */
+    fun recordDirKind(file: File): String? {
+        return runCatching {
+            val root = GotchaStorage.memoryRoot().canonicalPath
+            val path = file.canonicalPath
+            if (!path.startsWith(root + File.separator)) return@runCatching null
+            val rel = path.removePrefix(root + File.separator)
+            val dir = rel.substringBefore('/', "")
+            if (dir != "areas" && dir != "people" && dir != "notes") return@runCatching null
+            val ext = file.name.substringAfterLast('.', "").lowercase()
+            if (ext != "md" && ext != "markdown") return@runCatching null
+            dir
+        }.getOrNull()
+    }
+
+    /**
+     * Digest helper: raw files older than [maxAgeDays] that the agent should
+     * propose for cleanup (digested-and-linked raws are deleted, kept raws
+     * are noted with their reason). Never deletes; only lists.
+     */
+    fun listStaleRaw(maxAgeDays: Int = 30, nowMillis: Long = System.currentTimeMillis()): List<File> {
+        return try {
+            val dir = GotchaStorage.memoryRawDir()
+            if (!dir.exists() || !dir.isDirectory) return emptyList()
+            val cutoff = nowMillis - maxAgeDays * 24L * 60 * 60 * 1000
+            dir.listFiles()?.filter { it.isFile && it.lastModified() < cutoff }
+                ?.sortedBy { it.name.lowercase() }.orEmpty()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Digest helper: copy-vs-link gate. Files over [RAW_LINK_THRESHOLD_BYTES]
+     * are linked in place, never duplicated — except under ephemeral paths,
+     * which must always be copied because the original can vanish.
+     */
+    const val RAW_LINK_THRESHOLD_BYTES = 10L * 1024 * 1024
+
+    /** True for staging paths that can vanish: temp dirs, caches, `.tmp` files. */
+    fun isEphemeralPath(path: String): Boolean {
+        val lower = path.lowercase().replace('\\', '/')
+        return lower.startsWith("/tmp/") || lower == "/tmp" ||
+            lower.contains("/tmp/") || lower.contains("/cache/") ||
+            lower.contains("/temp/") || lower.endsWith(".tmp") || lower.endsWith(".temp")
+    }
+
+    /**
+     * History rule helper: dated notes (names starting yyyy-MM-dd) describe
+     * what was true THEN and stay append-only. New decisions go in new notes
+     * with `Superseded by [[path]]` links both ways, never rewrites.
+     */
+    fun isDatedNote(fileName: String): Boolean {
+        val prefix = datedNameRegex.find(fileName)?.value ?: return false
+        return runCatching {
+            java.time.LocalDate.parse(prefix)
+            true
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Timezone rule: the device zone is truth. Formats [nowMillis] as an ISO
+     * date in the device zone with DST-safe conversion (never a hardcoded
+     * offset). Notes carry absolute dates, never relative ones.
+     */
+    fun deviceTimezoneId(): String =
+        runCatching { java.time.ZoneId.systemDefault().id }.getOrNull() ?: "UTC"
+
+    fun formatDateForMemory(nowMillis: Long = System.currentTimeMillis()): String {
+        val instant = java.time.Instant.ofEpochMilli(nowMillis)
+        return runCatching {
+            java.time.LocalDate.ofInstant(instant, java.time.ZoneId.systemDefault()).toString()
+        }.getOrDefault(
+            java.time.LocalDate.ofInstant(instant, java.time.ZoneOffset.UTC).toString()
+        )
+    }
+
     internal fun buildUserFile(settings: Settings): String = buildString {
         appendLine("---")
         appendLine("title: User")
@@ -522,11 +832,35 @@ object MemoryStore {
 
     private fun ensureAreaHubs() {
         val root = runCatching { GotchaStorage.memoryRoot().absolutePath }.getOrNull() ?: "Gotcha/memory"
+        val today = formatDateForMemory()
+        fun hub(title: String, area: String, body: String): String = buildString {
+            appendLine("---")
+            appendLine("title: $title")
+            appendLine("area: $area")
+            appendLine("type: area")
+            appendLine("tags: []")
+            appendLine("updated: $today")
+            appendLine("---")
+            appendLine()
+            append(body)
+        }
         val areas = mapOf(
-            "people.md" to "# People\n\nContact cards live in $root/people/. Open with absolute paths.\n",
-            "work.md" to "# Work\n\nProjects and work threads. Detail notes live in $root/notes/. Open with absolute paths.\n",
-            "personal.md" to "# Personal\n\nHome, routine, finance admin. Detail notes live in $root/notes/. Open with absolute paths.\n",
-            "health.md" to "# Health\n\nHealth context the user chooses to keep. Never store diagnoses as facts.\n"
+            "people.md" to hub(
+                "People", "People",
+                "# People\n\nContact cards live in $root/people/. Open with absolute paths.\n"
+            ),
+            "work.md" to hub(
+                "Work", "Work",
+                "# Work\n\nProjects and work threads. Detail notes live in $root/notes/. Open with absolute paths.\n"
+            ),
+            "personal.md" to hub(
+                "Personal", "Personal",
+                "# Personal\n\nHome, routine, finance admin. Detail notes live in $root/notes/. Open with absolute paths.\n"
+            ),
+            "health.md" to hub(
+                "Health", "Health",
+                "# Health\n\nHealth context the user chooses to keep. Never store diagnoses as facts.\n"
+            )
         )
         areas.forEach { (name, body) ->
             val file = File(GotchaStorage.memoryAreasDir(), name)
@@ -534,5 +868,40 @@ object MemoryStore {
                 runCatching { file.writeText(body) }
             }
         }
+    }
+
+    /**
+     * One-time migration for pre-schema installs: hub files written before the
+     * record schema gain frontmatter in place, so they stay editable through
+     * the write gate. Bodies are preserved untouched; only already-valid files
+     * and non-markdown files are skipped.
+     */
+    private fun migrateLegacyHubs() {
+        val dir = GotchaStorage.memoryAreasDir()
+        if (!dir.exists() || !dir.isDirectory) return
+        val today = formatDateForMemory()
+        dir.listFiles()
+            ?.filter { it.isFile && it.name.substringAfterLast('.', "").lowercase() == "md" }
+            .orEmpty()
+            .forEach { hub ->
+                runCatching {
+                    val text = hub.readText()
+                    if (text.lines().firstOrNull()?.trim() == "---") return@runCatching
+                    val base = hub.nameWithoutExtension
+                    val area = STARTER_AREAS.firstOrNull { it.equals(base, ignoreCase = true) }
+                        ?: base.replaceFirstChar { it.uppercase() }
+                    val header = listOf(
+                        "---",
+                        "title: $base",
+                        "area: $area",
+                        "type: area",
+                        "tags: []",
+                        "updated: $today",
+                        "---",
+                        ""
+                    ).joinToString("\n")
+                    hub.writeText(header + text)
+                }
+            }
     }
 }
