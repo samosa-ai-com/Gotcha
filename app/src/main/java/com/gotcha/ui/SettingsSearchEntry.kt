@@ -134,6 +134,10 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
             field("settings_user_currency", R.string.settings_field_user_currency)
         )
     )
+    SettingsPage.SECOND_BRAIN -> SettingsSearchEntry(
+        page,
+        words("memory, second brain, soul, remember, persona, notes, user card")
+    )
     SettingsPage.LANGUAGE -> SettingsSearchEntry(
         page,
         words("translate, locale"),

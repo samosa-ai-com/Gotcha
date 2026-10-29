@@ -72,6 +72,7 @@ Everything below is reached from **Settings** in the navigation drawer.
 | Setting | What it controls |
 | --- | --- |
 | Personal Info | Name, occupation, background, reply style, location, preferred currency and language |
+| Second Brain | Gotcha's persistent memory: identity, user card, areas, people and notes (read-only viewer) |
 | Language | App display language, AI reply language, voice language, STT language |
 | AI | Hub for the two pages below |
 | AI > AI Configuration | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |

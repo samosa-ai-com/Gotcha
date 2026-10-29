@@ -8,6 +8,7 @@ import com.gotcha.connectors.ConnectorRegistry
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.GotchaStorage
+import com.gotcha.data.MemoryStore
 import com.gotcha.data.RunSummary
 import com.gotcha.data.Settings
 import com.gotcha.data.ToolSummary
@@ -293,6 +294,37 @@ class AgentEngine(
         GotchaLog.d(TAG) { "setupWorkingDir: ${dir.absolutePath}" }
     }
 
+    /**
+     * Ensures persistent memory exists and injects the one-time per-chat
+     * startup message (issue #156). The message is inserted at the head of
+     * history so later turns carry it as ordinary history and the Index 0
+     * system prefix stays cache-stable. No-op when history already carries
+     * it or when memory files are unavailable.
+     */
+    internal fun ensureMemoryStartup() {
+        MemoryStore.ensureDefaults(settings)
+        if (history.any { MemoryStore.isStartupMessage(it) }) return
+        val startup = MemoryStore.buildStartupMessage() ?: return
+        if (history.isEmpty()) {
+            history.add(startup)
+        } else {
+            history.add(0, startup)
+        }
+    }
+
+    /**
+     * Repairs a trimmed-away startup message at send time (review P2). The
+     * stored history keeps the marker, but [trimmedHistory] may drop it from
+     * the head under context pressure. In that case return a fresh startup
+     * message to prepend after the Index 0 prompt; null when trimming kept
+     * it or when memory is unavailable.
+     */
+    internal fun memoryRepairMessage(trimmed: List<ChatMessage>): ChatMessage? {
+        if (trimmed.any { MemoryStore.isStartupMessage(it) }) return null
+        if (history.none { MemoryStore.isStartupMessage(it) }) return null
+        return MemoryStore.buildStartupMessage()
+    }
+
     /** LLM-generated short title, once available; set once per session. */
     var generatedTitle: String? = null
         private set
@@ -468,6 +500,11 @@ class AgentEngine(
             val summary = response.choices.firstOrNull()?.message?.textContent
             if (!summary.isNullOrBlank()) {
                 history.clear()
+                // Compaction must not drop the memory context the Index 0
+                // pointer promises: restore the startup message first so the
+                // request that triggered compaction still carries SOUL.md and
+                // MEMORY.md (issue #156 review).
+                MemoryStore.buildStartupMessage()?.let { history.add(it) }
                 history.add(ChatMessage(role = "assistant", content = JsonPrimitive(summary)))
                 if (preserveLast != null) {
                     history.add(preserveLast)
@@ -528,6 +565,7 @@ class AgentEngine(
         // The full fix is threading a cwd through ToolExecutor into the file
         // tools (FileResolver already accepts one); deferred for now.
         setupWorkingDir()
+        ensureMemoryStartup()
         checkAndCompactHistory(llm)
         // Anti-loop guard: if consecutive tool rounds produce the byte-identical
         // set of tool-call names + results (e.g. a tool that keeps returning the
@@ -577,13 +615,15 @@ class AgentEngine(
             events.onActivity("Thinking…")
 
             // Build message array optimized for prompt caching:
-            //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile)
-            //   2. Conversation history (4-turn screen observation retention window)
+            //   1. System prompt at Index 0 (instructions + static environment + connected accounts + user profile + memory pointer)
+            //   2. Conversation history, headed by the one-time [memory_startup] system message (4-turn screen observation retention window)
             //   3. Working directory + current timestamp (system message at tail)
             //   4. Active skills index summary (user message at tail)
             val messages = buildList {
                 add(systemPromptMessage(agent))
-                addAll(cullOldObservations(trimmedHistory()))
+                val trimmed = cullOldObservations(trimmedHistory())
+                memoryRepairMessage(trimmed)?.let { add(it) }
+                addAll(trimmed)
                 add(runContextMessage())
                 addAll(activeSkillsMessages(agent))
             }
@@ -1690,6 +1730,8 @@ class AgentEngine(
             append("</env>")
             append("\n\n")
             append(buildUserProfileString())
+            append("\n\n")
+            append(MemoryStore.buildMemoryPointerBlock())
             // Operator-only: tells the model it may record durable personal facts. Gated here
             // (not in buildUserProfileString) so Monitor, whose contract is read-only, never
             // sees a directive to mutate settings — and the tool is withheld from it anyway.

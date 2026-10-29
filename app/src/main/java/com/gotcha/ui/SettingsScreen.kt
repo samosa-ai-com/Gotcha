@@ -204,6 +204,9 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
                 )
+                SettingsPage.SECOND_BRAIN -> SecondBrainScreen(
+                    onBack = backToHome
+                )
                 SettingsPage.LANGUAGE -> LanguageScreen(
                     load = load,
                     onSave = onSave,
