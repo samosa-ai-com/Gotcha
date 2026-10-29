@@ -10,9 +10,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
@@ -57,8 +56,7 @@ fun AppDrawerContent(
     onDeleteSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
-    onImportChats: () -> Unit = {},
-    onBackupAllChats: () -> Unit = {},
+    onOpenScheduledTasks: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -177,23 +175,14 @@ fun AppDrawerContent(
             }
             HorizontalDivider()
             NavigationDrawerItem(
-                label = { Text(stringResource(R.string.drawer_import_chats)) },
-                icon = { Icon(Icons.Default.FileOpen, contentDescription = null) },
+                // Reuses the settings page title: already translated everywhere.
+                label = { Text(stringResource(R.string.settings_page_scheduled_tasks)) },
+                icon = { Icon(Icons.Default.Schedule, contentDescription = null) },
                 selected = false,
-                onClick = onImportChats,
+                onClick = onOpenScheduledTasks,
                 colors = itemColors,
                 modifier = itemModifier
             )
-            if (sessions.isNotEmpty()) {
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.drawer_back_up_all_chats)) },
-                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
-                    selected = false,
-                    onClick = onBackupAllChats,
-                    colors = itemColors,
-                    modifier = itemModifier
-                )
-            }
             NavigationDrawerItem(
                 label = { Text(stringResource(R.string.drawer_connectors)) },
                 icon = { Icon(Icons.Default.Link, contentDescription = null) },

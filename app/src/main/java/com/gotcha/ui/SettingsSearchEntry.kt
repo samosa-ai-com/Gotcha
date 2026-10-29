@@ -138,6 +138,14 @@ private fun entryFor(page: SettingsPage): SettingsSearchEntry = when (page) {
         page,
         words("memory, second brain, soul, remember, persona, notes, user card")
     )
+    SettingsPage.CHATS -> SettingsSearchEntry(
+        page,
+        words("chats, conversations, import, backup, export, restore"),
+        listOf(
+            field("settings_chats_import", R.string.drawer_import_chats),
+            field("settings_chats_backup_all", R.string.drawer_back_up_all_chats)
+        )
+    )
     SettingsPage.LANGUAGE -> SettingsSearchEntry(
         page,
         words("translate, locale"),
