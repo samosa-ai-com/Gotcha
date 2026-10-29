@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -151,21 +152,41 @@ fun SecondBrainScreen(onBack: () -> Unit) {
         if (showGraph) {
             SecondBrainGraphView(snapshot = current)
         } else {
-            current.soul?.let {
+            var search by remember(current) { mutableStateOf("") }
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text(stringResource(R.string.second_brain_search)) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("settings_second_brain_search")
+            )
+            val shown = remember(current, search) { MemoryStore.filterSnapshot(current, search) }
+            val shownEmpty = remember(shown) { shown.isEmpty() }
+            if (search.isNotBlank() && shownEmpty) {
+                Text(
+                    text = stringResource(R.string.second_brain_no_matches, search.trim()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.testTag("settings_second_brain_no_matches")
+                )
+                return@SettingsScaffold
+            }
+            shown.soul?.let {
                 BrainSection(
                     heading = stringResource(R.string.second_brain_identity),
                     file = it,
                     tag = "identity"
                 )
             }
-            current.memoryIndex?.let {
+            shown.memoryIndex?.let {
                 BrainSection(
                     heading = stringResource(R.string.second_brain_map),
                     file = it,
                     tag = "map"
                 )
             }
-            current.userCard?.let {
+            shown.userCard?.let {
                 BrainSection(
                     heading = stringResource(R.string.second_brain_user_card),
                     file = it,
@@ -174,25 +195,27 @@ fun SecondBrainScreen(onBack: () -> Unit) {
             }
             BrainFileList(
                 heading = stringResource(R.string.second_brain_areas),
-                files = current.areas,
+                files = shown.areas,
                 tag = "areas"
             )
             BrainFileList(
                 heading = stringResource(R.string.second_brain_people),
-                files = current.people,
+                files = shown.people,
                 tag = "people"
             )
             BrainFileList(
                 heading = stringResource(R.string.second_brain_notes),
-                files = current.notes,
+                files = shown.notes,
                 tag = "notes"
             )
             BrainFileList(
                 heading = stringResource(R.string.second_brain_raw),
-                files = current.raw,
+                files = shown.raw,
                 tag = "raw"
             )
-            health?.let { BrainHealthSection(health = it) }
+            // Health is vault-level, not query-level: hide it while searching
+            // so its unrelated filenames never confuse a filtered view.
+            if (search.isBlank()) health?.let { BrainHealthSection(health = it) }
         }
     }
 }

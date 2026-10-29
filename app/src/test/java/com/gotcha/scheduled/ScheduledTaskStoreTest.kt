@@ -87,4 +87,59 @@ class ScheduledTaskStoreTest {
         assertNull(store.get("1")!!.chatSessionId)
         assertEquals("chat-b", store.get("2")!!.chatSessionId)
     }
+
+    @Test
+    fun `the briefing preset seeds once, paused`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
+
+        val seeded = store.seedBriefingPreset("/mem", now, zone)
+
+        assertTrue(seeded != null)
+        assertEquals(MorningBriefing.TEMPLATE_NAME, seeded!!.name)
+        assertEquals(false, seeded.enabled)
+        assertEquals(com.gotcha.tools.AgentMode.MONITOR, seeded.mode)
+        assertEquals("2026-10-30T07:00", seeded.startLocal)
+        assertNull(store.seedBriefingPreset("/mem", now, zone))
+        assertEquals(1, store.all().count { it.name == MorningBriefing.TEMPLATE_NAME })
+    }
+
+    @Test
+    fun `the briefing preset skips a user-added briefing`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
+        store.put(task("u").copy(name = MorningBriefing.TEMPLATE_NAME))
+
+        assertNull(store.seedBriefingPreset("/mem", now, zone))
+        assertEquals(1, store.all().size)
+        assertTrue(store.hasBriefingPreset())
+    }
+
+    @Test
+    fun `a user-added briefing is adopted and tracked across renames`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
+        store.put(task("u").copy(name = MorningBriefing.TEMPLATE_NAME))
+
+        assertNull(store.seedBriefingPreset("/mem", now, zone))
+        store.update("u") { it.copy(name = "Mine") }
+        assertTrue(store.hasBriefingPreset())
+        assertNull(store.seedBriefingPreset("/mem", now, zone))
+        assertEquals(1, store.all().size)
+    }
+
+    @Test
+    fun `renaming the seeded preset neither duplicates it nor shows the re-add path`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
+        val seeded = store.seedBriefingPreset("/mem", now, zone)!!
+        store.update(seeded.id) { it.copy(name = "My mornings") }
+
+        assertNull(store.seedBriefingPreset("/mem", now, zone))
+        assertEquals(1, store.all().size)
+        assertTrue(store.hasBriefingPreset())
+
+        store.delete(seeded.id)
+        assertTrue(!store.hasBriefingPreset())
+    }
 }

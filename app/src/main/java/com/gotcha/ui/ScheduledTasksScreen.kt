@@ -58,7 +58,9 @@ import com.gotcha.agent.AttachmentFiles
 import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.data.ChatHistoryRepository
+import com.gotcha.data.GotchaStorage
 import com.gotcha.i18n.stringLookup
+import com.gotcha.scheduled.MorningBriefing
 import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledStart
@@ -90,6 +92,7 @@ import java.util.UUID
 
 /** [editing] value for the add form, as opposed to a task id. */
 private const val NEW_TASK = "+new"
+private const val BRIEFING_TASK = "+briefing"
 
 /**
  * Settings ▸ Scheduled tasks (issue #132): prompts Gotcha sends itself at set
@@ -108,7 +111,17 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     var tick by remember { mutableStateOf(0) }
     var editing by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<ScheduledTask?>(null) }
-    val tasks = remember(tick) { store.all() }
+    // Seed where shown, not only at app start: the list below then never
+    // renders stale, and the re-add button cannot race a background seed.
+    val tasks = remember(tick) {
+        store.seedBriefingPreset(
+            GotchaStorage.memoryRoot().absolutePath,
+            System.currentTimeMillis(),
+            ZoneId.systemDefault()
+        )
+        store.all()
+    }
+    val hasBriefing = remember(tasks) { store.hasBriefingPreset() }
     val canRunUnattended = remember(tick) { ScheduledTaskScheduler.canRunUnattended(context) }
 
     // A run ending records its result just before the keep-alive service stops,
@@ -141,7 +154,7 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     SettingsScaffold(title = stringResource(SettingsPage.SCHEDULED_TASKS.title), onBack = onBack, overlay = overlay) {
         Text(stringResource(R.string.scheduled_intro), style = MaterialTheme.typography.bodyMedium)
         if (!canRunUnattended) ExactAlarmHint(context)
-        if (tasks.isEmpty() && editing != NEW_TASK) {
+        if (tasks.isEmpty() && editing != NEW_TASK && editing != BRIEFING_TASK) {
             Text(
                 stringResource(R.string.scheduled_empty),
                 style = MaterialTheme.typography.bodySmall,
@@ -186,10 +199,17 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
             }
         }
         HorizontalDivider()
-        if (editing == NEW_TASK) {
+        if (editing == NEW_TASK || editing == BRIEFING_TASK) {
             TaskEditor(
                 store = store,
                 initial = null,
+                template = if (editing == BRIEFING_TASK) {
+                    remember {
+                        MorningBriefing.template(GotchaStorage.memoryRoot().absolutePath)
+                    }
+                } else {
+                    null
+                },
                 onSaved = {
                     editing = null
                     tick++
@@ -201,6 +221,13 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
                 onClick = { editing = NEW_TASK },
                 modifier = Modifier.fillMaxWidth().testTag("scheduled_add_task")
             ) { Text(stringResource(R.string.scheduled_add_task)) }
+            // Re-add path for a deleted preset; hidden while one exists.
+            if (!hasBriefing) {
+                OutlinedButton(
+                    onClick = { editing = BRIEFING_TASK },
+                    modifier = Modifier.fillMaxWidth().testTag("scheduled_add_briefing")
+                ) { Text(stringResource(R.string.scheduled_add_briefing)) }
+            }
         }
     }
 
@@ -350,7 +377,7 @@ private fun HistoryRow(run: TaskRun, onOpenChat: (String) -> Unit) {
     }
 }
 
-/** The add/edit form. [initial] null adds a task. */
+/** The add/edit form. [initial] null adds a task; [template] prefills a new task (e.g. the briefing). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 @Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -358,19 +385,24 @@ private fun TaskEditor(
     store: ScheduledTaskStore,
     initial: ScheduledTask?,
     onSaved: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    template: ScheduledTask? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val start = remember { initial?.start ?: defaultStart() }
-    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var prompt by remember { mutableStateOf(initial?.prompt.orEmpty()) }
+    val start = remember { initial?.start ?: template?.start ?: defaultStart() }
+    var name by remember { mutableStateOf(initial?.name ?: template?.name.orEmpty()) }
+    var prompt by remember { mutableStateOf(initial?.prompt ?: template?.prompt.orEmpty()) }
     var date by remember { mutableStateOf(start.toLocalDate()) }
     var time by remember { mutableStateOf(start.toLocalTime()) }
-    var kind by remember { mutableStateOf(initial?.repeat?.kind ?: RepeatKind.NONE) }
-    var interval by remember { mutableStateOf((initial?.repeat?.interval ?: 1).toString()) }
-    var weekdays by remember { mutableStateOf(initial?.repeat?.weekdays?.toSet() ?: emptySet()) }
-    var mode by remember { mutableStateOf(initial?.mode ?: AgentMode.MONITOR) }
+    var kind by remember { mutableStateOf(initial?.repeat?.kind ?: template?.repeat?.kind ?: RepeatKind.NONE) }
+    var interval by remember {
+        mutableStateOf((initial?.repeat?.interval ?: template?.repeat?.interval ?: 1).toString())
+    }
+    var weekdays by remember {
+        mutableStateOf(initial?.repeat?.weekdays?.toSet() ?: template?.repeat?.weekdays?.toSet() ?: emptySet())
+    }
+    var mode by remember { mutableStateOf(initial?.mode ?: template?.mode ?: AgentMode.MONITOR) }
     var personaId by remember { mutableStateOf(initial?.personaId) }
     var sameChat by remember { mutableStateOf(initial?.sameChat ?: false) }
     var chatSessionId by remember { mutableStateOf(initial?.chatSessionId) }

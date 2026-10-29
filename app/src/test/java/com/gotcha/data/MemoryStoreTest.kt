@@ -776,4 +776,49 @@ class MemoryStoreTest {
         )
         assertTrue(MemoryStore.findPossibleDuplicates("Nobody Here", snap).isEmpty())
     }
+
+    // ---- Phase 3: viewer search ----
+
+    @Test
+    fun `filterSnapshot with a blank query returns everything`() {
+        MemoryStore.ensureDefaults(Settings())
+        val snap = MemoryStore.loadSnapshot()
+        val filtered = MemoryStore.filterSnapshot(snap, "   ")
+        assertEquals(snap.areas.size, filtered.areas.size)
+        assertEquals(snap.notes.size, filtered.notes.size)
+        assertNotNull(filtered.soul)
+    }
+
+    @Test
+    fun `filterSnapshot matches names and contents`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        File(notes, "trip.md").writeText(record("note", "Personal").replace("Body.", "Kyoto itinerary."))
+        File(notes, "other.md").writeText(record("note", "Personal").replace("Body.", "Unrelated."))
+        val rawDir = GotchaStorage.memoryRawDir().apply { mkdirs() }
+        File(rawDir, "receipt.txt").writeText("Kyoto taxi")
+        val snap = MemoryStore.loadSnapshot()
+        val byName = MemoryStore.filterSnapshot(snap, "trip")
+        assertEquals(listOf("trip.md"), byName.notes.map { it.name })
+        val byContent = MemoryStore.filterSnapshot(snap, "kyoto")
+        assertEquals(listOf("trip.md"), byContent.notes.map { it.name })
+        assertEquals(listOf("receipt.txt"), byContent.raw.map { it.name })
+        val none = MemoryStore.filterSnapshot(snap, "zzzz-no-match")
+        assertTrue(none.notes.isEmpty())
+        assertNull(none.soul)
+    }
+
+    @Test
+    fun `filterSnapshot searches past the preview cap`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        val filler = "x".repeat(MemoryStore.VIEWER_FILE_CAP_CHARS)
+        File(notes, "long.md").writeText(
+            record("note", "Personal").replace("Body.", "$filler needle-term")
+        )
+        val snap = MemoryStore.loadSnapshot()
+        assertTrue(snap.notes.single { it.name == "long.md" }.truncated)
+        val found = MemoryStore.filterSnapshot(snap, "needle-term")
+        assertEquals(listOf("long.md"), found.notes.map { it.name })
+    }
 }

@@ -167,6 +167,12 @@ object MemoryStore {
     ) {
         /** Every markdown node shown on the graph, keyed by file name. */
         fun allMarkdown(): List<BrainFile> = listOfNotNull(soul, memoryIndex, userCard) + areas + people + notes
+
+        /** True when no file is shown: viewer search with no matches. */
+        fun isEmpty(): Boolean {
+            if (soul != null || memoryIndex != null || userCard != null) return false
+            return areas.isEmpty() && people.isEmpty() && notes.isEmpty() && raw.isEmpty()
+        }
     }
 
     /** Max chars shown per file in the viewer. */
@@ -485,6 +491,32 @@ object MemoryStore {
             readUpTo(File(abs), LINK_SCAN_CAP_CHARS)?.let { return it }
         }
         return file.content
+    }
+
+    /** Viewer search (Phase 3): snapshot copy holding only files matching [query] in name or content. */
+    fun filterSnapshot(snapshot: SecondBrainSnapshot, query: String): SecondBrainSnapshot {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return snapshot
+        fun match(file: BrainFile): Boolean {
+            if (file.name.lowercase().contains(q)) return true
+            if (file.content.lowercase().contains(q)) return true
+            // Truncated previews stop at the viewer cap: search the full file
+            // before reporting no match. Bounded like every other vault read.
+            if (!file.truncated) return false
+            val abs = file.absolutePath
+            if (abs.isBlank()) return false
+            return readUpTo(File(abs), LINK_SCAN_CAP_CHARS)?.lowercase()?.contains(q) ?: false
+        }
+        fun matchOpt(file: BrainFile?): BrainFile? = if (file != null && match(file)) file else null
+        return snapshot.copy(
+            soul = matchOpt(snapshot.soul),
+            memoryIndex = matchOpt(snapshot.memoryIndex),
+            userCard = matchOpt(snapshot.userCard),
+            areas = snapshot.areas.filter(::match),
+            people = snapshot.people.filter(::match),
+            notes = snapshot.notes.filter(::match),
+            raw = snapshot.raw.filter(::match)
+        )
     }
 
     /**

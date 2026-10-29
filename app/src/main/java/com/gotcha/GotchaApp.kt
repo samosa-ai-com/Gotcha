@@ -70,6 +70,15 @@ class GotchaApp : Application() {
                 val settings = com.gotcha.data.SettingsRepository(this).load()
                 com.gotcha.data.MemoryStore.ensureDefaults(settings)
             }
+            // Morning briefing preset (Second Brain Phase 3): seeded paused so
+            // the user opts in. Best-effort, like the memory init above.
+            runCatching {
+                com.gotcha.scheduled.ScheduledTaskStore(this).seedBriefingPreset(
+                    com.gotcha.data.GotchaStorage.memoryRoot().absolutePath,
+                    System.currentTimeMillis(),
+                    java.time.ZoneId.systemDefault()
+                )
+            }
         }.start()
         setupUncaughtExceptionHandler()
     }

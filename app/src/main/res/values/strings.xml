@@ -92,6 +92,8 @@
     <string name="second_brain_health_stale">Tasks pointing at missing notes (%1$d)</string>
     <string name="second_brain_health_unscanned">Files too large to scan fully (%1$d)</string>
     <string name="second_brain_health_more">…and %1$d more</string>
+    <string name="second_brain_search">Search memory</string>
+    <string name="second_brain_no_matches">No matches for “%1$s”.</string>
     <string name="second_brain_truncated">Long file — showing the start only.</string>
     <string name="second_brain_open">Open</string>
     <string name="second_brain_open_failed">No app on this phone can open that file type.</string>
@@ -1746,6 +1748,7 @@
     <string name="scheduled_intro">Gotcha sends itself a prompt at the time you set and works on it like any chat. The result lands in a chat, with a notification when you\'re away.</string>
     <string name="scheduled_empty">No scheduled tasks yet. Add one here, or ask Gotcha in a chat, e.g. “every weekday at 8, summarise my unread mail”.</string>
     <string name="scheduled_add_task">Add a task</string>
+    <string name="scheduled_add_briefing">Morning briefing</string>
     <string name="scheduled_exact_alarm_hint">Gotcha may not set exact alarms, so a task can\'t start on its own: it will ask you to tap a notification instead.</string>
     <string name="scheduled_exact_alarm_allow">Allow alarms and reminders</string>
     <string name="scheduled_set_up_by_gotcha">Set up by Gotcha in a chat</string>
