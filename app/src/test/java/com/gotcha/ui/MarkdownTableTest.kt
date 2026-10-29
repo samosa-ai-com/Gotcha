@@ -35,10 +35,17 @@ class MarkdownTableTest {
     }
 
     @Test
-    fun `escaped pipes stay inside cells`() {
+    fun `escaped pipes stay inside cells for the renderer to unescape`() {
         val segments = splitTables("| A |\n|---|\n| x \\| y |")
         val parsed = segments.single() as MarkdownSegment.Table
-        assertEquals(listOf(listOf("x | y")), parsed.rows)
+        assertEquals(listOf(listOf("x \\| y")), parsed.rows)
+    }
+
+    @Test
+    fun `double backslashes before other punctuation pass through`() {
+        val segments = splitTables("P | Q\n--- | ---\nA\\\\* | B")
+        val parsed = segments.single() as MarkdownSegment.Table
+        assertEquals(listOf(listOf("A\\\\*", "B")), parsed.rows)
     }
 
     @Test
@@ -70,6 +77,36 @@ class MarkdownTableTest {
         val segments = splitTables("Fish | chips\n---\nNot a table.")
         assertEquals(1, segments.size)
         assertTrue(segments.single() is MarkdownSegment.Prose)
+    }
+
+    @Test
+    fun `empty edge cells stay in their column`() {
+        val segments = splitTables("A | B\n--- | ---\n | second")
+        val parsed = segments.single() as MarkdownSegment.Table
+        assertEquals(listOf(listOf("", "second")), parsed.rows)
+    }
+
+    @Test
+    fun `backslashes survive except before pipes`() {
+        val segments = splitTables("P | Q\n--- | ---\nC:\\Users\\Asha | ok")
+        val parsed = segments.single() as MarkdownSegment.Table
+        assertEquals(listOf(listOf("C:\\Users\\Asha", "ok")), parsed.rows)
+    }
+
+    @Test
+    fun `an escaped backslash before a pipe still splits`() {
+        val segments = splitTables("P | Q\n--- | ---\nC:\\\\ | next")
+        val parsed = segments.single() as MarkdownSegment.Table
+        // Raw text passes through; the cell renderer turns `\\` into `\`.
+        assertEquals(listOf(listOf("C:\\\\", "next")), parsed.rows)
+    }
+
+    @Test
+    fun `tab-indented pipe rows stay prose`() {
+        val segments = splitTables("P | Q\n--- | ---\n \t| x | y |")
+        assertEquals(2, segments.size)
+        assertTrue(segments[0] is MarkdownSegment.Table)
+        assertTrue(segments[1] is MarkdownSegment.Prose)
     }
 
     @Test

@@ -657,12 +657,17 @@ class MemoryStoreTest {
                 ""
             ).joinToString("\n")
         )
+        File(notes, "i.md").writeText(record("note", "Personal").replace("title: T", "title: I"))
         val snap = MemoryStore.loadSnapshot()
+        val gPath = File(notes, "g.md").absolutePath
+        val iPath = File(notes, "i.md").absolutePath
         val health = MemoryStore.checkHealth(
             snap,
             listOf(
                 MemoryStore.TaskLink("real-id", "Task", "/other/note.md"),
-                MemoryStore.TaskLink("lonely-id", "Lonely", null)
+                MemoryStore.TaskLink("lonely-id", "Lonely", null),
+                MemoryStore.TaskLink("boss-id", "Boss", gPath),
+                MemoryStore.TaskLink("aim-id", "Aim", iPath)
             )
         )
         assertTrue(health.unknownTasks.isEmpty())
@@ -674,6 +679,16 @@ class MemoryStoreTest {
         assertTrue(
             health.mismatchedTasks.contains(
                 MemoryStore.TaskMismatch("notes/h.md", "lonely-id", null)
+            )
+        )
+        assertTrue(
+            health.missingBacklinks.contains(
+                MemoryStore.MissingBacklink("notes/g.md", "Boss")
+            )
+        )
+        assertTrue(
+            health.missingBacklinks.contains(
+                MemoryStore.MissingBacklink("notes/i.md", "Aim")
             )
         )
         assertEquals(

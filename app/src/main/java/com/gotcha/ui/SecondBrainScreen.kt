@@ -55,6 +55,7 @@ import com.gotcha.data.MemoryStore
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.tools.FileResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.cos
@@ -153,6 +154,21 @@ fun SecondBrainScreen(onBack: () -> Unit) {
             SecondBrainGraphView(snapshot = current)
         } else {
             var search by remember(current) { mutableStateOf("") }
+            var shown by remember(current) { mutableStateOf(current) }
+            // Filtering reads full files past the preview cap: off the main
+            // thread, debounced so scans start after typing pauses. A scan
+            // already running is left to finish (its result is discarded);
+            // scans are bounded reads, so overlap stays brief.
+            LaunchedEffect(current, search) {
+                if (search.isBlank()) {
+                    shown = current
+                } else {
+                    delay(300)
+                    shown = withContext(Dispatchers.Default) {
+                        MemoryStore.filterSnapshot(current, search)
+                    }
+                }
+            }
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
@@ -162,9 +178,7 @@ fun SecondBrainScreen(onBack: () -> Unit) {
                     .fillMaxWidth()
                     .testTag("settings_second_brain_search")
             )
-            val shown = remember(current, search) { MemoryStore.filterSnapshot(current, search) }
-            val shownEmpty = remember(shown) { shown.isEmpty() }
-            if (search.isNotBlank() && shownEmpty) {
+            if (search.isNotBlank() && remember(shown) { shown.isEmpty() }) {
                 Text(
                     text = stringResource(R.string.second_brain_no_matches, search.trim()),
                     style = MaterialTheme.typography.bodyMedium,
@@ -954,7 +968,11 @@ private fun BrainSection(heading: String, file: MemoryStore.BrainFile, tag: Stri
                 .fillMaxWidth()
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                    onClickLabel = if (expanded) {
+                        stringResource(R.string.message_collapse)
+                    } else {
+                        stringResource(R.string.message_expand)
+                    }
                 ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
@@ -981,7 +999,11 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
                 .fillMaxWidth()
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                    onClickLabel = if (expanded) {
+                        stringResource(R.string.message_collapse)
+                    } else {
+                        stringResource(R.string.message_expand)
+                    }
                 ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
@@ -1003,7 +1025,11 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
                             .fillMaxWidth()
                             .clickable(
                                 role = Role.Button,
-                                onClickLabel = if (fileExpanded) "Collapse" else "Expand"
+                                onClickLabel = if (fileExpanded) {
+                                    stringResource(R.string.message_collapse)
+                                } else {
+                                    stringResource(R.string.message_expand)
+                                }
                             ) { fileExpanded = !fileExpanded }
                             .padding(vertical = 2.dp)
                             .testTag("settings_second_brain_${tag}_$index")
@@ -1041,7 +1067,11 @@ private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
                 .fillMaxWidth()
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                    onClickLabel = if (expanded) {
+                        stringResource(R.string.message_collapse)
+                    } else {
+                        stringResource(R.string.message_expand)
+                    }
                 ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
@@ -1065,7 +1095,13 @@ private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
                         R.string.second_brain_health_dangling,
                         health.dangling.size
                     ),
-                    lines = health.dangling.map { "${it.fromId} → [[${it.target}]]" }
+                    lines = health.dangling.map {
+                        stringResource(
+                            R.string.second_brain_health_dangling_line,
+                            it.fromId,
+                            it.target
+                        )
+                    }
                 )
                 HealthGroup(
                     heading = stringResource(
@@ -1073,7 +1109,11 @@ private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
                         health.invalid.size
                     ),
                     lines = health.invalid.map { problem ->
-                        "${problem.fileId}: ${problem.errors.firstOrNull().orEmpty()}"
+                        stringResource(
+                            R.string.second_brain_health_invalid_line,
+                            problem.fileId,
+                            problem.errors.firstOrNull().orEmpty()
+                        )
                     }
                 )
                 HealthGroup(
@@ -1081,7 +1121,13 @@ private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
                         R.string.second_brain_health_unknown_tasks,
                         health.unknownTasks.size
                     ),
-                    lines = health.unknownTasks.map { "${it.fileId} → ${it.taskId}" }
+                    lines = health.unknownTasks.map {
+                        stringResource(
+                            R.string.second_brain_health_unknown_line,
+                            it.fileId,
+                            it.taskId
+                        )
+                    }
                 )
                 HealthGroup(
                     heading = stringResource(
@@ -1089,7 +1135,12 @@ private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
                         health.mismatchedTasks.size
                     ),
                     lines = health.mismatchedTasks.map {
-                        "${it.fileId} → task points at ${it.linkedPath ?: "(nowhere)"}"
+                        stringResource(
+                            R.string.second_brain_health_mismatch_line,
+                            it.fileId,
+                            it.linkedPath
+                                ?: stringResource(R.string.second_brain_health_nowhere)
+                        )
                     }
                 )
                 HealthGroup(
@@ -1097,7 +1148,26 @@ private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
                         R.string.second_brain_health_stale,
                         health.staleTaskLinks.size
                     ),
-                    lines = health.staleTaskLinks.map { "\"${it.taskName}\" → ${it.path}" }
+                    lines = health.staleTaskLinks.map {
+                        stringResource(
+                            R.string.second_brain_health_stale_line,
+                            it.taskName,
+                            it.path
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_missing_backlink,
+                        health.missingBacklinks.size
+                    ),
+                    lines = health.missingBacklinks.map {
+                        stringResource(
+                            R.string.second_brain_health_missing_backlink_line,
+                            it.taskName,
+                            it.fileId
+                        )
+                    }
                 )
                 HealthGroup(
                     heading = stringResource(

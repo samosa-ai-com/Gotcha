@@ -350,6 +350,9 @@ object MemoryStore {
     /** One scheduled task whose linked note no longer exists in the vault. */
     data class StaleTaskLink(val taskName: String, val path: String)
 
+    /** One scheduled task pointing at a real note that does not name it back in `task_ref`. */
+    data class MissingBacklink(val fileId: String, val taskName: String)
+
     /** Orphan dashboard: everything that keeps the Second Brain from hanging together. */
     data class BrainHealth(
         val unlinked: List<String>,
@@ -358,15 +361,16 @@ object MemoryStore {
         val unknownTasks: List<TaskNoteRef>,
         val mismatchedTasks: List<TaskMismatch> = emptyList(),
         val staleTaskLinks: List<StaleTaskLink> = emptyList(),
-        val unscanned: List<String> = emptyList()
+        val unscanned: List<String> = emptyList(),
+        val missingBacklinks: List<MissingBacklink> = emptyList()
     ) {
         val isClean: Boolean
             get() = unlinked.isEmpty() && dangling.isEmpty() && invalid.isEmpty() &&
                 unknownTasks.isEmpty() && mismatchedTasks.isEmpty() &&
-                staleTaskLinks.isEmpty() && unscanned.isEmpty()
+                staleTaskLinks.isEmpty() && unscanned.isEmpty() && missingBacklinks.isEmpty()
         val issueCount: Int
             get() = unlinked.size + dangling.size + invalid.size + unknownTasks.size +
-                mismatchedTasks.size + staleTaskLinks.size + unscanned.size
+                mismatchedTasks.size + staleTaskLinks.size + unscanned.size + missingBacklinks.size
     }
 
     /** Root files are navigation hubs, not content: never reported as unlinked. */
@@ -401,24 +405,39 @@ object MemoryStore {
         val unknownTasks = mutableListOf<TaskNoteRef>()
         val mismatched = mutableListOf<TaskMismatch>()
         val unscanned = mutableListOf<String>()
+        // Canonical note path to (id, task_ref) for the reverse backlink pass.
+        val noteRefs = mutableMapOf<String, Pair<String, String?>>()
         detailFiles(snapshot).forEach { (file, dirKind) ->
             val id = relativeMemoryId(file, "$dirKind/${file.name}")
             val full = texts[id] ?: fullText(file)
             if ((texts[id]?.length ?: 0) > LINK_SCAN_CAP_CHARS) unscanned.add(id)
             val check = validateRecord(file.name, full, dirKind)
             if (!check.valid) invalid.add(RecordProblem(id, check.errors))
-            frontmatterOf(full)?.get("task_ref")?.takeIf { it.isNotBlank() }?.let { ref ->
-                val task = byTaskId[ref]
+            val ref = frontmatterOf(full)?.get("task_ref")?.takeIf { it.isNotBlank() }
+            runCatching { File(file.absolutePath).canonicalPath }.getOrNull()?.let { canonical ->
+                noteRefs[canonical] = id to ref
+            }
+            ref?.let {
+                val task = byTaskId[it]
                 when {
-                    task == null -> unknownTasks.add(TaskNoteRef(id, ref))
+                    task == null -> unknownTasks.add(TaskNoteRef(id, it))
                     task.notePath == null || !samePath(task.notePath, file.absolutePath) ->
-                        mismatched.add(TaskMismatch(id, ref, task.notePath))
+                        mismatched.add(TaskMismatch(id, it, task.notePath))
                 }
             }
         }
-        val stale = taskLinks.mapNotNull { task ->
-            val path = task.notePath ?: return@mapNotNull null
-            if (vaultNotePaths.none { samePath(it, path) }) StaleTaskLink(task.name, path) else null
+        val stale = mutableListOf<StaleTaskLink>()
+        val missingBacklinks = mutableListOf<MissingBacklink>()
+        taskLinks.forEach { task ->
+            val path = task.notePath ?: return@forEach
+            val canonical = runCatching { File(path).canonicalPath }.getOrNull()
+            val entry = canonical?.let { noteRefs[it] }
+            when {
+                entry == null && vaultNotePaths.none { samePath(it, path) } ->
+                    stale.add(StaleTaskLink(task.name, path))
+                entry != null && entry.second != task.id ->
+                    missingBacklinks.add(MissingBacklink(entry.first, task.name))
+            }
         }
         return BrainHealth(
             unlinked.sorted(),
@@ -427,7 +446,8 @@ object MemoryStore {
             unknownTasks,
             mismatched,
             stale,
-            unscanned.sorted()
+            unscanned.sorted(),
+            missingBacklinks.sortedBy { it.fileId }
         )
     }
 
