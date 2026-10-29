@@ -13,6 +13,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
+@Suppress("LargeClass")
 class MemoryStoreTest {
 
     private lateinit var tmpRoot: File
@@ -292,5 +293,547 @@ class MemoryStoreTest {
         // Inside points pass through untouched.
         assertEquals(points[1], keptPoints[1])
         assertEquals(points[2], keptPoints[2])
+    }
+
+    // ---- Second Brain Phase 1: record schema, digest, history, timezone ----
+
+    private fun goodRecord(): String = listOf(
+        "---",
+        "title: Trip Plan",
+        "area: Personal",
+        "type: note",
+        "tags: [travel, japan-2026]",
+        "updated: 2026-10-29",
+        "source: user chat",
+        "source_file: raw/memo.mp3",
+        "---",
+        "",
+        "# Trip Plan",
+        "",
+        "See [[areas/personal.md]].",
+        ""
+    ).joinToString("\n")
+
+    @Test
+    fun `seeded area hubs carry valid frontmatter`() {
+        MemoryStore.ensureDefaults(Settings())
+        GotchaStorage.memoryAreasDir().listFiles()!!.forEach { hub ->
+            val check = MemoryStore.validateRecord(hub.name, hub.readText())
+            assertTrue("${hub.name}: ${check.errors}", check.valid)
+        }
+    }
+
+    @Test
+    fun `validateRecord accepts a complete record`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord("trip.md", goodRecord())
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `validateRecord rejects missing frontmatter`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord("trip.md", "# No frontmatter\n\nBody.\n")
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("frontmatter") })
+    }
+
+    @Test
+    fun `validateRecord rejects bad fields`() {
+        MemoryStore.ensureDefaults(Settings())
+        val bad = listOf(
+            "---",
+            "title: ",
+            "area: Atlantis",
+            "type: nonsense",
+            "tags: [Bad Tag, ok]",
+            "updated: 29-10-2026",
+            "mystery: 1",
+            "---",
+            "",
+            "Body.",
+            ""
+        ).joinToString("\n")
+        val check = MemoryStore.validateRecord("bad.md", bad)
+        assertFalse(check.valid)
+        val joined = check.errors.joinToString("\n")
+        assertTrue(joined, joined.contains("'title'"))
+        assertTrue(joined, joined.contains("Atlantis"))
+        assertTrue(joined, joined.contains("nonsense"))
+        assertTrue(joined, joined.contains("Bad Tag"))
+        assertTrue(joined, joined.contains("updated"))
+        assertTrue(joined, joined.contains("mystery"))
+    }
+
+    @Test
+    fun `validateRecord rejects empty bodies`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord(
+            "empty.md",
+            "---\ntitle: T\narea: Work\ntype: note\nupdated: 2026-10-29\n---\n"
+        )
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("empty body") })
+    }
+
+    @Test
+    fun `parseTags handles inline lists and single slugs`() {
+        assertEquals(listOf("travel", "japan-2026"), MemoryStore.parseTags("[travel, japan-2026]"))
+        assertEquals(emptyList<String>(), MemoryStore.parseTags("[]"))
+        assertEquals(listOf("solo"), MemoryStore.parseTags("solo"))
+    }
+
+    @Test
+    fun `isKnownArea accepts starter and custom hubs`() {
+        MemoryStore.ensureDefaults(Settings())
+        assertTrue(MemoryStore.isKnownArea("Work"))
+        assertTrue(MemoryStore.isKnownArea("work"))
+        File(GotchaStorage.memoryAreasDir(), "sidequest.md").writeText("# Sidequest\n")
+        assertTrue(MemoryStore.isKnownArea("sidequest"))
+        assertFalse(MemoryStore.isKnownArea("Atlantis"))
+    }
+
+    @Test
+    fun `isDetailRecord gates only detail markdown`() {
+        MemoryStore.ensureDefaults(Settings())
+        assertTrue(MemoryStore.isDetailRecord(File(GotchaStorage.memoryNotesDir(), "trip.md")))
+        assertTrue(MemoryStore.isDetailRecord(File(GotchaStorage.memoryPeopleDir(), "asha.markdown")))
+        assertFalse(MemoryStore.isDetailRecord(GotchaStorage.soulFile()))
+        assertFalse(MemoryStore.isDetailRecord(GotchaStorage.memoryIndexFile()))
+        assertFalse(MemoryStore.isDetailRecord(GotchaStorage.memoryUserFile()))
+        assertFalse(MemoryStore.isDetailRecord(File(GotchaStorage.memoryRawDir(), "memo.mp3")))
+        assertFalse(MemoryStore.isDetailRecord(File(GotchaStorage.memoryNotesDir(), "clip.mp3")))
+    }
+
+    @Test
+    fun `listStaleRaw flags files older than 30 days`() {
+        MemoryStore.ensureDefaults(Settings())
+        val rawDir = GotchaStorage.memoryRawDir().apply { mkdirs() }
+        val old = File(rawDir, "old-memo.mp3").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            setLastModified(System.currentTimeMillis() - 40L * 24 * 60 * 60 * 1000)
+        }
+        val fresh = File(rawDir, "fresh.txt").apply { writeText("new") }
+        val stale = MemoryStore.listStaleRaw()
+        assertTrue(stale.map { it.name }.contains(old.name))
+        assertFalse(stale.map { it.name }.contains(fresh.name))
+    }
+
+    @Test
+    fun `isEphemeralPath spots staging paths`() {
+        assertTrue(MemoryStore.isEphemeralPath("/tmp/voice.mp3"))
+        assertTrue(MemoryStore.isEphemeralPath("/data/cache/memo.pdf"))
+        assertTrue(MemoryStore.isEphemeralPath("/sdcard/Temp/clip.mp4"))
+        assertTrue(MemoryStore.isEphemeralPath("/sdcard/Download/draft.tmp"))
+        assertFalse(MemoryStore.isEphemeralPath("/sdcard/Documents/paper.pdf"))
+    }
+
+    @Test
+    fun `isDatedNote detects dated names`() {
+        assertTrue(MemoryStore.isDatedNote("2026-10-29-sync.md"))
+        assertFalse(MemoryStore.isDatedNote("trip.md"))
+        assertFalse(MemoryStore.isDatedNote("2026-13-99-bogus.md"))
+    }
+
+    @Test
+    fun `memory dates use the device timezone`() {
+        assertTrue(MemoryStore.deviceTimezoneId().isNotBlank())
+        val expected = java.time.LocalDate.ofInstant(
+            java.time.Instant.ofEpochMilli(0),
+            java.time.ZoneId.systemDefault()
+        ).toString()
+        assertEquals(expected, MemoryStore.formatDateForMemory(0))
+        assertTrue(MemoryStore.formatDateForMemory().matches(Regex("\\d{4}-\\d{2}-\\d{2}")))
+    }
+
+    // ---- Codex review follow-ups ----
+
+    private fun record(type: String, area: String, tags: String = "[x]"): String = listOf(
+        "---",
+        "title: T",
+        "area: $area",
+        "type: $type",
+        "tags: $tags",
+        "updated: 2026-10-29",
+        "---",
+        "",
+        "Body.",
+        ""
+    ).joinToString("\n")
+
+    @Test
+    fun `validateRecord treats quoted empty values as blank`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord(
+            "q.md",
+            "---\ntitle: \"\"\narea: Work\ntype: note\nupdated: 2026-10-29\n---\n\nBody.\n"
+        )
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("'title'") })
+    }
+
+    @Test
+    fun `validateRecord rejects commas inside quoted tags`() {
+        MemoryStore.ensureDefaults(Settings())
+        val check = MemoryStore.validateRecord("t.md", record("note", "Work", "[\"bad,tag\"]"))
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("bad,tag") })
+    }
+
+    @Test
+    fun `validateRecord accepts block scalars`() {
+        MemoryStore.ensureDefaults(Settings())
+        val body = listOf(
+            "---",
+            "title: T",
+            "area: Work",
+            "type: note",
+            "updated: 2026-10-29",
+            "summary: |",
+            "  first line without a colon",
+            "  second: still part of the value",
+            "---",
+            "",
+            "Body.",
+            ""
+        ).joinToString("\n")
+        val check = MemoryStore.validateRecord("b.md", body)
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `validateRecord enforces type per directory`() {
+        MemoryStore.ensureDefaults(Settings())
+        val misplaced = MemoryStore.validateRecord("work.md", record("note", "Work"), "areas")
+        assertFalse(misplaced.valid)
+        assertTrue(misplaced.errors.any { it.contains("areas/") })
+        assertTrue(MemoryStore.validateRecord("work.md", record("area", "Work"), "areas").valid)
+        assertTrue(MemoryStore.validateRecord("asha.md", record("person", "People"), "people").valid)
+        assertTrue(MemoryStore.validateRecord("sync.md", record("decision", "Work"), "notes").valid)
+        // Without directory context the type check stays lenient.
+        assertTrue(MemoryStore.validateRecord("work.md", record("note", "Work")).valid)
+    }
+
+    @Test
+    fun `area bootstrap accepts the new hub name`() {
+        MemoryStore.ensureDefaults(Settings())
+        assertFalse(MemoryStore.isKnownArea("Research"))
+        val check = MemoryStore.validateRecord("Research.md", record("area", "Research"), "areas")
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `ensureDefaults migrates legacy hubs`() {
+        MemoryStore.ensureDefaults(Settings())
+        val hub = File(GotchaStorage.memoryAreasDir(), "work.md")
+        hub.writeText("# Work\n\nLegacy plain markdown.\n")
+        MemoryStore.ensureDefaults(Settings())
+        val text = hub.readText()
+        assertTrue(text.lines().first() == "---")
+        assertTrue(text.contains("Legacy plain markdown."))
+        val check = MemoryStore.validateRecord(hub.name, text, "areas")
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    // ---- Phase 2: task links, duplicates, health ----
+
+    @Test
+    fun `validateRecord accepts task link fields`() {
+        MemoryStore.ensureDefaults(Settings())
+        val rec = listOf(
+            "---",
+            "title: Trip",
+            "area: Personal",
+            "type: note",
+            "tags: [travel]",
+            "updated: 2026-10-29",
+            "next_action: Book flights",
+            "task_ref: 123e4567-e89b-12d3-a456-426614174000",
+            "---",
+            "",
+            "Body.",
+            ""
+        ).joinToString("\n")
+        val check = MemoryStore.validateRecord("trip.md", rec, "notes")
+        assertTrue(check.errors.toString(), check.valid)
+    }
+
+    @Test
+    fun `validateRecord rejects blank task link fields`() {
+        MemoryStore.ensureDefaults(Settings())
+        val rec = record("note", "Personal").replace("tags: [x]", "tags: [x]\ntask_ref: ")
+        val check = MemoryStore.validateRecord("trip.md", rec, "notes")
+        assertFalse(check.valid)
+        assertTrue(check.errors.any { it.contains("task_ref") })
+    }
+
+    @Test
+    fun `checkHealth reports orphans`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        fun note(name: String, body: String, extra: String = "") {
+            File(notes, name).writeText(
+                listOf(
+                    "---",
+                    "title: $name",
+                    "area: Personal",
+                    "type: note",
+                    "updated: 2026-10-29",
+                    extra,
+                    "---",
+                    "",
+                    body,
+                    ""
+                ).filter { it.isNotEmpty() }.joinToString("\n")
+            )
+        }
+        note("a.md", "See [[notes/b.md]].")
+        note("b.md", "See [[notes/a.md]].")
+        note("c.md", "Lonely.")
+        note("d.md", "See [[nowhere-at-all]].")
+        File(notes, "e.md").writeText("No frontmatter.\n")
+        note("f.md", "Waiting on a task.", "task_ref: dead-beef")
+        val snap = MemoryStore.loadSnapshot()
+
+        val health = MemoryStore.checkHealth(snap)
+        assertTrue(health.unlinked.contains("notes/c.md"))
+        assertTrue(health.unlinked.contains("notes/d.md"))
+        assertTrue(health.unlinked.contains("notes/e.md"))
+        assertTrue(health.unlinked.contains("notes/f.md"))
+        assertFalse(health.unlinked.contains("notes/a.md"))
+        assertFalse(health.unlinked.contains("notes/b.md"))
+        assertFalse(health.unlinked.contains("SOUL.md"))
+        assertFalse(health.unlinked.contains("MEMORY.md"))
+        assertFalse(health.unlinked.contains("user.md"))
+        assertEquals(
+            listOf(MemoryStore.DanglingLink("notes/d.md", "nowhere-at-all")),
+            health.dangling
+        )
+        assertEquals(listOf("notes/e.md"), health.invalid.map { it.fileId })
+        assertEquals(
+            listOf(MemoryStore.TaskNoteRef("notes/f.md", "dead-beef")),
+            health.unknownTasks
+        )
+        assertFalse(health.isClean)
+
+        val linked = MemoryStore.checkHealth(
+            snap,
+            listOf(MemoryStore.TaskLink("dead-beef", "Task", File(notes, "f.md").absolutePath))
+        )
+        assertTrue(linked.unknownTasks.isEmpty())
+        assertTrue(linked.mismatchedTasks.isEmpty())
+        assertTrue(linked.staleTaskLinks.isEmpty())
+    }
+
+    @Test
+    fun `checkHealth flags mismatched and stale task links`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        File(notes, "g.md").writeText(
+            listOf(
+                "---",
+                "title: G",
+                "area: Personal",
+                "type: note",
+                "updated: 2026-10-29",
+                "task_ref: real-id",
+                "---",
+                "",
+                "Body.",
+                ""
+            ).joinToString("\n")
+        )
+        File(notes, "h.md").writeText(
+            listOf(
+                "---",
+                "title: H",
+                "area: Personal",
+                "type: note",
+                "updated: 2026-10-29",
+                "task_ref: lonely-id",
+                "---",
+                "",
+                "Body.",
+                ""
+            ).joinToString("\n")
+        )
+        File(notes, "i.md").writeText(record("note", "Personal").replace("title: T", "title: I"))
+        val snap = MemoryStore.loadSnapshot()
+        val gPath = File(notes, "g.md").absolutePath
+        val iPath = File(notes, "i.md").absolutePath
+        val health = MemoryStore.checkHealth(
+            snap,
+            listOf(
+                MemoryStore.TaskLink("real-id", "Task", "/other/note.md"),
+                MemoryStore.TaskLink("lonely-id", "Lonely", null),
+                MemoryStore.TaskLink("boss-id", "Boss", gPath),
+                MemoryStore.TaskLink("aim-id", "Aim", iPath)
+            )
+        )
+        assertTrue(health.unknownTasks.isEmpty())
+        assertTrue(
+            health.mismatchedTasks.contains(
+                MemoryStore.TaskMismatch("notes/g.md", "real-id", "/other/note.md")
+            )
+        )
+        assertTrue(
+            health.mismatchedTasks.contains(
+                MemoryStore.TaskMismatch("notes/h.md", "lonely-id", null)
+            )
+        )
+        assertTrue(
+            health.missingBacklinks.contains(
+                MemoryStore.MissingBacklink("notes/g.md", "Boss")
+            )
+        )
+        assertTrue(
+            health.missingBacklinks.contains(
+                MemoryStore.MissingBacklink("notes/i.md", "Aim")
+            )
+        )
+        assertEquals(
+            listOf(MemoryStore.StaleTaskLink("Task", "/other/note.md")),
+            health.staleTaskLinks
+        )
+        assertFalse(health.isClean)
+    }
+
+    @Test
+    fun `checkHealth flags files past the link scan cap`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        val filler = "x".repeat(MemoryStore.LINK_SCAN_CAP_CHARS)
+        File(notes, "big.md").writeText(
+            record("note", "Personal").replace("Body.", "See [[areas/work.md]].\n\n$filler")
+        )
+        val snap = MemoryStore.loadSnapshot()
+        val health = MemoryStore.checkHealth(snap)
+        assertTrue(health.unscanned.contains("notes/big.md"))
+        // The link at the start still resolves, so no false unlinked/dangling.
+        assertFalse(health.unlinked.contains("notes/big.md"))
+        assertTrue(health.dangling.none { it.fromId == "notes/big.md" })
+    }
+
+    @Test
+    fun `ambiguous bare names are not dangling`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        val people = GotchaStorage.memoryPeopleDir().apply { mkdirs() }
+        File(notes, "plan.md").writeText(record("note", "Personal"))
+        File(people, "plan.md").writeText(record("person", "People"))
+        File(GotchaStorage.memoryAreasDir(), "hub.md").writeText(
+            record("area", "Work").replace("Body.", "See [[plan]].")
+        )
+        val snap = MemoryStore.loadSnapshot()
+        assertTrue(MemoryStore.findDanglingLinks(snap).none { it.target == "plan" })
+    }
+
+    @Test
+    fun `wiki links ignore fenced code blocks`() {
+        assertEquals(
+            listOf("notes/real.md"),
+            MemoryStore.parseWikiLinks("```\nSee [[notes/fake.md]].\n```\nSee [[notes/real.md]].")
+        )
+        assertEquals(
+            listOf("notes/real.md"),
+            MemoryStore.parseWikiLinks("~~~\nSee [[notes/fake.md]].\n~~~\nSee [[notes/real.md]].")
+        )
+        assertEquals(
+            listOf("notes/real.md"),
+            MemoryStore.parseWikiLinks("See [[notes/real.md]].\n```\nUnclosed [[notes/fake.md]].")
+        )
+    }
+
+    @Test
+    fun `detail listing includes markdown files`() {
+        MemoryStore.ensureDefaults(Settings())
+        File(GotchaStorage.memoryAreasDir(), "extra.markdown").writeText(
+            record("area", "Work").replace("title: T", "title: Extra")
+        )
+        val snap = MemoryStore.loadSnapshot()
+        assertTrue(snap.areas.map { it.name }.contains("extra.markdown"))
+    }
+
+    @Test
+    fun `findPossibleDuplicates keeps dots in titles`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        File(notes, "release-2-0.md").writeText(record("note", "Work"))
+        File(notes, "release-2.md").writeText(record("note", "Work"))
+        val snap = MemoryStore.loadSnapshot()
+        assertEquals(
+            listOf("notes/release-2-0.md"),
+            MemoryStore.findPossibleDuplicates("Release 2.0", snap)
+        )
+    }
+
+    @Test
+    fun `slugify normalizes names`() {
+        assertEquals("asha-sharma", MemoryStore.slugify("Asha Sharma"))
+        assertEquals("k99", MemoryStore.slugify("K99"))
+        assertEquals("3d-kinematics", MemoryStore.slugify("3D Kinematics!"))
+        assertEquals("", MemoryStore.slugify("---"))
+    }
+
+    @Test
+    fun `findPossibleDuplicates catches renames`() {
+        MemoryStore.ensureDefaults(Settings())
+        val people = GotchaStorage.memoryPeopleDir().apply { mkdirs() }
+        File(people, "asha-sharma.md").writeText(
+            record("person", "People").replace("title: T", "title: Asha Sharma")
+        )
+        val snap = MemoryStore.loadSnapshot()
+        assertTrue(
+            MemoryStore.findPossibleDuplicates("Asha Sharma", snap).contains("people/asha-sharma.md")
+        )
+        assertTrue(
+            MemoryStore.findPossibleDuplicates("asha-sharma", snap).contains("people/asha-sharma.md")
+        )
+        assertTrue(MemoryStore.findPossibleDuplicates("Nobody Here", snap).isEmpty())
+    }
+
+    // ---- Phase 3: viewer search ----
+
+    @Test
+    fun `filterSnapshot with a blank query returns everything`() {
+        MemoryStore.ensureDefaults(Settings())
+        val snap = MemoryStore.loadSnapshot()
+        val filtered = MemoryStore.filterSnapshot(snap, "   ")
+        assertEquals(snap.areas.size, filtered.areas.size)
+        assertEquals(snap.notes.size, filtered.notes.size)
+        assertNotNull(filtered.soul)
+    }
+
+    @Test
+    fun `filterSnapshot matches names and contents`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        File(notes, "trip.md").writeText(record("note", "Personal").replace("Body.", "Kyoto itinerary."))
+        File(notes, "other.md").writeText(record("note", "Personal").replace("Body.", "Unrelated."))
+        val rawDir = GotchaStorage.memoryRawDir().apply { mkdirs() }
+        File(rawDir, "receipt.txt").writeText("Kyoto taxi")
+        val snap = MemoryStore.loadSnapshot()
+        val byName = MemoryStore.filterSnapshot(snap, "trip")
+        assertEquals(listOf("trip.md"), byName.notes.map { it.name })
+        val byContent = MemoryStore.filterSnapshot(snap, "kyoto")
+        assertEquals(listOf("trip.md"), byContent.notes.map { it.name })
+        assertEquals(listOf("receipt.txt"), byContent.raw.map { it.name })
+        val none = MemoryStore.filterSnapshot(snap, "zzzz-no-match")
+        assertTrue(none.notes.isEmpty())
+        assertNull(none.soul)
+    }
+
+    @Test
+    fun `filterSnapshot searches past the preview cap`() {
+        MemoryStore.ensureDefaults(Settings())
+        val notes = GotchaStorage.memoryNotesDir().apply { mkdirs() }
+        val filler = "x".repeat(MemoryStore.VIEWER_FILE_CAP_CHARS)
+        File(notes, "long.md").writeText(
+            record("note", "Personal").replace("Body.", "$filler needle-term")
+        )
+        val snap = MemoryStore.loadSnapshot()
+        assertTrue(snap.notes.single { it.name == "long.md" }.truncated)
+        val found = MemoryStore.filterSnapshot(snap, "needle-term")
+        assertEquals(listOf("long.md"), found.notes.map { it.name })
     }
 }

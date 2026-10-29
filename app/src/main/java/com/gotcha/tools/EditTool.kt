@@ -1,6 +1,7 @@
 package com.gotcha.tools
 
 import android.content.Context
+import com.gotcha.data.MemoryStore
 
 /**
  * Surgical text replacement tool — replaces exact text in a file.
@@ -73,6 +74,19 @@ class EditTool(private val context: Context) {
                         content.replace(oldString, newString)
                     } else {
                         content.replaceFirst(oldString, newString)
+                    }
+                    // Memory schema gate (Second Brain Phase 1): edits must
+                    // leave detail records valid, so history and tags cannot
+                    // drift silently.
+                    MemoryStore.recordDirKind(file)?.let { dirKind ->
+                        val check = MemoryStore.validateRecord(file.name, newContent, dirKind)
+                        if (!check.valid) {
+                            return ToolResult.error(
+                                "Memory record rejected:\n" +
+                                    check.errors.joinToString("\n") +
+                                    "\nFix the frontmatter and retry (protocol: search_skills('memory'))."
+                            )
+                        }
                     }
                     file.writeText(newContent, Charsets.UTF_8)
 

@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,8 +52,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.gotcha.R
 import com.gotcha.data.MemoryStore
+import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.tools.FileResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.cos
@@ -71,11 +74,23 @@ import kotlin.math.sin
 @Composable
 fun SecondBrainScreen(onBack: () -> Unit) {
     val overlay = rememberSettingsOverlayState()
+    val context = LocalContext.current
     var snapshot by remember { mutableStateOf<MemoryStore.SecondBrainSnapshot?>(null) }
+    var health by remember { mutableStateOf<MemoryStore.BrainHealth?>(null) }
     var showGraph by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        snapshot = withContext(Dispatchers.IO) { MemoryStore.loadSnapshot() }
+        val loaded = withContext(Dispatchers.IO) { MemoryStore.loadSnapshot() }
+        snapshot = loaded
+        // Health re-reads files and resolves every link: off the main thread.
+        health = withContext(Dispatchers.Default) {
+            val taskLinks = runCatching {
+                ScheduledTaskStore(context).all().map {
+                    MemoryStore.TaskLink(it.id, it.name, it.memoryNotePath)
+                }
+            }.getOrDefault(emptyList())
+            MemoryStore.checkHealth(loaded, taskLinks)
+        }
     }
 
     SettingsScaffold(
@@ -138,21 +153,54 @@ fun SecondBrainScreen(onBack: () -> Unit) {
         if (showGraph) {
             SecondBrainGraphView(snapshot = current)
         } else {
-            current.soul?.let {
+            var search by remember(current) { mutableStateOf("") }
+            var shown by remember(current) { mutableStateOf(current) }
+            // Filtering reads full files past the preview cap: off the main
+            // thread, debounced so scans start after typing pauses. A scan
+            // already running is left to finish (its result is discarded);
+            // scans are bounded reads, so overlap stays brief.
+            LaunchedEffect(current, search) {
+                if (search.isBlank()) {
+                    shown = current
+                } else {
+                    delay(300)
+                    shown = withContext(Dispatchers.Default) {
+                        MemoryStore.filterSnapshot(current, search)
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text(stringResource(R.string.second_brain_search)) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("settings_second_brain_search")
+            )
+            if (search.isNotBlank() && remember(shown) { shown.isEmpty() }) {
+                Text(
+                    text = stringResource(R.string.second_brain_no_matches, search.trim()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.testTag("settings_second_brain_no_matches")
+                )
+                return@SettingsScaffold
+            }
+            shown.soul?.let {
                 BrainSection(
                     heading = stringResource(R.string.second_brain_identity),
                     file = it,
                     tag = "identity"
                 )
             }
-            current.memoryIndex?.let {
+            shown.memoryIndex?.let {
                 BrainSection(
                     heading = stringResource(R.string.second_brain_map),
                     file = it,
                     tag = "map"
                 )
             }
-            current.userCard?.let {
+            shown.userCard?.let {
                 BrainSection(
                     heading = stringResource(R.string.second_brain_user_card),
                     file = it,
@@ -161,24 +209,27 @@ fun SecondBrainScreen(onBack: () -> Unit) {
             }
             BrainFileList(
                 heading = stringResource(R.string.second_brain_areas),
-                files = current.areas,
+                files = shown.areas,
                 tag = "areas"
             )
             BrainFileList(
                 heading = stringResource(R.string.second_brain_people),
-                files = current.people,
+                files = shown.people,
                 tag = "people"
             )
             BrainFileList(
                 heading = stringResource(R.string.second_brain_notes),
-                files = current.notes,
+                files = shown.notes,
                 tag = "notes"
             )
             BrainFileList(
                 heading = stringResource(R.string.second_brain_raw),
-                files = current.raw,
+                files = shown.raw,
                 tag = "raw"
             )
+            // Health is vault-level, not query-level: hide it while searching
+            // so its unrelated filenames never confuse a filtered view.
+            if (search.isBlank()) health?.let { BrainHealthSection(health = it) }
         }
     }
 }
@@ -917,7 +968,11 @@ private fun BrainSection(heading: String, file: MemoryStore.BrainFile, tag: Stri
                 .fillMaxWidth()
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                    onClickLabel = if (expanded) {
+                        stringResource(R.string.message_collapse)
+                    } else {
+                        stringResource(R.string.message_expand)
+                    }
                 ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
@@ -944,7 +999,11 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
                 .fillMaxWidth()
                 .clickable(
                     role = Role.Button,
-                    onClickLabel = if (expanded) "Collapse" else "Expand"
+                    onClickLabel = if (expanded) {
+                        stringResource(R.string.message_collapse)
+                    } else {
+                        stringResource(R.string.message_expand)
+                    }
                 ) { expanded = !expanded }
                 .padding(vertical = 4.dp)
         )
@@ -966,7 +1025,11 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
                             .fillMaxWidth()
                             .clickable(
                                 role = Role.Button,
-                                onClickLabel = if (fileExpanded) "Collapse" else "Expand"
+                                onClickLabel = if (fileExpanded) {
+                                    stringResource(R.string.message_collapse)
+                                } else {
+                                    stringResource(R.string.message_expand)
+                                }
                             ) { fileExpanded = !fileExpanded }
                             .padding(vertical = 2.dp)
                             .testTag("settings_second_brain_${tag}_$index")
@@ -980,6 +1043,176 @@ private fun BrainFileList(heading: String, files: List<MemoryStore.BrainFile>, t
     }
     HorizontalDivider(thickness = 1.dp)
 }
+
+@Composable
+private fun BrainHealthSection(health: MemoryStore.BrainHealth) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("settings_second_brain_health")
+    ) {
+        Text(
+            text = (if (expanded) "▼ " else "▶ ") + stringResource(
+                if (health.isClean) {
+                    R.string.second_brain_health_clean
+                } else {
+                    R.string.second_brain_health_title
+                },
+                health.issueCount
+            ),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = if (expanded) {
+                        stringResource(R.string.message_collapse)
+                    } else {
+                        stringResource(R.string.message_expand)
+                    }
+                ) { expanded = !expanded }
+                .padding(vertical = 4.dp)
+        )
+        if (expanded) {
+            if (health.isClean) {
+                Text(
+                    text = stringResource(R.string.second_brain_health_clean_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_unlinked,
+                        health.unlinked.size
+                    ),
+                    lines = health.unlinked
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_dangling,
+                        health.dangling.size
+                    ),
+                    lines = health.dangling.map {
+                        stringResource(
+                            R.string.second_brain_health_dangling_line,
+                            it.fromId,
+                            it.target
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_invalid,
+                        health.invalid.size
+                    ),
+                    lines = health.invalid.map { problem ->
+                        stringResource(
+                            R.string.second_brain_health_invalid_line,
+                            problem.fileId,
+                            problem.errors.firstOrNull().orEmpty()
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_unknown_tasks,
+                        health.unknownTasks.size
+                    ),
+                    lines = health.unknownTasks.map {
+                        stringResource(
+                            R.string.second_brain_health_unknown_line,
+                            it.fileId,
+                            it.taskId
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_mismatched,
+                        health.mismatchedTasks.size
+                    ),
+                    lines = health.mismatchedTasks.map {
+                        stringResource(
+                            R.string.second_brain_health_mismatch_line,
+                            it.fileId,
+                            it.linkedPath
+                                ?: stringResource(R.string.second_brain_health_nowhere)
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_stale,
+                        health.staleTaskLinks.size
+                    ),
+                    lines = health.staleTaskLinks.map {
+                        stringResource(
+                            R.string.second_brain_health_stale_line,
+                            it.taskName,
+                            it.path
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_missing_backlink,
+                        health.missingBacklinks.size
+                    ),
+                    lines = health.missingBacklinks.map {
+                        stringResource(
+                            R.string.second_brain_health_missing_backlink_line,
+                            it.taskName,
+                            it.fileId
+                        )
+                    }
+                )
+                HealthGroup(
+                    heading = stringResource(
+                        R.string.second_brain_health_unscanned,
+                        health.unscanned.size
+                    ),
+                    lines = health.unscanned
+                )
+            }
+        }
+    }
+    HorizontalDivider(thickness = 1.dp)
+}
+
+@Composable
+private fun HealthGroup(heading: String, lines: List<String>) {
+    if (lines.isEmpty()) return
+    Text(
+        text = heading,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(top = 4.dp)
+    )
+    // Cap composed rows so a huge vault cannot jank the settings column.
+    val shown = lines.take(HEALTH_GROUP_LIMIT)
+    shown.forEach { line ->
+        Text(
+            text = "• $line",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, top = 1.dp)
+        )
+    }
+    if (lines.size > shown.size) {
+        Text(
+            text = stringResource(R.string.second_brain_health_more, lines.size - shown.size),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, top = 1.dp)
+        )
+    }
+}
+
+/** Max issue rows composed per health group. */
+private const val HEALTH_GROUP_LIMIT = 50
 
 /**
  * Per-file preview: Markdown renders as formatted text, text files as plain

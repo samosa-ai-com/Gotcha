@@ -7,6 +7,10 @@ import com.gotcha.data.SafeEncryptedSharedPreferences
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.UUID
 
 /**
  * The scheduled tasks (issue #132). The tasks are kept in encrypted prefs, like
@@ -55,6 +59,44 @@ class ScheduledTaskStore internal constructor(
     fun put(task: ScheduledTask) = synchronized(LOCK) {
         val tasks = read()
         write(if (tasks.any { it.id == task.id }) tasks.map { if (it.id == task.id) task else it } else tasks + task)
+    }
+
+    /**
+     * Seeds the Morning briefing preset once (Second Brain Phase 3): present
+     * in the catalog but paused, so the user opts in with the normal toggle.
+     * Never duplicates: an existing briefing (seeded, renamed, re-added, or
+     * user-made) is adopted by id tracking and only the marker is healed.
+     * A deleted preset is never re-added unasked. The flag is written after
+     * the task, so a failed seed retries next time. Returns the preset when
+     * newly created, null otherwise.
+     */
+    fun seedBriefingPreset(memoryRoot: String, now: Long, zone: ZoneId): ScheduledTask? = synchronized(LOCK) {
+        val seededId = prefs.getString(KEY_BRIEFING_TASK_ID, null)
+        read().firstOrNull { it.id == seededId || it.name == MorningBriefing.TEMPLATE_NAME }?.let { existing ->
+            markBriefingSeeded(existing.id)
+            return null
+        }
+        if (prefs.getBoolean(KEY_BRIEFING_SEEDED, false)) return null
+        val preset = MorningBriefing.template(
+            memoryRoot,
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        ).copy(id = UUID.randomUUID().toString(), enabled = false, createdAt = now)
+        put(preset)
+        markBriefingSeeded(preset.id)
+        preset
+    }
+
+    /** True when a briefing preset exists right now (even renamed): hides the re-add button. */
+    fun hasBriefingPreset(): Boolean = synchronized(LOCK) {
+        val seededId = prefs.getString(KEY_BRIEFING_TASK_ID, null)
+        read().any { it.id == seededId || it.name == MorningBriefing.TEMPLATE_NAME }
+    }
+
+    private fun markBriefingSeeded(taskId: String?) {
+        prefs.edit()
+            .putBoolean(KEY_BRIEFING_SEEDED, true)
+            .apply { if (taskId != null) putString(KEY_BRIEFING_TASK_ID, taskId) }
+            .apply()
     }
 
     fun delete(id: String) {
@@ -109,6 +151,8 @@ class ScheduledTaskStore internal constructor(
     private companion object {
         const val PREFS_FILE = "gotcha_scheduled_tasks"
         const val KEY_TASKS = "tasks"
+        const val KEY_BRIEFING_SEEDED = "briefing_preset_seeded"
+        const val KEY_BRIEFING_TASK_ID = "briefing_preset_task_id"
         const val ATTACHMENTS_DIR = "scheduled_tasks"
         val LOCK = Any()
     }

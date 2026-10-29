@@ -1,7 +1,9 @@
 package com.gotcha.scheduled
 
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -27,6 +29,27 @@ class ScheduledTaskScheduleTest {
         assertEquals("2026-10-19T08:00", next(once, "2026-10-18T12:00"))
         assertNull(next(once, "2026-10-19T08:00"))
         assertNull(next(once, "2026-10-20T08:00"))
+    }
+
+    @Test
+    fun `a memory note link survives a serialization round trip`() {
+        val task = ScheduledTask(
+            id = "t",
+            name = "n",
+            prompt = "p",
+            startLocal = "2026-10-19T08:00",
+            memoryNotePath = "/mem/notes/plan.md"
+        )
+        val json = Json.encodeToString(ScheduledTask.serializer(), task)
+        assertTrue(json.contains("memoryNotePath"))
+        assertEquals(task, Json.decodeFromString(ScheduledTask.serializer(), json))
+    }
+
+    @Test
+    fun `old stored tasks without the link field still decode`() {
+        val old = """{"id":"t","name":"n","prompt":"p","startLocal":"2026-10-19T08:00"}"""
+        val task = Json { ignoreUnknownKeys = true }.decodeFromString(ScheduledTask.serializer(), old)
+        assertNull(task.memoryNotePath)
     }
 
     @Test

@@ -40,10 +40,17 @@ import com.halilibo.richtext.ui.material3.Material3RichText
 @Composable
 fun RichMarkdown(markdown: String, modifier: Modifier = Modifier, style: RichTextStyle? = null) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        splitFencedBlocks(markdown).forEach { segment ->
+        splitFencedBlocks(markdown).flatMap { segment ->
+            if (segment is MarkdownSegment.Prose) splitTables(segment.markdown) else listOf(segment)
+        }.forEach { segment ->
             when (segment) {
                 is MarkdownSegment.Prose -> Material3RichText(style = style) { Markdown(segment.markdown) }
                 is MarkdownSegment.Code -> CodeBox(code = segment.code, language = segment.language)
+                is MarkdownSegment.Table -> MarkdownTable(
+                    headers = segment.headers,
+                    aligns = segment.aligns,
+                    rows = segment.rows
+                )
             }
         }
     }

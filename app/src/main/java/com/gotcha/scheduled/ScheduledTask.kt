@@ -93,6 +93,12 @@ data class ScheduledTask(
     val createdByAgent: Boolean = false,
     /** Names of the files stored with the task; the files themselves are in [ScheduledTaskStore]. */
     val attachmentNames: List<String> = emptyList(),
+    /**
+     * Absolute path of the memory note this task works off (a people/, areas/
+     * or notes/ record), or null when unlinked. The note names the task back
+     * in its `task_ref` frontmatter: the Second Brain link both ways.
+     */
+    val memoryNotePath: String? = null,
     val createdAt: Long = 0L,
     val nextRunAt: Long? = null,
     val retryAt: Long? = null,
