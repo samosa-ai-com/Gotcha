@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -170,8 +170,12 @@ private class TableGeometry {
  * A grid with shared column widths and shared row heights: every cell of a
  * row sits on the same baseline band, so wrapped text can never pair values
  * with the wrong row. Columns size to their content between [minColumnWidth]
- * and [maxColumnWidth]; the caller scrolls sideways. Cells are measured
- * twice (intrinsics, then fixed width) and placed once.
+ * and [maxColumnWidth]; the caller scrolls sideways.
+ *
+ * Each cell is composed twice into two subcompose slots (probe, then final)
+ * because one Measurable may be measured only once per pass: the probe pass
+ * sizes the columns, the final pass wraps text at the shared width. Tables
+ * are small, so the double composition stays cheap.
  */
 @Composable
 private fun TableGrid(
@@ -180,11 +184,10 @@ private fun TableGrid(
     maxColumnWidth: Int,
     lineColor: Color,
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    cells: List<@Composable () -> Unit>
 ) {
     val geometry = remember { TableGeometry() }
-    Layout(
-        content = content,
+    SubcomposeLayout(
         modifier = modifier.drawBehind {
             geometry.verticals.forEach { x ->
                 drawLine(lineColor, Offset(x, 0f), Offset(x, geometry.height))
@@ -193,20 +196,22 @@ private fun TableGrid(
                 drawLine(lineColor, Offset(0f, y), Offset(geometry.width, y))
             }
         }
-    ) { measurables, _ ->
-        val rows = measurables.chunked(columnCount).filter { it.size == columnCount }
+    ) { _ ->
+        val probe = subcompose("probe") {
+            cells.forEach { it() }
+        }.map { it.measure(Constraints(maxWidth = maxColumnWidth)) }
+        val columnWidths = IntArray(columnCount) { column ->
+            probe.filterIndexed { index, _ -> index % columnCount == column }
+                .maxOf { it.width }
+                .coerceIn(minColumnWidth, maxColumnWidth)
+        }
+        val rows = subcompose("final") {
+            cells.forEach { it() }
+        }.chunked(columnCount).filter { it.size == columnCount }
         if (rows.isEmpty()) {
             geometry.verticals.clear()
             geometry.horizontals.clear()
-            return@Layout layout(0, 0) {}
-        }
-        // No intrinsics: library text uses BoxWithConstraints, which throws on
-        // intrinsic measurement. Instead measure once capped (content width),
-        // then again at the shared width (wrapping height).
-        val columnWidths = IntArray(columnCount) { column ->
-            rows.maxOf { row ->
-                row[column].measure(Constraints(maxWidth = maxColumnWidth)).width
-            }.coerceIn(minColumnWidth, maxColumnWidth)
+            return@SubcomposeLayout layout(0, 0) {}
         }
         val placed = rows.map { row ->
             row.mapIndexed { column, measurable ->
@@ -229,8 +234,8 @@ private fun TableGrid(
         geometry.width = columnLefts[columnCount].toFloat()
         geometry.height = rowTops[rows.size].toFloat()
         layout(columnLefts[columnCount], rowTops[rows.size]) {
-            placed.forEachIndexed { row, cells ->
-                cells.forEachIndexed { column, placeable ->
+            placed.forEachIndexed { row, rowCells ->
+                rowCells.forEachIndexed { column, placeable ->
                     placeable.place(columnLefts[column], rowTops[row])
                 }
             }
@@ -263,42 +268,49 @@ fun MarkdownTable(
         tonalElevation = 1.dp
     ) {
         Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
-            TableGrid(
-                columnCount = headers.size,
-                minColumnWidth = minColumnWidth,
-                maxColumnWidth = maxColumnWidth,
-                lineColor = lineColor
-            ) {
-                headers.forEachIndexed { index, header ->
-                    ProvideTextStyle(
-                        headerStyle.copy(textAlign = aligns.getOrElse(index) { TableAlign.LEFT }.toTextAlign())
-                    ) {
-                        // No fillMaxWidth: the grid measures content width, so
-                        // filling here would stretch every column to the cap.
-                        // Alignment comes from the cell Box instead.
-                        Box(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            contentAlignment = aligns.getOrElse(index) { TableAlign.LEFT }.toAlignment()
-                        ) {
-                            Text(header)
+            val cellContents = remember(headers, aligns, rows) {
+                buildList<@Composable () -> Unit> {
+                    headers.forEachIndexed { index, header ->
+                        val align = aligns.getOrElse(index) { TableAlign.LEFT }
+                        add {
+                            ProvideTextStyle(headerStyle.copy(textAlign = align.toTextAlign())) {
+                                // No fillMaxWidth: the grid measures content width, so
+                                // filling here would stretch every column to the cap.
+                                // Alignment comes from the cell Box instead.
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = align.toAlignment()
+                                ) {
+                                    Text(header)
+                                }
+                            }
                         }
                     }
-                }
-                rows.forEach { row ->
-                    headers.indices.forEach { index ->
-                        ProvideTextStyle(
-                            bodyStyle.copy(textAlign = aligns.getOrElse(index) { TableAlign.LEFT }.toTextAlign())
-                        ) {
-                            Box(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                contentAlignment = aligns.getOrElse(index) { TableAlign.LEFT }.toAlignment()
-                            ) {
-                                TableCellContent(row.getOrElse(index) { "" })
+                    rows.forEach { row ->
+                        headers.indices.forEach { index ->
+                            val align = aligns.getOrElse(index) { TableAlign.LEFT }
+                            val text = row.getOrElse(index) { "" }
+                            add {
+                                ProvideTextStyle(bodyStyle.copy(textAlign = align.toTextAlign())) {
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        contentAlignment = align.toAlignment()
+                                    ) {
+                                        TableCellContent(text)
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+            TableGrid(
+                columnCount = headers.size,
+                minColumnWidth = minColumnWidth,
+                maxColumnWidth = maxColumnWidth,
+                lineColor = lineColor,
+                cells = cellContents
+            )
         }
     }
 }
