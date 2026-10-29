@@ -117,7 +117,7 @@ class McpServersConnectorTest {
     @Test
     fun `invalid input is refused before anything is sent`() = runTest {
         assertEquals(
-            "Enter a full URL that starts with https:// (or http:// on your local network).",
+            "Enter a full URL starting with http:// or https://.",
             connector.save(null, "Docs", "not a url", "", emptyMap(), strings).second
         )
         assertEquals("Enter a name for the server.", connector.save(null, " ", url(), "", emptyMap(), strings).second)

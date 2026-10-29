@@ -132,11 +132,30 @@ class McpHttpClient(
     inner class Session internal constructor(initialEndpoint: McpEndpoint) {
         /**
          * Where requests go. The slash-tolerant retry may move it to the
-         * working spelling; the setter stays private so all writes happen
-         * under the session mutex.
+         * working spelling, and a followed redirect promotes the effective
+         * URL — an http-to-https upgrade must stick, or every later request
+         * would resend the session credentials over plain http. Written only
+         * under the session mutex, via [noteRequest] and [adoptUrl].
          */
         var endpoint: McpEndpoint = initialEndpoint
             private set
+
+        /** The URL the last request actually went to (after redirects). */
+        var lastRequestUrl: String = initialEndpoint.url
+            private set
+
+        /**
+         * Records the URL a request goes out on. Call before executing, so a
+         * failure still knows which spelling was attempted.
+         */
+        internal fun noteRequest(url: String) {
+            lastRequestUrl = url
+        }
+
+        /** Moves future requests to [url]: a followed redirect or a working spelling. */
+        internal fun adoptUrl(url: String) {
+            if (url != endpoint.url) endpoint = endpoint.copy(url = url)
+        }
         private val mutex = Mutex()
         private var sessionId: String? = null
         private var protocolVersion: String? = null
@@ -220,12 +239,14 @@ class McpHttpClient(
         /**
          * "/mcp" and "/mcp/" are the same thing: when the server 404s one spelling
          * before any session exists, try the other once (issue #154) rather than
-         * fail the whole setup. A second failure restores the configured URL and
-         * reports the retry's error, so the message describes the last attempt.
+         * fail the whole setup. Toggles the spelling that actually failed —
+         * after a redirect that is the destination, not the configured URL. A
+         * second failure restores the configured URL and reports the retry's
+         * error, so the message describes the last attempt.
          */
         private suspend fun retryInitialize(first: McpException): Reply {
             val original = endpoint
-            val alternate = slashToggled(original.url)
+            val alternate = slashToggled(lastRequestUrl)
             if (first.kind != McpFailure.NOT_FOUND || alternate == null) throw first
             endpoint = original.copy(url = alternate)
             var ok = false
@@ -323,18 +344,22 @@ class McpHttpClient(
         var url = session.endpoint.url
         var lastCode = 0
         repeat(MAX_REDIRECTS + 1) {
+            session.noteRequest(url)
             val response = executePost(session, out, url)
             try {
                 if (response.isSuccessful) {
+                    // Stay where a redirect took us: the next request must not
+                    // replay the session credentials against the old URL.
+                    session.adoptUrl(url)
                     val sessionId = response.header(HEADER_SESSION_ID)
                     val message = if (out.id == null) null else readResponse(response, out.id)
                     return Reply(message, sessionId)
                 }
                 lastCode = response.code
                 val location = response.header("Location")
-                // Only the codes that keep POST semantics are replayed (301,
-                // 302, 307, 308). A 300 or 303 answers a GET instead, so those
-                // fail here rather than repeat a side-effecting tool call.
+                // Replay policy (see FOLLOW_CODES): the same POST goes to the
+                // destination. Anything else fails here rather than repeat a
+                // side-effecting tool call as a GET.
                 if (response.code in FOLLOW_CODES && location != null) {
                     url = redirectTarget(url, location, response.code)
                 } else {
@@ -552,7 +577,12 @@ class McpHttpClient(
         private const val MAX_TOOL_PAGES = 20
         private const val MAX_REDIRECTS = 5
 
-        /** Redirect codes replayed as POST; 300/303 answer a GET instead. */
+        /**
+         * Redirect codes replayed as POST with the same body and headers.
+         * Deliberate policy: 307/308 preserve the method by definition, and
+         * servers also use 301/302 for trailing-slash normalization; 300/303
+         * answer a GET instead and never replay here.
+         */
         private val FOLLOW_CODES = setOf(301, 302, 307, 308)
         private const val MAX_REPLY_BYTES = 4L * 1024 * 1024
         private const val MAX_OUTPUT_CHARS = 50_000

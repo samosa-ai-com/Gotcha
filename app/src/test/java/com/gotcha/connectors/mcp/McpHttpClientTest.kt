@@ -260,11 +260,54 @@ class McpHttpClientTest {
     }
 
     @Test
-    fun `a same-origin redirect is followed with the headers intact`() = runTest {
-        val redirecting = MockWebServer().apply {
+    fun `same-origin redirects are followed with the headers intact`() = runTest {
+        // Deliberate replay policy, not spec literalism: 301/302 permit
+        // POST-to-GET elsewhere, but MCP servers use them for trailing-slash
+        // normalization, so this client re-POSTs the same body and headers.
+        // 307/308 preserve the method by definition; 300/303 never replay.
+        for (code in listOf(301, 302, 307, 308)) {
+            val redirecting = MockWebServer().apply {
+                dispatcher = object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        if (request.path == "/mcp") {
+                            return MockResponse()
+                                .setResponseCode(code)
+                                .setHeader("Location", "/mcp/")
+                        }
+                        return fake.dispatch(request)
+                    }
+                }
+                start()
+            }
+            try {
+                val info = client.session(
+                    McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
+                ).initialize()
+                assertEquals("Docs", info.name)
+                // Both hops carried the secret: same origin, so nothing leaked.
+                val first = redirecting.takeRequest(5, TimeUnit.SECONDS)!!
+                val followed = redirecting.takeRequest(5, TimeUnit.SECONDS)!!
+                assertEquals("/mcp", first.path)
+                assertEquals("/mcp/", followed.path)
+                assertEquals("secret", followed.getHeader("X-API-Key"))
+                // The replay carries the same bytes (bodySize is recorded at
+                // receipt; the fake drains the buffer while dispatching).
+                assertTrue(followed.bodySize > 0)
+                assertEquals(first.bodySize, followed.bodySize)
+            } finally {
+                redirecting.shutdown()
+            }
+        }
+    }
+
+    @Test
+    fun `the followed destination sticks for later requests`() = runTest {
+        // A path-changing redirect: after initialize, tools/list must go
+        // straight to the destination instead of replaying the old URL.
+        val moved = MockWebServer().apply {
             dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
-                    if (request.path == "/mcp") {
+                    if (request.path == "/entry") {
                         return MockResponse()
                             .setResponseCode(307)
                             .setHeader("Location", "/mcp/")
@@ -275,17 +318,46 @@ class McpHttpClientTest {
             start()
         }
         try {
-            val info = client.session(
-                McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
-            ).initialize()
-            assertEquals("Docs", info.name)
-            // Both hops carried the secret: same origin, so nothing leaked.
-            redirecting.takeRequest(5, TimeUnit.SECONDS)
-            val followed = redirecting.takeRequest(5, TimeUnit.SECONDS)!!
-            assertEquals("/mcp/", followed.path)
-            assertEquals("secret", followed.getHeader("X-API-Key"))
+            val session = client.session(McpEndpoint(moved.url("/entry").toString()))
+            session.initialize()
+            assertEquals(moved.url("/mcp/").toString(), session.endpoint.url)
+            // Drain initialize's requests (entry, initialize, notification).
+            repeat(3) { moved.takeRequest(5, TimeUnit.SECONDS) }
+            session.listTools()
+            // Both tools/list pages go straight to the destination.
+            repeat(2) {
+                assertEquals("/mcp/", moved.takeRequest(5, TimeUnit.SECONDS)!!.path)
+            }
         } finally {
-            redirecting.shutdown()
+            moved.shutdown()
+        }
+    }
+
+    @Test
+    fun `a redirect into a missing spelling toggles the destination`() = runTest {
+        // /entry redirects to /mcp, /mcp 404s, /mcp/ serves: the retry must
+        // toggle the URL that actually failed, not the configured one.
+        val moved = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/entry") {
+                        return MockResponse()
+                            .setResponseCode(307)
+                            .setHeader("Location", "/mcp")
+                    }
+                    if (request.path == "/mcp") return MockResponse().setResponseCode(404)
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val session = client.session(McpEndpoint(moved.url("/entry").toString()))
+            val info = session.initialize()
+            assertEquals("Docs", info.name)
+            assertEquals(moved.url("/mcp/").toString(), session.endpoint.url)
+        } finally {
+            moved.shutdown()
         }
     }
 

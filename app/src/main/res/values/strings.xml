@@ -1745,7 +1745,7 @@
     <string name="mcp_tools_capped">Only the first %1$d are used.</string>
     <string name="mcp_removed_while_saving">That server was removed in the meantime.</string>
     <string name="mcp_error_name">Enter a name for the server.</string>
-    <string name="mcp_error_bad_url">Enter a full URL that starts with https:// (or http:// on your local network).</string>
+    <string name="mcp_error_bad_url">Enter a full URL starting with http:// or https://.</string>
     <string name="mcp_error_cleartext">Use https for a server outside your local network. A token or header sent over http can be read on the way.</string>
     <string name="mcp_error_bad_header">Write each header on its own line, as Name: value.</string>
     <string name="mcp_error_auth">The server refused the token or headers (HTTP %1$d). Check them and try again.</string>
