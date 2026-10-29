@@ -69,6 +69,19 @@ class DrawerSettingsNavTest {
     }
 
     @Test
+    fun drawer_scheduledTasks_backReturnsToChat() {
+        launch()
+        openDrawer()
+        composeRule.onNodeWithText("Scheduled tasks").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("scheduled_add_task").assertExists()
+        // Its own route like Connectors: back returns to chat, not Settings.
+        composeRule.onNodeWithTag("settings_back").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_input").assertExists()
+    }
+
+    @Test
     fun settings_chatsPage_listsImportAndBackup() {
         launch()
         openDrawer()

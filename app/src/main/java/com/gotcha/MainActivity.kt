@@ -89,6 +89,7 @@ import com.gotcha.ui.PermissionAsk
 import com.gotcha.ui.PermissionBlockedDialog
 import com.gotcha.ui.PermissionRationaleDialog
 import com.gotcha.ui.ReferralInviteDialog
+import com.gotcha.ui.ScheduledTasksScreen
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
@@ -115,7 +116,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS }
+enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS, SCHEDULED }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -1047,9 +1048,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onOpenScheduledTasks = {
                         scope.launch { drawerState.close() }
-                        settingsPage = SettingsPage.SCHEDULED_TASKS
-                        settingsHighlight = null
-                        currentRoute = Route.SETTINGS
+                        currentRoute = Route.SCHEDULED
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1234,6 +1233,19 @@ class MainActivity : ComponentActivity() {
                     }
                     BackHandler { leaveConnectors() }
                     ConnectorsScreen(onBack = leaveConnectors)
+                }
+                Route.SCHEDULED -> {
+                    // Its own route like Connectors, not a Settings deep link:
+                    // back from the drawer entry returns to chat, while the
+                    // Settings page keeps its own back-to-list behavior.
+                    BackHandler { currentRoute = Route.HOME }
+                    ScheduledTasksScreen(
+                        onBack = { currentRoute = Route.HOME },
+                        onOpenChat = { id ->
+                            chatViewModel.openSession(id)
+                            currentRoute = Route.HOME
+                        }
+                    )
                 }
                 Route.CHAT_ASSETS -> {
                     BackHandler { currentRoute = Route.HOME }
