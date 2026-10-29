@@ -63,6 +63,10 @@ fun ChatAssetsScreen(sessionId: String, onBack: () -> Unit) {
     var currentPath by remember(sessionId) { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var entries by remember { mutableStateOf(emptyList<ChatAssetEntry>()) }
+    // The path the visible rows belong to. Rows render only for the current
+    // path: navigating (or a folder vanishing mid-scan) never leaves the
+    // previous folder actionable under the new title.
+    var listedPath by remember { mutableStateOf<String?>(null) }
     var menuEntry by remember { mutableStateOf<ChatAssetEntry?>(null) }
     var deleteEntry by remember { mutableStateOf<ChatAssetEntry?>(null) }
 
@@ -72,8 +76,16 @@ fun ChatAssetsScreen(sessionId: String, onBack: () -> Unit) {
         loaded = true
     }
     LaunchedEffect(currentPath) {
-        val dir = currentPath?.let(::File)?.takeIf { it.isDirectory } ?: return@LaunchedEffect
-        entries = withContext(Dispatchers.IO) { chatDirEntries(dir) }
+        val dir = currentPath?.let(::File)?.takeIf { it.isDirectory }
+        // A missing destination publishes an empty list: the old rows must
+        // not survive under a folder that is gone.
+        val fresh = if (dir == null) {
+            emptyList()
+        } else {
+            withContext(Dispatchers.IO) { chatDirEntries(dir) }
+        }
+        listedPath = currentPath
+        entries = fresh
     }
 
     val canGoUp = root != null && currentPath != null && currentPath != root?.absolutePath
@@ -108,14 +120,23 @@ fun ChatAssetsScreen(sessionId: String, onBack: () -> Unit) {
                         },
                         modifier = Modifier.testTag("chat_assets_back")
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(
+                                if (canGoUp) {
+                                    R.string.chat_assets_up
+                                } else {
+                                    R.string.chat_assets_back
+                                }
+                            )
+                        )
                     }
                 }
             )
         }
     ) { padding ->
-        if (!loaded) {
-            // Still resolving the chat folder; it is one lookup, no spinner.
+        if (!loaded || listedPath != currentPath) {
+            // Still resolving, or a scan in flight; chat folders are small.
             Unit
         } else if (root == null) {
             Text(
@@ -252,11 +273,13 @@ fun ChatAssetsScreen(sessionId: String, onBack: () -> Unit) {
                         val pathAtDelete = currentPath
                         scope.launch(Dispatchers.IO) {
                             val target = File(entry.path)
-                            val deleted = if (target.isDirectory) {
-                                target.deleteRecursively()
-                            } else {
-                                target.delete()
-                            }
+                            val deleted = runCatching {
+                                if (target.isDirectory) {
+                                    target.deleteRecursively()
+                                } else {
+                                    target.delete()
+                                }
+                            }.getOrDefault(false)
                             val fresh = pathAtDelete?.let(::File)
                                 ?.takeIf { it.isDirectory }
                                 ?.let(::chatDirEntries)
@@ -267,15 +290,20 @@ fun ChatAssetsScreen(sessionId: String, onBack: () -> Unit) {
                                 // retrigger. Skip if the user navigated away
                                 // mid-delete rather than show a stale folder.
                                 if (currentPath == pathAtDelete) {
+                                    listedPath = pathAtDelete
                                     entries = fresh
                                 }
-                                if (deleted) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        context.getString(R.string.chat_assets_deleted),
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        if (deleted) {
+                                            R.string.chat_assets_deleted
+                                        } else {
+                                            R.string.chat_assets_delete_failed
+                                        }
+                                    ),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                     },
@@ -300,7 +328,7 @@ private fun openAsset(context: android.content.Context, file: File) {
             file
         )
         val mime = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(file.extension) ?: "*/*"
+            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -326,7 +354,7 @@ private fun shareAsset(context: android.content.Context, file: File) {
             file
         )
         val mime = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(file.extension) ?: "*/*"
+            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
@@ -381,8 +409,15 @@ fun chatDirEntries(dir: File): List<ChatAssetEntry> {
     return folders + files
 }
 
-private fun toAssetEntry(file: File): ChatAssetEntry.Asset = ChatAssetEntry.Asset(
-    path = file.absolutePath,
-    name = file.name,
-    detail = "${file.extension.uppercase()} · ${FileResolver.formatSizeStatic(file.length())}"
-)
+private fun toAssetEntry(file: File): ChatAssetEntry.Asset {
+    val ext = file.extension.uppercase()
+    return ChatAssetEntry.Asset(
+        path = file.absolutePath,
+        name = file.name,
+        detail = if (ext.isEmpty()) {
+            FileResolver.formatSizeStatic(file.length())
+        } else {
+            "$ext · ${FileResolver.formatSizeStatic(file.length())}"
+        }
+    )
+}

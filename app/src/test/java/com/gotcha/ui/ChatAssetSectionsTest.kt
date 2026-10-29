@@ -36,18 +36,24 @@ class ChatAssetSectionsTest {
         file(File(dir, "Pictures"), "new.png", 3000)
         file(dir, "note.md", 2000)
 
+        // Only immediate children: the PNGs live one level down.
         val entries = chatDirEntries(dir)
 
         val folders = entries.filterIsInstance<ChatAssetEntry.Folder>().map { it.name }
         assertEquals(listOf("apple", "Pictures", "zebra"), folders)
         val files = entries.filterIsInstance<ChatAssetEntry.Asset>()
-        assertEquals(listOf("new.png", "old.png", "note.md"), files.map { it.name })
-        assertTrue(files[0].detail.startsWith("PNG · "))
+        assertEquals(listOf("note.md"), files.map { it.name })
         // Every folder sorts before every file.
         assertTrue(
             entries.indexOfLast { it is ChatAssetEntry.Folder } <
                 entries.indexOfFirst { it is ChatAssetEntry.Asset }
         )
+
+        // Inside Pictures: newest first, with type and size in the detail.
+        val photos = chatDirEntries(File(dir, "Pictures"))
+            .filterIsInstance<ChatAssetEntry.Asset>()
+        assertEquals(listOf("new.png", "old.png"), photos.map { it.name })
+        assertTrue(photos[0].detail.startsWith("PNG · "))
     }
 
     @Test

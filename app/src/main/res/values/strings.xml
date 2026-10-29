@@ -1098,6 +1098,9 @@
     <string name="chat_assets_delete_title">Delete?</string>
     <string name="chat_assets_delete_confirm">Delete %1$s? This can\'t be undone.</string>
     <string name="chat_assets_deleted">Deleted.</string>
+    <string name="chat_assets_delete_failed">Couldn\'t delete that.</string>
+    <string name="chat_assets_back">Back</string>
+    <string name="chat_assets_up">Up one folder</string>
     <string name="chat_assets_open_failed">Couldn\'t open that file.</string>
     <string name="chat_keep_out_of_notifications">Keep out of notifications</string>
     <string name="chat_stop_reading_aloud">Stop reading aloud</string>

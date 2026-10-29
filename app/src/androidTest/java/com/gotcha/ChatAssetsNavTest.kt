@@ -3,6 +3,7 @@ package com.gotcha
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -95,6 +96,36 @@ class ChatAssetsNavTest {
         composeRule.onNodeWithTag("chat_assets_back").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithText("docs").assertExists()
+    }
+
+    @Test
+    fun chatMenu_assets_missingFolder_showsEmpty() {
+        mockLlm.start()
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        TestSeed.seedConfigured(context, baseUrl = mockLlm.baseUrl)
+        seedSessionWithMessage(context, "assets-nav-gone", "Assets gone")
+        GotchaStorage.rootPath = File(context.filesDir, "assets-test-root").absolutePath
+        val chatDir = GotchaStorage.findOrCreateChatDir("assets-nav-gone", "Assets gone")
+        File(chatDir, "vanished").mkdirs()
+        File(chatDir, "vanished/old.txt").writeText("stale")
+        openChatFromDrawer("Assets gone")
+
+        composeRule.onNodeWithTag("chat_options").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("chat_assets").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("vanished").assertExists()
+
+        // The folder disappears between listing and tap (an agent run or an
+        // external file manager beat us to it): entering must show the empty
+        // state, never the previous listing's actionable rows.
+        File(chatDir, "vanished").deleteRecursively()
+        composeRule.onNodeWithText("vanished").performClick()
+        composeRule.waitUntil(5000) {
+            composeRule.onAllNodesWithTag("chat_assets_empty")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("old.txt").assertDoesNotExist()
     }
 
     private fun seedSessionWithMessage(context: android.content.Context, id: String, title: String) {
