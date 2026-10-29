@@ -101,10 +101,10 @@ if needed.
 **Connectors are not in Settings.** They live in the navigation drawer next to
 Settings, on their own Connectors screen.
 
-**Chat backup and import are not in Settings either.** A chat's ⋮ menu has
+**Whole-library chat backup and import live in Settings ▸ Chats.** A chat's ⋮ menu has
 **Export chat** (shares the conversation as readable Markdown) and **Back up
-chat** (saves the whole chat to a `.gotcha.json` file, images optional). The
-navigation drawer has **Back up all chats** and **Import chats**, which reads
+chat** (saves the whole chat to a `.gotcha.json` file, images optional). Settings ▸ Chats has
+**Back up all chats** and **Import chats**, which reads
 either kind of file back. A Markdown export imports as text only, without its
 images, attachments or full tool arguments; a backup restores everything. In
 either, system messages become notes marked as imported and not an instruction:

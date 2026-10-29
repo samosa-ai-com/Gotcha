@@ -127,6 +127,10 @@ fun SettingsScreen(
     onSendFeedback: () -> Unit = {},
     /** Leaves Settings for chat [String], e.g. the one a scheduled task's run went into. */
     onOpenChat: (String) -> Unit = {},
+    /** Opens the system picker to import chats (Settings ▸ Chats). */
+    onImportChats: () -> Unit = {},
+    /** Backs up every chat through the system save picker (Settings ▸ Chats). */
+    onBackupAllChats: () -> Unit = {},
     /**
      * Which sub-page is open; null is the home list.
      *
@@ -206,6 +210,11 @@ fun SettingsScreen(
                 )
                 SettingsPage.SECOND_BRAIN -> SecondBrainScreen(
                     onBack = backToHome
+                )
+                SettingsPage.CHATS -> ChatsScreen(
+                    onBack = backToHome,
+                    onImportChats = onImportChats,
+                    onBackupAllChats = onBackupAllChats
                 )
                 SettingsPage.LANGUAGE -> LanguageScreen(
                     load = load,

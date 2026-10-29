@@ -1041,13 +1041,11 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.CONNECTORS
                     },
-                    onImportChats = {
+                    onOpenScheduledTasks = {
                         scope.launch { drawerState.close() }
-                        chatTransfer.startImport()
-                    },
-                    onBackupAllChats = {
-                        scope.launch { drawerState.close() }
-                        chatTransfer.startBackupAll()
+                        settingsPage = SettingsPage.SCHEDULED_TASKS
+                        settingsHighlight = null
+                        currentRoute = Route.SETTINGS
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1192,6 +1190,8 @@ class MainActivity : ComponentActivity() {
                             chatViewModel.openSession(id)
                             currentRoute = Route.HOME
                         },
+                        onImportChats = { chatTransfer.startImport() },
+                        onBackupAllChats = { chatTransfer.startBackupAll() },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it

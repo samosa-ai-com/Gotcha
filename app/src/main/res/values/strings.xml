@@ -70,6 +70,8 @@
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
     <string name="settings_page_second_brain">Second Brain</string>
     <string name="settings_page_second_brain_summary">Gotcha\'s memory: identity, user card, notes</string>
+    <string name="settings_page_chats">Chats</string>
+    <string name="settings_page_chats_summary">Import or back up conversations</string>
     <string name="second_brain_intro">What Gotcha remembers about you. Identity first, then the map, then detail. Editing happens through the agent for now.</string>
     <string name="second_brain_loading">Loading memory…</string>
     <string name="second_brain_unavailable">Memory is not available yet. Allow All files access under Settings → Permissions, then open a chat and send one message.</string>
@@ -757,6 +759,8 @@
 
     <!-- AppDrawer -->
     <string name="drawer_new_chat">New Chat</string>
+    <!-- Import/backup moved to Settings ▸ Chats; the strings stay because the
+         settings rows reuse them, so no locale churn. -->
     <string name="drawer_import_chats">Import chats</string>
     <string name="drawer_back_up_all_chats">Back up all chats</string>
     <string name="drawer_connectors">Connectors</string>

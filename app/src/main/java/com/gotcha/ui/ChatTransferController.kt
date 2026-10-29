@@ -43,7 +43,7 @@ import com.gotcha.ui.theme.SkinAlertDialog
 
 /**
  * Entry points for chat backup and import (issue #83): the chat menu's "Back up
- * chat", the drawer's "Back up all chats" and "Import chats". Owns the system
+ * chat", Settings ▸ Chats' "Back up all chats" and "Import chats". Owns the system
  * file pickers; [ChatTransferDialogs] draws everything in between.
  */
 class ChatTransferController internal constructor(
