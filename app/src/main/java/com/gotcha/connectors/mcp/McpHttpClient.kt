@@ -129,7 +129,14 @@ class McpHttpClient(
     private val client = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     /** One server's session. Requests on it are serialized, which also keeps re-initialising race-free. */
-    inner class Session internal constructor(val endpoint: McpEndpoint) {
+    inner class Session internal constructor(initialEndpoint: McpEndpoint) {
+        /**
+         * Where requests go. The slash-tolerant retry may move it to the
+         * working spelling; the setter stays private so all writes happen
+         * under the session mutex.
+         */
+        var endpoint: McpEndpoint = initialEndpoint
+            private set
         private val mutex = Mutex()
         private var sessionId: String? = null
         private var protocolVersion: String? = null
@@ -168,24 +175,26 @@ class McpHttpClient(
         private suspend fun initializeLocked(): McpServerInfo {
             sessionId = null
             protocolVersion = null
-            val reply = exchange(
-                this,
-                rpcRequest(
-                    "initialize",
-                    buildJsonObject {
-                        put("protocolVersion", PROTOCOL_VERSION)
-                        put("capabilities", buildJsonObject {})
-                        put(
-                            "clientInfo",
-                            buildJsonObject {
-                                put("name", CLIENT_NAME)
-                                put("version", CLIENT_VERSION)
-                            }
-                        )
-                    }
-                ),
-                firstRequest = true
-            )
+            val configured = endpoint
+            val reply = try {
+                exchange(this, initializeBody(), firstRequest = true)
+            } catch (e: McpException) {
+                retryInitialize(e)
+            }
+            var ok = false
+            try {
+                val server = initializedServer(reply)
+                ok = true
+                return server
+            } finally {
+                // The fallback spelling may answer but not as MCP (RPC error,
+                // no result, no version): don't stick to a spelling that never
+                // worked. Cancellation restores too.
+                if (!ok) endpoint = configured
+            }
+        }
+
+        private suspend fun initializedServer(reply: Reply): McpServerInfo {
             sessionId = reply.sessionId
             val result = reply.result()
             val version = (result["protocolVersion"] as? JsonPrimitive)?.contentOrNull
@@ -206,6 +215,29 @@ class McpHttpClient(
             }
             this.server = server
             return server
+        }
+
+        /**
+         * "/mcp" and "/mcp/" are the same thing: when the server 404s one spelling
+         * before any session exists, try the other once (issue #154) rather than
+         * fail the whole setup. A second failure restores the configured URL and
+         * reports the retry's error, so the message describes the last attempt.
+         */
+        private suspend fun retryInitialize(first: McpException): Reply {
+            val original = endpoint
+            val alternate = slashToggled(original.url)
+            if (first.kind != McpFailure.NOT_FOUND || alternate == null) throw first
+            endpoint = original.copy(url = alternate)
+            var ok = false
+            try {
+                val reply = exchange(this, initializeBody(), firstRequest = true)
+                ok = true
+                return reply
+            } finally {
+                // Cancellation included: a failed retry must not leave the
+                // alternate spelling stored.
+                if (!ok) endpoint = original
+            }
         }
 
         /** One request, initialising first if needed, and once more if the server dropped the session. */
@@ -314,6 +346,35 @@ class McpHttpClient(
         }
         throw McpException(McpFailure.HTTP, "too many redirects", lastCode)
     }
+
+    /**
+     * The URL with its trailing slash toggled: "/mcp" becomes "/mcp/" and back.
+     * Null when there is nothing to toggle (unparseable, or the bare root).
+     * Query and fragment survive; the rest of the URL is untouched. Visible
+     * for tests.
+     */
+    internal fun slashToggled(url: String): String? {
+        val parsed = url.toHttpUrlOrNull() ?: return null
+        val path = parsed.encodedPath
+        if (path == "/") return null
+        val toggled = if (path.endsWith("/")) path.dropLast(1) else "$path/"
+        return parsed.newBuilder().encodedPath(toggled).build().toString()
+    }
+
+    private fun initializeBody(): Outgoing = rpcRequest(
+        "initialize",
+        buildJsonObject {
+            put("protocolVersion", PROTOCOL_VERSION)
+            put("capabilities", buildJsonObject {})
+            put(
+                "clientInfo",
+                buildJsonObject {
+                    put("name", CLIENT_NAME)
+                    put("version", CLIENT_VERSION)
+                }
+            )
+        }
+    )
 
     /**
      * Where a redirect points, when it is safe to follow: the same origin

@@ -10,6 +10,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -389,5 +390,80 @@ class McpHttpClientTest {
         } finally {
             endless.shutdown()
         }
+    }
+
+    @Test
+    fun `a missing trailing slash is toggled once before failing`() = runTest {
+        // Serves only the slashed spelling, 404s the bare one, never redirects.
+        val picky = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path != "/mcp/") return MockResponse().setResponseCode(404)
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val info = client.session(McpEndpoint(picky.url("/mcp").toString())).initialize()
+            assertEquals("Docs", info.name)
+        } finally {
+            picky.shutdown()
+        }
+    }
+
+    @Test
+    fun `an extra trailing slash is toggled once before failing`() = runTest {
+        // Serves only the bare spelling, 404s the slashed one, never redirects.
+        val picky = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path != "/mcp") return MockResponse().setResponseCode(404)
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val info = client.session(McpEndpoint(picky.url("/mcp/").toString())).initialize()
+            assertEquals("Docs", info.name)
+        } finally {
+            picky.shutdown()
+        }
+    }
+
+    @Test
+    fun `two missing spellings still fail, on the configured URL`() = runTest {
+        // 404s everything: the retry must not mask a genuinely absent server,
+        // and the session keeps the URL the user entered.
+        val absent = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) =
+                    MockResponse().setResponseCode(404)
+            }
+            start()
+        }
+        try {
+            val session = client.session(McpEndpoint(absent.url("/mcp").toString()))
+            val e = failureOf { session.initialize() }
+            assertEquals(McpFailure.NOT_FOUND, e.kind)
+            // One POST + old-transport GET per spelling, then give up.
+            val paths = List(4) { absent.takeRequest(5, TimeUnit.SECONDS)!!.path }
+            assertEquals(listOf("/mcp", "/mcp", "/mcp/", "/mcp/"), paths)
+            assertEquals(absent.url("/mcp").toString(), session.endpoint.url)
+        } finally {
+            absent.shutdown()
+        }
+    }
+
+    @Test
+    fun `slash toggling leaves the rest of the URL alone`() {
+        val client = McpHttpClient()
+        assertEquals("http://h/mcp/", client.slashToggled("http://h/mcp"))
+        assertEquals("http://h/mcp", client.slashToggled("http://h/mcp/"))
+        assertEquals("http://h/a/b/", client.slashToggled("http://h/a/b"))
+        assertEquals("http://h/mcp/?k=v", client.slashToggled("http://h/mcp?k=v"))
+        assertNull(client.slashToggled("http://h/"))
+        assertNull(client.slashToggled("not a url"))
     }
 }
