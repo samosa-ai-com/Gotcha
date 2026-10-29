@@ -251,9 +251,9 @@ object MemoryStore {
     const val LINK_SCAN_CAP_CHARS = 200_000
 
     /** Brain shell radii in graph units. Layout content is confined inside these. */
-    const val BRAIN_RX = 520f
+    const val BRAIN_RX = 280f
     const val BRAIN_RY = 360f
-    const val BRAIN_RZ = 280f
+    const val BRAIN_RZ = 520f
 
     /**
      * Pulls every point inside the brain ellipsoid (with margin), so no neuron

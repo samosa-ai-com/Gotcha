@@ -194,8 +194,8 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
     var zoom by remember(graph) { mutableStateOf(1f) }
     // Starting view is a three-quarter turn: cerebellum and brainstem sit at
     // the right end, length reading horizontally like a side-view diagram.
-    var yawDeg by remember(graph) { mutableStateOf(-55f) }
-    var pitchDeg by remember(graph) { mutableStateOf(20f) }
+    var yawDeg by remember(graph) { mutableStateOf(-90f) }
+    var pitchDeg by remember(graph) { mutableStateOf(0f) }
     var pan by remember(graph) { mutableStateOf(Offset.Zero) }
     var rotationDeg by remember(graph) { mutableStateOf(0f) }
     // True while a double-tap-drag is spinning the globe; the transform
@@ -210,7 +210,11 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
         }
         val points = MemoryStore.forceLayout(graph.nodes.size, pairs)
         val depths = List(graph.nodes.size) { nodeZ(it) }
-        MemoryStore.confineToBrain(points, depths)
+        // Turn the flat layout cloud onto its side: spread runs front-to-back
+        // (z) so the starting side view shows the full cloud, depth runs across.
+        val sideways = points.indices.map { i -> Offset(depths[i], points[i].y) }
+        val sidewaysDepths = points.indices.map { i -> points[i].x }
+        MemoryStore.confineToBrain(sideways, sidewaysDepths)
     }
     val layout: List<Offset> = placed.first
     val layoutZ: List<Float> = placed.second
@@ -225,14 +229,38 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
     fun markTouched() {
         lastTouchMs = System.currentTimeMillis()
     }
+    // Neuron firings: pulses travelling along random threads every second or
+    // two, flashing both endpoint neurons as they land.
+    var frameMs by remember(graph) { mutableStateOf(0L) }
+    var firings by remember(graph) { mutableStateOf(listOf<BrainFiring>()) }
     LaunchedEffect(graph) {
+        val random = kotlin.random.Random(7)
         var last = withFrameNanos { it }
+        var lastFire = 0L
+        var nextGap = 800L
         while (true) {
             val now = withFrameNanos { it }
             val dtSec = (now - last) / 1_000_000_000f
             last = now
-            if (System.currentTimeMillis() - lastTouchMs > 4000L) {
+            val wall = System.currentTimeMillis()
+            frameMs = wall
+            if (wall - lastTouchMs > 4000L) {
                 yawDeg = (yawDeg + dtSec * 9f) % 360f
+            }
+            firings = firings.filter { wall - it.startMs < it.durationMs }
+            if (graph.edges.isNotEmpty() && wall - lastFire > nextGap) {
+                lastFire = wall
+                nextGap = 900L + random.nextLong(1100L)
+                val count = minOf(3, graph.edges.size)
+                val picks = graph.edges.indices.shuffled(random).take(count)
+                firings = firings + picks.map { edgeIdx ->
+                    BrainFiring(
+                        edgeIdx = edgeIdx,
+                        startMs = wall,
+                        durationMs = 900L,
+                        reverse = random.nextBoolean()
+                    )
+                }
             }
         }
     }
@@ -320,8 +348,8 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
                         zoom = 1f
                         pan = Offset.Zero
                         rotationDeg = 0f
-                        yawDeg = -55f
-                        pitchDeg = 20f
+                        yawDeg = -90f
+                        pitchDeg = 0f
                         selectedId = null
                     }
                 )
@@ -381,6 +409,8 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
         val byId = graph.nodes.mapIndexed { index, node -> node.id to index }.toMap()
         val projected = graph.nodes.indices.map { map.project(layout[it], layoutZ[it]) }
         drawBrainShell(map)
+        // Firing pulses travel after the neurons so they read on top.
+        val liveFirings = firings.filter { frameMs - it.startMs < it.durationMs }
         graph.edges.forEach { edge ->
             val fromIdx = byId[edge.fromId]
             val toIdx = byId[edge.toId]
@@ -391,10 +421,7 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
                 val fromDepth = projected[fromIdx].depth01
                 val toDepth = projected[toIdx].depth01
                 // 3D synapse: segments fade from source depth to target depth.
-                val mid = (from + to) / 2f
-                val normal = Offset(-(to.y - from.y), to.x - from.x)
-                val normalLen = normal.getDistance().coerceAtLeast(1f)
-                val control = mid + normal / normalLen * (from.getDistance() * 0.12f + 18f)
+                val control = edgeControl(from, to)
                 val segments = 10
                 val baseAlpha = if (bothVisible) 0.65f else 0.08f
                 for (s in 0 until segments) {
@@ -405,7 +432,7 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
                         color = scheme.outline.copy(alpha = baseAlpha * (1f - 0.5f * depth)),
                         start = quadPoint(from, control, to, t0),
                         end = quadPoint(from, control, to, t1),
-                        strokeWidth = 3f,
+                        strokeWidth = 5f,
                         cap = StrokeCap.Round
                     )
                 }
@@ -457,6 +484,50 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
                 )
             }
         }
+        // Neuron firing: a bright pulse flows along each live thread while both
+        // endpoint neurons flash with an expanding ring.
+        val flashStrength = mutableMapOf<Int, Float>()
+        liveFirings.forEach { firing ->
+            val edge = graph.edges.getOrNull(firing.edgeIdx) ?: return@forEach
+            val progress = ((frameMs - firing.startMs) / firing.durationMs.toFloat()).coerceIn(0f, 1f)
+            val fromIdx = byId[edge.fromId]
+            val toIdx = byId[edge.toId]
+            if (fromIdx == null || toIdx == null) return@forEach
+            val from = projected[fromIdx].screen
+            val to = projected[toIdx].screen
+            val control = edgeControl(from, to)
+            val t = if (firing.reverse) 1f - progress else progress
+            val pos = quadPoint(from, control, to, t)
+            val depth = (projected[fromIdx].depth01 + projected[toIdx].depth01) / 2f
+            val glow = (1f - progress) * (1f - 0.4f * depth)
+            for (trail in 6 downTo 1) {
+                val trailT = (t - trail * 0.035f * (if (firing.reverse) -1f else 1f)).coerceIn(0f, 1f)
+                val trailPos = quadPoint(from, control, to, trailT)
+                drawCircle(
+                    color = scheme.primary.copy(alpha = glow * (1f - trail / 7f) * 0.5f),
+                    radius = 10f * (1f - trail / 9f),
+                    center = trailPos
+                )
+            }
+            drawCircle(
+                color = Color.White.copy(alpha = glow.coerceIn(0f, 1f)),
+                radius = 7f,
+                center = pos
+            )
+            flashStrength[fromIdx] = maxOf(flashStrength[fromIdx] ?: 0f, 1f - progress)
+            flashStrength[toIdx] = maxOf(flashStrength[toIdx] ?: 0f, progress)
+        }
+        flashStrength.forEach { (index, strength) ->
+            if (strength <= 0f) return@forEach
+            val center = projected[index].screen
+            val radius = NEURON_GRAPH_RADIUS * map.scale * projected[index].persp + strength * 34f
+            drawCircle(
+                color = scheme.primary.copy(alpha = 0.7f * strength),
+                radius = radius,
+                center = center,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
+            )
+        }
     }
 
     Row(
@@ -468,8 +539,8 @@ private fun SecondBrainGraphView(snapshot: MemoryStore.SecondBrainSnapshot) {
                 zoom = 1f
                 pan = Offset.Zero
                 rotationDeg = 0f
-                yawDeg = -55f
-                pitchDeg = 20f
+                yawDeg = -90f
+                pitchDeg = 0f
                 selectedId = null
             },
             modifier = Modifier.testTag("settings_second_brain_graph_reset")
@@ -554,6 +625,17 @@ private fun neuronScreenRadius(width: Float, height: Float): Float {
     return 30f * fit * 1.6f
 }
 
+/** One neuron firing: a pulse crossing a thread, flashing both neurons. */
+private data class BrainFiring(val edgeIdx: Int, val startMs: Long, val durationMs: Long, val reverse: Boolean)
+
+/** Curve control point shared by thread drawing and pulse travel. */
+private fun edgeControl(from: Offset, to: Offset): Offset {
+    val mid = (from + to) / 2f
+    val normal = Offset(-(to.y - from.y), to.x - from.x)
+    val normalLen = normal.getDistance().coerceAtLeast(1f)
+    return mid + normal / normalLen * (from.getDistance() * 0.12f + 18f)
+}
+
 /** Point on a quadratic bezier at t, for segmented gradient edges. */
 private fun quadPoint(p0: Offset, c: Offset, p1: Offset, t: Float): Offset {
     val u = 1f - t
@@ -573,21 +655,20 @@ private fun quadPoint(p0: Offset, c: Offset, p1: Offset, t: Float): Offset {
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrainShell(map: GraphMapper) {
     val shellColor = Color(0xFF7FB3D5)
 
-    // Parametric bumpy cerebrum. Frontal taper narrows the front so the
-    // silhouette reads as a brain, not a rugby ball. Confined layout content
-    // (±520/±360/±280) fits inside the 600/420/340 radii.
+    // Parametric bumpy cerebrum, long axis front-to-back like the reference:
+    // frontal lobe toward +z (left on the starting side view), occipital and
+    // hindbrain toward -z (right). Confined layout content fits the radii.
     fun surface(lon: Float, lat: Float): OffsetTriple {
         val bump = 1f + 0.05f * sin(3f * lon + 0.8f) + 0.035f * sin(2f * lat + 1.7f) + 0.02f * sin(5f * lon - lat)
         // Slight center groove between the hemispheres.
         val groove = 1f - 0.10f * (cos(lon) * cos(lon)) * cos(lat) * cos(lat)
-        // Frontal taper: narrower toward the front (+z). Long in x, lower in y,
-        // like a side-view diagram rather than a ball.
+        // Frontal taper: narrower toward the front (+z).
         val frontness = (sin(lon) * 0.5f + 0.5f)
         val taper = 1f - 0.10f * frontness
         return OffsetTriple(
-            630f * bump * groove * taper * cos(lat) * cos(lon),
+            350f * bump * groove * taper * cos(lat) * cos(lon),
             390f * bump * taper * sin(lat),
-            340f * bump * cos(lat) * sin(lon)
+            620f * bump * cos(lat) * sin(lon)
         )
     }
     fun sampleSphere(
@@ -625,6 +706,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrainShell(map:
         }
     }
     val hull = convexHull(samples)
+    // Hindbrain first so the translucent cerebrum shell covers it with depth.
+    drawHindbrain(map)
     if (hull.size >= 3) {
         val path = Path().apply {
             moveTo(hull[0].x, hull[0].y)
@@ -634,14 +717,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrainShell(map:
         drawPath(path = path, color = shellColor.copy(alpha = 0.10f))
         drawPath(path = path, color = shellColor.copy(alpha = 0.45f), style = Stroke(width = 3f))
     }
-    // Cerebellum and brainstem below; see drawHindbrain.
-    drawHindbrain(map)
-    // Longitudinal fissure: surface line over the top center.
+    // Longitudinal fissure: arc over the top midline (x near 0).
     var prev: Offset? = null
     for (si in 0..24) {
-        val lat = -1.2f + 2.4f * si / 24f
-        val s = surface(Math.PI.toFloat() / 2f, lat)
-        val p = map.project3(s.x, s.y, s.z)
+        val t = -1f + 2f * si / 24f
+        val p = map.project3(0f, 370f * kotlin.math.sqrt((1f - t * t).coerceAtLeast(0f)), 560f * t)
         prev?.let {
             drawLine(
                 color = shellColor.copy(alpha = 0.5f * (1f - 0.6f * p.depth01)),
@@ -652,12 +732,21 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrainShell(map:
         }
         prev = p.screen
     }
-    // A few sulci per hemisphere, fading on the far side.
+    // Gyri: short winding folds scattered over the cerebrum, like the reference.
     val pi = Math.PI.toFloat()
     val sulci = listOf(
         Triple(0.5f to -0.5f, 0.9f to -0.1f, 1.2f to -0.5f),
         Triple(0.4f to 0.2f, 0.9f to 0.4f, 1.3f to 0.1f),
         Triple(0.6f to 0.7f, 1.0f to 0.9f, 1.4f to 0.6f),
+        Triple(1.8f to -0.4f, 2.1f to 0.0f, 2.4f to -0.4f),
+        Triple(1.7f to 0.3f, 2.0f to 0.6f, 2.3f to 0.3f),
+        Triple(2.6f to -0.3f, 2.9f to 0.1f, 3.2f to -0.3f),
+        Triple(2.5f to 0.5f, 2.8f to 0.8f, 3.1f to 0.5f),
+        Triple(3.6f to -0.4f, 3.9f to 0.0f, 4.2f to -0.4f),
+        Triple(3.5f to 0.4f, 3.8f to 0.7f, 4.1f to 0.4f),
+        Triple(4.6f to -0.3f, 4.9f to 0.1f, 5.2f to -0.3f),
+        Triple(4.5f to 0.5f, 4.8f to 0.8f, 5.1f to 0.5f),
+        Triple(5.6f to 0.0f, 5.9f to 0.3f, 6.1f to 0.0f),
         Triple((pi - 0.5f) to -0.5f, (pi - 0.9f) to -0.1f, (pi - 1.2f) to -0.5f),
         Triple((pi - 0.4f) to 0.2f, (pi - 0.9f) to 0.4f, (pi - 1.3f) to 0.1f),
         Triple((pi - 0.6f) to 0.7f, (pi - 1.0f) to 0.9f, (pi - 1.4f) to 0.6f)
@@ -708,7 +797,8 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHindbrain(map: 
         center: OffsetTriple,
         radius: Float,
         lonSteps: Int = 16,
-        latSteps: Int = 5
+        latSteps: Int = 5,
+        yScale: Float = 1f
     ): List<OffsetTriple> {
         val out = mutableListOf<OffsetTriple>()
         for (li in 0 until lonSteps) {
@@ -718,7 +808,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHindbrain(map: 
                 out.add(
                     OffsetTriple(
                         center.x + radius * cos(lat) * cos(lon),
-                        center.y + radius * sin(lat),
+                        center.y + radius * yScale * sin(lat),
                         center.z + radius * cos(lat) * sin(lon)
                     )
                 )
@@ -726,9 +816,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHindbrain(map: 
         }
         return out
     }
-    // Cerebellum: two small lobes tucked under the back-bottom, with folia stripes.
-    listOf(OffsetTriple(-150f, 330f, -140f), OffsetTriple(150f, 330f, -140f)).forEach { lobe ->
-        blobPath(sampleSphere(lobe, 120f))?.let { path ->
+    // Cerebellum: two flattened lobes tucked under the back-bottom, with folia stripes.
+    listOf(OffsetTriple(-140f, 350f, -120f), OffsetTriple(140f, 350f, -120f)).forEach { lobe ->
+        blobPath(sampleSphere(lobe, 110f, yScale = 0.72f))?.let { path ->
             drawPath(path = path, color = shellColor.copy(alpha = 0.12f))
             drawPath(path = path, color = shellColor.copy(alpha = 0.4f), style = Stroke(width = 2f))
         }
@@ -737,9 +827,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHindbrain(map: 
             for (i in 0..16) {
                 val a = 2f * Math.PI.toFloat() * i / 16f
                 val p = map.project3(
-                    lobe.x + 115f * cos(a),
-                    lobe.y + stripe * 38f,
-                    lobe.z + 115f * sin(a)
+                    lobe.x + 105f * cos(a),
+                    lobe.y + stripe * 26f,
+                    lobe.z + 105f * sin(a)
                 ).screen
                 striped?.let {
                     drawLine(color = shellColor.copy(alpha = 0.25f), start = it, end = p, strokeWidth = 1.5f)
@@ -750,8 +840,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHindbrain(map: 
     }
     // Brainstem: tapering stalk down the back-center.
     listOf(
-        OffsetTriple(0f, 400f, -110f) to 62f,
-        OffsetTriple(0f, 460f, -90f) to 44f
+        OffsetTriple(0f, 410f, -100f) to 55f,
+        OffsetTriple(0f, 462f, -82f) to 42f,
+        OffsetTriple(0f, 505f, -66f) to 30f
     ).forEach { (center, radius) ->
         blobPath(sampleSphere(center, radius, 12, 4))?.let { path ->
             drawPath(path = path, color = shellColor.copy(alpha = 0.12f))
