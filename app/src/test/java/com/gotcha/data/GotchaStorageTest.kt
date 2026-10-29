@@ -1,5 +1,6 @@
 package com.gotcha.data
 
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,6 +21,13 @@ class GotchaStorageTest {
         // default (Environment.getExternalStorageDirectory()) is never
         // evaluated under plain JUnit.
         GotchaStorage.rootPath = tmp.newFolder("Gotcha").absolutePath
+    }
+
+    @After
+    fun tearDown() {
+        // The override is process-wide: leave it set and later classes
+        // resolve their files against this deleted folder.
+        GotchaStorage.resetRootPathForTests()
     }
 
     // ---- slugify ----

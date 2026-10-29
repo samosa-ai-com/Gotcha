@@ -61,6 +61,10 @@ class PodcastToolTest {
 
     @Before
     fun setUp() {
+        // GotchaStorage roots are process-wide: another class's override
+        // would point this test's files (and FileProvider's roots) at a
+        // foreign sandbox. Start from the ambient default every time.
+        GotchaStorage.resetRootPathForTests()
         ShadowExternalStorageManager.granted = true
         // FileProvider caches its path strategy statically per authority
         // across the whole test task while each test gets a fresh sandbox
@@ -72,6 +76,7 @@ class PodcastToolTest {
 
     @After
     fun tearDown() {
+        GotchaStorage.resetRootPathForTests()
         ShadowExternalStorageManager.resetGranted()
         FileProviderCache.clear()
     }
