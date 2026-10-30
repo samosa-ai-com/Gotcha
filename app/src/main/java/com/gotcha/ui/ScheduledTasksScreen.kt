@@ -598,7 +598,7 @@ private fun TaskEditor(
                         (kind == RepeatKind.HOURLY || kind == RepeatKind.DAILY) &&
                             (every == null || every !in 1..ScheduledTask.MAX_INTERVAL) -> badInterval
                         kind == RepeatKind.NONE &&
-                            !isWallTimeFuture(startAt, ZoneId.systemDefault(), Instant.now().toEpochMilli()) -> pastTime
+                            !isWallTimeFuture(startAt, ZoneId.systemDefault(), System.currentTimeMillis()) -> pastTime
                         AttachmentFiles.documentChars(files) > ComposerAttachment.MAX_TOTAL_DOCUMENT_CHARS -> tooMuchText
                         else -> ""
                     }

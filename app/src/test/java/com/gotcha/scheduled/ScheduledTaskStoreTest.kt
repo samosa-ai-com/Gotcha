@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.gotcha.agent.Attachment
 import com.gotcha.agent.ComposerAttachment
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -148,20 +149,11 @@ class ScheduledTaskStoreTest {
         val berlin = java.time.ZoneId.of("Europe/Berlin")
         val tokyo = java.time.ZoneId.of("Asia/Tokyo")
         val armedAt = java.time.LocalDateTime.parse("2026-10-25T09:00").atZone(berlin).toInstant().toEpochMilli()
-        store.put(
-            task("daily").copy(
-                startLocal = "2026-10-25T08:00",
-                repeat = Repeat(RepeatKind.DAILY),
-                nextRunAt = ScheduledTaskPlanner.armed(
-                    task("daily").copy(
-                        startLocal = "2026-10-25T08:00",
-                        repeat = Repeat(RepeatKind.DAILY)
-                    ),
-                    armedAt,
-                    berlin
-                ).nextRunAt
-            )
+        val daily = task("daily").copy(
+            startLocal = "2026-10-25T08:00",
+            repeat = Repeat(RepeatKind.DAILY)
         )
+        store.put(ScheduledTaskPlanner.armed(daily, armedAt, berlin))
         store.put(
             task("hourly").copy(
                 startLocal = "2026-10-25T00:00",
@@ -177,6 +169,6 @@ class ScheduledTaskStoreTest {
         )
         assertEquals(armedAt + 2 * 60 * 60 * 1000L, store.get("hourly")!!.nextRunAt)
         // A second rebase with nothing moved reports false.
-        assertTrue(!store.rebaseForZoneChange(sameInstant, tokyo))
+        assertFalse(store.rebaseForZoneChange(sameInstant, tokyo))
     }
 }

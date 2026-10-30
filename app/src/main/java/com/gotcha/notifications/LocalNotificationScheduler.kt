@@ -100,10 +100,16 @@ class NotificationRescheduleReceiver : BroadcastReceiver() {
                 // which may advance past (no MISSED record) or re-arm (a repeat)
                 // occurrences the clock move invalidated.
                 if (intent.action == Intent.ACTION_TIMEZONE_CHANGED || intent.action == Intent.ACTION_TIME_CHANGED) {
+                    // Prefer the zone the broadcast names: the JVM default can
+                    // lag it on some phones. Fall back to the default when the
+                    // extra is missing or not a zone id.
+                    val zone = intent.getStringExtra("time-zone")
+                        ?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+                        ?: ZoneId.systemDefault()
                     runCatching {
                         ScheduledTaskStore(app).rebaseForZoneChange(
                             System.currentTimeMillis(),
-                            ZoneId.systemDefault()
+                            zone
                         )
                     }.onFailure { Log.w(TAG, "Scheduled task rebase failed", it) }
                 }

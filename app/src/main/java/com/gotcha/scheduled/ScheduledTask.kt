@@ -159,6 +159,7 @@ fun nextOccurrence(task: ScheduledTask, after: Long, zone: ZoneId): Long? {
     val interval = task.repeat.interval.coerceIn(1, ScheduledTask.MAX_INTERVAL).toLong()
     val afterLocal = LocalDateTime.ofInstant(Instant.ofEpochMilli(after), zone)
     return when (task.repeat.kind) {
+        // Handled above; kept for compiler exhaustiveness.
         RepeatKind.NONE -> null
         RepeatKind.HOURLY -> {
             // Hours are counted in real time, so a summer-time change does not

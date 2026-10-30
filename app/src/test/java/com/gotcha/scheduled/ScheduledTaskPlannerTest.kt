@@ -323,7 +323,10 @@ class ScheduledTaskPlannerTest {
         assertEquals(hourly, ScheduledTaskPlanner.rebasedForZone(hourly, nowInTokyo, tokyo))
 
         val retrying = daily().copy(retryAt = at("2026-10-19T07:30"), retriesUsed = 1)
-        val rebased = ScheduledTaskPlanner.rebasedForZone(retrying, at("2026-10-19T07:00"), zone)
+        // Across a real zone shift too: the retry is a real delay, not wall time.
+        val tokyoNow = LocalDateTime.parse("2026-10-19T07:00").atZone(ZoneId.of("Europe/Berlin"))
+            .toInstant().toEpochMilli()
+        val rebased = ScheduledTaskPlanner.rebasedForZone(retrying, tokyoNow, ZoneId.of("Asia/Tokyo"))
         assertEquals(at("2026-10-19T07:30"), rebased.retryAt)
         assertEquals(1, rebased.retriesUsed)
     }

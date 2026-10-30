@@ -107,6 +107,27 @@ class ScheduledTaskToolTest {
     }
 
     @Test
+    fun `a one-time task in the repeated hour is accepted at the second pass`() {
+        // Summer time ends in Berlin on 25 Oct 2026. Between the passes the
+        // first 02:40 is gone but the second still lies ahead: the tool must
+        // accept it, like the Settings form does (issue #150).
+        val berlin = ZoneId.of("Europe/Berlin")
+        val betweenPasses = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:37"),
+            berlin
+        ).withLaterOffsetAtOverlap().toInstant().toEpochMilli()
+        val overlapTool = ScheduledTaskTool(
+            context,
+            store,
+            zone = { berlin },
+            clock = { betweenPasses },
+            chatTitle = { null }
+        )
+        val result = overlapTool.prepareCreate(args("""{"name":"n","prompt":"p","start":"2026-10-25T02:40"}"""))
+        assertTrue(result.message, result.success)
+    }
+
+    @Test
     fun `the agent can set up only so many tasks`() {
         repeat(ScheduledTaskTool.MAX_AGENT_TASKS) {
             store.put(

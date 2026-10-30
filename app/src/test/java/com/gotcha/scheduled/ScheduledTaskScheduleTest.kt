@@ -145,6 +145,13 @@ class ScheduledTaskScheduleTest {
         }
         assertEquals("2026-10-25T02:40", got)
         assertTrue(isWallTimeFuture(LocalDateTime.parse("2026-10-25T02:40"), zone, betweenPasses))
+        // Once the second pass has gone too, nothing lies ahead.
+        val afterSecondPass = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:41"),
+            zone
+        ).withLaterOffsetAtOverlap().toInstant().toEpochMilli()
+        assertTrue(!isWallTimeFuture(LocalDateTime.parse("2026-10-25T02:40"), zone, afterSecondPass))
+        assertNull(nextOccurrence(once, afterSecondPass, zone))
     }
 
     @Test
