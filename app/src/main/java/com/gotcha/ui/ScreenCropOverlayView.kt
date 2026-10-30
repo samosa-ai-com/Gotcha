@@ -186,7 +186,12 @@ class ScreenCropOverlayView(
     private var lastFrameNs = 0L
 
     init {
-        isFocusableInTouchMode = true
+        // Deliberately not focusable (in touch mode or otherwise): the Lens
+        // overlay must never become the active window, or accessibility reads
+        // start returning our own canvas instead of the app underneath
+        // (issue #149). See also FLAG_NOT_FOCUSABLE where this view is added.
+        isFocusable = false
+        isFocusableInTouchMode = false
         setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 

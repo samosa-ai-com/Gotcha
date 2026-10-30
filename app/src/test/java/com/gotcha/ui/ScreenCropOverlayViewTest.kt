@@ -67,6 +67,16 @@ class ScreenCropOverlayViewTest {
     }
 
     @Test
+    fun `the canvas never takes focus`() {
+        // The overlay must not become the active window, or accessibility
+        // reads start returning our own canvas instead of the app underneath
+        // (issue #149). See FLAG_NOT_FOCUSABLE where it is added.
+        val view = viewFor(Skins.DeepSpaceDark.id)
+        assertFalse(view.isFocusable)
+        assertFalse(view.isFocusableInTouchMode)
+    }
+
+    @Test
     fun `the hint stays light on a light skin`() {
         // It is drawn onto the dim over somebody else's app, not onto a surface
         // of ours, so a light skin's near-black onSurface would be unreadable.
