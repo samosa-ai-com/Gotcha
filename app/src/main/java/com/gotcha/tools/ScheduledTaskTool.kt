@@ -14,6 +14,7 @@ import com.gotcha.scheduled.ScheduledTask
 import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.scheduled.ScheduledTaskStore
+import com.gotcha.scheduled.isWallTimeFuture
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -94,7 +95,7 @@ class ScheduledTaskTool(
             "Invalid 'start' \"$startText\": use the phone's local time as YYYY-MM-DDTHH:MM, e.g. 2026-10-19T08:00."
         )
         val repeat = parseRepeat(args).getOrElse { return ToolResult.error(it.message.orEmpty()) }
-        if (repeat.kind == RepeatKind.NONE && start.atZone(zone()).toInstant().toEpochMilli() <= clock()) {
+        if (repeat.kind == RepeatKind.NONE && !isWallTimeFuture(start, zone(), clock())) {
             return ToolResult.error("That time has already passed. Pick a time in the future, or a repeat rule.")
         }
         if (store.all().count { it.createdByAgent } >= MAX_AGENT_TASKS) {

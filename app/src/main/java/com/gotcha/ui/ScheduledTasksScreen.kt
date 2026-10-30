@@ -72,6 +72,7 @@ import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.TaskRun
 import com.gotcha.scheduled.TaskRunStatus
+import com.gotcha.scheduled.isWallTimeFuture
 import com.gotcha.service.ChatRunService
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -597,7 +598,7 @@ private fun TaskEditor(
                         (kind == RepeatKind.HOURLY || kind == RepeatKind.DAILY) &&
                             (every == null || every !in 1..ScheduledTask.MAX_INTERVAL) -> badInterval
                         kind == RepeatKind.NONE &&
-                            !startAt.atZone(ZoneId.systemDefault()).toInstant().isAfter(Instant.now()) -> pastTime
+                            !isWallTimeFuture(startAt, ZoneId.systemDefault(), System.currentTimeMillis()) -> pastTime
                         AttachmentFiles.documentChars(files) > ComposerAttachment.MAX_TOTAL_DOCUMENT_CHARS -> tooMuchText
                         else -> ""
                     }
