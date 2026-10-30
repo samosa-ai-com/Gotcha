@@ -115,7 +115,15 @@ class ScreenLensController(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
                 overlayType(),
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                // NOT_FOCUSABLE: the overlay must never become the active
+                // window. When it steals focus, rootInActiveWindow starts
+                // returning our own textless canvas, and on some phones the app
+                // underneath drops out of the window list too, so hostRoot()
+                // finds nothing and Lens reads an empty screen (issue #149).
+                // Touch still works: NOT_TOUCH_MODAL is untouched. Nothing
+                // consumes keys here, so no Back handling is lost either.
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
@@ -481,6 +489,10 @@ class ScreenLensController(
             (TEXT_CARD_WIDTH_DP * density).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
+            // Deliberately still focusable (unlike the crop canvas): selectable
+            // text needs it. Do fresh accessibility reads from this card and
+            // hostRoot() will hand back our own window instead of the app
+            // underneath (issue #149); pass extracted text in instead.
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
