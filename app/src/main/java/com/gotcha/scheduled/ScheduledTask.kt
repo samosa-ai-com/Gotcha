@@ -141,6 +141,15 @@ data class ScheduledTask(
 fun nextOccurrence(task: ScheduledTask, after: Long, zone: ZoneId): Long? {
     val start = task.start
     val startAt = start.atZone(zone).toInstant().toEpochMilli()
+    if (task.repeat.kind == RepeatKind.NONE) {
+        // A one-off in the repeated hour when summer time ends: the earlier
+        // pass may be gone while the later one still lies ahead, so fall
+        // through to it instead of reporting nothing left to run. Arming only:
+        // once the task fires, the planner spends it (null) rather than
+        // re-arming per pass.
+        if (startAt > after) return startAt
+        return laterOffsetAtOverlap(start, zone)?.takeIf { it > after }
+    }
     if (startAt > after) {
         // The start itself, unless a weekly task does not run on that weekday.
         if (task.repeat.kind != RepeatKind.WEEKLY || start.dayOfWeek in weekdaysOf(task.repeat, start)) {
@@ -198,6 +207,27 @@ fun nextOccurrence(task: ScheduledTask, after: Long, zone: ZoneId): Long? {
 
 private fun weekdaysOf(repeat: Repeat, start: LocalDateTime): Set<DayOfWeek> =
     repeat.weekdays.filter { it in 1..7 }.map { DayOfWeek.of(it) }.toSet().ifEmpty { setOf(start.dayOfWeek) }
+
+/**
+ * True when wall-clock [local] still lies ahead of [now] in [zone]: either
+ * pass counts on the night summer time ends (issue #150). The form's
+ * "that time has passed" check and [nextOccurrence]'s one-off path share it,
+ * so a picked time the form accepts is one the schedule can still reach.
+ * Repeating candidates keep the earlier pass only: a daily task in that hour
+ * runs once, at the first pass.
+ */
+fun isWallTimeFuture(local: LocalDateTime, zone: ZoneId, now: Long): Boolean {
+    if (local.atZone(zone).toInstant().toEpochMilli() > now) return true
+    return laterOffsetAtOverlap(local, zone)?.let { it > now } == true
+}
+
+/** The second pass of an ambiguous wall time, or null when unambiguous. */
+private fun laterOffsetAtOverlap(local: LocalDateTime, zone: ZoneId): Long? {
+    val early = local.atZone(zone)
+    val late = early.withLaterOffsetAtOverlap()
+    if (late == early) return null
+    return late.toInstant().toEpochMilli()
+}
 
 private const val HOUR_MS = 60L * 60L * 1000L
 private const val DAYS_TO_SCAN = 8

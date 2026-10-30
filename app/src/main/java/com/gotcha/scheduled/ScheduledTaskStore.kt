@@ -103,6 +103,20 @@ class ScheduledTaskStore internal constructor(
         update(id) { null }
     }
 
+    /**
+     * Re-resolves every non-hourly task's next run in [zone] after the wall
+     * clock moved under it (issue #150). Hourly tasks, retries and busy waits
+     * are real durations and keep their moments. Returns true when anything
+     * changed. One lock covers the read and the write, like [update].
+     */
+    fun rebaseForZoneChange(now: Long, zone: ZoneId): Boolean = synchronized(LOCK) {
+        val tasks = read()
+        val rebased = tasks.map { ScheduledTaskPlanner.rebasedForZone(it, now, zone) }
+        if (rebased == tasks) return false
+        write(rebased)
+        true
+    }
+
     /** The pinned chat [sessionId] was deleted: a same-chat task starts a new one next time. */
     fun forgetChat(sessionId: String) = synchronized(LOCK) {
         val tasks = read()

@@ -266,4 +266,114 @@ class ScheduledTaskPlannerTest {
         assertEquals(ScheduledTask.MAX_HISTORY, task.history.size)
         assertEquals((ScheduledTask.MAX_HISTORY + 4).toLong(), task.history.last().at)
     }
+
+    @Test
+    fun `a zone change keeps the daily wall time`() {
+        // Daily 08:00 armed in Berlin; after today's run the next is 26 Oct
+        // 08:00 Berlin. The phone then moves to Tokyo (same instant): the
+        // stored moment would fire at 16:00 Tokyo, but rebasing moves it to
+        // 08:00 Tokyo wall time.
+        val berlin = ZoneId.of("Europe/Berlin")
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val armed = ScheduledTaskPlanner.armed(
+            ScheduledTask(
+                id = "t",
+                name = "n",
+                prompt = "p",
+                startLocal = "2026-10-25T08:00",
+                repeat = Repeat(RepeatKind.DAILY)
+            ),
+            LocalDateTime.parse("2026-10-25T09:00").atZone(berlin).toInstant().toEpochMilli(),
+            berlin
+        )
+        assertEquals(
+            LocalDateTime.parse("2026-10-26T08:00").atZone(berlin).toInstant().toEpochMilli(),
+            armed.nextRunAt
+        )
+        val sameInstantInTokyo = LocalDateTime.parse("2026-10-25T09:00")
+            .atZone(berlin).toInstant().toEpochMilli()
+        val rebased = ScheduledTaskPlanner.rebasedForZone(armed, sameInstantInTokyo, tokyo)
+        assertEquals(
+            LocalDateTime.parse("2026-10-26T08:00").atZone(tokyo).toInstant().toEpochMilli(),
+            rebased.nextRunAt
+        )
+        // The wall time reads back as 08:00 in Tokyo.
+        assertEquals(
+            "2026-10-26T08:00",
+            LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(rebased.nextRunAt!!), tokyo).toString()
+        )
+    }
+
+    @Test
+    fun `a zone change leaves hourly tasks retries and history alone`() {
+        val berlin = ZoneId.of("Europe/Berlin")
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val hourly = ScheduledTaskPlanner.armed(
+            ScheduledTask(
+                id = "h",
+                name = "n",
+                prompt = "p",
+                startLocal = "2026-10-25T00:00",
+                repeat = Repeat(RepeatKind.HOURLY, interval = 2)
+            ),
+            LocalDateTime.parse("2026-10-25T00:00").atZone(berlin).toInstant().toEpochMilli(),
+            berlin
+        )
+        val nowInTokyo = hourly.nextRunAt!! - 60_000L
+        assertEquals(hourly, ScheduledTaskPlanner.rebasedForZone(hourly, nowInTokyo, tokyo))
+
+        val retrying = daily().copy(retryAt = at("2026-10-19T07:30"), retriesUsed = 1)
+        val rebased = ScheduledTaskPlanner.rebasedForZone(retrying, at("2026-10-19T07:00"), zone)
+        assertEquals(at("2026-10-19T07:30"), rebased.retryAt)
+        assertEquals(1, rebased.retriesUsed)
+    }
+
+    @Test
+    fun `a zone change never resurrects a spent one-off`() {
+        val spent = ScheduledTask(
+            id = "t",
+            name = "n",
+            prompt = "p",
+            startLocal = "2026-10-19T08:00",
+            nextRunAt = null
+        )
+        assertEquals(
+            spent,
+            ScheduledTaskPlanner.rebasedForZone(spent, at("2026-10-19T09:00"), ZoneId.of("Asia/Tokyo"))
+        )
+    }
+
+    @Test
+    fun `a spent one-off stays spent through pause resume and busy waits`() {
+        // In the overlap hour a resume must not re-arm off the later pass.
+        val berlin = ZoneId.of("Europe/Berlin")
+        val spent = ScheduledTask(
+            id = "t",
+            name = "n",
+            prompt = "p",
+            startLocal = "2026-10-25T02:40",
+            enabled = false,
+            nextRunAt = null
+        )
+        val betweenPasses = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:37"),
+            berlin
+        ).withLaterOffsetAtOverlap().toInstant().toEpochMilli()
+        assertNull(ScheduledTaskPlanner.toggled(spent, true, betweenPasses, berlin).nextRunAt)
+        // A busy wait on a due one-off claims no next time either.
+        val firstPass = LocalDateTime.parse("2026-10-25T02:40")
+            .atZone(berlin).toInstant().toEpochMilli()
+        val busy = ScheduledTaskPlanner.busy(
+            ScheduledTask(
+                id = "t",
+                name = "n",
+                prompt = "p",
+                startLocal = "2026-10-25T02:40",
+                nextRunAt = firstPass
+            ),
+            firstPass,
+            berlin
+        )
+        assertNull(busy.nextRunAt)
+    }
 }

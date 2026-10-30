@@ -10,6 +10,7 @@ import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.SettingsRepository
 import com.gotcha.i18n.stringLookup
 import com.gotcha.scheduled.ScheduledTaskScheduler
+import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.updater.runUpdateCheck
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,6 +92,21 @@ class NotificationRescheduleReceiver : BroadcastReceiver() {
         runAsync(TAG) {
             // finally: a failure arming one set of alarms must not leave the other unarmed.
             try {
+                // A zone or clock change moves wall-clock time under the stored
+                // next runs (issue #150): re-resolve non-hourly tasks first, so
+                // the alarm below arms at the new zone's moment. A reboot or
+                // update changes nothing about the mapping, so those only re-arm.
+                // Deliberately also on TIME_SET: wall tasks follow the wall,
+                // which may advance past (no MISSED record) or re-arm (a repeat)
+                // occurrences the clock move invalidated.
+                if (intent.action == Intent.ACTION_TIMEZONE_CHANGED || intent.action == Intent.ACTION_TIME_CHANGED) {
+                    runCatching {
+                        ScheduledTaskStore(app).rebaseForZoneChange(
+                            System.currentTimeMillis(),
+                            ZoneId.systemDefault()
+                        )
+                    }.onFailure { Log.w(TAG, "Scheduled task rebase failed", it) }
+                }
                 if (intent.action != ACTION_EXACT_ALARM_PERMISSION_CHANGED) LocalNotificationScheduler.scheduleAll(app)
             } finally {
                 ScheduledTaskScheduler.reschedule(app)

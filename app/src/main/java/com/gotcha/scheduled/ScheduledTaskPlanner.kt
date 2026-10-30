@@ -42,6 +42,21 @@ object ScheduledTaskPlanner {
         )
 
     /**
+     * [task] carried across a time-zone or clock change (issue #150): its
+     * wall-clock schedule is re-resolved in [zone], so a daily 08:00 stays at
+     * 08:00 local instead of keeping the old zone's moment. One-offs keep
+     * their wall time too. Hourly tasks count real hours from their start
+     * instant and keep it; retries and busy waits are real delays and are left
+     * alone, as is history. A spent one-off ([nextRunAt] null) stays spent.
+     */
+    fun rebasedForZone(task: ScheduledTask, now: Long, zone: ZoneId): ScheduledTask {
+        if (task.repeat.kind == RepeatKind.HOURLY) return task
+        if (task.repeat.kind == RepeatKind.NONE && task.nextRunAt == null) return task
+        val next = nextOccurrence(task, now, zone)
+        return if (next == task.nextRunAt) task else task.copy(nextRunAt = next)
+    }
+
+    /**
      * [task] switched on or off from Settings. Pausing keeps everything as it is.
      * Resuming keeps a retry or a busy wait that is still ahead, so a quick
      * off/on loses nothing; one whose time passed during the pause was cancelled
@@ -50,7 +65,11 @@ object ScheduledTaskPlanner {
     fun toggled(task: ScheduledTask, enabled: Boolean, now: Long, zone: ZoneId): ScheduledTask {
         if (!enabled) return task.copy(enabled = false)
         if (task.enabled) return task
-        val nextRunAt = task.nextRunAt?.takeIf { it > now } ?: nextOccurrence(task, now, zone)
+        // A spent one-off stays spent: resuming must not re-arm it off the
+        // overlap fall-through in nextOccurrence (issue #150).
+        val spent = task.repeat.kind == RepeatKind.NONE && task.nextRunAt == null
+        val nextRunAt = task.nextRunAt?.takeIf { it > now }
+            ?: if (spent) null else nextOccurrence(task, now, zone)
         val retryAt = task.retryAt?.takeIf { it > now && (nextRunAt == null || it < nextRunAt) }
         return task.copy(
             enabled = true,
@@ -192,8 +211,15 @@ object ScheduledTaskPlanner {
     private fun scheduleIsDue(task: ScheduledTask, now: Long): Boolean =
         task.nextRunAt?.let { it <= now + DUE_SLACK_MS } ?: false
 
-    private fun nextAfter(task: ScheduledTask, now: Long, zone: ZoneId): Long? =
-        nextOccurrence(task, maxOf(now, task.nextRunAt ?: now), zone)
+    private fun nextAfter(task: ScheduledTask, now: Long, zone: ZoneId): Long? {
+        // A one-off is spent once it fires: the overlap fall-through in
+        // nextOccurrence is for arming only, or the same task would fire once
+        // per pass (issue #150).
+        if (task.repeat.kind == RepeatKind.NONE) {
+            return null
+        }
+        return nextOccurrence(task, maxOf(now, task.nextRunAt ?: now), zone)
+    }
 
     private const val MINUTE_MS = 60L * 1000L
 }
