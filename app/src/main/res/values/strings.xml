@@ -1103,6 +1103,12 @@
     <string name="chat_assets_up">Up one folder</string>
     <string name="chat_assets_open_failed">Couldn\'t open that file.</string>
     <string name="chat_keep_out_of_notifications">Keep out of notifications</string>
+    <string name="chat_skip_protections">Skip protections</string>
+    <string name="chat_skip_protections_danger_title">Skip all protections for this chat?</string>
+    <string name="chat_skip_protections_danger_text">Gotcha will run without asking: controlling any app, sending, uninstalling, deleting and changing settings. Android\u2019s own dialogs (like the uninstall OK) still appear. Only turn this on for a task you trust, and turn it off right after.</string>
+    <string name="chat_skip_protections_turn_on">Skip protections</string>
+    <string name="chat_skip_protections_banner">Protections off for this chat. Gotcha runs without asking.</string>
+    <string name="chat_skip_protections_turn_off">Turn back on</string>
     <string name="chat_stop_reading_aloud">Stop reading aloud</string>
     <string name="chat_gotcha_logo">Gotcha logo</string>
     <string name="chat_stop_speaking">Stop speaking</string>

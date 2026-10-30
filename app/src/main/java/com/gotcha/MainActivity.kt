@@ -1268,6 +1268,8 @@ class MainActivity : ComponentActivity() {
                             ?.let { chatViewModel.isChatKeptOutOfNotifications(it, state.activePersonaId) }
                             ?: false
                     }
+                    val protectionsSkipped = state.activeSessionId != null &&
+                        state.protectionsSkippedSessionId == state.activeSessionId
                     ChatScreen(
                         state = state,
                         onSend = { text, attachments, isVoiceInput ->
@@ -1292,6 +1294,10 @@ class MainActivity : ComponentActivity() {
                         onSetChatKeptOutOfNotifications = { keptOut ->
                             state.activeSessionId?.let { chatViewModel.setChatKeptOutOfNotifications(it, keptOut) }
                             privacyVersion++
+                        },
+                        protectionsSkipped = protectionsSkipped,
+                        onSetProtectionsSkipped = { on ->
+                            state.activeSessionId?.let { chatViewModel.setProtectionsSkipped(it, on) }
                         },
                         onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
                         onSpeak = chatViewModel::speak,

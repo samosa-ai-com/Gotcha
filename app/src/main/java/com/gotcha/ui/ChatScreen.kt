@@ -136,7 +136,9 @@ fun ChatScreen(
     unreadNotifications: Int = 0,
     onOpenInbox: () -> Unit = {},
     chatKeptOutOfNotifications: Boolean = false,
-    onSetChatKeptOutOfNotifications: (Boolean) -> Unit = {}
+    onSetChatKeptOutOfNotifications: (Boolean) -> Unit = {},
+    protectionsSkipped: Boolean = false,
+    onSetProtectionsSkipped: (Boolean) -> Unit = {}
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -309,6 +311,8 @@ fun ChatScreen(
                             shareEnabled = !state.isBusy,
                             keptOutOfNotifications = chatKeptOutOfNotifications,
                             onSetKeptOutOfNotifications = onSetChatKeptOutOfNotifications,
+                            protectionsSkipped = protectionsSkipped,
+                            onSetProtectionsSkipped = onSetProtectionsSkipped,
                             unreadNotifications = unreadNotifications,
                             onOpenInbox = onOpenInbox
                         )
@@ -320,6 +324,30 @@ fun ChatScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!isHome) {
                 ContextMeter(fraction = state.contextUsagePercent)
+            }
+            // Skip Protections is on for this chat: a loud, always-visible
+            // strip with one-tap revoke, so it can never be on unnoticed —
+            // including on an empty chat, where there is no transcript yet.
+            if (protectionsSkipped) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.fillMaxWidth().testTag("protections_skipped_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.chat_skip_protections_banner),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { onSetProtectionsSkipped(false) }) {
+                            Text(stringResource(R.string.chat_skip_protections_turn_off))
+                        }
+                    }
+                }
             }
             if (isHome) {
                 // Gender-neutral greetings; the index is saved, so a language change re-reads it.
@@ -967,10 +995,14 @@ private fun ChatOptionsMenu(
     shareEnabled: Boolean,
     keptOutOfNotifications: Boolean,
     onSetKeptOutOfNotifications: (Boolean) -> Unit,
+    protectionsSkipped: Boolean,
+    onSetProtectionsSkipped: (Boolean) -> Unit,
     unreadNotifications: Int,
     onOpenInbox: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // Danger dialog for turning the skip on; turning it off applies at once.
+    var showSkipDanger by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("chat_options")) {
             BadgedBox(
@@ -1052,7 +1084,44 @@ private fun ChatOptionsMenu(
                 onClick = { onSetKeptOutOfNotifications(!keptOutOfNotifications) },
                 modifier = Modifier.testTag("chat_keep_out_of_notifications")
             )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_skip_protections)) },
+                trailingIcon = { Checkbox(checked = protectionsSkipped, onCheckedChange = null) },
+                onClick = {
+                    if (protectionsSkipped) {
+                        expanded = false
+                        onSetProtectionsSkipped(false)
+                    } else {
+                        expanded = false
+                        showSkipDanger = true
+                    }
+                },
+                modifier = Modifier.testTag("chat_skip_protections")
+            )
         }
+    }
+    if (showSkipDanger) {
+        SkinAlertDialog(
+            onDismissRequest = { showSkipDanger = false },
+            title = { Text(stringResource(R.string.chat_skip_protections_danger_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.chat_skip_protections_danger_text),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSkipDanger = false
+                        onSetProtectionsSkipped(true)
+                    }
+                ) { Text(stringResource(R.string.chat_skip_protections_turn_on)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSkipDanger = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
     }
 }
 

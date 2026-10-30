@@ -248,7 +248,12 @@ data class ChatUiState(
      * #101). The composer owns its text, so this is a hand-off: the screen copies
      * it in and calls [ChatViewModel.consumeComposerDraft]. Never sent by itself.
      */
-    val composerDraft: String? = null
+    val composerDraft: String? = null,
+    /**
+     * The chat whose protections are skipped (issue #155), mirrored from the
+     * runner: the menu checkbox and banner light up when it is the open chat.
+     */
+    val protectionsSkippedSessionId: String? = null
 )
 
 // In-app chat host: session/UI state, dialogs, and TTS/STT wiring. The agent
@@ -366,6 +371,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
                 pendingPermission = run.pendingPermission,
                 isConfigured = run.isConfigured,
                 isSpeaking = run.isSpeaking,
+                protectionsSkippedSessionId = run.protectionsSkippedSessionId,
                 messages = if (viewing && (initial || old?.transcript !== run.transcript)) {
                     run.transcript
                 } else {
@@ -767,6 +773,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
     fun stopAgent() = runner.stop()
 
     fun confirmPendingActions(approved: Boolean) = runner.confirmPendingActions(approved)
+
+    /** Whether chat [sessionId] has Skip Protections on (issue #155). */
+    fun isProtectionsSkipped(sessionId: String): Boolean = runner.isProtectionsSkipped(sessionId)
+
+    /** Turns Skip Protections for chat [sessionId] on or off (issue #155). */
+    fun setProtectionsSkipped(sessionId: String, on: Boolean) = runner.setProtectionsSkipped(sessionId, on)
 
     fun submitAnswer(answer: String?) = runner.submitAnswer(answer)
 

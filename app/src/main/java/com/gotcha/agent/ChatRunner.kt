@@ -87,7 +87,12 @@ data class RunState(
     val pendingPermission: String? = null,
     val tokenCount: Int = 0,
     val isConfigured: Boolean = false,
-    val isSpeaking: Boolean = false
+    val isSpeaking: Boolean = false,
+    /**
+     * The chat whose protections are skipped (issue #155), or null. Shown
+     * whichever chat is viewed; the banner lights up when it is the open one.
+     */
+    val protectionsSkippedSessionId: String? = null
 )
 
 /** A chat screen following [ChatRunner]. Called on the thread that changed the state. */
@@ -362,6 +367,13 @@ class ChatRunner(private val app: Application) : AgentEvents {
 
     private fun bound(sessionId: String, transcript: List<UiMessage>, tokens: Int) {
         nextTranscriptId = nextIdAfter(transcript)
+        // A skip belongs to the live binding: rebinding to another chat drops
+        // it, but sending again in the same chat (bindForSend reloads it) must
+        // not. Keyed off the previous binding, never the id string alone.
+        if (protectionsSkippedSessionId != null && _state.value.boundSessionId != sessionId) {
+            protectionsSkippedSessionId = null
+            engine.skipProtections = false
+        }
         setState {
             it.copy(
                 boundSessionId = sessionId,
@@ -369,10 +381,34 @@ class ChatRunner(private val app: Application) : AgentEvents {
                 tokenCount = tokens,
                 activity = null,
                 subAgentRunning = null,
-                subAgentCurrentAction = null
+                subAgentCurrentAction = null,
+                protectionsSkippedSessionId = protectionsSkippedSessionId
             )
         }
     }
+
+    /**
+     * Per-chat Skip Protections (issue #155). When [on] and [sessionId] is the
+     * bound chat, the engine's in-app approvals are pre-granted until revoked
+     * or rebound. In-memory only; default off. Voice calls never call this.
+     */
+    fun setProtectionsSkipped(sessionId: String, on: Boolean) {
+        if (on && sessionId == _state.value.boundSessionId) {
+            protectionsSkippedSessionId = sessionId
+            engine.skipProtections = true
+        } else {
+            protectionsSkippedSessionId = null
+            engine.revokeSkipProtections()
+        }
+        setState { it.copy(protectionsSkippedSessionId = protectionsSkippedSessionId) }
+    }
+
+    /** True when the skip is active for the bound chat. */
+    fun isProtectionsSkipped(sessionId: String): Boolean =
+        protectionsSkippedSessionId == sessionId && sessionId == _state.value.boundSessionId
+
+    @Volatile
+    private var protectionsSkippedSessionId: String? = null
 
     /**
      * Point [engine] at [view] (the session being viewed) so a run operates on

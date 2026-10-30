@@ -160,6 +160,28 @@ class AgentEngine(
         onControlStarted = { events.onForegroundControlChanged(true, foregroundControlApp) }
     )
 
+    /**
+     * Per-chat Skip Protections (issue #155): when true, the in-app approvals
+     * for the bound chat are pre-granted — per-tool confirmations and the
+     * foreground-control ask are skipped (audited as skipped). Default false.
+     * Managed by ChatRunner: set when the user enables it for the bound chat,
+     * cleared on revoke and on every rebind, so it can never leak into another
+     * chat. Never persisted. Android OS permissions and the mode tool slices
+     * are unaffected. Voice calls never set it.
+     */
+    @Volatile
+    var skipProtections: Boolean = false
+
+    /**
+     * Revokes the skip: clears the flag and the foreground gate's cached
+     * answer so the next control tool asks again. A call already past the
+     * gate finishes; the cutoff is the gate, not the action.
+     */
+    fun revokeSkipProtections() {
+        skipProtections = false
+        foregroundControl.invalidate()
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val settings: Settings get() = settingsProvider()
@@ -909,7 +931,8 @@ class AgentEngine(
     /**
      * The one foreground-control ask of a request (issue #98): names the app,
      * quotes what the user asked for as the reason, and records the answer in
-     * the audit log alongside the other confirmations.
+     * the audit log alongside the other confirmations. Skipped without asking
+     * when the chat's protections are skipped (issue #155).
      */
     private suspend fun askForegroundControl(toolName: String, args: JsonObject): Boolean {
         val request = ForegroundControlRequest(
@@ -919,6 +942,14 @@ class AgentEngine(
             task = if (toolName == "navigate_app") args["task"]?.jsonPrimitive?.contentOrNull else null
         )
         foregroundControlApp = request.appLabel
+        if (skipProtections) {
+            toolExecutor.actionLog.record(
+                "foreground_control",
+                "$toolName ${request.appLabel.orEmpty()} (pre-approved: protections skipped)".trim(),
+                ToolResult.ok("Allowed without asking")
+            )
+            return true
+        }
         val allowed = events.awaitForegroundControl(request)
         toolExecutor.actionLog.record(
             "foreground_control",
@@ -1057,6 +1088,26 @@ class AgentEngine(
     }
 
     /**
+     * events.awaitConfirmation, unless the chat's protections are skipped
+     * (issue #155): then the approval is pre-granted and audited as skipped,
+     * without raising any prompt. No user content goes into the log line. The
+     * returned snapshot says which path was taken, so audit lines cannot
+     * mislabel a decision if the flag moves mid-handler.
+     */
+    private suspend fun confirmOrSkip(toolNames: List<String>, description: String): ConfirmOutcome {
+        if (!skipProtections) return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        toolExecutor.actionLog.record(
+            toolNames.joinToString(","),
+            "(pre-approved: protections skipped for this chat)",
+            ToolResult.ok("Allowed without asking")
+        )
+        return ConfirmOutcome(true, true)
+    }
+
+    /** An approval decision and whether it was pre-granted by a skip. */
+    private data class ConfirmOutcome(val approved: Boolean, val skipped: Boolean)
+
+    /**
      * Handles a tool result prefixed with CONFIRM_UNINSTALL:label:package.
      * Asks the host for confirmation, and if approved, executes the actual uninstall.
      */
@@ -1076,7 +1127,7 @@ class AgentEngine(
         GotchaLog.d(TAG) { "handleUninstallConfirm: label=$label pkg=$pkg" }
         val description = "Request to uninstall \"$label\". After you approve, a system dialog will " +
             "open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
-        val approved = events.awaitConfirmation(listOf("uninstall_app"), description)
+        val (approved, skipped) = confirmOrSkip(listOf("uninstall_app"), description)
 
         if (approved) {
             val actualResult = toolExecutor.executeUninstall(pkg)
@@ -1107,7 +1158,7 @@ class AgentEngine(
     private suspend fun handleSendEmailConfirm(call: ToolCall, result: ToolResult) {
         val payload = result.message.removePrefix("CONFIRM_SEND_EMAIL:")
         val description = toolExecutor.describeSendEmail(payload)
-        val approved = events.awaitConfirmation(listOf("send_email"), description)
+        val (approved, skipped) = confirmOrSkip(listOf("send_email"), description)
 
         if (approved) {
             val actualResult = toolExecutor.executeSendEmail(payload)
@@ -1150,7 +1201,7 @@ class AgentEngine(
                 if (plan.changes.isEmpty()) {
                     ToolResult.ok("No change — those settings already have the requested values.")
                 } else {
-                    val approved = events.awaitConfirmation(
+                    val (approved, skipped) = confirmOrSkip(
                         listOf("update_gotcha_settings"),
                         GotchaSettingsUpdate.describe(plan, request.reason)
                     )
@@ -1164,11 +1215,13 @@ class AgentEngine(
                         )
                     }
                     // The call itself was logged when it returned its marker; this entry says
-                    // what was asked for and the answer. Values are safe to log in full —
-                    // no credential is on the allowlist.
+                    // what was asked for and the answer (or that asking was skipped for
+                    // this chat). Values are safe to log in full — no credential is
+                    // on the allowlist.
                     toolExecutor.actionLog.record(
                         "update_gotcha_settings",
-                        (if (approved) "(approved) " else "(denied) ") + plan.lines().joinToString("; "),
+                        (if (skipped) "(pre-approved) " else if (approved) "(approved) " else "(denied) ") +
+                            plan.lines().joinToString("; "),
                         decided
                     )
                     decided
@@ -1197,7 +1250,7 @@ class AgentEngine(
         val outcome = if (request == null) {
             ToolResult.error("Failed to read the scheduled task request. Nothing was saved.")
         } else {
-            val approved = events.awaitConfirmation(
+            val (approved, skipped) = confirmOrSkip(
                 listOf(call.function.name),
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) }
             )
@@ -1211,7 +1264,8 @@ class AgentEngine(
             }
             toolExecutor.actionLog.record(
                 call.function.name,
-                (if (approved) "(approved) " else "(denied) ") + (request.taskId ?: request.name.orEmpty()),
+                (if (skipped) "(pre-approved) " else if (approved) "(approved) " else "(denied) ") +
+                    (request.taskId ?: request.name.orEmpty()),
                 decided
             )
             decided
@@ -1229,7 +1283,7 @@ class AgentEngine(
         val id = parts[0]
         val label = parts.getOrElse(1) { kind }
         val description = "Request to delete $kind \"$label\" (#$id). This action is irreversible."
-        val approved = events.awaitConfirmation(listOf("delete_$kind"), description)
+        val (approved, skipped) = confirmOrSkip(listOf("delete_$kind"), description)
 
         val actualResult = if (approved) {
             when (kind) {
@@ -1237,7 +1291,13 @@ class AgentEngine(
                 "timer" -> toolExecutor.executeDeleteTimer(id.toLong())
                 "calendar_event" -> toolExecutor.executeDeleteCalendarEvent(id.toLong())
                 "scheduled_task" -> withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.doDelete(id) }
-                    .also { toolExecutor.actionLog.record("delete_scheduled_task", "(confirmed) $id", it) }
+                    .also {
+                        toolExecutor.actionLog.record(
+                            "delete_scheduled_task",
+                            (if (skipped) "(pre-approved) " else "(confirmed) ") + id,
+                            it
+                        )
+                    }
                 else -> return
             }
         } else {
@@ -1448,7 +1508,7 @@ class AgentEngine(
         )
     }
 
-    private fun agentInstructionText(agent: AgentMode): String {
+    internal fun agentInstructionText(agent: AgentMode): String {
         val languageDirective = "\n\nRespond to the user in ${settings.preferredLanguage}. If the " +
             "user writes to you in a different language, reply in that language instead.\n" +
             "ALWAYS use English for tool names, tool arguments, file paths, package names, " +
@@ -1541,8 +1601,29 @@ class AgentEngine(
                     } +
                     "</system-reminder>"
         }
-        return core + serveDirective + commandsDirective + languageDirective + personaDirective + styleDirective + reminder
+        return core + serveDirective + commandsDirective + languageDirective + personaDirective + styleDirective + reminder +
+            protectionsDirective()
     }
+
+    /**
+     * Present only when the chat's protections are skipped (issue #155). It
+     * authorizes what the user pre-approved — every app-control and
+     * confirmation, including open_setting with confirmed=true — so the agent
+     * proceeds instead of asking. The question tool is untouched: genuine
+     * questions still go through it.
+     */
+    private fun protectionsDirective(): String =
+        if (!skipProtections) {
+            ""
+        } else {
+            "\n\n<system-reminder>\n" +
+                "Protections are OFF for this chat: the user has pre-approved every app " +
+                "control and every confirmation for this conversation, including settings " +
+                "screens (open_setting with confirmed=true). Proceed with the task without " +
+                "asking for such approvals. The question tool remains for genuine questions " +
+                "you need the user to answer — keep using it for those.\n" +
+                "</system-reminder>"
+        }
 
     /** The Monitor-mode core instruction block; split out so [agentInstructionText] stays readable. */
     private fun monitorCore(): String =

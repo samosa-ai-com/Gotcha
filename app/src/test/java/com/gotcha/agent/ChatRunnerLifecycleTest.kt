@@ -108,6 +108,39 @@ class ChatRunnerLifecycleTest {
     }
 
     @Test
+    fun `skip protections belongs to the live binding, never the id`() {
+        val runner = runner()
+        runner.bindFresh("chat-a", com.gotcha.tools.AgentMode.MONITOR)
+        runner.setProtectionsSkipped("chat-a", true)
+        assertTrue(runner.isProtectionsSkipped("chat-a"))
+        assertTrue(runner.engine.skipProtections)
+
+        // A rebind drops it, even to a chat that reuses nothing.
+        runner.bindFresh("chat-b", com.gotcha.tools.AgentMode.MONITOR)
+        assertFalse(runner.isProtectionsSkipped("chat-b"))
+        assertFalse(runner.engine.skipProtections)
+
+        // Sending again in the same chat (a same-id rebind) keeps it.
+        runner.setProtectionsSkipped("chat-b", true)
+        assertTrue(runner.isProtectionsSkipped("chat-b"))
+        runner.bindFresh("chat-b", com.gotcha.tools.AgentMode.MONITOR)
+        assertTrue(runner.isProtectionsSkipped("chat-b"))
+        assertTrue(runner.engine.skipProtections)
+
+        // Enabling for a chat that is not bound does nothing.
+        runner.setProtectionsSkipped("chat-a", true)
+        assertFalse(runner.isProtectionsSkipped("chat-a"))
+        assertFalse(runner.engine.skipProtections)
+
+        // Revoke clears the flag.
+        runner.setProtectionsSkipped("chat-b", true)
+        assertTrue(runner.isProtectionsSkipped("chat-b"))
+        runner.setProtectionsSkipped("chat-b", false)
+        assertFalse(runner.isProtectionsSkipped("chat-b"))
+        assertFalse(runner.engine.skipProtections)
+    }
+
+    @Test
     fun `a run goes on after its screen is gone and ends on its own`() {
         val screen = Screen(application)
         screen.viewModel.sendMessage("Hello")
