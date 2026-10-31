@@ -11,10 +11,12 @@ import com.gotcha.i18n.stringLookup
 import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskNotifier
 import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.isWallTimeFuture
+import com.gotcha.scheduled.syncWaitingNotification
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -200,6 +202,7 @@ class ScheduledTaskTool(
     fun doDelete(id: String): ToolResult {
         val task = store.get(id) ?: return unknownTask(id)
         store.delete(id)
+        ScheduledTaskNotifier(context).cancel(id)
         ScheduledTaskScheduler.reschedule(context)
         return ToolResult.ok("Deleted the scheduled task \"${task.name}\".")
     }
@@ -275,6 +278,7 @@ class ScheduledTaskTool(
                 }
             )
         }
+        var hadWait = false
         val saved = if (existing == null) {
             val created = ScheduledTask(
                 id = UUID.randomUUID().toString(),
@@ -287,12 +291,17 @@ class ScheduledTaskTool(
             ScheduledTaskPlanner.edited(null, edit(created), now, zone()).also(store::put)
         } else {
             // Over the task as stored now, so a run that ended since the
-            // approval was asked keeps its history and next time.
-            store.update(existing.id) { current -> ScheduledTaskPlanner.edited(current, edit(current), now, zone()) }
+            // approval was asked keeps its history and next time. The wait
+            // state is read inside the same update for the notification sync.
+            store.update(existing.id) { current ->
+                hadWait = current.busySince != null && current.retryAt != null
+                ScheduledTaskPlanner.edited(current, edit(current), now, zone())
+            }
                 ?: return unknownTask(existing.id)
         }
         if (attachments != null) store.saveAttachments(saved.id, attachments)
         ScheduledTaskScheduler.reschedule(context)
+        syncWaitingNotification(ScheduledTaskNotifier(context), store, hadWait, saved)
         val next = saved.dueAt?.let(::formatInstant) ?: "none"
         return ToolResult.ok(
             (if (existing == null) "Scheduled" else "Updated") +

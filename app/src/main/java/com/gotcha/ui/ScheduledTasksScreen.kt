@@ -66,6 +66,7 @@ import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledStart
 import com.gotcha.scheduled.ScheduledTask
 import com.gotcha.scheduled.ScheduledTaskForm
+import com.gotcha.scheduled.ScheduledTaskNotifier
 import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskRuns
 import com.gotcha.scheduled.ScheduledTaskScheduler
@@ -73,6 +74,7 @@ import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.TaskRun
 import com.gotcha.scheduled.TaskRunStatus
 import com.gotcha.scheduled.isWallTimeFuture
+import com.gotcha.scheduled.syncWaitingNotification
 import com.gotcha.service.ChatRunService
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -141,8 +143,16 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     fun toggled(task: ScheduledTask, enabled: Boolean) {
         scope.launch {
             withContext(Dispatchers.IO) {
-                store.update(task.id) {
+                val updated = store.update(task.id) {
                     ScheduledTaskPlanner.toggled(it, enabled, System.currentTimeMillis(), ZoneId.systemDefault())
+                }
+                // Keep the waiting notification true: a resumed wait re-posts
+                // (same quiet slot), a pause or cleared wait cancels.
+                val notifier = ScheduledTaskNotifier(context)
+                if (updated != null && updated.enabled && updated.busySince != null && updated.retryAt != null) {
+                    notifier.postWaiting(updated)
+                } else {
+                    notifier.cancel(task.id)
                 }
                 ScheduledTaskScheduler.reschedule(context)
             }
@@ -152,6 +162,7 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
 
     val startedText = stringResource(R.string.scheduled_run_now_started)
     val busyText = stringResource(R.string.scheduled_run_now_busy)
+    val queuedText = stringResource(R.string.scheduled_run_now_queued)
     SettingsScaffold(title = stringResource(SettingsPage.SCHEDULED_TASKS.title), onBack = onBack, overlay = overlay) {
         Text(stringResource(R.string.scheduled_intro), style = MaterialTheme.typography.bodyMedium)
         if (!canRunUnattended) ExactAlarmHint(context)
@@ -188,6 +199,7 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
                                 when (result) {
                                     is ScheduledStart.Started -> startedText
                                     ScheduledStart.Busy -> busyText
+                                    ScheduledStart.Queued -> queuedText
                                     is ScheduledStart.Failed -> result.detail
                                 }
                             )
@@ -243,6 +255,7 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             store.delete(task.id)
+                            ScheduledTaskNotifier(context).cancel(task.id)
                             ScheduledTaskScheduler.reschedule(context)
                         }
                         if (editing == task.id) editing = null
@@ -316,15 +329,32 @@ private fun TaskRow(
             )
         }
         val next = task.dueAt
+        // While waiting, dueAt is the retry time, shown again on the line
+        // below: the primary line keeps the regular schedule instead.
+        val waitingAt = task.retryAt
+        val waiting = task.enabled && task.busySince != null && waitingAt != null
+        val nextScheduled = task.nextRunAt
         Text(
             when {
                 !task.enabled -> stringResource(R.string.scheduled_paused)
+                waiting && nextScheduled != null ->
+                    stringResource(R.string.scheduled_next_run, formatDateTime(nextScheduled))
+                waiting -> stringResource(R.string.scheduled_no_more_runs)
                 next == null -> stringResource(R.string.scheduled_no_more_runs)
                 else -> stringResource(R.string.scheduled_next_run, formatDateTime(next))
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        // Queued behind another run: say so with its recheck time, or the
+        // wait reads as a stuck Next line.
+        if (waiting) {
+            Text(
+                stringResource(R.string.scheduled_waiting_row, formatDateTime(waitingAt)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
         Text(
             stringResource(
                 if (task.sameChat) R.string.scheduled_target_same_chat else R.string.scheduled_target_new_chat
@@ -621,6 +651,9 @@ private fun TaskEditor(
                         attachmentNames = files.map { it.name }
                     )
                     scope.launch {
+                        // Read inside the save's own update (see saveOver): a
+                        // wait starting while the form was open still syncs.
+                        var hadWait = false
                         val saved = withContext(Dispatchers.IO) {
                             val now = System.currentTimeMillis()
                             val zone = ZoneId.systemDefault()
@@ -638,11 +671,14 @@ private fun TaskEditor(
                             } else {
                                 // Over the task as stored now: a run may have
                                 // changed it while the form was open.
-                                form.saveOver(store, initial.id, now, zone)
+                                form.saveOver(store, initial.id, now, zone) { current ->
+                                    hadWait = current.busySince != null && current.retryAt != null
+                                }
                             }
                             saved?.let {
                                 store.saveAttachments(it.id, files)
                                 ScheduledTaskScheduler.reschedule(context)
+                                syncWaitingNotification(ScheduledTaskNotifier(context), store, hadWait, it)
                             }
                             saved
                         }

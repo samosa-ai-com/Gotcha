@@ -1792,6 +1792,10 @@
     <string name="scheduled_run_now">Run now</string>
     <string name="scheduled_run_now_started">Started. It\'s running in its chat.</string>
     <string name="scheduled_run_now_busy">Gotcha is busy with another task. Try again when it ends.</string>
+    <string name="scheduled_run_now_queued">Queued. It will run when the current task ends.</string>
+    <string name="scheduled_waiting_row">Waiting for the current run, retry at %1$s</string>
+    <string name="scheduled_waiting_title">“%1$s” is waiting</string>
+    <string name="scheduled_waiting_body">It will run when the current task ends.</string>
     <string name="scheduled_history">History</string>
     <string name="scheduled_hide_history">Hide history</string>
     <string name="scheduled_open_chat">Open chat</string>

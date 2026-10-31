@@ -47,7 +47,20 @@ data class ScheduledTaskForm(
      * when the task was deleted meanwhile (it is not brought back). The schedule
      * is re-worked only when the form changed it, so a pending retry or busy
      * wait survives an edit to, say, the name.
+     *
+     * [onCurrent] sees the task as stored before the save, inside the same
+     * update: callers syncing a busy wait's notification read it there, so a
+     * wait starting mid-save cannot slip through.
      */
-    fun saveOver(store: ScheduledTaskStore, id: String, now: Long, zone: ZoneId): ScheduledTask? =
-        store.update(id) { current -> ScheduledTaskPlanner.edited(current, applyTo(current), now, zone) }
+    fun saveOver(
+        store: ScheduledTaskStore,
+        id: String,
+        now: Long,
+        zone: ZoneId,
+        onCurrent: ((ScheduledTask) -> Unit)? = null
+    ): ScheduledTask? =
+        store.update(id) { current ->
+            onCurrent?.invoke(current)
+            ScheduledTaskPlanner.edited(current, applyTo(current), now, zone)
+        }
 }
