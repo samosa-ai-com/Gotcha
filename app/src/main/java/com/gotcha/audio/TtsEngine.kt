@@ -86,6 +86,12 @@ class TtsEngine(
      */
     private val androidSpeakMutex = Mutex()
 
+    /** How long the requested engine gets to initialize before giving up. */
+    private val primaryBindTimeoutMs = 5000L
+
+    /** Per candidate, matching the probe's fallback timeout. */
+    private val candidateBindTimeoutMs = 3000L
+
     init {
         bindAndroidTts("")
     }
@@ -182,7 +188,9 @@ class TtsEngine(
         }
         val preferred = fallbackEngines[language] ?: engine
         if (preferred != androidEngine) bindAndroidTts(preferred)
-        var tts = readyAndroidTts() ?: return false
+        // An engine that never finishes initializing must not hang speech
+        // forever; unknown is plain failure, not a missing voice.
+        var tts = withTimeoutOrNull(primaryBindTimeoutMs) { readyAndroidTts() } ?: return false
 
         // The requested engine has no voice for the language: ask the other
         // installed engines before giving up, and remember the winner. An
@@ -190,11 +198,17 @@ class TtsEngine(
         // failure without the install prompt.
         if (!isAvailable(tts.setLanguage(language.locale))) {
             val alternatives = runCatching { tts.engines.orEmpty() }.getOrNull() ?: return false
+            // Skip what was already tried: the request, the memoized winner
+            // being re-probed, and the engine actually bound (which is the
+            // phone default when nothing was requested, not the request).
+            val activeId = preferred.takeIf { it.isNotBlank() }
+                ?: runCatching { tts.defaultEngine }.getOrNull()
+            val skipIds = ttsSkipIds(engine, fallbackEngines[language], activeId)
             var winner: String? = null
             var probed = false
-            for (candidate in alternatives.map { it.name }.filter { it != preferred }) {
+            for (candidate in alternatives.map { it.name }.filter { it !in skipIds }) {
                 bindAndroidTts(candidate)
-                val alt = readyAndroidTts() ?: continue
+                val alt = withTimeoutOrNull(candidateBindTimeoutMs) { readyAndroidTts() } ?: continue
                 probed = true
                 if (isAvailable(alt.setLanguage(language.locale))) {
                     winner = candidate
@@ -208,7 +222,10 @@ class TtsEngine(
                 // a probed candidate, or no alternatives at all. Uninitialized
                 // candidates leave support unknown, so stay quiet instead of
                 // prompting an install that may not be needed.
+                fallbackEngines.remove(language)
                 if (probed || alternatives.isEmpty()) lastLanguageUnavailable = language
+                // Leave the requested engine bound, not the last failed probe.
+                if (androidEngine != preferred) bindAndroidTts(preferred)
                 return false
             }
             fallbackEngines[language] = winner
@@ -345,3 +362,15 @@ class TtsEngine(
         const val PLAYBACK_TIMEOUT_SLACK_MS = 500L
     }
 }
+
+/**
+ * Engine ids the fallback probe skips: the request, a memoized winner being
+ * re-probed, and the engine actually bound. Kept pure for tests — blank means
+ * "the phone default", which is never an installed engine id.
+ */
+internal fun ttsSkipIds(requested: String, memoized: String?, activeId: String?): Set<String> =
+    setOfNotNull(
+        requested.takeIf { it.isNotBlank() },
+        memoized?.takeIf { it.isNotBlank() },
+        activeId?.takeIf { it.isNotBlank() }
+    )

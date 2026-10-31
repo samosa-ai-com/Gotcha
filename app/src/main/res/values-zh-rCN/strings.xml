@@ -16,6 +16,7 @@
     <string name="language_italian">意大利语</string>
     <string name="language_portuguese">葡萄牙语</string>
     <string name="language_russian">俄语</string>
+    <string name="language_arabic">阿拉伯语</string>
     <string name="language_page_intro">Gotcha 的所有语言设置都在这里：应用界面的语言、Gotcha 说话和聆听的语言，以及它撰写回复的语言。</string>
     <string name="language_display_title">应用语言</string>
     <string name="language_display_description">Gotcha 按钮和界面的语言。只会改变 Gotcha，手机的其他部分保持不变。</string>

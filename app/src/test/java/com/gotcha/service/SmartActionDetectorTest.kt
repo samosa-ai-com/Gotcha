@@ -212,6 +212,8 @@ class SmartActionDetectorTest {
         assertTrue(SmartActionDetector.isTextInLanguage("كيف حالك اليوم؟", "Arabic"))
         assertFalse(SmartActionDetector.isTextInLanguage("How are you doing?", "Arabic"))
         assertFalse(SmartActionDetector.isTextInLanguage("كيف حالك اليوم؟", "English"))
+        // Presentation forms (styled/Quranic text) count as Arabic too.
+        assertTrue(SmartActionDetector.isTextInLanguage("ﻣﺮﺣﺒﺎ", "Arabic"))
     }
 
     @Test

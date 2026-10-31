@@ -1079,8 +1079,11 @@ object SmartActionDetector {
         val lang = languageName.lowercase()
         return when {
             lang.contains("english") -> {
-                val nonEnglishScripts =
-                    Regex("[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF\\u0600-\\u06FF\\u0400-\\u04FF]")
+                val nonEnglishScripts = Regex(
+                    "[\\u0900-\\u097F\\u3040-\\u30FF\\u4E00-\\u9FFF" +
+                        "\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF" +
+                        "\\u0400-\\u04FF]"
+                )
                 if (nonEnglishScripts.containsMatchIn(clean)) return false
                 val nonEnglishDiacritics = Regex("[ñ¿¡áéíóúàèìòùâêîôûäöüßçœ]")
                 !nonEnglishDiacritics.containsMatchIn(clean.lowercase())
@@ -1089,7 +1092,10 @@ object SmartActionDetector {
             lang.contains("japanese") -> Regex("[\\u3040-\\u30FF\\u4E00-\\u9FFF]").containsMatchIn(clean)
             lang.contains("chinese") -> Regex("[\\u4E00-\\u9FFF]").containsMatchIn(clean)
             lang.contains("russian") -> Regex("[\\u0400-\\u04FF]").containsMatchIn(clean)
-            lang.contains("arabic") -> Regex("[\\u0600-\\u06FF]").containsMatchIn(clean)
+            // Supplement and presentation forms cover styled and Quranic text
+            // beyond the primary block.
+            lang.contains("arabic") ->
+                Regex("[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF]").containsMatchIn(clean)
             lang.contains("spanish") -> {
                 Regex("[ñ¿¡áéíóú]").containsMatchIn(clean.lowercase()) ||
                     clean.lowercase().split("\\s+".toRegex())
