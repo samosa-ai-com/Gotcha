@@ -372,7 +372,7 @@ class ChatRunner(private val app: Application) : AgentEvents {
         // not. Keyed off the previous binding, never the id string alone.
         if (protectionsSkippedSessionId != null && _state.value.boundSessionId != sessionId) {
             protectionsSkippedSessionId = null
-            engine.skipProtections = false
+            engine.revokeSkipProtections()
         }
         setState {
             it.copy(
@@ -393,7 +393,10 @@ class ChatRunner(private val app: Application) : AgentEvents {
      * or rebound. In-memory only; default off. Voice calls never call this.
      */
     fun setProtectionsSkipped(sessionId: String, on: Boolean) {
-        if (on && sessionId == _state.value.boundSessionId) {
+        // Anything for a chat that is not bound is a no-op: without this,
+        // touching an idle chat would silently revoke the running chat's skip.
+        if (sessionId != _state.value.boundSessionId) return
+        if (on) {
             protectionsSkippedSessionId = sessionId
             engine.skipProtections = true
         } else {

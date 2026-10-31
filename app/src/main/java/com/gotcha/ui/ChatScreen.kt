@@ -313,6 +313,7 @@ fun ChatScreen(
                             onSetKeptOutOfNotifications = onSetChatKeptOutOfNotifications,
                             protectionsSkipped = protectionsSkipped,
                             onSetProtectionsSkipped = onSetProtectionsSkipped,
+                            skipToggleEnabled = !otherChatRunning,
                             unreadNotifications = unreadNotifications,
                             onOpenInbox = onOpenInbox
                         )
@@ -343,7 +344,12 @@ fun ChatScreen(
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = { onSetProtectionsSkipped(false) }) {
+                        TextButton(
+                            onClick = { onSetProtectionsSkipped(false) },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
                             Text(stringResource(R.string.chat_skip_protections_turn_off))
                         }
                     }
@@ -997,12 +1003,13 @@ private fun ChatOptionsMenu(
     onSetKeptOutOfNotifications: (Boolean) -> Unit,
     protectionsSkipped: Boolean,
     onSetProtectionsSkipped: (Boolean) -> Unit,
+    skipToggleEnabled: Boolean,
     unreadNotifications: Int,
     onOpenInbox: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     // Danger dialog for turning the skip on; turning it off applies at once.
-    var showSkipDanger by remember { mutableStateOf(false) }
+    var showSkipDanger by rememberSaveable { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("chat_options")) {
             BadgedBox(
@@ -1087,6 +1094,9 @@ private fun ChatOptionsMenu(
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.chat_skip_protections)) },
                 trailingIcon = { Checkbox(checked = protectionsSkipped, onCheckedChange = null) },
+                // While another chat runs, the engine is bound elsewhere: the
+                // toggle would be a no-op (or read stale), so it is off-limits.
+                enabled = skipToggleEnabled,
                 onClick = {
                     if (protectionsSkipped) {
                         expanded = false
@@ -1115,7 +1125,11 @@ private fun ChatOptionsMenu(
                     onClick = {
                         showSkipDanger = false
                         onSetProtectionsSkipped(true)
-                    }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
                 ) { Text(stringResource(R.string.chat_skip_protections_turn_on)) }
             },
             dismissButton = {

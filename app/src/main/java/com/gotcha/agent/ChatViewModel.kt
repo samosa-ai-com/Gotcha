@@ -774,9 +774,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application), C
 
     fun confirmPendingActions(approved: Boolean) = runner.confirmPendingActions(approved)
 
-    /** Whether chat [sessionId] has Skip Protections on (issue #155). */
-    fun isProtectionsSkipped(sessionId: String): Boolean = runner.isProtectionsSkipped(sessionId)
-
     /** Turns Skip Protections for chat [sessionId] on or off (issue #155). */
     fun setProtectionsSkipped(sessionId: String, on: Boolean) = runner.setProtectionsSkipped(sessionId, on)
 

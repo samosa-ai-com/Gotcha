@@ -1093,14 +1093,24 @@ class AgentEngine(
      * without raising any prompt. No user content goes into the log line. The
      * returned snapshot says which path was taken, so audit lines cannot
      * mislabel a decision if the flag moves mid-handler.
+     *
+     * @param recordSkip whether to audit the skip here. Handlers with their
+     *   own decision record (settings, scheduled tasks) pass false so one
+     *   action leaves one skip line, not two.
      */
-    private suspend fun confirmOrSkip(toolNames: List<String>, description: String): ConfirmOutcome {
+    private suspend fun confirmOrSkip(
+        toolNames: List<String>,
+        description: String,
+        recordSkip: Boolean = true
+    ): ConfirmOutcome {
         if (!skipProtections) return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
-        toolExecutor.actionLog.record(
-            toolNames.joinToString(","),
-            "(pre-approved: protections skipped for this chat)",
-            ToolResult.ok("Allowed without asking")
-        )
+        if (recordSkip) {
+            toolExecutor.actionLog.record(
+                toolNames.joinToString(","),
+                "(pre-approved: protections skipped for this chat)",
+                ToolResult.ok("Allowed without asking")
+            )
+        }
         return ConfirmOutcome(true, true)
     }
 
@@ -1127,7 +1137,7 @@ class AgentEngine(
         GotchaLog.d(TAG) { "handleUninstallConfirm: label=$label pkg=$pkg" }
         val description = "Request to uninstall \"$label\". After you approve, a system dialog will " +
             "open — you must tap \"OK\" in that dialog to complete the removal. This action is irreversible."
-        val (approved, skipped) = confirmOrSkip(listOf("uninstall_app"), description)
+        val (approved, _) = confirmOrSkip(listOf("uninstall_app"), description)
 
         if (approved) {
             val actualResult = toolExecutor.executeUninstall(pkg)
@@ -1158,7 +1168,7 @@ class AgentEngine(
     private suspend fun handleSendEmailConfirm(call: ToolCall, result: ToolResult) {
         val payload = result.message.removePrefix("CONFIRM_SEND_EMAIL:")
         val description = toolExecutor.describeSendEmail(payload)
-        val (approved, skipped) = confirmOrSkip(listOf("send_email"), description)
+        val (approved, _) = confirmOrSkip(listOf("send_email"), description)
 
         if (approved) {
             val actualResult = toolExecutor.executeSendEmail(payload)
@@ -1203,7 +1213,8 @@ class AgentEngine(
                 } else {
                     val (approved, skipped) = confirmOrSkip(
                         listOf("update_gotcha_settings"),
-                        GotchaSettingsUpdate.describe(plan, request.reason)
+                        GotchaSettingsUpdate.describe(plan, request.reason),
+                        recordSkip = false
                     )
                     val decided = if (approved) {
                         handler(plan)
@@ -1252,7 +1263,8 @@ class AgentEngine(
         } else {
             val (approved, skipped) = confirmOrSkip(
                 listOf(call.function.name),
-                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) }
+                withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) },
+                recordSkip = false
             )
             val decided = if (approved) {
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }
@@ -1283,7 +1295,11 @@ class AgentEngine(
         val id = parts[0]
         val label = parts.getOrElse(1) { kind }
         val description = "Request to delete $kind \"$label\" (#$id). This action is irreversible."
-        val (approved, skipped) = confirmOrSkip(listOf("delete_$kind"), description)
+        val (approved, skipped) = confirmOrSkip(
+            listOf("delete_$kind"),
+            description,
+            recordSkip = kind != "scheduled_task"
+        )
 
         val actualResult = if (approved) {
             when (kind) {

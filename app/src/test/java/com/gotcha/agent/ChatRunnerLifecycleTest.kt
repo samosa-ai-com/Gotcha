@@ -127,10 +127,15 @@ class ChatRunnerLifecycleTest {
         assertTrue(runner.isProtectionsSkipped("chat-b"))
         assertTrue(runner.engine.skipProtections)
 
-        // Enabling for a chat that is not bound does nothing.
+        // Enabling for a chat that is not bound is a no-op and must not
+        // disturb the bound chat: it leaves another chat's skip intact.
         runner.setProtectionsSkipped("chat-a", true)
         assertFalse(runner.isProtectionsSkipped("chat-a"))
-        assertFalse(runner.engine.skipProtections)
+        assertTrue(
+            "touching an unbound chat must not revoke the bound one",
+            runner.isProtectionsSkipped("chat-b")
+        )
+        assertTrue(runner.engine.skipProtections)
 
         // Revoke clears the flag.
         runner.setProtectionsSkipped("chat-b", true)
