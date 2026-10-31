@@ -21,7 +21,8 @@ enum class Language(
     CHINESE("Chinese", "zh-CN", "zh"),
     ITALIAN("Italian", "it-IT", "it"),
     PORTUGUESE("Portuguese", "pt-BR", "pt"),
-    RUSSIAN("Russian", "ru-RU", "ru");
+    RUSSIAN("Russian", "ru-RU", "ru"),
+    ARABIC("Arabic", "ar-SA", "ar");
 
     val locale: java.util.Locale get() = java.util.Locale.forLanguageTag(bcp47)
 

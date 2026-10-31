@@ -1089,6 +1089,7 @@ object SmartActionDetector {
             lang.contains("japanese") -> Regex("[\\u3040-\\u30FF\\u4E00-\\u9FFF]").containsMatchIn(clean)
             lang.contains("chinese") -> Regex("[\\u4E00-\\u9FFF]").containsMatchIn(clean)
             lang.contains("russian") -> Regex("[\\u0400-\\u04FF]").containsMatchIn(clean)
+            lang.contains("arabic") -> Regex("[\\u0600-\\u06FF]").containsMatchIn(clean)
             lang.contains("spanish") -> {
                 Regex("[ñ¿¡áéíóú]").containsMatchIn(clean.lowercase()) ||
                     clean.lowercase().split("\\s+".toRegex())

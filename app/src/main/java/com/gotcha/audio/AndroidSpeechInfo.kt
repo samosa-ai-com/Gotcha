@@ -35,6 +35,9 @@ object AndroidSpeechInfo {
     /** Secure setting naming the default recognizer; not public API but readable. */
     private const val DEFAULT_RECOGNIZER_SETTING = "voice_recognition_service"
     private const val PROBE_TIMEOUT_MS = 5000L
+
+    /** Per-engine bound for the fallback probe; the common path never pays it. */
+    private const val FALLBACK_PROBE_TIMEOUT_MS = 3000L
     private const val TAG_TIMEOUT_MS = 1500L
 
     suspend fun probe(context: Context, query: AndroidSpeechQuery): AndroidSpeechStatus {
@@ -82,18 +85,71 @@ object AndroidSpeechInfo {
                 .filter { language.matchesCode(it.locale.toLanguageTag()) }
                 .map(::voiceOf)
                 .sortedWith(compareBy({ it.availability.ordinal }, { it.name }))
+            val availability = ttsAvailability(voices, tts.isLanguageAvailable(language.locale))
+            // The engine in use lacks the language: another installed one may
+            // still cover it, and speaking falls back to it (issue #153).
+            val fallback = when (availability) {
+                SpeechAvailability.DOWNLOADABLE, SpeechAvailability.UNSUPPORTED ->
+                    probeTtsFallback(
+                        context,
+                        engines,
+                        setOfNotNull(inUse, engine.takeIf { it.isNotBlank() }),
+                        language
+                    )
+                else -> null
+            }
             AndroidSpeechStatus(
                 ttsEngines = engines,
                 ttsDefaultEngine = default?.let(::named),
                 ttsEngine = inUse?.let(::named),
                 ttsVoices = voices,
-                ttsAvailability = ttsAvailability(voices, tts.isLanguageAvailable(language.locale))
+                ttsAvailability = availability,
+                ttsFallbackEngine = fallback
             )
         } catch (_: Exception) {
             AndroidSpeechStatus()
         } finally {
             tts.shutdown()
         }
+    }
+
+    /**
+     * The first installed engine besides [skipIds] with the language, if any.
+     * Each candidate is bound briefly and asked; failures just move on, so one
+     * broken engine cannot fail the probe. Only called when the engine in use
+     * lacks the language, keeping the common path to a single binding.
+     */
+    private suspend fun probeTtsFallback(
+        context: Context,
+        engines: List<AndroidEngine>,
+        skipIds: Set<String>,
+        language: Language
+    ): AndroidEngine? {
+        for (engine in engines.filter { it.id !in skipIds }) {
+            val ready = CompletableDeferred<Boolean>()
+            val tts = withContext(Dispatchers.Main) {
+                try {
+                    TextToSpeech(context, { ready.complete(it == TextToSpeech.SUCCESS) }, engine.id)
+                } catch (_: Exception) {
+                    null
+                }
+            } ?: continue
+            try {
+                if (withTimeoutOrNull(FALLBACK_PROBE_TIMEOUT_MS) { ready.await() } != true) continue
+                val result = runCatching { tts.isLanguageAvailable(language.locale) }.getOrNull()
+                if (result != null &&
+                    result != TextToSpeech.LANG_MISSING_DATA &&
+                    result != TextToSpeech.LANG_NOT_SUPPORTED
+                ) {
+                    return engine
+                }
+            } catch (_: Exception) {
+                continue
+            } finally {
+                tts.shutdown()
+            }
+        }
+        return null
     }
 
     internal fun voiceOf(voice: Voice): AndroidVoice {

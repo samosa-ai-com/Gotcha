@@ -47,6 +47,12 @@ data class AndroidSpeechStatus(
     /** The voices of [ttsEngine] in the queried language, best first. */
     val ttsVoices: List<AndroidVoice> = emptyList(),
     val ttsAvailability: SpeechAvailability? = null,
+    /**
+     * Another installed engine with the language, when [ttsEngine] lacks it
+     * (issue #153): speaking falls back to it, so the language still works.
+     * Null when the engine in use covers it or none does.
+     */
+    val ttsFallbackEngine: AndroidEngine? = null,
     val recognizers: List<AndroidEngine> = emptyList(),
     /** The phone's default recognizer, which a blank choice follows. */
     val defaultRecognizer: AndroidEngine? = null,
@@ -59,10 +65,13 @@ data class AndroidSpeechStatus(
 ) {
     /** False when Android text-to-speech can't speak the language as things stand. */
     val ttsSupports: Boolean?
-        get() = when (ttsAvailability) {
-            null -> null
-            SpeechAvailability.DOWNLOADABLE, SpeechAvailability.UNSUPPORTED -> false
-            else -> true
+        get() = when {
+            ttsFallbackEngine != null -> true
+            else -> when (ttsAvailability) {
+                null -> null
+                SpeechAvailability.DOWNLOADABLE, SpeechAvailability.UNSUPPORTED -> false
+                else -> true
+            }
         }
 
     /** False when voice input in the language will fail or mistranscribe as things stand. */

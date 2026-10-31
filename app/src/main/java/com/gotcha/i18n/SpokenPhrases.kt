@@ -103,6 +103,14 @@ object SpokenPhrases {
             "Уже делаю" to 1,
             "Сейчас проверю" to 1,
             "Ладно" to 1
+        ),
+        Language.ARABIC to listOf(
+            "فهمت" to 5,
+            "تمام" to 2,
+            "لحظة" to 2,
+            "جاري التنفيذ" to 1,
+            "دعني أتحقق" to 1,
+            "حسنًا" to 1
         )
     )
 
@@ -116,7 +124,8 @@ object SpokenPhrases {
         Language.CHINESE to "喂，你好！",
         Language.ITALIAN to "Pronto! Come posso aiutarti?",
         Language.PORTUGUESE to "Alô! Como posso ajudar?",
-        Language.RUSSIAN to "Алло! Чем могу помочь?"
+        Language.RUSSIAN to "Алло! Чем могу помочь?",
+        Language.ARABIC to "أهلاً! كيف أساعدك؟"
     )
 
     /**
@@ -134,7 +143,8 @@ object SpokenPhrases {
         Language.CHINESE to "嗯？",
         Language.ITALIAN to "Sì?",
         Language.PORTUGUESE to "Sim?",
-        Language.RUSSIAN to "Да?"
+        Language.RUSSIAN to "Да?",
+        Language.ARABIC to "نعم؟"
     )
 
     private val confirmationNeededPhrases: Map<Language, String> = mapOf(
@@ -147,6 +157,7 @@ object SpokenPhrases {
         Language.CHINESE to "需要确认——请查看屏幕上的对话框。",
         Language.ITALIAN to "Ho bisogno di una conferma: controlla la finestra di dialogo sullo schermo.",
         Language.PORTUGUESE to "Preciso de uma confirmação — verifique a caixa de diálogo na sua tela.",
-        Language.RUSSIAN to "Нужно подтверждение — посмотрите диалог на экране."
+        Language.RUSSIAN to "Нужно подтверждение — посмотрите диалог на экране.",
+        Language.ARABIC to "أحتاج إلى تأكيد — تحقق من الحوار على شاشتك."
     )
 }

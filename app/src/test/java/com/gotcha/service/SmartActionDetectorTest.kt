@@ -14,6 +14,8 @@ import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
+// One test per recognizer branch; splitting the suite is not worth it.
+@Suppress("LargeClass")
 class SmartActionDetectorTest {
 
     /** Chip labels are string resources; Robolectric reads the English ones. */
@@ -203,6 +205,13 @@ class SmartActionDetectorTest {
         assertTrue(SmartActionDetector.isTextInLanguage("Как у тебя дела?", "Russian"))
         assertFalse(SmartActionDetector.isTextInLanguage("How are you doing?", "Russian"))
         assertFalse(SmartActionDetector.isTextInLanguage("Как у тебя дела?", "English"))
+    }
+
+    @Test
+    fun `isTextInLanguage recognises Arabic`() {
+        assertTrue(SmartActionDetector.isTextInLanguage("كيف حالك اليوم؟", "Arabic"))
+        assertFalse(SmartActionDetector.isTextInLanguage("How are you doing?", "Arabic"))
+        assertFalse(SmartActionDetector.isTextInLanguage("كيف حالك اليوم؟", "English"))
     }
 
     @Test
