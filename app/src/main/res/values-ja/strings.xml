@@ -584,6 +584,10 @@
     <string name="connectors_all_up_to_date">有効なコネクタはすべて最新です。</string>
     <string name="connectors_imap_saved">保存しました。認証情報は初回使用時に確認されます。</string>
     <string name="drawer_new_chat">新しいチャット</string>
+    <string name="drawer_search_placeholder">チャットを検索</string>
+    <string name="drawer_search_clear">検索をクリア</string>
+    <string name="drawer_search_results">結果（%1$d件）</string>
+    <string name="drawer_search_no_results">「%1$s」に一致するチャットはありません。</string>
     <string name="drawer_import_chats">チャットをインポート</string>
     <string name="drawer_back_up_all_chats">すべてのチャットをバックアップ</string>
     <string name="drawer_connectors">コネクタ</string>

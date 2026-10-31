@@ -1,8 +1,10 @@
 package com.gotcha.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -10,8 +12,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
@@ -24,21 +28,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.agent.ChatTitle
+import com.gotcha.data.ChatSearch
+import com.gotcha.data.ChatSearchHit
 import com.gotcha.data.ChatSession
 import com.gotcha.i18n.stringLookup
 import com.gotcha.ui.theme.GotchaMono
@@ -46,6 +56,9 @@ import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AppDrawerContent(
@@ -69,6 +82,8 @@ fun AppDrawerContent(
     liveTokenBySession: Map<String, Int> = emptyMap()
 ) {
     var sessionToDelete by remember { mutableStateOf<String?>(null) }
+    // The drawer's search: empty shows every chat, as before.
+    var query by remember { mutableStateOf("") }
 
     // The drawer covers the app rather than floating in it, so it gets a ground
     // of its own. Stated explicitly rather than left to DrawerDefaults, because
@@ -103,23 +118,87 @@ fun AppDrawerContent(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 28.dp, vertical = 20.dp)
             )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.drawer_new_chat)) },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                selected = false,
-                onClick = onNewChat,
-                colors = itemColors,
-                modifier = itemModifier
-            )
+            // Search and new chat share one row: the field takes the width, the
+            // button costs a tap target. Sending "New Chat" as a full row left
+            // the list a line shorter for no gain.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ChatSearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        // A search belongs to the list it narrowed: leaving it
+                        // behind would greet the next open with a filtered list.
+                        query = ""
+                        onNewChat()
+                    },
+                    modifier = Modifier.testTag("drawer_new_chat")
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = stringResource(R.string.drawer_new_chat)
+                    )
+                }
+            }
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            val searching = query.isNotBlank()
+            // Searching stays off the main thread: every chat's transcript is
+            // scanned, and a long history must not make typing stutter. The
+            // short delay coalesces keystrokes; "empty" is applied at once,
+            // because clearing the field should restore the list immediately.
+            var hits by remember { mutableStateOf<List<ChatSearchHit>>(emptyList()) }
+            var searchPending by remember { mutableStateOf(false) }
+            LaunchedEffect(query, sessions) {
+                if (query.isBlank()) {
+                    hits = emptyList()
+                    searchPending = false
+                } else {
+                    searchPending = true
+                    delay(SEARCH_DEBOUNCE_MS)
+                    hits = withContext(Dispatchers.Default) { ChatSearch.search(sessions, query) }
+                    searchPending = false
+                }
+            }
+            // One list either way: matching chats with their snippet, or all of
+            // them. Kept in the drawer's own order.
+            val rows = when {
+                !searching -> sessions.map { it to null }
+                else -> {
+                    val snippets = hits.associate { it.sessionId to it.snippet }
+                    sessions.filter { it.id in snippets }.map { it to snippets[it.id] }
+                }
+            }
             Text(
-                stringResource(R.string.drawer_recent_chats),
+                if (searching) {
+                    stringResource(R.string.drawer_search_results, rows.size)
+                } else {
+                    stringResource(R.string.drawer_recent_chats)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
             )
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(sessions, key = { it.id }) { session ->
+                // Only once the search has run: until then the previous results
+                // are still on screen, and "no chats match" would be a lie.
+                if (searching && rows.isEmpty() && !searchPending) {
+                    item {
+                        Text(
+                            stringResource(R.string.drawer_search_no_results, query.trim()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(horizontal = 28.dp, vertical = 12.dp)
+                                .testTag("drawer_search_no_results")
+                        )
+                    }
+                }
+                items(rows, key = { it.first.id }) { (session, snippet) ->
                     val tokens = liveTokenBySession[session.id]
                         ?: (if (session.id == activeSessionId) activeTokenCount else session.tokenCount)
                     val usage = formatContextUsage(tokens, maxContextTokens)
@@ -131,6 +210,18 @@ fun AppDrawerContent(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                // Why this chat matched, when the title didn't:
+                                // the line of chat text holding the query.
+                                if (snippet != null) {
+                                    Text(
+                                        snippet,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.testTag("drawer_search_snippet")
+                                    )
+                                }
                                 // The one thing that distinguishes a seeded chat
                                 // from one the user held: said on the row rather
                                 // than only inside, so the list itself is honest.
@@ -158,7 +249,10 @@ fun AppDrawerContent(
                             }
                         },
                         selected = session.id == activeSessionId,
-                        onClick = { onSessionClick(session.id) },
+                        onClick = {
+                            query = ""
+                            onSessionClick(session.id)
+                        },
                         badge = {
                             IconButton(onClick = { sessionToDelete = session.id }) {
                                 Icon(
@@ -228,6 +322,42 @@ fun AppDrawerContent(
             }
         )
     }
+}
+
+/** How long typing must settle before the drawer searches, in milliseconds. */
+private const val SEARCH_DEBOUNCE_MS = 120L
+
+/**
+ * The drawer's chat search field: one line, always visible above the list, so
+ * a chat can be found by its title or by anything said in it.
+ */
+@Composable
+private fun ChatSearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier.testTag("drawer_search"),
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium,
+        placeholder = {
+            Text(
+                stringResource(R.string.drawer_search_placeholder),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.drawer_search_clear)
+                    )
+                }
+            }
+        }
+    )
 }
 
 /**

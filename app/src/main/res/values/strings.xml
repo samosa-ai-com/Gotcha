@@ -760,6 +760,10 @@
 
     <!-- AppDrawer -->
     <string name="drawer_new_chat">New Chat</string>
+    <string name="drawer_search_placeholder">Search chats</string>
+    <string name="drawer_search_clear">Clear search</string>
+    <string name="drawer_search_results">Results (%1$d)</string>
+    <string name="drawer_search_no_results">No chats match “%1$s”.</string>
     <!-- Import/backup moved to Settings ▸ Chats; the strings stay because the
          settings rows reuse them, so no locale churn. -->
     <string name="drawer_import_chats">Import chats</string>
