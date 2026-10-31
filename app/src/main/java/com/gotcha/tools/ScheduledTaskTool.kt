@@ -11,6 +11,7 @@ import com.gotcha.i18n.stringLookup
 import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskNotifier
 import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.scheduled.ScheduledTaskStore
@@ -200,6 +201,7 @@ class ScheduledTaskTool(
     fun doDelete(id: String): ToolResult {
         val task = store.get(id) ?: return unknownTask(id)
         store.delete(id)
+        ScheduledTaskNotifier(context).cancel(id)
         ScheduledTaskScheduler.reschedule(context)
         return ToolResult.ok("Deleted the scheduled task \"${task.name}\".")
     }
@@ -293,6 +295,7 @@ class ScheduledTaskTool(
         }
         if (attachments != null) store.saveAttachments(saved.id, attachments)
         ScheduledTaskScheduler.reschedule(context)
+        syncWaitingNotification(ScheduledTaskNotifier(context), existing, saved)
         val next = saved.dueAt?.let(::formatInstant) ?: "none"
         return ToolResult.ok(
             (if (existing == null) "Scheduled" else "Updated") +
@@ -531,4 +534,23 @@ private fun shortenMemoryPath(path: String): String {
             File(path).name
         }
     }.getOrDefault(File(path).name)
+}
+
+/**
+ * Keeps a busy wait's notification true after an edit: a wait the edit
+ * cleared must not keep it, a surviving wait is re-posted so its title stays
+ * fresh. Untouched otherwise, so a tap-to-run prompt sharing the slot
+ * survives an edit; pausing always dismisses.
+ */
+private fun syncWaitingNotification(
+    notifier: ScheduledTaskNotifier,
+    existing: ScheduledTask?,
+    saved: ScheduledTask
+) {
+    val hadWait = existing?.busySince != null && existing.retryAt != null
+    val hasWait = saved.enabled && saved.busySince != null && saved.retryAt != null
+    when {
+        !saved.enabled || (hadWait && !hasWait) -> notifier.cancel(saved.id)
+        hadWait && hasWait -> notifier.postWaiting(saved)
+    }
 }

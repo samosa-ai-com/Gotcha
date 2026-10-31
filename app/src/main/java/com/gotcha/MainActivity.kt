@@ -691,6 +691,8 @@ class MainActivity : ComponentActivity() {
                 is ScheduledStart.Started -> openSessionRequested = result.sessionId
                 ScheduledStart.Busy ->
                     Toast.makeText(this@MainActivity, R.string.scheduled_run_now_busy, Toast.LENGTH_LONG).show()
+                ScheduledStart.Queued ->
+                    Toast.makeText(this@MainActivity, R.string.scheduled_run_now_queued, Toast.LENGTH_LONG).show()
                 is ScheduledStart.Failed ->
                     Toast.makeText(this@MainActivity, result.detail, Toast.LENGTH_LONG).show()
             }

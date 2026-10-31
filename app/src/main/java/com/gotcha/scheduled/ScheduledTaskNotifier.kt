@@ -55,6 +55,46 @@ class ScheduledTaskNotifier(private val context: Context) {
         NotificationManagerCompat.from(context).cancel(notificationId(taskId))
     }
 
+    /**
+     * A task that fired while another run holds Gotcha is queued, not lost.
+     * One quiet slot per task, updated in place on every recheck: same id and
+     * onlyAlertOnce, so waiting never buzzes. Cancelled when the run starts,
+     * gives up, or the task is paused, edited or deleted.
+     */
+    @Suppress("MissingPermission") // canPost() checks it.
+    fun postWaiting(task: ScheduledTask) {
+        if (!ChatCompletionNotifier(context).canPost()) return
+        ensureChannel()
+        val open = PendingIntent.getActivity(
+            context,
+            notificationId(task.id),
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val body = context.getString(R.string.scheduled_waiting_body)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.scheduled_waiting_title, task.name))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setAutoCancel(false)
+            .setOngoing(false)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+            // The task name can be personal: the lock screen gets a generic line.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(
+                NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle(context.getString(R.string.scheduled_needs_tap_public_title))
+                    .build()
+            )
+            .build()
+        NotificationManagerCompat.from(context).notify(notificationId(task.id), notification)
+    }
+
     private fun ensureChannel() {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return

@@ -231,6 +231,19 @@ class ScheduledTaskPlannerTest {
     }
 
     @Test
+    fun `a manual start while busy queues behind the run and fires at its retry`() {
+        // Nothing scheduled due: Run now at 07:00 only leaves a wait.
+        val now = at("2026-10-19T07:00")
+        val queued = ScheduledTaskPlanner.busy(daily(now), now, zone)
+        assertEquals(at("2026-10-19T08:00"), queued.nextRunAt)
+        assertEquals(now, queued.busySince)
+        val retryAt = queued.retryAt!!
+        assertEquals(now + ScheduledTaskPlanner.BUSY_RECHECK_MS, retryAt)
+        // The retry is late by design, not missed: it runs.
+        assertEquals(ScheduledTaskPlanner.Decision.Run, ScheduledTaskPlanner.decide(queued, retryAt, zone))
+    }
+
+    @Test
     fun `a same-chat task keeps the chat its first run made`() {
         val task = daily().copy(sameChat = true)
         assertEquals("chat-1", ScheduledTaskPlanner.started(task, "chat-1", at("2026-10-19T08:00"), zone).chatSessionId)

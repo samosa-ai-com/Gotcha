@@ -28,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -211,7 +212,7 @@ class ScheduledRunTest {
     }
 
     @Test
-    fun `a task never runs alongside another run`() {
+    fun `a second start while busy queues its turn instead of dropping it`() {
         ServerSocket(0).use { silent ->
             // Holds the run's request unanswered; later ones (the title, as the
             // stopped run saves) are dropped at once.
@@ -233,8 +234,35 @@ class ScheduledRunTest {
             assertTrue(first is ScheduledStart.Started)
 
             task(id = "second")
-            assertEquals(ScheduledStart.Busy, runNow("second"))
+            assertEquals(ScheduledStart.Queued, runNow("second"))
+            val queued = store.get("second")!!
+            assertNotNull("a queued start keeps its retry", queued.retryAt)
+            assertNotNull("a queued start keeps its wait start", queued.busySince)
 
+            // A wait that already gave up reports Busy, not Queued.
+            task(id = "third")
+            store.update("third") { it.copy(busySince = System.currentTimeMillis() - 61 * 60_000L) }
+            assertEquals(ScheduledStart.Busy, runNow("third"))
+            assertEquals(TaskRunStatus.SKIPPED_BUSY, store.get("third")!!.lastRun!!.status)
+
+            runner().stop()
+            waitForRunToFinish()
+
+            // The queued retry fires once the runner frees up.
+            val retryAt = store.get("second")!!.retryAt!!
+            val fired = CoroutineScope(Dispatchers.Unconfined).async {
+                ScheduledTaskRuns.fireDue(application, retryAt)
+            }
+            val fireDeadline = System.currentTimeMillis() + 5_000
+            while (!fired.isCompleted && System.currentTimeMillis() < fireDeadline) {
+                ShadowLooper.idleMainLooper()
+                Thread.sleep(10)
+            }
+            runBlocking { fired.await() }
+            waitForRunToFinish()
+            val dequeued = store.get("second")!!
+            assertNull("the retry is spent once the run starts", dequeued.retryAt)
+            assertNull("the wait ends once the run starts", dequeued.busySince)
             runner().stop()
             waitForRunToFinish()
         }
