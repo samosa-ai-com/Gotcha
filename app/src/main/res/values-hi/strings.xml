@@ -584,6 +584,10 @@
     <string name="connectors_all_up_to_date">सभी सक्रिय कनेक्टर अप-टू-डेट हैं।</string>
     <string name="connectors_imap_saved">सहेजा गया। पहली बार इस्तेमाल पर क्रेडेंशियल जाँचे जाते हैं।</string>
     <string name="drawer_new_chat">नई चैट</string>
+    <string name="drawer_search_placeholder">चैट खोजें</string>
+    <string name="drawer_search_clear">खोज साफ़ करें</string>
+    <string name="drawer_search_results">परिणाम (%1$d)</string>
+    <string name="drawer_search_no_results">“%1$s” से कोई चैट नहीं मिली।</string>
     <string name="drawer_import_chats">चैट इंपोर्ट करें</string>
     <string name="drawer_back_up_all_chats">सभी चैट का बैकअप लें</string>
     <string name="drawer_connectors">कनेक्टर</string>

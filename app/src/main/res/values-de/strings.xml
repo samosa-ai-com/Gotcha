@@ -584,6 +584,10 @@
     <string name="connectors_all_up_to_date">Alle aktiven Connectors sind aktuell.</string>
     <string name="connectors_imap_saved">Gespeichert. Die Zugangsdaten werden bei der ersten Nutzung geprüft.</string>
     <string name="drawer_new_chat">Neuer Chat</string>
+    <string name="drawer_search_placeholder">Chats durchsuchen</string>
+    <string name="drawer_search_clear">Suche löschen</string>
+    <string name="drawer_search_results">Ergebnisse (%1$d)</string>
+    <string name="drawer_search_no_results">Keine Chats passen zu „%1$s“.</string>
     <string name="drawer_import_chats">Chats importieren</string>
     <string name="drawer_back_up_all_chats">Alle Chats sichern</string>
     <string name="drawer_connectors">Connectors</string>

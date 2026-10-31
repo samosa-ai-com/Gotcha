@@ -584,6 +584,10 @@
     <string name="connectors_all_up_to_date">Tous les connecteurs actifs sont à jour.</string>
     <string name="connectors_imap_saved">Enregistré. Les identifiants sont vérifiés à la première utilisation.</string>
     <string name="drawer_new_chat">Nouvelle discussion</string>
+    <string name="drawer_search_placeholder">Rechercher des chats</string>
+    <string name="drawer_search_clear">Effacer la recherche</string>
+    <string name="drawer_search_results">Résultats (%1$d)</string>
+    <string name="drawer_search_no_results">Aucun chat ne correspond à « %1$s ».</string>
     <string name="drawer_import_chats">Importer des discussions</string>
     <string name="drawer_back_up_all_chats">Sauvegarder toutes les discussions</string>
     <string name="drawer_connectors">Connecteurs</string>
