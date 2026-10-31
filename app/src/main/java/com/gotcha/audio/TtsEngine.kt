@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -42,6 +44,16 @@ class TtsEngine(
     /** The engine [androidTts] was bound to ask for; blank = the phone's preferred one. */
     private var androidEngine = ""
 
+    /**
+     * Per-language fallback engines (issue #153): when the requested engine
+     * has no voice for a language but another installed one does — Samsung
+     * with no Arabic beside Google with it, say — the winner is remembered so
+     * later speaks go straight there. Cleared with a new engine choice, so an
+     * explicit pick always wins again.
+     */
+    private var requestedEngine = ""
+    private val fallbackEngines = mutableMapOf<Language, String>()
+
     @Volatile
     private var currentTrack: AudioTrack? = null
 
@@ -66,6 +78,19 @@ class TtsEngine(
      */
     var lastLanguageUnavailable: Language? = null
         private set
+
+    /**
+     * Serializes Android speaks: engine hops rebind mid-path, and two
+     * overlapping speaks would otherwise strand each other's utterance gates
+     * and memoize under the wrong engine choice.
+     */
+    private val androidSpeakMutex = Mutex()
+
+    /** How long the requested engine gets to initialize before giving up. */
+    private val primaryBindTimeoutMs = 5000L
+
+    /** Per candidate, matching the probe's fallback timeout. */
+    private val candidateBindTimeoutMs = 3000L
 
     init {
         bindAndroidTts("")
@@ -126,7 +151,9 @@ class TtsEngine(
         androidEngine: String = "",
         androidVoice: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
-        lastLanguageUnavailable = null
+        // Android resets inside its mutex, serialized with its result; other
+        // providers clear here so a stale report never survives a switch.
+        if (provider != AudioProvider.ANDROID) lastLanguageUnavailable = null
         val sanitized = SpeechTextSanitizer.sanitize(text)
         if (sanitized.isBlank()) return@withContext true
         try {
@@ -143,9 +170,67 @@ class TtsEngine(
         }
     }
 
-    private suspend fun speakAndroid(text: String, language: Language, engine: String, voiceName: String): Boolean {
-        if (engine != androidEngine) bindAndroidTts(engine)
-        val tts = readyAndroidTts() ?: return false
+    private suspend fun speakAndroid(text: String, language: Language, engine: String, voiceName: String): Boolean =
+        androidSpeakMutex.withLock { speakAndroidLocked(text, language, engine, voiceName) }
+
+    private suspend fun speakAndroidLocked(
+        text: String,
+        language: Language,
+        engine: String,
+        voiceName: String
+    ): Boolean {
+        // Reset here as well as in speak(): serialized with the result below,
+        // so one speak cannot clear another's missing-language report mid-read.
+        lastLanguageUnavailable = null
+        if (engine != requestedEngine) {
+            requestedEngine = engine
+            fallbackEngines.clear()
+        }
+        val preferred = fallbackEngines[language] ?: engine
+        if (preferred != androidEngine) bindAndroidTts(preferred)
+        // An engine that never finishes initializing must not hang speech
+        // forever; unknown is plain failure, not a missing voice.
+        var tts = withTimeoutOrNull(primaryBindTimeoutMs) { readyAndroidTts() } ?: return false
+
+        // The requested engine has no voice for the language: ask the other
+        // installed engines before giving up, and remember the winner. An
+        // engine list that cannot even be read is unknown, not missing: report
+        // failure without the install prompt.
+        if (!isAvailable(tts.setLanguage(language.locale))) {
+            val alternatives = runCatching { tts.engines.orEmpty() }.getOrNull() ?: return false
+            // Skip what was already tried: the request, the memoized winner
+            // being re-probed, and the engine actually bound (which is the
+            // phone default when nothing was requested, not the request).
+            val activeId = preferred.takeIf { it.isNotBlank() }
+                ?: runCatching { tts.defaultEngine }.getOrNull()
+            val skipIds = ttsSkipIds(engine, fallbackEngines[language], activeId)
+            var winner: String? = null
+            var probed = false
+            for (candidate in alternatives.map { it.name }.filter { it !in skipIds }) {
+                bindAndroidTts(candidate)
+                val alt = withTimeoutOrNull(candidateBindTimeoutMs) { readyAndroidTts() } ?: continue
+                probed = true
+                if (isAvailable(alt.setLanguage(language.locale))) {
+                    winner = candidate
+                    break
+                }
+            }
+            if (winner == null) {
+                // A missing voice says nothing rather than reading the text with an
+                // English one, which mangles it (#122); callers report why.
+                // Claim missing only on a definitive answer: the primary plus
+                // a probed candidate, or no alternatives at all. Uninitialized
+                // candidates leave support unknown, so stay quiet instead of
+                // prompting an install that may not be needed.
+                fallbackEngines.remove(language)
+                if (probed || alternatives.isEmpty()) lastLanguageUnavailable = language
+                // Leave the requested engine bound, not the last failed probe.
+                if (androidEngine != preferred) bindAndroidTts(preferred)
+                return false
+            }
+            fallbackEngines[language] = winner
+            tts = readyAndroidTts() ?: return false
+        }
 
         val gate = CompletableDeferred<Boolean>()
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -157,13 +242,8 @@ class TtsEngine(
             // and a suspended speak() would hang (e.g. pausing a voice call).
             override fun onStop(utteranceId: String?, interrupted: Boolean) { gate.complete(false) }
         })
-        // A missing voice says nothing rather than reading the text with an
-        // English one, which mangles it (#122); callers report why.
-        if (!isAvailable(tts.setLanguage(language.locale))) {
-            lastLanguageUnavailable = language
-            return false
-        }
         // A voice picked for another language is left for when that one is spoken.
+        // On a fallback engine the picked name never matches, so its own voice is used.
         if (voiceName.isNotBlank()) {
             tts.voices.orEmpty()
                 .firstOrNull { it.name == voiceName && language.matchesCode(it.locale.toLanguageTag()) }
@@ -282,3 +362,15 @@ class TtsEngine(
         const val PLAYBACK_TIMEOUT_SLACK_MS = 500L
     }
 }
+
+/**
+ * Engine ids the fallback probe skips: the request, a memoized winner being
+ * re-probed, and the engine actually bound. Kept pure for tests — blank means
+ * "the phone default", which is never an installed engine id.
+ */
+internal fun ttsSkipIds(requested: String, memoized: String?, activeId: String?): Set<String> =
+    setOfNotNull(
+        requested.takeIf { it.isNotBlank() },
+        memoized?.takeIf { it.isNotBlank() },
+        activeId?.takeIf { it.isNotBlank() }
+    )

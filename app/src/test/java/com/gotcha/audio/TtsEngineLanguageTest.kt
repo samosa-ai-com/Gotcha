@@ -71,4 +71,25 @@ class TtsEngineLanguageTest {
         assertNotSame(first, ShadowTextToSpeech.getLastTextToSpeechInstance())
         assertTrue("the old binding is released", shadowTts.isShutdown)
     }
+
+    @Test
+    fun `fallback skips the request, the memoized winner and the bound engine`() {
+        // Blank request with Samsung bound: only Samsung is skipped, so the
+        // default engine is never rebound under its own package name.
+        assertEquals(
+            setOf("com.samsung.SMT"),
+            ttsSkipIds("", null, "com.samsung.SMT")
+        )
+        // Explicit request: it and the bound engine are skipped.
+        assertEquals(
+            setOf("com.google.android.tts"),
+            ttsSkipIds("com.google.android.tts", null, "com.google.android.tts")
+        )
+        // A memoized winner being re-probed is skipped with the rest.
+        assertEquals(
+            setOf("com.google.android.tts", "com.samsung.SMT"),
+            ttsSkipIds("", "com.google.android.tts", "com.samsung.SMT")
+        )
+        assertEquals(emptySet<String>(), ttsSkipIds("", null, null))
+    }
 }

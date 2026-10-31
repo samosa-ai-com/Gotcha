@@ -16,6 +16,7 @@
     <string name="language_italian">Italiano</string>
     <string name="language_portuguese">Português</string>
     <string name="language_russian">Russo</string>
+    <string name="language_arabic">Árabe</string>
     <string name="language_page_intro">Todos os idiomas do Gotcha em um só lugar: o das telas do app, o que o Gotcha fala e ouve e o das respostas que ele escreve.</string>
     <string name="language_display_title">Idioma do app</string>
     <string name="language_display_description">O idioma dos botões e das telas do Gotcha. Só o Gotcha muda; o resto do celular continua como está.</string>
