@@ -7,6 +7,7 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.R
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
@@ -15,6 +16,7 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.scheduled.ScheduledStart
 import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskNotifier
 import com.gotcha.scheduled.ScheduledTaskRuns
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.TaskRunStatus
@@ -76,14 +78,20 @@ class ScheduledRunTest {
 
     private fun runner() = ChatRunner.of(application)
 
-    private fun task(id: String = "news", sameChat: Boolean = false, chat: String? = null) = ScheduledTask(
+    private fun task(
+        id: String = "news",
+        sameChat: Boolean = false,
+        chat: String? = null,
+        enabled: Boolean = true
+    ) = ScheduledTask(
         id = id,
         name = "Morning news",
         prompt = "Summarise the news",
         startLocal = "2099-01-01T08:00",
         agentMode = AgentMode.MONITOR.name,
         sameChat = sameChat,
-        chatSessionId = chat
+        chatSessionId = chat,
+        enabled = enabled
     ).also { store.put(it) }
 
     /** Runs [id] as "Run now" does, letting the main looper turn until it has started. */
@@ -238,12 +246,25 @@ class ScheduledRunTest {
             val queued = store.get("second")!!
             assertNotNull("a queued start keeps its retry", queued.retryAt)
             assertNotNull("a queued start keeps its wait start", queued.busySince)
+            val waitingTitle = application.getString(R.string.scheduled_waiting_title, "Morning news")
+            fun waitingPosted() = shadowOf(manager).allNotifications.any {
+                it.channelId == ScheduledTaskNotifier.CHANNEL_ID &&
+                    it.extras.getString(NotificationCompat.EXTRA_TITLE) == waitingTitle
+            }
+            assertTrue("queueing posts the waiting notification", waitingPosted())
 
             // A wait that already gave up reports Busy, not Queued.
             task(id = "third")
             store.update("third") { it.copy(busySince = System.currentTimeMillis() - 61 * 60_000L) }
             assertEquals(ScheduledStart.Busy, runNow("third"))
             assertEquals(TaskRunStatus.SKIPPED_BUSY, store.get("third")!!.lastRun!!.status)
+
+            // A paused task is promised no queue: nothing is persisted.
+            task(id = "fourth", enabled = false)
+            assertEquals(ScheduledStart.Busy, runNow("fourth"))
+            val paused = store.get("fourth")!!
+            assertNull(paused.retryAt)
+            assertNull(paused.busySince)
 
             runner().stop()
             waitForRunToFinish()
@@ -263,6 +284,7 @@ class ScheduledRunTest {
             val dequeued = store.get("second")!!
             assertNull("the retry is spent once the run starts", dequeued.retryAt)
             assertNull("the wait ends once the run starts", dequeued.busySince)
+            assertTrue("starting the run clears the waiting notification", !waitingPosted())
             runner().stop()
             waitForRunToFinish()
         }

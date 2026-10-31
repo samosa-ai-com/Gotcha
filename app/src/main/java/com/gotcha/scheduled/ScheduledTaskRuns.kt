@@ -110,7 +110,7 @@ object ScheduledTaskRuns {
             // Started from a window alarm, the keep-alive service is refused and the
             // run would be frozen with the app; a tap on the notification runs it instead.
             store.update(task.id) { ScheduledTaskPlanner.notStarted(it, TaskRunStatus.NEEDS_TAP, null, now, zone) }
-            ScheduledTaskNotifier(app).postNeedsTap(task)
+            notifier.postNeedsTap(task)
             return ScheduledStart.Failed(app.getString(R.string.scheduled_task_needs_exact_alarms))
         }
         val result = withContext(Dispatchers.Main) { ChatRunner.of(app).startScheduled(task, attachments) }
@@ -126,11 +126,15 @@ object ScheduledTaskRuns {
                 // Automatic fires and manual starts alike wait their turn: the
                 // occurrence is claimed and retried, never dropped. A manual
                 // start reports Queued so the UI can say so; its retry fires
-                // through the alarm path like any other wait.
-                val updated = store.update(task.id) { ScheduledTaskPlanner.busy(it, now, zone) }
+                // through the alarm path like any other wait. The enabled
+                // check runs inside the update: a pause landing mid-start
+                // must not leave a wait no alarm will ever fire.
+                val updated = store.update(task.id) {
+                    if (!it.enabled) it else ScheduledTaskPlanner.busy(it, now, zone)
+                }
                 // A wait that just gave up (SKIPPED_BUSY, no retry) is not
                 // queued: report Busy so nothing is promised.
-                if (updated?.retryAt != null) {
+                if (updated?.enabled == true && updated.retryAt != null) {
                     notifier.postWaiting(updated)
                     return if (userInitiated) ScheduledStart.Queued else result
                 }
@@ -143,7 +147,7 @@ object ScheduledTaskRuns {
                 }
                 notifier.cancel(task.id)
             }
-            is ScheduledStart.Queued -> {
+            ScheduledStart.Queued -> {
                 // startScheduled never returns this; kept for exhaustiveness.
             }
         }

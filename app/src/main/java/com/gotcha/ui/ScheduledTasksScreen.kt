@@ -74,6 +74,7 @@ import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.TaskRun
 import com.gotcha.scheduled.TaskRunStatus
 import com.gotcha.scheduled.isWallTimeFuture
+import com.gotcha.scheduled.syncWaitingNotification
 import com.gotcha.service.ChatRunService
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -328,9 +329,17 @@ private fun TaskRow(
             )
         }
         val next = task.dueAt
+        // While waiting, dueAt is the retry time, shown again on the line
+        // below: the primary line keeps the regular schedule instead.
+        val waitingAt = task.retryAt
+        val waiting = task.enabled && task.busySince != null && waitingAt != null
+        val nextScheduled = task.nextRunAt
         Text(
             when {
                 !task.enabled -> stringResource(R.string.scheduled_paused)
+                waiting && nextScheduled != null ->
+                    stringResource(R.string.scheduled_next_run, formatDateTime(nextScheduled))
+                waiting -> stringResource(R.string.scheduled_no_more_runs)
                 next == null -> stringResource(R.string.scheduled_no_more_runs)
                 else -> stringResource(R.string.scheduled_next_run, formatDateTime(next))
             },
@@ -339,8 +348,7 @@ private fun TaskRow(
         )
         // Queued behind another run: say so with its recheck time, or the
         // wait reads as a stuck Next line.
-        val waitingAt = task.retryAt
-        if (task.enabled && task.busySince != null && waitingAt != null) {
+        if (waiting) {
             Text(
                 stringResource(R.string.scheduled_waiting_row, formatDateTime(waitingAt)),
                 style = MaterialTheme.typography.bodySmall,
@@ -643,6 +651,9 @@ private fun TaskEditor(
                         attachmentNames = files.map { it.name }
                     )
                     scope.launch {
+                        // Read inside the save's own update (see saveOver): a
+                        // wait starting while the form was open still syncs.
+                        var hadWait = false
                         val saved = withContext(Dispatchers.IO) {
                             val now = System.currentTimeMillis()
                             val zone = ZoneId.systemDefault()
@@ -660,22 +671,14 @@ private fun TaskEditor(
                             } else {
                                 // Over the task as stored now: a run may have
                                 // changed it while the form was open.
-                                form.saveOver(store, initial.id, now, zone)
+                                form.saveOver(store, initial.id, now, zone) { current ->
+                                    hadWait = current.busySince != null && current.retryAt != null
+                                }
                             }
                             saved?.let {
                                 store.saveAttachments(it.id, files)
                                 ScheduledTaskScheduler.reschedule(context)
-                                // A schedule edit can clear a busy wait: refresh
-                                // its notification, or dismiss it when the wait
-                                // is gone. Untouched otherwise, so a tap-to-run
-                                // prompt sharing the slot survives an edit.
-                                if (initial?.busySince != null && initial.retryAt != null) {
-                                    if (it.enabled && it.busySince != null && it.retryAt != null) {
-                                        ScheduledTaskNotifier(context).postWaiting(it)
-                                    } else {
-                                        ScheduledTaskNotifier(context).cancel(it.id)
-                                    }
-                                }
+                                syncWaitingNotification(ScheduledTaskNotifier(context), store, hadWait, it)
                             }
                             saved
                         }

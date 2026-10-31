@@ -16,6 +16,7 @@ import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskScheduler
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.isWallTimeFuture
+import com.gotcha.scheduled.syncWaitingNotification
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -277,6 +278,7 @@ class ScheduledTaskTool(
                 }
             )
         }
+        var hadWait = false
         val saved = if (existing == null) {
             val created = ScheduledTask(
                 id = UUID.randomUUID().toString(),
@@ -289,13 +291,17 @@ class ScheduledTaskTool(
             ScheduledTaskPlanner.edited(null, edit(created), now, zone()).also(store::put)
         } else {
             // Over the task as stored now, so a run that ended since the
-            // approval was asked keeps its history and next time.
-            store.update(existing.id) { current -> ScheduledTaskPlanner.edited(current, edit(current), now, zone()) }
+            // approval was asked keeps its history and next time. The wait
+            // state is read inside the same update for the notification sync.
+            store.update(existing.id) { current ->
+                hadWait = current.busySince != null && current.retryAt != null
+                ScheduledTaskPlanner.edited(current, edit(current), now, zone())
+            }
                 ?: return unknownTask(existing.id)
         }
         if (attachments != null) store.saveAttachments(saved.id, attachments)
         ScheduledTaskScheduler.reschedule(context)
-        syncWaitingNotification(ScheduledTaskNotifier(context), existing, saved)
+        syncWaitingNotification(ScheduledTaskNotifier(context), store, hadWait, saved)
         val next = saved.dueAt?.let(::formatInstant) ?: "none"
         return ToolResult.ok(
             (if (existing == null) "Scheduled" else "Updated") +
@@ -534,23 +540,4 @@ private fun shortenMemoryPath(path: String): String {
             File(path).name
         }
     }.getOrDefault(File(path).name)
-}
-
-/**
- * Keeps a busy wait's notification true after an edit: a wait the edit
- * cleared must not keep it, a surviving wait is re-posted so its title stays
- * fresh. Untouched otherwise, so a tap-to-run prompt sharing the slot
- * survives an edit; pausing always dismisses.
- */
-private fun syncWaitingNotification(
-    notifier: ScheduledTaskNotifier,
-    existing: ScheduledTask?,
-    saved: ScheduledTask
-) {
-    val hadWait = existing?.busySince != null && existing.retryAt != null
-    val hasWait = saved.enabled && saved.busySince != null && saved.retryAt != null
-    when {
-        !saved.enabled || (hadWait && !hasWait) -> notifier.cancel(saved.id)
-        hadWait && hasWait -> notifier.postWaiting(saved)
-    }
 }
