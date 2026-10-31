@@ -90,6 +90,15 @@ class ForegroundControlGate(
     }
 
     /**
+     * Forgets the cached answer so the next control tool asks again; control
+     * already taken stays taken. Lets a revoked skip (issue #155) re-arm
+     * mid-request: calls already past the gate finish, later ones re-ask.
+     */
+    fun invalidate() {
+        decision = null
+    }
+
+    /**
      * Ends the request: forgets the answer. Returns whether Gotcha had taken
      * control during it, so the host can say that control is over.
      */
