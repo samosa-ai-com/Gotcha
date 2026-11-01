@@ -85,7 +85,7 @@ class ScheduledTaskStore internal constructor(
         var tasks = existing
         val created = mutableListOf<ScheduledTask>()
         for (preset in ScheduledPresets.all) {
-            if (tasks.any { it.presetId == preset.id }) continue
+            if (tasks.any { it.presetId == preset.id } || isPromoted(preset.id)) continue
             val seeded = seedOne(preset, tasks, memoryRoot, localNow, now)
             tasks = seeded.tasks
             seeded.created?.let { created += it }
@@ -140,7 +140,8 @@ class ScheduledTaskStore internal constructor(
     fun missingPresets(): List<ScheduledPreset> = synchronized(LOCK) {
         val tasks = read()
         ScheduledPresets.all.filter { preset ->
-            tasks.none { it.presetId == preset.id || it.name == preset.name }
+            !isPromoted(preset.id) &&
+                tasks.none { it.presetId == preset.id || it.name == preset.name }
         }
     }
 
@@ -154,7 +155,7 @@ class ScheduledTaskStore internal constructor(
         var tasks = read()
         var added = 0
         for (preset in ScheduledPresets.all) {
-            if (tasks.any { it.presetId == preset.id }) continue
+            if (tasks.any { it.presetId == preset.id } || isPromoted(preset.id)) continue
             val sameName = tasks.firstOrNull { it.name == preset.name }
             if (sameName != null) {
                 markSeeded(preset.id, sameName.id)
@@ -172,16 +173,20 @@ class ScheduledTaskStore internal constructor(
 
     /**
      * Stops treating [presetId] as an example: called when the user turns it on
-     * or saves an edit. The example is theirs now, so neither seeding nor the
-     * restore button may drag it back. The seeded marker stays, which is what
-     * keeps a promoted example from being re-added as a duplicate.
+     * or saves an edit. A promoted example is theirs for good, so neither
+     * seeding nor restore may drag it back, even after they rename it. The
+     * seeded marker stays, which is what keeps it from being re-added.
      */
     fun forgetPreset(presetId: String) = synchronized(LOCK) {
         prefs.edit()
+            .putBoolean(promotedKey(presetId), true)
             .remove(taskKey(presetId))
             .apply { if (presetId == ScheduledPresets.MORNING_BRIEFING) remove(KEY_BRIEFING_TASK_ID) }
             .apply()
     }
+
+    /** True once the user has turned [presetId] into a task of their own. */
+    fun isPromoted(presetId: String): Boolean = prefs.getBoolean(promotedKey(presetId), false)
 
     private fun isSeeded(presetId: String): Boolean =
         prefs.getBoolean(seededKey(presetId), false) || legacySeeded(presetId)
@@ -205,6 +210,8 @@ class ScheduledTaskStore internal constructor(
     }
 
     private fun seededKey(presetId: String) = "preset_seeded_$presetId"
+
+    private fun promotedKey(presetId: String) = "preset_promoted_$presetId"
 
     private fun taskKey(presetId: String) = "preset_task_$presetId"
 

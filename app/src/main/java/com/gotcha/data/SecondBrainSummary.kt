@@ -24,6 +24,8 @@ fun MemoryStore.SecondBrainSnapshot.summary(): SecondBrainSummary = SecondBrainS
     empty = notes.isEmpty() &&
         people.isEmpty() &&
         raw.isEmpty() &&
+        // The four seeded hubs are the skeleton; a fifth is something added.
+        areas.size <= 4 &&
         (soul == null || MemoryStore.isPristineSoul(soul.content)) &&
         (memoryIndex == null || MemoryStore.isPristineMemoryIndex(memoryIndex.content)) &&
         areas.all { MemoryStore.isPristineArea(it.content) }

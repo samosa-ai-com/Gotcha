@@ -428,12 +428,19 @@ fun ChatScreen(
                                 showMemory = showMemoryIntro,
                                 showSchedule = showScheduleIntro,
                                 onMemory = {
+                                    // Both prompts need a write: memory saves a
+                                    // note, scheduling creates a task. Monitor
+                                    // would refuse them, so pick the mode the
+                                    // chip is asking for; the selector above
+                                    // shows the change.
+                                    onSetAgent(AgentMode.OPERATOR)
                                     input = context.getString(R.string.starter_remember_this_template)
                                     inputWasVoice = false
                                     featureIntro.markSeen(FeatureIntroStore.MEMORY)
                                     showMemoryIntro = false
                                 },
                                 onSchedule = {
+                                    onSetAgent(AgentMode.OPERATOR)
                                     input = context.getString(R.string.starter_every_morning_template)
                                     inputWasVoice = false
                                     featureIntro.markSeen(FeatureIntroStore.SCHEDULE)

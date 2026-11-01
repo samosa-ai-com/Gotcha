@@ -18,7 +18,8 @@ class SecondBrainWriteTest {
 
     @Test
     fun `an edit inside the vault says updated`() {
-        val line = "edit: Replaced 1 occurrence in 'MEMORY.md' (resolved: $root/MEMORY.md)."
+        // EditTool prints the canonical target, not a resolved marker.
+        val line = "edit: Replaced 1 occurrence in '$root/MEMORY.md'.\n- old\n+ new"
 
         assertEquals(SecondBrainWrite.UPDATED, secondBrainWriteOf(line, root))
     }

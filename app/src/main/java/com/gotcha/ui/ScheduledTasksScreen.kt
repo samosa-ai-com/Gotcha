@@ -234,7 +234,9 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
                     onOpenChat = onOpenChat
                 )
             }
-            HorizontalDivider()
+            // Only a boundary between the two groups; with no tasks below, the
+            // divider before the buttons already closes the list.
+            if (mine.isNotEmpty()) HorizontalDivider()
         }
         if (mine.isNotEmpty()) {
             if (examples.isNotEmpty()) {

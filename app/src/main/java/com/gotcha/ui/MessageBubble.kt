@@ -248,11 +248,16 @@ fun MessageBubble(
                     // vault says so, once, under the tool row. Read from the
                     // ledger text, so it works on chats saved before it existed.
                     if (isTool) {
-                        val memoryWrite = remember(displayText) {
-                            secondBrainWriteOf(
-                                displayText,
+                        // canonicalPath, because the file tools print the
+                        // canonical target and a symlinked root would not
+                        // prefix-match otherwise.
+                        val memoryRoot = remember {
+                            runCatching { GotchaStorage.memoryRoot().canonicalPath }.getOrElse {
                                 runCatching { GotchaStorage.memoryRoot().absolutePath }.getOrDefault("")
-                            )
+                            }
+                        }
+                        val memoryWrite = remember(displayText, memoryRoot) {
+                            secondBrainWriteOf(displayText, memoryRoot)
                         }
                         if (memoryWrite != null) {
                             Row(

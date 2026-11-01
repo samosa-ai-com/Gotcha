@@ -173,11 +173,22 @@ class ScheduledTaskStoreTest {
 
         store.update(evening.id) { it.copy(presetId = null, enabled = true) }
         store.forgetPreset(ScheduledPresets.EVENING_WRAP_UP)
+        // Renaming is the main reason to customize an example; it must not
+        // make the example look missing again.
+        store.update(evening.id) { it.copy(name = "My evening") }
 
+        assertTrue(store.missingPresets().none { it.id == ScheduledPresets.EVENING_WRAP_UP })
         assertTrue(store.seedPresets("/mem", now, zone).isEmpty())
         assertEquals(0, store.restorePresets("/mem", now, zone))
-        assertEquals(1, store.all().count { it.name == evening.name })
+        assertEquals(1, store.all().count { it.name == "My evening" })
+        assertEquals(0, store.all().count { it.name == evening.name })
         assertEquals(null, store.get(evening.id)!!.presetId)
+
+        // Deleting a promoted example does not bring it back either: it stopped
+        // being an example when the user made it theirs.
+        store.delete(evening.id)
+        assertTrue(store.missingPresets().none { it.id == ScheduledPresets.EVENING_WRAP_UP })
+        assertEquals(0, store.restorePresets("/mem", now, zone))
     }
 
     @Test

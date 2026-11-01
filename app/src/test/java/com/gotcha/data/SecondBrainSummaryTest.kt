@@ -42,6 +42,11 @@ class SecondBrainSummaryTest {
     }
 
     @Test
+    fun `a fifth area ends the empty state`() {
+        assertFalse(snapshot(areas = 5).summary().empty)
+    }
+
+    @Test
     fun `a person ends the empty state too`() {
         assertFalse(snapshot(people = 1).summary().empty)
     }
