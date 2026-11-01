@@ -86,25 +86,51 @@ class ScheduledTaskStore internal constructor(
         val created = mutableListOf<ScheduledTask>()
         for (preset in ScheduledPresets.all) {
             if (tasks.any { it.presetId == preset.id }) continue
-            // The briefing seeded before examples existed is tracked under its
-            // own key, so it is adopted rather than duplicated once.
-            val trackedId = prefs.getString(taskKey(preset.id), null) ?: legacyTaskId(preset.id)
-            val tracked = trackedId?.let { id -> tasks.firstOrNull { it.id == id } }
-            if (tracked != null) {
-                tasks = tasks.map { if (it.id == tracked.id) it.copy(presetId = preset.id) else it }
-                markSeeded(preset.id, tracked.id)
-                continue
-            }
-            if (isSeeded(preset.id)) continue
-            val task = ScheduledPresets.task(preset, memoryRoot, localNow)
-                .copy(id = UUID.randomUUID().toString(), createdAt = now, presetId = preset.id)
-            tasks = tasks + task
-            created += task
-            markSeeded(preset.id, task.id)
+            val seeded = seedOne(preset, tasks, memoryRoot, localNow, now)
+            tasks = seeded.tasks
+            seeded.created?.let { created += it }
         }
         if (created.isNotEmpty() || tasks != existing) write(tasks)
         created
     }
+
+    /**
+     * One preset's place in [tasks]: already tracked, already seen, a task the
+     * user made under the same name, or a new paused copy. Never returns a
+     * second copy of anything.
+     */
+    private fun seedOne(
+        preset: ScheduledPreset,
+        tasks: List<ScheduledTask>,
+        memoryRoot: String,
+        localNow: LocalDateTime,
+        now: Long
+    ): PresetSeed {
+        // The briefing seeded before examples existed is tracked under its
+        // own key, so it is adopted rather than duplicated once.
+        val trackedId = prefs.getString(taskKey(preset.id), null) ?: legacyTaskId(preset.id)
+        val tracked = trackedId?.let { id -> tasks.firstOrNull { it.id == id } }
+        if (tracked != null) {
+            markSeeded(preset.id, tracked.id)
+            return PresetSeed(tasks.map { if (it.id == tracked.id) it.copy(presetId = preset.id) else it })
+        }
+        if (isSeeded(preset.id)) return PresetSeed(tasks)
+        // A task the user already made with the example's name is theirs: adopt
+        // it as the example instead of adding a duplicate beside it. Only on the
+        // first seed, so promoting or deleting later stays put.
+        val sameName = tasks.firstOrNull { it.name == preset.name }
+        if (sameName != null) {
+            markSeeded(preset.id, sameName.id)
+            return PresetSeed(tasks.map { if (it.id == sameName.id) it.copy(presetId = preset.id) else it })
+        }
+        val task = ScheduledPresets.task(preset, memoryRoot, localNow)
+            .copy(id = UUID.randomUUID().toString(), createdAt = now, presetId = preset.id)
+        markSeeded(preset.id, task.id)
+        return PresetSeed(tasks + task, task)
+    }
+
+    /** The task list after seeding one preset, plus the task it created, if any. */
+    private data class PresetSeed(val tasks: List<ScheduledTask>, val created: ScheduledTask? = null)
 
     /**
      * Examples that are not in [tasks] at all: what the restore button would

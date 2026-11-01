@@ -126,8 +126,10 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     }
     // Examples stay above the user's own tasks until turned on or edited, at
     // which point the task stops carrying a preset id and moves down.
-    val examples = tasks.filter { it.presetId != null }
-    val mine = tasks.filter { it.presetId == null }
+    val examples = tasks.filter { it.presetId != null && !it.enabled }
+    // An enabled task stays the user's own even if it was adopted as an example
+    // (a task they already had under the example's name).
+    val mine = tasks.filter { it.presetId == null || it.enabled }
     val missingExamples = remember(tasks) { store.missingPresets() }
     val canRunUnattended = remember(tick) { ScheduledTaskScheduler.canRunUnattended(context) }
 
@@ -418,7 +420,9 @@ private fun TaskRow(
     onOpenChat: (String) -> Unit
 ) {
     val context = LocalContext.current
-    var showHistory by remember { mutableStateOf(false) }
+    // Keyed by task: promoting or deleting a row moves the others, and an
+    // unkeyed flag would open the wrong task's history.
+    var showHistory by remember(task.id) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {

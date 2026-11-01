@@ -103,6 +103,17 @@ object MemoryStore {
     fun isPristineMemoryIndex(content: String): Boolean =
         content.trim() == defaultMemoryIndex().trim()
 
+    /**
+     * True while an area hub still holds only its generated heading and the one
+     * line under it. The frontmatter date changes every time a hub is created,
+     * so only the body is compared; a third non-blank line is something the
+     * user or agent added.
+     */
+    fun isPristineArea(content: String): Boolean {
+        val body = content.substringAfter("\n---\n", content)
+        return body.lines().count { it.isNotBlank() } <= 2
+    }
+
     /** Rewrites user.md from Personal Info. Called on startup and on profile updates. */
     fun syncUserFile(settings: Settings) {
         runCatching {

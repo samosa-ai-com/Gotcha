@@ -25,5 +25,6 @@ fun MemoryStore.SecondBrainSnapshot.summary(): SecondBrainSummary = SecondBrainS
         people.isEmpty() &&
         raw.isEmpty() &&
         (soul == null || MemoryStore.isPristineSoul(soul.content)) &&
-        (memoryIndex == null || MemoryStore.isPristineMemoryIndex(memoryIndex.content))
+        (memoryIndex == null || MemoryStore.isPristineMemoryIndex(memoryIndex.content)) &&
+        areas.all { MemoryStore.isPristineArea(it.content) }
 )

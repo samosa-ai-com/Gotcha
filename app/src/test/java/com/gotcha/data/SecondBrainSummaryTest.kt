@@ -57,6 +57,33 @@ class SecondBrainSummaryTest {
     }
 
     @Test
+    fun `an edited area hub is not empty even without notes`() {
+        val withArea = MemoryStore.SecondBrainSnapshot(
+            available = true,
+            soul = null,
+            memoryIndex = null,
+            userCard = null,
+            areas = listOf(
+                MemoryStore.BrainFile(
+                    "work.md",
+                    "---\ntitle: Work\ntype: area\n---\n\n# Work\n\nProjects.\n\n- Alpha ships Friday",
+                    false
+                )
+            ),
+            people = emptyList(),
+            notes = emptyList()
+        )
+
+        assertFalse(withArea.summary().empty)
+    }
+
+    @Test
+    fun `the generated area hub is pristine`() {
+        val generated = "---\ntitle: Work\ntype: area\n---\n\n# Work\n\nProjects and work threads."
+        assertTrue(MemoryStore.isPristineArea(generated))
+    }
+
+    @Test
     fun `counts follow the snapshot`() {
         val summary = snapshot(notes = 3, people = 2, areas = 4).summary()
 

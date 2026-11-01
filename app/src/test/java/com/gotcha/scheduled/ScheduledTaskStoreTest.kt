@@ -134,6 +134,19 @@ class ScheduledTaskStoreTest {
     }
 
     @Test
+    fun `a task the user already named like an example is adopted`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
+        store.put(task("u").copy(name = "Weekly review"))
+
+        val created = store.seedPresets("/mem", now, zone)
+
+        assertEquals(ScheduledPresets.all.size - 1, created.size)
+        assertEquals(ScheduledPresets.WEEKLY_REVIEW, store.get("u")!!.presetId)
+        assertEquals(1, store.all().count { it.name == "Weekly review" })
+    }
+
+    @Test
     fun `a deleted example stays gone until examples are restored`() {
         val zone = java.time.ZoneId.of("UTC")
         val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
