@@ -1200,8 +1200,8 @@ class MainActivity : ComponentActivity() {
                             chatViewModel.openSession(id)
                             currentRoute = Route.HOME
                         },
-                        onStartChat = { prompt ->
-                            chatViewModel.startChatFromTip(prompt, AgentMode.MONITOR)
+                        onStartChat = { prompt, mode ->
+                            chatViewModel.startChatFromTip(prompt, mode)
                             currentRoute = Route.HOME
                         },
                         onImportChats = { chatTransfer.startImport() },
@@ -1264,8 +1264,8 @@ class MainActivity : ComponentActivity() {
                     BackHandler { currentRoute = Route.HOME }
                     SecondBrainScreen(
                         onBack = { currentRoute = Route.HOME },
-                        onStartChat = { prompt ->
-                            chatViewModel.startChatFromTip(prompt, AgentMode.MONITOR)
+                        onStartChat = { prompt, mode ->
+                            chatViewModel.startChatFromTip(prompt, mode)
                             currentRoute = Route.HOME
                         }
                     )

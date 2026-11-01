@@ -61,6 +61,7 @@ import com.gotcha.R
 import com.gotcha.data.MemoryStore
 import com.gotcha.data.summary
 import com.gotcha.scheduled.ScheduledTaskStore
+import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
 import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.Dispatchers
@@ -83,8 +84,12 @@ import kotlin.math.sin
 @Composable
 fun SecondBrainScreen(
     onBack: () -> Unit,
-    /** Opens a new chat with the prompt in the composer. Filled, never sent. */
-    onStartChat: (String) -> Unit = {}
+    /**
+     * Opens a new chat in the given mode with the prompt in the composer.
+     * Filled, never sent. The mode is explicit because saving memory needs
+     * Operator while reading it does not.
+     */
+    onStartChat: (String, AgentMode) -> Unit = { _, _ -> }
 ) {
     val overlay = rememberSettingsOverlayState()
     val context = LocalContext.current
@@ -326,7 +331,7 @@ private fun SecondBrainAccessCard(onGrant: () -> Unit) {
  * composer and stop, like every other starter in the app.
  */
 @Composable
-private fun SecondBrainStartCard(onStartChat: (String) -> Unit) {
+private fun SecondBrainStartCard(onStartChat: (String, AgentMode) -> Unit) {
     val meetPrompt = stringResource(R.string.second_brain_start_meet_prompt)
     val recallPrompt = stringResource(R.string.second_brain_start_recall_prompt)
     Surface(
@@ -348,11 +353,12 @@ private fun SecondBrainStartCard(onStartChat: (String) -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Button(
-                onClick = { onStartChat(meetPrompt) },
+                // Saving memory is a write, so this chat opens in Operator.
+                onClick = { onStartChat(meetPrompt, AgentMode.OPERATOR) },
                 modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_start_meet")
             ) { Text(stringResource(R.string.second_brain_start_meet)) }
             OutlinedButton(
-                onClick = { onStartChat(recallPrompt) },
+                onClick = { onStartChat(recallPrompt, AgentMode.MONITOR) },
                 modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_start_recall")
             ) { Text(stringResource(R.string.second_brain_start_recall)) }
         }

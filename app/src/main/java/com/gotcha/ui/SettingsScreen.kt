@@ -43,6 +43,7 @@ import com.gotcha.data.FeedbackChannel
 import com.gotcha.data.Settings
 import com.gotcha.i18n.Language
 import com.gotcha.i18n.stringLookup
+import com.gotcha.tools.AgentMode
 import com.gotcha.ui.tour.TourAnchor
 import com.gotcha.ui.tour.tourAnchor
 import kotlinx.coroutines.delay
@@ -128,10 +129,11 @@ fun SettingsScreen(
     /** Leaves Settings for chat [String], e.g. the one a scheduled task's run went into. */
     onOpenChat: (String) -> Unit = {},
     /**
-     * Leaves Settings for a new chat with [String] in the composer, e.g. the
-     * Second Brain page's "get to know me" prompt. Filled, never sent.
+     * Leaves Settings for a new chat in [AgentMode] with [String] in the
+     * composer, e.g. the Second Brain page's "get to know me" prompt. Filled,
+     * never sent.
      */
-    onStartChat: (String) -> Unit = {},
+    onStartChat: (String, AgentMode) -> Unit = { _, _ -> },
     /** Opens the system picker to import chats (Settings ▸ Chats). */
     onImportChats: () -> Unit = {},
     /** Backs up every chat through the system save picker (Settings ▸ Chats). */
