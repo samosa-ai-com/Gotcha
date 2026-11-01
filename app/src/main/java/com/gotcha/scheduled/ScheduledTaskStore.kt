@@ -30,6 +30,7 @@ import java.util.UUID
 internal const val KEY_BRIEFING_SEEDED = "briefing_preset_seeded"
 internal const val KEY_BRIEFING_TASK_ID = "briefing_preset_task_id"
 
+@Suppress("TooManyFunctions") // A storage facade: one small verb per operation, no shared state of its own.
 class ScheduledTaskStore internal constructor(
     private val prefs: SharedPreferences,
     private val attachmentsDir: File

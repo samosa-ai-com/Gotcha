@@ -38,6 +38,29 @@ class SecondBrainWriteTest {
     }
 
     @Test
+    fun `a reopened chat's stored write still says saved`() {
+        // ChatViewModel rebuilds tool rows from history, where the tool name is
+        // gone and only the result remains.
+        val line = "Wrote 1.2 KB to 'notes/plan.md' (resolved: $root/notes/plan.md)."
+
+        assertEquals(SecondBrainWrite.SAVED, secondBrainWriteOf(line, root))
+    }
+
+    @Test
+    fun `a reopened chat's stored edit still says updated`() {
+        val line = "Replaced 1 occurrence in '$root/MEMORY.md'.\n- old\n+ new"
+
+        assertEquals(SecondBrainWrite.UPDATED, secondBrainWriteOf(line, root))
+    }
+
+    @Test
+    fun `a stored edit outside the vault is not memory`() {
+        val line = "Replaced 1 occurrence in '/sdcard/Download/a.md'.\n- old\n+ new"
+
+        assertNull(secondBrainWriteOf(line, root))
+    }
+
+    @Test
     fun `a read of a memory file is not a write`() {
         val line = "read_file: Read MEMORY.md (resolved: $root/MEMORY.md)."
 

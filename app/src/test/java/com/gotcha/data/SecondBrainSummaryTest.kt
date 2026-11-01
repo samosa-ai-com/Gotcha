@@ -13,11 +13,13 @@ class SecondBrainSummaryTest {
     private fun snapshot(
         notes: Int = 0,
         people: Int = 0,
-        areas: Int = 4
+        areas: Int = 4,
+        soul: String? = null,
+        memoryIndex: String? = null
     ) = MemoryStore.SecondBrainSnapshot(
         available = true,
-        soul = file("SOUL.md"),
-        memoryIndex = file("MEMORY.md"),
+        soul = soul?.let { MemoryStore.BrainFile("SOUL.md", it, false) },
+        memoryIndex = memoryIndex?.let { MemoryStore.BrainFile("MEMORY.md", it, false) },
         userCard = file("user.md"),
         areas = List(areas) { file("area$it.md") },
         people = List(people) { file("person$it.md") },
@@ -42,6 +44,16 @@ class SecondBrainSummaryTest {
     @Test
     fun `a person ends the empty state too`() {
         assertFalse(snapshot(people = 1).summary().empty)
+    }
+
+    @Test
+    fun `an edited identity is not empty even without notes`() {
+        assertFalse(snapshot(soul = "# SOUL\n\n- Tone: dry").summary().empty)
+    }
+
+    @Test
+    fun `an edited map is not empty even without notes`() {
+        assertFalse(snapshot(memoryIndex = "# MEMORY\n\n- Gym: notes/gym.md").summary().empty)
     }
 
     @Test

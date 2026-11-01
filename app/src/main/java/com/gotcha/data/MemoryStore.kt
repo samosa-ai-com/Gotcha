@@ -92,6 +92,17 @@ object MemoryStore {
         }
     }
 
+    /**
+     * True while [content] is still the generated skeleton. Used by the viewer
+     * to tell "nothing here yet" from a brain the agent has already shaped,
+     * including when the only change is to identity or the map.
+     */
+    fun isPristineSoul(content: String): Boolean = content.trim() == defaultSoul().trim()
+
+    /** See [isPristineSoul]. */
+    fun isPristineMemoryIndex(content: String): Boolean =
+        content.trim() == defaultMemoryIndex().trim()
+
     /** Rewrites user.md from Personal Info. Called on startup and on profile updates. */
     fun syncUserFile(settings: Settings) {
         runCatching {

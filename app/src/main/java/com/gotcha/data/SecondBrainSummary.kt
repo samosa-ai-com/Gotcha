@@ -4,10 +4,10 @@ package com.gotcha.data
  * What the Second Brain page says above the files, taken from the snapshot it
  * already loaded.
  *
- * [empty] means the vault holds nothing but the seeded skeleton — `SOUL.md`,
- * `MEMORY.md`, `user.md` and the four area hubs. That is the state worth a
- * "start it with a conversation" card: showing the same rows with an empty
- * notes list teaches nothing.
+ * [empty] means the vault holds nothing but the seeded skeleton — the generated
+ * `SOUL.md` and `MEMORY.md`, `user.md` and the four area hubs. A brain whose
+ * identity or map has already been edited is not empty, even with no notes
+ * yet: the start card would be claiming it knows nothing when it does.
  */
 data class SecondBrainSummary(
     val notes: Int,
@@ -21,5 +21,9 @@ fun MemoryStore.SecondBrainSnapshot.summary(): SecondBrainSummary = SecondBrainS
     notes = notes.size,
     people = people.size,
     areas = areas.size,
-    empty = notes.isEmpty() && people.isEmpty()
+    empty = notes.isEmpty() &&
+        people.isEmpty() &&
+        raw.isEmpty() &&
+        (soul == null || MemoryStore.isPristineSoul(soul.content)) &&
+        (memoryIndex == null || MemoryStore.isPristineMemoryIndex(memoryIndex.content))
 )
