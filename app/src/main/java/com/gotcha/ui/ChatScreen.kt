@@ -169,9 +169,21 @@ fun ChatScreen(
     // per empty chat, so using it during this session retires the chip too.
     LaunchedEffect(isHome, state.activeSessionId) {
         if (!isHome) return@LaunchedEffect
+        // Blank while the check runs: a chip that was on in the previous empty
+        // chat must not flash if the feature has since been used.
+        showMemoryIntro = false
+        showScheduleIntro = false
         val usage = withContext(Dispatchers.IO) { loadFeatureUsage(context) }
-        showMemoryIntro = !featureIntro.hasSeen(FeatureIntroStore.MEMORY) && !usage.memory
-        showScheduleIntro = !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE) && !usage.schedule
+        // Usage retires a chip permanently, so deleting the note or task later
+        // does not bring "New for you" back for something they already know.
+        if (usage.memory && !featureIntro.hasSeen(FeatureIntroStore.MEMORY)) {
+            featureIntro.markSeen(FeatureIntroStore.MEMORY)
+        }
+        if (usage.schedule && !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)) {
+            featureIntro.markSeen(FeatureIntroStore.SCHEDULE)
+        }
+        showMemoryIntro = !featureIntro.hasSeen(FeatureIntroStore.MEMORY)
+        showScheduleIntro = !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)
     }
     // A draft handed over by the view model (a tapped daily tip): fill, never send.
     LaunchedEffect(state.composerDraft) {

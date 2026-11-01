@@ -1255,8 +1255,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 Route.SECOND_BRAIN -> {
-                    // The drawer's door: back returns to chat, while the
-                    // Settings page keeps its own back-to-list behavior.
+                    // Reached from the drawer: back returns to chat.
                     BackHandler { currentRoute = Route.HOME }
                     SecondBrainScreen(
                         onBack = { currentRoute = Route.HOME },

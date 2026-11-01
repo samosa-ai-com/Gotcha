@@ -26,7 +26,9 @@ fun loadFeatureUsage(
     /** Injectable for tests: the real store lives in encrypted prefs. */
     loadTasks: () -> List<ScheduledTask> = { ScheduledTaskStore(context).all() }
 ): FeatureUsage = FeatureUsage(
-    memory = MemoryStore.isInUse(),
+    // A listing can fail on a hostile or unmounted volume; "not used" is the
+    // safe answer, since it only means the chip may be offered.
+    memory = runCatching { MemoryStore.isInUse() }.getOrDefault(false),
     schedule = runCatching { scheduleInUse(loadTasks()) }.getOrDefault(false)
 )
 

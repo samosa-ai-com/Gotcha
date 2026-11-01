@@ -99,18 +99,46 @@ object MemoryStore {
      * viewer's full load.
      */
     fun isInUse(): Boolean {
-        fun hasMarkdown(dir: java.io.File): Boolean =
-            dir.listFiles()?.any { it.isFile && it.extension.equals("md", true) } == true
-        if (hasMarkdown(GotchaStorage.memoryNotesDir()) ||
-            hasMarkdown(GotchaStorage.memoryPeopleDir()) ||
-            GotchaStorage.memoryRawDir().listFiles()?.any { it.isFile } == true
+        fun markdownFiles(dir: java.io.File): List<java.io.File> = dir.listFiles().orEmpty().filter {
+            it.isFile && (it.extension.equals("md", true) || it.extension.equals("markdown", true))
+        }
+        // Empty files for which the viewer shows nothing are not use.
+        if (markdownFiles(GotchaStorage.memoryNotesDir()).any { it.length() > 0 } ||
+            markdownFiles(GotchaStorage.memoryPeopleDir()).any { it.length() > 0 }
         ) {
             return true
         }
-        val soul = runCatching { GotchaStorage.soulFile().readText() }.getOrNull()
-        val index = runCatching { GotchaStorage.memoryIndexFile().readText() }.getOrNull()
-        return (soul != null && !isPristineSoul(soul)) ||
-            (index != null && !isPristineMemoryIndex(index))
+        // Hidden files are the media scanner's, not the user's.
+        if (GotchaStorage.memoryRawDir().listFiles().orEmpty().any {
+                it.isFile && it.length() > 0 && !it.name.startsWith(".")
+            }
+        ) {
+            return true
+        }
+        val areas = markdownFiles(GotchaStorage.memoryAreasDir())
+        if (areas.size > 4) return true
+        if (areas.any { area -> runCatching { !isPristineArea(area.readText()) }.getOrDefault(false) }) {
+            return true
+        }
+        return editedFromDefault(GotchaStorage.soulFile(), SOUL_CAP_CHARS, ::isPristineSoul) ||
+            editedFromDefault(GotchaStorage.memoryIndexFile(), MEMORY_CAP_CHARS, ::isPristineMemoryIndex)
+    }
+
+    /**
+     * A generated file is untouched when it still matches its template. One
+     * longer than the startup cap cannot be, so it is not read at all; smaller
+     * files are compared with line endings normalised, since an external edit
+     * may have converted them to CRLF without changing a word.
+     */
+    private fun editedFromDefault(
+        file: java.io.File,
+        capChars: Int,
+        isPristine: (String) -> Boolean
+    ): Boolean {
+        if (!file.exists()) return false
+        if (file.length() > capChars) return true
+        val text = runCatching { file.readText() }.getOrNull() ?: return false
+        return !isPristine(text)
     }
 
     /**
@@ -118,11 +146,12 @@ object MemoryStore {
      * to tell "nothing here yet" from a brain the agent has already shaped,
      * including when the only change is to identity or the map.
      */
-    fun isPristineSoul(content: String): Boolean = content.trim() == defaultSoul().trim()
+    fun isPristineSoul(content: String): Boolean =
+        normalizeNewlines(content) == normalizeNewlines(defaultSoul())
 
     /** See [isPristineSoul]. */
     fun isPristineMemoryIndex(content: String): Boolean =
-        content.trim() == defaultMemoryIndex().trim()
+        normalizeNewlines(content) == normalizeNewlines(defaultMemoryIndex())
 
     /**
      * True while an area hub still holds only its generated heading and the one
@@ -131,9 +160,12 @@ object MemoryStore {
      * user or agent added.
      */
     fun isPristineArea(content: String): Boolean {
-        val body = content.substringAfter("\n---\n", content)
+        val normalized = normalizeNewlines(content)
+        val body = normalized.substringAfter("\n---\n", normalized)
         return body.lines().count { it.isNotBlank() } <= 2
     }
+
+    private fun normalizeNewlines(text: String): String = text.replace("\r\n", "\n").trim()
 
     /** Rewrites user.md from Personal Info. Called on startup and on profile updates. */
     fun syncUserFile(settings: Settings) {

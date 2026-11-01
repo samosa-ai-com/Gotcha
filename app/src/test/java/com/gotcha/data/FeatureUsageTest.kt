@@ -69,6 +69,80 @@ class FeatureUsageTest {
     }
 
     @Test
+    fun `an edited map counts as memory use`() {
+        GotchaStorage.memoryIndexFile().writeText("# MEMORY\n\n- Gym: notes/gym.md")
+
+        assertTrue(usage().memory)
+    }
+
+    @Test
+    fun `a person counts as memory use`() {
+        File(GotchaStorage.memoryPeopleDir(), "ana.md").writeText("# Ana\n\nSister.")
+
+        assertTrue(usage().memory)
+    }
+
+    @Test
+    fun `a raw file counts as memory use`() {
+        File(GotchaStorage.memoryRawDir(), "receipt.pdf").writeBytes(byteArrayOf(1, 2, 3))
+
+        assertTrue(usage().memory)
+    }
+
+    @Test
+    fun `a hidden raw file is the media scanner, not use`() {
+        File(GotchaStorage.memoryRawDir(), ".nomedia").writeText("")
+
+        assertFalse(usage().memory)
+    }
+
+    @Test
+    fun `an empty note is not use`() {
+        File(GotchaStorage.memoryNotesDir(), "empty.md").writeText("")
+
+        assertFalse(usage().memory)
+    }
+
+    @Test
+    fun `a markdown note counts even with the long extension`() {
+        File(GotchaStorage.memoryNotesDir(), "tea.markdown").writeText("# Tea\n\nMasala chai.")
+
+        assertTrue(usage().memory)
+    }
+
+    @Test
+    fun `an edited area hub counts as memory use`() {
+        val work = File(GotchaStorage.memoryAreasDir(), "work.md")
+        work.writeText(work.readText() + "\n- Alpha ships Friday")
+
+        assertTrue(usage().memory)
+    }
+
+    @Test
+    fun `a fifth area counts as memory use`() {
+        File(GotchaStorage.memoryAreasDir(), "finance.md").writeText(
+            "---\ntitle: Finance\ntype: area\n---\n\n# Finance\n\nBudget notes."
+        )
+
+        assertTrue(usage().memory)
+    }
+
+    @Test
+    fun `CRLF in a generated file is still the skeleton`() {
+        val soul = GotchaStorage.soulFile()
+        soul.writeText(soul.readText().replace("\n", "\r\n"))
+
+        assertFalse(usage().memory)
+    }
+
+    @Test
+    fun `a failing task read does not fail the check`() {
+        val usage = loadFeatureUsage(context) { throw IllegalStateException("boom") }
+
+        assertFalse(usage.schedule)
+    }
+
+    @Test
     fun `a task the user made counts as scheduling use`() {
         tasks.put(task())
 

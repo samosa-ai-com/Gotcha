@@ -272,8 +272,7 @@ fun AppDrawerContent(
             HorizontalDivider()
             NavigationDrawerItem(
                 // Sits with Scheduled tasks: both are the parts of Gotcha that
-                // keep working when no chat is open. The Settings row stays as
-                // the second door, for people who look there first.
+                // keep working when no chat is open. This is the only door.
                 label = { Text(stringResource(R.string.drawer_second_brain)) },
                 icon = { Icon(Icons.Default.Psychology, contentDescription = null) },
                 selected = false,
