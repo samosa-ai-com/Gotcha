@@ -158,6 +158,24 @@ val DAILY_TIPS = listOf(
         prompt = R.string.daily_tip_podcast_prompt,
         tools = setOf("synthesize_podcast", "synthesize_podcast_dialogue"),
         agent = AgentMode.OPERATOR
+    ),
+    // Memory and scheduling are the two features users most often never find;
+    // a tip is the one surface that reaches them without opening Settings.
+    DailyTip(
+        id = "remember_a_fact",
+        title = R.string.daily_tip_memory_title,
+        body = R.string.daily_tip_memory_body,
+        prompt = R.string.daily_tip_memory_prompt,
+        tools = setOf("write_file", "edit"),
+        agent = AgentMode.OPERATOR
+    ),
+    DailyTip(
+        id = "daily_briefing",
+        title = R.string.daily_tip_schedule_title,
+        body = R.string.daily_tip_schedule_body,
+        prompt = R.string.daily_tip_schedule_prompt,
+        tools = setOf("schedule_agent_task"),
+        agent = AgentMode.OPERATOR
     )
 )
 

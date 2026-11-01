@@ -60,6 +60,17 @@ object MemoryStore {
      * safe to call without All-files access (mkdirs may fail; callers ignore).
      */
     fun ensureDefaults(settings: Settings) {
+        ensureSkeleton()
+        syncUserFile(settings)
+    }
+
+    /**
+     * The vault every page expects, without [syncUserFile]. Safe to call from
+     * the viewer after the user grants file access mid-session, when no
+     * [Settings] is at hand: startup's [ensureDefaults] may have run before the
+     * grant and found nowhere to write.
+     */
+    fun ensureSkeleton() {
         runCatching {
             val root = GotchaStorage.memoryRoot()
             root.mkdirs()
@@ -78,7 +89,6 @@ object MemoryStore {
             }
             ensureAreaHubs()
             migrateLegacyHubs()
-            syncUserFile(settings)
         }
     }
 

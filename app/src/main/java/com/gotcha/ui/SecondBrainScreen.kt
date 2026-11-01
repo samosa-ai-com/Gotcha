@@ -15,16 +15,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,6 +43,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -50,10 +55,14 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
 import com.gotcha.data.MemoryStore
+import com.gotcha.data.summary
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -72,15 +81,36 @@ import kotlin.math.sin
  * Editing stays in the agent and the file system for now.
  */
 @Composable
-fun SecondBrainScreen(onBack: () -> Unit) {
+fun SecondBrainScreen(
+    onBack: () -> Unit,
+    /** Opens a new chat with the prompt in the composer. Filled, never sent. */
+    onStartChat: (String) -> Unit = {}
+) {
     val overlay = rememberSettingsOverlayState()
     val context = LocalContext.current
     var snapshot by remember { mutableStateOf<MemoryStore.SecondBrainSnapshot?>(null) }
     var health by remember { mutableStateOf<MemoryStore.BrainHealth?>(null) }
     var showGraph by remember { mutableStateOf(false) }
+    // Bumped on resume: the user may have granted file access in Android
+    // Settings, or a chat may have written something while they were away.
+    var tick by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        val loaded = withContext(Dispatchers.IO) { MemoryStore.loadSnapshot() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) tick++
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(tick) {
+        // The user may have just granted file access: create the vault now,
+        // since startup's seeding ran before the grant and could not.
+        val loaded = withContext(Dispatchers.IO) {
+            MemoryStore.ensureSkeleton()
+            MemoryStore.loadSnapshot()
+        }
         snapshot = loaded
         // Health re-reads files and resolves every link: off the main thread.
         health = withContext(Dispatchers.Default) {
@@ -98,13 +128,6 @@ fun SecondBrainScreen(onBack: () -> Unit) {
         onBack = onBack,
         overlay = overlay
     ) {
-        Text(
-            stringResource(R.string.second_brain_intro),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag("settings_second_brain_intro")
-        )
-
         val current = snapshot
         if (current == null) {
             Text(
@@ -115,13 +138,28 @@ fun SecondBrainScreen(onBack: () -> Unit) {
             return@SettingsScaffold
         }
         if (!current.available) {
-            Text(
-                stringResource(R.string.second_brain_unavailable),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.testTag("settings_second_brain_unavailable")
+            SecondBrainAccessCard(
+                onGrant = { openSpecialAccess(context, ToolResult.ALL_FILES_ACCESS, context.packageName) }
             )
             return@SettingsScaffold
         }
+
+        val summary = remember(current) { current.summary() }
+        Text(
+            stringResource(R.string.second_brain_summary, summary.notes, summary.people, summary.areas),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("settings_second_brain_summary")
+        )
+        // Nothing but the seeded skeleton: the useful next step is a
+        // conversation, not the file list.
+        if (summary.empty) SecondBrainStartCard(onStartChat = onStartChat)
+        Text(
+            stringResource(R.string.second_brain_intro),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("settings_second_brain_intro")
+        )
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -230,6 +268,93 @@ fun SecondBrainScreen(onBack: () -> Unit) {
             // Health is vault-level, not query-level: hide it while searching
             // so its unrelated filenames never confuse a filtered view.
             if (search.isBlank()) health?.let { BrainHealthSection(health = it) }
+        }
+    }
+}
+
+/**
+ * What the page says before Gotcha can read its memory: what the thing is,
+ * what it buys the user, and the one system toggle that stands in the way.
+ * The old copy named the toggle but left the journey to the user.
+ */
+@Composable
+private fun SecondBrainAccessCard(onGrant: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_setup")
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                stringResource(R.string.second_brain_setup_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                stringResource(R.string.second_brain_setup_body),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            listOf(
+                R.string.second_brain_setup_remembers,
+                R.string.second_brain_setup_grows,
+                R.string.second_brain_setup_yours
+            ).forEach { line ->
+                Text(
+                    "• " + stringResource(line),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Button(
+                onClick = onGrant,
+                modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_grant")
+            ) { Text(stringResource(R.string.second_brain_setup_grant)) }
+            Text(
+                stringResource(R.string.second_brain_setup_grant_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * A vault holding only the seeded skeleton. Two prompts rather than an empty
+ * list: one starts the memory, the other shows what it is for. Both fill the
+ * composer and stop, like every other starter in the app.
+ */
+@Composable
+private fun SecondBrainStartCard(onStartChat: (String) -> Unit) {
+    val meetPrompt = stringResource(R.string.second_brain_start_meet_prompt)
+    val recallPrompt = stringResource(R.string.second_brain_start_recall_prompt)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_start")
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                stringResource(R.string.second_brain_start_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                stringResource(R.string.second_brain_start_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(
+                onClick = { onStartChat(meetPrompt) },
+                modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_start_meet")
+            ) { Text(stringResource(R.string.second_brain_start_meet)) }
+            OutlinedButton(
+                onClick = { onStartChat(recallPrompt) },
+                modifier = Modifier.fillMaxWidth().testTag("settings_second_brain_start_recall")
+            ) { Text(stringResource(R.string.second_brain_start_recall)) }
         }
     }
 }

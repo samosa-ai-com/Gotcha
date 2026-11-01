@@ -93,6 +93,7 @@ import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.agent.ForegroundControlRequest
+import com.gotcha.data.FeatureIntroStore
 import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
@@ -146,6 +147,12 @@ fun ChatScreen(
     // is blocked (one agent at a time), and a banner offers a jump back.
     val otherChatRunning = state.runningSessionId != null &&
         state.runningSessionId != state.activeSessionId
+    val context = LocalContext.current
+    // Introductions to features added after this user's first run. Read once
+    // when the home screen appears; a tap retires one for good.
+    val featureIntro = remember { FeatureIntroStore(context) }
+    var showMemoryIntro by remember { mutableStateOf(!featureIntro.hasSeen(FeatureIntroStore.MEMORY)) }
+    var showScheduleIntro by remember { mutableStateOf(!featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)) }
     var input by rememberSaveable { mutableStateOf("") }
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     val pendingAttachments = state.pendingAttachments
@@ -410,6 +417,30 @@ fun ChatScreen(
                                 onPick = onSetPersona
                             )
                         }
+                        // The two features a new user most often never finds:
+                        // memory and scheduling. Filled, never sent, and each
+                        // retires after one tap (see FeatureIntroStore).
+                        if (state.isConfigured && !otherChatRunning &&
+                            (showMemoryIntro || showScheduleIntro)
+                        ) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            NewFeatureRow(
+                                showMemory = showMemoryIntro,
+                                showSchedule = showScheduleIntro,
+                                onMemory = {
+                                    input = context.getString(R.string.starter_remember_this_template)
+                                    inputWasVoice = false
+                                    featureIntro.markSeen(FeatureIntroStore.MEMORY)
+                                    showMemoryIntro = false
+                                },
+                                onSchedule = {
+                                    input = context.getString(R.string.starter_every_morning_template)
+                                    inputWasVoice = false
+                                    featureIntro.markSeen(FeatureIntroStore.SCHEDULE)
+                                    showScheduleIntro = false
+                                }
+                            )
+                        }
                         // Starters are an offer to fill the composer, so they are
                         // only shown when the composer can actually be used: no API
                         // key means typing is disabled, and a run in another chat
@@ -429,7 +460,6 @@ fun ChatScreen(
                             }
                             if (starters.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(24.dp))
-                                val context = LocalContext.current
                                 StarterPromptRow(
                                     prompts = starters,
                                     onPick = { prompt ->

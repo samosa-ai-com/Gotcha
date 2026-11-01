@@ -127,6 +127,11 @@ fun SettingsScreen(
     onSendFeedback: () -> Unit = {},
     /** Leaves Settings for chat [String], e.g. the one a scheduled task's run went into. */
     onOpenChat: (String) -> Unit = {},
+    /**
+     * Leaves Settings for a new chat with [String] in the composer, e.g. the
+     * Second Brain page's "get to know me" prompt. Filled, never sent.
+     */
+    onStartChat: (String) -> Unit = {},
     /** Opens the system picker to import chats (Settings ▸ Chats). */
     onImportChats: () -> Unit = {},
     /** Backs up every chat through the system save picker (Settings ▸ Chats). */
@@ -209,7 +214,8 @@ fun SettingsScreen(
                     onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
                 )
                 SettingsPage.SECOND_BRAIN -> SecondBrainScreen(
-                    onBack = backToHome
+                    onBack = backToHome,
+                    onStartChat = onStartChat
                 )
                 SettingsPage.CHATS -> ChatsScreen(
                     onBack = backToHome,

@@ -23,6 +23,13 @@ import java.util.UUID
  * the write, so the alarm receiver and the Settings page can't overwrite each
  * other's changes.
  */
+/**
+ * The two prefs the Morning briefing preset used before examples existed.
+ * Kept at file scope so the one-time adoption can be tested.
+ */
+internal const val KEY_BRIEFING_SEEDED = "briefing_preset_seeded"
+internal const val KEY_BRIEFING_TASK_ID = "briefing_preset_task_id"
+
 class ScheduledTaskStore internal constructor(
     private val prefs: SharedPreferences,
     private val attachmentsDir: File
@@ -62,42 +69,117 @@ class ScheduledTaskStore internal constructor(
     }
 
     /**
-     * Seeds the Morning briefing preset once (Second Brain Phase 3): present
-     * in the catalog but paused, so the user opts in with the normal toggle.
-     * Never duplicates: an existing briefing (seeded, renamed, re-added, or
-     * user-made) is adopted by id tracking and only the marker is healed.
-     * A deleted preset is never re-added unasked. The flag is written after
-     * the task, so a failed seed retries next time. Returns the preset when
-     * newly created, null otherwise.
+     * Seeds every example in [ScheduledPresets] once, paused, so the page opens
+     * on four things that already show what scheduling is good for.
+     *
+     * Never duplicates: a task already tracked for the preset is adopted, and
+     * the briefing keeps the id it was seeded under before examples existed.
+     * A deleted example is never re-added unasked; [restorePresets] is the
+     * explicit way back. The marker is written after the task, so a failed
+     * write retries on the next open. Returns the tasks newly created.
      */
-    fun seedBriefingPreset(memoryRoot: String, now: Long, zone: ZoneId): ScheduledTask? = synchronized(LOCK) {
-        val seededId = prefs.getString(KEY_BRIEFING_TASK_ID, null)
-        read().firstOrNull { it.id == seededId || it.name == MorningBriefing.TEMPLATE_NAME }?.let { existing ->
-            markBriefingSeeded(existing.id)
-            return null
+    fun seedPresets(memoryRoot: String, now: Long, zone: ZoneId): List<ScheduledTask> = synchronized(LOCK) {
+        val localNow = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        val existing = read()
+        var tasks = existing
+        val created = mutableListOf<ScheduledTask>()
+        for (preset in ScheduledPresets.all) {
+            if (tasks.any { it.presetId == preset.id }) continue
+            // The briefing seeded before examples existed is tracked under its
+            // own key, so it is adopted rather than duplicated once.
+            val trackedId = prefs.getString(taskKey(preset.id), null) ?: legacyTaskId(preset.id)
+            val tracked = trackedId?.let { id -> tasks.firstOrNull { it.id == id } }
+            if (tracked != null) {
+                tasks = tasks.map { if (it.id == tracked.id) it.copy(presetId = preset.id) else it }
+                markSeeded(preset.id, tracked.id)
+                continue
+            }
+            if (isSeeded(preset.id)) continue
+            val task = ScheduledPresets.task(preset, memoryRoot, localNow)
+                .copy(id = UUID.randomUUID().toString(), createdAt = now, presetId = preset.id)
+            tasks = tasks + task
+            created += task
+            markSeeded(preset.id, task.id)
         }
-        if (prefs.getBoolean(KEY_BRIEFING_SEEDED, false)) return null
-        val preset = MorningBriefing.template(
-            memoryRoot,
-            LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
-        ).copy(id = UUID.randomUUID().toString(), enabled = false, createdAt = now)
-        put(preset)
-        markBriefingSeeded(preset.id)
-        preset
+        if (created.isNotEmpty() || tasks != existing) write(tasks)
+        created
     }
 
-    /** True when a briefing preset exists right now (even renamed): hides the re-add button. */
-    fun hasBriefingPreset(): Boolean = synchronized(LOCK) {
-        val seededId = prefs.getString(KEY_BRIEFING_TASK_ID, null)
-        read().any { it.id == seededId || it.name == MorningBriefing.TEMPLATE_NAME }
+    /**
+     * Examples that are not in [tasks] at all: what the restore button would
+     * add back. A task carrying the example's name counts as present, since
+     * restore would adopt it rather than duplicate it.
+     */
+    fun missingPresets(): List<ScheduledPreset> = synchronized(LOCK) {
+        val tasks = read()
+        ScheduledPresets.all.filter { preset ->
+            tasks.none { it.presetId == preset.id || it.name == preset.name }
+        }
     }
 
-    private fun markBriefingSeeded(taskId: String?) {
+    /**
+     * Puts back every example that is missing, paused. A task already carrying
+     * the example's name counts as present: restoring must not create a
+     * duplicate of something the user made themselves.
+     */
+    fun restorePresets(memoryRoot: String, now: Long, zone: ZoneId): Int = synchronized(LOCK) {
+        val localNow = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        var tasks = read()
+        var added = 0
+        for (preset in ScheduledPresets.all) {
+            if (tasks.any { it.presetId == preset.id }) continue
+            val sameName = tasks.firstOrNull { it.name == preset.name }
+            if (sameName != null) {
+                markSeeded(preset.id, sameName.id)
+                continue
+            }
+            val task = ScheduledPresets.task(preset, memoryRoot, localNow)
+                .copy(id = UUID.randomUUID().toString(), createdAt = now, presetId = preset.id)
+            tasks = tasks + task
+            added++
+            markSeeded(preset.id, task.id)
+        }
+        if (added > 0) write(tasks)
+        added
+    }
+
+    /**
+     * Stops treating [presetId] as an example: called when the user turns it on
+     * or saves an edit. The example is theirs now, so neither seeding nor the
+     * restore button may drag it back. The seeded marker stays, which is what
+     * keeps a promoted example from being re-added as a duplicate.
+     */
+    fun forgetPreset(presetId: String) = synchronized(LOCK) {
         prefs.edit()
-            .putBoolean(KEY_BRIEFING_SEEDED, true)
-            .apply { if (taskId != null) putString(KEY_BRIEFING_TASK_ID, taskId) }
+            .remove(taskKey(presetId))
+            .apply { if (presetId == ScheduledPresets.MORNING_BRIEFING) remove(KEY_BRIEFING_TASK_ID) }
             .apply()
     }
+
+    private fun isSeeded(presetId: String): Boolean =
+        prefs.getBoolean(seededKey(presetId), false) || legacySeeded(presetId)
+
+    /** The briefing seeded before examples existed, under its old keys. */
+    private fun legacySeeded(presetId: String): Boolean =
+        presetId == ScheduledPresets.MORNING_BRIEFING && prefs.getBoolean(KEY_BRIEFING_SEEDED, false)
+
+    private fun legacyTaskId(presetId: String): String? =
+        if (presetId == ScheduledPresets.MORNING_BRIEFING) {
+            prefs.getString(KEY_BRIEFING_TASK_ID, null)
+        } else {
+            null
+        }
+
+    private fun markSeeded(presetId: String, taskId: String) {
+        prefs.edit()
+            .putBoolean(seededKey(presetId), true)
+            .putString(taskKey(presetId), taskId)
+            .apply()
+    }
+
+    private fun seededKey(presetId: String) = "preset_seeded_$presetId"
+
+    private fun taskKey(presetId: String) = "preset_task_$presetId"
 
     fun delete(id: String) {
         update(id) { null }
@@ -165,8 +247,6 @@ class ScheduledTaskStore internal constructor(
     private companion object {
         const val PREFS_FILE = "gotcha_scheduled_tasks"
         const val KEY_TASKS = "tasks"
-        const val KEY_BRIEFING_SEEDED = "briefing_preset_seeded"
-        const val KEY_BRIEFING_TASK_ID = "briefing_preset_task_id"
         const val ATTACHMENTS_DIR = "scheduled_tasks"
         val LOCK = Any()
     }

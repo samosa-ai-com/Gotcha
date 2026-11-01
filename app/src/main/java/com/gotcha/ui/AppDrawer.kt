@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -70,6 +71,7 @@ fun AppDrawerContent(
     onOpenSettings: () -> Unit,
     onOpenConnectors: () -> Unit,
     onOpenScheduledTasks: () -> Unit = {},
+    onOpenSecondBrain: () -> Unit = {},
     maxContextTokens: Int = 0,
     activeTokenCount: Int = 0,
     /**
@@ -268,6 +270,17 @@ fun AppDrawerContent(
                 }
             }
             HorizontalDivider()
+            NavigationDrawerItem(
+                // Sits with Scheduled tasks: both are the parts of Gotcha that
+                // keep working when no chat is open. The Settings row stays as
+                // the second door, for people who look there first.
+                label = { Text(stringResource(R.string.drawer_second_brain)) },
+                icon = { Icon(Icons.Default.Psychology, contentDescription = null) },
+                selected = false,
+                onClick = onOpenSecondBrain,
+                colors = itemColors,
+                modifier = itemModifier
+            )
             NavigationDrawerItem(
                 // Reuses the settings page title: already translated everywhere.
                 label = { Text(stringResource(R.string.settings_page_scheduled_tasks)) },

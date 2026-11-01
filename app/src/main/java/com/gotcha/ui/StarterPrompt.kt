@@ -115,6 +115,79 @@ internal fun starterPromptLabelsSaver(pool: List<StarterPrompt>) = listSaver<Lis
 )
 
 /**
+ * The "New for you" chips above the starters: one per feature introduced after
+ * the user's first run, each shown until it is tapped once.
+ *
+ * A separate row rather than two more entries in [STARTER_PROMPTS], because the
+ * starter pool is drawn three-of-many at random and would surface these rarely
+ * and unpredictably. This row is deterministic and self-cleaning: tap it and it
+ * is gone for good.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun NewFeatureRow(
+    showMemory: Boolean,
+    showSchedule: Boolean,
+    onMemory: () -> Unit,
+    onSchedule: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (!showMemory && !showSchedule) return
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = modifier.testTag("new_feature_row"),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            stringResource(R.string.starter_new_for_you),
+            style = MaterialTheme.typography.labelMedium,
+            color = scheme.primary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (showMemory) {
+                FeatureIntroChip(
+                    label = R.string.starter_remember_this,
+                    tag = "new_feature_memory",
+                    onClick = onMemory
+                )
+            }
+            if (showSchedule) {
+                FeatureIntroChip(
+                    label = R.string.starter_every_morning,
+                    tag = "new_feature_schedule",
+                    onClick = onSchedule
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeatureIntroChip(@StringRes label: Int, tag: String, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = Color.Transparent,
+        contentColor = scheme.primary,
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.5f)),
+        modifier = Modifier.testTag(tag)
+    ) {
+        Text(
+            stringResource(label),
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+        )
+    }
+}
+
+/**
  * The tap-to-fill chip row under the agent selector on the home screen.
  *
  * Styled like the *unchosen* half of [AgentModeSelector] — hairline outline, no

@@ -39,7 +39,10 @@ data class ScheduledTaskForm(
             else -> chatSessionId
         },
         maxRetries = maxRetries,
-        attachmentNames = attachmentNames
+        attachmentNames = attachmentNames,
+        // Saving an example makes it the user's own task: from here it is
+        // edited in place, not restored from the catalog.
+        presetId = null
     )
 
     /**

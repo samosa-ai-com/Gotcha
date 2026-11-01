@@ -22,12 +22,14 @@ class ScheduledTaskStoreTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val dir = File(context.filesDir, "scheduled-store-test")
+    private val prefs = context.getSharedPreferences("scheduled-store-test", Context.MODE_PRIVATE)
     private lateinit var store: ScheduledTaskStore
 
     @Before
     fun setUp() {
         dir.deleteRecursively()
-        store = ScheduledTaskStore(context.getSharedPreferences("scheduled-store-test", Context.MODE_PRIVATE), dir)
+        prefs.edit().clear().commit()
+        store = ScheduledTaskStore(prefs, dir)
     }
 
     private fun task(id: String, chat: String? = null) =
@@ -90,58 +92,79 @@ class ScheduledTaskStoreTest {
     }
 
     @Test
-    fun `the briefing preset seeds once, paused`() {
+    fun `every example seeds once, paused, in its own shape`() {
         val zone = java.time.ZoneId.of("UTC")
         val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
 
-        val seeded = store.seedBriefingPreset("/mem", now, zone)
+        val created = store.seedPresets("/mem", now, zone)
 
-        assertTrue(seeded != null)
-        assertEquals(MorningBriefing.TEMPLATE_NAME, seeded!!.name)
-        assertEquals(false, seeded.enabled)
-        assertEquals(com.gotcha.tools.AgentMode.MONITOR, seeded.mode)
-        assertEquals("2026-10-30T07:00", seeded.startLocal)
-        assertNull(store.seedBriefingPreset("/mem", now, zone))
+        assertEquals(ScheduledPresets.all.size, created.size)
+        assertEquals(created.size, store.all().size)
+        assertTrue(store.all().all { !it.enabled && it.presetId != null })
+        assertTrue(store.all().all { it.mode == com.gotcha.tools.AgentMode.MONITOR })
+        assertTrue(store.all().none { it.createdByAgent })
+
+        val evening = store.all().first { it.presetId == ScheduledPresets.EVENING_WRAP_UP }
+        assertEquals("2026-10-30T21:00", evening.startLocal)
+        val weekly = store.all().first { it.presetId == ScheduledPresets.WEEKLY_REVIEW }
+        assertEquals(java.time.DayOfWeek.SUNDAY, weekly.start.dayOfWeek)
+        val inbox = store.all().first { it.presetId == ScheduledPresets.INBOX_CATCH_UP }
+        assertTrue(inbox.start.dayOfWeek in java.time.DayOfWeek.MONDAY..java.time.DayOfWeek.FRIDAY)
+        assertEquals(java.time.LocalTime.of(18, 30), inbox.start.toLocalTime())
+
+        assertTrue(store.seedPresets("/mem", now, zone).isEmpty())
+        assertEquals(created.size, store.all().size)
+    }
+
+    @Test
+    fun `the old briefing preset is adopted, not duplicated`() {
+        val zone = java.time.ZoneId.of("UTC")
+        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
+        store.put(task("u").copy(name = MorningBriefing.TEMPLATE_NAME))
+        prefs.edit()
+            .putBoolean(KEY_BRIEFING_SEEDED, true)
+            .putString(KEY_BRIEFING_TASK_ID, "u")
+            .commit()
+
+        val created = store.seedPresets("/mem", now, zone)
+
+        assertEquals(ScheduledPresets.all.size - 1, created.size)
+        assertEquals(ScheduledPresets.MORNING_BRIEFING, store.get("u")!!.presetId)
         assertEquals(1, store.all().count { it.name == MorningBriefing.TEMPLATE_NAME })
     }
 
     @Test
-    fun `the briefing preset skips a user-added briefing`() {
+    fun `a deleted example stays gone until examples are restored`() {
         val zone = java.time.ZoneId.of("UTC")
         val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
-        store.put(task("u").copy(name = MorningBriefing.TEMPLATE_NAME))
+        store.seedPresets("/mem", now, zone)
+        val evening = store.all().first { it.presetId == ScheduledPresets.EVENING_WRAP_UP }
 
-        assertNull(store.seedBriefingPreset("/mem", now, zone))
-        assertEquals(1, store.all().size)
-        assertTrue(store.hasBriefingPreset())
+        store.delete(evening.id)
+
+        assertTrue(store.seedPresets("/mem", now, zone).isEmpty())
+        assertTrue(store.all().none { it.presetId == ScheduledPresets.EVENING_WRAP_UP })
+        assertEquals(1, store.missingPresets().size)
+
+        assertEquals(1, store.restorePresets("/mem", now, zone))
+        assertEquals(1, store.all().count { it.presetId == ScheduledPresets.EVENING_WRAP_UP })
+        assertTrue(store.missingPresets().isEmpty())
     }
 
     @Test
-    fun `a user-added briefing is adopted and tracked across renames`() {
+    fun `a promoted example is never seeded or restored again`() {
         val zone = java.time.ZoneId.of("UTC")
         val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
-        store.put(task("u").copy(name = MorningBriefing.TEMPLATE_NAME))
+        store.seedPresets("/mem", now, zone)
+        val evening = store.all().first { it.presetId == ScheduledPresets.EVENING_WRAP_UP }
 
-        assertNull(store.seedBriefingPreset("/mem", now, zone))
-        store.update("u") { it.copy(name = "Mine") }
-        assertTrue(store.hasBriefingPreset())
-        assertNull(store.seedBriefingPreset("/mem", now, zone))
-        assertEquals(1, store.all().size)
-    }
+        store.update(evening.id) { it.copy(presetId = null, enabled = true) }
+        store.forgetPreset(ScheduledPresets.EVENING_WRAP_UP)
 
-    @Test
-    fun `renaming the seeded preset neither duplicates it nor shows the re-add path`() {
-        val zone = java.time.ZoneId.of("UTC")
-        val now = java.time.LocalDateTime.parse("2026-10-29T22:15").atZone(zone).toInstant().toEpochMilli()
-        val seeded = store.seedBriefingPreset("/mem", now, zone)!!
-        store.update(seeded.id) { it.copy(name = "My mornings") }
-
-        assertNull(store.seedBriefingPreset("/mem", now, zone))
-        assertEquals(1, store.all().size)
-        assertTrue(store.hasBriefingPreset())
-
-        store.delete(seeded.id)
-        assertTrue(!store.hasBriefingPreset())
+        assertTrue(store.seedPresets("/mem", now, zone).isEmpty())
+        assertEquals(0, store.restorePresets("/mem", now, zone))
+        assertEquals(1, store.all().count { it.name == evening.name })
+        assertEquals(null, store.get(evening.id)!!.presetId)
     }
 
     @Test

@@ -91,6 +91,12 @@ data class ScheduledTask(
     val retryDelayMinutes: Int = DEFAULT_RETRY_DELAY_MINUTES,
     /** True for a task the agent set up with schedule_agent_task, which the user approved. */
     val createdByAgent: Boolean = false,
+    /**
+     * The example this task came from, while it is still an example
+     * (see [ScheduledPresets]). Cleared when the user turns it on or saves an
+     * edit: from then on it is their task, not a template.
+     */
+    val presetId: String? = null,
     /** Names of the files stored with the task; the files themselves are in [ScheduledTaskStore]. */
     val attachmentNames: List<String> = emptyList(),
     /**

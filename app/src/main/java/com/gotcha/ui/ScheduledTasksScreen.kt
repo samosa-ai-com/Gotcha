@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -60,12 +61,12 @@ import com.gotcha.agent.ComposerAttachment
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.GotchaStorage
 import com.gotcha.i18n.stringLookup
-import com.gotcha.scheduled.MorningBriefing
 import com.gotcha.scheduled.Repeat
 import com.gotcha.scheduled.RepeatKind
 import com.gotcha.scheduled.ScheduledStart
 import com.gotcha.scheduled.ScheduledTask
 import com.gotcha.scheduled.ScheduledTaskForm
+import com.gotcha.scheduled.ScheduledPresets
 import com.gotcha.scheduled.ScheduledTaskNotifier
 import com.gotcha.scheduled.ScheduledTaskPlanner
 import com.gotcha.scheduled.ScheduledTaskRuns
@@ -95,7 +96,6 @@ import java.util.UUID
 
 /** [editing] value for the add form, as opposed to a task id. */
 private const val NEW_TASK = "+new"
-private const val BRIEFING_TASK = "+briefing"
 
 /**
  * Settings ▸ Scheduled tasks (issue #132): prompts Gotcha sends itself at set
@@ -115,16 +115,20 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     var editing by remember { mutableStateOf<String?>(null) }
     var deleting by remember { mutableStateOf<ScheduledTask?>(null) }
     // Seed where shown, not only at app start: the list below then never
-    // renders stale, and the re-add button cannot race a background seed.
+    // renders stale, and the restore button cannot race a background seed.
     val tasks = remember(tick) {
-        store.seedBriefingPreset(
+        store.seedPresets(
             GotchaStorage.memoryRoot().absolutePath,
             System.currentTimeMillis(),
             ZoneId.systemDefault()
         )
         store.all()
     }
-    val hasBriefing = remember(tasks) { store.hasBriefingPreset() }
+    // Examples stay above the user's own tasks until turned on or edited, at
+    // which point the task stops carrying a preset id and moves down.
+    val examples = tasks.filter { it.presetId != null }
+    val mine = tasks.filter { it.presetId == null }
+    val missingExamples = remember(tasks) { store.missingPresets() }
     val canRunUnattended = remember(tick) { ScheduledTaskScheduler.canRunUnattended(context) }
 
     // A run ending records its result just before the keep-alive service stops,
@@ -144,8 +148,17 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
         scope.launch {
             withContext(Dispatchers.IO) {
                 val updated = store.update(task.id) {
-                    ScheduledTaskPlanner.toggled(it, enabled, System.currentTimeMillis(), ZoneId.systemDefault())
+                    val next = ScheduledTaskPlanner.toggled(
+                        it,
+                        enabled,
+                        System.currentTimeMillis(),
+                        ZoneId.systemDefault()
+                    )
+                    // Turning an example on makes it the user's own task: it
+                    // leaves the Examples group and stays there when paused.
+                    if (enabled) next.copy(presetId = null) else next
                 }
+                if (enabled) task.presetId?.let(store::forgetPreset)
                 // Keep the waiting notification true: a resumed wait re-posts
                 // (same quiet slot), a pause or cleared wait cancels.
                 val notifier = ScheduledTaskNotifier(context)
@@ -166,30 +179,82 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
     SettingsScaffold(title = stringResource(SettingsPage.SCHEDULED_TASKS.title), onBack = onBack, overlay = overlay) {
         Text(stringResource(R.string.scheduled_intro), style = MaterialTheme.typography.bodyMedium)
         if (!canRunUnattended) ExactAlarmHint(context)
-        if (tasks.isEmpty() && editing != NEW_TASK && editing != BRIEFING_TASK) {
+        if (tasks.isEmpty() && editing != NEW_TASK) {
             Text(
                 stringResource(R.string.scheduled_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        tasks.forEach { task ->
-            HorizontalDivider()
-            if (editing == task.id) {
-                TaskEditor(
+        if (examples.isNotEmpty()) {
+            Text(
+                stringResource(R.string.scheduled_examples_title),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                stringResource(R.string.scheduled_examples_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            examples.forEach { task ->
+                TaskEntry(
                     store = store,
-                    initial = task,
+                    task = task,
+                    editing = editing == task.id,
+                    description = task.presetId?.let { id ->
+                        ScheduledPresets.all.firstOrNull { it.id == id }?.description
+                    },
                     onSaved = {
                         editing = null
                         tick++
                     },
-                    onCancel = { editing = null }
-                )
-            } else {
-                TaskRow(
-                    task = task,
-                    onEnabledChange = { toggled(task, it) },
+                    onCancel = { editing = null },
                     onEdit = { editing = task.id },
+                    onEnabledChange = { toggled(task, it) },
+                    onRunNow = {
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                ScheduledTaskRuns.runNow(context.applicationContext as Application, task.id)
+                            }
+                            overlay.show(
+                                when (result) {
+                                    is ScheduledStart.Started -> startedText
+                                    ScheduledStart.Busy -> busyText
+                                    ScheduledStart.Queued -> queuedText
+                                    is ScheduledStart.Failed -> result.detail
+                                }
+                            )
+                            tick++
+                        }
+                    },
+                    onDelete = { deleting = task },
+                    onOpenChat = onOpenChat
+                )
+            }
+            HorizontalDivider()
+        }
+        if (mine.isNotEmpty()) {
+            if (examples.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.scheduled_your_tasks),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            mine.forEach { task ->
+                TaskEntry(
+                    store = store,
+                    task = task,
+                    editing = editing == task.id,
+                    description = null,
+                    onSaved = {
+                        editing = null
+                        tick++
+                    },
+                    onCancel = { editing = null },
+                    onEdit = { editing = task.id },
+                    onEnabledChange = { toggled(task, it) },
                     onRunNow = {
                         scope.launch {
                             val result = withContext(Dispatchers.IO) {
@@ -212,17 +277,10 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
             }
         }
         HorizontalDivider()
-        if (editing == NEW_TASK || editing == BRIEFING_TASK) {
+        if (editing == NEW_TASK) {
             TaskEditor(
                 store = store,
                 initial = null,
-                template = if (editing == BRIEFING_TASK) {
-                    remember {
-                        MorningBriefing.template(GotchaStorage.memoryRoot().absolutePath)
-                    }
-                } else {
-                    null
-                },
                 onSaved = {
                     editing = null
                     tick++
@@ -234,12 +292,22 @@ fun ScheduledTasksScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit) {
                 onClick = { editing = NEW_TASK },
                 modifier = Modifier.fillMaxWidth().testTag("scheduled_add_task")
             ) { Text(stringResource(R.string.scheduled_add_task)) }
-            // Re-add path for a deleted preset; hidden while one exists.
-            if (!hasBriefing) {
-                OutlinedButton(
-                    onClick = { editing = BRIEFING_TASK },
-                    modifier = Modifier.fillMaxWidth().testTag("scheduled_add_briefing")
-                ) { Text(stringResource(R.string.scheduled_add_briefing)) }
+            if (missingExamples.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                store.restorePresets(
+                                    GotchaStorage.memoryRoot().absolutePath,
+                                    System.currentTimeMillis(),
+                                    ZoneId.systemDefault()
+                                )
+                            }
+                            tick++
+                        }
+                    },
+                    modifier = Modifier.testTag("scheduled_restore_examples")
+                ) { Text(stringResource(R.string.scheduled_restore_examples)) }
             }
         }
     }
@@ -297,10 +365,52 @@ private fun ExactAlarmHint(context: Context) {
     }
 }
 
+/**
+ * One entry in either group: its row, or the editor drawn in its place.
+ *
+ * Kept as one composable so the Examples group and "Your tasks" cannot drift
+ * apart — the only difference between them is the description line.
+ */
+@Composable
+private fun TaskEntry(
+    store: ScheduledTaskStore,
+    task: ScheduledTask,
+    editing: Boolean,
+    description: Int?,
+    onSaved: () -> Unit,
+    onCancel: () -> Unit,
+    onEdit: () -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
+    onRunNow: () -> Unit,
+    onDelete: () -> Unit,
+    onOpenChat: (String) -> Unit
+) {
+    HorizontalDivider()
+    if (editing) {
+        TaskEditor(
+            store = store,
+            initial = task,
+            onSaved = onSaved,
+            onCancel = onCancel
+        )
+    } else {
+        TaskRow(
+            task = task,
+            description = description,
+            onEnabledChange = onEnabledChange,
+            onEdit = onEdit,
+            onRunNow = onRunNow,
+            onDelete = onDelete,
+            onOpenChat = onOpenChat
+        )
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TaskRow(
     task: ScheduledTask,
+    description: Int? = null,
     onEnabledChange: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onRunNow: () -> Unit,
@@ -314,6 +424,15 @@ private fun TaskRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(task.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(scheduleText(context, task.start, task.repeat), style = MaterialTheme.typography.bodySmall)
+                // Only examples explain themselves: a task the user made
+                // needs no description of what it is for.
+                description?.let {
+                    Text(
+                        stringResource(it),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Switch(
                 checked = task.enabled,
@@ -416,24 +535,23 @@ private fun TaskEditor(
     store: ScheduledTaskStore,
     initial: ScheduledTask?,
     onSaved: () -> Unit,
-    onCancel: () -> Unit,
-    template: ScheduledTask? = null
+    onCancel: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val start = remember { initial?.start ?: template?.start ?: defaultStart() }
-    var name by remember { mutableStateOf(initial?.name ?: template?.name.orEmpty()) }
-    var prompt by remember { mutableStateOf(initial?.prompt ?: template?.prompt.orEmpty()) }
+    val start = remember { initial?.start ?: defaultStart() }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var prompt by remember { mutableStateOf(initial?.prompt.orEmpty()) }
     var date by remember { mutableStateOf(start.toLocalDate()) }
     var time by remember { mutableStateOf(start.toLocalTime()) }
-    var kind by remember { mutableStateOf(initial?.repeat?.kind ?: template?.repeat?.kind ?: RepeatKind.NONE) }
+    var kind by remember { mutableStateOf(initial?.repeat?.kind ?: RepeatKind.NONE) }
     var interval by remember {
-        mutableStateOf((initial?.repeat?.interval ?: template?.repeat?.interval ?: 1).toString())
+        mutableStateOf((initial?.repeat?.interval ?: 1).toString())
     }
     var weekdays by remember {
-        mutableStateOf(initial?.repeat?.weekdays?.toSet() ?: template?.repeat?.weekdays?.toSet() ?: emptySet())
+        mutableStateOf(initial?.repeat?.weekdays?.toSet() ?: emptySet())
     }
-    var mode by remember { mutableStateOf(initial?.mode ?: template?.mode ?: AgentMode.MONITOR) }
+    var mode by remember { mutableStateOf(initial?.mode ?: AgentMode.MONITOR) }
     var personaId by remember { mutableStateOf(initial?.personaId) }
     var sameChat by remember { mutableStateOf(initial?.sameChat ?: false) }
     var chatSessionId by remember { mutableStateOf(initial?.chatSessionId) }
@@ -676,6 +794,9 @@ private fun TaskEditor(
                                 }
                             }
                             saved?.let {
+                                // An edited example is the user's own now: stop
+                                // tracking it, so seeding and restore leave it be.
+                                initial?.presetId?.let(store::forgetPreset)
                                 store.saveAttachments(it.id, files)
                                 ScheduledTaskScheduler.reschedule(context)
                                 syncWaitingNotification(ScheduledTaskNotifier(context), store, hadWait, it)
