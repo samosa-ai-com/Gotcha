@@ -127,11 +127,6 @@ enum class SettingsPage(
         R.string.settings_page_personal_info_summary,
         "settings_personal_info_row"
     ),
-    SECOND_BRAIN(
-        R.string.settings_page_second_brain,
-        R.string.settings_page_second_brain_summary,
-        "settings_second_brain_row"
-    ),
     CHATS(
         R.string.settings_page_chats,
         R.string.settings_page_chats_summary,

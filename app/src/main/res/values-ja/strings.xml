@@ -47,7 +47,6 @@
     <string name="settings_page_personal_info">個人情報</string>
     <string name="settings_page_personal_info_summary">あなたについて、通貨、回答のスタイル</string>
     <string name="settings_page_second_brain">セカンドブレイン</string>
-    <string name="settings_page_second_brain_summary">Gotcha のメモリ: アイデンティティ、ユーザーカード、ノート</string>
     <string name="second_brain_summary">ノート: %1$d · 人: %2$d · エリア: %3$d</string>
     <string name="second_brain_setup_title">あなたのセカンドブレイン</string>
     <string name="second_brain_setup_body">Gotcha があなたについて学んだことすべてを、あなた自身のファイルに。各チャットの開始時に読み込むので、同じことを繰り返す必要はありません。</string>

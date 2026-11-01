@@ -94,6 +94,7 @@ import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.agent.ForegroundControlRequest
 import com.gotcha.data.FeatureIntroStore
+import com.gotcha.data.loadFeatureUsage
 import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
@@ -101,7 +102,9 @@ import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.gotcha.ui.theme.motionSpec
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Image as ComposeImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -148,11 +151,12 @@ fun ChatScreen(
     val otherChatRunning = state.runningSessionId != null &&
         state.runningSessionId != state.activeSessionId
     val context = LocalContext.current
-    // Introductions to features added after this user's first run. Read once
-    // when the home screen appears; a tap retires one for good.
+    // Introductions to features added after this user's first run. Starts
+    // hidden and is filled in by the usage check below, so an already-used
+    // feature never flashes as "new".
     val featureIntro = remember { FeatureIntroStore(context) }
-    var showMemoryIntro by remember { mutableStateOf(!featureIntro.hasSeen(FeatureIntroStore.MEMORY)) }
-    var showScheduleIntro by remember { mutableStateOf(!featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)) }
+    var showMemoryIntro by remember { mutableStateOf(false) }
+    var showScheduleIntro by remember { mutableStateOf(false) }
     var input by rememberSaveable { mutableStateOf("") }
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     val pendingAttachments = state.pendingAttachments
@@ -160,6 +164,15 @@ fun ChatScreen(
     var editingMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Id of the user message pending a revert confirmation.
     var pendingRevertId by remember { mutableStateOf<Long?>(null) }
+    // "New for you" means new to this user, not merely shipped: a feature they
+    // already use never offers its chip, even if they never tapped it. Re-run
+    // per empty chat, so using it during this session retires the chip too.
+    LaunchedEffect(isHome, state.activeSessionId) {
+        if (!isHome) return@LaunchedEffect
+        val usage = withContext(Dispatchers.IO) { loadFeatureUsage(context) }
+        showMemoryIntro = !featureIntro.hasSeen(FeatureIntroStore.MEMORY) && !usage.memory
+        showScheduleIntro = !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE) && !usage.schedule
+    }
     // A draft handed over by the view model (a tapped daily tip): fill, never send.
     LaunchedEffect(state.composerDraft) {
         state.composerDraft?.let { draft ->

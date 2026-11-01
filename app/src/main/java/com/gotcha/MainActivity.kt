@@ -1200,10 +1200,6 @@ class MainActivity : ComponentActivity() {
                             chatViewModel.openSession(id)
                             currentRoute = Route.HOME
                         },
-                        onStartChat = { prompt, mode ->
-                            chatViewModel.startChatFromTip(prompt, mode)
-                            currentRoute = Route.HOME
-                        },
                         onImportChats = { chatTransfer.startImport() },
                         onBackupAllChats = { chatTransfer.startBackupAll() },
                         page = settingsPage,

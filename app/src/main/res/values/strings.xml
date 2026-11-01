@@ -70,7 +70,6 @@
     <string name="settings_page_personal_info">Personal Info</string>
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
     <string name="settings_page_second_brain">Second Brain</string>
-    <string name="settings_page_second_brain_summary">Gotcha\'s memory: identity, user card, notes</string>
     <string name="settings_page_chats">Chats</string>
     <string name="settings_page_chats_summary">Import or back up conversations</string>
     <string name="second_brain_intro">What Gotcha remembers about you. Identity first, then the map, then detail. Editing happens through the agent for now.</string>

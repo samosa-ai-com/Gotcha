@@ -47,7 +47,6 @@
     <string name="settings_page_personal_info">个人信息</string>
     <string name="settings_page_personal_info_summary">你是谁、货币、回复风格</string>
     <string name="settings_page_second_brain">第二大脑</string>
-    <string name="settings_page_second_brain_summary">Gotcha 的记忆：身份、用户卡片、笔记</string>
     <string name="second_brain_summary">笔记: %1$d · 人物: %2$d · 领域: %3$d</string>
     <string name="second_brain_setup_title">你的第二大脑</string>
     <string name="second_brain_setup_body">Gotcha 了解你的一切，都存放在你自己的文件里。每次聊天开始时它都会读取，所以你不用重复自己。</string>

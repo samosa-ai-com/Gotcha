@@ -47,7 +47,6 @@
     <string name="settings_page_personal_info">Informazioni personali</string>
     <string name="settings_page_personal_info_summary">Chi sei, valuta, stile delle risposte</string>
     <string name="settings_page_second_brain">Secondo cervello</string>
-    <string name="settings_page_second_brain_summary">La memoria di Gotcha: identità, scheda utente, note</string>
     <string name="second_brain_summary">Note: %1$d · Persone: %2$d · Aree: %3$d</string>
     <string name="second_brain_setup_title">Il tuo secondo cervello</string>
     <string name="second_brain_setup_body">Tutto ciò che Gotcha ha imparato su di te, in file che sono tuoi. Li legge all\'inizio di ogni chat, così non ti ripeti.</string>

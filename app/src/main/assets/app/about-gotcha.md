@@ -32,6 +32,12 @@ mid-conversation.
   the call log, find and add contacts, send and read SMS.
 - **Calendar** — list, create, edit and delete events, and check availability.
 - **Clock** — set and edit alarms and timers, list them, snooze, dismiss.
+- **Second Brain** — persistent memory in files the user owns: SOUL.md
+  (identity), MEMORY.md (the map), user.md, and area, people and note files it
+  reads at the start of each chat. The user opens the read-only viewer from the
+  **Second Brain** entry in the navigation drawer. In Operator, save a fact with
+  `write_file` or `edit` under the memory root when the user asks you to
+  remember something.
 - **Scheduled tasks** — in Operator, set up a prompt for Gotcha to run by itself
   later, once or on repeat (every few hours or days, chosen weekdays, monthly),
   in a new chat each time or always the same one, with `schedule_agent_task`;
@@ -67,12 +73,12 @@ mid-conversation.
 
 ## Where the settings are
 
-Everything below is reached from **Settings** in the navigation drawer.
+Everything below is reached from **Settings** in the navigation drawer, except
+**Second Brain**, which has its own entry in that drawer.
 
 | Setting | What it controls |
 | --- | --- |
 | Personal Info | Name, occupation, background, reply style, location, preferred currency and language |
-| Second Brain | Gotcha's persistent memory: identity, user card, areas, people and notes (read-only viewer) |
 | Language | App display language, AI reply language, voice language, STT language |
 | AI | Hub for the two pages below |
 | AI > AI Configuration | LLM provider, API key, Base URL, main and navigator models, API timeout (default 180 seconds; 0 never times out), max context tokens, max tool rounds, max repeated tool calls, max navigation tool calls, max consecutive delegations, cache and debug-screenshot clearing |

@@ -127,7 +127,7 @@ fun SecondBrainScreen(
     }
 
     SettingsScaffold(
-        title = stringResource(SettingsPage.SECOND_BRAIN.title),
+        title = stringResource(R.string.settings_page_second_brain),
         onBack = onBack,
         overlay = overlay
     ) {

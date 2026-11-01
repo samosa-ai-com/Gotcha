@@ -47,7 +47,6 @@
     <string name="settings_page_personal_info">व्यक्तिगत जानकारी</string>
     <string name="settings_page_personal_info_summary">आप कौन हैं, मुद्रा, जवाब की शैली</string>
     <string name="settings_page_second_brain">सेकंड ब्रेन</string>
-    <string name="settings_page_second_brain_summary">Gotcha की मेमोरी: पहचान, यूज़र कार्ड, नोट्स</string>
     <string name="second_brain_summary">नोट्स: %1$d · लोग: %2$d · क्षेत्र: %3$d</string>
     <string name="second_brain_setup_title">आपका सेकंड ब्रेन</string>
     <string name="second_brain_setup_body">Gotcha ने आपके बारे में जो सीखा है, वह आपकी अपनी फ़ाइलों में। हर चैट की शुरुआत में इसे पढ़ा जाता है, इसलिए आपको दोहराना नहीं पड़ता।</string>

@@ -93,6 +93,27 @@ object MemoryStore {
     }
 
     /**
+     * Whether anything has actually been saved: a detail file, a raw file, or
+     * an edited identity or map. Cheaper than [loadSnapshot] because it never
+     * reads the notes, so the home screen can ask without paying for the
+     * viewer's full load.
+     */
+    fun isInUse(): Boolean {
+        fun hasMarkdown(dir: java.io.File): Boolean =
+            dir.listFiles()?.any { it.isFile && it.extension.equals("md", true) } == true
+        if (hasMarkdown(GotchaStorage.memoryNotesDir()) ||
+            hasMarkdown(GotchaStorage.memoryPeopleDir()) ||
+            GotchaStorage.memoryRawDir().listFiles()?.any { it.isFile } == true
+        ) {
+            return true
+        }
+        val soul = runCatching { GotchaStorage.soulFile().readText() }.getOrNull()
+        val index = runCatching { GotchaStorage.memoryIndexFile().readText() }.getOrNull()
+        return (soul != null && !isPristineSoul(soul)) ||
+            (index != null && !isPristineMemoryIndex(index))
+    }
+
+    /**
      * True while [content] is still the generated skeleton. Used by the viewer
      * to tell "nothing here yet" from a brain the agent has already shaped,
      * including when the only change is to identity or the map.
