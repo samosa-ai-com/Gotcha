@@ -70,10 +70,25 @@
     <string name="settings_page_personal_info">Personal Info</string>
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
     <string name="settings_page_second_brain">Second Brain</string>
-    <string name="settings_page_second_brain_summary">Gotcha\'s memory: identity, user card, notes</string>
     <string name="settings_page_chats">Chats</string>
     <string name="settings_page_chats_summary">Import or back up conversations</string>
     <string name="second_brain_intro">What Gotcha remembers about you. Identity first, then the map, then detail. Editing happens through the agent for now.</string>
+    <string name="second_brain_summary">Notes: %1$d · People: %2$d · Areas: %3$d</string>
+    <string name="second_brain_setup_title">Your second brain</string>
+    <string name="second_brain_setup_body">Everything Gotcha has learned about you, in files you own. It reads them at the start of every chat, so you never repeat yourself.</string>
+    <string name="second_brain_setup_remembers">Remembers people, plans and preferences</string>
+    <string name="second_brain_setup_grows">Grows every time you talk</string>
+    <string name="second_brain_setup_yours">Plain files you can read any time</string>
+    <string name="second_brain_setup_grant">Allow file access</string>
+    <string name="second_brain_setup_grant_hint">Gotcha needs All files access to read and write its memory folder.</string>
+    <string name="second_brain_start_title">Start it with a conversation</string>
+    <string name="second_brain_start_body">Gotcha only knows what it has been told. These prompts fill the chat box; edit them before sending.</string>
+    <string name="second_brain_start_meet">Get to know me</string>
+    <string name="second_brain_start_meet_prompt">Get to know me: ask me five questions about what matters to me, then save the answers in my Second Brain.</string>
+    <string name="second_brain_start_recall">What do you know about me?</string>
+    <string name="second_brain_start_recall_prompt">What do you know about me? Read your Second Brain and summarise it.</string>
+    <string name="second_brain_saved">Saved to Second Brain</string>
+    <string name="second_brain_updated">Updated in Second Brain</string>
     <string name="second_brain_loading">Loading memory…</string>
     <string name="second_brain_unavailable">Memory is not available yet. Allow All files access under Settings → Permissions, then open a chat and send one message.</string>
     <string name="second_brain_identity">Identity (SOUL.md)</string>
@@ -768,6 +783,7 @@
          settings rows reuse them, so no locale churn. -->
     <string name="drawer_import_chats">Import chats</string>
     <string name="drawer_back_up_all_chats">Back up all chats</string>
+    <string name="drawer_second_brain">Second Brain</string>
     <string name="drawer_connectors">Connectors</string>
     <string name="drawer_settings">Settings</string>
     <string name="drawer_delete_chat">Delete Chat?</string>
@@ -1057,6 +1073,11 @@
 
     <!-- Starter row -->
     <string name="starter_try">Try</string>
+    <string name="starter_new_for_you">New for you</string>
+    <string name="starter_remember_this">Remember this</string>
+    <string name="starter_remember_this_template">Remember that …</string>
+    <string name="starter_every_morning">Every morning at 8</string>
+    <string name="starter_every_morning_template">Every weekday at 8, give me a short plan for the day.</string>
 
     <!-- Persona -->
     <string name="persona_persona">Persona</string>
@@ -1252,6 +1273,12 @@
     <string name="daily_tip_podcast_title">Listen instead of reading</string>
     <string name="daily_tip_podcast_body">Gotcha can turn a document into a short podcast.</string>
     <string name="daily_tip_podcast_prompt">Turn the most recent PDF in my Downloads into a short podcast</string>
+    <string name="daily_tip_memory_title">Gotcha can remember things</string>
+    <string name="daily_tip_memory_body">Tell it a fact, a preference or a person once. It keeps it in your Second Brain and uses it in later chats.</string>
+    <string name="daily_tip_memory_prompt">Remember that …</string>
+    <string name="daily_tip_schedule_title">Let Gotcha work on a schedule</string>
+    <string name="daily_tip_schedule_body">Ask for something at a set time and it runs on its own, then the result lands in a chat.</string>
+    <string name="daily_tip_schedule_prompt">Every weekday at 8, give me a short plan for the day.</string>
 
     <!-- Local notifications -->
     <string name="local_unfinished_generic">A chat was left unfinished. Tap to pick it up.</string>
@@ -1781,7 +1808,15 @@
     <string name="settings_page_scheduled_tasks">Scheduled tasks</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts Gotcha runs by itself at set times</string>
     <string name="scheduled_intro">Gotcha sends itself a prompt at the time you set and works on it like any chat. The result lands in a chat, with a notification when you\'re away.</string>
-    <string name="scheduled_empty">No scheduled tasks yet. Add one here, or ask Gotcha in a chat, e.g. “every weekday at 8, summarise my unread mail”.</string>
+    <string name="scheduled_empty">No scheduled tasks yet. Add one here, restore the examples, or ask Gotcha in a chat, e.g. “every weekday at 8, summarise my unread mail”.</string>
+    <string name="scheduled_examples_title">Examples</string>
+    <string name="scheduled_examples_body">Paused tasks that show what a schedule is good for. Turn one on, run it once, or edit it to make it yours.</string>
+    <string name="scheduled_your_tasks">Your tasks</string>
+    <string name="scheduled_restore_examples">Restore examples</string>
+    <string name="scheduled_example_briefing">Plans your day from your notes and calendar. Read-only.</string>
+    <string name="scheduled_example_evening">Sums up the day and suggests what to remember.</string>
+    <string name="scheduled_example_weekly">A weekly pass over your notes: what is open, what to drop.</string>
+    <string name="scheduled_example_inbox">Sorts unread notifications into reply, wait and ignore.</string>
     <string name="scheduled_add_task">Add a task</string>
     <string name="scheduled_add_briefing">Morning briefing</string>
     <string name="scheduled_exact_alarm_hint">Gotcha may not set exact alarms, so a task can\'t start on its own: it will ask you to tap a notification instead.</string>

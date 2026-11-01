@@ -208,9 +208,6 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onOpenLanguage = { onPageChange(SettingsPage.LANGUAGE) }
                 )
-                SettingsPage.SECOND_BRAIN -> SecondBrainScreen(
-                    onBack = backToHome
-                )
                 SettingsPage.CHATS -> ChatsScreen(
                     onBack = backToHome,
                     onImportChats = onImportChats,

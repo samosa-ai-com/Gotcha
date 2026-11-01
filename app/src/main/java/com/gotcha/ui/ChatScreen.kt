@@ -93,6 +93,8 @@ import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.agent.ForegroundControlRequest
+import com.gotcha.data.FeatureIntroStore
+import com.gotcha.data.loadFeatureUsage
 import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
@@ -100,7 +102,9 @@ import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.gotcha.ui.theme.motionSpec
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Image as ComposeImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,6 +150,13 @@ fun ChatScreen(
     // is blocked (one agent at a time), and a banner offers a jump back.
     val otherChatRunning = state.runningSessionId != null &&
         state.runningSessionId != state.activeSessionId
+    val context = LocalContext.current
+    // Introductions to features added after this user's first run. Starts
+    // hidden and is filled in by the usage check below, so an already-used
+    // feature never flashes as "new".
+    val featureIntro = remember { FeatureIntroStore(context) }
+    var showMemoryIntro by remember { mutableStateOf(false) }
+    var showScheduleIntro by remember { mutableStateOf(false) }
     var input by rememberSaveable { mutableStateOf("") }
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     val pendingAttachments = state.pendingAttachments
@@ -153,6 +164,27 @@ fun ChatScreen(
     var editingMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Id of the user message pending a revert confirmation.
     var pendingRevertId by remember { mutableStateOf<Long?>(null) }
+    // "New for you" means new to this user, not merely shipped: a feature they
+    // already use never offers its chip, even if they never tapped it. Re-run
+    // per empty chat, so using it during this session retires the chip too.
+    LaunchedEffect(isHome, state.activeSessionId) {
+        if (!isHome) return@LaunchedEffect
+        // Blank while the check runs: a chip that was on in the previous empty
+        // chat must not flash if the feature has since been used.
+        showMemoryIntro = false
+        showScheduleIntro = false
+        val usage = withContext(Dispatchers.IO) { loadFeatureUsage(context) }
+        // Usage retires a chip permanently, so deleting the note or task later
+        // does not bring "New for you" back for something they already know.
+        if (usage.memory && !featureIntro.hasSeen(FeatureIntroStore.MEMORY)) {
+            featureIntro.markSeen(FeatureIntroStore.MEMORY)
+        }
+        if (usage.schedule && !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)) {
+            featureIntro.markSeen(FeatureIntroStore.SCHEDULE)
+        }
+        showMemoryIntro = !featureIntro.hasSeen(FeatureIntroStore.MEMORY)
+        showScheduleIntro = !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)
+    }
     // A draft handed over by the view model (a tapped daily tip): fill, never send.
     LaunchedEffect(state.composerDraft) {
         state.composerDraft?.let { draft ->
@@ -410,6 +442,37 @@ fun ChatScreen(
                                 onPick = onSetPersona
                             )
                         }
+                        // The two features a new user most often never finds:
+                        // memory and scheduling. Filled, never sent, and each
+                        // retires after one tap (see FeatureIntroStore).
+                        if (state.isConfigured && !otherChatRunning &&
+                            (showMemoryIntro || showScheduleIntro)
+                        ) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            NewFeatureRow(
+                                showMemory = showMemoryIntro,
+                                showSchedule = showScheduleIntro,
+                                onMemory = {
+                                    // Both prompts need a write: memory saves a
+                                    // note, scheduling creates a task. Monitor
+                                    // would refuse them, so pick the mode the
+                                    // chip is asking for; the selector above
+                                    // shows the change.
+                                    onSetAgent(AgentMode.OPERATOR)
+                                    input = context.getString(R.string.starter_remember_this_template)
+                                    inputWasVoice = false
+                                    featureIntro.markSeen(FeatureIntroStore.MEMORY)
+                                    showMemoryIntro = false
+                                },
+                                onSchedule = {
+                                    onSetAgent(AgentMode.OPERATOR)
+                                    input = context.getString(R.string.starter_every_morning_template)
+                                    inputWasVoice = false
+                                    featureIntro.markSeen(FeatureIntroStore.SCHEDULE)
+                                    showScheduleIntro = false
+                                }
+                            )
+                        }
                         // Starters are an offer to fill the composer, so they are
                         // only shown when the composer can actually be used: no API
                         // key means typing is disabled, and a run in another chat
@@ -429,7 +492,6 @@ fun ChatScreen(
                             }
                             if (starters.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(24.dp))
-                                val context = LocalContext.current
                                 StarterPromptRow(
                                     prompts = starters,
                                     onPick = { prompt ->

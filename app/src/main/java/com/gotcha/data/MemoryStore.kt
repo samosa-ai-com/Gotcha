@@ -60,6 +60,17 @@ object MemoryStore {
      * safe to call without All-files access (mkdirs may fail; callers ignore).
      */
     fun ensureDefaults(settings: Settings) {
+        ensureSkeleton()
+        syncUserFile(settings)
+    }
+
+    /**
+     * The vault every page expects, without [syncUserFile]. Safe to call from
+     * the viewer after the user grants file access mid-session, when no
+     * [Settings] is at hand: startup's [ensureDefaults] may have run before the
+     * grant and found nowhere to write.
+     */
+    fun ensureSkeleton() {
         runCatching {
             val root = GotchaStorage.memoryRoot()
             root.mkdirs()
@@ -78,9 +89,83 @@ object MemoryStore {
             }
             ensureAreaHubs()
             migrateLegacyHubs()
-            syncUserFile(settings)
         }
     }
+
+    /**
+     * Whether anything has actually been saved: a detail file, a raw file, or
+     * an edited identity or map. Cheaper than [loadSnapshot] because it never
+     * reads the notes, so the home screen can ask without paying for the
+     * viewer's full load.
+     */
+    fun isInUse(): Boolean {
+        fun markdownFiles(dir: java.io.File): List<java.io.File> = dir.listFiles().orEmpty().filter {
+            it.isFile && (it.extension.equals("md", true) || it.extension.equals("markdown", true))
+        }
+        // Empty files for which the viewer shows nothing are not use.
+        if (markdownFiles(GotchaStorage.memoryNotesDir()).any { it.length() > 0 } ||
+            markdownFiles(GotchaStorage.memoryPeopleDir()).any { it.length() > 0 }
+        ) {
+            return true
+        }
+        // Hidden files are the media scanner's, not the user's.
+        if (GotchaStorage.memoryRawDir().listFiles().orEmpty().any {
+                it.isFile && it.length() > 0 && !it.name.startsWith(".")
+            }
+        ) {
+            return true
+        }
+        val areas = markdownFiles(GotchaStorage.memoryAreasDir())
+        if (areas.size > 4) return true
+        if (areas.any { area -> runCatching { !isPristineArea(area.readText()) }.getOrDefault(false) }) {
+            return true
+        }
+        return editedFromDefault(GotchaStorage.soulFile(), SOUL_CAP_CHARS, ::isPristineSoul) ||
+            editedFromDefault(GotchaStorage.memoryIndexFile(), MEMORY_CAP_CHARS, ::isPristineMemoryIndex)
+    }
+
+    /**
+     * A generated file is untouched when it still matches its template. One
+     * longer than the startup cap cannot be, so it is not read at all; smaller
+     * files are compared with line endings normalised, since an external edit
+     * may have converted them to CRLF without changing a word.
+     */
+    private fun editedFromDefault(
+        file: java.io.File,
+        capChars: Int,
+        isPristine: (String) -> Boolean
+    ): Boolean {
+        if (!file.exists()) return false
+        if (file.length() > capChars) return true
+        val text = runCatching { file.readText() }.getOrNull() ?: return false
+        return !isPristine(text)
+    }
+
+    /**
+     * True while [content] is still the generated skeleton. Used by the viewer
+     * to tell "nothing here yet" from a brain the agent has already shaped,
+     * including when the only change is to identity or the map.
+     */
+    fun isPristineSoul(content: String): Boolean =
+        normalizeNewlines(content) == normalizeNewlines(defaultSoul())
+
+    /** See [isPristineSoul]. */
+    fun isPristineMemoryIndex(content: String): Boolean =
+        normalizeNewlines(content) == normalizeNewlines(defaultMemoryIndex())
+
+    /**
+     * True while an area hub still holds only its generated heading and the one
+     * line under it. The frontmatter date changes every time a hub is created,
+     * so only the body is compared; a third non-blank line is something the
+     * user or agent added.
+     */
+    fun isPristineArea(content: String): Boolean {
+        val normalized = normalizeNewlines(content)
+        val body = normalized.substringAfter("\n---\n", normalized)
+        return body.lines().count { it.isNotBlank() } <= 2
+    }
+
+    private fun normalizeNewlines(text: String): String = text.replace("\r\n", "\n").trim()
 
     /** Rewrites user.md from Personal Info. Called on startup and on profile updates. */
     fun syncUserFile(settings: Settings) {

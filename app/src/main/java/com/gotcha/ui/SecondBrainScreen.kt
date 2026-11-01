@@ -23,8 +23,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -39,6 +41,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -50,10 +53,15 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
 import com.gotcha.data.MemoryStore
+import com.gotcha.data.summary
 import com.gotcha.scheduled.ScheduledTaskStore
+import com.gotcha.tools.AgentMode
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ToolResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -72,15 +80,40 @@ import kotlin.math.sin
  * Editing stays in the agent and the file system for now.
  */
 @Composable
-fun SecondBrainScreen(onBack: () -> Unit) {
+fun SecondBrainScreen(
+    onBack: () -> Unit,
+    /**
+     * Opens a new chat in the given mode with the prompt in the composer.
+     * Filled, never sent. The mode is explicit because saving memory needs
+     * Operator while reading it does not.
+     */
+    onStartChat: (String, AgentMode) -> Unit = { _, _ -> }
+) {
     val overlay = rememberSettingsOverlayState()
     val context = LocalContext.current
     var snapshot by remember { mutableStateOf<MemoryStore.SecondBrainSnapshot?>(null) }
     var health by remember { mutableStateOf<MemoryStore.BrainHealth?>(null) }
     var showGraph by remember { mutableStateOf(false) }
+    // Bumped on resume: the user may have granted file access in Android
+    // Settings, or a chat may have written something while they were away.
+    var tick by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        val loaded = withContext(Dispatchers.IO) { MemoryStore.loadSnapshot() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) tick++
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(tick) {
+        // The user may have just granted file access: create the vault now,
+        // since startup's seeding ran before the grant and could not.
+        val loaded = withContext(Dispatchers.IO) {
+            MemoryStore.ensureSkeleton()
+            MemoryStore.loadSnapshot()
+        }
         snapshot = loaded
         // Health re-reads files and resolves every link: off the main thread.
         health = withContext(Dispatchers.Default) {
@@ -94,17 +127,10 @@ fun SecondBrainScreen(onBack: () -> Unit) {
     }
 
     SettingsScaffold(
-        title = stringResource(SettingsPage.SECOND_BRAIN.title),
+        title = stringResource(R.string.settings_page_second_brain),
         onBack = onBack,
         overlay = overlay
     ) {
-        Text(
-            stringResource(R.string.second_brain_intro),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.testTag("settings_second_brain_intro")
-        )
-
         val current = snapshot
         if (current == null) {
             Text(
@@ -115,13 +141,28 @@ fun SecondBrainScreen(onBack: () -> Unit) {
             return@SettingsScaffold
         }
         if (!current.available) {
-            Text(
-                stringResource(R.string.second_brain_unavailable),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.testTag("settings_second_brain_unavailable")
+            SecondBrainAccessCard(
+                onGrant = { openSpecialAccess(context, ToolResult.ALL_FILES_ACCESS, context.packageName) }
             )
             return@SettingsScaffold
         }
+
+        val summary = remember(current) { current.summary() }
+        Text(
+            stringResource(R.string.second_brain_summary, summary.notes, summary.people, summary.areas),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("settings_second_brain_summary")
+        )
+        // Nothing but the seeded skeleton: the useful next step is a
+        // conversation, not the file list.
+        if (summary.empty) SecondBrainStartCard(onStartChat = onStartChat)
+        Text(
+            stringResource(R.string.second_brain_intro),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("settings_second_brain_intro")
+        )
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),

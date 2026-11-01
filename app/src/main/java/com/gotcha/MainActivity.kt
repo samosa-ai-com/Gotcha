@@ -90,6 +90,7 @@ import com.gotcha.ui.PermissionBlockedDialog
 import com.gotcha.ui.PermissionRationaleDialog
 import com.gotcha.ui.ReferralInviteDialog
 import com.gotcha.ui.ScheduledTasksScreen
+import com.gotcha.ui.SecondBrainScreen
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
@@ -116,7 +117,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS, SCHEDULED }
+enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS, SCHEDULED, SECOND_BRAIN }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -1052,6 +1053,10 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.SCHEDULED
                     },
+                    onOpenSecondBrain = {
+                        scope.launch { drawerState.close() }
+                        currentRoute = Route.SECOND_BRAIN
+                    },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
                     liveTokenBySession = liveTokenBySession
@@ -1245,6 +1250,17 @@ class MainActivity : ComponentActivity() {
                         onBack = { currentRoute = Route.HOME },
                         onOpenChat = { id ->
                             chatViewModel.openSession(id)
+                            currentRoute = Route.HOME
+                        }
+                    )
+                }
+                Route.SECOND_BRAIN -> {
+                    // Reached from the drawer: back returns to chat.
+                    BackHandler { currentRoute = Route.HOME }
+                    SecondBrainScreen(
+                        onBack = { currentRoute = Route.HOME },
+                        onStartChat = { prompt, mode ->
+                            chatViewModel.startChatFromTip(prompt, mode)
                             currentRoute = Route.HOME
                         }
                     )
