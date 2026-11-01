@@ -91,6 +91,16 @@ class ScheduledTaskFormTest {
     }
 
     @Test
+    fun `saving an example from the form makes it the user's own task`() {
+        store.put(opened.copy(presetId = ScheduledPresets.EVENING_WRAP_UP))
+
+        val saved = form(name = "My evening").saveOver(store, "t", at("2026-10-19T08:05"), zone)!!
+
+        assertEquals("My evening", saved.name)
+        assertNull(saved.presetId)
+    }
+
+    @Test
     fun `an edit that leaves the schedule alone keeps a pending retry or busy wait`() {
         store.put(opened.copy(retryAt = at("2026-10-19T08:10"), retriesUsed = 1, busySince = at("2026-10-19T08:00")))
 
