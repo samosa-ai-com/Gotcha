@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -103,22 +102,9 @@ fun AppDrawerContent(
     // as a stack of white lozenges with no gaps — their pill corners interlocking
     // where they met. Only the open chat gets a background now, and it is a tint
     // of the skin's own accent rather than a wash of white.
-    val itemColors = NavigationDrawerItemDefaults.colors(
-        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-        unselectedContainerColor = Color.Transparent,
-        selectedTextColor = MaterialTheme.colorScheme.onSurface,
-        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
-        selectedIconColor = MaterialTheme.colorScheme.primary,
-        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-    )
     val itemModifier = Modifier
         .padding(NavigationDrawerItemDefaults.ItemPadding)
         .padding(vertical = 4.dp)
-    // The four feature doors stack tight: they are one glance, not a list to
-    // scan, so they get no breathing room of their own — the group gaps
-    // around them do the separating.
-    val featureItemModifier = Modifier
-        .padding(NavigationDrawerItemDefaults.ItemPadding)
 
     // A floating panel, docked to the left edge: no start margin and square
     // start corners give the chat names the full width, while the 16dp
@@ -238,40 +224,32 @@ fun AppDrawerContent(
             // feature doors, and settings each get breathing room instead of
             // a divider line.
             Spacer(modifier = Modifier.height(12.dp))
-            NavigationDrawerItem(
+            // Compact doors, not list items: NavigationDrawerItem fixes its
+            // rows at 56dp, which left each one-line door swimming in empty
+            // space. These are 44dp and keep the drawer's pill language.
+            FeatureRow(
+                label = stringResource(R.string.drawer_second_brain),
                 // Sits with Scheduled tasks: both are the parts of Gotcha that
                 // keep working when no chat is open. This is the only door.
-                label = { Text(stringResource(R.string.drawer_second_brain)) },
                 icon = { Icon(Icons.Default.Psychology, contentDescription = null) },
-                selected = false,
-                onClick = onOpenSecondBrain,
-                colors = itemColors,
-                modifier = featureItemModifier
+                onClick = onOpenSecondBrain
             )
-            NavigationDrawerItem(
+            FeatureRow(
                 // Reuses the settings page title: already translated everywhere.
-                label = { Text(stringResource(R.string.settings_page_scheduled_tasks)) },
+                label = stringResource(R.string.settings_page_scheduled_tasks),
                 icon = { Icon(Icons.Default.Schedule, contentDescription = null) },
-                selected = false,
-                onClick = onOpenScheduledTasks,
-                colors = itemColors,
-                modifier = featureItemModifier
+                onClick = onOpenScheduledTasks
             )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.drawer_connectors)) },
+            FeatureRow(
+                label = stringResource(R.string.drawer_connectors),
                 icon = { Icon(Icons.Default.Link, contentDescription = null) },
-                selected = false,
-                onClick = onOpenConnectors,
-                colors = itemColors,
-                modifier = featureItemModifier
+                onClick = onOpenConnectors
             )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.drawer_settings)) },
+            FeatureRow(
+                label = stringResource(R.string.drawer_settings),
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                selected = false,
                 onClick = onOpenSettings,
-                colors = itemColors,
-                modifier = featureItemModifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
+                modifier = Modifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -306,6 +284,43 @@ fun AppDrawerContent(
 
 /** How long typing must settle before the drawer searches, in milliseconds. */
 private const val SEARCH_DEBOUNCE_MS = 120L
+
+/**
+ * One feature door: icon plus label on a single combined tap handler. A plain
+ * Surface rather than NavigationDrawerItem, whose rows are fixed at 56dp no
+ * matter how little they hold.
+ */
+@Composable
+private fun FeatureRow(
+    label: String,
+    icon: @Composable () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Transparent,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        modifier = modifier
+            .padding(NavigationDrawerItemDefaults.ItemPadding)
+            .defaultMinSize(minHeight = 44.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            icon()
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
 
 /**
  * One chat row: the drawer's selected-pill look on a single combined tap and
