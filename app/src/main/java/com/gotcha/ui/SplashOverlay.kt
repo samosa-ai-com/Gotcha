@@ -24,7 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
@@ -98,14 +99,21 @@ fun SplashVideoOverlay(
         }
     }
 
-    // The video's own dark ground, matching the window behind it: the footage
-    // around the video must not read as a panel. Clicks are swallowed whole:
-    // the app is live underneath, and a tap aimed at the logo must not land
-    // on a control nobody can see yet.
+    // The footage's own night gradient behind the video: sampled off the first
+    // frame, so the fit bars on taller screens melt into the footage instead
+    // of reading as a panel. Clicks are swallowed whole: the app is live
+    // underneath, and a tap aimed at the logo must not land on a control
+    // nobody can see yet.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(colorResource(R.color.splash_background))
+            .background(
+                Brush.verticalGradient(
+                    0f to Color(0xFF081B3A),
+                    0.5f to Color(0xFF060F26),
+                    1f to Color(0xFF020818)
+                )
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
