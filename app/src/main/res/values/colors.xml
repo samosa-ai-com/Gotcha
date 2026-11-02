@@ -11,4 +11,11 @@
         applyLaunchBackground().
     -->
     <color name="launch_background">#FBFDF9</color>
+    <!--
+        The launch video's own ground, sampled off its first frame. The system
+        splash and the video overlay both paint this instead of following night
+        mode: the footage is light either way, so the whole chain stays one
+        shade from tap to app.
+    -->
+    <color name="splash_background">#FBFDFA</color>
 </resources>
