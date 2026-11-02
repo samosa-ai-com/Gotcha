@@ -1,5 +1,7 @@
 package com.gotcha.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +21,6 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerDefaults
@@ -62,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppDrawerContent(
     sessions: List<ChatSession>,
@@ -116,16 +118,15 @@ fun AppDrawerContent(
     val featureItemModifier = Modifier
         .padding(NavigationDrawerItemDefaults.ItemPadding)
 
-    // A floating panel, not a full-bleed sheet: 16dp of breathing room and
-    // 24dp corners lift it off the app behind the scrim, which is what reads
-    // as premium rather than any one colour. One step rounder than the
-    // tightest skin so it registers as elevated in every theme.
+    // A floating panel, docked to the left edge: no start margin and square
+    // start corners give the chat names the full width, while the 16dp
+    // margins and 24dp corners everywhere else keep it lifted off the app.
     ModalDrawerSheet(
         drawerContainerColor = drawerColor,
-        drawerShape = RoundedCornerShape(24.dp),
+        drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
         modifier = Modifier
             .width(300.dp)
-            .padding(16.dp)
+            .padding(top = 16.dp, end = 16.dp, bottom = 16.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
@@ -217,6 +218,9 @@ fun AppDrawerContent(
                     val tokens = liveTokenBySession[session.id]
                         ?: (if (session.id == activeSessionId) activeTokenCount else session.tokenCount)
                     val usage = formatContextUsage(tokens, maxContextTokens)
+                    // No trailing delete button: the badge cost every row 48dp
+                    // of name width. Deleting is a long-press, which asks the
+                    // same confirmation as before.
                     NavigationDrawerItem(
                         label = {
                             Column {
@@ -264,21 +268,15 @@ fun AppDrawerContent(
                             }
                         },
                         selected = session.id == activeSessionId,
-                        onClick = {
-                            query = ""
-                            onSessionClick(session.id)
-                        },
-                        badge = {
-                            IconButton(onClick = { sessionToDelete = session.id }) {
-                                Icon(
-                                    Icons.Outlined.Delete,
-                                    contentDescription = stringResource(R.string.drawer_delete_chat_2),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
+                        onClick = {},
                         colors = itemColors,
-                        modifier = itemModifier
+                        modifier = itemModifier.combinedClickable(
+                            onClick = {
+                                query = ""
+                                onSessionClick(session.id)
+                            },
+                            onLongClick = { sessionToDelete = session.id }
+                        )
                     )
                 }
             }
