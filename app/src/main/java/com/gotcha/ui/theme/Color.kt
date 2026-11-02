@@ -163,7 +163,7 @@ val SamosaContainerHighest = Color(0xFF2E2314)
 val SamosaPopup = Color(0xFF1E1206)
 
 /**
- * Error red for the pink skins. The stock M3 error would sit a few degrees from
+ * Error red for the warm skins. The stock M3 error would sit a few degrees from
  * Aura's rose and Samosa's gold, and an error that looks like the send
  * button is not an error — this one is pushed toward orange to stay legible as
  * "something went wrong" next to an accent that is already warm.

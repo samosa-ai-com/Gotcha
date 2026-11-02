@@ -82,6 +82,24 @@ class SkinContrastTest {
         )
     }
 
+    /**
+     * Links also appear in dialogs (a question containing a link), and inline
+     * code carries its own background everywhere. Both pairs are opaque, so
+     * what the test measures is what the phone draws.
+     */
+    @Test
+    fun `links and inline code are readable on dialogs and code fills`() {
+        allMaterials.forEach { skin ->
+            assertReadable(skin, "link on the dialog", skin.link, skin.menuContainer)
+            assertReadable(
+                skin,
+                "code ink on the code fill",
+                skin.scheme.onSurface,
+                skin.scheme.surfaceContainerHighest
+            )
+        }
+    }
+
     @Test
     fun `the dialog is opaque in every skin`() {
         allMaterials.forEach { skin ->

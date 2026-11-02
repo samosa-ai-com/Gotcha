@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.material3.Material3RichText
 
 /** Column alignment parsed from a GFM delimiter row (`:---`, `:--:`, `---:`). */
@@ -253,7 +254,9 @@ fun MarkdownTable(
     headers: List<String>,
     aligns: List<TableAlign>,
     rows: List<List<String>>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** The caller's prose style, so links and code in cells match the page. */
+    style: RichTextStyle? = null
 ) {
     if (headers.isEmpty()) return
     val bodyStyle = MaterialTheme.typography.bodySmall
@@ -296,7 +299,7 @@ fun MarkdownTable(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         contentAlignment = align.toAlignment()
                                     ) {
-                                        TableCellContent(text)
+                                        TableCellContent(text, style)
                                     }
                                 }
                             }
@@ -317,8 +320,8 @@ fun MarkdownTable(
 
 /** One table cell's inline Markdown, shrink-wrapped so the grid measures content width. */
 @Composable
-private fun TableCellContent(markdown: String) {
-    Material3RichText {
+private fun TableCellContent(markdown: String, style: RichTextStyle?) {
+    Material3RichText(style = style) {
         Markdown(markdown)
     }
 }

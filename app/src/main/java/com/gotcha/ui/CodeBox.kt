@@ -78,7 +78,8 @@ fun RichMarkdown(markdown: String, modifier: Modifier = Modifier, style: RichTex
                 is MarkdownSegment.Table -> MarkdownTable(
                     headers = segment.headers,
                     aligns = segment.aligns,
-                    rows = segment.rows
+                    rows = segment.rows,
+                    style = skinStyle
                 )
             }
         }
