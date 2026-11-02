@@ -4,7 +4,7 @@
     icon as the launch animation, blown up to splash size from a 432px
     adaptive foreground — which is where the blurry logo came from. The
     still below is cut from the launch video at full resolution on the same
-    near-white ground, so the system splash hands over to the video
+    dark ground, so the system splash hands over to the video
     seamlessly.
 -->
 <resources>

@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Night-mode twin of values-v31/themes.xml. The window still follows the
-    night ground, but the splash keeps the video's own light shade: the
-    footage is light either way, and a dark splash behind a light logo and
-    a light video would flash twice.
+    Night-mode twin of values-v31/themes.xml. The splash matches the video's
+    dark starfield in both modes now; only the window follows the night ground.
 -->
 <resources>
     <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar">

@@ -10,8 +10,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,10 +27,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.gotcha.R
 import kotlinx.coroutines.delay
+
+/** The footage's own aspect ratio: 1080x1920 portrait. */
+private const val VIDEO_ASPECT = 9f / 16f
 
 /** Failsafe: a wedged decoder must never hold the launch hostage. */
 private const val SPLASH_TIMEOUT_MS = 12_000L
@@ -94,10 +98,10 @@ fun SplashVideoOverlay(
         }
     }
 
-    // The video's own near-white ground, matching the window behind it: the
-    // square footage around the footage must not read as a panel. Clicks are
-    // swallowed whole: the app is live underneath, and a tap aimed at the logo
-    // must not land on a control nobody can see yet.
+    // The video's own dark ground, matching the window behind it: the footage
+    // around the video must not read as a panel. Clicks are swallowed whole:
+    // the app is live underneath, and a tap aimed at the logo must not land
+    // on a control nobody can see yet.
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -110,14 +114,22 @@ fun SplashVideoOverlay(
             .alpha(alpha)
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val size = minOf(maxWidth, 440.dp)
+            // Scale to fit, never stretch: the footage is 9:16 and phones are
+            // taller, so the height binds and matching ground fills the rest.
+            // A full-bleed crop would eat the logo on narrow screens.
+            val widthToHeight = maxWidth / maxHeight
+            val videoModifier = if (widthToHeight < VIDEO_ASPECT) {
+                Modifier.fillMaxWidth().aspectRatio(VIDEO_ASPECT)
+            } else {
+                Modifier.fillMaxHeight().aspectRatio(VIDEO_ASPECT)
+            }
             if (videoFailed) {
                 Image(
                     painter = painterResource(R.drawable.splash_logo),
                     contentDescription = stringResource(R.string.chat_gotcha_logo),
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(size)
+                        .then(videoModifier)
                 )
             } else {
                 var player by remember { mutableStateOf<VideoView?>(null) }
@@ -148,7 +160,7 @@ fun SplashVideoOverlay(
                     },
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(size)
+                        .then(videoModifier)
                 )
                 DisposableEffect(Unit) {
                     onDispose { player?.stopPlayback() }
