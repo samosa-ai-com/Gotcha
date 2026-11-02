@@ -26,6 +26,10 @@ class SettingsSkinMigrationTest {
     @Before
     fun setUp() {
         FakeAndroidKeyStore.setUp()
+        // Hermetic prefs: the whole suite shares one Robolectric JVM, and other
+        // classes leave encrypted settings behind that this class must not see.
+        context.getSharedPreferences(SETTINGS_PREFS_FILE, Context.MODE_PRIVATE)
+            .edit().clear().apply()
         repository = SettingsRepository(context)
     }
 

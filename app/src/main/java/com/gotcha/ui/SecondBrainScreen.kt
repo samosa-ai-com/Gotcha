@@ -93,7 +93,7 @@ fun SecondBrainScreen(
     val context = LocalContext.current
     var snapshot by remember { mutableStateOf<MemoryStore.SecondBrainSnapshot?>(null) }
     var health by remember { mutableStateOf<MemoryStore.BrainHealth?>(null) }
-    var showGraph by remember { mutableStateOf(false) }
+    var showGraph by remember { mutableStateOf(true) }
     // Bumped on resume: the user may have granted file access in Android
     // Settings, or a chat may have written something while they were away.
     var tick by remember { mutableIntStateOf(0) }
