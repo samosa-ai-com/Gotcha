@@ -24,7 +24,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DrawerDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -149,7 +151,15 @@ fun AppDrawerContent(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            // Fine rules bracketing the chat list, top and bottom: the groups
+            // are spaced apart, and these hairlines say where the list itself
+            // starts and ends.
+            HorizontalDivider(
+                thickness = DividerDefaults.Thickness,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
             val searching = query.isNotBlank()
             // Searching stays off the main thread: every chat's transcript is
             // scanned, and a long history must not make typing stutter. The
@@ -220,10 +230,14 @@ fun AppDrawerContent(
                     )
                 }
             }
-            // Space, not rules, separates the groups: the chat list, the
-            // feature doors, and settings each get breathing room instead of
-            // a divider line.
-            Spacer(modifier = Modifier.height(12.dp))
+            // A hairline closes the chat list before the feature doors.
+            Spacer(modifier = Modifier.height(4.dp))
+            HorizontalDivider(
+                thickness = DividerDefaults.Thickness,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             // Compact doors, not list items: NavigationDrawerItem fixes its
             // rows at 56dp, which left each one-line door swimming in empty
             // space. These are 44dp and keep the drawer's pill language.
@@ -303,6 +317,7 @@ private fun FeatureRow(
         color = Color.Transparent,
         contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
+            .fillMaxWidth()
             .padding(NavigationDrawerItemDefaults.ItemPadding)
             .defaultMinSize(minHeight = 44.dp)
     ) {
@@ -352,6 +367,7 @@ private fun ChatRow(
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(28.dp),
         modifier = modifier
+            .fillMaxWidth()
             .defaultMinSize(minHeight = 56.dp)
             .combinedClickable(onClick = onOpen, onLongClick = onDelete)
     ) {
