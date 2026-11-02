@@ -95,6 +95,7 @@ import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
+import com.gotcha.ui.SplashVideoOverlay
 import com.gotcha.ui.StarPromptDialog
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
@@ -196,6 +197,25 @@ class MainActivity : ComponentActivity() {
 
     /** The one setting that decides what the app looks like. */
     private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
+
+    /**
+     * The launch video plays once per process: a warm start that reuses this
+     * activity (singleTask) must not replay it. Set when playback starts, not
+     * when it ends, so a rotation mid-video still lands in the app.
+     */
+    private object SplashGate {
+        var played = false
+    }
+
+    /** Whether the launch video is still up. Field, so it survives composition. */
+    private var showSplash by mutableStateOf(!SplashGate.played)
+
+    /**
+     * True once the app shell has drawn behind the launch video. Posted to the
+     * decor view after setContent, so it flips after the first traversal
+     * rather than during composition.
+     */
+    private var splashContentReady by mutableStateOf(false)
 
     /**
      * Repaints the window behind Compose in the current skin's ground. themes.xml
@@ -458,8 +478,23 @@ class MainActivity : ComponentActivity() {
                         TourOverlay(controller = tour.controller)
                     }
                 }
+                // The launch video over everything, content initializing
+                // underneath it. Back skips it rather than quitting: nobody
+                // asked to leave, they asked to get in faster.
+                if (showSplash) {
+                    BackHandler { showSplash = false }
+                    SplashVideoOverlay(
+                        contentReady = splashContentReady,
+                        onFinished = { showSplash = false },
+                        // The overlay has mounted, so a rotation from here
+                        // opens straight into the app instead of replaying
+                        // the video.
+                        onStarted = { SplashGate.played = true }
+                    )
+                }
             }
         }
+        window.decorView.post { splashContentReady = true }
     }
 
     /**

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Startup on Android 12 and later. Without this the OS shows the launcher
+    icon as the launch animation, blown up to splash size from a 432px
+    adaptive foreground — which is where the blurry logo came from. The
+    still below is cut from the launch video at full resolution on the same
+    dark ground, so the system splash hands over to the video
+    seamlessly.
+-->
+<resources>
+    <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Stops the white flash before Compose's first frame. See colors.xml. -->
+        <item name="android:windowBackground">@color/launch_background</item>
+        <!-- Restored from values-v29: without this, OEM force-dark inverts
+             Compose screens on API 31+ too. -->
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="android:windowSplashScreenAnimationDuration">1000</item>
+    </style>
+</resources>
