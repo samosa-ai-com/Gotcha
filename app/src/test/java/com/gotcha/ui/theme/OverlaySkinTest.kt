@@ -27,10 +27,10 @@ class OverlaySkinTest {
         assertEquals(Skins.Orchid.corner.value, orchid.cardRadiusDp, 0.001f)
         assertEquals(Skins.Orchid.cornerSmall.value, orchid.buttonRadiusDp, 0.001f)
 
-        val nocturne = overlaySkin(context, Skins.Nocturne.id)
+        val samosa = overlaySkin(context, Skins.Samosa.id)
         assertTrue(
             "the skins have different shapes, so their overlays must too",
-            orchid.cardRadiusDp != nocturne.cardRadiusDp
+            orchid.cardRadiusDp != samosa.cardRadiusDp
         )
     }
 

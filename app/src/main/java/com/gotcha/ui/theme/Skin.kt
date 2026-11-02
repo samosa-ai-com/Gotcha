@@ -50,6 +50,9 @@ enum class Backdrop {
  * @param popup what dialogs and menus paint, when the derived default (see
  *   [menuContainer]) leaves the accent or the dim ink below 4.5:1 on it.
  *   SkinContrastTest says when a skin needs one.
+ * @param link the colour of Markdown links on the ground and in the user
+ *   bubble. The renderer defaults to pure blue, which is unreadable on every
+ *   dark ground, so each skin names a link colour that clears 4.5:1 on both.
  */
 data class Skin(
     val id: String,
@@ -59,6 +62,7 @@ data class Skin(
     val backdrop: Backdrop,
     val ground: Color,
     val scheme: ColorScheme,
+    val link: Color,
     val wallpaper: List<Color> = emptyList(),
     val frost: Dp = 0.dp,
     val grain: Float = 0f,
@@ -227,7 +231,7 @@ private val OrchidScheme = darkColorScheme(
     primary = BrandCoral,
     onPrimary = OrchidOnCoral,
     primaryContainer = OrchidCoralContainer,
-    onPrimaryContainer = Color.White,
+    onPrimaryContainer = OrchidOnCoralContainer,
     secondary = OrchidInkDim,
     onSecondary = OrchidGround,
     secondaryContainer = OrchidPanelHigh,
@@ -250,29 +254,29 @@ private val OrchidScheme = darkColorScheme(
     onError = BrandOnError
 )
 
-private val NocturneScheme = darkColorScheme(
-    primary = BrandSalmon,
-    onPrimary = NocturneOnSalmon,
-    primaryContainer = NocturneSalmonContainer,
-    onPrimaryContainer = Color.White,
-    secondary = BrandMagenta,
-    onSecondary = Color.White,
-    secondaryContainer = NocturneMagentaContainer,
-    onSecondaryContainer = NocturneOnMagentaContainer,
-    tertiary = BrandViolet,
+private val SamosaScheme = darkColorScheme(
+    primary = SamosaGold,
+    onPrimary = SamosaOnGold,
+    primaryContainer = SamosaGoldContainer,
+    onPrimaryContainer = SamosaOnGoldContainer,
+    secondary = SamosaInkDim,
+    onSecondary = SamosaGround,
+    secondaryContainer = SamosaSecondaryContainer,
+    onSecondaryContainer = SamosaOnGoldContainer,
+    tertiary = Color.White,
     background = Color.Transparent,
-    onBackground = NocturneInk,
-    surface = NocturnePanel,
-    onSurface = NocturneInk,
-    surfaceVariant = NocturnePanelHigh,
-    onSurfaceVariant = NocturneInkDim,
-    surfaceContainer = NocturneContainer,
-    surfaceContainerHigh = NocturneContainerHigh,
-    surfaceContainerHighest = NocturneContainerHighest,
-    surfaceContainerLow = NocturneContainerLow,
-    surfaceContainerLowest = NocturneContainerLowest,
-    outline = NocturneOutline,
-    outlineVariant = NocturneOutline,
+    onBackground = SamosaInk,
+    surface = SamosaPanel,
+    onSurface = SamosaInk,
+    surfaceVariant = SamosaPanelHigh,
+    onSurfaceVariant = SamosaInkDim,
+    surfaceContainer = SamosaContainer,
+    surfaceContainerHigh = SamosaContainerHigh,
+    surfaceContainerHighest = SamosaContainerHighest,
+    surfaceContainerLow = SamosaContainerLow,
+    surfaceContainerLowest = SamosaContainerLowest,
+    outline = SamosaOutline,
+    outlineVariant = SamosaOutline,
     error = BrandError,
     onError = BrandOnError
 )
@@ -303,6 +307,7 @@ object Skins {
         grain = 0.06f,
         scrim = 0.05f,
         corner = 22.dp,
+        link = AuraLink,
         // The derived panel grey leaves the rose at 4.3:1; one step darker clears it.
         popup = AuraContainerHigh
     )
@@ -325,7 +330,8 @@ object Skins {
         frost = 18.dp,
         grain = 0.04f,
         scrim = 0.05f,
-        corner = 22.dp
+        corner = 22.dp,
+        link = VellumLink
     )
 
     /**
@@ -348,29 +354,33 @@ object Skins {
         grain = 0.12f,
         // The Arc read is a generous radius; it is half of why that look reads
         // as soft even though the colour is shouting.
+        // White on the deep rose container passes but reads harsh — a soft rose
+        // keeps 8.8:1 and stops the bubble shouting at the prose beside it.
         corner = 26.dp,
+        link = OrchidLink,
         // Coral on the derived lilac panel measured 1.7:1 on a phone. Dialogs sit
         // on the ramp's violet, deepened until coral clears 5:1.
         popup = OrchidPopup
     )
 
-    /** The launcher icon's low-poly geometry, blown up to wallpaper scale. */
-    val Nocturne = Skin(
-        id = "nocturne",
-        label = "Nocturne",
-        tagline = "Faceted dark. The icon's shards read through black glass.",
+    /** The company mark as an interface: warm black, golden actions. */
+    val Samosa = Skin(
+        id = "samosa",
+        label = "Samosa",
+        tagline = "Golden dark. Warm black ground, golden actions.",
         brightness = Brightness.DARK,
-        backdrop = Backdrop.FACETS,
-        ground = NocturneGround,
-        scheme = NocturneScheme,
-        wallpaper = listOf(BrandViolet, BrandMagenta, BrandRose, BrandCoral, BrandSalmon),
-        frost = 18.dp,
-        grain = 0.06f,
-        // Enough veil to keep every shard behind the text rather than beside it.
-        scrim = 0.18f,
-        // Tighter than the rest: the wallpaper is hard edges, and round chrome
-        // over it reads as two unrelated designs.
-        corner = 16.dp
+        backdrop = Backdrop.FLAT,
+        ground = SamosaGround,
+        scheme = SamosaScheme,
+        link = SamosaLink,
+        frost = 8.dp,
+        grain = 0.10f,
+        // A touch tighter than Orchid: the mark is a hard-edged triangle, and
+        // round chrome over flat black reads softer than the brand is.
+        corner = 18.dp,
+        // Gold on the derived grey panel comes out at ~4.4:1, still below the
+        // bar. Dialogs sit on deep warm brown, where gold clears 8:1.
+        popup = SamosaPopup
     )
 
     /**
@@ -387,7 +397,8 @@ object Skins {
         brightness = Brightness.DARK,
         backdrop = Backdrop.NONE,
         ground = DeepSpaceGround,
-        scheme = DarkColorScheme
+        scheme = DarkColorScheme,
+        link = CyberCyan
     )
 
     val DeepSpaceLight = Skin(
@@ -397,10 +408,11 @@ object Skins {
         brightness = Brightness.LIGHT,
         backdrop = Backdrop.NONE,
         ground = LightSurface,
-        scheme = LightColorScheme
+        scheme = LightColorScheme,
+        link = LightPrimary
     )
 
-    val all = listOf(Aura, Vellum, Orchid, Nocturne, DeepSpaceDark, DeepSpaceLight)
+    val all = listOf(Aura, Vellum, Orchid, Samosa, DeepSpaceDark, DeepSpaceLight)
 
     /**
      * The skin id a fresh install lands on, and the value the theme uses when
@@ -424,5 +436,8 @@ object Skins {
      */
     val OVERLAY_FALLBACK_ID: String get() = DeepSpaceDark.id
 
-    fun byId(id: String): Skin = all.firstOrNull { it.id == id } ?: DeepSpaceDark
+    fun byId(id: String): Skin = all.firstOrNull { it.id == id }
+        // The retired faceted theme opens as Samosa: same fourth slot, same
+        // dark glass, so nobody's app repaints to the opaque fallback.
+        ?: if (id == "nocturne") Samosa else DeepSpaceDark
 }

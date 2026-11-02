@@ -44,6 +44,44 @@ class SkinContrastTest {
         }
     }
 
+    /**
+     * Links used to come out pure blue on every skin — 1.1:1 on Orchid's
+     * violet — because the renderer was never given a style. Each skin now
+     * names its link colour; it must clear 4.5:1 on the ground (assistant
+     * prose), in the user bubble, and on every wallpaper blob composited over
+     * the ground at full strength. The blur only softens the blobs, so full
+     * strength is the pessimistic case; flat and opaque skins have no blobs
+     * and skip that leg.
+     */
+    @Test
+    fun `links are readable on the ground, in user bubbles and on wallpaper`() {
+        allMaterials.forEach { skin ->
+            assertReadable(skin, "link on the ground", skin.link, skin.ground)
+            assertReadable(
+                skin,
+                "link in the user bubble",
+                skin.link,
+                skin.scheme.primaryContainer
+            )
+            skin.wallpaper.forEach { blob ->
+                assertReadable(
+                    skin,
+                    "link on wallpaper blob $blob",
+                    skin.link,
+                    composite(blob, skin.ground)
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the retired nocturne id opens samosa, not the fallback`() {
+        assertTrue(
+            "a stored nocturne skin must land on its replacement",
+            Skins.byId("nocturne") === Skins.Samosa
+        )
+    }
+
     @Test
     fun `the dialog is opaque in every skin`() {
         allMaterials.forEach { skin ->
@@ -63,6 +101,17 @@ class SkinContrastTest {
         val la = a.luminance()
         val lb = b.luminance()
         return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+    }
+
+    /** Alpha-composites a translucent wallpaper blob onto the ground. */
+    private fun composite(fg: Color, bg: Color): Color {
+        if (fg.alpha >= 1f) return fg
+        return Color(
+            red = fg.red * fg.alpha + bg.red * (1f - fg.alpha),
+            green = fg.green * fg.alpha + bg.green * (1f - fg.alpha),
+            blue = fg.blue * fg.alpha + bg.blue * (1f - fg.alpha),
+            alpha = 1f
+        )
     }
 
     private companion object {
