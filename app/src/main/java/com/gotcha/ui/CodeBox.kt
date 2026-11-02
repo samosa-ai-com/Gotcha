@@ -21,10 +21,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.ui.theme.GotchaMono
@@ -32,6 +36,8 @@ import com.gotcha.ui.theme.LocalSkin
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.material3.Material3RichText
+import com.halilibo.richtext.ui.merge
+import com.halilibo.richtext.ui.string.RichTextStringStyle
 
 /**
  * Markdown with its fenced code blocks drawn as [CodeBox]es, so a command the
@@ -39,17 +45,41 @@ import com.halilibo.richtext.ui.material3.Material3RichText
  */
 @Composable
 fun RichMarkdown(markdown: String, modifier: Modifier = Modifier, style: RichTextStyle? = null) {
+    // The renderer's own defaults ignore the skin: links come out pure blue
+    // (1.1:1 on Orchid's violet) and inline code on a light-grey wash. Both
+    // are restated here from the skin, so every prose surface is fixed at once.
+    // A caller [style] still wins where it says anything (see merge): the
+    // release-notes heading override keeps working.
+    val skin = LocalSkin.current
+    val scheme = MaterialTheme.colorScheme
+    val skinStyle = remember(skin, scheme, style) {
+        RichTextStyle(
+            stringStyle = RichTextStringStyle(
+                linkStyle = SpanStyle(
+                    color = skin.link,
+                    textDecoration = TextDecoration.Underline
+                ),
+                codeStyle = SpanStyle(
+                    color = scheme.onSurface,
+                    background = scheme.surfaceContainerHighest,
+                    fontFamily = GotchaMono,
+                    fontWeight = FontWeight.Medium
+                )
+            )
+        ).merge(style)
+    }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         splitFencedBlocks(markdown).flatMap { segment ->
             if (segment is MarkdownSegment.Prose) splitTables(segment.markdown) else listOf(segment)
         }.forEach { segment ->
             when (segment) {
-                is MarkdownSegment.Prose -> Material3RichText(style = style) { Markdown(segment.markdown) }
+                is MarkdownSegment.Prose -> Material3RichText(style = skinStyle) { Markdown(segment.markdown) }
                 is MarkdownSegment.Code -> CodeBox(code = segment.code, language = segment.language)
                 is MarkdownSegment.Table -> MarkdownTable(
                     headers = segment.headers,
                     aligns = segment.aligns,
-                    rows = segment.rows
+                    rows = segment.rows,
+                    style = skinStyle
                 )
             }
         }

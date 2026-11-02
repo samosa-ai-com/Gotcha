@@ -122,7 +122,7 @@ fun MessageBubble(
             contentColor = contentColor,
             shadowElevation = if (unbubbled) 0.dp else 2.dp,
             // The skin owns the shape as well as the colour: Orchid is generous,
-            // Nocturne is tight, Deep Space is exactly what it always was.
+            // Samosa is a touch tighter, Deep Space is exactly what it always was.
             shape = RoundedCornerShape(
                 topStart = skin.corner,
                 topEnd = skin.corner,

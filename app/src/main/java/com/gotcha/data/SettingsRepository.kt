@@ -7,6 +7,7 @@ import android.os.Looper
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
 import com.gotcha.i18n.Language
+import com.gotcha.ui.theme.Skins
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -592,6 +593,13 @@ class SettingsRepository(context: Context) : SettingsStore {
     /** Reads the stored skin, running the one-shot migration if it has not run. */
     private fun resolvedSkinId(): String {
         val stored = prefs.getString(KEY_SKIN_ID, null)
+        // The retired faceted theme persists here as "nocturne" until it is
+        // rewritten. Migrate it on first read so every reader of the setting,
+        // not just the theme resolver, sees the replacement id.
+        if (stored == "nocturne") {
+            prefs.edit().putString(KEY_SKIN_ID, Skins.Samosa.id).apply()
+            return Skins.Samosa.id
+        }
         if (stored != null) return stored
         val migrated = migrateSkinId(prefs.getString(KEY_LEGACY_THEME_MODE, null))
         prefs.edit().putString(KEY_SKIN_ID, migrated).apply()
