@@ -11,6 +11,9 @@
     <style name="Theme.Gotcha" parent="android:Theme.Material.Light.NoActionBar">
         <!-- Stops the white flash before Compose's first frame. See colors.xml. -->
         <item name="android:windowBackground">@color/launch_background</item>
+        <!-- Restored from values-v29: without this, OEM force-dark inverts
+             Compose screens on API 31+ too. -->
+        <item name="android:forceDarkAllowed">false</item>
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
         <item name="android:windowSplashScreenAnimationDuration">1000</item>

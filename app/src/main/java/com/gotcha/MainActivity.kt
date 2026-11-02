@@ -479,15 +479,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 // The launch video over everything, content initializing
-                // underneath it. Back is held while it plays: two seconds of
-                // branding must not read as a way to quit the app.
+                // underneath it. Back skips it rather than quitting: nobody
+                // asked to leave, they asked to get in faster.
                 if (showSplash) {
-                    BackHandler {}
+                    BackHandler { showSplash = false }
                     SplashVideoOverlay(
                         contentReady = splashContentReady,
                         onFinished = { showSplash = false },
-                        // Playback has started, so a rotation from here opens
-                        // straight into the app instead of replaying the video.
+                        // The overlay has mounted, so a rotation from here
+                        // opens straight into the app instead of replaying
+                        // the video.
                         onStarted = { SplashGate.played = true }
                     )
                 }

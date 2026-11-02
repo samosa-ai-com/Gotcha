@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,25 +31,27 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.gotcha.R
 import kotlinx.coroutines.delay
 
-/** The footage's own aspect ratio: 1080x1920 portrait. */
+/** The footage's own aspect ratio: 720x1280 portrait. */
 private const val VIDEO_ASPECT = 9f / 16f
 
-/** Failsafe: a wedged decoder must never hold the launch hostage. */
-private const val SPLASH_TIMEOUT_MS = 12_000L
+/**
+ * Failsafe for a wedged decoder: prepare plus two seconds of footage should
+ * never take this long, and past it something is wrong enough that holding
+ * the launch longer only punishes the user.
+ */
+private const val SPLASH_TIMEOUT_MS = 4_000L
 
 /** The fade from the video's last frame into the app. */
 private const val SPLASH_FADE_MS = 300
 
 /**
- * Whether the overlay may go away. The video is the minimum: it is two seconds
- * long and cannot finish earlier, so a fast device still watches the whole
- * launch. Past it, dismissal waits for the app shell ([contentReady]) — on a
- * slow start the last frame holds as the logo. The timeout releases either
- * wait on its own, so a decoder that never calls back cannot hold the launch
- * hostage.
+ * The launch overlay's dismissal rule: the two-second video is the minimum,
+ * the app shell gates the rest, and the timeout releases either wait on its
+ * own. A decoder failure counts as finished: the fallback logo holds instead
+ * of the last frame, under the same rule.
  */
-fun shouldDismissSplash(videoEnded: Boolean, contentReady: Boolean, timedOut: Boolean): Boolean =
-    (videoEnded && contentReady) || timedOut
+fun shouldDismissSplash(playbackFinished: Boolean, contentReady: Boolean, timedOut: Boolean): Boolean =
+    (playbackFinished && contentReady) || timedOut
 
 /**
  * The cold-start launch video, played once per process while the app
@@ -90,14 +91,11 @@ fun SplashVideoOverlay(
     val alpha by animateFloatAsState(
         targetValue = if (fading) 0f else 1f,
         animationSpec = tween(SPLASH_FADE_MS),
+        // With animations disabled the fade finishes at once; the delay below
+        // would leave an invisible overlay swallowing taps for 300ms.
+        finishedListener = { if (it == 0f) onFinished() },
         label = "splashFade"
     )
-    LaunchedEffect(fading) {
-        if (fading) {
-            delay(SPLASH_FADE_MS.toLong())
-            onFinished()
-        }
-    }
 
     // The footage's own night gradient behind the video: sampled off the first
     // frame, so the fit bars on taller screens melt into the footage instead
@@ -123,8 +121,9 @@ fun SplashVideoOverlay(
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             // Scale to fit, never stretch: the footage is 9:16 and phones are
-            // taller, so the height binds and matching ground fills the rest.
-            // A full-bleed crop would eat the logo on narrow screens.
+            // taller, so the width binds and matching ground fills the bands
+            // above and below. A full-bleed crop would eat the logo on
+            // narrow screens.
             val widthToHeight = maxWidth / maxHeight
             val videoModifier = if (widthToHeight < VIDEO_ASPECT) {
                 Modifier.fillMaxWidth().aspectRatio(VIDEO_ASPECT)
@@ -140,10 +139,13 @@ fun SplashVideoOverlay(
                         .then(videoModifier)
                 )
             } else {
-                var player by remember { mutableStateOf<VideoView?>(null) }
                 AndroidView(
                     factory = { ctx ->
                         VideoView(ctx).apply {
+                            // A silent brand moment must not pause the user's
+                            // music or podcast: VideoView takes audio focus by
+                            // default, even with nothing to play.
+                            setAudioFocusRequest(android.media.AudioManager.AUDIOFOCUS_NONE)
                             // Listeners first: a local resource can prepare
                             // before the next line runs.
                             setOnPreparedListener { mp ->
@@ -163,16 +165,13 @@ fun SplashVideoOverlay(
                                     "android.resource://${ctx.packageName}/${R.raw.gotcha_splash}"
                                 )
                             )
-                            player = this
                         }
                     },
+                    onRelease = { player -> player.stopPlayback() },
                     modifier = Modifier
                         .align(Alignment.Center)
                         .then(videoModifier)
                 )
-                DisposableEffect(Unit) {
-                    onDispose { player?.stopPlayback() }
-                }
             }
         }
     }
