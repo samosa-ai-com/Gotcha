@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +33,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -217,66 +219,18 @@ fun AppDrawerContent(
                 items(rows, key = { it.first.id }) { (session, snippet) ->
                     val tokens = liveTokenBySession[session.id]
                         ?: (if (session.id == activeSessionId) activeTokenCount else session.tokenCount)
-                    val usage = formatContextUsage(tokens, maxContextTokens)
-                    // No trailing delete button: the badge cost every row 48dp
-                    // of name width. Deleting is a long-press, which asks the
-                    // same confirmation as before.
-                    NavigationDrawerItem(
-                        label = {
-                            Column {
-                                Text(
-                                    ChatTitle.display(session.title, LocalContext.current.stringLookup()),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                // Why this chat matched, when the title didn't:
-                                // the line of chat text holding the query.
-                                if (snippet != null) {
-                                    Text(
-                                        snippet,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.testTag("drawer_search_snippet")
-                                    )
-                                }
-                                // The one thing that distinguishes a seeded chat
-                                // from one the user held: said on the row rather
-                                // than only inside, so the list itself is honest.
-                                if (session.isSample) {
-                                    Text(
-                                        stringResource(R.string.drawer_sample_chat),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        maxLines = 1
-                                    )
-                                }
-                                if (usage != null) {
-                                    // Tabular figures: this counter ticks while a
-                                    // reply streams, and proportional digits make
-                                    // the whole line twitch as it does.
-                                    Text(
-                                        usage,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontFamily = GotchaMono,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        },
+                    ChatRow(
+                        session = session,
+                        snippet = snippet,
+                        tokens = tokens,
+                        maxContextTokens = maxContextTokens,
                         selected = session.id == activeSessionId,
-                        onClick = {},
-                        colors = itemColors,
-                        modifier = itemModifier.combinedClickable(
-                            onClick = {
-                                query = ""
-                                onSessionClick(session.id)
-                            },
-                            onLongClick = { sessionToDelete = session.id }
-                        )
+                        onOpen = {
+                            query = ""
+                            onSessionClick(session.id)
+                        },
+                        onDelete = { sessionToDelete = session.id },
+                        modifier = itemModifier
                     )
                 }
             }
@@ -352,6 +306,88 @@ fun AppDrawerContent(
 
 /** How long typing must settle before the drawer searches, in milliseconds. */
 private const val SEARCH_DEBOUNCE_MS = 120L
+
+/**
+ * One chat row: the drawer's selected-pill look on a single combined tap and
+ * long-press handler. A plain Surface rather than NavigationDrawerItem, which
+ * already owns a click handler — nesting a second detector outside it
+ * starves the outer one, which is how taps silently died. No trailing delete
+ * button: the badge cost every row 48dp of name width, and a long-press asks
+ * the same confirmation as before.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ChatRow(
+    session: ChatSession,
+    snippet: String?,
+    tokens: Int,
+    maxContextTokens: Int,
+    selected: Boolean,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val rowColor = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    } else {
+        Color.Transparent
+    }
+    Surface(
+        color = rowColor,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(28.dp),
+        modifier = modifier
+            .defaultMinSize(minHeight = 56.dp)
+            .combinedClickable(onClick = onOpen, onLongClick = onDelete)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text(
+                ChatTitle.display(session.title, LocalContext.current.stringLookup()),
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            // Why this chat matched, when the title didn't:
+            // the line of chat text holding the query.
+            if (snippet != null) {
+                Text(
+                    snippet,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("drawer_search_snippet")
+                )
+            }
+            // The one thing that distinguishes a seeded chat
+            // from one the user held: said on the row rather
+            // than only inside, so the list itself is honest.
+            if (session.isSample) {
+                Text(
+                    stringResource(R.string.drawer_sample_chat),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+            }
+            formatContextUsage(tokens, maxContextTokens)?.let { usage ->
+                // Tabular figures: this counter ticks while a
+                // reply streams, and proportional digits make
+                // the whole line twitch as it does.
+                Text(
+                    usage,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = GotchaMono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
 
 /**
  * The drawer's chat search field: one line, always visible above the list, so
