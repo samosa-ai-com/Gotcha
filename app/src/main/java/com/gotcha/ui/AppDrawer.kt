@@ -110,6 +110,11 @@ fun AppDrawerContent(
     val itemModifier = Modifier
         .padding(NavigationDrawerItemDefaults.ItemPadding)
         .padding(vertical = 4.dp)
+    // The four feature doors stack tight: they are one glance, not a list to
+    // scan, so they get no breathing room of their own — the group gaps
+    // around them do the separating.
+    val featureItemModifier = Modifier
+        .padding(NavigationDrawerItemDefaults.ItemPadding)
 
     // A floating panel, not a full-bleed sheet: 16dp of breathing room and
     // 24dp corners lift it off the app behind the scrim, which is what reads
@@ -289,7 +294,7 @@ fun AppDrawerContent(
                 selected = false,
                 onClick = onOpenSecondBrain,
                 colors = itemColors,
-                modifier = itemModifier
+                modifier = featureItemModifier
             )
             NavigationDrawerItem(
                 // Reuses the settings page title: already translated everywhere.
@@ -298,7 +303,7 @@ fun AppDrawerContent(
                 selected = false,
                 onClick = onOpenScheduledTasks,
                 colors = itemColors,
-                modifier = itemModifier
+                modifier = featureItemModifier
             )
             NavigationDrawerItem(
                 label = { Text(stringResource(R.string.drawer_connectors)) },
@@ -306,7 +311,7 @@ fun AppDrawerContent(
                 selected = false,
                 onClick = onOpenConnectors,
                 colors = itemColors,
-                modifier = itemModifier
+                modifier = featureItemModifier
             )
             NavigationDrawerItem(
                 label = { Text(stringResource(R.string.drawer_settings)) },
@@ -314,7 +319,7 @@ fun AppDrawerContent(
                 selected = false,
                 onClick = onOpenSettings,
                 colors = itemColors,
-                modifier = itemModifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
+                modifier = featureItemModifier.tourAnchor(TourAnchor.DRAWER_SETTINGS)
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
