@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +30,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -108,11 +109,18 @@ fun AppDrawerContent(
     )
     val itemModifier = Modifier
         .padding(NavigationDrawerItemDefaults.ItemPadding)
-        .padding(vertical = 2.dp)
+        .padding(vertical = 4.dp)
 
+    // A floating panel, not a full-bleed sheet: 16dp of breathing room and
+    // 24dp corners lift it off the app behind the scrim, which is what reads
+    // as premium rather than any one colour. One step rounder than the
+    // tightest skin so it registers as elevated in every theme.
     ModalDrawerSheet(
         drawerContainerColor = drawerColor,
-        modifier = Modifier.width(300.dp)
+        drawerShape = RoundedCornerShape(24.dp),
+        modifier = Modifier
+            .width(300.dp)
+            .padding(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
@@ -147,7 +155,7 @@ fun AppDrawerContent(
                     )
                 }
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             val searching = query.isNotBlank()
             // Searching stays off the main thread: every chat's transcript is
             // scanned, and a long history must not make typing stutter. The
@@ -269,7 +277,10 @@ fun AppDrawerContent(
                     )
                 }
             }
-            HorizontalDivider()
+            // Space, not rules, separates the groups: the chat list, the
+            // feature doors, and settings each get breathing room instead of
+            // a divider line.
+            Spacer(modifier = Modifier.height(12.dp))
             NavigationDrawerItem(
                 // Sits with Scheduled tasks: both are the parts of Gotcha that
                 // keep working when no chat is open. This is the only door.
@@ -341,7 +352,8 @@ private const val SEARCH_DEBOUNCE_MS = 120L
 
 /**
  * The drawer's chat search field: one line, always visible above the list, so
- * a chat can be found by its title or by anything said in it.
+ * a chat can be found by its title or by anything said in it. A full pill with
+ * a quiet border, to match the panel's roundness rather than fight it.
  */
 @Composable
 private fun ChatSearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -350,6 +362,10 @@ private fun ChatSearchField(query: String, onQueryChange: (String) -> Unit, modi
         onValueChange = onQueryChange,
         modifier = modifier.testTag("drawer_search"),
         singleLine = true,
+        shape = RoundedCornerShape(28.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        ),
         textStyle = MaterialTheme.typography.bodyMedium,
         placeholder = {
             Text(

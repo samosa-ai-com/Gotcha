@@ -31,6 +31,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -1059,6 +1060,8 @@ class MainActivity : ComponentActivity() {
 
         ModalNavigationDrawer(
             drawerState = drawerState,
+            // Deep enough that the floating panel reads as above the app.
+            scrimColor = Color.Black.copy(alpha = 0.4f),
             gesturesEnabled = (currentRoute == Route.HOME || drawerState.isOpen) &&
                 legalAcceptedVersion == LEGAL_VERSION,
             drawerContent = {
