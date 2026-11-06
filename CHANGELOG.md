@@ -3,6 +3,8 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+
+## [1.5.0]
 ### Added
 - **Second Brain: Gotcha remembers you** (#156). Gotcha keeps what it learns
   about you, the people in your life, your plans and preferences in plain
