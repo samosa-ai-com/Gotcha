@@ -93,6 +93,8 @@ import com.gotcha.agent.ChatTitle
 import com.gotcha.agent.ChatUiState
 import com.gotcha.agent.ComposerAttachment
 import com.gotcha.agent.ForegroundControlRequest
+import com.gotcha.data.FeatureIntroStore
+import com.gotcha.data.loadFeatureUsage
 import com.gotcha.i18n.stringLookup
 import com.gotcha.tools.AgentMode
 import com.gotcha.ui.theme.GotchaMono
@@ -100,7 +102,9 @@ import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinAlertDialog
 import com.gotcha.ui.theme.SkinDropdownMenu
 import com.gotcha.ui.theme.motionSpec
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Image as ComposeImage
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -127,6 +131,7 @@ fun ChatScreen(
     onStopRecording: ((String) -> Unit) -> Unit = {},
     onExportChat: () -> Unit = {},
     onBackupChat: () -> Unit = {},
+    onOpenChatAssets: () -> Unit = {},
     onReturnToRunning: () -> Unit = {},
     onCreateShareCard: () -> Unit = {},
     onEditMessage: (Long, String, List<ComposerAttachment>) -> Unit = { _, _, _ -> },
@@ -135,7 +140,9 @@ fun ChatScreen(
     unreadNotifications: Int = 0,
     onOpenInbox: () -> Unit = {},
     chatKeptOutOfNotifications: Boolean = false,
-    onSetChatKeptOutOfNotifications: (Boolean) -> Unit = {}
+    onSetChatKeptOutOfNotifications: (Boolean) -> Unit = {},
+    protectionsSkipped: Boolean = false,
+    onSetProtectionsSkipped: (Boolean) -> Unit = {}
 ) {
     val skin = LocalSkin.current
     val isHome = state.messages.isEmpty()
@@ -143,6 +150,13 @@ fun ChatScreen(
     // is blocked (one agent at a time), and a banner offers a jump back.
     val otherChatRunning = state.runningSessionId != null &&
         state.runningSessionId != state.activeSessionId
+    val context = LocalContext.current
+    // Introductions to features added after this user's first run. Starts
+    // hidden and is filled in by the usage check below, so an already-used
+    // feature never flashes as "new".
+    val featureIntro = remember { FeatureIntroStore(context) }
+    var showMemoryIntro by remember { mutableStateOf(false) }
+    var showScheduleIntro by remember { mutableStateOf(false) }
     var input by rememberSaveable { mutableStateOf("") }
     var inputWasVoice by rememberSaveable { mutableStateOf(false) }
     val pendingAttachments = state.pendingAttachments
@@ -150,6 +164,27 @@ fun ChatScreen(
     var editingMessageId by rememberSaveable { mutableStateOf<Long?>(null) }
     // Id of the user message pending a revert confirmation.
     var pendingRevertId by remember { mutableStateOf<Long?>(null) }
+    // "New for you" means new to this user, not merely shipped: a feature they
+    // already use never offers its chip, even if they never tapped it. Re-run
+    // per empty chat, so using it during this session retires the chip too.
+    LaunchedEffect(isHome, state.activeSessionId) {
+        if (!isHome) return@LaunchedEffect
+        // Blank while the check runs: a chip that was on in the previous empty
+        // chat must not flash if the feature has since been used.
+        showMemoryIntro = false
+        showScheduleIntro = false
+        val usage = withContext(Dispatchers.IO) { loadFeatureUsage(context) }
+        // Usage retires a chip permanently, so deleting the note or task later
+        // does not bring "New for you" back for something they already know.
+        if (usage.memory && !featureIntro.hasSeen(FeatureIntroStore.MEMORY)) {
+            featureIntro.markSeen(FeatureIntroStore.MEMORY)
+        }
+        if (usage.schedule && !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)) {
+            featureIntro.markSeen(FeatureIntroStore.SCHEDULE)
+        }
+        showMemoryIntro = !featureIntro.hasSeen(FeatureIntroStore.MEMORY)
+        showScheduleIntro = !featureIntro.hasSeen(FeatureIntroStore.SCHEDULE)
+    }
     // A draft handed over by the view model (a tapped daily tip): fill, never send.
     LaunchedEffect(state.composerDraft) {
         state.composerDraft?.let { draft ->
@@ -303,10 +338,14 @@ fun ChatScreen(
                         ChatOptionsMenu(
                             onExportChat = onExportChat,
                             onBackupChat = onBackupChat,
+                            onOpenChatAssets = onOpenChatAssets,
                             onCreateShareCard = onCreateShareCard,
                             shareEnabled = !state.isBusy,
                             keptOutOfNotifications = chatKeptOutOfNotifications,
                             onSetKeptOutOfNotifications = onSetChatKeptOutOfNotifications,
+                            protectionsSkipped = protectionsSkipped,
+                            onSetProtectionsSkipped = onSetProtectionsSkipped,
+                            skipToggleEnabled = !otherChatRunning,
                             unreadNotifications = unreadNotifications,
                             onOpenInbox = onOpenInbox
                         )
@@ -318,6 +357,35 @@ fun ChatScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (!isHome) {
                 ContextMeter(fraction = state.contextUsagePercent)
+            }
+            // Skip Protections is on for this chat: a loud, always-visible
+            // strip with one-tap revoke, so it can never be on unnoticed —
+            // including on an empty chat, where there is no transcript yet.
+            if (protectionsSkipped) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.fillMaxWidth().testTag("protections_skipped_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.chat_skip_protections_banner),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = { onSetProtectionsSkipped(false) },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) {
+                            Text(stringResource(R.string.chat_skip_protections_turn_off))
+                        }
+                    }
+                }
             }
             if (isHome) {
                 // Gender-neutral greetings; the index is saved, so a language change re-reads it.
@@ -374,6 +442,37 @@ fun ChatScreen(
                                 onPick = onSetPersona
                             )
                         }
+                        // The two features a new user most often never finds:
+                        // memory and scheduling. Filled, never sent, and each
+                        // retires after one tap (see FeatureIntroStore).
+                        if (state.isConfigured && !otherChatRunning &&
+                            (showMemoryIntro || showScheduleIntro)
+                        ) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            NewFeatureRow(
+                                showMemory = showMemoryIntro,
+                                showSchedule = showScheduleIntro,
+                                onMemory = {
+                                    // Both prompts need a write: memory saves a
+                                    // note, scheduling creates a task. Monitor
+                                    // would refuse them, so pick the mode the
+                                    // chip is asking for; the selector above
+                                    // shows the change.
+                                    onSetAgent(AgentMode.OPERATOR)
+                                    input = context.getString(R.string.starter_remember_this_template)
+                                    inputWasVoice = false
+                                    featureIntro.markSeen(FeatureIntroStore.MEMORY)
+                                    showMemoryIntro = false
+                                },
+                                onSchedule = {
+                                    onSetAgent(AgentMode.OPERATOR)
+                                    input = context.getString(R.string.starter_every_morning_template)
+                                    inputWasVoice = false
+                                    featureIntro.markSeen(FeatureIntroStore.SCHEDULE)
+                                    showScheduleIntro = false
+                                }
+                            )
+                        }
                         // Starters are an offer to fill the composer, so they are
                         // only shown when the composer can actually be used: no API
                         // key means typing is disabled, and a run in another chat
@@ -393,7 +492,6 @@ fun ChatScreen(
                             }
                             if (starters.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(24.dp))
-                                val context = LocalContext.current
                                 StarterPromptRow(
                                     prompts = starters,
                                     onPick = { prompt ->
@@ -960,14 +1058,20 @@ private fun UnreadBadge(count: Int, showCount: Boolean, modifier: Modifier = Mod
 private fun ChatOptionsMenu(
     onExportChat: () -> Unit,
     onBackupChat: () -> Unit,
+    onOpenChatAssets: () -> Unit,
     onCreateShareCard: () -> Unit,
     shareEnabled: Boolean,
     keptOutOfNotifications: Boolean,
     onSetKeptOutOfNotifications: (Boolean) -> Unit,
+    protectionsSkipped: Boolean,
+    onSetProtectionsSkipped: (Boolean) -> Unit,
+    skipToggleEnabled: Boolean,
     unreadNotifications: Int,
     onOpenInbox: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // Danger dialog for turning the skip on; turning it off applies at once.
+    var showSkipDanger by rememberSaveable { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }, modifier = Modifier.testTag("chat_options")) {
             BadgedBox(
@@ -1028,6 +1132,14 @@ private fun ChatOptionsMenu(
                 modifier = Modifier.testTag("chat_backup")
             )
             DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_assets)) },
+                onClick = {
+                    expanded = false
+                    onOpenChatAssets()
+                },
+                modifier = Modifier.testTag("chat_assets")
+            )
+            DropdownMenuItem(
                 text = { Text(stringResource(R.string.chat_create_share_card)) },
                 enabled = shareEnabled,
                 onClick = {
@@ -1041,7 +1153,51 @@ private fun ChatOptionsMenu(
                 onClick = { onSetKeptOutOfNotifications(!keptOutOfNotifications) },
                 modifier = Modifier.testTag("chat_keep_out_of_notifications")
             )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_skip_protections)) },
+                trailingIcon = { Checkbox(checked = protectionsSkipped, onCheckedChange = null) },
+                // While another chat runs, the engine is bound elsewhere: the
+                // toggle would be a no-op (or read stale), so it is off-limits.
+                enabled = skipToggleEnabled,
+                onClick = {
+                    if (protectionsSkipped) {
+                        expanded = false
+                        onSetProtectionsSkipped(false)
+                    } else {
+                        expanded = false
+                        showSkipDanger = true
+                    }
+                },
+                modifier = Modifier.testTag("chat_skip_protections")
+            )
         }
+    }
+    if (showSkipDanger) {
+        SkinAlertDialog(
+            onDismissRequest = { showSkipDanger = false },
+            title = { Text(stringResource(R.string.chat_skip_protections_danger_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.chat_skip_protections_danger_text),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSkipDanger = false
+                        onSetProtectionsSkipped(true)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) { Text(stringResource(R.string.chat_skip_protections_turn_on)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSkipDanger = false }) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
     }
 }
 

@@ -73,6 +73,24 @@ class ForegroundControlGateTest {
     }
 
     @Test
+    fun `invalidate re-arms the ask but keeps control taken`() = runTest {
+        val ask = CountingAsk { true }
+        var starts = 0
+        val gate = ForegroundControlGate(ask = { _, _ -> ask() }, onControlStarted = { starts++ })
+
+        assertNull(gate.check("open_app", noArgs))
+        assertEquals(1, ask.asks)
+
+        // A revoked skip (issue #155): the next control tool asks again, while
+        // control already taken is not announced a second time.
+        gate.invalidate()
+        assertNull(gate.check("tap", noArgs))
+        assertEquals(2, ask.asks)
+        assertEquals(1, starts)
+        assertTrue(gate.inControl)
+    }
+
+    @Test
     fun `background and info tools pass without asking`() = runTest {
         val ask = CountingAsk { false }
         val gate = ForegroundControlGate(ask = { _, _ -> ask() })

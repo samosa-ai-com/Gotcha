@@ -61,6 +61,16 @@ class GotchaApp : Application() {
         // pdfbox ships its glyph tables as Android assets; the resource loader
         // needs a Context before the first PDF text extraction (DocumentParser).
         com.gotcha.tools.DocumentParser.init(this)
+        // Persistent memory (issue #156): create Gotcha/memory/ early so it
+        // exists as soon as the app opens, not only on the first agent run.
+        // Best-effort: without All-files access mkdirs() fails and the agent
+        // run path retries later.
+        Thread {
+            runCatching {
+                val settings = com.gotcha.data.SettingsRepository(this).load()
+                com.gotcha.data.MemoryStore.ensureDefaults(settings)
+            }
+        }.start()
         setupUncaughtExceptionHandler()
     }
 

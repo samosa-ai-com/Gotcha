@@ -7,6 +7,10 @@ import com.gotcha.data.SafeEncryptedSharedPreferences
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.UUID
 
 /**
  * The scheduled tasks (issue #132). The tasks are kept in encrypted prefs, like
@@ -19,6 +23,14 @@ import java.io.File
  * the write, so the alarm receiver and the Settings page can't overwrite each
  * other's changes.
  */
+/**
+ * The two prefs the Morning briefing preset used before examples existed.
+ * Kept at file scope so the one-time adoption can be tested.
+ */
+internal const val KEY_BRIEFING_SEEDED = "briefing_preset_seeded"
+internal const val KEY_BRIEFING_TASK_ID = "briefing_preset_task_id"
+
+@Suppress("TooManyFunctions") // A storage facade: one small verb per operation, no shared state of its own.
 class ScheduledTaskStore internal constructor(
     private val prefs: SharedPreferences,
     private val attachmentsDir: File
@@ -57,8 +69,168 @@ class ScheduledTaskStore internal constructor(
         write(if (tasks.any { it.id == task.id }) tasks.map { if (it.id == task.id) task else it } else tasks + task)
     }
 
+    /**
+     * Seeds every example in [ScheduledPresets] once, paused, so the page opens
+     * on four things that already show what scheduling is good for.
+     *
+     * Never duplicates: a task already tracked for the preset is adopted, and
+     * the briefing keeps the id it was seeded under before examples existed.
+     * A deleted example is never re-added unasked; [restorePresets] is the
+     * explicit way back. The marker is written after the task, so a failed
+     * write retries on the next open. Returns the tasks newly created.
+     */
+    fun seedPresets(memoryRoot: String, now: Long, zone: ZoneId): List<ScheduledTask> = synchronized(LOCK) {
+        val localNow = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        val existing = read()
+        var tasks = existing
+        val created = mutableListOf<ScheduledTask>()
+        for (preset in ScheduledPresets.all) {
+            if (tasks.any { it.presetId == preset.id } || isPromoted(preset.id)) continue
+            val seeded = seedOne(preset, tasks, memoryRoot, localNow, now)
+            tasks = seeded.tasks
+            seeded.created?.let { created += it }
+        }
+        if (created.isNotEmpty() || tasks != existing) write(tasks)
+        created
+    }
+
+    /**
+     * One preset's place in [tasks]: already tracked, already seen, a task the
+     * user made under the same name, or a new paused copy. Never returns a
+     * second copy of anything.
+     */
+    private fun seedOne(
+        preset: ScheduledPreset,
+        tasks: List<ScheduledTask>,
+        memoryRoot: String,
+        localNow: LocalDateTime,
+        now: Long
+    ): PresetSeed {
+        // The briefing seeded before examples existed is tracked under its
+        // own key, so it is adopted rather than duplicated once.
+        val trackedId = prefs.getString(taskKey(preset.id), null) ?: legacyTaskId(preset.id)
+        val tracked = trackedId?.let { id -> tasks.firstOrNull { it.id == id } }
+        if (tracked != null) {
+            markSeeded(preset.id, tracked.id)
+            return PresetSeed(tasks.map { if (it.id == tracked.id) it.copy(presetId = preset.id) else it })
+        }
+        if (isSeeded(preset.id)) return PresetSeed(tasks)
+        // A task the user already made with the example's name is theirs: adopt
+        // it as the example instead of adding a duplicate beside it. Only on the
+        // first seed, so promoting or deleting later stays put.
+        val sameName = tasks.firstOrNull { it.name == preset.name }
+        if (sameName != null) {
+            markSeeded(preset.id, sameName.id)
+            return PresetSeed(tasks.map { if (it.id == sameName.id) it.copy(presetId = preset.id) else it })
+        }
+        val task = ScheduledPresets.task(preset, memoryRoot, localNow)
+            .copy(id = UUID.randomUUID().toString(), createdAt = now, presetId = preset.id)
+        markSeeded(preset.id, task.id)
+        return PresetSeed(tasks + task, task)
+    }
+
+    /** The task list after seeding one preset, plus the task it created, if any. */
+    private data class PresetSeed(val tasks: List<ScheduledTask>, val created: ScheduledTask? = null)
+
+    /**
+     * Examples that are not in [tasks] at all: what the restore button would
+     * add back. A task carrying the example's name counts as present, since
+     * restore would adopt it rather than duplicate it.
+     */
+    fun missingPresets(): List<ScheduledPreset> = synchronized(LOCK) {
+        val tasks = read()
+        ScheduledPresets.all.filter { preset ->
+            !isPromoted(preset.id) &&
+                tasks.none { it.presetId == preset.id || it.name == preset.name }
+        }
+    }
+
+    /**
+     * Puts back every example that is missing, paused. A task already carrying
+     * the example's name counts as present: restoring must not create a
+     * duplicate of something the user made themselves.
+     */
+    fun restorePresets(memoryRoot: String, now: Long, zone: ZoneId): Int = synchronized(LOCK) {
+        val localNow = LocalDateTime.ofInstant(Instant.ofEpochMilli(now), zone)
+        var tasks = read()
+        var added = 0
+        for (preset in ScheduledPresets.all) {
+            if (tasks.any { it.presetId == preset.id } || isPromoted(preset.id)) continue
+            val sameName = tasks.firstOrNull { it.name == preset.name }
+            if (sameName != null) {
+                markSeeded(preset.id, sameName.id)
+                continue
+            }
+            val task = ScheduledPresets.task(preset, memoryRoot, localNow)
+                .copy(id = UUID.randomUUID().toString(), createdAt = now, presetId = preset.id)
+            tasks = tasks + task
+            added++
+            markSeeded(preset.id, task.id)
+        }
+        if (added > 0) write(tasks)
+        added
+    }
+
+    /**
+     * Stops treating [presetId] as an example: called when the user turns it on
+     * or saves an edit. A promoted example is theirs for good, so neither
+     * seeding nor restore may drag it back, even after they rename it. The
+     * seeded marker stays, which is what keeps it from being re-added.
+     */
+    fun forgetPreset(presetId: String) = synchronized(LOCK) {
+        prefs.edit()
+            .putBoolean(promotedKey(presetId), true)
+            .remove(taskKey(presetId))
+            .apply { if (presetId == ScheduledPresets.MORNING_BRIEFING) remove(KEY_BRIEFING_TASK_ID) }
+            .apply()
+    }
+
+    /** True once the user has turned [presetId] into a task of their own. */
+    fun isPromoted(presetId: String): Boolean = prefs.getBoolean(promotedKey(presetId), false)
+
+    private fun isSeeded(presetId: String): Boolean =
+        prefs.getBoolean(seededKey(presetId), false) || legacySeeded(presetId)
+
+    /** The briefing seeded before examples existed, under its old keys. */
+    private fun legacySeeded(presetId: String): Boolean =
+        presetId == ScheduledPresets.MORNING_BRIEFING && prefs.getBoolean(KEY_BRIEFING_SEEDED, false)
+
+    private fun legacyTaskId(presetId: String): String? =
+        if (presetId == ScheduledPresets.MORNING_BRIEFING) {
+            prefs.getString(KEY_BRIEFING_TASK_ID, null)
+        } else {
+            null
+        }
+
+    private fun markSeeded(presetId: String, taskId: String) {
+        prefs.edit()
+            .putBoolean(seededKey(presetId), true)
+            .putString(taskKey(presetId), taskId)
+            .apply()
+    }
+
+    private fun seededKey(presetId: String) = "preset_seeded_$presetId"
+
+    private fun promotedKey(presetId: String) = "preset_promoted_$presetId"
+
+    private fun taskKey(presetId: String) = "preset_task_$presetId"
+
     fun delete(id: String) {
         update(id) { null }
+    }
+
+    /**
+     * Re-resolves every non-hourly task's next run in [zone] after the wall
+     * clock moved under it (issue #150). Hourly tasks, retries and busy waits
+     * are real durations and keep their moments. Returns true when anything
+     * changed. One lock covers the read and the write, like [update].
+     */
+    fun rebaseForZoneChange(now: Long, zone: ZoneId): Boolean = synchronized(LOCK) {
+        val tasks = read()
+        val rebased = tasks.map { ScheduledTaskPlanner.rebasedForZone(it, now, zone) }
+        if (rebased == tasks) return false
+        write(rebased)
+        true
     }
 
     /** The pinned chat [sessionId] was deleted: a same-chat task starts a new one next time. */

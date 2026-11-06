@@ -7,6 +7,7 @@ import androidx.core.app.NotificationCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
+import com.gotcha.R
 import com.gotcha.data.ChatHistoryRepository
 import com.gotcha.data.ChatSession
 import com.gotcha.data.LlmProvider
@@ -15,6 +16,7 @@ import com.gotcha.data.SettingsRepository
 import com.gotcha.llm.ChatMessage
 import com.gotcha.scheduled.ScheduledStart
 import com.gotcha.scheduled.ScheduledTask
+import com.gotcha.scheduled.ScheduledTaskNotifier
 import com.gotcha.scheduled.ScheduledTaskRuns
 import com.gotcha.scheduled.ScheduledTaskStore
 import com.gotcha.scheduled.TaskRunStatus
@@ -28,6 +30,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -75,14 +78,20 @@ class ScheduledRunTest {
 
     private fun runner() = ChatRunner.of(application)
 
-    private fun task(id: String = "news", sameChat: Boolean = false, chat: String? = null) = ScheduledTask(
+    private fun task(
+        id: String = "news",
+        sameChat: Boolean = false,
+        chat: String? = null,
+        enabled: Boolean = true
+    ) = ScheduledTask(
         id = id,
         name = "Morning news",
         prompt = "Summarise the news",
         startLocal = "2099-01-01T08:00",
         agentMode = AgentMode.MONITOR.name,
         sameChat = sameChat,
-        chatSessionId = chat
+        chatSessionId = chat,
+        enabled = enabled
     ).also { store.put(it) }
 
     /** Runs [id] as "Run now" does, letting the main looper turn until it has started. */
@@ -211,7 +220,7 @@ class ScheduledRunTest {
     }
 
     @Test
-    fun `a task never runs alongside another run`() {
+    fun `a second start while busy queues its turn instead of dropping it`() {
         ServerSocket(0).use { silent ->
             // Holds the run's request unanswered; later ones (the title, as the
             // stopped run saves) are dropped at once.
@@ -233,8 +242,49 @@ class ScheduledRunTest {
             assertTrue(first is ScheduledStart.Started)
 
             task(id = "second")
-            assertEquals(ScheduledStart.Busy, runNow("second"))
+            assertEquals(ScheduledStart.Queued, runNow("second"))
+            val queued = store.get("second")!!
+            assertNotNull("a queued start keeps its retry", queued.retryAt)
+            assertNotNull("a queued start keeps its wait start", queued.busySince)
+            val waitingTitle = application.getString(R.string.scheduled_waiting_title, "Morning news")
+            fun waitingPosted() = shadowOf(manager).allNotifications.any {
+                it.channelId == ScheduledTaskNotifier.CHANNEL_ID &&
+                    it.extras.getString(NotificationCompat.EXTRA_TITLE) == waitingTitle
+            }
+            assertTrue("queueing posts the waiting notification", waitingPosted())
 
+            // A wait that already gave up reports Busy, not Queued.
+            task(id = "third")
+            store.update("third") { it.copy(busySince = System.currentTimeMillis() - 61 * 60_000L) }
+            assertEquals(ScheduledStart.Busy, runNow("third"))
+            assertEquals(TaskRunStatus.SKIPPED_BUSY, store.get("third")!!.lastRun!!.status)
+
+            // A paused task is promised no queue: nothing is persisted.
+            task(id = "fourth", enabled = false)
+            assertEquals(ScheduledStart.Busy, runNow("fourth"))
+            val paused = store.get("fourth")!!
+            assertNull(paused.retryAt)
+            assertNull(paused.busySince)
+
+            runner().stop()
+            waitForRunToFinish()
+
+            // The queued retry fires once the runner frees up.
+            val retryAt = store.get("second")!!.retryAt!!
+            val fired = CoroutineScope(Dispatchers.Unconfined).async {
+                ScheduledTaskRuns.fireDue(application, retryAt)
+            }
+            val fireDeadline = System.currentTimeMillis() + 5_000
+            while (!fired.isCompleted && System.currentTimeMillis() < fireDeadline) {
+                ShadowLooper.idleMainLooper()
+                Thread.sleep(10)
+            }
+            runBlocking { fired.await() }
+            waitForRunToFinish()
+            val dequeued = store.get("second")!!
+            assertNull("the retry is spent once the run starts", dequeued.retryAt)
+            assertNull("the wait ends once the run starts", dequeued.busySince)
+            assertTrue("starting the run clears the waiting notification", !waitingPosted())
             runner().stop()
             waitForRunToFinish()
         }

@@ -3,6 +3,7 @@ package com.gotcha.tools
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
+import com.gotcha.data.MemoryStore
 import java.io.File
 import java.util.zip.ZipFile
 
@@ -351,6 +352,40 @@ class FileTool(private val context: Context) {
             is FileResolver.ResolveResult.Ok -> {
                 val perm = resolver.checkWritePermission(resolved.file)
                 if (perm != null) return perm
+                // Memory schema gate (Second Brain Phase 1): detail records
+                // under memory people/areas/notes must carry valid frontmatter.
+                // Rejected writes return the reasons so the agent speaks the fix.
+                val dirKind = MemoryStore.recordDirKind(resolved.file)
+                if (dirKind != null) {
+                    if (binary) {
+                        return ToolResult.error(
+                            "Memory records are Markdown text: refusing binary write to " +
+                                "'${resolved.file.name}'. Write text with frontmatter instead " +
+                                "(protocol: search_skills('memory'))."
+                        )
+                    }
+                    if (!append && resolved.file.exists() && MemoryStore.isDatedNote(resolved.file.name)) {
+                        return ToolResult.error(
+                            "Dated notes are append-only: '${resolved.file.name}' describes what was " +
+                                "true then and must not be replaced. Create a new note with the new " +
+                                "decision and link both ways with a Superseded by [[path]] line, or use " +
+                                "edit to add that line (protocol: search_skills('memory'))."
+                        )
+                    }
+                    val effective = if (append && resolved.file.exists()) {
+                        runCatching { resolved.file.readText(Charsets.UTF_8) }.getOrDefault("") + content
+                    } else {
+                        content
+                    }
+                    val check = MemoryStore.validateRecord(resolved.file.name, effective, dirKind)
+                    if (!check.valid) {
+                        return ToolResult.error(
+                            "Memory record rejected:\n" +
+                                check.errors.joinToString("\n") +
+                                "\nFix the frontmatter and retry (protocol: search_skills('memory'))."
+                        )
+                    }
+                }
                 writeResolved(resolved.file, path, content, append, binary)
             }
         }

@@ -33,6 +33,7 @@
     <string name="language_italian">Italian</string>
     <string name="language_portuguese">Portuguese</string>
     <string name="language_russian">Russian</string>
+    <string name="language_arabic">Arabic</string>
 
     <!-- Settings → Language -->
     <string name="language_page_intro">Every language Gotcha uses, in one place: what the app\'s own screens are written in, what Gotcha speaks and hears, and what it writes its answers in.</string>
@@ -68,6 +69,66 @@
     <!-- Settings pages: title and the summary under it on the home list -->
     <string name="settings_page_personal_info">Personal Info</string>
     <string name="settings_page_personal_info_summary">Who you are, currency, reply style</string>
+    <string name="settings_page_second_brain">Second Brain</string>
+    <string name="settings_page_chats">Chats</string>
+    <string name="settings_page_chats_summary">Import or back up conversations</string>
+    <string name="second_brain_intro">What Gotcha remembers about you. Identity first, then the map, then detail. Editing happens through the agent for now.</string>
+    <string name="second_brain_summary">Notes: %1$d · People: %2$d · Areas: %3$d</string>
+    <string name="second_brain_setup_title">Your second brain</string>
+    <string name="second_brain_setup_body">Everything Gotcha has learned about you, in files you own. It reads them at the start of every chat, so you never repeat yourself.</string>
+    <string name="second_brain_setup_remembers">Remembers people, plans and preferences</string>
+    <string name="second_brain_setup_grows">Grows every time you talk</string>
+    <string name="second_brain_setup_yours">Plain files you can read any time</string>
+    <string name="second_brain_setup_grant">Allow file access</string>
+    <string name="second_brain_setup_grant_hint">Gotcha needs All files access to read and write its memory folder.</string>
+    <string name="second_brain_start_title">Start it with a conversation</string>
+    <string name="second_brain_start_body">Gotcha only knows what it has been told. These prompts fill the chat box; edit them before sending.</string>
+    <string name="second_brain_start_meet">Get to know me</string>
+    <string name="second_brain_start_meet_prompt">Get to know me: ask me five questions about what matters to me, then save the answers in my Second Brain.</string>
+    <string name="second_brain_start_recall">What do you know about me?</string>
+    <string name="second_brain_start_recall_prompt">What do you know about me? Read your Second Brain and summarise it.</string>
+    <string name="second_brain_saved">Saved to Second Brain</string>
+    <string name="second_brain_updated">Updated in Second Brain</string>
+    <string name="second_brain_loading">Loading memory…</string>
+    <string name="second_brain_unavailable">Memory is not available yet. Allow All files access under Settings → Permissions, then open a chat and send one message.</string>
+    <string name="second_brain_identity">Identity (SOUL.md)</string>
+    <string name="second_brain_map">Map (MEMORY.md)</string>
+    <string name="second_brain_user_card">User card</string>
+    <string name="second_brain_areas">Areas</string>
+    <string name="second_brain_people">People</string>
+    <string name="second_brain_notes">Notes</string>
+    <string name="second_brain_raw">Raw files</string>
+    <string name="second_brain_empty">Nothing here yet.</string>
+    <string name="second_brain_health_title">Health (%1$d issues)</string>
+    <string name="second_brain_health_clean">Health: all connected (%1$d issues)</string>
+    <string name="second_brain_health_clean_detail">No unlinked files, dangling links, invalid records, task-link problems or files too large to scan.</string>
+    <string name="second_brain_health_unlinked">Unlinked files (%1$d)</string>
+    <string name="second_brain_health_dangling">Dangling links (%1$d)</string>
+    <string name="second_brain_health_invalid">Invalid records (%1$d)</string>
+    <string name="second_brain_health_invalid_line">%1$s: %2$s</string>
+    <string name="second_brain_health_unknown_tasks">Notes pointing at missing tasks (%1$d)</string>
+    <string name="second_brain_health_unknown_line">%1$s → %2$s</string>
+    <string name="second_brain_health_dangling_line">%1$s → [[%2$s]]</string>
+    <string name="second_brain_health_mismatch_line">%1$s → task points at %2$s</string>
+    <string name="second_brain_health_nowhere">(nowhere)</string>
+    <string name="second_brain_health_stale_line">“%1$s” → %2$s</string>
+    <string name="second_brain_health_missing_backlink">Tasks missing a link back from their note (%1$d)</string>
+    <string name="second_brain_health_missing_backlink_line">“%1$s” points at %2$s but the note does not name it back</string>
+    <string name="second_brain_health_mismatched">Notes whose task points elsewhere (%1$d)</string>
+    <string name="second_brain_health_stale">Tasks pointing at missing notes (%1$d)</string>
+    <string name="second_brain_health_unscanned">Files too large to scan fully (%1$d)</string>
+    <string name="second_brain_health_more">…and %1$d more</string>
+    <string name="second_brain_search">Search memory</string>
+    <string name="second_brain_no_matches">No matches for “%1$s”.</string>
+    <string name="second_brain_truncated">Long file — showing the start only.</string>
+    <string name="second_brain_open">Open</string>
+    <string name="second_brain_open_failed">No app on this phone can open that file type.</string>
+    <string name="second_brain_tab_list">List</string>
+    <string name="second_brain_tab_graph">Graph</string>
+    <string name="second_brain_graph_loading">Growing the brain…</string>
+    <string name="second_brain_graph_hint">Drag to slide, two fingers to zoom and rotate, double-tap and drag to spin the brain. Tap a neuron to focus its connections, double-tap to reset.</string>
+    <string name="second_brain_graph_reset">Reset view</string>
+    <string name="second_brain_graph_neighbors"> · %1$d connected</string>
     <string name="settings_page_language">Language</string>
     <string name="settings_page_language_summary">App display, voice, transcription and AI reply language</string>
     <string name="settings_page_ai">AI</string>
@@ -714,8 +775,15 @@
 
     <!-- AppDrawer -->
     <string name="drawer_new_chat">New Chat</string>
+    <string name="drawer_search_placeholder">Search chats</string>
+    <string name="drawer_search_clear">Clear search</string>
+    <string name="drawer_search_results">Results (%1$d)</string>
+    <string name="drawer_search_no_results">No chats match “%1$s”.</string>
+    <!-- Import/backup moved to Settings ▸ Chats; the strings stay because the
+         settings rows reuse them, so no locale churn. -->
     <string name="drawer_import_chats">Import chats</string>
     <string name="drawer_back_up_all_chats">Back up all chats</string>
+    <string name="drawer_second_brain">Second Brain</string>
     <string name="drawer_connectors">Connectors</string>
     <string name="drawer_settings">Settings</string>
     <string name="drawer_delete_chat">Delete Chat?</string>
@@ -1005,6 +1073,11 @@
 
     <!-- Starter row -->
     <string name="starter_try">Try</string>
+    <string name="starter_new_for_you">New for you</string>
+    <string name="starter_remember_this">Remember this</string>
+    <string name="starter_remember_this_template">Remember that …</string>
+    <string name="starter_every_morning">Every morning at 8</string>
+    <string name="starter_every_morning_template">Every weekday at 8, give me a short plan for the day.</string>
 
     <!-- Persona -->
     <string name="persona_persona">Persona</string>
@@ -1044,7 +1117,24 @@
     <string name="chat_export_chat">Export chat</string>
     <string name="chat_back_up_chat">Back up chat</string>
     <string name="chat_create_share_card">Create share card</string>
+    <string name="chat_assets">Chat assets</string>
+    <string name="chat_assets_title">Chat assets</string>
+    <string name="chat_assets_empty">No files yet. Things Gotcha creates for this chat land here.</string>
+    <string name="chat_assets_empty_folder">This folder is empty.</string>
+    <string name="chat_assets_delete_title">Delete?</string>
+    <string name="chat_assets_delete_confirm">Delete %1$s? This can\'t be undone.</string>
+    <string name="chat_assets_deleted">Deleted.</string>
+    <string name="chat_assets_delete_failed">Couldn\'t delete that.</string>
+    <string name="chat_assets_back">Back</string>
+    <string name="chat_assets_up">Up one folder</string>
+    <string name="chat_assets_open_failed">Couldn\'t open that file.</string>
     <string name="chat_keep_out_of_notifications">Keep out of notifications</string>
+    <string name="chat_skip_protections">Skip protections</string>
+    <string name="chat_skip_protections_danger_title">Skip all protections for this chat?</string>
+    <string name="chat_skip_protections_danger_text">Gotcha will run without asking: controlling any app, sending, uninstalling, deleting and changing settings. Android\u2019s own dialogs (like the uninstall OK) still appear. Only turn this on for a task you trust, and turn it off right after.</string>
+    <string name="chat_skip_protections_turn_on">Skip protections</string>
+    <string name="chat_skip_protections_banner">Protections off for this chat. Gotcha runs without asking.</string>
+    <string name="chat_skip_protections_turn_off">Turn back on</string>
     <string name="chat_stop_reading_aloud">Stop reading aloud</string>
     <string name="chat_gotcha_logo">Gotcha logo</string>
     <string name="chat_stop_speaking">Stop speaking</string>
@@ -1183,6 +1273,12 @@
     <string name="daily_tip_podcast_title">Listen instead of reading</string>
     <string name="daily_tip_podcast_body">Gotcha can turn a document into a short podcast.</string>
     <string name="daily_tip_podcast_prompt">Turn the most recent PDF in my Downloads into a short podcast</string>
+    <string name="daily_tip_memory_title">Gotcha can remember things</string>
+    <string name="daily_tip_memory_body">Tell it a fact, a preference or a person once. It keeps it in your Second Brain and uses it in later chats.</string>
+    <string name="daily_tip_memory_prompt">Remember that …</string>
+    <string name="daily_tip_schedule_title">Let Gotcha work on a schedule</string>
+    <string name="daily_tip_schedule_body">Ask for something at a set time and it runs on its own, then the result lands in a chat.</string>
+    <string name="daily_tip_schedule_prompt">Every weekday at 8, give me a short plan for the day.</string>
 
     <!-- Local notifications -->
     <string name="local_unfinished_generic">A chat was left unfinished. Tap to pick it up.</string>
@@ -1687,7 +1783,7 @@
     <string name="mcp_tools_capped">Only the first %1$d are used.</string>
     <string name="mcp_removed_while_saving">That server was removed in the meantime.</string>
     <string name="mcp_error_name">Enter a name for the server.</string>
-    <string name="mcp_error_bad_url">Enter a full URL that starts with https:// (or http:// on your local network).</string>
+    <string name="mcp_error_bad_url">Enter a full URL starting with http:// or https://.</string>
     <string name="mcp_error_cleartext">Use https for a server outside your local network. A token or header sent over http can be read on the way.</string>
     <string name="mcp_error_bad_header">Write each header on its own line, as Name: value.</string>
     <string name="mcp_error_auth">The server refused the token or headers (HTTP %1$d). Check them and try again.</string>
@@ -1695,6 +1791,7 @@
     <string name="mcp_error_old_transport">This server uses the older HTTP+SSE transport, which Gotcha doesn\'t support yet. Use the server\'s Streamable HTTP address if it has one.</string>
     <string name="mcp_error_not_mcp">The server answered, but not as an MCP server: %1$s</string>
     <string name="mcp_error_http">The server returned HTTP %1$d: %2$s</string>
+    <string name="mcp_error_redirect">The server redirects to %1$s, which Gotcha won\'t follow on its own. Enter that address instead.</string>
     <string name="mcp_error_rpc">The server returned an error: %1$s</string>
     <string name="mcp_error_network">Couldn\'t reach the server: %1$s</string>
     <string name="mcp_error_bad_token">The token and header values can only contain plain ASCII characters.</string>
@@ -1711,8 +1808,17 @@
     <string name="settings_page_scheduled_tasks">Scheduled tasks</string>
     <string name="settings_page_scheduled_tasks_summary">Prompts Gotcha runs by itself at set times</string>
     <string name="scheduled_intro">Gotcha sends itself a prompt at the time you set and works on it like any chat. The result lands in a chat, with a notification when you\'re away.</string>
-    <string name="scheduled_empty">No scheduled tasks yet. Add one here, or ask Gotcha in a chat, e.g. “every weekday at 8, summarise my unread mail”.</string>
+    <string name="scheduled_empty">No scheduled tasks yet. Add one here, restore the examples, or ask Gotcha in a chat, e.g. “every weekday at 8, summarise my unread mail”.</string>
+    <string name="scheduled_examples_title">Examples</string>
+    <string name="scheduled_examples_body">Paused tasks that show what a schedule is good for. Turn one on, run it once, or edit it to make it yours.</string>
+    <string name="scheduled_your_tasks">Your tasks</string>
+    <string name="scheduled_restore_examples">Restore examples</string>
+    <string name="scheduled_example_briefing">Plans your day from your notes and calendar. Read-only.</string>
+    <string name="scheduled_example_evening">Sums up the day and suggests what to remember.</string>
+    <string name="scheduled_example_weekly">A weekly pass over your notes: what is open, what to drop.</string>
+    <string name="scheduled_example_inbox">Sorts unread notifications into reply, wait and ignore.</string>
     <string name="scheduled_add_task">Add a task</string>
+    <string name="scheduled_add_briefing">Morning briefing</string>
     <string name="scheduled_exact_alarm_hint">Gotcha may not set exact alarms, so a task can\'t start on its own: it will ask you to tap a notification instead.</string>
     <string name="scheduled_exact_alarm_allow">Allow alarms and reminders</string>
     <string name="scheduled_set_up_by_gotcha">Set up by Gotcha in a chat</string>
@@ -1726,6 +1832,10 @@
     <string name="scheduled_run_now">Run now</string>
     <string name="scheduled_run_now_started">Started. It\'s running in its chat.</string>
     <string name="scheduled_run_now_busy">Gotcha is busy with another task. Try again when it ends.</string>
+    <string name="scheduled_run_now_queued">Queued. It will run when the current task ends.</string>
+    <string name="scheduled_waiting_row">Waiting for the current run, retry at %1$s</string>
+    <string name="scheduled_waiting_title">“%1$s” is waiting</string>
+    <string name="scheduled_waiting_body">It will run when the current task ends.</string>
     <string name="scheduled_history">History</string>
     <string name="scheduled_hide_history">Hide history</string>
     <string name="scheduled_open_chat">Open chat</string>

@@ -65,7 +65,9 @@ fun AppearanceScreen(
     onApply: (Settings) -> Unit
 ) {
     val initial = remember { load() }
-    var skinId by remember { mutableStateOf(initial.skinId) }
+    // Resolved, not raw: a retired stored id (nocturne) still has to show its
+    // replacement's tile as selected, and saving then persists the new id.
+    var skinId by remember { mutableStateOf(Skins.byId(initial.skinId).id) }
 
     val overlay = rememberSettingsOverlayState()
     val tier = LocalGlassTier.current

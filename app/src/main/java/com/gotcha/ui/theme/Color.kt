@@ -36,12 +36,13 @@ val DarkOnSurfaceVariant = Color(0xFFCBD5E1)
 // Brand ramp
 // ---------------------------------------------------------------------------
 // Sampled from the launcher icon (res/mipmap-*/ic_launcher_round.png): a
-// five-stop ramp over a white field. Every skin below Deep Space is built out
-// of these five and nothing else, which is what keeps the app looking like its
-// own icon no matter which theme is on.
+// five-stop ramp over a white field. The icon skins are built out of these
+// five and nothing else, which is what keeps the app looking like its own
+// icon no matter which theme is on.
 //
 // Deep Space is the exception and stays cyan — it is what shipped, and it is
-// left alone so an update never repaints someone's app without asking.
+// left alone so an update never repaints someone's app without asking. Samosa
+// is the other: it follows the company mark (gold on black), not the icon.
 
 val BrandViolet = Color(0xFF7E1F88)
 val BrandMagenta = Color(0xFFC82F92)
@@ -62,6 +63,10 @@ val AuraOutline = Color(0xFF57575E)
 val AuraRoseContainer = Color(0xFF4A0F2C)
 val AuraOnRoseContainer = Color(0xFFFFD9E4)
 
+/** Links: pale rose, clears 4.5:1 on the ground, in the user bubble, and on
+ * the fog blobs behind prose (checked at full blob strength; blur only helps). */
+val AuraLink = Color(0xFFFFD0DC)
+
 // ---- Vellum: the icon's own white field, turned into an interface ----
 val VellumGround = Color(0xFFF1EFF2)
 val VellumPanel = Color(0x9EFFFFFF)
@@ -71,6 +76,11 @@ val VellumInkDim = Color(0xFF6A5F70)
 val VellumOutline = Color(0xFF867A88)
 val VellumMagentaContainer = Color(0xFFFFD8EC)
 val VellumOnMagentaContainer = Color(0xFF3A0028)
+
+/** Links: deep plum. The magenta ink passes on paper but collapses to 2.9:1
+ * on the purple fog blob; this clears 4.5:1 on the ground, the bubble and
+ * every blob at full strength. */
+val VellumLink = Color(0xFF7A1857)
 
 // ---- Orchid: one saturated violet ground, coral for every action ----
 val OrchidGround = BrandViolet
@@ -82,20 +92,33 @@ val OrchidOutline = Color(0xFFB878BE)
 val OrchidOnCoral = Color(0xFF45061F)
 val OrchidCoralContainer = Color(0xFF6E1443)
 
+/** Bubble ink: soft rose instead of pure white — same 8.8:1, less glare. */
+val OrchidOnCoralContainer = Color(0xFFFFD9E4)
+
+/** Links: pale peach, clears 4.5:1 on the violet ground and in the bubble. */
+val OrchidLink = Color(0xFFFFC9B8)
+
 /** Dialogs and menus: deep enough that coral and the dim ink both clear 4.5:1. */
 val OrchidPopup = Color(0xFF4A1052)
 
-// ---- Nocturne: the icon's facets at wallpaper scale, behind dark glass ----
-val NocturneGround = Color(0xFF0A050E)
-val NocturnePanel = Color(0x8F1A1020)
-val NocturnePanelHigh = Color(0x40FFFFFF)
-val NocturneInk = Color(0xFFF7EAF1)
-val NocturneInkDim = Color(0xFFD7C6E0)
-val NocturneOutline = Color(0xFF6B5478)
-val NocturneOnSalmon = Color(0xFF3D0A16)
-val NocturneSalmonContainer = Color(0xFF5C1A2A)
-val NocturneMagentaContainer = Color(0xFF3A1140)
-val NocturneOnMagentaContainer = Color(0xFFF7D9F2)
+// ---- Samosa: the company mark as an interface ----
+// Golden dark, not a sixth pink. The Samosa logo is a golden samosa
+// (#E5AA36) with a white curve on black, so the skin is warm black,
+// golden actions and warm-white ink — nothing shared with the icon ramp.
+val SamosaGround = Color(0xFF0D0A05)
+val SamosaPanel = Color(0x40FFFFFF)
+val SamosaPanelHigh = Color(0x59FFFFFF)
+val SamosaInk = Color(0xFFFFF8F0)
+val SamosaInkDim = Color(0xFFC9B79A)
+val SamosaOutline = Color(0xFF8A7360)
+val SamosaGold = Color(0xFFE5AA36)
+val SamosaOnGold = Color(0xFF2A1A00)
+val SamosaGoldContainer = Color(0xFF4A2C08)
+val SamosaOnGoldContainer = Color(0xFFFFF0DC)
+
+/** Links: light gold, clears 4.5:1 on the ground and in the user bubble. */
+val SamosaLink = Color(0xFFFFD58A)
+val SamosaSecondaryContainer = Color(0xFF3A250E)
 
 // ---------------------------------------------------------------------------
 // Container roles
@@ -130,15 +153,18 @@ val OrchidContainer = Color(0xFF7E1F88)
 val OrchidContainerHigh = Color(0xFF8A2794)
 val OrchidContainerHighest = Color(0xFF96309F)
 
-val NocturneContainerLowest = Color(0xFF07040A)
-val NocturneContainerLow = Color(0xFF0D0812)
-val NocturneContainer = Color(0xFF171021)
-val NocturneContainerHigh = Color(0xFF201729)
-val NocturneContainerHighest = Color(0xFF2A1F35)
+val SamosaContainerLowest = Color(0xFF0B0805)
+val SamosaContainerLow = Color(0xFF120D07)
+val SamosaContainer = Color(0xFF1A130A)
+val SamosaContainerHigh = Color(0xFF241B0C)
+val SamosaContainerHighest = Color(0xFF2E2314)
+
+/** Dialogs and menus: deep warm brown, so gold clears 8:1 on it. */
+val SamosaPopup = Color(0xFF1E1206)
 
 /**
- * Error red for the pink skins. The stock M3 error would sit a few degrees from
- * Aura's rose and Nocturne's salmon, and an error that looks like the send
+ * Error red for the warm skins. The stock M3 error would sit a few degrees from
+ * Aura's rose and Samosa's gold, and an error that looks like the send
  * button is not an error — this one is pushed toward orange to stay legible as
  * "something went wrong" next to an accent that is already warm.
  */

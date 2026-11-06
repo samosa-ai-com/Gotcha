@@ -111,19 +111,8 @@ class ScreenLensController(
             )
             overlay.setAnnotatedEntities(annotatedEntities)
 
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                overlayType(),
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.START
-            }
             try {
-                windowManager.addView(overlay, params)
+                windowManager.addView(overlay, cropOverlayParams())
                 cropOverlay = overlay
                 rotationWatcher.start()
             } catch (_: Exception) {
@@ -132,6 +121,32 @@ class ScreenLensController(
             }
         }
     }
+
+    /**
+     * Window params for the crop canvas, kept out of [start] so the focus
+     * invariant is unit-testable (issue #149).
+     */
+    internal fun cropOverlayParams(): WindowManager.LayoutParams =
+        WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayType(),
+            // NOT_FOCUSABLE: the overlay must never become the active
+            // window. When it steals focus, rootInActiveWindow starts
+            // returning our own textless canvas, and on some phones the app
+            // underneath drops out of the window list too, so hostRoot()
+            // finds nothing and Lens reads an empty screen (issue #149).
+            // Touch still works: NOT_TOUCH_MODAL is untouched. Back key
+            // events fall through to the underlying app while dismissal
+            // remains tap-to-cancel.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
 
     fun cancel() {
         mainHandler.post {
@@ -481,6 +496,10 @@ class ScreenLensController(
             (TEXT_CARD_WIDTH_DP * density).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
+            // Deliberately still focusable (unlike the crop canvas): selectable
+            // text needs it. Do fresh accessibility reads from this card and
+            // hostRoot() will hand back our own window instead of the app
+            // underneath (issue #149); pass extracted text in instead.
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {

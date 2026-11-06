@@ -22,6 +22,12 @@ sealed class ScheduledStart {
     /** Another run holds the agent; nothing was started. */
     object Busy : ScheduledStart()
 
+    /**
+     * Another run holds the agent, so this start is queued: the task waits
+     * with a busy retry and runs when the runner frees up.
+     */
+    object Queued : ScheduledStart()
+
     data class Failed(val detail: String) : ScheduledStart()
 }
 
@@ -91,29 +97,59 @@ object ScheduledTaskRuns {
         zone: ZoneId,
         userInitiated: Boolean
     ): ScheduledStart {
+        val notifier = ScheduledTaskNotifier(app)
         val attachments = store.loadAttachments(task)
         if (attachments == null) {
             val detail = app.getString(R.string.scheduled_task_files_missing)
             store.update(task.id) { ScheduledTaskPlanner.notStarted(it, TaskRunStatus.NOT_STARTED, detail, now, zone) }
+            // notStarted clears any wait, so its notification must go too.
+            notifier.cancel(task.id)
             return ScheduledStart.Failed(detail)
         }
         if (!userInitiated && !ScheduledTaskScheduler.canRunUnattended(app)) {
             // Started from a window alarm, the keep-alive service is refused and the
             // run would be frozen with the app; a tap on the notification runs it instead.
             store.update(task.id) { ScheduledTaskPlanner.notStarted(it, TaskRunStatus.NEEDS_TAP, null, now, zone) }
-            ScheduledTaskNotifier(app).postNeedsTap(task)
+            notifier.postNeedsTap(task)
             return ScheduledStart.Failed(app.getString(R.string.scheduled_task_needs_exact_alarms))
         }
         val result = withContext(Dispatchers.Main) { ChatRunner.of(app).startScheduled(task, attachments) }
         when (result) {
-            is ScheduledStart.Started ->
+            is ScheduledStart.Started -> {
                 store.update(task.id) { ScheduledTaskPlanner.started(it, result.sessionId, now, zone) }
-            ScheduledStart.Busy ->
-                if (!userInitiated) store.update(task.id) { ScheduledTaskPlanner.busy(it, now, zone) }
-            is ScheduledStart.Failed ->
+                notifier.cancel(task.id)
+            }
+            ScheduledStart.Busy -> {
+                // A paused task has no alarm coming, so a wait for it would
+                // never fire: don't promise a queue, just stay busy.
+                if (userInitiated && !task.enabled) return result
+                // Automatic fires and manual starts alike wait their turn: the
+                // occurrence is claimed and retried, never dropped. A manual
+                // start reports Queued so the UI can say so; its retry fires
+                // through the alarm path like any other wait. The enabled
+                // check runs inside the update: a pause landing mid-start
+                // must not leave a wait no alarm will ever fire.
+                val updated = store.update(task.id) {
+                    if (!it.enabled) it else ScheduledTaskPlanner.busy(it, now, zone)
+                }
+                // A wait that just gave up (SKIPPED_BUSY, no retry) is not
+                // queued: report Busy so nothing is promised.
+                if (updated?.enabled == true && updated.retryAt != null) {
+                    notifier.postWaiting(updated)
+                    return if (userInitiated) ScheduledStart.Queued else result
+                }
+                notifier.cancel(task.id)
+                return result
+            }
+            is ScheduledStart.Failed -> {
                 store.update(task.id) {
                     ScheduledTaskPlanner.notStarted(it, TaskRunStatus.NOT_STARTED, result.detail, now, zone)
                 }
+                notifier.cancel(task.id)
+            }
+            ScheduledStart.Queued -> {
+                // startScheduled never returns this; kept for exhaustiveness.
+            }
         }
         return result
     }

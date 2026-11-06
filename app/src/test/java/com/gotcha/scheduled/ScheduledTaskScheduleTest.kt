@@ -1,7 +1,9 @@
 package com.gotcha.scheduled
 
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -27,6 +29,27 @@ class ScheduledTaskScheduleTest {
         assertEquals("2026-10-19T08:00", next(once, "2026-10-18T12:00"))
         assertNull(next(once, "2026-10-19T08:00"))
         assertNull(next(once, "2026-10-20T08:00"))
+    }
+
+    @Test
+    fun `a memory note link survives a serialization round trip`() {
+        val task = ScheduledTask(
+            id = "t",
+            name = "n",
+            prompt = "p",
+            startLocal = "2026-10-19T08:00",
+            memoryNotePath = "/mem/notes/plan.md"
+        )
+        val json = Json.encodeToString(ScheduledTask.serializer(), task)
+        assertTrue(json.contains("memoryNotePath"))
+        assertEquals(task, Json.decodeFromString(ScheduledTask.serializer(), json))
+    }
+
+    @Test
+    fun `old stored tasks without the link field still decode`() {
+        val old = """{"id":"t","name":"n","prompt":"p","startLocal":"2026-10-19T08:00"}"""
+        val task = Json { ignoreUnknownKeys = true }.decodeFromString(ScheduledTask.serializer(), old)
+        assertNull(task.memoryNotePath)
     }
 
     @Test
@@ -105,5 +128,68 @@ class ScheduledTaskScheduleTest {
         val fifteenth = task("2026-01-15T09:00", Repeat(RepeatKind.MONTHLY))
         assertEquals("2026-10-15T09:00", next(fifteenth, "2026-10-01T00:00"))
         assertEquals("2026-11-15T09:00", next(fifteenth, "2026-10-15T09:00"))
+    }
+
+    @Test
+    fun `a one-off in the repeated hour fires once, at whichever pass is armed`() {
+        // Summer time ends in Berlin on 25 Oct 2026: 02:00-03:00 happens twice.
+        // At 02:37 CET (the second pass) the first 02:40 (CEST) is gone but the
+        // second 02:40 (CET) still lies ahead.
+        val once = task("2026-10-25T02:40")
+        val betweenPasses = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:37"),
+            zone
+        ).withLaterOffsetAtOverlap().toInstant().toEpochMilli()
+        val got = nextOccurrence(once, betweenPasses, zone)?.let {
+            LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it), zone).toString()
+        }
+        assertEquals("2026-10-25T02:40", got)
+        assertTrue(isWallTimeFuture(LocalDateTime.parse("2026-10-25T02:40"), zone, betweenPasses))
+        // Once the second pass has gone too, nothing lies ahead.
+        val afterSecondPass = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:41"),
+            zone
+        ).withLaterOffsetAtOverlap().toInstant().toEpochMilli()
+        assertTrue(!isWallTimeFuture(LocalDateTime.parse("2026-10-25T02:40"), zone, afterSecondPass))
+        assertNull(nextOccurrence(once, afterSecondPass, zone))
+    }
+
+    @Test
+    fun `a one-off armed at the first pass does not fire again at the second`() {
+        val once = task("2026-10-25T02:40")
+        val firstPass = LocalDateTime.parse("2026-10-25T02:40")
+            .atZone(zone).toInstant().toEpochMilli()
+        // Firing at the first pass spends the task even though the wall time
+        // comes round again an hour later.
+        val started = ScheduledTaskPlanner.started(
+            once.copy(nextRunAt = firstPass),
+            "chat",
+            firstPass,
+            zone
+        )
+        assertNull(started.nextRunAt)
+    }
+
+    @Test
+    fun `a daily task in the repeated hour runs once at the first pass`() {
+        val daily = task("2026-10-25T02:30", Repeat(RepeatKind.DAILY))
+        // Before the first pass: today at the first pass, not the second.
+        val before = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:10"),
+            zone
+        ).withEarlierOffsetAtOverlap().toInstant().toEpochMilli()
+        val got = nextOccurrence(daily, before, zone)?.let { instant ->
+            LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(instant), zone).toString()
+        }
+        assertEquals("2026-10-25T02:30", got)
+        // After the first pass fired: tomorrow, not the second pass today.
+        val firstPass = java.time.ZonedDateTime.of(
+            LocalDateTime.parse("2026-10-25T02:30"),
+            zone
+        ).withEarlierOffsetAtOverlap().toInstant().toEpochMilli()
+        val after = nextOccurrence(daily, firstPass, zone)?.let { instant ->
+            LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(instant), zone).toString()
+        }
+        assertEquals("2026-10-26T02:30", after)
     }
 }

@@ -32,6 +32,12 @@ mid-conversation.
   the call log, find and add contacts, send and read SMS.
 - **Calendar** — list, create, edit and delete events, and check availability.
 - **Clock** — set and edit alarms and timers, list them, snooze, dismiss.
+- **Second Brain** — persistent memory in files the user owns: SOUL.md
+  (identity), MEMORY.md (the map), user.md, and area, people and note files it
+  reads at the start of each chat. The user opens the read-only viewer from the
+  **Second Brain** entry in the navigation drawer. In Operator, save a fact with
+  `write_file` or `edit` under the memory root when the user asks you to
+  remember something.
 - **Scheduled tasks** — in Operator, set up a prompt for Gotcha to run by itself
   later, once or on repeat (every few hours or days, chosen weekdays, monthly),
   in a new chat each time or always the same one, with `schedule_agent_task`;
@@ -67,7 +73,8 @@ mid-conversation.
 
 ## Where the settings are
 
-Everything below is reached from **Settings** in the navigation drawer.
+Everything below is reached from **Settings** in the navigation drawer, except
+**Second Brain**, which has its own entry in that drawer.
 
 | Setting | What it controls |
 | --- | --- |
@@ -100,10 +107,11 @@ if needed.
 **Connectors are not in Settings.** They live in the navigation drawer next to
 Settings, on their own Connectors screen.
 
-**Chat backup and import are not in Settings either.** A chat's ⋮ menu has
-**Export chat** (shares the conversation as readable Markdown) and **Back up
-chat** (saves the whole chat to a `.gotcha.json` file, images optional). The
-navigation drawer has **Back up all chats** and **Import chats**, which reads
+**Whole-library chat backup and import live in Settings ▸ Chats.** A chat's ⋮ menu has
+**Export chat** (shares the conversation as readable Markdown), **Back up
+chat** (saves the whole chat to a `.gotcha.json` file, images optional), and
+**Chat assets** (the files Gotcha created for that chat). Settings ▸ Chats has
+**Back up all chats** and **Import chats**, which reads
 either kind of file back. A Markdown export imports as text only, without its
 images, attachments or full tool arguments; a backup restores everything. In
 either, system messages become notes marked as imported and not an instruction:

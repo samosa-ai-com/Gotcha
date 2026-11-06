@@ -52,7 +52,7 @@ class NoRawDebugLog(config: Config) : Rule(config) {
  * and the free-form `Dialog` / `BasicAlertDialog` / `Popup` — outside the theme
  * package. Material 3 1.2 paints the first three from the `surface` role, and a
  * bare `Surface` inside the others defaults to it too. Every glass skin (Aura,
- * Vellum, Orchid, Nocturne) leaves that role translucent, so the screen
+ * Vellum, Orchid, Samosa) leaves that role translucent, so the screen
  * underneath reads straight through the popup. `SkinAlertDialog`,
  * `SkinDropdownMenu`, `SkinExposedDropdownMenu` and `SkinDialog` hand them an
  * opaque container instead.

@@ -67,7 +67,14 @@ fun PermissionsSection(
 
     val runtimeLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* permission state is re-read on next ON_RESUME via resumeSignal */ }
+    ) {
+        // Re-read permission state from Android right away: the system dialog
+        // does not reliably pause/resume the activity (floating dialog on some
+        // OEM builds, instant return when already granted), so waiting for the
+        // next ON_RESUME leaves the toggle showing stale state and snapping
+        // back after the user taps it.
+        resumeSignal++
+    }
 
     // Health Connect only reports granted permissions through a suspend call, so its row
     // cannot re-read live state like the others — it reads this value instead, refreshed

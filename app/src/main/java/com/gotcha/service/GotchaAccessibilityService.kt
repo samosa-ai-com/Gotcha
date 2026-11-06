@@ -191,13 +191,16 @@ class GotchaAccessibilityService : AccessibilityService() {
      * The node tree of the app we are looking *at*, which is not always
      * [rootInActiveWindow].
      *
-     * Lens adds a full-screen overlay and only then asks what is on screen. That
-     * window is focusable, so it becomes the active one, and
-     * `rootInActiveWindow` starts returning our own canvas — a bare custom View
-     * with no text anywhere in it. Everything downstream then behaves as though
-     * the screen were empty: no Select chip, no contextual actions, no action
-     * menu. It reproduced identically on two emulators and a Nothing Phone 3a,
-     * and looked for a long time like a bug in the text extraction itself.
+     * Lens used to add a focusable full-screen overlay and only then ask what
+     * is on screen. That window became the active one, and `rootInActiveWindow`
+     * started returning our own canvas — a bare custom View with no text
+     * anywhere in it. Everything downstream then behaved as though the screen
+     * were empty: no Select chip, no contextual actions, no action menu. It
+     * reproduced identically on two emulators and a Nothing Phone 3a, and
+     * looked for a long time like a bug in the text extraction itself. The
+     * overlay has since been made non-focusable (issue #149), so it no longer
+     * steals the active window; the type filter below stays as the backstop
+     * for any other focusable window of ours.
      *
      * Callers own the returned node and must recycle it, as before.
      */

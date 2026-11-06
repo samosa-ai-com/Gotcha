@@ -31,6 +31,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -77,6 +78,7 @@ import com.gotcha.tools.ScreenPerception
 import com.gotcha.tools.TermuxTool
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
+import com.gotcha.ui.ChatAssetsScreen
 import com.gotcha.ui.ChatScreen
 import com.gotcha.ui.ChatTransferDialogs
 import com.gotcha.ui.ConnectorsScreen
@@ -88,10 +90,13 @@ import com.gotcha.ui.PermissionAsk
 import com.gotcha.ui.PermissionBlockedDialog
 import com.gotcha.ui.PermissionRationaleDialog
 import com.gotcha.ui.ReferralInviteDialog
+import com.gotcha.ui.ScheduledTasksScreen
+import com.gotcha.ui.SecondBrainScreen
 import com.gotcha.ui.SettingsPage
 import com.gotcha.ui.SettingsScreen
 import com.gotcha.ui.SharePosterSheet
 import com.gotcha.ui.SharePosterState
+import com.gotcha.ui.SplashVideoOverlay
 import com.gotcha.ui.StarPromptDialog
 import com.gotcha.ui.rememberChatTransfer
 import com.gotcha.ui.runtimePermissionAsk
@@ -114,7 +119,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import android.provider.Settings as AndroidSettings
 
-enum class Route { HOME, SETTINGS, CONNECTORS, INBOX }
+enum class Route { HOME, SETTINGS, CONNECTORS, INBOX, CHAT_ASSETS, SCHEDULED, SECOND_BRAIN }
 
 /**
  * Where the user is, in the tour's vocabulary. Null means somewhere the tour has
@@ -193,6 +198,25 @@ class MainActivity : ComponentActivity() {
 
     /** The one setting that decides what the app looks like. */
     private data class Appearance(val skinId: String = Skins.DEFAULT_ID)
+
+    /**
+     * The launch video plays once per process: a warm start that reuses this
+     * activity (singleTask) must not replay it. Set when playback starts, not
+     * when it ends, so a rotation mid-video still lands in the app.
+     */
+    private object SplashGate {
+        var played = false
+    }
+
+    /** Whether the launch video is still up. Field, so it survives composition. */
+    private var showSplash by mutableStateOf(!SplashGate.played)
+
+    /**
+     * True once the app shell has drawn behind the launch video. Posted to the
+     * decor view after setContent, so it flips after the first traversal
+     * rather than during composition.
+     */
+    private var splashContentReady by mutableStateOf(false)
 
     /**
      * Repaints the window behind Compose in the current skin's ground. themes.xml
@@ -334,6 +358,35 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    /** Set while the ball's microphone rationale is up, before its system prompt. */
+    private var askBallMicPermission by mutableStateOf(false)
+
+    /**
+     * The microphone, asked when the assistive-ball toggle is flipped on
+     * without a mic grant (issue #148). The ball service starts as a
+     * microphone-type foreground service, which throws SecurityException —
+     * killing the whole app — when RECORD_AUDIO is missing. A grant starts the
+     * ball straight away and the toggle follows the service's real state via
+     * the isRunning collector; a permanent denial says where the switch lives.
+     */
+    private val ballMicPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                startForegroundService(AssistiveBallService.startIntent(this))
+                persistAssistiveBall(true)
+            } else if (!shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) {
+                blockedPermissionAsk = runtimePermissionAsk(android.Manifest.permission.RECORD_AUDIO, this@MainActivity.stringLookup())
+                persistAssistiveBall(false)
+            } else {
+                Toast.makeText(
+                    this,
+                    getString(R.string.ball_microphone_permission_not_granted),
+                    Toast.LENGTH_LONG
+                ).show()
+                persistAssistiveBall(false)
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleOwner = this
@@ -426,8 +479,23 @@ class MainActivity : ComponentActivity() {
                         TourOverlay(controller = tour.controller)
                     }
                 }
+                // The launch video over everything, content initializing
+                // underneath it. Back skips it rather than quitting: nobody
+                // asked to leave, they asked to get in faster.
+                if (showSplash) {
+                    BackHandler { showSplash = false }
+                    SplashVideoOverlay(
+                        contentReady = splashContentReady,
+                        onFinished = { showSplash = false },
+                        // The overlay has mounted, so a rotation from here
+                        // opens straight into the app instead of replaying
+                        // the video.
+                        onStarted = { SplashGate.played = true }
+                    )
+                }
             }
         }
+        window.decorView.post { splashContentReady = true }
     }
 
     /**
@@ -660,6 +728,8 @@ class MainActivity : ComponentActivity() {
                 is ScheduledStart.Started -> openSessionRequested = result.sessionId
                 ScheduledStart.Busy ->
                     Toast.makeText(this@MainActivity, R.string.scheduled_run_now_busy, Toast.LENGTH_LONG).show()
+                ScheduledStart.Queued ->
+                    Toast.makeText(this@MainActivity, R.string.scheduled_run_now_queued, Toast.LENGTH_LONG).show()
                 is ScheduledStart.Failed ->
                     Toast.makeText(this@MainActivity, result.detail, Toast.LENGTH_LONG).show()
             }
@@ -752,6 +822,15 @@ class MainActivity : ComponentActivity() {
                 persistAssistiveBall(false)
                 return false
             }
+            // Microphone-type foreground services throw SecurityException
+            // without RECORD_AUDIO (issue #148): ask first, start on grant.
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                askBallMicPermission = true
+                persistAssistiveBall(false)
+                return false
+            }
             startForegroundService(AssistiveBallService.startIntent(this))
             persistAssistiveBall(true)
             return true
@@ -821,6 +900,9 @@ class MainActivity : ComponentActivity() {
         var settingsPage by rememberSaveable {
             mutableStateOf(if (unconfigured) SettingsPage.AI_CONFIG else null)
         }
+        // The chat whose assets ChatAssetsScreen shows; set on the tap that
+        // navigates there, alongside the route, like settingsPage is for Settings.
+        var assetsSessionId by rememberSaveable { mutableStateOf<String?>(null) }
         // The field a settings search result opened settingsPage on. Only that
         // tap sets it; every other way of changing page clears it, so it can't
         // outlive the visit it was meant for. Deliberately not saveable: after a
@@ -880,6 +962,7 @@ class MainActivity : ComponentActivity() {
             state.pendingQuestion == null &&
             !state.askNotificationPermission &&
             !askMicPermission &&
+            !askBallMicPermission &&
             blockedPermissionAsk == null &&
             chatTransferState == ChatTransferState.Idle &&
             !showFeedbackSheet &&
@@ -977,6 +1060,8 @@ class MainActivity : ComponentActivity() {
 
         ModalNavigationDrawer(
             drawerState = drawerState,
+            // Deep enough that the floating panel reads as above the app.
+            scrimColor = Color.Black.copy(alpha = 0.4f),
             gesturesEnabled = (currentRoute == Route.HOME || drawerState.isOpen) &&
                 legalAcceptedVersion == LEGAL_VERSION,
             drawerContent = {
@@ -1002,13 +1087,13 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawerState.close() }
                         currentRoute = Route.CONNECTORS
                     },
-                    onImportChats = {
+                    onOpenScheduledTasks = {
                         scope.launch { drawerState.close() }
-                        chatTransfer.startImport()
+                        currentRoute = Route.SCHEDULED
                     },
-                    onBackupAllChats = {
+                    onOpenSecondBrain = {
                         scope.launch { drawerState.close() }
-                        chatTransfer.startBackupAll()
+                        currentRoute = Route.SECOND_BRAIN
                     },
                     maxContextTokens = state.maxContextTokens,
                     activeTokenCount = state.tokenCount,
@@ -1153,6 +1238,8 @@ class MainActivity : ComponentActivity() {
                             chatViewModel.openSession(id)
                             currentRoute = Route.HOME
                         },
+                        onImportChats = { chatTransfer.startImport() },
+                        onBackupAllChats = { chatTransfer.startBackupAll() },
                         page = settingsPage,
                         onPageChange = {
                             settingsPage = it
@@ -1192,6 +1279,38 @@ class MainActivity : ComponentActivity() {
                     BackHandler { leaveConnectors() }
                     ConnectorsScreen(onBack = leaveConnectors)
                 }
+                Route.SCHEDULED -> {
+                    // Its own route like Connectors, not a Settings deep link:
+                    // back from the drawer entry returns to chat, while the
+                    // Settings page keeps its own back-to-list behavior.
+                    BackHandler { currentRoute = Route.HOME }
+                    ScheduledTasksScreen(
+                        onBack = { currentRoute = Route.HOME },
+                        onOpenChat = { id ->
+                            chatViewModel.openSession(id)
+                            currentRoute = Route.HOME
+                        }
+                    )
+                }
+                Route.SECOND_BRAIN -> {
+                    // Reached from the drawer: back returns to chat.
+                    BackHandler { currentRoute = Route.HOME }
+                    SecondBrainScreen(
+                        onBack = { currentRoute = Route.HOME },
+                        onStartChat = { prompt, mode ->
+                            chatViewModel.startChatFromTip(prompt, mode)
+                            currentRoute = Route.HOME
+                        }
+                    )
+                }
+                Route.CHAT_ASSETS -> {
+                    BackHandler { currentRoute = Route.HOME }
+                    // Both are saveable and always set together; a null id
+                    // only shows a blank frame rather than navigating mid-compose.
+                    assetsSessionId?.let { id ->
+                        ChatAssetsScreen(sessionId = id, onBack = { currentRoute = Route.HOME })
+                    }
+                }
                 Route.HOME -> {
                     // Back from an active chat returns to a fresh home (new session,
                     // new greeting); on an empty home the default back exits the app.
@@ -1205,6 +1324,8 @@ class MainActivity : ComponentActivity() {
                             ?.let { chatViewModel.isChatKeptOutOfNotifications(it, state.activePersonaId) }
                             ?: false
                     }
+                    val protectionsSkipped = state.activeSessionId != null &&
+                        state.protectionsSkippedSessionId == state.activeSessionId
                     ChatScreen(
                         state = state,
                         onSend = { text, attachments, isVoiceInput ->
@@ -1230,6 +1351,10 @@ class MainActivity : ComponentActivity() {
                             state.activeSessionId?.let { chatViewModel.setChatKeptOutOfNotifications(it, keptOut) }
                             privacyVersion++
                         },
+                        protectionsSkipped = protectionsSkipped,
+                        onSetProtectionsSkipped = { on ->
+                            state.activeSessionId?.let { chatViewModel.setProtectionsSkipped(it, on) }
+                        },
                         onComposerDraftConsumed = chatViewModel::consumeComposerDraft,
                         onSpeak = chatViewModel::speak,
                         onStopSpeaking = chatViewModel::stopSpeaking,
@@ -1237,6 +1362,12 @@ class MainActivity : ComponentActivity() {
                         onStopRecording = { cb -> chatViewModel.stopRecording(cb) },
                         onExportChat = chatViewModel::exportChat,
                         onBackupChat = { state.activeSessionId?.let(chatTransfer::startBackup) },
+                        onOpenChatAssets = {
+                            state.activeSessionId?.let { id ->
+                                assetsSessionId = id
+                                currentRoute = Route.CHAT_ASSETS
+                            }
+                        },
                         onReturnToRunning = {
                             state.runningSessionId?.let { chatViewModel.openSession(it) }
                         },
@@ -1405,6 +1536,24 @@ class MainActivity : ComponentActivity() {
                 ask = ask,
                 onAllow = { notificationPermissionLauncher.launch(ask.permission) },
                 onDeny = { chatViewModel.onNotificationPermissionResult(false) }
+            )
+        }
+
+        if (askBallMicPermission) {
+            val ask =
+                remember {
+                    runtimePermissionAsk(
+                        android.Manifest.permission.RECORD_AUDIO,
+                        this@MainActivity.stringLookup()
+                    )
+                }
+            PermissionRationaleDialog(
+                ask = ask,
+                onAllow = {
+                    askBallMicPermission = false
+                    ballMicPermissionLauncher.launch(ask.permission)
+                },
+                onDeny = { askBallMicPermission = false }
             )
         }
 

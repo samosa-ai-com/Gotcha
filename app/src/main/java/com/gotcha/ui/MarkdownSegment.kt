@@ -1,12 +1,18 @@
 package com.gotcha.ui
 
 /**
- * A piece of a Markdown message: prose for the Markdown renderer, or a fenced
- * code block drawn as a [CodeBox] with its own copy button (issue #109).
+ * A piece of a Markdown message: prose for the Markdown renderer, a fenced
+ * code block drawn as a [CodeBox] with its own copy button (issue #109), or a
+ * table drawn as a sideways-scrollable [MarkdownTable].
  */
 sealed interface MarkdownSegment {
     data class Prose(val markdown: String) : MarkdownSegment
     data class Code(val code: String, val language: String?) : MarkdownSegment
+    data class Table(
+        val headers: List<String>,
+        val aligns: List<TableAlign>,
+        val rows: List<List<String>>
+    ) : MarkdownSegment
 }
 
 private val OPENING_FENCE = Regex("^( {0,3})(`{3,}|~{3,})\\s*([^\\s`]*)[^`]*$")

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -58,6 +60,9 @@ import androidx.compose.ui.unit.dp
 import com.gotcha.R
 import com.gotcha.agent.MessageKind
 import com.gotcha.agent.UiMessage
+import com.gotcha.data.GotchaStorage
+import com.gotcha.data.SecondBrainWrite
+import com.gotcha.data.secondBrainWriteOf
 import com.gotcha.ui.theme.GotchaMono
 import com.gotcha.ui.theme.LocalSkin
 import com.gotcha.ui.theme.SkinDropdownMenu
@@ -117,7 +122,7 @@ fun MessageBubble(
             contentColor = contentColor,
             shadowElevation = if (unbubbled) 0.dp else 2.dp,
             // The skin owns the shape as well as the colour: Orchid is generous,
-            // Nocturne is tight, Deep Space is exactly what it always was.
+            // Samosa is a touch tighter, Deep Space is exactly what it always was.
             shape = RoundedCornerShape(
                 topStart = skin.corner,
                 topEnd = skin.corner,
@@ -238,6 +243,49 @@ fun MessageBubble(
                         )
                     } else {
                         RichMarkdown(displayText)
+                    }
+                    // The line that teaches memory: a write that landed in the
+                    // vault says so, once, under the tool row. Read from the
+                    // ledger text, so it works on chats saved before it existed.
+                    if (isTool) {
+                        // canonicalPath, because the file tools print the
+                        // canonical target and a symlinked root would not
+                        // prefix-match otherwise.
+                        val memoryRoot = remember {
+                            runCatching { GotchaStorage.memoryRoot().canonicalPath }.getOrElse {
+                                runCatching { GotchaStorage.memoryRoot().absolutePath }.getOrDefault("")
+                            }
+                        }
+                        val memoryWrite = remember(displayText, memoryRoot) {
+                            secondBrainWriteOf(displayText, memoryRoot)
+                        }
+                        if (memoryWrite != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .padding(start = 14.dp, top = 2.dp)
+                                    .testTag("memory_write_notice")
+                            ) {
+                                Icon(
+                                    Icons.Default.Psychology,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = colors.primary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    stringResource(
+                                        if (memoryWrite == SecondBrainWrite.SAVED) {
+                                            R.string.second_brain_saved
+                                        } else {
+                                            R.string.second_brain_updated
+                                        }
+                                    ),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.primary
+                                )
+                            }
+                        }
                     }
                 }
                 if (isAssistant && message.text.isNotEmpty()) {

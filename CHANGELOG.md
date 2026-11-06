@@ -3,6 +3,64 @@
 All notable changes to Gotcha are documented here.
 
 ## [Unreleased]
+### Added
+- **Second Brain: Gotcha remembers you** (#156). Gotcha keeps what it learns
+  about you, the people in your life, your plans and preferences in plain
+  Markdown files in `Gotcha/memory/` on your phone, which you can read any
+  time. Every new chat starts with what it remembers, and Monitor can read it
+  but never changes it. Personal Info and the memory stay in sync. A tool row
+  that saved something shows "Saved to Second Brain".
+- **The Second Brain page.** Open it from the drawer to see your memory as a
+  3D brain of linked notes (drag, zoom, rotate, tap a note to focus) or as a
+  searchable list with Markdown previews. Without file access, it explains
+  what it needs and opens the right Android switch; an empty brain offers two
+  prompts to get started.
+- **Search your chats.** The drawer's search box finds chats by title and by
+  what was said in them, and shows the matching line under each result.
+- **Chat assets.** A chat's menu now has Chat assets, listing the files
+  Gotcha made for that chat, with Open, Share and Delete.
+- **Example scheduled tasks.** Scheduled tasks ships four paused examples:
+  Morning briefing, Evening wrap-up, Weekly review and Inbox catch-up. Turn
+  one on or edit it to make it yours; deleted examples can be restored.
+- **Skip protections for one chat** (#155). For a chat you trust, the chat
+  menu can turn off Gotcha's in-app confirmations, after a warning. A banner
+  shows while it's on, with one tap to turn protections back on, and every
+  skipped confirmation is logged. Android permissions, Gotcha's questions and
+  voice calls still ask as before, and it ends when you switch chats.
+- **Arabic** (#153, #172). Arabic can be chosen as the reply and voice
+  language, and phones set to Arabic show Gotcha's screens in Arabic. When the
+  chosen text-to-speech engine has no voice for the language, Gotcha tries
+  the other engines on the phone. The layout is not right-to-left yet.
+- **A launch animation.** Gotcha opens with a short, silent animation of its
+  new logo, and the app icon is sharper.
+
+### Changed
+- **A tidier drawer.** The drawer floats over the screen and holds where you
+  go: New chat, Recent chats, Scheduled tasks, Second Brain, Connectors and
+  Settings. Long-press a chat to delete it. Import and Back up all chats moved
+  to Settings ▸ Chats.
+- **Samosa replaces the Nocturne skin.** If you used Nocturne, you're moved
+  to Samosa. Links and inline code are easier to read in every skin.
+- **Wide tables scroll sideways** in chat and in the Second Brain viewer
+  instead of being squeezed.
+- **"New for you"** on the empty home screen and two daily tips point at
+  Second Brain and Scheduled tasks until you've tried them.
+- **MCP servers over plain http** (#154). Servers that redirect, or expect
+  `/mcp` with or without a trailing slash, now connect. Plain http is
+  allowed, with a warning when a token would travel unencrypted outside your
+  home network.
+
+### Fixed
+- **Turning on the floating ball no longer crashes Gotcha** (#148) when the
+  microphone permission hasn't been granted; it asks for it first.
+- **Screen Lens reads the app underneath again** (#149), so its smart
+  actions appear, and Back returns to that app.
+- **Scheduled tasks keep their time after a time-zone or clock change**
+  (#150), and a one-off in the repeated daylight-saving hour runs once.
+- **Run now while Gotcha is busy** queues the task until the current run
+  finishes, with a notification, instead of dropping it.
+- **Long chats keep working after they are compacted.** Some AI providers
+  rejected the first message after a long chat was summarised.
 
 ## [1.4.0]
 ### Added

@@ -457,6 +457,7 @@ internal val Language.nameRes: Int
         Language.ITALIAN -> R.string.language_italian
         Language.PORTUGUESE -> R.string.language_portuguese
         Language.RUSSIAN -> R.string.language_russian
+        Language.ARABIC -> R.string.language_arabic
     }
 
 /**

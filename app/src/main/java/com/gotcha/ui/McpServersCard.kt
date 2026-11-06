@@ -41,6 +41,7 @@ import com.gotcha.connectors.mcp.McpProbe
 import com.gotcha.connectors.mcp.McpServerConfig
 import com.gotcha.connectors.mcp.McpServersConnector
 import com.gotcha.connectors.mcp.formatHeaderLines
+import com.gotcha.connectors.mcp.isCleartextWithSecret
 import com.gotcha.connectors.mcp.parseHeaderLines
 import com.gotcha.i18n.stringLookup
 import kotlinx.coroutines.launch
@@ -333,7 +334,11 @@ private fun McpServerForm(
                                 R.string.mcp_connected,
                                 probe.server.name.ifBlank { McpServersConnector.hostOf(url) },
                                 strings.quantity(R.plurals.mcp_tools_count, probe.tools.size, probe.tools.size)
-                            )
+                            ) + if (isCleartextWithSecret(url, token, parsed)) {
+                                " " + strings(R.string.mcp_error_cleartext)
+                            } else {
+                                ""
+                            }
                             is McpProbe.Failed -> probe.message
                         }
                         busy = false

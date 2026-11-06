@@ -10,6 +10,7 @@ import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -230,7 +231,7 @@ class McpHttpClientTest {
     }
 
     @Test
-    fun `a redirect is not followed, so the secret header stays put`() = runTest {
+    fun `a cross-origin redirect is refused, so the secret header stays put`() = runTest {
         val elsewhere = MockWebServer().apply { start() }
         val redirecting = MockWebServer().apply {
             dispatcher = object : Dispatcher() {
@@ -248,7 +249,7 @@ class McpHttpClientTest {
                     McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
                 ).initialize()
             }
-            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(McpFailure.REDIRECT, e.kind)
             assertEquals(307, e.httpCode)
             assertEquals(elsewhere.url("/mcp").toString(), e.detail)
             assertEquals(0, elsewhere.requestCount)
@@ -256,6 +257,187 @@ class McpHttpClientTest {
             redirecting.shutdown()
             elsewhere.shutdown()
         }
+    }
+
+    @Test
+    fun `same-origin redirects are followed with the headers intact`() = runTest {
+        // Deliberate replay policy, not spec literalism: 301/302 permit
+        // POST-to-GET elsewhere, but MCP servers use them for trailing-slash
+        // normalization, so this client re-POSTs the same body and headers.
+        // 307/308 preserve the method by definition; 300/303 never replay.
+        for (code in listOf(301, 302, 307, 308)) {
+            val redirecting = MockWebServer().apply {
+                dispatcher = object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        if (request.path == "/mcp") {
+                            return MockResponse()
+                                .setResponseCode(code)
+                                .setHeader("Location", "/mcp/")
+                        }
+                        return fake.dispatch(request)
+                    }
+                }
+                start()
+            }
+            try {
+                val info = client.session(
+                    McpEndpoint(redirecting.url("/mcp").toString(), mapOf("X-API-Key" to "secret"))
+                ).initialize()
+                assertEquals("Docs", info.name)
+                // Both hops carried the secret: same origin, so nothing leaked.
+                val first = redirecting.takeRequest(5, TimeUnit.SECONDS)!!
+                val followed = redirecting.takeRequest(5, TimeUnit.SECONDS)!!
+                assertEquals("/mcp", first.path)
+                assertEquals("/mcp/", followed.path)
+                assertEquals("secret", followed.getHeader("X-API-Key"))
+                // The replay carries the same bytes (bodySize is recorded at
+                // receipt; the fake drains the buffer while dispatching).
+                assertTrue(followed.bodySize > 0)
+                assertEquals(first.bodySize, followed.bodySize)
+            } finally {
+                redirecting.shutdown()
+            }
+        }
+    }
+
+    @Test
+    fun `the followed destination sticks for later requests`() = runTest {
+        // A path-changing redirect: after initialize, tools/list must go
+        // straight to the destination instead of replaying the old URL.
+        val moved = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/entry") {
+                        return MockResponse()
+                            .setResponseCode(307)
+                            .setHeader("Location", "/mcp/")
+                    }
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val session = client.session(McpEndpoint(moved.url("/entry").toString()))
+            session.initialize()
+            assertEquals(moved.url("/mcp/").toString(), session.endpoint.url)
+            // Drain initialize's requests (entry, initialize, notification).
+            repeat(3) { moved.takeRequest(5, TimeUnit.SECONDS) }
+            session.listTools()
+            // Both tools/list pages go straight to the destination.
+            repeat(2) {
+                assertEquals("/mcp/", moved.takeRequest(5, TimeUnit.SECONDS)!!.path)
+            }
+        } finally {
+            moved.shutdown()
+        }
+    }
+
+    @Test
+    fun `a redirect into a missing spelling toggles the destination`() = runTest {
+        // /entry redirects to /mcp, /mcp 404s, /mcp/ serves: the retry must
+        // toggle the URL that actually failed, not the configured one.
+        val moved = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path == "/entry") {
+                        return MockResponse()
+                            .setResponseCode(307)
+                            .setHeader("Location", "/mcp")
+                    }
+                    if (request.path == "/mcp") return MockResponse().setResponseCode(404)
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val session = client.session(McpEndpoint(moved.url("/entry").toString()))
+            val info = session.initialize()
+            assertEquals("Docs", info.name)
+            assertEquals(moved.url("/mcp/").toString(), session.endpoint.url)
+        } finally {
+            moved.shutdown()
+        }
+    }
+
+    @Test
+    fun `a same-origin 303 is not replayed as POST`() = runTest {
+        val redirecting = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) = MockResponse()
+                    .setResponseCode(303)
+                    .setHeader("Location", "/mcp/")
+            }
+            start()
+        }
+        try {
+            val e = failureOf {
+                client.session(McpEndpoint(redirecting.url("/mcp").toString())).initialize()
+            }
+            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(303, e.httpCode)
+            assertEquals(1, redirecting.requestCount)
+        } finally {
+            redirecting.shutdown()
+        }
+    }
+
+    @Test
+    fun `redirect loops fail instead of spinning`() = runTest {
+        val looping = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) = MockResponse()
+                    .setResponseCode(307)
+                    .setHeader("Location", "/mcp")
+            }
+            start()
+        }
+        try {
+            val e = failureOf {
+                client.session(McpEndpoint(looping.url("/mcp").toString())).initialize()
+            }
+            assertEquals(McpFailure.HTTP, e.kind)
+            assertEquals(307, e.httpCode)
+            // 1 initial + 5 followed hops, then give up.
+            assertEquals(6, looping.requestCount)
+        } finally {
+            looping.shutdown()
+        }
+    }
+
+    @Test
+    fun `redirect targets are classified without sending anything`() {
+        val client = McpHttpClient()
+        // Same origin, absolute or relative: follow.
+        assertEquals(
+            "http://h:1/mcp/",
+            client.redirectTarget("http://h:1/mcp", "/mcp/", 307)
+        )
+        assertEquals(
+            "http://h:1/other",
+            client.redirectTarget("http://h:1/mcp", "http://h:1/other", 301)
+        )
+        // An http-to-https upgrade on the same host: follow.
+        assertEquals(
+            "https://h/mcp",
+            client.redirectTarget("http://h/mcp", "https://h/mcp", 307)
+        )
+        // Another host, another port, or a downgrade: refuse with the destination.
+        assertEquals("http://other/mcp", failureTarget("http://h/mcp", "http://other/mcp"))
+        assertEquals("http://h:2/mcp", failureTarget("http://h:1/mcp", "http://h:2/mcp"))
+        assertEquals("http://h/mcp", failureTarget("https://h/mcp", "http://h/mcp"))
+    }
+
+    private fun failureTarget(current: String, location: String): String {
+        try {
+            McpHttpClient().redirectTarget(current, location, 307)
+        } catch (e: McpException) {
+            assertEquals(McpFailure.REDIRECT, e.kind)
+            return e.detail
+        }
+        fail("expected a redirect refusal")
+        error("unreachable")
     }
 
     @Test
@@ -280,5 +462,80 @@ class McpHttpClientTest {
         } finally {
             endless.shutdown()
         }
+    }
+
+    @Test
+    fun `a missing trailing slash is toggled once before failing`() = runTest {
+        // Serves only the slashed spelling, 404s the bare one, never redirects.
+        val picky = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path != "/mcp/") return MockResponse().setResponseCode(404)
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val info = client.session(McpEndpoint(picky.url("/mcp").toString())).initialize()
+            assertEquals("Docs", info.name)
+        } finally {
+            picky.shutdown()
+        }
+    }
+
+    @Test
+    fun `an extra trailing slash is toggled once before failing`() = runTest {
+        // Serves only the bare spelling, 404s the slashed one, never redirects.
+        val picky = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path != "/mcp") return MockResponse().setResponseCode(404)
+                    return fake.dispatch(request)
+                }
+            }
+            start()
+        }
+        try {
+            val info = client.session(McpEndpoint(picky.url("/mcp/").toString())).initialize()
+            assertEquals("Docs", info.name)
+        } finally {
+            picky.shutdown()
+        }
+    }
+
+    @Test
+    fun `two missing spellings still fail, on the configured URL`() = runTest {
+        // 404s everything: the retry must not mask a genuinely absent server,
+        // and the session keeps the URL the user entered.
+        val absent = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest) =
+                    MockResponse().setResponseCode(404)
+            }
+            start()
+        }
+        try {
+            val session = client.session(McpEndpoint(absent.url("/mcp").toString()))
+            val e = failureOf { session.initialize() }
+            assertEquals(McpFailure.NOT_FOUND, e.kind)
+            // One POST + old-transport GET per spelling, then give up.
+            val paths = List(4) { absent.takeRequest(5, TimeUnit.SECONDS)!!.path }
+            assertEquals(listOf("/mcp", "/mcp", "/mcp/", "/mcp/"), paths)
+            assertEquals(absent.url("/mcp").toString(), session.endpoint.url)
+        } finally {
+            absent.shutdown()
+        }
+    }
+
+    @Test
+    fun `slash toggling leaves the rest of the URL alone`() {
+        val client = McpHttpClient()
+        assertEquals("http://h/mcp/", client.slashToggled("http://h/mcp"))
+        assertEquals("http://h/mcp", client.slashToggled("http://h/mcp/"))
+        assertEquals("http://h/a/b/", client.slashToggled("http://h/a/b"))
+        assertEquals("http://h/mcp/?k=v", client.slashToggled("http://h/mcp?k=v"))
+        assertNull(client.slashToggled("http://h/"))
+        assertNull(client.slashToggled("not a url"))
     }
 }

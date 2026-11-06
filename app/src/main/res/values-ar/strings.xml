@@ -1,0 +1,1993 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Text marked translatable="false" stays English in every language: names,
+         codes, and the legal consent, which changes only with reviewed copy. -->
+    <string name="app_name" translatable="false">Gotcha</string>
+    <string name="accessibility_service_description">يتيح لـ Gotcha قراءة المحتوى على الشاشة وتنفيذ النقرات والسحب وإدخال النص نيابةً عنك، حتى يتمكن المساعد من تشغيل التطبيقات الأخرى لك.</string>
+    <string name="device_admin_description">يتيح لـ Gotcha قفل الشاشة وفرض سياسة كلمة المرور وتعطيل الكاميرا عند طلبك.</string>
+    <string name="legal_consent_title" translatable="false">Before you continue</string>
+    <string name="legal_consent_intro" translatable="false">Gotcha is an AI assistant that can take real, sometimes irreversible actions on your device. By tapping "I agree" you accept the Terms and Conditions, the Disclaimer and Declaration, and the Data Retention and Privacy Policy. You must be at least 18 years old.</string>
+    <string name="legal_consent_toggle_label" translatable="false">I have read and accept the full Terms and Conditions, Disclaimer, and Data Retention Policy.</string>
+    <string name="legal_consent_age_label" translatable="false">I confirm that I am at least 18 years old.</string>
+    <string name="legal_consent_agree" translatable="false">I agree</string>
+    <string name="legal_consent_section_terms" translatable="false">Terms and Conditions</string>
+    <string name="legal_consent_section_disclaimer" translatable="false">Disclaimer and Declaration</string>
+    <string name="legal_consent_section_privacy" translatable="false">Data Retention and Privacy Policy</string>
+    <string name="legal_consent_loading" translatable="false">(loading…)</string>
+    <string-array name="legal_consent_bullets" translatable="false">
+        <item>The AI can make mistakes. Treat its output as a draft and verify before acting on anything with real-world consequences (messages, calls, purchases, deletes, settings changes).</item>
+        <item>Once you grant the agent permissions, it can send messages, place calls, install or uninstall apps, delete files, and modify system settings on your device.</item>
+        <item>Your chats, screenshots, and API keys stay on your device. The App does not upload them anywhere; there is nothing on our side to delete.</item>
+        <item>Third-party backends (Samosa AI or a User-Provided Provider you configure yourself) have their own terms and data-retention practices, which apply once a request leaves your phone.</item>
+        <item>You must use the App lawfully — no hacking, fraud, harassment, illegal activity, or infringement of others\' rights. You are responsible for any damage to your device or data.</item>
+    </string-array>
+
+    <!-- Language names, shown wherever a Language is picked. -->
+    <string name="language_english">الإنجليزية</string>
+    <string name="language_spanish">الإسبانية</string>
+    <string name="language_french">الفرنسية</string>
+    <string name="language_german">الألمانية</string>
+    <string name="language_hindi">الهندية</string>
+    <string name="language_japanese">اليابانية</string>
+    <string name="language_chinese">الصينية</string>
+    <string name="language_italian">الإيطالية</string>
+    <string name="language_portuguese">البرتغالية</string>
+    <string name="language_russian">الروسية</string>
+    <string name="language_arabic">العربية</string>
+
+    <!-- Settings → Language -->
+    <string name="language_page_intro">كل لغة يستخدمها Gotcha في مكان واحد: اللغة التي كُتبت بها شاشات التطبيق نفسه، وما يتحدث به Gotcha ويسمعه، وما يكتب به إجاباته.</string>
+    <string name="language_display_title">لغة عرض التطبيق</string>
+    <string name="language_display_description">لغة أزرار وشاشات Gotcha نفسه. يتغير Gotcha فقط؛ يبقى باقي هاتفك كما هو.</string>
+    <string name="language_display_open_settings">اختر لغة التطبيق</string>
+    <string name="language_display_description_device">في إصدار Android هذا يتبع Gotcha لغة هاتفك، لذا تغييرها يغيّر الهاتف بأكمله.</string>
+    <string name="language_display_open_device_settings">افتح إعدادات لغة Android</string>
+    <string name="language_display_settings_failed">تعذّر فتح إعدادات اللغة.</string>
+    <string name="language_voice_title">لغة الصوت</string>
+    <string name="language_voice_description">ما ينطقه Gotcha بصوت عالٍ ويستمع له أثناء الإدخال الصوتي والمكالمات. اتركها تابعة للغة الرد إلا إذا أردت إجابات مكتوبة بلغة ومنطوقة بأخرى.</string>
+    <string name="language_voice_follow_reply">نفس لغة رد الذكاء الاصطناعي</string>
+    <string name="language_voice_speech_hint">يُختار النموذج والصوت الذي يقرأه من الإعدادات ← الذكاء الاصطناعي ← الكلام.</string>
+    <string name="language_transcription_title">لغة النسخ</string>
+    <string name="language_transcription_description">اللغة التي يكتب بها Gotcha كلامك، للإدخال الصوتي والمكالمات ونسخ ملفات الصوت.</string>
+    <string name="language_transcription_hint_api">اتركه فارغًا ليُنسخ الكلام بلغة الصوت. حدّده لفرض لغة واحدة، مما يساعد الدقة عندما يميل النموذج للخطأ.</string>
+    <string name="language_transcription_hint_android">يستخدم هذا Samosa AI وتحويل الكلام إلى نص الخارجي فقط. Android المدمج ينسخ دائمًا بلغة الصوت.</string>
+    <string name="language_transcription_hint_off">يستخدم هذا Samosa AI وتحويل الكلام إلى نص الخارجي فقط. تحويل الكلام إلى نص متوقف.</string>
+    <string name="language_test_voice">اختبر الصوت</string>
+    <string name="language_test_voice_playing">جارٍ التشغيل…</string>
+    <string name="language_voice_data_missing_title">بيانات الصوت غير مثبّتة</string>
+    <string name="language_voice_data_missing_body">جهازك لا يحتوي على صوت Android المدمج للغة %1$s، لذا لا يستطيع Gotcha قراءة %1$s بصوت عالٍ. ثبّت بيانات الصوت لإصلاح ذلك.</string>
+    <string name="language_voice_data_install">تثبيت</string>
+    <string name="language_tts_settings_failed">تعذّر فتح إعدادات تحويل النص إلى كلام.</string>
+    <string name="language_reply_title">لغة رد الذكاء الاصطناعي</string>
+    <string name="language_reply_description">اللغة التي يكتب بها المساعد إجاباته. تبقى أسماء الأدوات والأوامر ومسارات الملفات بالإنجليزية لتبقى تعمل.</string>
+    <string name="language_saved">تم حفظ إعدادات اللغة.</string>
+    <string name="language_save">حفظ إعدادات اللغة</string>
+
+    <!-- Shared actions -->
+    <string name="action_cancel">إلغاء</string>
+
+    <!-- Settings pages: title and the summary under it on the home list -->
+    <string name="settings_page_personal_info">المعلومات الشخصية</string>
+    <string name="settings_page_personal_info_summary">هويتك، العملة، أسلوب الرد</string>
+    <string name="settings_page_second_brain">الدماغ الثاني</string>
+    <string name="settings_page_chats">المحادثات</string>
+    <string name="settings_page_chats_summary">استيراد المحادثات أو نسخها احتياطيًا</string>
+    <string name="second_brain_intro">ما يتذكره Gotcha عنك. الهوية أولًا، ثم الخريطة، ثم التفاصيل. التعديل يتم عبر الوكيل حاليًا.</string>
+    <string name="second_brain_summary">ملاحظات: %1$d · أشخاص: %2$d · مجالات: %3$d</string>
+    <string name="second_brain_setup_title">دماغك الثاني</string>
+    <string name="second_brain_setup_body">كل ما تعلمه Gotcha عنك، في ملفات تملكها. يقرأها في بداية كل محادثة، فلا تكرر نفسك أبدًا.</string>
+    <string name="second_brain_setup_remembers">يتذكر الأشخاص والخطط والتفضيلات</string>
+    <string name="second_brain_setup_grows">ينمو مع كل محادثة</string>
+    <string name="second_brain_setup_yours">ملفات بسيطة يمكنك قراءتها في أي وقت</string>
+    <string name="second_brain_setup_grant">السماح بالوصول إلى الملفات</string>
+    <string name="second_brain_setup_grant_hint">يحتاج Gotcha إلى الوصول إلى جميع الملفات لقراءة مجلد ذاكرته والكتابة فيه.</string>
+    <string name="second_brain_start_title">ابدأه بمحادثة</string>
+    <string name="second_brain_start_body">لا يعرف Gotcha إلا ما قيل له. هذه الاقتراحات تملأ مربع المحادثة؛ عدّلها قبل الإرسال.</string>
+    <string name="second_brain_start_meet">تعرّف عليّ</string>
+    <string name="second_brain_start_meet_prompt">تعرّف عليّ: اسألني خمسة أسئلة عمّا يهمني، ثم احفظ الإجابات في دماغي الثاني.</string>
+    <string name="second_brain_start_recall">ماذا تعرف عني؟</string>
+    <string name="second_brain_start_recall_prompt">ماذا تعرف عني؟ اقرأ دماغك الثاني ولخّصه.</string>
+    <string name="second_brain_saved">حُفظ في الدماغ الثاني</string>
+    <string name="second_brain_updated">حُدّث في الدماغ الثاني</string>
+    <string name="second_brain_loading">جارٍ تحميل الذاكرة…</string>
+    <string name="second_brain_unavailable">الذاكرة غير متاحة بعد. اسمح بالوصول إلى جميع الملفات من الإعدادات ← الأذونات، ثم افتح محادثة وأرسل رسالة واحدة.</string>
+    <string name="second_brain_identity">الهوية (SOUL.md)</string>
+    <string name="second_brain_map">الخريطة (MEMORY.md)</string>
+    <string name="second_brain_user_card">بطاقة المستخدم</string>
+    <string name="second_brain_areas">المجالات</string>
+    <string name="second_brain_people">الأشخاص</string>
+    <string name="second_brain_notes">الملاحظات</string>
+    <string name="second_brain_raw">الملفات الخام</string>
+    <string name="second_brain_empty">لا شيء هنا بعد.</string>
+    <string name="second_brain_health_title">الحالة (%1$d مشكلات)</string>
+    <string name="second_brain_health_clean">الحالة: كل شيء متصل (%1$d مشكلات)</string>
+    <string name="second_brain_health_clean_detail">لا ملفات غير مرتبطة، ولا روابط معلّقة، ولا سجلات غير صالحة، ولا مشكلات في روابط المهام، ولا ملفات كبيرة يتعذر فحصها.</string>
+    <string name="second_brain_health_unlinked">ملفات غير مرتبطة (%1$d)</string>
+    <string name="second_brain_health_dangling">روابط معلّقة (%1$d)</string>
+    <string name="second_brain_health_invalid">سجلات غير صالحة (%1$d)</string>
+    <string name="second_brain_health_invalid_line">%1$s: %2$s</string>
+    <string name="second_brain_health_unknown_tasks">ملاحظات تشير إلى مهام مفقودة (%1$d)</string>
+    <string name="second_brain_health_unknown_line">%1$s → %2$s</string>
+    <string name="second_brain_health_dangling_line">%1$s → [[%2$s]]</string>
+    <string name="second_brain_health_mismatch_line">%1$s → المهمة تشير إلى %2$s</string>
+    <string name="second_brain_health_nowhere">(لا مكان)</string>
+    <string name="second_brain_health_stale_line">«%1$s» → %2$s</string>
+    <string name="second_brain_health_missing_backlink">مهام بلا رابط عائد من ملاحظتها (%1$d)</string>
+    <string name="second_brain_health_missing_backlink_line">«%1$s» تشير إلى %2$s لكن الملاحظة لا تذكرها بالمقابل</string>
+    <string name="second_brain_health_mismatched">ملاحظات تشير مهمتها إلى مكان آخر (%1$d)</string>
+    <string name="second_brain_health_stale">مهام تشير إلى ملاحظات مفقودة (%1$d)</string>
+    <string name="second_brain_health_unscanned">ملفات أكبر من أن تُفحص كاملة (%1$d)</string>
+    <string name="second_brain_health_more">…و%1$d أخرى</string>
+    <string name="second_brain_search">ابحث في الذاكرة</string>
+    <string name="second_brain_no_matches">لا نتائج لـ «%1$s».</string>
+    <string name="second_brain_truncated">ملف طويل — يُعرض البداية فقط.</string>
+    <string name="second_brain_open">فتح</string>
+    <string name="second_brain_open_failed">لا يوجد تطبيق على هذا الهاتف يفتح هذا النوع من الملفات.</string>
+    <string name="second_brain_tab_list">قائمة</string>
+    <string name="second_brain_tab_graph">رسم</string>
+    <string name="second_brain_graph_loading">ننمّي الدماغ…</string>
+    <string name="second_brain_graph_hint">اسحب للتحريك، بإصبعين للتكبير والتدوير، وانقر مرتين واسحب لتدوير الدماغ. انقر عصبوناً لتركيز وصلاته، وانقر مرتين لإعادة الضبط.</string>
+    <string name="second_brain_graph_reset">إعادة العرض</string>
+    <string name="second_brain_graph_neighbors"> · %1$d متصلة</string>
+    <string name="settings_page_language">اللغة</string>
+    <string name="settings_page_language_summary">لغة عرض التطبيق والصوت والنسخ والردود بالذكاء الاصطناعي</string>
+    <string name="settings_page_ai">الذكاء الاصطناعي</string>
+    <string name="settings_page_ai_summary">الطراز، المزوّد، الصوت والنسخ</string>
+    <string name="settings_page_ai_config">إعدادات الذكاء الاصطناعي</string>
+    <string name="settings_page_ai_config_summary">المزوّد، الطرازات، حدود الوكيل</string>
+    <string name="settings_page_speech">الكلام (TTS / STT)</string>
+    <string name="settings_page_speech_summary">الأصوات، النسخ، قراءة الردود بصوت عالٍ</string>
+    <string name="settings_page_permissions">الأذونات</string>
+    <string name="settings_page_permissions_summary">ما يُسمح للمساعد بفعله</string>
+    <string name="settings_page_termux">Termux (صدفة Linux)</string>
+    <string name="settings_page_termux_summary">شغّل الأوامر في صدفة Linux حقيقية</string>
+    <string name="settings_page_skills">المهارات / الإضافات</string>
+    <string name="settings_page_skills_summary">مهارات مدمجة ومجتمعية</string>
+    <string name="settings_page_proactive">المساعدة الاستباقية</string>
+    <string name="settings_page_proactive_summary">العروض، كشف OTP، ما يمكن فحصه</string>
+    <string name="settings_page_assistive_ball">الكرة المساعدة وكلمة التنبيه</string>
+    <string name="settings_page_assistive_ball_summary">كرة عائمة فوق التطبيقات، اتصال بدون لمس، \"Hey Gotcha\"</string>
+    <string name="settings_page_appearance">المظهر</string>
+    <string name="settings_page_appearance_summary">كيف يبدو التطبيق</string>
+    <string name="settings_page_notifications">الإشعارات</string>
+    <string name="settings_page_notifications_summary">الردود، المهام المكتملة، التذكيرات والنصائح</string>
+    <string name="settings_page_about">حول</string>
+    <string name="settings_page_about_summary">Samosa AI، منتجات أخرى، قانوني، تواصل</string>
+    <string name="settings_page_about_samosa">حول Samosa AI</string>
+    <string name="settings_page_about_samosa_summary">المهمة، المنتجات، الأسعار، المطورون</string>
+    <string name="settings_page_legal">قانوني</string>
+    <string name="settings_page_legal_summary">الشروط، إخلاء المسؤولية، الاحتفاظ بالبيانات</string>
+
+    <!-- Settings: shared frame and cards -->
+    <string name="action_back">→ رجوع</string>
+    <string name="settings_advanced">إعدادات متقدمة</string>
+    <string name="settings_import_failed">فشل الاستيراد: %1$s</string>
+    <string name="samosa_tier_free">مجاني</string>
+    <string name="samosa_signed_in">تم تسجيل الدخول إلى Samosa AI</string>
+    <string name="samosa_not_signed_in">لم تسجّل الدخول</string>
+    <string name="samosa_credits_remaining">الرصيد المتبقي: %1$s</string>
+    <string name="samosa_sign_in_hint">سجّل الدخول عبر Google لاستخدام Samosa AI. إعدادات OpenAI المتوافقة محفوظة بشكل منفصل وغير متأثرة.</string>
+    <string name="samosa_please_wait">يرجى الانتظار…</string>
+    <string name="samosa_log_out">تسجيل الخروج</string>
+    <string name="samosa_signing_in">جارٍ تسجيل الدخول…</string>
+    <string name="samosa_sign_in">تسجيل الدخول عبر Google</string>
+    <string name="referral_title">🎁 ادعُ أصدقاءك واكسب أرصدة مجانية</string>
+    <string name="referral_description">شارك رمز الدعوة — كلاكما يحصل على أرصدة إضافية عند تسجيل صديق به.</string>
+    <string name="referral_your_code">رمز الدعوة الخاص بك:</string>
+    <string name="referral_copy_code">نسخ الرمز</string>
+    <string name="referral_share_link">مشاركة رابط الدعوة</string>
+    <string name="referral_referred_by">🎁 دعوة من</string>
+    <string name="referral_enter_code">أدخل رمز الدعوة</string>
+    <string name="referral_code_placeholder" translatable="false">AIR-XXXXXX</string>
+    <string name="referral_apply">تطبيق</string>
+    <string name="influencer_title">🌟 لديك جمهور؟ لنتعاون</string>
+    <string name="influencer_description">إذا كنت مؤثرًا بمتابعين، يسعدنا أن تجرّب Samosa AI مبكرًا — مع مزايا تليق بك.</string>
+    <string name="influencer_apply">التقدّم كمؤثر</string>
+    <plurals name="referral_claim_hours_left">
+        <item quantity="zero">لم تتبقَّ لك أي ساعة (%1$d) للمطالبة برمز دعوة.</item>
+        <item quantity="one">تبقّت لك ساعة واحدة (%1$d) للمطالبة برمز دعوة.</item>
+        <item quantity="two">تبقّت لك ساعتان (%1$d) للمطالبة برمز دعوة.</item>
+        <item quantity="few">تبقّت لك %1$d ساعات للمطالبة برمز دعوة.</item>
+        <item quantity="many">تبقّت لك %1$d ساعة للمطالبة برمز دعوة.</item>
+        <item quantity="other">تبقّت لك %1$d ساعة للمطالبة برمز دعوة.</item>
+    </plurals>
+    <plurals name="referral_stats">
+        <item quantity="zero">أحلت %1$d صديق • %2$s من الأرصدة المكتسبة</item>
+        <item quantity="one">أحلت صديقاً واحداً (%1$d) • %2$s من الأرصدة المكتسبة</item>
+        <item quantity="two">أحلت صديقين (%1$d) • %2$s من الأرصدة المكتسبة</item>
+        <item quantity="few">أحلت %1$d أصدقاء • %2$s من الأرصدة المكتسبة</item>
+        <item quantity="many">أحلت %1$d صديقاً • %2$s من الأرصدة المكتسبة</item>
+        <item quantity="other">أحلت %1$d صديق • %2$s من الأرصدة المكتسبة</item>
+    </plurals>
+
+    <!-- Settings search: the controls a result can point at -->
+    <string name="settings_field_user_name">الاسم</string>
+    <string name="settings_field_user_response_style">أسلوب الرد</string>
+    <string name="settings_field_user_currency">العملة المفضلة</string>
+    <string name="settings_field_open_app_locale">لغة التطبيق</string>
+    <string name="settings_field_voice_language">لغة الصوت</string>
+    <string name="settings_field_reply_language">لغة رد الذكاء الاصطناعي</string>
+    <string name="settings_field_llm_provider">مزوّد LLM</string>
+    <string name="settings_field_api_key">مفتاح API</string>
+    <string name="settings_field_base_url">عنوان URL الأساسي</string>
+    <string name="settings_field_model">النموذج الرئيسي</string>
+    <string name="settings_field_api_timeout">مهلة API</string>
+    <string name="settings_field_tts_provider">مزوّد TTS</string>
+    <string name="settings_field_auto_read_replies">قراءة الردود بصوت عالٍ تلقائيًا</string>
+    <string name="settings_field_auto_read_voice_replies">قراءة الردود على الرسائل الصوتية بصوت عالٍ</string>
+    <string name="settings_field_proactive_enabled">العروض الاستباقية</string>
+    <string name="settings_field_proactive_scan_screen">فحص محتوى الشاشة</string>
+    <string name="settings_field_proactive_scan_clipboard">فحص الحافظة</string>
+    <string name="settings_field_proactive_otp">اكتشاف OTP / الرموز</string>
+    <string name="settings_field_assistive_ball">إظهار الكرة المساعدة</string>
+    <string name="settings_field_wake_word">كلمة التنبيه: Hey Gotcha</string>
+    <string name="settings_field_wake_word_sensitivity">حساسية كلمة التنبيه</string>
+    <string name="settings_field_notify_vibration">اهتزاز</string>
+    <string name="settings_field_notify_chime">نغمة</string>
+    <string name="settings_field_task_finished_enabled">إشعار عند انتهاء مهمة</string>
+    <string name="settings_field_server_messages_enabled">رسائل الخادم</string>
+
+    <!-- Settings search: controls with longer aliases -->
+    <string name="settings_field_stt_language">لغة النسخ</string>
+    <string name="settings_field_max_tool_rounds">أقصى جولات للأدوات</string>
+    <string name="settings_field_stt_provider">مزوّد STT</string>
+    <string name="settings_field_android_tts_engine">محرك تحويل النص إلى كلام</string>
+    <string name="settings_field_android_tts_voice">صوت Android</string>
+    <string name="settings_field_android_stt_service">مُعرّف الكلام</string>
+    <string name="settings_field_android_stt_on_device">التعرف على الكلام على الجهاز</string>
+    <string name="settings_field_pause_night_light">إيقاف الإضاءة الليلية لقطات الشاشة</string>
+
+    <!-- Settings home -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_search_hint">ابحث في الإعدادات</string>
+    <string name="settings_search_clear">مسح البحث</string>
+    <string name="settings_search_empty">لا توجد إعدادات تطابق "%1$s"</string>
+    <string name="settings_feature_tour">جولة الميزات</string>
+    <string name="settings_feature_tour_summary">أعد الإعداد خطوة بخطوة</string>
+    <string name="settings_feedback">إرسال ملاحظات</string>
+    <string name="settings_feedback_summary">أخبرنا بما يجب تحسينه — لا يُرسل شيء حتى تُرسل</string>
+
+    <!-- AiHubScreen -->
+    <string name="ai_hub_the_model_does_the_thinking">النموذج يفكر؛ الكلام يمنحه صوتًا وأذنين. مزود واحد يمكنه تغطية الاثنين. اللغة التي يتحدث ويجيب بها في الإعدادات ← اللغة.</string>
+
+    <!-- AppearanceScreen -->
+    <string name="appearance_theme">المظهر</string>
+    <string name="appearance_every_theme_works_on_every">كل مظهر يعمل على كل جهاز. حيث لا يتوفر التمويه المباشر، يُصنع الزجاج بطريقة أرخص بدلًا من إيقافه.</string>
+
+    <!-- ProactiveScreen -->
+    <string name="proactive_save_proactive_settings">حفظ إعدادات الاستباقية</string>
+    <string name="proactive_master_proactive_offers">العروض الاستباقية الرئيسية</string>
+    <string name="proactive_scan_screen_content">فحص محتوى الشاشة</string>
+    <string name="proactive_scan_clipboard">فحص الحافظة</string>
+    <string name="proactive_scan_notifications">فحص الإشعارات</string>
+    <string name="proactive_detect_otp_codes">كشف رموز OTP</string>
+    <string name="proactive_auto_copy_otp_to_clipboard">نسخ OTP تلقائيًا إلى الحافظة</string>
+
+    <!-- PersonalInfoScreen -->
+    <string name="personal_info_name">الاسم</string>
+    <string name="personal_info_what_the_assistant_should_call">ما يجب أن يناديك به المساعد</string>
+    <string name="personal_info_location">الموقع</string>
+    <string name="personal_info_e_g_munich_germany">مثال: ميونخ، ألمانيا</string>
+    <string name="personal_info_occupation">المهنة</string>
+    <string name="personal_info_e_g_backend_engineer">مثال: مهندس خلفية</string>
+    <string name="personal_info_background">الخلفية</string>
+    <string name="personal_info_reply_style">أسلوب الرد</string>
+    <string name="personal_info_preferred_currency">العملة المفضلة</string>
+    <string name="personal_info_save_personal_info">حفظ المعلومات الشخصية</string>
+    <string name="personal_info_about_you">عنك</string>
+    <string name="personal_info_everything_here_is_optional_stays">كل شيء هنا اختياري، يبقى على هذا الجهاز، ويُعطى للمساعد في بداية كل محادثة حتى لا يضطر للسؤال.</string>
+    <string name="personal_info_for_more_personalized_results_keep">لنتائج أكثر تخصيصًا، حافظ على تحديث هذا الملف — أو اطلب من Gotcha تسجيل أشياء مثل موقعك الشخصي أو رابط GitHub أو سيرتك الذاتية (PDF) في ملفك.</string>
+    <string name="personal_info_anything_worth_knowing_by_default">أي شيء يستحق المعرفة افتراضيًا — الأدوات التي تستخدمها، من تعمل معه، ما تطلبه عادة</string>
+    <string name="personal_info_how_replies_should_be_written">كيف يجب كتابة الردود</string>
+    <string name="personal_info_e_g_keep_it_to">مثال: اجعله بضع جمل، بلا قوائم نقطية، أظهر الأمر الذي شغّلته</string>
+    <string name="personal_info_reply_voice_and_app_display">لغة الرد والصوت وعرض التطبيق أصبحت في صفحتها الخاصة.</string>
+
+    <!-- Appearance and save confirmations -->
+    <string name="appearance_tier_solid">موفّر البطارية مفعّل، لذا يُرسم المظهر بشكل مسطّح حتى يُطفأ.</string>
+    <string name="appearance_tier_static">الضبابية الحية غير متاحة على هذا الجهاز، لذا تستخدم اللوحات ضبابية ثابتة.</string>
+    <string name="appearance_brightness_light">فاتح</string>
+    <string name="appearance_brightness_dark">داكن</string>
+    <string name="appearance_skin_description">مظهر %1$s، %2$s</string>
+    <string name="proactive_saved">تم حفظ الإعدادات الاستباقية.</string>
+    <string name="personal_info_saved">تم حفظ المعلومات الشخصية.</string>
+
+    <!-- AiConfigScreen -->
+    <string name="ai_config_llm_provider">مزوّد LLM</string>
+    <string name="ai_config_api_key">مفتاح API</string>
+    <string name="ai_config_base_url_openai_compatible">عنوان URL الأساسي (متوافق مع OpenAI)</string>
+    <string name="ai_config_main_model">النموذج الرئيسي</string>
+    <string name="ai_config_select_model">(اختر نموذجًا)</string>
+    <string name="ai_config_no_models_found">لم يتم العثور على نماذج</string>
+    <string name="ai_config_custom_model">✏️ نموذج مخصص…</string>
+    <string name="ai_config_sub_agent_model">نموذج الوكيل الفرعي</string>
+    <string name="ai_config_same_as_main_agent">نفس الوكيل الرئيسي</string>
+    <string name="ai_config_navigator_model">نموذج المتصفح</string>
+    <string name="ai_config_same_as_main_model">نفس النموذج الرئيسي</string>
+    <string name="ai_config_max_tool_rounds">الحد الأقصى لجولات الأدوات</string>
+    <string name="ai_config_max_repeated_tool_calls">الحد الأقصى لاستدعاءات الأدوات المتكررة</string>
+    <string name="ai_config_max_navigation_tool_calls">الحد الأقصى لاستدعاءات أدوات التنقل</string>
+    <string name="ai_config_max_consecutive_delegations">الحد الأقصى للتفويضات المتتالية</string>
+    <string name="ai_config_max_context_tokens">الحد الأقصى لرموز السياق</string>
+    <string name="ai_config_api_timeout_seconds">مهلة API (بالثواني)</string>
+    <string name="ai_config_clear_llm_cache">مسح ذاكرة LLM المؤقتة</string>
+    <string name="ai_config_clear_debug_screenshots">مسح لقطات شاشة التصحيح</string>
+    <string name="ai_config_save">حفظ</string>
+    <string name="ai_config_test_connection">اختبار الاتصال</string>
+    <string name="ai_config_recommended_setup_use_the_samosa">الإعداد الموصى به: استخدم مزوّد SAMOSA AI للحصول على أفضل أداء LLM.\n</string>
+    <string name="ai_config_the_api_key_is_stored">يُخزَّن مفتاح API مشفَّرًا على هذا الجهاز ولا يغادره إلا في الطلبات إلى عنوان URL الأساسي أعلاه.</string>
+
+    <!-- SpeechScreen -->
+    <string name="speech_tts_provider">مزوّد TTS</string>
+    <string name="speech_tts_api_base_url">عنوان URL الأساسي لـ TTS API</string>
+    <string name="speech_tts_api_key_optional">مفتاح TTS API (اختياري)</string>
+    <string name="speech_leave_blank_to_use_main">اتركه فارغًا لاستخدام مفتاح API الرئيسي</string>
+    <string name="speech_stt_provider">مزوّد STT</string>
+    <string name="speech_stt_api_base_url">عنوان URL الأساسي لـ STT API</string>
+    <string name="speech_stt_api_key_optional">مفتاح STT API (اختياري)</string>
+    <string name="speech_save_speech_settings">حفظ إعدادات الكلام</string>
+    <string name="speech_tts_model">نموذج TTS</string>
+    <string name="speech_no_models_found">لم يتم العثور على نماذج</string>
+    <string name="speech_type_a_voice_id_picker">اكتب معرّف صوت — لا اقتراحات في المنتقي</string>
+    <string name="speech_default_clear">افتراضي (مسح)</string>
+    <string name="speech_no_voices_suggested_type_a">لا أصوات مقترحة — اكتب معرّف صوت أعلاه</string>
+    <string name="speech_stt_model">نموذج تحويل الكلام</string>
+    <string name="speech_change_in_settings_language">غيّر من الإعدادات ← اللغة</string>
+    <string name="speech_podcast_host_a_voice_optional">صوت المضيف أ (اختياري)</string>
+    <string name="speech_podcast_host_b_voice_optional">صوت المضيف ب (اختياري)</string>
+    <string name="speech_auto_read_replies_aloud">قراءة الردود تلقائيًا بصوت عالٍ</string>
+    <string name="speech_auto_read_voice_replies">قراءة الردود على الرسائل الصوتية بصوت عالٍ</string>
+    <string name="speech_how_to_choose_a_voice">كيفية اختيار صوت ولغة (وثائق Samosa AI)</string>
+    <string name="speech_for_mixed_language_text_like">للنصوص المختلطة اللغات (مثل Hinglish)، الخيار الموصى به هو محرك Android المدمج. للكلام بلغة واحدة (مثل الهندية أو الإنجليزية)، الخيار الموصى به هو SAMOSA AI.</string>
+    <string name="speech_podcast_hosts_the_two_voices">مضيفو البودكاست — الصوتان المستخدمان عندما يولّد المساعد حوار بودكاست بمضيفين. اتركه فارغًا لاستخدام صوت تحويل النص إلى كلام للمضيف أ وصوت مختلف يُختار تلقائيًا للمضيف ب.</string>
+
+    <!-- SpeechLanguageSettings -->
+    <string name="speech_language_transcription_language_override">تجاوز لغة النسخ</string>
+
+    <!-- AssistiveBallScreen -->
+    <string name="assistive_ball_show_assistive_ball">إظهار الكرة المساعدة</string>
+    <string name="assistive_ball_night_light_off_for_screenshots">إيقاف الإضاءة الليلية لالتقاط الشاشة</string>
+    <string name="assistive_ball_wake_word_hey_gotcha">كلمة التنبيه: Hey Gotcha</string>
+    <string name="assistive_ball_always">دائمًا</string>
+    <string name="assistive_ball_listen_with_the_screen_on">الاستماع مع تشغيل الشاشة أو إيقافها. تحكم كامل بدون استخدام اليدين، أعلى استهلاك للبطارية.</string>
+    <string name="assistive_ball_only_while_the_screen_is">فقط أثناء تشغيل الشاشة</string>
+    <string name="assistive_ball_saves_battery_the_microphone_and">يوفّر البطارية — الميكروفون ومؤشره متوقفان أثناء إيقاف الشاشة.</string>
+    <string name="assistive_ball_only_while_the_screen_is_2">فقط أثناء إيقاف الشاشة</string>
+    <string name="assistive_ball_hands_free_when_you_are">بدون استخدام اليدين عندما لا تنظر إلى الهاتف؛ تشغيل الشاشة يعني إيقاف الميكروفون.</string>
+    <string name="assistive_ball_a_draggable_ball_floating_over">كرة قابلة للسحب تطفو فوق التطبيقات الأخرى. اضغط مطولًا لبدء مكالمة صوتية بدون استخدام اليدين مع المساعد؛ اضغط عليها لبدء / إيقاف مؤقت / إنهاء ولفتح التطبيق. اسحبها إلى ✕ لإخفائها مجددًا.</string>
+    <string name="assistive_ball_says_hey_gotcha_the_bundled">تقول \"Hey Gotcha\" — يعمل نموذج OpenWakeWord المضمّن على الجهاز، لكن فقط أثناء تشغيل الكرة المساعدة وعدم وجود مكالمة نشطة. المستمع داخل خدمة الكرة، لذا إيقاف الكرة يوقف كلمة التنبيه أيضًا. أبقِ إذن الميكروفون مفعّلًا.</string>
+    <string name="assistive_ball_turn_on_show_assistive_ball">شغّل \"إظهار الكرة المساعدة\" أعلاه لاستخدامها.</string>
+    <string name="assistive_ball_when_to_listen">متى تستمع</string>
+    <string name="assistive_ball_the_listener_is_only_active">المستمع نشط فقط عندما تطابق الشاشة الحالة المختارة، لذا يكون الميكروفون ومؤشره متوقفين بقية الوقت.</string>
+    <string name="assistive_ball_detection_sensitivity">حساسية الكشف</string>
+    <string name="assistive_ball_lower_values_are_stricter_fewer">القيم الأقل أكثر صرامة — تفعيلات خاطئة أقل مع التلفاز أو الموسيقى؛ القيم الأعلى تلتقط الكلمة من مسافة أبعد أو بنطق أضعف.</string>
+    <string name="assistive_ball_needs_the_display_over_other">يحتاج إذن \"العرض فوق التطبيقات الأخرى\" — تشغيله أول مرة ينقلك إلى هناك لمنحه.</string>
+    <string name="assistive_ball_some_phones_keep_the_night">بعض الهواتف تُبقي صبغة الإضاءة الليلية في لقطات الشاشة. عند تشغيل هذا، تُوقف لقطة الشاشة أو التقاط Screen Lens من الكرة الإضاءة الليلية، وتنتظر بضع ثوانٍ حتى تستقر الألوان، وتلتقط، ثم تعيد تشغيلها. تعرض الشاشة ألوانها الطبيعية في الأثناء.</string>
+    <string name="assistive_ball_gotcha_has_permission_to_switch">Gotcha لديه إذن لتبديل الإضاءة الليلية.</string>
+    <string name="assistive_ball_needs_a_one_time_grant">يحتاج منحًا لمرة واحدة من حاسوب (أو root). اتصل عبر adb ونفّذ هذا — اضغط للنسخ:</string>
+
+    <!-- NotificationsScreen -->
+    <string name="notifications_show_the_reply">إظهار الرد</string>
+    <string name="notifications_open_notification_settings">فتح إعدادات الإشعارات</string>
+    <string name="notifications_vibration">اهتزاز</string>
+    <string name="notifications_chime">نغمة</string>
+    <string name="notifications_notify_when_a_task_finishes">إشعار عند انتهاء مهمة</string>
+    <string name="notifications_enable_server_messages">تفعيل رسائل الخادم</string>
+    <string name="notifications_played_as_soon_as_a">تُشغَّل بمجرد وصول رد. أوقف كليهما لعدم التنبيه.</string>
+    <string name="notifications_task_finished">انتهت المهمة</string>
+    <string name="notifications_a_notification_when_a_chat">إشعار عند انتهاء مهمة محادثة وأنت في تطبيق آخر. اضغطه لفتح تلك المحادثة. على شاشة القفل يظهر فقط أن مهمة انتهت.</string>
+    <string name="notifications_notifications_are_blocked_for_gotcha">الإشعارات محظورة لـ Gotcha، لذا لن يظهر أي منها.</string>
+    <string name="notifications_server_messages">رسائل الخادم</string>
+
+    <!-- LocalNotificationsSection -->
+    <string name="local_notifications_gotcha_notifications">إشعارات Gotcha</string>
+    <string name="local_notifications_at_most_a_day">يوم واحد على الأكثر</string>
+    <string name="local_notifications_clear_notification_history">مسح سجل الإشعارات؟</string>
+    <string name="local_notifications_clear">مسح</string>
+    <string name="local_notifications_cancel">إلغاء</string>
+    <string name="local_notifications_reminders_and_tips_gotcha_decides">تذكيرات ونصائح يقرر Gotcha إرسالها، تُحسب على هذا الهاتف من محادثاتك. لا يُرفع أي شيء عن طريقة استخدامك لـ Gotcha لتحديدها.</string>
+    <string name="local_notifications_this_empties_the_list_behind">هذا يفرّغ القائمة خلف الجرس في الشاشة الرئيسية. التذكيرات التي أرسلها Gotcha بالفعل لن تُرسل مرة أخرى.</string>
+
+    <!-- AiConfigScreen -->
+    <string name="ai_config_hide">إخفاء</string>
+    <string name="ai_config_show">إظهار</string>
+    <string name="ai_config_refreshing">جارٍ التحديث…</string>
+    <string name="ai_config_refresh_models">🔄 تحديث النماذج…</string>
+    <string name="ai_config_refreshing_models">جارٍ تحديث النماذج…</string>
+    <string name="ai_config_llm_response_cache_cleared">تم مسح ذاكرة استجابات LLM.</string>
+    <string name="ai_config_debug_screenshots_cleared">تم مسح لقطات شاشة التصحيح.</string>
+    <string name="ai_config_testing_connection">جارٍ اختبار الاتصال…</string>
+
+    <!-- SpeechScreen -->
+    <string name="speech_hide">إخفاء</string>
+    <string name="speech_show">إظهار</string>
+    <string name="speech_refreshing">جارٍ التحديث…</string>
+    <string name="speech_refresh_audio_models">🔄 تحديث نماذج الصوت…</string>
+    <string name="speech_refreshing_audio_models">جارٍ تحديث نماذج الصوت…</string>
+    <string name="speech_no_app_can_open_the">لا يوجد تطبيق يمكنه فتح رابط المستندات</string>
+
+    <!-- Samosa sign-in status and shared model pickers -->
+    <string name="samosa_invite_applied">تم تطبيق رمز الدعوة!</string>
+    <string name="samosa_invite_failed">فشل تطبيق رمز الدعوة.</string>
+    <string name="samosa_signing_in_google">جارٍ تسجيل الدخول عبر Google…</string>
+    <string name="samosa_signed_in_as">تم تسجيل الدخول باسم %1$s</string>
+    <string name="samosa_sign_in_failed">فشل تسجيل الدخول.</string>
+    <string name="samosa_signing_out">جارٍ تسجيل الخروج…</string>
+    <string name="samosa_signed_out">تم تسجيل الخروج من Samosa AI.</string>
+    <string name="settings_saved">تم الحفظ.</string>
+    <string name="models_found">تم العثور على %1$d نموذج</string>
+    <string name="models_failed">فشل: %1$s</string>
+    <string name="ai_config_api_timeout_hint">الافتراضي %1$d. 0 = بلا مهلة أبدًا (غير مُوصى به).</string>
+    <string name="ai_config_connected">✓ متصل: %1$s</string>
+    <string name="ai_config_connection_failed">✗ فشل الاتصال: %1$s</string>
+    <string name="speech_models_found">تم العثور على %1$d نموذج TTS، %2$d نموذج STT</string>
+    <string name="speech_select_model">(اختر نموذجًا)</string>
+    <string name="speech_tts_voice_optional">صوت TTS (اختياري)</string>
+    <string name="speech_provider_default_voice">الافتراضي لدى المزوّد</string>
+    <string name="speech_default_voice_or_pick">الافتراضي (%1$s) أو اختر أدناه</string>
+    <string name="speech_transcription_follows_voice">لغة التفريغ: %1$s، لغة الصوت.</string>
+    <string name="speech_transcription_forced">لغة التفريغ: مفروضة على %1$s.</string>
+
+    <!-- LocalNotificationsSection -->
+    <string name="local_notifications_history_cleared">تم مسح سجل الإشعارات</string>
+    <string name="local_notifications_clear_history">مسح سجل الإشعارات</string>
+    <string name="local_notifications_when_a_task_failed_was">عند فشل مهمة أو إيقافها، أو عندما يسألك Gotcha شيئًا ولا تجيب.</string>
+    <string name="local_notifications_when_something_you_ask_regularly">عند حلول موعد شيء تطلبه بانتظام. اضغط لإعادة طلبه، مع إمكانية تعديله أولًا.</string>
+    <string name="local_notifications_when_you_haven_t_opened">عندما لم تفتح Gotcha لمدة:</string>
+    <string name="local_notifications_tips_and_reminders_count_finished">تُحتسب النصائح والتذكيرات؛ لا المهام المكتملة ورسائل الخادم.</string>
+    <string name="local_notifications_one_thing_to_try_each">شيء واحد لتجربته كل يوم، مختار مما لم تستخدمه بعد. اضغط لبدء محادثة والنص جاهز للتعديل أو الإرسال. يُتخطى في الأيام التي استخدمت فيها Gotcha.</string>
+    <string name="local_notifications_off_notifications_only_say_that">مع الإيقاف، تقول الإشعارات فقط إن شيئًا يحتاجك، دون ذكر المحادثة أو الطلب. المحادثات المستبعدة من الإشعارات (من قائمة ⋮ في المحادثة، ومحادثات Doctor ما لم تغيّرها) لا تُذكر أبدًا، ولا يظهر شيء على شاشة القفل.</string>
+    <string name="local_notifications_this_time_is_inside_your">هذا الوقت داخل ساعات الهدوء، لذا لن تصل أي نصيحة.</string>
+    <string name="local_notifications_notifications_are_blocked_for_gotcha">الإشعارات محظورة لـ Gotcha، لذا لن يظهر أي منها.</string>
+
+    <!-- AssistiveBallScreen -->
+    <string name="assistive_ball_background_restriction_lifted">تقييد الخلفية: مرفوع</string>
+    <string name="assistive_ball_background_restriction">تقييد الخلفية</string>
+    <string name="assistive_ball_turn_off_assistive_ball">إيقاف الكرة المساعدة</string>
+    <string name="assistive_ball_turn_on_assistive_ball">تشغيل الكرة المساعدة</string>
+    <string name="assistive_ball_stop_turning_night_light_off">إيقاف إطفاء الإضاءة الليلية لالتقاط الشاشة</string>
+    <string name="assistive_ball_turn_night_light_off_for">إطفاء الإضاءة الليلية لالتقاط الشاشة</string>
+    <string name="assistive_ball_turn_off_hey_gotcha_wake">إيقاف كلمة التنبيه Hey Gotcha</string>
+    <string name="assistive_ball_turn_on_hey_gotcha_wake">تشغيل كلمة التنبيه Hey Gotcha</string>
+    <string name="assistive_ball_gotcha_is_whitelisted_from_battery">Gotcha مستثنى من تحسين البطارية. سيستمر مستمع كلمة التنبيه بالعمل ما دامت الكرة مفعّلة.</string>
+    <string name="assistive_ball_oem_battery_managers_may_kill">قد تُوقف مديريات بطارية الشركات مستمع كلمة التنبيه. اضغط للسماح لـ Gotcha بالعمل دون قيود في الخلفية — مطلوب للاستماع الدائم الموثوق.</string>
+
+    <!-- Assistive ball: wake word sensitivity -->
+    <string name="assistive_ball_sensitivity_description">حساسية كلمة التنبيه %1$d بالمئة</string>
+    <string name="assistive_ball_sensitivity_high_precision">دقة عالية</string>
+    <string name="assistive_ball_sensitivity_balanced">متوازنة</string>
+    <string name="assistive_ball_sensitivity_high">حساسية عالية</string>
+
+    <!-- NotificationsScreen -->
+    <string name="notifications_syncing">جارٍ المزامنة…</string>
+    <string name="notifications_sync_now">زامن الآن</string>
+
+    <!-- Notifications page -->
+    <string name="notifications_server_messages_description">تحديثات ونصائح وإشعارات صيانة من Gotcha، تُجلب من %1$s. تظهر كل رسالة بحد أقصى عدد المرات التي يطلبها الخادم؛ وتُمنع الإعادات تلقائيًا.</string>
+    <string name="notifications_last_synced">آخر مزامنة: %1$s</string>
+    <string name="notifications_never_synced">أبدًا</string>
+    <string name="notifications_preview_none">لا تعرضه</string>
+    <string name="notifications_preview_none_summary">فقط اسم المحادثة وما إذا اكتملت المهمة.</string>
+    <string name="notifications_preview_short">معاينة قصيرة</string>
+    <string name="notifications_preview_short_summary">أول سطر أو سطرين من الرد.</string>
+    <string name="notifications_preview_full">الرد كاملًا</string>
+    <string name="notifications_preview_full_summary">وسّع الإشعار لقراءته كاملًا.</string>
+    <string name="time_button_label">%1$s: %2$s</string>
+
+    <!-- Transcription language picker -->
+    <string name="speech_language_follow_voice">اتبع لغة الصوت / كشف تلقائي</string>
+
+    <!-- SkillsScreen -->
+    <string name="skills_no_skills_loaded">لا مهارات محمّلة.</string>
+    <string name="skills_import_from_url">استيراد من URL</string>
+    <string name="skills_paste_json">الصق JSON…</string>
+    <string name="skills_skill_json">JSON المهارة</string>
+    <string name="skills_cancel">إلغاء</string>
+    <string name="skills_import">استيراد</string>
+    <string name="skills_delete_community_skill">حذف مهارة المجتمع؟</string>
+    <string name="skills_delete">حذف</string>
+    <string name="skills_remove">إزالة</string>
+    <string name="skills_add_host">إضافة مضيف</string>
+    <string name="skills_add">إضافة</string>
+    <string name="skills_community_skills">مهارات المجتمع</string>
+    <string name="skills_paste_community_skill_json">الصق JSON مهارة المجتمع</string>
+    <string name="skills_no_community_skills_imported_yet">لم تُستورد مهارات مجتمع بعد.</string>
+    <string name="skills_allowed_community_skill_hosts">مضيفو مهارات المجتمع المسموحون</string>
+    <string name="skills_built_in">مدمج</string>
+    <string name="skills_enter_a_url_first">أدخل URL أولاً.</string>
+    <string name="skills_fetching_skill">جارٍ جلب المهارة…</string>
+    <string name="skills_paste_json_first">الصق JSON أولاً.</string>
+    <string name="skills_importing_skill">جارٍ استيراد المهارة…</string>
+
+    <!-- TermuxSetupScreen -->
+    <string name="termux_setup_copy_commands">نسخ الأوامر</string>
+    <string name="termux_setup_install_termux">تثبيت Termux</string>
+    <string name="termux_setup_check_the_termux_build">تحقق من إصدار Termux</string>
+    <string name="termux_setup_grant_the_run_commands_permission">امنح إذن تشغيل الأوامر</string>
+    <string name="termux_setup_allow_external_apps">السماح بالتطبيقات الخارجية</string>
+    <string name="termux_setup_termux_gives_the_assistant_a">يمنح Termux المساعد صدفة Linux كاملة — تثبيت الحزم وتشغيل السكربتات والأدوات التي لا يأتي بها أي هاتف. تشرح هذه الصفحة الإعداد لمرة واحدة حتى لا تحتاج للبحث عن أي شيء.</string>
+    <string name="termux_setup_termux_is_set_up_try">تم إعداد Termux. جرّب أن تطلب من المساعد تشغيل أمر في Termux.</string>
+    <string name="termux_setup_checking">جارٍ التحقق…</string>
+    <string name="termux_setup_check_configuration">تحقق من الإعداد</string>
+    <string name="termux_setup_could_not_open_the_f">تعذّر فتح صفحة F-Droid.</string>
+    <string name="termux_setup_copied_to_clipboard">تم النسخ إلى الحافظة.</string>
+    <string name="termux_setup_permission_granted_next_enable_external">تم منح الإذن — بعد ذلك، فعّل التطبيقات الخارجية في Termux.</string>
+    <string name="termux_setup_permission_denied_if_no_dialog">تم رفض الإذن. إذا لم تظهر نافذة، فقد ثُبّت Termux بعد Gotcha — حدّث Gotcha أو أعد تثبيته حتى يمنحه Android الإذن.</string>
+
+    <!-- AboutScreen -->
+    <string name="about_check_for_updates">التحقق من التحديثات</string>
+    <string name="about_download_update">تنزيل التحديث</string>
+    <string name="about_install_update">تثبيت التحديث</string>
+    <string name="about_grant_install_permission">منح إذن التثبيت</string>
+    <string name="about_retry_check">إعادة التحقق</string>
+    <string name="about_open_in_your_browser">افتح في المتصفح</string>
+    <string name="about_app_version_updates">إصدار التطبيق والتحديثات</string>
+    <string name="about_checking_for_updates">جارٍ التحقق من التحديثات...</string>
+    <string name="about_allow_gotcha_to_install_updates">اسمح لـ Gotcha بتثبيت التحديثات من هذا المصدر، ثم عُد هنا.</string>
+
+    <!-- LegalScreen -->
+    <string name="legal_by_using_gotcha_you_accept">باستخدامك Gotcha فإنك تقبل هذه المستندات.</string>
+
+    <!-- PermissionsSection -->
+    <string name="permissions_cancel">إلغاء</string>
+    <string name="permissions_health_connect_permission_needed">مطلوب إذن Health Connect</string>
+    <string name="permissions_open_health_connect">افتح Health Connect</string>
+    <string name="permissions_not_now">ليس الآن</string>
+    <string name="permissions_nothing_here_is_required_up">لا شيء هنا مطلوب مسبقًا — يطلب المساعد الإذن عند أول حاجة إليه، ويوضّح السبب. هذه الصفحة لمنحها مسبقًا، ورؤية المُفعَّل، وإيقاف أي شيء. تُظهر أذونات وقت التشغيل نافذة نظام عند تفعيلها؛ أما أذونات الوصول الخاص فتفتح شاشة الإعدادات لإعداد لمرة واحدة.</string>
+    <string name="permissions_guided_setup">إعداد موجَّه ›</string>
+    <string name="permissions_gotcha_can_t_read_your">لا يستطيع Gotcha قراءة بياناتك الصحية بعد. افتح Health Connect، وابحث عن Gotcha ضمن أذونات التطبيق، واسمح بأنواع البيانات التي ترتاح لمشاركتها، ثم عُد هنا.</string>
+    <string name="permissions_open_settings_screen">افتح شاشة الإعدادات</string>
+    <string name="permissions_open_app_settings">افتح إعدادات التطبيق</string>
+    <string name="permissions_granted">ممنوح</string>
+    <string name="permissions_not_granted_asked_for_when">غير ممنوح — يُطلب عند أول حاجة</string>
+
+    <!-- Termux setup -->
+    <string name="termux_setup_termux_answered_allow_external_apps">استجاب Termux — تم تفعيل allow-external-apps.</string>
+    <string name="termux_setup_termux_answered_but_allow_external">استجاب Termux، لكن allow-external-apps غير مفعّل بعد.</string>
+    <string name="termux_setup_could_not_confirm_open_termux">تعذّر التأكيد. افتح Termux مرة، واضبط الخاصية، ثم تحقق مجددًا.</string>
+    <string name="termux_setup_installed_version">Termux %1$s مثبّت.</string>
+    <string name="termux_setup_not_installed">Termux غير مثبّت.</string>
+    <string name="termux_setup_install_termux_first">ثبّت Termux أولًا.</string>
+    <string name="termux_setup_this_build_exposes_the_run">هذا الإصدار يوفّر واجهة Run Commands API التي يحتاجها Gotcha.</string>
+    <string name="termux_setup_this_build_has_no_run">هذا الإصدار لا يحتوي على Run Commands API — إنه إصدار Google Play الذي أزالها. ثبّت إصدار F-Droid أو GitHub بدلًا منه.</string>
+    <string name="termux_setup_gotcha_may_run_commands_in">يمكن لـ Gotcha تشغيل الأوامر في Termux.</string>
+    <string name="termux_setup_termux_must_let_gotcha_run">يجب أن يسمح Termux لـ Gotcha بتشغيل الأوامر. إن لم تظهر نافذة إذن، فـ Termux ثُبّت بعد Gotcha — حدّث Gotcha أو أعد تثبيته.</string>
+    <string name="termux_setup_this_build_cannot_run_commands">هذا الإصدار لا يستطيع تشغيل الأوامر — انظر الخطوة 2.</string>
+    <string name="termux_setup_allow_external_apps_is_enabled">allow-external-apps مفعّل — يستطيع Gotcha الوصول إلى Termux.</string>
+    <string name="termux_setup_allow_external_apps_is_not">allow-external-apps غير مفعّل. افتح Termux ونفّذ السطرين أدناه.</string>
+    <string name="termux_setup_not_confirmed_yet_open_termux">لم يُؤكَّد بعد. افتح Termux، ونفّذ السطرين أدناه، ثم تحقق مجددًا.</string>
+    <string name="termux_setup_action_install_termux_from_fdroid">ثبّت Termux من F-Droid</string>
+    <string name="termux_setup_action_grant_permission">امنح الإذن</string>
+    <string name="termux_setup_action_open_termux">افتح Termux</string>
+
+    <!-- Skills page -->
+    <string name="skills_community_description">استورد المهارات من %1$s أو الصق JSON. تظهر مهارات المجتمع في موجّه نظام الوكيل كإرشادات استشارية.</string>
+    <string name="skills_url_label">رابط المهارة (https://%1$s/...)</string>
+    <string name="skills_imported">تم استيراد \'%1$s\'.</string>
+    <string name="skills_id">id: %1$s</string>
+    <string name="skills_delete_description">حذف %1$s</string>
+    <string name="skills_delete_confirm">هل أنت متأكد من حذف \"%1$s\" نهائيًا؟ ستُزال المهارة من هذا الجهاز ولن يتمكن الوكيل من الوصول إليها. لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="skills_deleted">تم حذف \'%1$s\'.</string>
+    <string name="skills_hosts_description">يمكن جلب مضيفات HTTPS فقط من هذه القائمة. الافتراضي: %1$s.</string>
+
+    <!-- About page -->
+    <string name="loading">(جارٍ التحميل…)</string>
+    <string name="about_link_website">موقع Samosa AI</string>
+    <string name="about_link_about_us">من نحن</string>
+    <string name="about_link_gotcha" translatable="false">Gotcha</string>
+    <string name="about_link_docs">توثيق Gotcha</string>
+    <string name="about_link_pricing">الأسعار</string>
+    <string name="about_link_blog">المدونة</string>
+    <string name="about_link_github" translatable="false">GitHub</string>
+    <string name="about_link_email" translatable="false">Email contact@samosa-ai.com</string>
+    <string name="about_version">Gotcha v%1$s (إصدار %2$d)</string>
+    <string name="about_up_to_date">Gotcha محدّث (v%1$s).</string>
+    <string name="about_update_available">تحديث جديد متاح: v%1$s</string>
+    <string name="about_download_failed">فشل التنزيل</string>
+    <string name="about_downloading">جارٍ تنزيل التحديث: %1$d%%</string>
+    <string name="about_installer_failed">تعذّر تشغيل المثبّت.</string>
+    <string name="about_update_error">خطأ: %1$s</string>
+
+    <!-- Legal page -->
+    <string name="legal_accepted_toast">تم القبول. لن ترى هذه الشاشة مجددًا حتى تتغير الشروط القانونية.</string>
+    <string name="legal_accepted_current">لقد قبلت الإصدار %1$s. سيُطلب منك مجددًا فقط إذا تغيرت الشروط القانونية.</string>
+    <string name="legal_not_accepted">لم تقبل بعد. سيستمر ظهور نافذة التشغيل الأولى حتى تضغط %1$s.</string>
+    <string name="legal_accepted_earlier">قبلت إصدارًا سابقًا (%1$s). الإصدار الحالي هو %2$s.</string>
+
+    <!-- Permissions catalog -->
+    <string name="permission_group_communications">الاتصالات</string>
+    <string name="permission_group_contacts">جهات الاتصال</string>
+    <string name="permission_group_calendar">التقويم</string>
+    <string name="permission_group_media_storage">الوسائط &amp; التخزين</string>
+    <string name="permission_group_location">الموقع</string>
+    <string name="permission_group_device_control">التحكم بالجهاز</string>
+    <string name="permission_group_notifications">الإشعارات</string>
+    <string name="permission_group_system_access">الوصول للنظام</string>
+    <string name="permission_group_health">الصحة</string>
+    <string name="permission_phone">الهاتف</string>
+    <string name="permission_phone_description">إجراء المكالمات مباشرة</string>
+    <string name="permission_sms">الرسائل النصية</string>
+    <string name="permission_sms_description">إرسال الرسائل النصية</string>
+    <string name="permission_read_sms">قراءة الرسائل</string>
+    <string name="permission_read_sms_description">قراءة رسائل الوارد</string>
+    <string name="permission_call_log">سجل المكالمات</string>
+    <string name="permission_call_log_description">قراءة سجل المكالمات الأخيرة</string>
+    <string name="permission_contacts">جهات الاتصال</string>
+    <string name="permission_contacts_description">قراءة وإنشاء جهات الاتصال</string>
+    <string name="permission_calendar">التقويم</string>
+    <string name="permission_calendar_description">قراءة وإنشاء أحداث التقويم</string>
+    <string name="permission_camera">الكاميرا</string>
+    <string name="permission_camera_description">التقاط الصور</string>
+    <string name="permission_microphone">الميكروفون</string>
+    <string name="permission_microphone_description">تسجيل الصوت</string>
+    <string name="permission_storage_read">قراءة التخزين</string>
+    <string name="permission_storage_read_description">قراءة الملفات من التخزين المشترك</string>
+    <string name="permission_storage_write">كتابة التخزين</string>
+    <string name="permission_storage_write_description">كتابة الملفات إلى التخزين المشترك</string>
+    <string name="permission_all_files_access">الوصول إلى كل الملفات</string>
+    <string name="permission_all_files_access_description">وصول كامل إلى جميع الملفات على الجهاز</string>
+    <string name="permission_location">الموقع</string>
+    <string name="permission_location_description">الحصول على موقع الجهاز</string>
+    <string name="permission_write_settings">كتابة الإعدادات</string>
+    <string name="permission_write_settings_description">تعديل إعدادات النظام (السطوع)</string>
+    <string name="permission_do_not_disturb">عدم الإزعاج</string>
+    <string name="permission_do_not_disturb_description">وضع الصامت/الاهتزاز وعدم الإزعاج</string>
+    <string name="permission_usage_access">الوصول إلى الاستخدام</string>
+    <string name="permission_usage_access_description">قراءة استخدام التطبيقات وإحصاءات البيانات</string>
+    <string name="permission_termux_commands_optional">أوامر Termux (اختياري)</string>
+    <string name="permission_termux_commands_optional_description">تشغيل أوامر shell وتثبيت الحزم في Termux. يحتاج أيضًا إلى `allow-external-apps=true` في ~/.termux/termux.properties — استخدم رابط الإعداد الموجّه للحصول على مساعدة خطوة بخطوة.</string>
+    <string name="permission_device_admin_optional">مسؤول الجهاز (اختياري)</string>
+    <string name="permission_device_admin_optional_description">خطير: قفل الشاشة، فرض سياسة كلمة المرور. لا تفعّله إلا إذا كنت تحتاج هذه الميزات فعلاً.</string>
+    <string name="permission_show_notifications">إظهار الإشعارات</string>
+    <string name="permission_show_notifications_description">عرض رسائل الخادم وتنبيهات الرد في شريط الحالة</string>
+    <string name="permission_accessibility">إمكانية الوصول</string>
+    <string name="permission_accessibility_description">قراءة الشاشة، النقر، السحب، الكتابة</string>
+    <string name="permission_notification_listener">مستمع الإشعارات</string>
+    <string name="permission_notification_listener_description">قراءة الإشعارات وإغلاقها، التحكم بالوسائط</string>
+    <string name="permission_display_over_apps">العرض فوق التطبيقات</string>
+    <string name="permission_display_over_apps_description">إظهار النوافذ العائمة</string>
+    <string name="permission_health_connect">Health Connect</string>
+    <string name="permission_health_connect_description">قراءة الخطوات والنوم ومعدل النبض والوزن والتمارين</string>
+
+    <!-- Permission requests: why each one is asked for -->
+    <string name="permission_rationale_call_phone">يحتاج Gotcha إلى إذن الهاتف لطلب الرقم الذي طلبت الاتصال به. لا يجري إلا المكالمات التي تطلبها، ويبقى تطبيق الاتصال على الشاشة أثناء ذلك.</string>
+    <string name="permission_rationale_send_sms">يحتاج Gotcha إلى إذن الرسائل لإرسال الرسالة التي طلبتها. لا يُرسل شيء لم تطلب إرساله.</string>
+    <string name="permission_rationale_read_sms">يحتاج Gotcha إلى قراءة صندوق الوارد للإجابة على هذا — مثلاً للعثور على رمز أو رسالة أرسلها لك أحدهم. تبقى الرسائل على الجهاز إلا إذا طلبت من Gotcha فعل شيء بها.</string>
+    <string name="permission_rationale_read_call_log">يحتاج Gotcha إلى سجل المكالمات للإجابة على أسئلة من اتصل ومتى.</string>
+    <string name="permission_rationale_read_contacts">يحتاج Gotcha إلى جهات الاتصال لتحويل الاسم إلى رقم — حتى يصل \"اتصل ببريا\" إلى بريا الصحيحة.</string>
+    <string name="permission_rationale_write_contacts">يحتاج Gotcha إلى إذن لحفظ جهة الاتصال هذه في دفتر عناوينك.</string>
+    <string name="permission_rationale_read_calendar">يحتاج Gotcha إلى تقويمك لمعرفة ما في جدولك.</string>
+    <string name="permission_rationale_write_calendar">يحتاج Gotcha إلى الوصول إلى التقويم لإنشاء الحدث الذي طلبته أو تغييره.</string>
+    <string name="permission_rationale_camera">يحتاج Gotcha إلى الكاميرا لالتقاط الصورة التي طلبتها.</string>
+    <string name="permission_rationale_record_audio">يحتاج Gotcha إلى الميكروفون ليسمعك — للإدخال الصوتي والتسجيل وكلمة التنبيه \"Hey Gotcha\".</string>
+    <string name="permission_rationale_access_fine_location">يحتاج Gotcha إلى موقعك للإجابة عن هذا — الطقس أو ما بالقرب منك أو مكانك الآن.</string>
+    <string name="permission_rationale_access_coarse_location">يحتاج Gotcha إلى موقع تقريبي للإجابة عن هذا.</string>
+    <string name="permission_rationale_read_media_images">يحتاج Gotcha إلى الوصول إلى صورك لفتح الصورة التي أشرت إليها.</string>
+    <string name="permission_rationale_read_external_storage">يحتاج Gotcha إلى الوصول إلى التخزين لفتح الملف الذي أشرت إليه.</string>
+    <string name="permission_rationale_post_notifications">يحتاج Gotcha إلى إذن الإشعارات لتنبيهك عند وصول رد أو رسالة.</string>
+    <string name="permission_rationale_read_phone_state">على هاتف بشريحتين، يحتاج Gotcha إلى قراءة حالة الهاتف لاختيار الشريحة التي تُجري المكالمة أو ترسل الرسالة.</string>
+    <string name="permission_rationale_from_description">يحتاج Gotcha إلى هذا الإذن لـ %1$s.</string>
+    <string name="permission_rationale_generic">يحتاج Gotcha إلى إذن %1$s لفعل ما طلبته.</string>
+
+    <!-- PermissionAsk -->
+    <string name="permission_ask_continue">متابعة</string>
+    <string name="permission_ask_not_now">ليس الآن</string>
+    <string name="permission_ask_open_app_settings">فتح إعدادات التطبيق</string>
+    <string name="permission_ask_android_won_t_ask_again">لن يسأل Android مرة أخرى بعد إيقاف إذن. يمكنك إعادة تشغيله من الإعدادات › التطبيقات › Gotcha › الأذونات، ثم اطلب من Gotcha مجددًا.</string>
+
+    <!-- Permission dialogs -->
+    <string name="permission_ask_needed">إذن %1$s مطلوب</string>
+    <string name="permission_ask_turned_off">%1$s مُوقف</string>
+
+    <!-- Permissions page -->
+    <string name="permissions_revoke_title">إيقاف %1$s؟</string>
+    <string name="permissions_revoke_special">%1$s مُشغَّل في شاشة إعدادات النظام نفسها، وهذه الشاشة وحدها يمكنها إيقافه. يتوقف Gotcha عن استخدامه فور قيامك بذلك.</string>
+    <string name="permissions_revoke_runtime">Android وحده يمكنه سحب الإذن. افتح إعدادات تطبيق Gotcha، واذهب إلى الأذونات، وارفض %1$s هناك — أي شيء يحتاجه سيسأل مجددًا في المرة القادمة.</string>
+    <string name="permissions_device_admin_explanation">يستخدم Gotcha إدارة الجهاز لقفل الشاشة وفرض سياسة كلمة المرور وتعطيل الكاميرا عندما تطلب ذلك.</string>
+
+    <!-- ConnectorsSection -->
+    <string name="connectors_auto_tool_sync">مزامنة الأدوات التلقائية</string>
+    <string name="connectors_interval">الفاصل الزمني</string>
+    <string name="connectors_use_gmail_preset">استخدام إعداد Gmail المسبق</string>
+    <string name="connectors_services_to_authorise">الخدمات المطلوب تفويضها:</string>
+    <string name="connectors_gmail">Gmail</string>
+    <string name="connectors_calendar">التقويم</string>
+    <string name="connectors_tenant_common_or_your_organisation">المستأجر (common، أو معرّف مستأجر مؤسستك)</string>
+    <string name="connectors_home_assistant">Home Assistant</string>
+    <string name="connectors_notion">Notion</string>
+    <string name="connectors_email_imap">البريد الإلكتروني (IMAP)</string>
+    <string name="connectors_google_gmail_calendar">Google (Gmail، التقويم)</string>
+    <string name="connectors_microsoft_outlook_calendar_to_do">Microsoft (Outlook، التقويم، To Do)</string>
+    <string name="connectors_changing_this_needs_a_reconnect">تغيير هذا يتطلب إعادة الاتصال — تسجيل الدخول المحفوظ يحمل فقط النطاقات الممنوحة وقت الموافقة.</string>
+    <string name="connectors_syncing">جارٍ المزامنة…</string>
+    <string name="connectors_refresh_all">تحديث الكل</string>
+    <string name="connectors_long_lived_access_token">رمز وصول طويل الأمد</string>
+    <string name="connectors_internal_integration_token">رمز التكامل الداخلي</string>
+    <string name="connectors_email_address">عنوان البريد الإلكتروني</string>
+    <string name="connectors_app_password">كلمة مرور التطبيق</string>
+    <string name="connectors_imap_host">مضيف IMAP</string>
+    <string name="connectors_imap_port">منفذ IMAP</string>
+    <string name="connectors_smtp_host">مضيف SMTP</string>
+    <string name="connectors_smtp_port">منفذ SMTP</string>
+    <string name="connectors_home_assistant_url">رابط Home Assistant</string>
+    <string name="connectors_control_and_query_your_smart">تحكّم في منزلك الذكي واستعلم عنه عبر خادم Model Context Protocol في Home Assistant. أدواته يحدّدها خادمك وتقتصر على الكيانات التي تتيحها لـ Assist.</string>
+    <string name="connectors_search_read_and_write_notion">ابحث في صفحات Notion واقرأها واكتبها باستخدام تكامل داخلي في مساحتك — دون تسجيل تطبيق OAuth.</string>
+    <string name="connectors_full_read_write_gmail_and">وصول كامل للقراءة والكتابة إلى Gmail وGoogle Calendar عبر عميل OAuth الخاص بك في Google Cloud — دون تطبيق مشترك أو انتظار للتحقق.</string>
+    <string name="connectors_outlook_mail_calendar_and_to">بريد Outlook والتقويم والمهام عبر تسجيل تطبيق Entra الخاص بك. تسجيل دخول واحد يغطي الثلاثة.</string>
+    <string name="connectors_1_in_home_assistant_add">1. في Home Assistant، أضف تكامل \"Model Context Protocol Server\" (الإعدادات ▸ الأجهزة والخدمات ▸ إضافة تكامل).</string>
+    <string name="connectors_2_create_a_long_lived">2. أنشئ رمز وصول طويل الأمد: ملفك الشخصي ▸ الأمان ▸ رموز الوصول طويلة الأمد ▸ إنشاء رمز.</string>
+    <string name="connectors_3_paste_your_home_assistant">3. الصق رابط Home Assistant (مثل http://192.168.1.10:8123) والرمز أدناه.</string>
+    <string name="connectors_1_go_to_notion_so">1. انتقل إلى notion.so/my-integrations ▸ تكامل جديد، في مساحتك.</string>
+    <string name="connectors_2_give_it_read_insert">2. امنحه صلاحيات قراءة وإدراج وتحديث المحتوى.</string>
+    <string name="connectors_3_copy_the_internal_integration">3. انسخ سر التكامل الداخلي والصقه أدناه.</string>
+    <string name="connectors_needs_an_app_password_not">يحتاج كلمة مرور تطبيق، لا كلمة مرورك العادية. يتطلب تفعيل التحقق بخطوتين أولاً.</string>
+    <string name="connectors_generate_one_at_myaccount_google">أنشئ واحدة على myaccount.google.com/apppasswords، أو عبر حساب Google ▸ الأمان ▸ التحقق بخطوتين ▸ كلمات مرور التطبيقات.</string>
+    <string name="connectors_1_create_a_google_cloud">1. أنشئ مشروع Google Cloud.</string>
+    <string name="connectors_2_enable_the_gmail_api">2. فعّل Gmail API و/أو Google Calendar API — أيّهما تحدّده أدناه.</string>
+    <string name="connectors_3_configure_the_oauth_consent">3. اضبط شاشة موافقة OAuth (خارجي، أضف نفسك كمستخدم اختبار — أو انشرها لتجنّب إعادة الاتصال أسبوعياً).</string>
+    <string name="connectors_4_create_a_desktop_app">4. أنشئ عميل OAuth من نوع تطبيق سطح مكتب.</string>
+    <string name="connectors_5_paste_its_client_id">5. الصق معرّف العميل وسره أدناه.</string>
+    <string name="connectors_1_go_to_portal_azure">1. انتقل إلى portal.azure.com ▸ Microsoft Entra ID ▸ تسجيلات التطبيقات ▸ جديد.</string>
+    <string name="connectors_2_under_redirect_uri_pick">2. ضمن \"Redirect URI\" اختر \"Public client/native\" وأدخل http://localhost.</string>
+    <string name="connectors_3_in_api_permissions_add">3. في أذونات API أضف أذونات Microsoft Graph المفوّضة: offline_access، User.Read، Mail.ReadWrite، Mail.Send، Calendars.ReadWrite، Tasks.ReadWrite.</string>
+    <string name="connectors_4_copy_the_application_client">4. انسخ معرّف التطبيق (العميل) من صفحة النظرة العامة.</string>
+
+    <!-- ConnectorCards -->
+    <string name="connector_cards_enabled">مفعّل</string>
+    <string name="connector_cards_disconnect">قطع الاتصال</string>
+    <string name="connector_cards_client_id">معرّف العميل</string>
+    <string name="connector_cards_client_secret">سر العميل</string>
+    <string name="connector_cards_pasted_redirect_url">رابط إعادة التوجيه الملصق</string>
+    <string name="connector_cards_finish_sign_in_with_pasted">أكمل تسجيل الدخول بالرابط الملصق</string>
+    <string name="connector_cards_connecting">جارٍ الاتصال…</string>
+    <string name="connector_cards_connect">اتصال</string>
+    <string name="connector_cards_waiting_for_sign_in">في انتظار تسجيل الدخول…</string>
+    <string name="connector_cards_disconnected">تم قطع الاتصال.</string>
+    <string name="connector_cards_opening_sign_in">جارٍ فتح تسجيل الدخول…</string>
+    <string name="connector_cards_refresh_tools">تحديث الأدوات</string>
+    <string name="connector_cards_refresh_connection">تحديث الاتصال</string>
+    <string name="connector_cards_refreshing_tools">جارٍ تحديث الأدوات…</string>
+    <string name="connector_cards_refreshing">جارٍ التحديث…</string>
+    <string name="connector_cards_the_assistant_can_use_this">يمكن للمساعد استخدام أدوات هذا الموصل.</string>
+    <string name="connector_cards_switched_off_tools_hidden_sign">مُعطَّل — الأدوات مخفية، تسجيل الدخول محفوظ.</string>
+    <string name="connector_cards_hide_paste_url_fallback">إخفاء بديل لصق الرابط</string>
+    <string name="connector_cards_browser_didn_t_return_paste">لم يعد المتصفح؟ الصق رابط إعادة التوجيه</string>
+
+    <!-- ConnectorsSection -->
+    <string name="connectors_4_expose_the_devices_you">4. اعرض الأجهزة التي تريد أن يتحكم بها المساعد: الإعدادات ▸ المساعدات الصوتية ▸ اعرض الكيانات.</string>
+    <string name="connectors_4_important_open_each_page">4. مهم: افتح كل صفحة تريد الوصول إليها واستخدم ⋯ ▸ الاتصالات ▸ أضف التكامل. الصفحات غير المشتركة تبقى غير مرئية له.</string>
+    <string name="connectors_other_providers_check_their_imap">مزوّدون آخرون: راجع وثائق كلمة مرور تطبيق IMAP لديهم.</string>
+    <string name="connectors_6_tap_connect">6. اضغط اتصال.</string>
+    <string name="connectors_5_paste_it_below_and">5. الصقه أدناه واضغط اتصال. اترك المستأجر \"common\" للحسابات الشخصية.</string>
+
+    <!-- Connector cards -->
+    <string name="connector_cards_enable">تفعيل %1$s</string>
+    <string name="connector_cards_collapse">طيّ %1$s</string>
+    <string name="connector_cards_expand">توسيع %1$s</string>
+    <string name="connector_cards_not_connected_hint">غير متصل — اضغط للإعداد</string>
+    <string name="connector_cards_connected_as">متصل باسم %1$s.</string>
+
+    <!-- Connectors page -->
+    <string name="connectors_interval_off">إيقاف</string>
+    <string name="connectors_last_sync_just_now">آخر مزامنة: الآن</string>
+    <string name="connectors_last_sync_never">آخر مزامنة: أبدًا</string>
+    <string name="connectors_all_up_to_date">جميع الموصلات النشطة محدّثة.</string>
+    <string name="connectors_imap_saved">تم الحفظ. يتم التحقق من بيانات الاعتماد عند أول استخدام.</string>
+    <plurals name="connectors_last_sync_minutes">
+        <item quantity="zero">آخر مزامنة: قبل %1$d دقيقة</item>
+        <item quantity="one">آخر مزامنة: قبل دقيقة واحدة (%1$d)</item>
+        <item quantity="two">آخر مزامنة: قبل دقيقتين (%1$d)</item>
+        <item quantity="few">آخر مزامنة: قبل %1$d دقائق</item>
+        <item quantity="many">آخر مزامنة: قبل %1$d دقيقة</item>
+        <item quantity="other">آخر مزامنة: قبل %1$d دقيقة</item>
+    </plurals>
+    <plurals name="connectors_refreshed">
+        <item quantity="zero">حُدِّث %1$d موصّل: %2$s</item>
+        <item quantity="one">حُدِّث موصّل واحد (%1$d): %2$s</item>
+        <item quantity="two">حُدِّث موصّلان (%1$d): %2$s</item>
+        <item quantity="few">حُدِّثت %1$d موصّلات: %2$s</item>
+        <item quantity="many">حُدِّث %1$d موصّلاً: %2$s</item>
+        <item quantity="other">حُدِّث %1$d موصّل: %2$s</item>
+    </plurals>
+
+    <!-- AppDrawer -->
+    <string name="drawer_new_chat">محادثة جديدة</string>
+    <string name="drawer_search_placeholder">ابحث في المحادثات</string>
+    <string name="drawer_search_clear">مسح البحث</string>
+    <string name="drawer_search_results">النتائج (%1$d)</string>
+    <string name="drawer_search_no_results">لا محادثات تطابق «%1$s».</string>
+    <!-- Import/backup moved to Settings ▸ Chats; the strings stay because the
+         settings rows reuse them, so no locale churn. -->
+    <string name="drawer_import_chats">استيراد المحادثات</string>
+    <string name="drawer_back_up_all_chats">نسخ احتياطي لكل المحادثات</string>
+    <string name="drawer_second_brain">الدماغ الثاني</string>
+    <string name="drawer_connectors">الموصلات</string>
+    <string name="drawer_settings">الإعدادات</string>
+    <string name="drawer_delete_chat">حذف المحادثة؟</string>
+    <string name="drawer_delete">حذف</string>
+    <string name="drawer_cancel">إلغاء</string>
+    <string name="drawer_delete_chat_2">حذف المحادثة</string>
+    <string name="drawer_gotcha">Gotcha</string>
+    <string name="drawer_recent_chats">المحادثات الأخيرة</string>
+    <string name="drawer_sample_chat">محادثة تجريبية</string>
+
+    <!-- InboxScreen -->
+    <string name="inbox_clear_history">مسح السجل</string>
+    <string name="inbox_clear_notification_history">مسح سجل الإشعارات؟</string>
+    <string name="inbox_this_empties_the_list_reminders">هذا يفرّغ القائمة. التذكيرات التي أرسلها Gotcha بالفعل لن تُرسل مرة أخرى.</string>
+    <string name="inbox_clear">مسح</string>
+    <string name="inbox_cancel">إلغاء</string>
+    <string name="inbox_notifications">الإشعارات</string>
+    <string name="inbox_nothing_here_yet_reminders_daily">لا شيء هنا بعد. التذكيرات والنصائح اليومية والمهام المكتملة والرسائل من Samosa AI تُعرض هنا لمدة 30 يومًا.</string>
+
+    <!-- MessageBubble -->
+    <string name="message_edit_message">تعديل الرسالة</string>
+    <string name="message_revert_to_this_message">الرجوع إلى هذه الرسالة</string>
+    <string name="message_copy_as_text">نسخ كنص</string>
+    <string name="message_copy_as_markdown">نسخ كـ Markdown</string>
+    <string name="message_attached_image">صورة مرفقة</string>
+    <string name="message_reasoning_process">💭 عملية الاستدلال</string>
+    <string name="message_toggle_reasoning">تبديل الاستدلال</string>
+    <string name="message_general_agent">⚡ وكيل عام</string>
+    <string name="message_copied_as_plain_text">نُسخ كنص عادي</string>
+    <string name="message_copied_as_markdown">نُسخ كـ Markdown</string>
+    <string name="message_stop_reading">إيقاف القراءة</string>
+    <string name="message_speak">تحدّث</string>
+    <string name="message_collapse">طيّ</string>
+    <string name="message_expand">توسيع</string>
+
+    <!-- ScreenCompanionPanelOverlay -->
+    <string name="companion_panel_screen_companion">رفيق الشاشة</string>
+    <string name="companion_panel_send">إرسال</string>
+
+    <!-- SharePosterSheet -->
+    <string name="share_poster_share">مشاركة</string>
+    <string name="share_poster_save">حفظ</string>
+    <string name="share_poster_regenerate">إعادة الإنشاء</string>
+    <string name="share_poster_generate_poster">إنشاء ملصق</string>
+    <string name="share_poster_cancel">إلغاء</string>
+    <string name="share_poster_your_share_poster">ملصق المشاركة الخاص بك</string>
+    <string name="share_poster_turn_what_gotcha_just_did">حوّل ما فعله Gotcha للتو إلى ملصق Instagram قابل للمشاركة.</string>
+    <string name="share_poster_writing_your_poster">جارٍ كتابة ملصقك…</string>
+
+    <!-- FeedbackSheet -->
+    <string name="feedback_send_feedback">إرسال ملاحظات</string>
+    <string name="feedback_open_form">فتح النموذج</string>
+    <string name="feedback_cancel">إلغاء</string>
+    <string name="star_prompt_title">هل تستمتع بـ Gotcha؟</string>
+    <string name="star_prompt_body">إن كنت كذلك، فنجمة على GitHub تساعد الآخرين في العثور عليه. وإن لم تكن، أخبرنا بما يجب إصلاحه.</string>
+    <string name="star_prompt_body_no_feedback">إن كنت كذلك، فنجمة على GitHub تساعد الآخرين في العثور عليه.</string>
+    <string name="star_prompt_star">نجمة على GitHub</string>
+    <string name="star_prompt_feedback">إرسال ملاحظات</string>
+    <string name="star_prompt_not_now">ليس الآن</string>
+    <string name="feedback_if_you_provide_successful_feedback">إذا قدّمت ملاحظات مقبولة، فقد تكون مؤهلاً بعد التحقق للحصول على 100 رصيد لكل ملاحظة، بحد أقصى 500 رصيد يوميًا.</string>
+    <string name="feedback_this_is_pre_filled_into">هذا معبّأ مسبقًا في النموذج — يمكنك تعديل أو حذف أي شيء قبل الإرسال. لا يُرسل شيء حتى تضغط إرسال في النموذج.</string>
+
+    <!-- ChatTransferController -->
+    <string name="chat_transfer_ok">حسنًا</string>
+    <string name="chat_transfer_include_images_and_screenshots">تضمين الصور ولقطات الشاشة</string>
+    <string name="chat_transfer_choose_where_to_save">اختر مكان الحفظ</string>
+    <string name="chat_transfer_cancel">إلغاء</string>
+    <string name="chat_transfer_import_chats">استيراد المحادثات</string>
+    <string name="chat_transfer_import">استيراد</string>
+    <string name="chat_transfer_the_backup_holds_the_whole">تحتوي النسخة الاحتياطية على المحادثة كاملة، بما في ذلك ما أعادته الأدوات: الرسائل وجهات الاتصال أو النص المقروء من شاشتك. أي شخص يملك الملف يمكنه قراءته، لذا احفظه في مكان خاص.</string>
+    <string name="chat_transfer_replacing_with_a_markdown_export">الاستبدال بتصدير Markdown يحذف الصور والمرفقات الموجودة في نسختك.</string>
+    <string name="chat_transfer_back_up_all_chats">نسخ احتياطي لكل المحادثات</string>
+    <string name="chat_transfer_back_up_this_chat">نسخ احتياطي لهذه المحادثة</string>
+
+    <!-- ReferralInviteDialog -->
+    <string name="referral_invite_invite_code_e_g_air">رمز الدعوة (مثال AIR-K9X2P7)</string>
+    <string name="referral_invite_air_xxxxxx">AIR-XXXXXX</string>
+    <string name="referral_invite_applying">جارٍ التطبيق…</string>
+    <string name="referral_invite_apply_code">تطبيق الرمز</string>
+    <string name="referral_invite_skip">تخطٍّ</string>
+    <string name="referral_invite_have_an_invite_code">🎁 لديك رمز دعوة؟</string>
+    <string name="referral_invite_enter_a_friend_s_code">أدخل رمز صديق لكسب أرصدة إضافية.</string>
+
+    <!-- QuestionDialog -->
+    <string name="question_your_answer">إجابتك</string>
+    <string name="question_submit">إرسال</string>
+    <string name="question_skip">تخطٍّ</string>
+
+    <!-- CodeBox -->
+    <string name="code_box_copy">نسخ</string>
+    <string name="code_box_copied">تم النسخ</string>
+
+    <!-- NotificationDetailDialog -->
+    <string name="notification_detail_open_link">فتح الرابط</string>
+    <string name="notification_detail_ok">حسنًا</string>
+    <string name="notification_detail_close">إغلاق</string>
+
+    <!-- TourOverlay -->
+    <string name="tour_skip_tour">تخطّي الجولة</string>
+    <string name="tour_waiting_for_you">في انتظارك…</string>
+
+    <!-- Screen companion panel -->
+    <string name="companion_panel_thinking">يفكّر...</string>
+    <string name="action_copy">نسخ</string>
+    <string name="action_copied">تم النسخ!</string>
+    <string name="action_share">مشاركة</string>
+    <string name="companion_panel_follow_up_hint">اطرح سؤالًا متابعًا...</string>
+
+    <!-- Drawer and inbox -->
+    <string name="drawer_this_chat">هذه المحادثة</string>
+    <string name="drawer_delete_confirm">هل أنت متأكد من حذف \"%1$s\" نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.</string>
+    <string name="drawer_context_usage">%1$s / %2$s · %3$d%%</string>
+    <string name="drawer_context_tokens">%1$s رمز</string>
+    <string name="notification_category_unfinished_chat">محادثة غير مكتملة</string>
+    <string name="notification_category_routine">روتين</string>
+    <string name="notification_category_reminder">تذكير</string>
+    <string name="notification_category_daily_tip">نصيحة يومية</string>
+    <string name="notification_category_task_finished">اكتملت المهمة</string>
+    <string name="notification_category_server">من Samosa AI</string>
+    <string name="inbox_notification">إشعار</string>
+    <string name="inbox_entry_header">%1$s · %2$s</string>
+
+    <!-- Relative time -->
+    <string name="time_just_now">الآن</string>
+
+    <!-- Message bubbles -->
+    <string name="message_tap_to_expand">اضغط للتوسيع</string>
+    <string name="message_truncated">…تم اقتصاص %1$d حرفًا — انسخ كنص للحصول على المخرجات الكاملة</string>
+    <plurals name="message_steps">
+        <item quantity="zero">%1$d خطوة</item>
+        <item quantity="one">خطوة واحدة (%1$d)</item>
+        <item quantity="two">خطوتان (%1$d)</item>
+        <item quantity="few">%1$d خطوات</item>
+        <item quantity="many">%1$d خطوة</item>
+        <item quantity="other">%1$d خطوة</item>
+    </plurals>
+
+    <!-- FeedbackSheet -->
+    <string name="feedback_app_info_version_device_android">معلومات التطبيق (الإصدار، الجهاز، Android)</string>
+    <string name="feedback_usage_stats_chats_tool_calls">إحصاءات الاستخدام (المحادثات، استدعاءات الأدوات، التشغيلات)</string>
+    <string name="feedback_user_id_for_cross_checking">معرّف المستخدم (للتحقق المتقاطع من ملاحظاتك)</string>
+    <string name="feedback_chat_log_excerpt_recent_chat">مقتطف سجل المحادثة (أحدث محادثة، بحجم يناسب النموذج)</string>
+
+    <!-- Share poster -->
+    <plurals name="share_poster_title">
+        <item quantity="zero">شارك %1$d لحظة</item>
+        <item quantity="one">شارك لحظتك (%1$d)</item>
+        <item quantity="two">شارك لحظتيك (%1$d)</item>
+        <item quantity="few">شارك %1$d لحظات</item>
+        <item quantity="many">شارك %1$d لحظة</item>
+        <item quantity="other">شارك %1$d لحظة</item>
+    </plurals>
+
+    <!-- Chat import -->
+    <string name="import_format_backup">نسخة Gotcha الاحتياطية</string>
+    <string name="import_format_chat_file">ملف محادثة Gotcha</string>
+    <string name="import_format_markdown">تصدير محادثة Markdown</string>
+    <string name="import_strategy_keep_both">الاحتفاظ بكليهما</string>
+    <string name="import_strategy_replace">استبدال محادثاتي</string>
+    <string name="import_strategy_skip">تخطٍّ</string>
+    <string name="import_summary">%1$s: %2$s (%3$s).</string>
+    <string name="import_rejected_note">%1$s: %2$s</string>
+    <string name="bullet_item">• %1$s</string>
+    <plurals name="import_conflicts">
+        <item quantity="zero">%1$d محادثة موجودة هنا بنسخة مختلفة:</item>
+        <item quantity="one">محادثة واحدة (%1$d) موجودة هنا بنسخة مختلفة:</item>
+        <item quantity="two">محادثتان (%1$d) موجودتان هنا بنسختين مختلفتين:</item>
+        <item quantity="few">%1$d محادثات موجودة هنا بنسخ مختلفة:</item>
+        <item quantity="many">%1$d محادثة موجودة هنا بنسخ مختلفة:</item>
+        <item quantity="other">%1$d محادثة موجودة هنا بنسخة مختلفة:</item>
+    </plurals>
+    <plurals name="import_chats">
+        <item quantity="zero">%1$d محادثة</item>
+        <item quantity="one">محادثة واحدة (%1$d)</item>
+        <item quantity="two">محادثتان (%1$d)</item>
+        <item quantity="few">%1$d محادثات</item>
+        <item quantity="many">%1$d محادثة</item>
+        <item quantity="other">%1$d محادثة</item>
+    </plurals>
+    <plurals name="import_new">
+        <item quantity="zero">%1$d جديد</item>
+        <item quantity="one">واحد جديد (%1$d)</item>
+        <item quantity="two">جديدان (%1$d)</item>
+        <item quantity="few">%1$d جديدة</item>
+        <item quantity="many">%1$d جديداً</item>
+        <item quantity="other">%1$d جديد</item>
+    </plurals>
+    <plurals name="import_identical">
+        <item quantity="zero">%1$d موجود مسبقاً</item>
+        <item quantity="one">واحد موجود مسبقاً (%1$d)</item>
+        <item quantity="two">اثنان موجودان مسبقاً (%1$d)</item>
+        <item quantity="few">%1$d موجودة مسبقاً</item>
+        <item quantity="many">%1$d موجوداً مسبقاً</item>
+        <item quantity="other">%1$d موجود مسبقاً</item>
+    </plurals>
+    <plurals name="import_changed">
+        <item quantity="zero">%1$d تغيّر</item>
+        <item quantity="one">واحد تغيّر (%1$d)</item>
+        <item quantity="two">اثنان تغيّرا (%1$d)</item>
+        <item quantity="few">%1$d تغيّرت</item>
+        <item quantity="many">%1$d تغيّر</item>
+        <item quantity="other">%1$d تغيّر</item>
+    </plurals>
+    <plurals name="import_unreadable">
+        <item quantity="zero">%1$d غير قابل للقراءة</item>
+        <item quantity="one">واحد غير قابل للقراءة (%1$d)</item>
+        <item quantity="two">اثنان غير قابلين للقراءة (%1$d)</item>
+        <item quantity="few">%1$d غير قابلة للقراءة</item>
+        <item quantity="many">%1$d غير قابل للقراءة</item>
+        <item quantity="other">%1$d غير قابل للقراءة</item>
+    </plurals>
+
+    <!-- Assistive ball overlay and confirmation -->
+    <string name="assistive_ball_content_description">كرة Gotcha المساعدة</string>
+    <string name="action_close">إغلاق</string>
+    <string name="ball_open_app">فتح التطبيق</string>
+    <string name="ball_screenshot">لقطة شاشة</string>
+    <string name="ball_lens">العدسة</string>
+    <string name="confirmation_title">Gotcha — تأكيد الإجراء</string>
+    <string name="action_allow">السماح</string>
+    <string name="action_deny">رفض</string>
+    <string name="question_dialog_title">لدى Gotcha سؤال</string>
+
+    <!-- Call window, attachments, tour -->
+    <string name="call_status_connecting">✨ جارٍ الاتصال…</string>
+    <string name="call_status_listening">🎙️ جارٍ الاستماع…</string>
+    <string name="call_status_processing">🧠 جارٍ المعالجة…</string>
+    <string name="call_status_replying">🔊 جارٍ الرد…</string>
+    <string name="call_status_awaiting_input">❓ في انتظار الإدخال…</string>
+    <string name="attachment_remove">إزالة %1$s</string>
+    <string name="attachment_count">%1$d / %2$d ملفات</string>
+    <string name="attachment_document">مستند</string>
+    <string name="attachment_truncated"> · مقتطع</string>
+    <string name="tour_step_of">الخطوة %1$d من %2$d</string>
+
+    <!-- Starter prompts -->
+    <string name="starter_turn_on_wi_fi">تشغيل Wi-Fi</string>
+    <string name="starter_turn_on_wi_fi_template">افتح الإعدادات وشغّل Wi-Fi</string>
+    <string name="starter_set_an_alarm">ضبط منبّه</string>
+    <string name="starter_set_an_alarm_template">اضبط منبّهًا للساعة 7 صباح الغد</string>
+    <string name="starter_read_my_screen">اقرأ شاشتي</string>
+    <string name="starter_read_my_screen_template">ماذا على شاشتي؟</string>
+    <string name="starter_find_big_files">ابحث عن ملفات كبيرة</string>
+    <string name="starter_find_big_files_template">ابحث عن أكبر الملفات في مجلد التنزيلات وأخبرني ما الآمن للحذف</string>
+    <string name="starter_summarise_a_pdf">لخّص ملف PDF</string>
+    <string name="starter_summarise_a_pdf_template">اقرأ أحدث ملف PDF في التنزيلات ولخّصه</string>
+    <string name="starter_send_a_whatsapp">أرسل واتساب</string>
+    <string name="starter_send_a_whatsapp_template">أرسل واتساب إلى … يقول …</string>
+    <string name="starter_catch_me_up">لخّص لي ما فاتني</string>
+    <string name="starter_catch_me_up_template">لخّص لي إشعاراتي غير المقروءة</string>
+    <string name="starter_check_a_symptom">افحص عرَضًا</string>
+    <string name="starter_check_a_symptom_template">أعاني من … منذ … أيام. ما السبب المحتمل؟</string>
+    <string name="starter_is_this_urgent">هل هذا عاجل؟</string>
+    <string name="starter_is_this_urgent_template">لدي … — هل أراجع الطبيب اليوم أم يمكن الانتظار؟</string>
+    <string name="starter_explain_a_result">اشرح نتيجة</string>
+    <string name="starter_explain_a_result_template">هل يمكنك شرح معنى نتيجة هذا التحليل: …</string>
+    <string name="starter_sleep_better">نَم أفضل</string>
+    <string name="starter_sleep_better_template">أستيقظ في الليل باستمرار. ما الذي يساعد عادةً؟</string>
+    <string name="starter_cold_or_flu">زكام أم إنفلونزا؟</string>
+    <string name="starter_cold_or_flu_template">لدي التهاب في الحلق وارتفاع في الحرارة. هل هو زكام أم إنفلونزا؟</string>
+    <string name="starter_cook_from_my_fridge">اطبخ من ثلاجتي</string>
+    <string name="starter_cook_from_my_fridge_template">لدي … في الثلاجة. ماذا أطبخ في 30 دقيقة؟</string>
+    <string name="starter_plan_a_dinner">خطّط لعشاء</string>
+    <string name="starter_plan_a_dinner_template">خطّط لعشاء لـ … أشخاص، أحدهم نباتي</string>
+    <string name="starter_swap_an_ingredient">استبدل مكوّنًا</string>
+    <string name="starter_swap_an_ingredient_template">بماذا أستبدل … في …؟</string>
+    <string name="starter_quick_breakfast">فطور سريع</string>
+    <string name="starter_quick_breakfast_template">أعطني ثلاثة أفطرة أعدّها في أقل من 10 دقائق</string>
+    <string name="starter_fix_a_dish">أصلح طبقًا</string>
+    <string name="starter_fix_a_dish_template">طلع … عندي … جدًا — ما الخطأ؟</string>
+    <string name="starter_plan_my_week">خطّط أسبوعي</string>
+    <string name="starter_plan_my_week_template">خطّط ثلاثة تمارين أسبوعيًا لمبتدئ بلا أدوات</string>
+    <string name="starter_start_running">ابدأ الجري</string>
+    <string name="starter_start_running_template">أعطني خطة لأجري 5 كم دون توقف</string>
+    <string name="starter_check_my_form">صحّح أدائي</string>
+    <string name="starter_check_my_form_template">كيف أؤدي القرفصاء بأداء صحيح؟</string>
+    <string name="starter_stretch_routine">روتين تمدّد</string>
+    <string name="starter_stretch_routine_template">أعطني تمدّدًا لـ 10 دقائق بعد الجلوس طوال اليوم</string>
+    <string name="starter_build_strength">ابنِ قوة</string>
+    <string name="starter_build_strength_template">أستطيع الذهاب إلى النادي مرتين أسبوعيًا. ابنِ لي خطة قوة</string>
+    <string name="starter_explain_a_topic">اشرح موضوعًا</string>
+    <string name="starter_explain_a_topic_template">اشرح لي … كأنني جديد عليه</string>
+    <string name="starter_quiz_me">اختبرني</string>
+    <string name="starter_quiz_me_template">اختبرني في … سؤالًا واحدًا في كل مرة</string>
+    <string name="starter_help_with_a_problem">ساعدني في مشكلة</string>
+    <string name="starter_help_with_a_problem_template">أنا عالق في هذه المسألة: …</string>
+    <string name="starter_check_my_answer">تحقق من إجابتي</string>
+    <string name="starter_check_my_answer_template">هذا حلي لـ …. أين أخطأت؟</string>
+    <string name="starter_make_a_study_plan">ضع خطة دراسة</string>
+    <string name="starter_make_a_study_plan_template">لدي اختبار في … بعد أسبوعين. ساعدني في تنظيم مراجعتي</string>
+    <string name="starter_plan_a_weekend">خطط لعطلة نهاية الأسبوع</string>
+    <string name="starter_plan_a_weekend_template">خطط لعطلة نهاية أسبوع في … لشخصين بميزانية متوسطة</string>
+    <string name="starter_build_an_itinerary">أنشئ برنامج رحلة</string>
+    <string name="starter_build_an_itinerary_template">أنشئ برنامج رحلة لخمسة أيام في … لمدة …</string>
+    <string name="starter_packing_list">قائمة التجهيز</string>
+    <string name="starter_packing_list_template">ماذا أجهز لأسبوع في … في …؟</string>
+    <string name="starter_best_time_to_go">أفضل وقت للزيارة</string>
+    <string name="starter_best_time_to_go_template">ما أفضل وقت في السنة لزيارة …؟</string>
+    <string name="starter_trip_on_a_budget">رحلة بميزانية محدودة</string>
+    <string name="starter_trip_on_a_budget_template">إلى أين يمكنني السفر لأسبوع من … بميزانية …؟</string>
+    <string name="starter_fix_a_leaky_tap">أصلح صنبورًا يقطر</string>
+    <string name="starter_fix_a_leaky_tap_template">صنبوري يقطر باستمرار. كيف أصلحه؟</string>
+    <string name="starter_hang_a_shelf">علق رفًا</string>
+    <string name="starter_hang_a_shelf_template">كيف أعلق رفًا ثقيلًا على جدار …؟</string>
+    <string name="starter_unblock_a_drain">افتح انسداد البالوعة</string>
+    <string name="starter_unblock_a_drain_template">حوض المطبخ يصرف ببطء. كيف أنظفه؟</string>
+    <string name="starter_patch_a_wall">أصلح ثقبًا في الجدار</string>
+    <string name="starter_patch_a_wall_template">كيف أملأ ثقبًا في الجبس؟</string>
+    <string name="starter_squeaky_door">باب يصر</string>
+    <string name="starter_squeaky_door_template">كيف أوقف صرير الباب؟</string>
+
+    <!-- Personas -->
+    <string name="persona_doctor">طبيب</string>
+    <string name="persona_chef">طاهٍ</string>
+    <string name="persona_fitness_coach">مدرب لياقة</string>
+    <string name="persona_tutor">معلم</string>
+    <string name="persona_travel_planner">منظم رحلات</string>
+    <string name="persona_handyman">حرفي</string>
+
+    <!-- Starter row -->
+    <string name="starter_try">جرّب</string>
+    <string name="starter_new_for_you">جديد لك</string>
+    <string name="starter_remember_this">تذكّر هذا</string>
+    <string name="starter_remember_this_template">تذكّر أن …</string>
+    <string name="starter_every_morning">كل صباح في الثامنة</string>
+    <string name="starter_every_morning_template">كل يوم عمل في الثامنة، أعطني خطة قصيرة لليوم.</string>
+
+    <!-- Persona -->
+    <string name="persona_persona">الشخصية</string>
+
+    <!-- Home screen greetings; one is picked per new chat. Gender-neutral. -->
+    <string-array name="home_greetings">
+        <item>مرحباً، كيف أساعدك؟</item>
+        <item>ماذا أفعل لك اليوم؟</item>
+        <item>جاهز متى ما كنت جاهزاً.</item>
+        <item>ما الذي يدور في بالك؟</item>
+        <item>كيف أجعل يومك أسهل؟</item>
+        <item>تحتاج مساعدة في شيء؟</item>
+        <item>لننجز أمراً ما.</item>
+        <item>ماذا تود أن تفعل؟</item>
+        <item>كلي آذان — ماذا تحتاج؟</item>
+        <item>من أين نبدأ؟</item>
+        <item>عندك مهمة لي؟</item>
+        <item>يسعدني المساعدة — ما الجديد؟</item>
+        <item>بماذا نبدأ أولاً؟</item>
+        <item>اسألني أي شيء.</item>
+        <item>في الخدمة متى ما كنت مستعداً.</item>
+        <item>ما التالي في قائمتك؟</item>
+        <item>لنصنع شيئاً.</item>
+        <item>كيف أساعدك الآن؟</item>
+        <item>قل لي ماذا تحتاج.</item>
+        <item>في خدمتك — ماذا أفعل؟</item>
+    </string-array>
+
+    <!-- ChatScreen -->
+    <string name="chat_set_your_api_key_in">عيّن مفتاح API في الإعدادات لبدء المحادثة →</string>
+    <string name="chat_allow_these_actions">السماح بهذه الإجراءات؟</string>
+    <string name="chat_allow">سماح</string>
+    <string name="chat_deny">رفض</string>
+    <string name="chat_revert_to_this_message">الرجوع إلى هذه الرسالة؟</string>
+    <string name="chat_revert">رجوع</string>
+    <string name="chat_notifications">الإشعارات</string>
+    <string name="chat_export_chat">تصدير المحادثة</string>
+    <string name="chat_back_up_chat">نسخ احتياطي للمحادثة</string>
+    <string name="chat_create_share_card">إنشاء بطاقة مشاركة</string>
+    <string name="chat_assets">ملفات المحادثة</string>
+    <string name="chat_assets_title">ملفات المحادثة</string>
+    <string name="chat_assets_empty">لا ملفات بعد. ما ينشئه Gotcha لهذه المحادثة يظهر هنا.</string>
+    <string name="chat_assets_empty_folder">هذا المجلد فارغ.</string>
+    <string name="chat_assets_delete_title">حذف؟</string>
+    <string name="chat_assets_delete_confirm">حذف %1$s؟ لا يمكن التراجع.</string>
+    <string name="chat_assets_deleted">تم الحذف.</string>
+    <string name="chat_assets_delete_failed">تعذّر الحذف.</string>
+    <string name="chat_assets_back">رجوع</string>
+    <string name="chat_assets_up">مجلد أعلى</string>
+    <string name="chat_assets_open_failed">تعذّر فتح هذا الملف.</string>
+    <string name="chat_keep_out_of_notifications">استبعاد من الإشعارات</string>
+    <string name="chat_skip_protections">تخطّي الحمايات</string>
+    <string name="chat_skip_protections_danger_title">تخطّي كل الحمايات لهذه المحادثة؟</string>
+    <string name="chat_skip_protections_danger_text">سيعمل Gotcha دون سؤال: التحكم بأي تطبيق، الإرسال، إلغاء التثبيت، الحذف وتغيير الإعدادات. تظهر نوافذ Android نفسها (مثل موافقة إلغاء التثبيت). شغّل هذا فقط لمهمة تثق بها، وأوقفه فورًا بعدها.</string>
+    <string name="chat_skip_protections_turn_on">تخطّي الحمايات</string>
+    <string name="chat_skip_protections_banner">الحمايات متوقفة لهذه المحادثة. يعمل Gotcha دون سؤال.</string>
+    <string name="chat_skip_protections_turn_off">إعادة التشغيل</string>
+    <string name="chat_stop_reading_aloud">إيقاف القراءة بصوت عالٍ</string>
+    <string name="chat_gotcha_logo">شعار Gotcha</string>
+    <string name="chat_stop_speaking">إيقاف التحدث</string>
+    <string name="chat_stop">إيقاف</string>
+    <string name="chat_stop_recording">إيقاف التسجيل</string>
+    <string name="chat_monitor">مراقبة</string>
+    <string name="chat_operator">تشغيل</string>
+    <string name="chat_reading_aloud">جارٍ القراءة بصوت عالٍ…</string>
+    <string name="chat_editing_message_sending_will_rewrite">تعديل الرسالة — الإرسال سيعيد كتابة المحادثة من هنا</string>
+    <string name="chat_this_will_delete_all_messages">سيؤدي هذا إلى حذف جميع الرسائل بعد هذه، ثم يتيح لك متابعة المحادثة من هنا.</string>
+    <string name="chat_agent">الوكيل</string>
+    <string name="chat_sample_chat_this_one_ships">محادثة تجريبية — تأتي مع Gotcha لعرض ما يمكنه فعله. تابعها، أو احذفها من الدرج.</string>
+    <string name="chat_operator_mode_tap_to_switch">وضع التشغيل — اضغط للتبديل إلى المراقبة</string>
+    <string name="chat_monitor_mode_tap_to_switch">وضع المراقبة — اضغط للتبديل إلى التشغيل</string>
+    <string name="chat_read_only_observes_but_cannot">للقراءة فقط — يراقب لكن لا يمكنه تغيير جهازك.</string>
+    <string name="chat_full_control_can_make_changes">تحكم كامل — يمكنه إجراء تغييرات على جهازك.</string>
+
+    <!-- Chat screen -->
+    <string name="chat_open_menu">فتح القائمة</string>
+    <string name="chat_another_chat">محادثة أخرى</string>
+    <string name="chat_agent_working_elsewhere">⚡ الوكيل يعمل في ”%1$s“ — يمكنك مغادرة Gotcha؛ اضغط للعودة</string>
+    <string name="chat_voice_input">إدخال صوتي</string>
+    <string name="chat_send">إرسال</string>
+    <string name="chat_wants_to_run">يريد المساعد تشغيل:\n\n%1$s</string>
+    <string name="chat_options">خيارات المحادثة</string>
+    <string name="chat_transcribing">جارٍ النسخ…</string>
+    <string name="chat_finish_the_running_chat_first">أنهِ المحادثة الجارية أولاً…</string>
+    <string name="chat_let_s_go">هيا بنا</string>
+    <plurals name="chat_notifications_unread">
+        <item quantity="zero">الإشعارات، %1$d غير مقروء</item>
+        <item quantity="one">الإشعارات، واحد غير مقروء (%1$d)</item>
+        <item quantity="two">الإشعارات، اثنان غير مقروءين (%1$d)</item>
+        <item quantity="few">الإشعارات، %1$d غير مقروءة</item>
+        <item quantity="many">الإشعارات، %1$d غير مقروء</item>
+        <item quantity="other">الإشعارات، %1$d غير مقروء</item>
+    </plurals>
+    <plurals name="chat_options_unread">
+        <item quantity="zero">خيارات المحادثة، %1$d إشعار غير مقروء</item>
+        <item quantity="one">خيارات المحادثة، إشعار واحد غير مقروء (%1$d)</item>
+        <item quantity="two">خيارات المحادثة، إشعاران غير مقروءين (%1$d)</item>
+        <item quantity="few">خيارات المحادثة، %1$d إشعارات غير مقروءة</item>
+        <item quantity="many">خيارات المحادثة، %1$d إشعاراً غير مقروء</item>
+        <item quantity="other">خيارات المحادثة، %1$d إشعار غير مقروء</item>
+    </plurals>
+
+    <!-- Feature tour -->
+    <string name="tour_open_settings_title">كل شيء خلف هنا</string>
+    <string name="tour_open_settings_body">اسحب من الحافة اليسرى في أي وقت للوصول إلى هذه القائمة. اضغط الإعدادات للبدء.</string>
+    <string name="tour_open_settings_hint">نصيحة: نفس السحب يعمل من أي مكان في المحادثة.</string>
+    <string name="tour_open_ai_title">ابدأ بالذكاء الاصطناعي</string>
+    <string name="tour_open_ai_body">كل ما يفكر ويسمع ويتحدث به Gotcha خلف هذا الصف. افتحه.</string>
+    <string name="tour_open_ai_config_title">امنح Gotcha عقلاً</string>
+    <string name="tour_open_ai_config_body">إعداد الذكاء الاصطناعي هو مكان النموذج. افتحه — ستعود هنا لتغيير النماذج لاحقاً، واختيار صوت.</string>
+    <string name="tour_choose_provider_title">اختر من يقوم بالتفكير</string>
+    <string name="tour_choose_provider_body">يمنحك Samosa AI نموذجاً وكلاماً ونسخاً ضمن حصة يومية مجانية — دون مفاتيح للصق. اختر متوافق مع OpenAI بدلاً من ذلك إن أردت استخدام مزوّدك.</string>
+    <string name="tour_samosa_sign_in_title">سجّل الدخول مرة واحدة</string>
+    <string name="tour_samosa_sign_in_body">حساب Google واحد يكفي للنموذج والصوت والنسخ.</string>
+    <string name="tour_save_ai_config_title">احفظه</string>
+    <string name="tour_save_ai_config_body">لا شيء في هذه الصفحة يسري مفعوله حتى تحفظ.</string>
+    <string name="tour_open_permissions_title">الآن قرّر ما يمكنه الوصول إليه</string>
+    <string name="tour_open_permissions_body">افتح الأذونات. اثنان منها يستحقان المنح الآن؛ والباقي يمكن أن ينتظر.</string>
+    <string name="tour_grant_accessibility_title">إمكانية الوصول هي الأهم</string>
+    <string name="tour_grant_accessibility_body">هي ما يتيح لـ Gotcha قراءة الشاشة والنقر نيابة عنك. بدونها يستطيع المساعد الإجابة عن الأسئلة لكنه لا يستطيع فعل أي شيء. المفتاح ملك Android، لا ملكنا.</string>
+    <string name="tour_grant_accessibility_hint">ابحث عن Gotcha في القائمة. في بعض الهواتف يوجد تحت الإعدادات › إعدادات إضافية › إمكانية الوصول › التطبيقات المثبّتة.</string>
+    <string name="tour_grant_overlay_title">وواحد للكرة العائمة</string>
+    <string name="tour_grant_overlay_body">‏\"العرض فوق التطبيقات الأخرى\" يتيح ظهور الكرة المساعدة وعدسة الشاشة فوق أي شيء تستخدمه.</string>
+    <string name="tour_open_personal_info_title">آخر شيء: من أنت؟</string>
+    <string name="tour_open_personal_info_body">افتح المعلومات الشخصية. ما تضعه هنا يصل إلى كل رد — لغتك ووحداتك وعملتك.</string>
+    <string name="tour_fill_personal_info_title">أخبره باسمك</string>
+    <string name="tour_fill_personal_info_body">اكتب ما تحب أن يُنادى به. كل شيء في هذه الصفحة اختياري، وكلّه يجعل الإجابات تناسبك أكثر.</string>
+    <string name="tour_save_personal_info_title">احفظه</string>
+    <string name="tour_save_personal_info_body">كما في السابق — لا شيء في الصفحة يُحتسب حتى تحفظ.</string>
+    <string name="tour_finish_title">هذه هي الجولة</string>
+    <string name="tour_finish_body">أي شيء تخطيته ينتظرك في الإعدادات، وجولة الميزات هناك تعيد تشغيل هذه متى شئت.</string>
+    <string name="tour_next">التالي</string>
+    <string name="tour_open_android_settings">افتح إعدادات Android</string>
+
+    <!-- Feature tour: finish -->
+    <string name="tour_start_using">ابدأ استخدام Gotcha</string>
+
+    <!-- Share poster, connectors, crop, release notes -->
+    <string name="share_nothing_yet">لا شيء لمشاركته بعد.</string>
+    <string name="share_generate_failed">تعذّر إنشاء الملصق.</string>
+    <string name="share_subject">Gotcha فعل هذا للتو من أجلي</string>
+    <string name="share_chooser_title">شارك لحظة Gotcha</string>
+    <string name="share_failed">تعذّرت المشاركة: %1$s</string>
+    <string name="share_saved_to">حُفظ في %1$s</string>
+    <string name="share_save_failed">تعذّر الحفظ: %1$s</string>
+    <string name="connectors_title">الموصّلات</string>
+    <string name="connectors_intro">اربط حساباتك ليتمكن المساعد من قراءة بريدك وتقاويمك ومهامك وملاحظاتك والتصرف بناءً عليها.</string>
+    <string name="crop_hint">ارسم حول أي شيء • انقر للإلغاء</string>
+    <string name="release_notes_show_less">عرض أقل</string>
+    <string name="release_notes_show_all">عرض كل ملاحظات الإصدار</string>
+
+    <!-- Daily tips -->
+    <string name="daily_tip_read_screen_title">اسأل عن شاشتك</string>
+    <string name="daily_tip_read_screen_body">عالق في شيء؟ يستطيع Gotcha قراءة شاشتك وشرحها.</string>
+    <string name="daily_tip_read_screen_prompt">ماذا على شاشتي؟</string>
+    <string name="daily_tip_catch_up_title">لحق في ثوانٍ</string>
+    <string name="daily_tip_catch_up_body">دع Gotcha يلخّص إشعاراتك غير المقروءة.</string>
+    <string name="daily_tip_catch_up_prompt">لخّص لي إشعاراتي غير المقروءة</string>
+    <string name="daily_tip_big_files_title">وفّر بعض المساحة</string>
+    <string name="daily_tip_big_files_body">يستطيع Gotcha إيجاد أكبر ملفاتك وإخبارك بما يمكن حذفه بأمان.</string>
+    <string name="daily_tip_big_files_prompt">ابحث عن أكبر الملفات في مجلد التنزيلات وأخبرني بما يمكن حذفه بأمان</string>
+    <string name="daily_tip_summarise_pdf_title">لخّص ملف PDF</string>
+    <string name="daily_tip_summarise_pdf_body">لا وقت للقراءة؟ يستطيع Gotcha تلخيص أحدث ملف PDF لديك.</string>
+    <string name="daily_tip_summarise_pdf_prompt">اقرأ أحدث ملف PDF في التنزيلات ولخّصه</string>
+    <string name="daily_tip_calendar_today_title">خطّط يومك</string>
+    <string name="daily_tip_calendar_today_body">اسأل Gotcha عمّا لديك في تقويمك اليوم.</string>
+    <string name="daily_tip_calendar_today_prompt">ما الموجود في تقويمي اليوم؟</string>
+    <string name="daily_tip_calendar_add_title">أضف إلى تقويمك</string>
+    <string name="daily_tip_calendar_add_body">أخبر Gotcha بموعد فيُضاف مباشرة إلى تقويمك.</string>
+    <string name="daily_tip_calendar_add_prompt">أضف غداء مع … يوم الجمعة الساعة 1 ظهرًا إلى تقويمي</string>
+    <string name="daily_tip_set_alarm_title">اضبط منبّهًا بالسؤال</string>
+    <string name="daily_tip_set_alarm_body">يستطيع Gotcha ضبط المنبّهات والمؤقّتات لك.</string>
+    <string name="daily_tip_set_alarm_prompt">اضبط منبّهًا للساعة 7 صباحًا غدًا</string>
+    <string name="daily_tip_send_whatsapp_title">أرسل WhatsApp دون استخدام يديك</string>
+    <string name="daily_tip_send_whatsapp_body">يستطيع Gotcha فتح WhatsApp وإرسال الرسالة لك.</string>
+    <string name="daily_tip_send_whatsapp_prompt">أرسل WhatsApp إلى … يقول …</string>
+    <string name="daily_tip_send_sms_title">متأخّر؟</string>
+    <string name="daily_tip_send_sms_body">يستطيع Gotcha إرسال رسالة نصية لشخص ما لك.</string>
+    <string name="daily_tip_send_sms_prompt">أرسل رسالة إلى … بأنني سأتأخّر 10 دقائق</string>
+    <string name="daily_tip_recent_sms_title">تصفّح رسائلك</string>
+    <string name="daily_tip_recent_sms_body">يستطيع Gotcha تلخيص أحدث رسائلك النصية.</string>
+    <string name="daily_tip_recent_sms_prompt">لخّص أحدث رسائلي النصية</string>
+    <string name="daily_tip_missed_calls_title">من اتّصل؟</string>
+    <string name="daily_tip_missed_calls_body">اطلب من Gotcha مراجعة سجلّ مكالماتك.</string>
+    <string name="daily_tip_missed_calls_prompt">من اتّصل بي اليوم؟</string>
+    <string name="daily_tip_battery_title">ما الذي يستنزف بطاريتك؟</string>
+    <string name="daily_tip_battery_body">يستطيع Gotcha فحص بطاريتك ومعرفة التطبيقات الأكثر استهلاكًا.</string>
+    <string name="daily_tip_battery_prompt">افحص بطاريتي وأخبرني بالتطبيقات الأكثر استهلاكًا</string>
+    <string name="daily_tip_screen_time_title">تحقّق من وقت الشاشة</string>
+    <string name="daily_tip_screen_time_body">اسأل Gotcha كم أمضيت على هاتفك، وأين.</string>
+    <string name="daily_tip_screen_time_prompt">كم أمضيت على هاتفي اليوم، وفي أي تطبيقات؟</string>
+    <string name="daily_tip_web_search_title">ابحث عن أي شيء</string>
+    <string name="daily_tip_web_search_body">يستطيع Gotcha البحث في الويب وتلخيص ما يجده.</string>
+    <string name="daily_tip_web_search_prompt">ابحث في الويب عن … ولخّص ما تجده</string>
+    <string name="daily_tip_do_not_disturb_title">تحتاج إلى التركيز؟</string>
+    <string name="daily_tip_do_not_disturb_body">يستطيع Gotcha تشغيل وضع عدم الإزعاج لك.</string>
+    <string name="daily_tip_do_not_disturb_prompt">شغّل وضع عدم الإزعاج للساعة القادمة</string>
+    <string name="daily_tip_wifi_title">غيّر الإعدادات بالسؤال</string>
+    <string name="daily_tip_wifi_body">يستطيع Gotcha إيجاد الإعدادات وتغييرها لك، مثل Wi-Fi.</string>
+    <string name="daily_tip_wifi_prompt">افتح الإعدادات وشغّل Wi-Fi</string>
+    <string name="daily_tip_podcast_title">اسمع بدل ما تقرأ</string>
+    <string name="daily_tip_podcast_body">يستطيع Gotcha تحويل مستند إلى بودكاست قصير.</string>
+    <string name="daily_tip_podcast_prompt">حوّل أحدث ملف PDF في التنزيلات إلى بودكاست قصير</string>
+    <string name="daily_tip_memory_title">يستطيع Gotcha تذكّر الأشياء</string>
+    <string name="daily_tip_memory_body">أخبره بحقيقة أو تفضيل أو شخص مرة واحدة. يحفظه في Second Brain ويستخدمه في محادثات لاحقة.</string>
+    <string name="daily_tip_memory_prompt">تذكّر أن …</string>
+    <string name="daily_tip_schedule_title">دع Gotcha يعمل وفق جدول</string>
+    <string name="daily_tip_schedule_body">اطلب شيئًا في وقت محدد فيعمل من تلقاء نفسه، ثم تصل النتيجة إلى محادثة.</string>
+    <string name="daily_tip_schedule_prompt">كل يوم عمل عند الثامنة، أعطني خطة قصيرة لليوم.</string>
+
+    <!-- Local notifications -->
+    <string name="local_unfinished_generic">بقيت محادثة غير مكتملة. اضغط لمتابعتها.</string>
+    <string name="local_unfinished_asked">سألك Gotcha شيئًا في ”%1$s“. اضغط للإجابة.</string>
+    <string name="local_unfinished_stopped">توقفت ”%1$s“ قبل أن تكتمل. اضغط لمتابعتها.</string>
+    <string name="local_unfinished_title_asked">Gotcha ينتظرك</string>
+    <string name="local_unfinished_title">أكمل ما بدأته</string>
+    <string name="local_routine_title">حان وقت طلبك المعتاد؟</string>
+    <string name="local_routine_body">تسأل غالبًا: ”%1$s“. اضغط للسؤال مجددًا.</string>
+    <string name="local_routine_body_generic">قد يحين أحد طلباتك المعتادة. اضغط لعرضه.</string>
+    <string name="local_inactive_title_recent">تابع من حيث توقفت</string>
+    <string name="local_inactive_title">هل من شيء يفعله Gotcha لك؟</string>
+    <string name="local_inactive_body_recent">آخر محادثة لك كانت ”%1$s“. اضغط لفتحها.</string>
+    <string name="local_inactive_body">اطلب من Gotcha إنجاز شيء على هاتفك. اضغط للفتح.</string>
+
+    <!-- Notifications: channels and titles -->
+    <string name="channel_attention">بانتظار إجابتك</string>
+    <string name="channel_attention_description">عندما يوقف Gotcha مهمة ليسألك شيئًا وأنت في تطبيق آخر</string>
+    <string name="attention_public_title">Gotcha ينتظرك</string>
+    <string name="attention_question_title">لدى Gotcha سؤال</string>
+    <string name="attention_confirmation_title">Gotcha ينتظر موافقتك</string>
+    <string name="attention_question_body">مهمتك متوقفة حتى تجيب. اضغط لفتحها.</string>
+    <string name="attention_confirmation_body">مهمتك متوقفة حتى تسمح أو ترفض خطوتها التالية. اضغط لفتحها.</string>
+    <string name="channel_completion">اكتملت المهمة</string>
+    <string name="channel_completion_description">عندما تكتمل مهمة محادثة وأنت في تطبيق آخر</string>
+    <string name="completion_public_title">أنجز Gotcha مهمة</string>
+    <string name="completion_untitled_chat">محادثة</string>
+    <string name="completion_done_title">تم: %1$s</string>
+    <string name="completion_failed_title">فشل: %1$s</string>
+    <string name="completion_stopped_title">توقف: %1$s</string>
+    <string name="completion_done_anonymous">اكتملت المهمة</string>
+    <string name="completion_failed_anonymous">فشلت المهمة</string>
+    <string name="completion_stopped_anonymous">توقفت المهمة</string>
+    <string name="completion_done_body">أنجز Gotcha مهمتك. اضغط لرؤية الرد.</string>
+    <string name="completion_failed_body">لم يستطع Gotcha إنجاز مهمتك. اضغط لرؤية ما حدث.</string>
+    <string name="completion_stopped_body">توقفت المهمة. اضغط لفتح المحادثة.</string>
+    <string name="channel_daily_tips">نصائح يومية</string>
+    <string name="channel_daily_tips_description">شيء واحد لتجربته مع Gotcha كل يوم</string>
+    <string name="channel_reminders">تذكيرات</string>
+    <string name="channel_reminders_description">محادثات غير مكتملة، وطلبات معتادة حان وقتها، وتنبيه بعد فترة هدوء</string>
+    <string name="local_public_title">Gotcha لديها اقتراح</string>
+    <string name="channel_server">رسائل الخادم</string>
+    <string name="channel_server_description">تحديثات ونصائح وإشعارات صيانة من Gotcha</string>
+    <string name="run_public_title">Gotcha تعمل على مهمة…</string>
+    <string name="run_title">Gotcha تعمل على ”%1$s“…</string>
+    <string name="run_title_cut">Gotcha تعمل على ”%1$s“</string>
+    <string name="run_body">اضغط للمتابعة. يمكنك متابعة استخدام هاتفك.</string>
+    <string name="action_stop">إيقاف</string>
+    <string name="channel_run">مهمة قيد التنفيذ</string>
+    <string name="channel_run_description">تظهر أثناء عمل Gotcha على مهمة، حتى يبقيها Android قيد التشغيل عند التبديل إلى تطبيق آخر</string>
+
+    <!-- Voice call errors -->
+    <string name="call_error_no_api_key">قم بإعداد مفتاح API في Gotcha أولاً.</string>
+    <string name="call_error_no_mic">لم يتم منح إذن الميكروفون. فعّله من Gotcha ← الإعدادات ← الأذونات.</string>
+    <string name="call_error_tts_playback">تعذّر تشغيل الصوت — تحقق من إعدادات تحويل النص إلى كلام.</string>
+    <string name="call_error_mic_start">تعذّر تشغيل الميكروفون — اضغط مرة أخرى للمحاولة.</string>
+    <string name="call_error_reply_playback">تعذّر تشغيل الرد الصوتي — تحقق من إعدادات تحويل النص إلى كلام.</string>
+    <string name="call_error_permission">هناك إذن مطلوب لا يمكن منحه أثناء المكالمة — افتح Gotcha لمنحه.</string>
+    <string name="call_confirmation_needed">التأكيد مطلوب: %1$s</string>
+    <string name="call_stt_label">تحويل الكلام إلى نص</string>
+    <string name="call_tts_label">تحويل النص إلى كلام</string>
+    <string name="call_audio_not_configured">%1$s غير مُهيأ. قم بإعداده من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="call_audio_samosa_not_configured">%1$s Samosa AI غير مُهيأ. سجّل الدخول من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="call_audio_model_missing">لم يتم اختيار نموذج %1$s. اختر واحداً من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="call_audio_url_invalid">رابط API الخاص بـ %1$s مفقود أو غير صالح. صحّحه من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="call_audio_api_model_missing">لم يتم اختيار نموذج API الخاص بـ %1$s. اختر واحداً من Gotcha ← الإعدادات ← الكلام (TTS / STT).</string>
+    <string name="screenshot_channel">التقاط لقطة شاشة</string>
+    <string name="screenshot_channel_description">التقاط لقطة شاشة لمرة واحدة</string>
+    <string name="screenshot_capturing">جارٍ التقاط لقطة الشاشة…</string>
+    <string name="wake_word_no_mic">لم يتم منح إذن الميكروفون.</string>
+    <string name="wake_word_mic_unavailable">إذن الميكروفون غير متاح.</string>
+    <string name="wake_word_model_failed">تعذّر تحميل نموذج كلمة التنبيه المضمّن.</string>
+    <string name="wake_word_start_failed">تعذّر تشغيل كلمة التنبيه.</string>
+    <string name="wake_word_stopped">توقف الاستماع لكلمة التنبيه بشكل غير متوقع.</string>
+
+    <!-- Smart actions (chips over other apps) -->
+    <string name="smart_translate_to">🌐 ترجم إلى %1$s</string>
+    <string name="smart_draft_reply">💬 مسودة رد: %1$s</string>
+    <string name="smart_copy_text">📋 نسخ النص</string>
+    <string name="smart_copy_code">🔑 نسخ الرمز %1$s</string>
+    <string name="smart_share_code">📤 مشاركة الرمز</string>
+    <string name="smart_dial">📞 اتصال بـ %1$s</string>
+    <string name="smart_sms">💬 رسالة نصية</string>
+    <string name="smart_whatsapp">💬 WhatsApp</string>
+    <string name="smart_save_contact">👤 حفظ جهة الاتصال</string>
+    <string name="smart_copy_number">📋 نسخ الرقم</string>
+    <string name="smart_navigate">📍 الانتقال إلى: %1$s</string>
+    <string name="smart_copy_address">📋 نسخ العنوان</string>
+    <string name="smart_share_address">📤 مشاركة العنوان</string>
+    <string name="smart_compose">📧 إنشاء: %1$s</string>
+    <string name="smart_copy_email">📋 نسخ البريد</string>
+    <string name="smart_share_email">📤 مشاركة البريد</string>
+    <string name="smart_open">🌐 فتح: %1$s</string>
+    <string name="smart_summarize">📝 تلخيص</string>
+    <string name="smart_copy_link">📋 نسخ الرابط</string>
+    <string name="smart_share_link">📤 مشاركة الرابط</string>
+    <string name="smart_convert_to">💵 التحويل إلى %1$s</string>
+    <string name="smart_copy_price">📋 نسخ السعر</string>
+    <string name="smart_add_to_calendar">📅 إضافة إلى التقويم: %1$s</string>
+    <string name="smart_copy_event">📋 نسخ الحدث</string>
+    <string name="smart_track">📦 تتبع %1$s: %2$s</string>
+    <string name="smart_copy_tracking_number">📋 نسخ رقم التتبع</string>
+    <string name="smart_connect_wi_fi">📶 الاتصال بـ Wi-Fi: %1$s</string>
+    <string name="smart_summarize_2">🔗 تلخيص: %1$s</string>
+    <string name="smart_group_codes">%1$d رموز</string>
+    <string name="smart_group_numbers">%1$d أرقام</string>
+    <string name="smart_group_addresses">%1$d عناوين</string>
+    <string name="smart_group_emails">%1$d رسائل بريد</string>
+    <string name="smart_group_links">%1$d روابط</string>
+    <string name="smart_group_dates">%1$d تواريخ</string>
+    <string name="smart_group_prices">%1$d أسعار</string>
+    <string name="smart_group_packages">%1$d طرود</string>
+    <string name="smart_group_messages">%1$d رسائل</string>
+    <string name="smart_group_items">%1$d عناصر</string>
+
+    <!-- QR codes and barcodes -->
+    <string name="qr_open_qr_link">🌐 فتح رابط QR: %1$s</string>
+    <string name="qr_summarize">📝 تلخيص</string>
+    <string name="qr_copy_url">📋 نسخ URL</string>
+    <string name="qr_wi_fi">📶 Wi-Fi: %1$s</string>
+    <string name="qr_call">📞 اتصال: %1$s</string>
+    <string name="qr_pay_via_upi">💳 الدفع عبر UPI: %1$s</string>
+    <string name="qr_copy_upi_link">📋 نسخ رابط UPI</string>
+    <string name="qr_copy_link">📋 نسخ الرابط</string>
+    <string name="qr_search_barcode">🔍 البحث عن الباركود: %1$s</string>
+    <string name="qr_copy_barcode">📋 نسخ الباركود</string>
+    <string name="qr_ask_assistant">🤖 اسأل المساعد</string>
+    <string name="qr_copy_qr_content">📋 نسخ محتوى QR</string>
+    <string name="qr_qr_link">رابط QR: %1$s</string>
+    <string name="qr_wi_fi_qr">QR واي فاي: %1$s</string>
+    <string name="qr_qr_phone">هاتف QR: %1$s</string>
+    <string name="qr_upi_payment">دفع UPI: %1$s</string>
+    <string name="qr_barcode">باركود: %1$s</string>
+    <string name="qr_qr">QR: %1$s</string>
+
+    <!-- ScreenLensController -->
+    <string name="lens_couldn_t_start_lens_mode">تعذّر بدء وضع Lens</string>
+    <string name="lens_accessibility_service_not_available">خدمة إمكانية الوصول غير متاحة</string>
+    <string name="lens_screenshot_failed_try_again">فشل التقاط الشاشة — حاول مجددًا</string>
+    <string name="lens_selection_was_empty">التحديد فارغ</string>
+    <string name="lens_failed_to_save_image">فشل حفظ الصورة: %1$s</string>
+    <string name="lens_couldn_t_prepare_the_image">تعذّر تجهيز الصورة</string>
+    <string name="lens_select">تحديد</string>
+    <string name="lens_copy">نسخ</string>
+    <string name="lens_translate">ترجمة</string>
+    <string name="lens_save">حفظ</string>
+    <string name="lens_ask">اسأل</string>
+    <string name="lens_copy_selected">نسخ المحدد</string>
+    <string name="lens_copy_all">نسخ الكل</string>
+    <string name="lens_close">إغلاق</string>
+    <string name="lens_select_some_text_first_then">حدّد نصًا أولًا، ثم اضغط نسخ المحدد</string>
+    <string name="lens_copied_to_clipboard">تم النسخ إلى الحافظة</string>
+    <string name="lens_saved_image_to">تم حفظ الصورة في %1$s</string>
+    <string name="lens_extracted_text">النص المستخرج</string>
+
+    <!-- Assistive ball: clipboard and Screen Companion -->
+    <string name="ball_translate_clip">🌐 ترجمة: %1$s</string>
+    <string name="ball_summarize_clip">📋 تلخيص: %1$s</string>
+    <string name="companion_screenshot_extract">📸 تم التقاط الشاشة. استخراج النص؟</string>
+    <string name="companion_screenshot_translate">🌐 ترجمة لقطة الشاشة</string>
+    <string name="companion_no_response">لا استجابة</string>
+    <string name="companion_error">خطأ: %1$s</string>
+    <string name="companion_summarize_link">تلخيص الرابط:\n%1$s</string>
+    <string name="companion_fetching">جارٍ جلب %1$s …</string>
+    <string name="companion_fetch_failed">تعذّر جلب الرابط: %1$s</string>
+    <string name="companion_summarizing">جارٍ التلخيص …</string>
+
+    <!-- Assistive ball: clipboard and Screen Companion -->
+
+    <!-- AssistiveBallService -->
+    <string name="ball_could_not_fetch_exchange_rate">تعذّر جلب سعر الصرف لـ %1$s</string>
+    <string name="ball_couldn_t_open_action">تعذّر فتح الإجراء: %1$s</string>
+    <string name="ball_microphone_permission_not_granted">إذن الميكروفون غير ممنوح.</string>
+    <string name="ball_failed_to_start_speech_recognition">فشل بدء التعرف على الكلام.</string>
+    <string name="ball_failed_to_start_recording">فشل بدء التسجيل.</string>
+    <string name="ball_no_stt_provider_configured_enable">لا مزوّد STT مُهيّأ. فعّل واحدًا في الإعدادات.</string>
+    <string name="ball_transcription_failed">فشل النسخ: %1$s</string>
+    <string name="ball_no_tts_provider_configured_enable">لا مزوّد TTS مُهيّأ. فعّل واحدًا في الإعدادات.</string>
+    <string name="ball_accessibility_service_not_available">خدمة إمكانية الوصول غير متاحة</string>
+    <string name="ball_screenshot_failed_try_again">فشل التقاط الشاشة — حاول مجددًا</string>
+    <string name="ball_screenshot_error">خطأ في التقاط الشاشة: %1$s</string>
+    <string name="ball_region_attached_ask_a_question">📸 تم إرفاق المنطقة — اطرح سؤالًا عنها أدناه.</string>
+    <string name="ball_region_attached">📸 تم إرفاق المنطقة</string>
+    <string name="ball_ask_me_anything_about_the">اسألني أي شيء عن المنطقة المحددة.</string>
+    <string name="ball_thinking">أفكر...</string>
+    <string name="ball_no_text_found_in_selection">لا نص في التحديد</string>
+    <string name="ball_copied_to_clipboard">تم النسخ إلى الحافظة</string>
+    <string name="ball_couldn_t_read_text">تعذّر قراءة النص: %1$s</string>
+    <string name="ball_error">خطأ: %1$s</string>
+
+    <!-- GotchaNotificationListenerService -->
+    <string name="notification_listener_otp_copied_to_clipboard">🔑 تم نسخ رمز OTP %1$s إلى الحافظة</string>
+
+    <!-- Chat: messages from the view model -->
+    <string name="chat_vm_no_api_key_configured_open">لا مفتاح API مُهيّأ. افتح الإعدادات لإضافة واحد.</string>
+    <string name="chat_vm_microphone_permission_not_granted_enable">إذن الميكروفون غير ممنوح. فعّله من الإعدادات ← الأذونات.</string>
+    <string name="chat_vm_failed_to_start_speech_recognition">فشل بدء التعرّف على الكلام.</string>
+    <string name="chat_vm_samosa_stt_is_not_configured">Samosa STT غير مُهيّأ. سجّل الدخول من الإعدادات ← الكلام.</string>
+    <string name="chat_vm_no_stt_api_url_configured">لا عنوان URL لواجهة STT مُهيّأ في الإعدادات.</string>
+    <string name="chat_vm_no_stt_model_selected_refresh">لم يُحدَّد نموذج STT. حدّث نماذج الصوت في الإعدادات.</string>
+    <string name="chat_vm_failed_to_start_recording">فشل بدء التسجيل.</string>
+    <string name="chat_vm_no_stt_provider_configured_enable">لا مزوّد STT مُهيّأ. فعّل واحدًا في الإعدادات.</string>
+    <string name="chat_vm_failed_to_record_audio">فشل تسجيل الصوت.</string>
+    <string name="chat_vm_transcription_failed">فشل النسخ: %1$s</string>
+    <string name="chat_vm_switched_to_monitor_mode_the">تم التبديل إلى وضع المراقبة — يمكن للوكيل المراقبة فقط؛ لا يمكنه إجراء أي تغييرات على جهازك.</string>
+    <string name="chat_vm_switched_to_operator_mode_the">تم التبديل إلى وضع المشغّل — يمكن للوكيل الآن إجراء تغييرات على جهازك.</string>
+    <string name="chat_vm_could_not_read_that_file">تعذّرت قراءة هذا الملف: %1$s</string>
+    <string name="chat_vm_backup_saved">تم حفظ النسخة الاحتياطية</string>
+    <string name="chat_vm_backup_failed">فشل النسخ الاحتياطي</string>
+    <string name="chat_vm_the_backup_couldn_t_be">تعذّر حفظ النسخة الاحتياطية.</string>
+    <string name="chat_vm_reading_file">جارٍ قراءة الملف…</string>
+    <string name="chat_vm_the_file_couldn_t_be">تعذّر فتح الملف.</string>
+    <string name="chat_vm_the_file_is_larger_than">الملف أكبر من %1$s ميغابايت، وهو الحد الأقصى لما يستورده Gotcha دفعة واحدة.</string>
+    <string name="chat_vm_importing">جارٍ الاستيراد…</string>
+    <string name="chat_vm_import_finished">انتهى الاستيراد</string>
+    <string name="chat_vm_nothing_imported">لم يُستورد شيء</string>
+    <string name="chat_vm_saving_backup">جارٍ حفظ النسخة الاحتياطية…</string>
+    <string name="chat_vm_there_are_no_saved_chats">لا توجد محادثات محفوظة للنسخ الاحتياطي بعد.</string>
+    <string name="chat_vm_the_chosen_location_can_t">لا يمكن الكتابة في الموقع المختار.</string>
+    <string name="chat_vm_nothing_accomplished_in_this_run">لم يُنجز شيء في هذه الجولة لعرضه بعد.</string>
+    <string name="chat_vm_import_failed">فشل الاستيراد</string>
+    <string name="chat_vm_could_not_read_that_file_2">تعذّر قراءة ذلك الملف.</string>
+    <string name="chat_vm_imported_count">تم استيراد %1$d</string>
+    <string name="chat_vm_replaced_count">تم استبدال %1$d</string>
+    <string name="chat_vm_skipped_count">تم تخطي %1$d</string>
+    <string name="chat_vm_failed_count">فشل %1$d</string>
+    <plurals name="chat_vm_saved_chats">
+        <item quantity="zero">حُفظت %1$d محادثة.</item>
+        <item quantity="one">حُفظت محادثة واحدة (%1$d).</item>
+        <item quantity="two">حُفظت محادثتان (%1$d).</item>
+        <item quantity="few">حُفظت %1$d محادثات.</item>
+        <item quantity="many">حُفظت %1$d محادثة.</item>
+        <item quantity="other">حُفظت %1$d محادثة.</item>
+    </plurals>
+    <plurals name="chat_vm_too_many_files">
+        <item quantity="zero">يمكنك إرفاق %2$d ملفات كحد أقصى لكل رسالة — تم تجاهل %1$d ملف.</item>
+        <item quantity="one">يمكنك إرفاق %2$d ملفات كحد أقصى لكل رسالة — تم تجاهل ملف واحد (%1$d).</item>
+        <item quantity="two">يمكنك إرفاق %2$d ملفات كحد أقصى لكل رسالة — تم تجاهل ملفين (%1$d).</item>
+        <item quantity="few">يمكنك إرفاق %2$d ملفات كحد أقصى لكل رسالة — تم تجاهل %1$d ملفات.</item>
+        <item quantity="many">يمكنك إرفاق %2$d ملفات كحد أقصى لكل رسالة — تم تجاهل %1$d ملفاً.</item>
+        <item quantity="other">يمكنك إرفاق %2$d ملفات كحد أقصى لكل رسالة — تم تجاهل %1$d ملف.</item>
+    </plurals>
+    <plurals name="chat_vm_documents_too_long">
+        <item quantity="zero">المستندات المرفقة طويلة جداً لإرسالها معاً — تم تجاهل %1$d مستند. أرسلها في رسائل منفصلة.</item>
+        <item quantity="one">المستندات المرفقة طويلة جداً لإرسالها معاً — تم تجاهل مستند واحد (%1$d). أرسلها في رسائل منفصلة.</item>
+        <item quantity="two">المستندات المرفقة طويلة جداً لإرسالها معاً — تم تجاهل مستندين (%1$d). أرسلها في رسائل منفصلة.</item>
+        <item quantity="few">المستندات المرفقة طويلة جداً لإرسالها معاً — تم تجاهل %1$d مستندات. أرسلها في رسائل منفصلة.</item>
+        <item quantity="many">المستندات المرفقة طويلة جداً لإرسالها معاً — تم تجاهل %1$d مستنداً. أرسلها في رسائل منفصلة.</item>
+        <item quantity="other">المستندات المرفقة طويلة جداً لإرسالها معاً — تم تجاهل %1$d مستند. أرسلها في رسائل منفصلة.</item>
+    </plurals>
+
+    <!-- Chat runner and background hint -->
+    <string name="runner_profile_updated">حدّث المساعد ملفك الشخصي: %1$s.</string>
+    <string name="runner_interrupted_by_user">قاطع المستخدم الوكيل.</string>
+    <string name="runner_interrupted_title">مقاطعة: %1$s</string>
+    <string name="runner_interrupted_title_anonymous">تمت مقاطعة المهمة</string>
+    <string name="runner_interrupted_notice">تمت مقاطعة هذه المهمة: أغلق Android تطبيق Gotcha أثناء عمله، عادةً لتحرير الذاكرة. أرسل رسالة لمتابعة العمل من حيث توقف.</string>
+    <string name="runner_interrupted_inbox_body">أغلق Android تطبيق Gotcha أثناء عمله على هذه المهمة. اضغط لفتح المحادثة ومتابعة العمل من حيث توقف.</string>
+    <string name="hint_background">يعمل Gotcha في الخلفية. يمكنك استخدام تطبيق آخر أثناء عمله</string>
+    <string name="hint_background_with_signal">%1$s — %2$s.</string>
+    <string name="hint_background_alone">%1$s.</string>
+    <string name="hint_signal_notify">سيُعلمك Gotcha عند انتهاء المهمة</string>
+    <string name="hint_signal_buzz_chime">سيهتز هاتفك ويصدر نغمة عند الانتهاء</string>
+    <string name="hint_signal_buzz">سيهتز هاتفك عند الانتهاء</string>
+    <string name="hint_signal_chime">سيصدر هاتفك نغمة عند الانتهاء</string>
+
+    <!-- Chat titles until one is generated -->
+    <string name="chat_title_new">محادثة جديدة</string>
+    <string name="chat_title_image">محادثة صورة</string>
+
+    <!-- Controlling other apps (foreground control) -->
+    <string name="fg_title">السماح لـ Gotcha بالتحكم في %1$s؟</string>
+    <string name="fg_your_apps">تطبيقاتك</string>
+    <string name="fg_another_app">تطبيق آخر</string>
+    <string name="fg_wants_to">يريد Gotcha أن: %1$s</string>
+    <string name="fg_to_do_what_you_asked_quoted">لتنفيذ ما طلبته (“%1$s”)، يحتاج Gotcha إلى استخدام %2$s.</string>
+    <string name="fg_to_do_what_you_asked">لتنفيذ ما طلبته، يحتاج Gotcha إلى استخدام %1$s.</string>
+    <string name="fg_prompt">%1$s\n\nقد يُحضر Gotcha تطبيق %2$s إلى المقدمة وينقر ويكتب ويمرر ويقرأ شاشته حتى انتهاء هذا الطلب. سترى عندما ينتهي.\n\nإذا رفضت، لن يفتح Gotcha تطبيقات أخرى أو يتحكم فيها لهذا الطلب.</string>
+    <string name="fg_allow">السماح لهذا الطلب</string>
+    <string name="fg_done">انتهى Gotcha. يمكنك استخدام تطبيقك مجددًا.</string>
+    <string name="fg_controlling">يتحكم Gotcha في %1$s…</string>
+    <string name="fg_your_screen">شاشتك</string>
+
+    <!-- Errors shown to the user -->
+    <string name="error_network_problem_check">مشكلة في الشبكة: %1$s. تحقق من اتصالك.</string>
+    <string name="error_could_not_reach_server">تعذّر الوصول إلى الخادم</string>
+    <string name="error_permission_denied">تم رفض الإذن: %1$s.</string>
+    <string name="error_permission_not_granted">لم يُمنح الإذن المطلوب</string>
+    <string name="error_http_generic">أعاد API خطأ (HTTP %1$d).</string>
+    <string name="error_http_generic_detail">أعاد API خطأ (HTTP %1$d) (%2$s).</string>
+    <string name="error_the_model_rejected_the_attached">رفض النموذج الصور المرفقة (HTTP %1$s): %2$s. قد يقبل صورًا أقل أو أصغر لكل طلب — الصور من وقت سابق في هذه المحادثة تُحتسب أيضًا. أزل بعض المرفقات أو ابدأ محادثة جديدة، ثم حاول مجددًا.</string>
+    <string name="error_bad_request_http_400_the">طلب غير صالح (HTTP 400). صيغة الطلب أو المعاملات المرسلة إلى API غير صالحة.</string>
+    <string name="error_authentication_failed_http_401_please">فشل المصادقة (HTTP 401). تحقق من مفتاح API في الإعدادات.</string>
+    <string name="error_access_restricted_http_403_this">الوصول مقيّد (HTTP 403). هذا النموذج غير متاح في خطتك الحالية. قم بترقية حسابك في الإعدادات للوصول إليه.</string>
+    <string name="error_resource_not_found_http_404">المورد غير موجود (HTTP 404). تحقق من صحة معرّف النموذج أو رابط نقطة النهاية في الإعدادات.</string>
+    <string name="error_request_timeout_http_408_the">انتهت مهلة الطلب (HTTP 408). انتهت مهلة الخادم في انتظار الطلب.</string>
+    <string name="error_request_too_large_http_413">الطلب كبير جدًا (HTTP 413). حاول إرسال مرفقات أقل أو أصغر.</string>
+    <string name="error_rate_limit_or_quota_exceeded">تم تجاوز حد المعدل أو الحصة (HTTP 429). انتظر قليلًا أو تحقق من حدود استخدام API.</string>
+    <string name="error_server_error_http_500_the">خطأ في الخادم (HTTP 500). واجهت خدمة الذكاء الاصطناعي البعيدة خطأ داخليًا. حاول مجددًا.</string>
+    <string name="error_bad_gateway_http_502_the">بوابة غير صالحة (HTTP 502). تلقّى الوكيل أو الخدمة الوسيطة استجابة غير صالحة.</string>
+    <string name="error_service_unavailable_http_503_the">الخدمة غير متاحة (HTTP 503). خدمة الذكاء الاصطناعي البعيدة متوقفة مؤقتًا أو محمّلة بشكل زائد.</string>
+    <string name="error_gateway_timeout_http_504_the">انتهت مهلة البوابة (HTTP 504). استغرقت خدمة الذكاء الاصطناعي الوسيطة وقتًا طويلًا للاستجابة.</string>
+    <string name="error_network_connection_timed_out_while">انتهت مهلة اتصال الشبكة أثناء التعرف على الكلام.</string>
+    <string name="error_network_connection_error_during_speech">خطأ في اتصال الشبكة أثناء التعرف على الكلام. تحقق من اتصالك بالإنترنت.</string>
+    <string name="error_microphone_hardware_error_ensure_your">خطأ في عتاد الميكروفون. تأكد من أن الميكروفون غير مستخدم بواسطة تطبيق آخر.</string>
+    <string name="error_device_speech_recognition_server_error">خطأ في خادم التعرف على الكلام بالجهاز. حاول مجددًا.</string>
+    <string name="error_android_speech_recognition_client_error">خطأ في عميل التعرف على الكلام في Android.</string>
+    <string name="error_no_speech_detected_please_speak">لم يتم اكتشاف كلام. تحدث أقرب إلى الميكروفون.</string>
+    <string name="error_could_not_understand_speech_please">تعذّر فهم الكلام. حاول التحدث بوضوح أكبر أو أقرب إلى الميكروفون.</string>
+    <string name="error_speech_recognizer_is_busy_please">مُعرّف الكلام مشغول. انتظر قليلًا وحاول مجددًا.</string>
+    <string name="error_microphone_permission_is_required_for">إذن الميكروفون مطلوب للإدخال الصوتي.</string>
+    <string name="error_too_many_speech_recognition_requests">تم إرسال طلبات تعرف على الكلام كثيرة جدًا. انتظر قليلًا.</string>
+    <string name="error_speech_recognition_service_disconnected_reconnecting">انقطع اتصال خدمة التعرف على الكلام. إعادة الاتصال...</string>
+    <string name="error_selected_language_is_not_supported">اللغة المحددة غير مدعومة من التعرف على الكلام بالجهاز.</string>
+    <string name="error_language_pack_for_selected_language">حزمة اللغة المحددة غير مثبّتة على جهازك.</string>
+    <string name="error_speech_recognition_error_code">خطأ في التعرف على الكلام (الرمز %1$s).</string>
+    <string name="error_speech_synthesis_error_while_generating">خطأ في تركيب الكلام أثناء إنشاء الصوت.</string>
+    <string name="error_android_texttospeech_engine_service_error">خطأ في خدمة محرك TextToSpeech في Android.</string>
+    <string name="error_audio_output_stream_error_during">خطأ في تدفق إخراج الصوت أثناء تشغيل الكلام.</string>
+    <string name="error_network_failure_during_online_speech">فشل الشبكة أثناء تركيب الكلام عبر الإنترنت.</string>
+    <string name="error_network_timeout_during_speech_synthesis">انتهت مهلة الشبكة أثناء تركيب الكلام.</string>
+    <string name="error_invalid_text_input_or_parameters">إدخال نصي أو معاملات غير صالحة مرسلة إلى محرك TTS.</string>
+    <string name="error_tts_voice_data_is_still">لا يزال يتم تنزيل بيانات صوت TTS على جهازك.</string>
+    <string name="error_text_to_speech_error_code">خطأ في تحويل النص إلى كلام (الرمز %1$s).</string>
+    <string name="error_cannot_connect_to_server_check">تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت أو رابط الخادم في الإعدادات.</string>
+    <string name="error_connection_refused_by_server_ensure">رفض الخادم الاتصال. تأكد من أن الخادم يعمل ويمكن الوصول إليه.</string>
+    <string name="error_connection_timed_out_waiting_for">انتهت مهلة الاتصال في انتظار استجابة الخادم. تحقق من سرعة الشبكة أو جرّب طلبًا أصغر.</string>
+    <string name="error_network_problem">مشكلة في الشبكة: %1$s</string>
+    <string name="error_an_unexpected_error_occurred">حدث خطأ غير متوقع (%1$s).</string>
+
+    <!-- Errors shown to the user: generic -->
+    <string name="error_generic">خطأ: %1$s</string>
+
+    <!-- Errors: model timeout -->
+    <string name="error_model_timeout">النموذج لم يستجب في الوقت المحدد. حاول مجددًا، أو ارفع مهلة API من الإعدادات ← AI ← إعدادات AI.</string>
+
+    <!-- Connectors: status lines and connect results -->
+    <string name="connector_not_connected">غير متصل</string>
+    <string name="connector_connected_to">متصل بـ %1$s</string>
+    <string name="connector_connected_as">متصل باسم %1$s</string>
+    <string name="connector_could_not_connect">تعذّر الاتصال: %1$s</string>
+    <string name="connector_could_not_refresh">تعذّر تحديث %1$s: %2$s</string>
+    <string name="ha_not_connected">Home Assistant غير متصل.</string>
+    <string name="ha_enter_url">أدخل رابط Home Assistant أولًا.</string>
+    <string name="ha_paste_token">الصق رمز وصول طويل الأمد أولًا.</string>
+    <string name="ha_disconnected_while_connecting">انقطع الاتصال أثناء الاتصال — لم يُحفظ الاتصال الجديد.</string>
+    <string name="ha_connected">متصل بـ %1$s. %2$s %3$s</string>
+    <string name="ha_hint_expose">اعرض الأجهزة/الكيانات على Assist لإضافة أدوات.</string>
+    <string name="ha_hint_expose_more">اعرض المزيد من الكيانات على Assist لإضافة أدوات.</string>
+    <string name="ha_disconnected_while_refreshing">انقطع اتصال Home Assistant أثناء التحديث.</string>
+    <string name="ha_refresh_failed">تعذّر تحديث أدوات Home Assistant: %1$s</string>
+    <string name="google_reconnect_needed">يلزم إعادة الاتصال — انتهت صلاحية تسجيل الدخول المحفوظ (تنتهي شاشات الموافقة في حالة \"Testing\" كل 7 أيام؛ انشرها للإنتاج لإيقاف ذلك).</string>
+    <string name="microsoft_reconnect_needed">يلزم إعادة الاتصال — انتهت صلاحية تسجيل الدخول المحفوظ أو أُلغي.</string>
+    <string name="notion_refresh_failed">تعذّر تحديث اتصال Notion: %1$s</string>
+    <string name="notion_paste_token">الصق رمز التكامل أولًا.</string>
+    <string name="notion_your_workspace">مساحة عملك</string>
+    <string name="notion_connected">متصل بـ %1$s. تذكّر مشاركة الصفحات التي تريد الوصول إليها مع التكامل (الصفحة ⋯ ← Connections).</string>
+    <string name="imap_connected_as">متصل باسم %1$s (%2$s)</string>
+    <string name="oauth_connection_failed">فشل الاتصال.</string>
+    <string name="oauth_start_first">ابدأ الاتصال أولًا، ثم الصق رابط إعادة التوجيه إذا لم يعد المتصفح.</string>
+    <string name="oauth_no_code">هذا الرابط لا يحتوي على معامل \'code\'.</string>
+    <string name="oauth_state_mismatch">عدم تطابق الحالة — ابدأ الاتصال مجددًا والصق رابط إعادة التوجيه الجديد.</string>
+    <plurals name="ha_tools_available">
+        <item quantity="zero">%1$d أداة متاحة لـ Home Assistant.</item>
+        <item quantity="one">تتوفر أداة واحدة لـ Home Assistant (%1$d).</item>
+        <item quantity="two">تتوفر أداتان لـ Home Assistant (%1$d).</item>
+        <item quantity="few">تتوفر %1$d أدوات لـ Home Assistant.</item>
+        <item quantity="many">تتوفر %1$d أداة لـ Home Assistant.</item>
+        <item quantity="other">تتوفر %1$d أداة لـ Home Assistant.</item>
+    </plurals>
+
+    <!-- Speech: when the voice language and speech models disagree -->
+    <string name="speech_check_remedy_clear">امسح الصوت ليتيح Gotcha اختيار صوت %1$s.</string>
+    <string name="speech_check_remedy_pick">اختر صوتًا أو نموذجًا يتحدث %1$s.</string>
+    <string name="speech_check_voice_mismatch">الصوت %1$s يتحدث %2$s، لذا سيقرأ ردود %3$s بلفظ %2$s وقد لا تبدو صحيحة. %4$s</string>
+    <string name="speech_check_read_by_voice">صوته %1$s %2$s</string>
+    <string name="speech_check_read_by_default">صوته الافتراضي %1$s</string>
+    <string name="speech_check_model_no_voice">نموذج تحويل النص إلى كلام %1$s لا يملك صوت %2$s، لذا ستُقرأ ردود %2$s بواسطة %3$s وقد لا تبدو صحيحة. اختر نموذجًا بصوت %2$s، أو استخدم Android المدمج.</string>
+    <string name="speech_check_stt_forced">النسخ مفروض على %1$s (%2$s)، لذا سيُنسخ كلام %3$s كـ %1$s. امسح التجاوز لاتباع لغة الصوت.</string>
+    <string name="speech_check_stt_unlisted">نموذج تحويل الكلام إلى نص %1$s لا يدرج %2$s، لذا قد ينسخ كلام %2$s خطأً. اختر نموذجًا يدرجه.</string>
+    <string name="speech_check_android_tts_missing">تحويل النص إلى كلام في Android لا يملك صوت %1$s مثبتًا، لذا لن تُقرأ ردود %1$s بصوت عالٍ. ثبّت بيانات الصوت، أو اختر محركًا يملكه، من إعدادات تحويل النص إلى كلام في Android.</string>
+    <string name="speech_check_android_stt_unsupported">مُعرّف الكلام في Android لا يدرج %1$s، لذا قد ينسخ كلام %1$s خطأً. اختر خدمة إدخال صوتي أخرى من إعدادات Android.</string>
+    <string name="speech_android_voice_input_settings_failed">تعذّر فتح إعدادات الإدخال الصوتي.</string>
+    <string name="speech_voice_not_installed">لا يوجد صوت %1$s مثبت لتحويل النص إلى كلام في Android، لذا لم يُقرأ هذا بصوت عالٍ. ثبّته عبر اختبار الصوت في الإعدادات ← اللغة.</string>
+    <string name="speech_android_tts_engine">محرك تحويل النص إلى كلام</string>
+    <string name="speech_android_stt_engine">مُعرّف الكلام</string>
+    <string name="speech_android_phone_default">اختيار الهاتف (%1$s)</string>
+    <string name="speech_android_phone_default_unknown">اختيار الهاتف</string>
+    <string name="speech_android_voice">صوت لـ %1$s</string>
+    <string name="speech_android_voice_default">اختيار المحرك</string>
+    <string name="speech_android_voice_on_device">%1$s · على الهاتف</string>
+    <string name="speech_android_voice_online">%1$s · عبر الإنترنت</string>
+    <string name="speech_android_voice_downloadable">%1$s · غير مُنزَّل</string>
+    <string name="speech_android_tts_on_device">يُقرأ %1$s على الهاتف ويعمل دون اتصال.</string>
+    <string name="speech_android_tts_online">يُقرأ %1$s عبر خادم المحرك، لذا يحتاج إلى الإنترنت.</string>
+    <string name="speech_android_tts_downloadable">هذا المحرك لديه صوت %1$s، لكنه غير مُنزَّل بعد. نزّله من إعدادات تحويل النص إلى كلام في Android.</string>
+    <string name="speech_android_tts_available">هذا المحرك يدعم %1$s.</string>
+    <string name="speech_android_tts_unsupported">هذا المحرك ليس لديه صوت %1$s. اختر محركًا آخر.</string>
+    <string name="speech_android_stt_on_device">يُتعرَّف على %1$s على الهاتف ويعمل دون اتصال.</string>
+    <string name="speech_android_stt_online">يُتعرَّف على %1$s عبر خادم التعرّف، لذا يحتاج إلى الإنترنت.</string>
+    <string name="speech_android_stt_downloadable">يمكن التعرّف على %1$s على الهاتف بعد تنزيله من إعدادات Android.</string>
+    <string name="speech_android_stt_available">هذا المُتعرِّف يدعم %1$s.</string>
+    <string name="speech_android_stt_unsupported">هذا المُتعرِّف لا يدعم %1$s.</string>
+    <string name="speech_android_on_device_only">على الجهاز فقط</string>
+    <string name="speech_android_on_device_only_description">التعرّف على الكلام على الهاتف، دون الشبكة أبدًا. عندما لا يستطيع الهاتف ذلك للغة الصوت، يتوقف إدخال الصوت برسالة. لا يُستخدم المُتعرِّف أعلاه أثناء تفعيل هذا.</string>
+    <string name="speech_android_on_device_none">هذا الهاتف لا يدعم التعرّف على الكلام على الجهاز، لذا لا يمكن تفعيل «على الجهاز فقط».</string>
+    <string name="speech_android_on_device_needs_12">يتطلب «على الجهاز فقط» Android 12 أو أحدث.</string>
+    <string name="speech_android_tts_settings">إعدادات تحويل النص إلى كلام في Android</string>
+    <string name="speech_android_voice_input_settings">إعدادات إدخال الصوت في Android</string>
+    <string name="stt_on_device_unavailable">هذا الهاتف لا يستطيع التعرّف على الكلام على الجهاز. أوقف «على الجهاز فقط» من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
+    <string name="stt_language_not_on_device">%1$s غير مُنزَّل للتعرّف على الكلام على الجهاز. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط» من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
+    <string name="stt_language_unsupported">مُتعرِّف الكلام لا يستطيع التعرّف على %1$s. اختر لغة أخرى من الإعدادات → الذكاء الاصطناعي → الكلام.</string>
+    <string name="speech_check_android_stt_not_on_device">«على الجهاز فقط» مفعّل، لكن %1$s لا يمكن التعرّف عليه على هذا الهاتف بعد، لذا سيتوقف إدخال الصوت برسالة. نزّله من إعدادات Android، أو أوقف «على الجهاز فقط».</string>
+
+    <!-- Referral sharing -->
+    <string name="referral_copied">تم نسخ رمز الدعوة: %1$s</string>
+    <string name="referral_share_text">جرّب Gotcha — استخدم رمز دعوتي %1$s للحصول على أرصدة إضافية: %2$s</string>
+    <string name="referral_share_subject">دعوة إلى Gotcha</string>
+    <string name="referral_share_chooser">مشاركة الدعوة</string>
+
+    <!-- SamosaAuthManager -->
+    <string name="samosa_auth_no_google_account_available_add">لا يوجد حساب Google متاح. أضف حساب Google إلى هذا الجهاز وحاول مجددًا.</string>
+    <string name="samosa_auth_google_sign_in_failed">فشل تسجيل الدخول عبر Google: %1$s</string>
+    <string name="samosa_auth_server_did_not_return_a">لم يُرجع الخادم رمز جلسة.</string>
+    <string name="samosa_auth_network_error_check_your_connection">خطأ في الشبكة. تحقق من اتصالك وحاول مجددًا.</string>
+    <string name="samosa_auth_not_signed_in_to_samosa">لم تسجّل الدخول إلى Samosa AI.</string>
+    <string name="samosa_auth_please_enter_an_invite_code">يرجى إدخال رمز دعوة.</string>
+    <string name="samosa_auth_network_error_please_check_your">خطأ في الشبكة. يرجى التحقق من اتصالك والمحاولة مجددًا.</string>
+
+    <!-- Samosa sign-in and referral errors -->
+    <string name="samosa_auth_sign_in_was_rejected_by">رُفض تسجيل الدخول من الخادم (رمز غير صالح). يرجى المحاولة مجددًا.</string>
+    <string name="samosa_auth_this_account_is_disabled_contact">هذا الحساب معطّل. تواصل مع الدعم.</string>
+    <string name="samosa_auth_too_many_attempts_please_wait">محاولات كثيرة. انتظر قليلاً ثم حاول مجدداً.</string>
+    <string name="samosa_auth_samosa_ai_is_temporarily_unavailable">Samosa AI غير متاح مؤقتاً (خطأ في البوابة). حاول مجدداً بعد قليل.</string>
+    <string name="samosa_auth_registration_failed_http">فشل التسجيل (HTTP %1$d).</string>
+    <string name="samosa_auth_invalid_referral_code">رمز الإحالة غير صالح.</string>
+    <string name="samosa_auth_referral_code_not_found">رمز الإحالة غير موجود.</string>
+    <string name="samosa_auth_you_have_already_been_referred">تمت إحالتك بالفعل.</string>
+    <string name="samosa_auth_referral_window_expired_codes_must">انتهت مدة الإحالة. يجب استخدام الرموز خلال %1$d ساعة من التسجيل.</string>
+    <string name="samosa_auth_too_many_attempts_please_try">محاولات كثيرة. حاول مجدداً لاحقاً.</string>
+    <string name="samosa_auth_bonus_grant_failed_please_try">فشل منح المكافأة. حاول مجدداً بعد قليل.</string>
+    <string name="samosa_auth_referral_claim_failed_http">فشل استرداد الإحالة (HTTP %1$d).</string>
+    <string name="samosa_auth_you_cannot_refer_yourself">لا يمكنك إحالة نفسك.</string>
+    <string name="samosa_auth_this_referral_code_has_reached">وصل رمز الإحالة هذا إلى الحد الأقصى للدعوات.</string>
+
+    <!-- Samosa sign-in: unexpected -->
+    <string name="samosa_auth_unexpected_error">خطأ غير متوقع في تسجيل الدخول.</string>
+
+    <!-- Speech providers -->
+    <string name="audio_provider_android">مدمج في Android</string>
+    <string name="audio_provider_samosa" translatable="false">Samosa AI</string>
+    <string name="audio_provider_api">API خارجي</string>
+    <string name="audio_provider_none">لا شيء</string>
+
+    <!-- Chat import: problems and notes -->
+    <string name="import_the_file_is_empty">الملف فارغ.</string>
+    <string name="import_the_file_holds_no_chats">الملف لا يحتوي على محادثات.</string>
+    <string name="import_it_couldn_t_be_saved">تعذّر حفظه.</string>
+    <string name="import_a_task_is_running_in">هناك مهمة قيد التشغيل في تلك المحادثة؛ حاول مجدداً بعد انتهائها.</string>
+    <string name="import_the_file_isn_t_valid">الملف ليس JSON صالحاً؛ قد يكون تالفاً أو مقطوعاً.</string>
+    <string name="import_the_backup_has_no_version">النسخة الاحتياطية بلا رقم إصدار؛ قد تكون تالفة.</string>
+    <string name="import_this_backup_was_made_by">أُنشئت هذه النسخة الاحتياطية بإصدار أحدث من Gotcha (التنسيق %1$s). حدّث Gotcha لاستيرادها.</string>
+    <string name="import_the_backup_has_no_chat">النسخة الاحتياطية بلا قائمة محادثات؛ قد تكون تالفة.</string>
+    <string name="import_this_backup_was_made_without">أُنشئت هذه النسخة الاحتياطية بدون صور، لذا لن تظهر أي صور في المحادثات المستوردة.</string>
+    <string name="import_its_data_is_damaged_or">بياناته تالفة أو غير مكتملة.</string>
+    <string name="import_a_markdown_export_holds_text">تصدير Markdown يحتوي على النص فقط: الصور والمستندات المرفقة ووسائط الأدوات الكاملة ليست جزءاً منه.</string>
+    <string name="import_the_export_can_t_be">تعذّر استيراد التصدير: %1$s</string>
+    <string name="import_what_it_showed_didn_t">\"%1$s\": ما عرضه لم يطابق المحادثة، لذا يُعرض مُعاد بناؤه من المحادثة بدلاً من ذلك؛ تظهر الصور كعناصر نائبة.</string>
+    <string name="import_had_no_usable_date_it">\"%1$s\" بلا تاريخ صالح؛ تم تأريخه اليوم.</string>
+    <string name="import_shares_its_id_with_another">\"%1$s\" يتشارك معرّفه مع محادثة أخرى في الملف؛ استُورد كمحادثة منفصلة.</string>
+    <string name="import_chat">محادثة %1$s</string>
+    <string name="import_file_too_large">حجم الملف %1$s ميجابايت؛ الحد الأقصى لما يستورده Gotcha دفعة واحدة %2$s ميجابايت.</string>
+    <string name="import_not_recognised">هذا ليس ملف محادثة Gotcha. اختر نسخة احتياطية (.gotcha.json) أو محادثة مصدّرة بصيغة Markdown.</string>
+    <plurals name="import_system_as_notes">
+        <item quantity="zero">"%1$s": %2$d رسالة نظام استُوردت كملاحظة، لا كتعليم.</item>
+        <item quantity="one">"%1$s": استُوردت رسالة نظام واحدة (%2$d) كملاحظة، لا كتعليم.</item>
+        <item quantity="two">"%1$s": استُوردت رسالتا نظام (%2$d) كملاحظتين، لا كتعليم.</item>
+        <item quantity="few">"%1$s": استُوردت %2$d رسائل نظام كملاحظات، لا كتعليمات.</item>
+        <item quantity="many">"%1$s": استُوردت %2$d رسالة نظام كملاحظات، لا كتعليمات.</item>
+        <item quantity="other">"%1$s": استُوردت %2$d رسالة نظام كملاحظة، لا كتعليم.</item>
+    </plurals>
+    <string name="notification_category_app_update">تحديث التطبيق</string>
+    <string name="channel_app_updates">تحديثات التطبيق</string>
+    <string name="channel_app_updates_description">إشعار عند إصدار نسخة جديدة من Gotcha</string>
+    <string name="update_notification_title">Gotcha %1$s متاح</string>
+    <string name="update_notification_body">اضغط للتنزيل والتثبيت.</string>
+    <string name="notifications_app_updates">تحديثات التطبيق</string>
+    <string name="notifications_app_updates_description">نحو مرتين يوميًا، ينزّل Gotcha ملفًا صغيرًا من GitHub (raw.githubusercontent.com) لمعرفة إن كان هناك إصدار جديد. الطلب لا يحمل أي شيء عنك؛ يرى GitHub عنوان IP الخاص بك، كما في أي تنزيل.</string>
+    <string name="notifications_notify_about_new_versions">أبلغني بالإصدارات الجديدة</string>
+    <string name="settings_field_update_notifications_enabled">إشعارات التحديث</string>
+    <string name="mcp_card_title">خوادم MCP</string>
+    <string name="mcp_card_blurb">أضف خوادم Model Context Protocol الخاصة بك. يتصل Gotcha عبر Streamable HTTP، ويسرد أدوات كل خادم، ويتيح للمساعد استخدامها أثناء تشغيل ذلك الخادم.</string>
+    <string name="mcp_card_monitor_note">الأدوات التي يعلّمها الخادم كقراءة فقط يمكن استخدامها في Monitor. أما بقية أدواته فلـ Operator فقط.</string>
+    <string name="mcp_card_trust">تصل أوصاف أدوات الخادم ونتائجه إلى المساعد كما هي، ويمكنها توجيهه. أضف فقط الخوادم التي تثق بها.</string>
+    <string name="mcp_add_server">إضافة خادم</string>
+    <string name="mcp_field_name">الاسم</string>
+    <string name="mcp_field_url">عنوان الخادم</string>
+    <string name="mcp_field_token">رمز Bearer (اختياري)</string>
+    <string name="mcp_field_headers">ترويسات إضافية (اختياري)</string>
+    <string name="mcp_field_headers_hint">واحد في كل سطر، بصيغة Name: value</string>
+    <string name="mcp_test_connection">اختبار الاتصال</string>
+    <string name="mcp_testing">جارٍ الاختبار…</string>
+    <string name="mcp_save">حفظ</string>
+    <string name="mcp_saving">جارٍ الحفظ…</string>
+    <string name="mcp_cancel">إلغاء</string>
+    <string name="mcp_edit">تعديل</string>
+    <string name="mcp_remove">إزالة</string>
+    <string name="mcp_remove_confirm">اضغط مرة أخرى لإزالة %1$s</string>
+    <string name="mcp_show_tools">الأدوات (%1$d)</string>
+    <string name="mcp_hide_tools">إخفاء الأدوات</string>
+    <string name="mcp_tool_read_only">قراءة فقط: Monitor و Operator</string>
+    <string name="mcp_tool_operator">Operator فقط</string>
+    <string name="mcp_server_off">متوقف</string>
+    <string name="mcp_server_status">%1$s · %2$s</string>
+    <string name="mcp_no_tools">هذا الخادم لا يقدّم أي أدوات.</string>
+    <string name="mcp_status_summary">%1$d من %2$d خادم مفعّل · %3$d أداة</string>
+    <plurals name="mcp_tools_count">
+        <item quantity="zero">%1$d أداة</item>
+        <item quantity="one">أداة واحدة (%1$d)</item>
+        <item quantity="two">أداتان (%1$d)</item>
+        <item quantity="few">%1$d أدوات</item>
+        <item quantity="many">%1$d أداة</item>
+        <item quantity="other">%1$d أداة</item>
+    </plurals>
+    <string name="mcp_connected">تم الاتصال بـ %1$s: %2$s.</string>
+    <string name="mcp_tools_capped">يُستخدم أول %1$d فقط.</string>
+    <string name="mcp_removed_while_saving">تمت إزالة ذلك الخادم في الأثناء.</string>
+    <string name="mcp_error_name">أدخل اسمًا للخادم.</string>
+    <string name="mcp_error_bad_url">أدخل عنوانًا كاملًا يبدأ بـ https:// (أو http:// على شبكتك المحلية).</string>
+    <string name="mcp_error_cleartext">استخدم https لخادم خارج شبكتك المحلية. الرمز أو الترويسة المرسلة عبر http يمكن قراءتها في الطريق.</string>
+    <string name="mcp_error_bad_header">اكتب كل ترويسة في سطرها الخاص، بصيغة Name: value.</string>
+    <string name="mcp_error_auth">رفض الخادم الرمز أو الترويسات (HTTP %1$d). تحقق منها وحاول مجددًا.</string>
+    <string name="mcp_error_not_found">لا شيء استجاب على هذا العنوان (HTTP 404). تحقق من العنوان، بما في ذلك مساره، الذي غالبًا يكون /mcp.</string>
+    <string name="mcp_error_old_transport">يستخدم هذا الخادم نقل HTTP+SSE الأقدم، وهو غير مدعوم في Gotcha بعد. استخدم عنوان Streamable HTTP الخاص بالخادم إن وُجد.</string>
+    <string name="mcp_error_not_mcp">استجاب الخادم، لكن ليس كخادم MCP: %1$s</string>
+    <string name="mcp_error_http">أعاد الخادم HTTP %1$d: %2$s</string>
+    <string name="mcp_error_redirect">يعيد الخادم التوجيه إلى %1$s، وهو ما لن يتبعه Gotcha من تلقاء نفسه. أدخل هذا العنوان بدلًا منه.</string>
+    <string name="mcp_error_rpc">أعاد الخادم خطأ: %1$s</string>
+    <string name="mcp_error_network">تعذّر الوصول إلى الخادم: %1$s</string>
+    <string name="mcp_error_bad_token">يمكن أن تحتوي قيم الرمز والترويسة على أحرف ASCII عادية فقط.</string>
+    <!-- Scheduled tasks (issue #132) -->
+    <string name="channel_scheduled_tasks">المهام المجدولة</string>
+    <string name="channel_scheduled_tasks_description">مهمة مجدولة تحتاج إلى نقرة للتشغيل</string>
+    <string name="scheduled_needs_tap_title">حان وقت «%1$s»</string>
+    <string name="scheduled_needs_tap_body">انقر لتشغيلها الآن. لتشغيل المهام تلقائيًا، اسمح لـ Gotcha بضبط المنبهات والتذكيرات.</string>
+    <string name="scheduled_needs_tap_public_title">حان وقت مهمة مجدولة</string>
+    <string name="scheduled_task_gone">لم تعد هذه المهمة موجودة.</string>
+    <string name="scheduled_task_files_missing">تعذّرت قراءة الملفات المحفوظة مع هذه المهمة. أضفها مرة أخرى في الإعدادات.</string>
+    <string name="scheduled_task_ai_not_set_up">لم يتم إعداد ذكاء Gotcha. سجّل الدخول أو أضف مفتاح API في الإعدادات ▸ AI.</string>
+    <string name="scheduled_task_needs_exact_alarms">بانتظار نقرة: قد لا يضبط Gotcha المنبهات الدقيقة.</string>
+    <string name="settings_page_scheduled_tasks">المهام المجدولة</string>
+    <string name="settings_page_scheduled_tasks_summary">أوامر يشغّلها Gotcha بنفسه في أوقات محددة</string>
+    <string name="scheduled_intro">يرسل Gotcha لنفسه أمرًا في الوقت الذي تحدده ويعمل عليه كأي محادثة. تظهر النتيجة في محادثة، مع إشعار عند غيابك.</string>
+    <string name="scheduled_empty">لا توجد مهام مجدولة بعد. أضف واحدة هنا، أو اطلب من Gotcha في محادثة، مثل «كل يوم من أيام الأسبوع عند الثامنة، لخّص بريدي غير المقروء».</string>
+    <string name="scheduled_examples_title">أمثلة</string>
+    <string name="scheduled_examples_body">مهام موقوفة تُظهر فائدة الجدول. شغّل واحدة، نفّذها مرة، أو حرّرها لتجعلها لك.</string>
+    <string name="scheduled_your_tasks">مهامك</string>
+    <string name="scheduled_restore_examples">استعادة الأمثلة</string>
+    <string name="scheduled_example_briefing">يخطط يومك من ملاحظاتك وتقويمك. للقراءة فقط.</string>
+    <string name="scheduled_example_evening">يلخّص اليوم ويقترح ما يستحق التذكّر.</string>
+    <string name="scheduled_example_weekly">مراجعة أسبوعية لملاحظاتك: ما هو مفتوح، وما يُترك.</string>
+    <string name="scheduled_example_inbox">يرتّب الإشعارات غير المقروءة إلى ردّ وانتظار وتجاهل.</string>
+    <string name="scheduled_add_task">إضافة مهمة</string>
+    <string name="scheduled_add_briefing">إحاطة الصباح</string>
+    <string name="scheduled_exact_alarm_hint">قد لا يضبط Gotcha المنبهات الدقيقة، لذا لا يمكن للمهمة أن تبدأ من تلقاء نفسها: سيطلب منك النقر على إشعار بدلًا من ذلك.</string>
+    <string name="scheduled_exact_alarm_allow">السماح بالمنبهات والتذكيرات</string>
+    <string name="scheduled_set_up_by_gotcha">أُعدّت بواسطة Gotcha في محادثة</string>
+    <string name="scheduled_paused">متوقفة مؤقتًا</string>
+    <string name="scheduled_no_more_runs">لا مزيد من التشغيلات</string>
+    <string name="scheduled_next_run">التالي: %1$s</string>
+    <string name="scheduled_target_new_chat">محادثة جديدة في كل مرة</string>
+    <string name="scheduled_target_same_chat">المحادثة نفسها في كل مرة</string>
+    <string name="scheduled_last_run">آخر تشغيل: %1$s، %2$s</string>
+    <string name="scheduled_edit">تعديل</string>
+    <string name="scheduled_run_now">تشغيل الآن</string>
+    <string name="scheduled_run_now_started">بدأت. إنها تعمل في محادثتها.</string>
+    <string name="scheduled_run_now_busy">Gotcha مشغول بمهمة أخرى. حاول مجددًا عند انتهائها.</string>
+    <string name="scheduled_run_now_queued">في الانتظار. سيعمل عند انتهاء المهمة الحالية.</string>
+    <string name="scheduled_waiting_row">بانتظار التشغيل الحالي، إعادة المحاولة عند %1$s</string>
+    <string name="scheduled_waiting_title">«%1$s» في الانتظار</string>
+    <string name="scheduled_waiting_body">سيعمل عند انتهاء المهمة الحالية.</string>
+    <string name="scheduled_history">السجل</string>
+    <string name="scheduled_hide_history">إخفاء السجل</string>
+    <string name="scheduled_open_chat">فتح المحادثة</string>
+    <string name="scheduled_delete">حذف</string>
+    <string name="scheduled_delete_title">حذف «%1$s»؟</string>
+    <string name="scheduled_delete_body">تُحذف المهمة وسجلها. تبقى المحادثات التي جرت فيها تشغيلاتها.</string>
+    <string name="scheduled_cancel">إلغاء</string>
+    <string name="scheduled_save">حفظ</string>
+    <string name="scheduled_field_name">الاسم</string>
+    <string name="scheduled_field_prompt">ما الذي يفعله Gotcha</string>
+    <string name="scheduled_field_when">أول تشغيل</string>
+    <string name="scheduled_field_repeat">التكرار</string>
+    <string name="scheduled_repeat_none">مرة واحدة</string>
+    <string name="scheduled_repeat_hourly">كل بضع ساعات</string>
+    <string name="scheduled_repeat_daily">كل بضعة أيام</string>
+    <string name="scheduled_repeat_weekly">أسبوعيًا</string>
+    <string name="scheduled_repeat_monthly">شهريًا</string>
+    <string name="scheduled_field_every_hours">كل كم ساعة</string>
+    <string name="scheduled_field_every_days">كل كم يوم</string>
+    <string name="scheduled_field_mode">الوضع</string>
+    <string name="scheduled_mode_hint">المراقب يمكنه النظر والإبلاغ فقط. المشغّل يمكنه التصرف على هاتفك دون رقابة: اختره فقط لمهمة تحتاجه.</string>
+    <string name="scheduled_field_persona">الشخصية</string>
+    <string name="scheduled_persona_none">بلا</string>
+    <string name="scheduled_field_target">مكان التشغيل</string>
+    <string name="scheduled_same_chat_hint">تُضاف كل عملية إلى هذه المحادثة، فيرى Gotcha العمليات السابقة.</string>
+    <string name="scheduled_chat_first_run">محادثة جديدة، تُحفظ للعمليات اللاحقة</string>
+    <string name="scheduled_field_files">الملفات المرسلة مع الطلب</string>
+    <string name="scheduled_add_files">إضافة ملفات</string>
+    <string name="scheduled_remove_file">إزالة</string>
+    <string name="scheduled_field_retries">إذا فشلت العملية</string>
+    <string name="scheduled_unattended_hint">العملية التي تحتاج جوابك تنتظر دقيقتين، ثم تمضي كأنك قلت لا.</string>
+    <string name="scheduled_file_unreadable">تعذّرت قراءة بعض الملفات واستُبعدت.</string>
+    <string name="scheduled_too_many_files">يمكن إرفاق %1$d ملفات كحد أقصى بالمهمة.</string>
+    <string name="scheduled_error_name">أعطِ المهمة اسمًا.</string>
+    <string name="scheduled_error_prompt">قل ما الذي يجب أن يفعله Gotcha.</string>
+    <string name="scheduled_error_past">هذا الوقت مضى. اختر وقتًا لاحقًا، أو تكرارًا.</string>
+    <string name="scheduled_error_interval">استخدم رقمًا من 1 إلى %1$d.</string>
+    <string name="scheduled_error_too_much_text">تحتوي هذه المستندات نصًا أكثر من مهمة واحدة. أزل بعضها.</string>
+    <string name="scheduled_schedule_every_hour">كل ساعة</string>
+    <string name="scheduled_schedule_every_day">كل يوم عند %1$s</string>
+    <string name="scheduled_schedule_once">مرة واحدة، %1$s</string>
+    <string name="scheduled_schedule_weekly">كل %1$s عند %2$s</string>
+    <string name="scheduled_schedule_monthly">شهريًا في اليوم %1$d عند %2$s</string>
+    <string name="scheduled_status_done">تم</string>
+    <string name="scheduled_status_failed">فشل</string>
+    <string name="scheduled_status_stopped">توقف</string>
+    <string name="scheduled_status_missed">فائت: كان الهاتف مغلقًا أو نائمًا</string>
+    <string name="scheduled_status_skipped_busy">تم التخطي: كان Gotcha مشغولًا</string>
+    <string name="scheduled_status_needs_tap">بانتظار نقرة</string>
+    <string name="scheduled_status_not_started">تعذّر البدء</string>
+    <plurals name="scheduled_schedule_hours">
+        <item quantity="zero">كل %1$d ساعة</item>
+        <item quantity="one">كل ساعة واحدة (%1$d)</item>
+        <item quantity="two">كل ساعتين (%1$d)</item>
+        <item quantity="few">كل %1$d ساعات</item>
+        <item quantity="many">كل %1$d ساعة</item>
+        <item quantity="other">كل %1$d ساعة</item>
+    </plurals>
+    <plurals name="scheduled_schedule_days">
+        <item quantity="zero">كل %1$d يوم في %2$s</item>
+        <item quantity="one">كل يوم (%1$d) في %2$s</item>
+        <item quantity="two">كل يومين (%1$d) في %2$s</item>
+        <item quantity="few">كل %1$d أيام في %2$s</item>
+        <item quantity="many">كل %1$d يوماً في %2$s</item>
+        <item quantity="other">كل %1$d يوم في %2$s</item>
+    </plurals>
+    <plurals name="scheduled_retries">
+        <item quantity="zero">%1$d إعادة محاولة</item>
+        <item quantity="one">إعادة محاولة واحدة (%1$d)</item>
+        <item quantity="two">إعادتا محاولة (%1$d)</item>
+        <item quantity="few">%1$d إعادات محاولة</item>
+        <item quantity="many">%1$d إعادة محاولة</item>
+        <item quantity="other">%1$d إعادة محاولة</item>
+    </plurals>
+</resources>

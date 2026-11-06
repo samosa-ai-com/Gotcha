@@ -7,6 +7,7 @@ import android.os.Looper
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioProvider
 import com.gotcha.i18n.Language
+import com.gotcha.ui.theme.Skins
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -482,6 +483,13 @@ internal fun migrateSkinId(legacyThemeMode: String?): String =
         else -> SKIN_VELLUM
     }
 
+/**
+ * Maps a retired stored skin id to its replacement, or null to leave the
+ * stored value alone. Pure so the mapping is testable without preferences.
+ */
+internal fun retiredSkinIdReplacement(stored: String?): String? =
+    if (stored == "nocturne") Skins.Samosa.id else null
+
 /** The preference file [SettingsRepository] encrypts into. */
 internal const val SETTINGS_PREFS_FILE = "gotcha_settings"
 
@@ -592,6 +600,13 @@ class SettingsRepository(context: Context) : SettingsStore {
     /** Reads the stored skin, running the one-shot migration if it has not run. */
     private fun resolvedSkinId(): String {
         val stored = prefs.getString(KEY_SKIN_ID, null)
+        // The retired faceted theme persists here as "nocturne" until it is
+        // rewritten. Migrate it on first read so every reader of the setting,
+        // not just the theme resolver, sees the replacement id.
+        retiredSkinIdReplacement(stored)?.let { replacement ->
+            prefs.edit().putString(KEY_SKIN_ID, replacement).apply()
+            return replacement
+        }
         if (stored != null) return stored
         val migrated = migrateSkinId(prefs.getString(KEY_LEGACY_THEME_MODE, null))
         prefs.edit().putString(KEY_SKIN_ID, migrated).apply()

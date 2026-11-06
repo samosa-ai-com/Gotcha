@@ -100,4 +100,20 @@ class AndroidSpeechInfoTest {
         assertEquals(true, AndroidSpeechStatus(ttsAvailability = SpeechAvailability.ONLINE).ttsSupports)
         assertNull(AndroidSpeechStatus().ttsSupports)
     }
+
+    @Test
+    fun `a fallback engine covering the language counts as supported`() {
+        val google = AndroidEngine("com.google.android.tts", "Google")
+        assertEquals(
+            true,
+            AndroidSpeechStatus(
+                ttsAvailability = SpeechAvailability.DOWNLOADABLE,
+                ttsFallbackEngine = google
+            ).ttsSupports
+        )
+        assertEquals(
+            false,
+            AndroidSpeechStatus(ttsAvailability = SpeechAvailability.UNSUPPORTED).ttsSupports
+        )
+    }
 }

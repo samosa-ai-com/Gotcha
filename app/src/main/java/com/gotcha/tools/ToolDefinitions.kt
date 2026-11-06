@@ -3069,6 +3069,15 @@ object ToolDefinitions {
             putJsonObject("items") { put("type", "string") }
             put("description", "Paths of files sent with the prompt each time (read once, when saved). At most 10.")
         }
+        putJsonObject("memory_note") {
+            put("type", "string")
+            put(
+                "description",
+                "Absolute path of the memory note, person card or area hub this task works off " +
+                    "(under Gotcha/memory people/, areas/ or notes/). Links both ways: the note names " +
+                    "the task id back in its task_ref frontmatter. Pass an empty string to unlink. Optional."
+            )
+        }
     }
 
     val scheduleAgentTask = tool(

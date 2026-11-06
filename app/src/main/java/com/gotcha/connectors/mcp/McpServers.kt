@@ -38,22 +38,30 @@ data class McpServerConfig(
 }
 
 /** What is wrong with a server's URL or headers before anything is sent. */
-enum class McpConfigProblem { BAD_URL, CLEARTEXT_WITH_SECRET, BAD_HEADER, BAD_TOKEN }
+enum class McpConfigProblem { BAD_URL, BAD_HEADER, BAD_TOKEN }
 
 /**
- * Checks a server before it is contacted. Plain http is accepted for the local
- * network (a Home Assistant box, a dev machine), and anywhere when nothing
- * secret would travel with it; a token or header sent over http to the
- * internet could be read on the way, so that is refused.
+ * Checks a server before it is contacted. Both http and https are accepted;
+ * [isCleartextWithSecret] names the case that still earns a warning.
  */
 fun validateMcpServer(url: String, token: String, headers: Map<String, String>): McpConfigProblem? {
-    val parsed = url.trim().toHttpUrlOrNull() ?: return McpConfigProblem.BAD_URL
+    url.trim().toHttpUrlOrNull() ?: return McpConfigProblem.BAD_URL
     if (headers.keys.any { !isValidHeaderName(it) }) return McpConfigProblem.BAD_HEADER
     // OkHttp refuses to send anything else, so it is caught here rather than on the wire.
     if (!isHeaderValue(token) || headers.values.any { !isHeaderValue(it) }) return McpConfigProblem.BAD_TOKEN
-    val secret = token.isNotBlank() || headers.isNotEmpty()
-    if (!parsed.isHttps && secret && !isLocalHost(parsed.host)) return McpConfigProblem.CLEARTEXT_WITH_SECRET
     return null
+}
+
+/**
+ * True when a token or header would travel over plain http outside the local
+ * network, where it could be read on the way. Allowed, but the card says so
+ * (issue #154): plain http is accepted for a Home Assistant box or a dev
+ * machine, and the warning covers everywhere else.
+ */
+fun isCleartextWithSecret(url: String, token: String, headers: Map<String, String>): Boolean {
+    val parsed = url.trim().toHttpUrlOrNull() ?: return false
+    val secret = token.isNotBlank() || headers.isNotEmpty()
+    return !parsed.isHttps && secret && !isLocalHost(parsed.host)
 }
 
 private fun isHeaderValue(value: String): Boolean = value.all { it == '\t' || it in ' '..'~' }

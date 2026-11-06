@@ -1027,7 +1027,22 @@ class AssistiveBallService : Service() {
                 return START_NOT_STICKY
             }
             else -> {
-                startAsForeground()
+                try {
+                    startAsForeground()
+                } catch (e: SecurityException) {
+                    // Microphone-type foreground services need RECORD_AUDIO at
+                    // start time (issue #148). The toggle and boot receiver
+                    // check first, but a grant revoked between check and start
+                    // must degrade to "ball off", never kill the app process.
+                    android.util.Log.e("AssistiveBallService", "Ball needs microphone permission", e)
+                    android.widget.Toast.makeText(
+                        this,
+                        getString(R.string.ball_microphone_permission_not_granted),
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    stopBall()
+                    return START_NOT_STICKY
+                }
                 overlay.show()
                 _isRunning.value = true
                 maybeStartWakeWord()

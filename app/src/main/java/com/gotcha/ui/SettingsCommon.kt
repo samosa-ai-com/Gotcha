@@ -127,6 +127,11 @@ enum class SettingsPage(
         R.string.settings_page_personal_info_summary,
         "settings_personal_info_row"
     ),
+    CHATS(
+        R.string.settings_page_chats,
+        R.string.settings_page_chats_summary,
+        "settings_chats_row"
+    ),
     LANGUAGE(
         R.string.settings_page_language,
         R.string.settings_page_language_summary,
