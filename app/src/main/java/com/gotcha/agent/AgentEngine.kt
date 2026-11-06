@@ -1912,14 +1912,17 @@ class AgentEngine(
         while (start < history.size && history[start].role == "tool") start++
 
         val trimmed = history.subList(start, history.size)
-        // Many LLM APIs strictly require history to start with a user message.
-        // If our truncation or compaction leaves an assistant message first, prepend a dummy user message.
-        if (trimmed.isNotEmpty() && trimmed.first().role == "assistant") {
+        // Many LLM APIs strictly require the first non-system message to be the
+        // user's. If truncation or compaction leaves an assistant message first
+        // (compaction puts the memory startup system message ahead of its
+        // summary), insert a dummy user message after the leading system ones.
+        val firstTurn = trimmed.indexOfFirst { it.role != "system" }
+        if (firstTurn >= 0 && trimmed[firstTurn].role == "assistant") {
             val note = ChatMessage(
                 role = "user",
                 content = JsonPrimitive("[System Note: Conversation context restored from previous turn]")
             )
-            return listOf(note) + trimmed
+            return trimmed.subList(0, firstTurn) + note + trimmed.subList(firstTurn, trimmed.size)
         }
         return trimmed
     }

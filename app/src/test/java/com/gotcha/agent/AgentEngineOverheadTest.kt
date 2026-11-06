@@ -279,6 +279,19 @@ class AgentEngineOverheadTest {
                 1,
                 startupHits
             )
+            // The startup system message now sits ahead of the assistant
+            // summary, so the user-first guard must look past system messages:
+            // providers reject a request whose first non-system turn is the
+            // assistant's (PR #174 review).
+            val roles = kotlinx.serialization.json.Json.parseToJsonElement(mainRequest)
+                .let { it as kotlinx.serialization.json.JsonObject }["messages"]
+                .let { it as kotlinx.serialization.json.JsonArray }
+                .map { (it as kotlinx.serialization.json.JsonObject)["role"].toString().trim('"') }
+            assertEquals(
+                "first non-system message after compaction must be the user's; roles=$roles",
+                "user",
+                roles.first { it != "system" }
+            )
         } finally {
             if (previousRoot != null) {
                 com.gotcha.data.GotchaStorage.rootPath = previousRoot
