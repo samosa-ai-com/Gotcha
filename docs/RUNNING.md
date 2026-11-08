@@ -166,6 +166,8 @@ Settings screen fill in three fields:
 The app calls `POST {baseUrl}chat/completions`, so the Base URL must be the part
 *before* `chat/completions`.
 
+See [the local backend guide](local-llm-backends.md) for prompt caching, context budgets, and tool calling.
+
 ### Example provider settings
 
 | Provider | Base URL | Example model |
