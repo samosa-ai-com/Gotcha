@@ -75,7 +75,7 @@ import com.gotcha.service.AssistiveBallService
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.AgentMode
 import com.gotcha.tools.ScreenPerception
-import com.gotcha.tools.TermuxTool
+import com.gotcha.tools.TermuxShellBackend
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.AppDrawerContent
 import com.gotcha.ui.ChatAssetsScreen
@@ -613,18 +613,18 @@ class MainActivity : ComponentActivity() {
      * private storage and can only be set inside Termux.
      */
     private fun requestTermuxAccess() {
-        val granted = ContextCompat.checkSelfPermission(this, TermuxTool.PERMISSION_RUN_COMMAND) ==
+        val granted = ContextCompat.checkSelfPermission(this, TermuxShellBackend.PERMISSION_RUN_COMMAND) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
         if (granted) {
             openTermuxForExternalApps()
         } else {
-            termuxPermissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
+            termuxPermissionLauncher.launch(TermuxShellBackend.PERMISSION_RUN_COMMAND)
         }
     }
 
     /** Opens Termux with the one manual step spelled out; no-op if Termux is not installed. */
     private fun openTermuxForExternalApps() {
-        val launch = packageManager.getLaunchIntentForPackage(TermuxTool.TERMUX_PACKAGE)
+        val launch = packageManager.getLaunchIntentForPackage(TermuxShellBackend.TERMUX_PACKAGE)
         if (launch == null) {
             Toast.makeText(this, "Termux is not installed — install it from F-Droid.", Toast.LENGTH_LONG).show()
             return

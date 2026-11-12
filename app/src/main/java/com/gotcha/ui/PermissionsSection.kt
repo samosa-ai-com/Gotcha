@@ -38,7 +38,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
 import com.gotcha.service.GotchaDeviceAdminReceiver
 import com.gotcha.tools.HealthPermissionState
-import com.gotcha.tools.TermuxTool
+import com.gotcha.tools.TermuxShellBackend
 import com.gotcha.tools.ToolResult
 import com.gotcha.tools.healthConnectPermissionIntent
 import com.gotcha.ui.theme.SkinAlertDialog
@@ -138,7 +138,7 @@ fun PermissionsSection(
                         onRequestRuntime = { perms ->
                             runtimeLauncher.launch(perms)
                         },
-                        onOpenDetails = if (item.androidPermission == TermuxTool.PERMISSION_RUN_COMMAND) {
+                        onOpenDetails = if (item.androidPermission == TermuxShellBackend.PERMISSION_RUN_COMMAND) {
                             onOpenTermuxSetup
                         } else {
                             null

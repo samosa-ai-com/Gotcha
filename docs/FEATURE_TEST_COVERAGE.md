@@ -78,7 +78,7 @@ Every tool the assistant can call is listed below, together with how it is verif
 | `resume_audio_recording` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |
 | `run_command` | `UNIT` | `TerminalToolTest` — argument splitting, timeout, exit codes, output truncation |
 | `run_root_command` | `MANUAL_ONLY` | Requires a rooted device and an interactive superuser grant. |
-| `run_termux_command` | `ROBOLECTRIC` | `TermuxToolTest`, `ActionLogRedactionTest` — installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand |
+| `run_termux_command` | `ROBOLECTRIC` | `TermuxShellBackendTest`, `ActionLogRedactionTest` — installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand |
 | `schedule_agent_task` | `ROBOLECTRIC` | `ScheduledTaskToolTest`, `ScheduleTaskLoopTest`, `ScheduledRunTest`, `ScheduledTaskPlannerTest`, `ScheduledTaskScheduleTest` — argument checks before any prompt, the cap on agent-made tasks, approval on every create (denial saves nothing), the mode capped at the chat's, files read on approval, withheld from Monitor, sub-agents and scheduled runs; the schedule math and the runs it starts |
 | `send_email` | `UNIT` | `EmailToolsTest`, `MimeMessageBuilderTest` — confirmation flow, recipient handling, MIME construction with attachments |
 | `send_sms` | `MANUAL_ONLY` | Needs real device hardware; the emulator has no faithful stand-in for this sensor/radio. |

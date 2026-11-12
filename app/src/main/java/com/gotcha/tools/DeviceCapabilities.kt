@@ -164,7 +164,7 @@ object DeviceCapabilities {
     /**
      * Whether Termux is installed *and* exposes the RUN_COMMAND plugin API — deliberately not
      * whether the permission is granted, for the same reason [healthConnectPresent] ignores its
-     * grants: the permission is requested on demand by [TermuxTool], so gating on it would hide
+     * grants: the permission is requested on demand by [TermuxShellBackend], so gating on it would hide
      * the only tool that can ever raise the prompt. The plugin API has no such cycle; it is a
      * fixed property of which Termux build is installed, and the Google Play build ships without
      * it, so gating on it keeps the tool out of the model's hands on devices where no grant could

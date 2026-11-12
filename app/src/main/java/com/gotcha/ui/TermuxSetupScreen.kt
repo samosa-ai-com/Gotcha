@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.gotcha.R
-import com.gotcha.tools.TermuxTool
+import com.gotcha.tools.TermuxShellBackend
 import com.gotcha.tools.ToolResult
 import com.gotcha.ui.theme.GotchaMono
 import kotlinx.coroutines.launch
@@ -51,12 +51,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun TermuxSetupScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val tool = remember(context) { TermuxTool(context) }
+    val tool = remember(context) { TermuxShellBackend(context) }
     val overlay = rememberSettingsOverlayState()
     val scope = rememberCoroutineScope()
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
-    var state by remember { mutableStateOf(TermuxTool.TermuxSetupState.from(tool.status())) }
+    var state by remember { mutableStateOf(TermuxShellBackend.TermuxSetupState.from(tool.status())) }
     var probing by remember { mutableStateOf(false) }
     var probeFeedback by remember { mutableStateOf<String?>(null) }
 
@@ -72,13 +72,13 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(resumeSignal) {
-        state = TermuxTool.TermuxSetupState.from(tool.status())
+        state = TermuxShellBackend.TermuxSetupState.from(tool.status())
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        state = TermuxTool.TermuxSetupState.from(tool.status())
+        state = TermuxShellBackend.TermuxSetupState.from(tool.status())
         overlay.show(
             context.getString(
                 if (granted) {
@@ -98,11 +98,11 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
             state = state.copy(externalAppsEnabled = probe)
             probeFeedback = context.getString(
                 when (probe) {
-                    TermuxTool.TermuxConfigProbe.CONFIGURED ->
+                    TermuxShellBackend.TermuxConfigProbe.CONFIGURED ->
                         R.string.termux_setup_termux_answered_allow_external_apps
-                    TermuxTool.TermuxConfigProbe.NOT_CONFIGURED ->
+                    TermuxShellBackend.TermuxConfigProbe.NOT_CONFIGURED ->
                         R.string.termux_setup_termux_answered_but_allow_external
-                    TermuxTool.TermuxConfigProbe.UNKNOWN ->
+                    TermuxShellBackend.TermuxConfigProbe.UNKNOWN ->
                         R.string.termux_setup_could_not_confirm_open_termux
                 }
             )
@@ -130,7 +130,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 SetupAction(stringResource(R.string.termux_setup_action_install_termux_from_fdroid)) {
                     runCatching {
                         context.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(TermuxTool.TERMUX_FDROID_URL))
+                            Intent(Intent.ACTION_VIEW, Uri.parse(TermuxShellBackend.TERMUX_FDROID_URL))
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
                     }.onFailure {
@@ -168,7 +168,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 state.permissionGranted -> null
                 state.installed && state.pluginApiAvailable ->
                     SetupAction(stringResource(R.string.termux_setup_action_grant_permission)) {
-                        permissionLauncher.launch(TermuxTool.PERMISSION_RUN_COMMAND)
+                        permissionLauncher.launch(TermuxShellBackend.PERMISSION_RUN_COMMAND)
                     }
                 else -> null
             }
@@ -176,14 +176,14 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
 
         SetupCheck(
             title = stringResource(R.string.termux_setup_allow_external_apps),
-            done = state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.CONFIGURED,
+            done = state.externalAppsEnabled == TermuxShellBackend.TermuxConfigProbe.CONFIGURED,
             detail = stringResource(
                 when {
                     !state.installed -> R.string.termux_setup_install_termux_first
                     !state.pluginApiAvailable -> R.string.termux_setup_this_build_cannot_run_commands
-                    state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.CONFIGURED ->
+                    state.externalAppsEnabled == TermuxShellBackend.TermuxConfigProbe.CONFIGURED ->
                         R.string.termux_setup_allow_external_apps_is_enabled
-                    state.externalAppsEnabled == TermuxTool.TermuxConfigProbe.NOT_CONFIGURED ->
+                    state.externalAppsEnabled == TermuxShellBackend.TermuxConfigProbe.NOT_CONFIGURED ->
                         R.string.termux_setup_allow_external_apps_is_not
                     else -> R.string.termux_setup_not_confirmed_yet_open_termux
                 }
@@ -204,7 +204,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    TermuxTool.SETUP_COMMANDS,
+                    TermuxShellBackend.SETUP_COMMANDS,
                     style = MaterialTheme.typography.bodySmall.copy(fontFamily = GotchaMono),
                     modifier = Modifier.padding(12.dp)
                 )
@@ -213,7 +213,7 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = {
                         clipboard?.setPrimaryClip(
-                            ClipData.newPlainText("Termux setup", TermuxTool.SETUP_COMMANDS)
+                            ClipData.newPlainText("Termux setup", TermuxShellBackend.SETUP_COMMANDS)
                         )
                         overlay.show(context.getString(R.string.termux_setup_copied_to_clipboard))
                     },

@@ -43,7 +43,7 @@ import java.util.UUID
  */
 class TermuxFileBridge(
     private val context: Context,
-    private val termux: TermuxTool = TermuxTool(context)
+    private val termux: TermuxShellBackend = TermuxShellBackend(context)
 ) {
 
     private val resolver = FileResolver(context)
@@ -376,7 +376,7 @@ class TermuxFileBridge(
      * stall the transfer.
      */
     internal fun senderCommand(port: Int, nonce: String, source: String): String =
-        TermuxTool.withWakeLock("python3 - $port $nonce ${FfmpegCommand.shellQuote(source)}")
+        TermuxShellBackend.withWakeLock("python3 - $port $nonce ${FfmpegCommand.shellQuote(source)}")
 
     /** The `python3` client program, reading port/nonce/path from argv. It announces the file size
      * before streaming so the receiver can reject a truncated body rather than accept it. */

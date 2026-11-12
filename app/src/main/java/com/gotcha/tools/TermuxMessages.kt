@@ -3,7 +3,7 @@ package com.gotcha.tools
 /**
  * What the model is told when a Termux command cannot run, or ran but told us little.
  *
- * Kept apart from [TermuxTool] because these are the product of the work rather than the
+ * Kept apart from [TermuxShellBackend] because these are the product of the work rather than the
  * mechanics of it: every one of them is the model's only clue about a device state it cannot
  * otherwise see, and several describe situations we genuinely cannot distinguish. Composing them
  * next to the intent plumbing made both harder to read.
@@ -44,7 +44,7 @@ internal object TermuxMessages {
      * what the chat shows with a Copy button (issue #109).
      */
     fun externalAppsFix(): String =
-        "\n\nThe user runs this in Termux:\n\n```bash\n${TermuxTool.SETUP_COMMANDS}\n```\n\n" +
+        "\n\nThe user runs this in Termux:\n\n```bash\n${TermuxShellBackend.SETUP_COMMANDS}\n```\n\n" +
             "When you tell the user, give them exactly this fenced block, not the commands inline."
 
     /**
@@ -53,7 +53,7 @@ internal object TermuxMessages {
      * (ForegroundServiceStartNotAllowedException). Gotcha's assistive ball holds a foreground
      * service that exempts us, so this shows up when it is switched off and the chat UI has been
      * backgrounded. The older "app is in background uid null" came from starting it with
-     * startService while Termux was not running, whatever Gotcha's state; see [TermuxTool.runCommand].
+     * startService while Termux was not running, whatever Gotcha's state; see [TermuxShellBackend.runCommand].
      */
     fun startFailed(cause: Throwable) = ToolResult.error(
         "Could not reach Termux's RUN_COMMAND service: ${cause.message}. If that says Gotcha is in the " +
@@ -159,9 +159,9 @@ internal object TermuxMessages {
 
     /** Termux's errno is not a plain "0 means fine" code, so spell it out. */
     fun errnoLabel(err: Int): String = when (err) {
-        TermuxTool.ERRNO_CANCELLED -> "cancelled"
-        TermuxTool.ERRNO_MINOR_FAILURES -> "completed with minor failures"
-        TermuxTool.ERRNO_FAILED -> "failed"
+        TermuxShellBackend.ERRNO_CANCELLED -> "cancelled"
+        TermuxShellBackend.ERRNO_MINOR_FAILURES -> "completed with minor failures"
+        TermuxShellBackend.ERRNO_FAILED -> "failed"
         else -> "error code $err"
     }
 }

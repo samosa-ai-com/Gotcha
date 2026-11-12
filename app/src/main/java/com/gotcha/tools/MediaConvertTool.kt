@@ -11,7 +11,7 @@ import java.io.File
  * Android ships an MP3 decoder but no encoder, and [MediaEditTool]'s muxer
  * writes only AAC, so MP3 — the format people ask for by name more than any
  * other — is unreachable on-device through the media3 pipeline at any effort.
- * Termux's ffmpeg carries libmp3lame and the rest, and [TermuxTool] is already
+ * Termux's ffmpeg carries libmp3lame and the rest, and [TermuxShellBackend] is already
  * wired up, so the conversion still happens entirely on the phone.
  *
  * Kept a separate tool from [MediaEditTool] rather than an eighth operation on
@@ -51,12 +51,12 @@ class MediaConvertTool(
         /**
          * Ceiling for one conversion. Audio re-encoding is roughly realtime-over-N
          * on a phone, so this covers a long album side while staying under
-         * [TermuxTool]'s own 600s hard limit.
+         * [TermuxShellBackend]'s own 600s hard limit.
          */
         const val TIMEOUT_SECONDS = 480
 
         /**
-         * [TermuxTool.formatResult] always opens with this. Its presence is how a
+         * [TermuxShellBackend.formatResult] always opens with this. Its presence is how a
          * command that *ran and failed* is told apart from Termux itself being
          * unavailable — the latter carries its own well-written message from
          * [TermuxMessages], which should reach the model unaltered rather than be

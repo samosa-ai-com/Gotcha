@@ -49,5 +49,5 @@ interface ShellBackend {
 
 /** Chooses the [ShellBackend] the tools talk to. */
 object ShellBackends {
-    fun active(context: Context): ShellBackend = TermuxTool(context)
+    fun active(context: Context): ShellBackend = TermuxShellBackend(context)
 }

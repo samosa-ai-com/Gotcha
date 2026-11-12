@@ -708,7 +708,7 @@
       "tool": "run_termux_command",
       "tier": "ROBOLECTRIC",
       "tests": [
-        "com.gotcha.tools.TermuxToolTest",
+        "com.gotcha.tools.TermuxShellBackendTest",
         "com.gotcha.tools.ActionLogRedactionTest"
       ],
       "notes": "installed/granted decision table, deny-list, size guard, result-bundle parsing, truncation, timeout path; the live round-trip needs a real Termux install and is verified by hand"

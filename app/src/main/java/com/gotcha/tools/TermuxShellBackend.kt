@@ -42,7 +42,7 @@ import kotlin.random.Random
  * unprivileged [TerminalTool] (`run_command`) stays the tool for Gotcha's own sandbox, which is
  * invisible from Termux's uid.
  */
-class TermuxTool(
+class TermuxShellBackend(
     private val context: Context,
     private val defaultTimeoutSeconds: Int = 120,
     private val maxOutputBytes: Int = 32 * 1024

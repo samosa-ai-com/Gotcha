@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 /**
  * `run_termux_command`. Real Termux cannot exist on the JVM, so this covers everything up to and
  * after the intent: the {installed, granted} decision table via ShadowPackageManager, the
- * validation guards, and result-bundle parsing — which is why [TermuxTool.formatResult] is a
+ * validation guards, and result-bundle parsing — which is why [TermuxShellBackend.formatResult] is a
  * separate function rather than inlined into the coroutine.
  *
  * The live round-trip (a real `pkg install`) is manual by necessity; see
@@ -29,10 +29,10 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [30, 34])
-class TermuxToolTest {
+class TermuxShellBackendTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private val tool = TermuxTool(context)
+    private val tool = TermuxShellBackend(context)
 
     /**
      * The F-Droid/GitHub build: the package plus a resolvable RunCommandService.
@@ -43,10 +43,10 @@ class TermuxToolTest {
     private fun installTermux() {
         playStoreTermux()
         shadowOf(context.packageManager).addServiceIfNotPresent(
-            ComponentName(TermuxTool.TERMUX_PACKAGE, "com.termux.app.RunCommandService")
+            ComponentName(TermuxShellBackend.TERMUX_PACKAGE, "com.termux.app.RunCommandService")
         )
         shadowOf(context.packageManager).addIntentFilterForService(
-            ComponentName(TermuxTool.TERMUX_PACKAGE, "com.termux.app.RunCommandService"),
+            ComponentName(TermuxShellBackend.TERMUX_PACKAGE, "com.termux.app.RunCommandService"),
             IntentFilter("com.termux.RUN_COMMAND")
         )
     }
@@ -55,7 +55,7 @@ class TermuxToolTest {
     private fun playStoreTermux() {
         shadowOf(context.packageManager).installPackage(
             PackageInfo().apply {
-                packageName = TermuxTool.TERMUX_PACKAGE
+                packageName = TermuxShellBackend.TERMUX_PACKAGE
                 versionName = "0.118.0"
             }
         )
@@ -63,7 +63,7 @@ class TermuxToolTest {
 
     private fun grantRunCommand() {
         shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>())
-            .grantPermissions(TermuxTool.PERMISSION_RUN_COMMAND)
+            .grantPermissions(TermuxShellBackend.PERMISSION_RUN_COMMAND)
     }
 
     // ---- status / decision table ----
@@ -139,7 +139,7 @@ class TermuxToolTest {
         )
         assertTrue(
             "the setup commands go to the model as a fenced block: ${result.message}",
-            result.message.contains("```bash\n${TermuxTool.SETUP_COMMANDS}\n```")
+            result.message.contains("```bash\n${TermuxShellBackend.SETUP_COMMANDS}\n```")
         )
     }
 
@@ -189,7 +189,7 @@ class TermuxToolTest {
                 null
         }
 
-        val result = TermuxTool(nullStartingContext).runCommand("echo hello", timeoutSeconds = 600)
+        val result = TermuxShellBackend(nullStartingContext).runCommand("echo hello", timeoutSeconds = 600)
 
         assertFalse(result.success)
         assertTrue("must not be reported as still running: ${result.message}", result.message.contains("force-stopped"))
@@ -214,7 +214,7 @@ class TermuxToolTest {
             }
         }
 
-        TermuxTool(recordingContext).runCommand("echo hello")
+        TermuxShellBackend(recordingContext).runCommand("echo hello")
 
         assertEquals("com.termux.RUN_COMMAND", viaForeground?.action)
     }
@@ -235,8 +235,8 @@ class TermuxToolTest {
     fun `commands are refused once the concurrency cap is saturated`() = runTest {
         installTermux()
         grantRunCommand()
-        repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) {
-            assertTrue("slot $it should be free", TermuxTool.acquireSlotForTest())
+        repeat(TermuxShellBackend.MAX_CONCURRENT_FOR_TEST) {
+            assertTrue("slot $it should be free", TermuxShellBackend.acquireSlotForTest())
         }
         try {
             val refused = tool.runCommand("echo hello", timeoutSeconds = 1)
@@ -248,7 +248,7 @@ class TermuxToolTest {
             )
             assertTrue("must explain why waiting is the fix", refused.message.contains("cannot kill"))
         } finally {
-            repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) { TermuxTool.releaseSlotForTest() }
+            repeat(TermuxShellBackend.MAX_CONCURRENT_FOR_TEST) { TermuxShellBackend.releaseSlotForTest() }
         }
     }
 
@@ -260,10 +260,10 @@ class TermuxToolTest {
 
         tool.runCommand("echo hello", timeoutSeconds = 1)
 
-        repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) {
-            assertTrue("slot $it should have been returned", TermuxTool.acquireSlotForTest())
+        repeat(TermuxShellBackend.MAX_CONCURRENT_FOR_TEST) {
+            assertTrue("slot $it should have been returned", TermuxShellBackend.acquireSlotForTest())
         }
-        repeat(TermuxTool.MAX_CONCURRENT_FOR_TEST) { TermuxTool.releaseSlotForTest() }
+        repeat(TermuxShellBackend.MAX_CONCURRENT_FOR_TEST) { TermuxShellBackend.releaseSlotForTest() }
     }
 
     @Test
@@ -274,7 +274,7 @@ class TermuxToolTest {
         installTermux()
 
         assertTrue("should end at Termux's files dir: ${tool.termuxFiles()}", tool.termuxFiles().endsWith("/files"))
-        assertTrue(tool.termuxFiles().contains(TermuxTool.TERMUX_PACKAGE))
+        assertTrue(tool.termuxFiles().contains(TermuxShellBackend.TERMUX_PACKAGE))
         assertEquals("${tool.termuxFiles()}/home", tool.termuxHome())
     }
 
@@ -482,7 +482,7 @@ class TermuxToolTest {
 
     @Test
     fun `pkg-like commands are wrapped in a wake-lock that preserves the exit code`() {
-        val wrapped = TermuxTool.withWakeLock("pkg install ffmpeg -y -q")
+        val wrapped = TermuxShellBackend.withWakeLock("pkg install ffmpeg -y -q")
 
         assertTrue(wrapped.contains("termux-wake-lock"))
         assertTrue(wrapped.contains("termux-wake-unlock"))
@@ -490,14 +490,17 @@ class TermuxToolTest {
         assertTrue(wrapped.contains("exit \$rc"))
         assertTrue("must degrade on a stripped Termux", wrapped.contains("command -v termux-wake-lock"))
         assertTrue(wrapped.contains("pkg install ffmpeg -y -q"))
-        assertTrue("an already-wrapped command is not double-wrapped", wrapped == TermuxTool.withWakeLock(wrapped))
+        assertTrue(
+            "an already-wrapped command is not double-wrapped",
+            wrapped == TermuxShellBackend.withWakeLock(wrapped)
+        )
     }
 
     @Test
     fun `the wake-lock wrap uses an EXIT trap so a bare exit cannot leak the lock`() {
         // The skill's persistence pattern ends with a bare `exit 0`; a trailing
         // `termux-wake-unlock` sequence would never run and the wake-lock would leak.
-        val wrapped = TermuxTool.withWakeLock("pkg install ffmpeg -y && exit 0")
+        val wrapped = TermuxShellBackend.withWakeLock("pkg install ffmpeg -y && exit 0")
 
         assertTrue("must trap EXIT for the unlock: $wrapped", wrapped.contains("trap 'termux-wake-unlock' EXIT"))
         assertTrue(wrapped.contains("termux-wake-unlock"))
@@ -506,7 +509,7 @@ class TermuxToolTest {
 
     @Test
     fun `pkg-like commands are made non-interactive and wake-locked`() {
-        val run = TermuxTool.commandToRun("pkg install ffmpeg -y")
+        val run = TermuxShellBackend.commandToRun("pkg install ffmpeg -y")
 
         assertTrue(
             "must silence conffile prompts",
@@ -518,9 +521,9 @@ class TermuxToolTest {
     @Test
     fun `an explicit DEBIAN_FRONTEND is left untouched`() {
         val explicit = "DEBIAN_FRONTEND=interactive apt-get install -y libc++"
-        assertEquals(explicit, TermuxTool.withNonInteractive(explicit))
+        assertEquals(explicit, TermuxShellBackend.withNonInteractive(explicit))
         assertTrue(
-            TermuxTool.withNonInteractive("apt-get install -y libc++")
+            TermuxShellBackend.withNonInteractive("apt-get install -y libc++")
                 .startsWith("DEBIAN_FRONTEND=noninteractive")
         )
     }
@@ -530,7 +533,7 @@ class TermuxToolTest {
         // The old `DEBIAN_FRONTEND in command` substring check skipped the injection for a package
         // whose name merely contains the literal, silently leaving the conffile prompt in place.
         assertTrue(
-            TermuxTool.withNonInteractive("apt-get install -y lib-DEBIAN_FRONTEND-1")
+            TermuxShellBackend.withNonInteractive("apt-get install -y lib-DEBIAN_FRONTEND-1")
                 .startsWith("DEBIAN_FRONTEND=noninteractive")
         )
     }
@@ -538,8 +541,8 @@ class TermuxToolTest {
     @Test
     fun `a non-pkg command is not wake-lock wrapped`() {
         // withWakeLock/withNonInteractive themselves wrap anything; the package-manager gate lives in commandToRun.
-        assertEquals("echo hello", TermuxTool.commandToRun("echo hello"))
-        val run = TermuxTool.commandToRun("pkg install ffmpeg -y")
+        assertEquals("echo hello", TermuxShellBackend.commandToRun("echo hello"))
+        val run = TermuxShellBackend.commandToRun("pkg install ffmpeg -y")
         assertTrue(run.contains("termux-wake-lock"))
         assertTrue(run.contains("DEBIAN_FRONTEND=noninteractive"))
     }
@@ -570,10 +573,10 @@ class TermuxToolTest {
         // return EOF when the caller never asked for that.
         installTermux()
 
-        assertFalse(tool.buildCommandIntentForTest("cat", null, null).hasExtra(TermuxTool.EXTRA_STDIN))
+        assertFalse(tool.buildCommandIntentForTest("cat", null, null).hasExtra(TermuxShellBackend.EXTRA_STDIN))
         assertEquals(
             "hello",
-            tool.buildCommandIntentForTest("cat", null, "hello").getStringExtra(TermuxTool.EXTRA_STDIN)
+            tool.buildCommandIntentForTest("cat", null, "hello").getStringExtra(TermuxShellBackend.EXTRA_STDIN)
         )
     }
 
@@ -583,10 +586,10 @@ class TermuxToolTest {
 
         val intent = tool.buildCommandIntentForTest("echo hi", null, null)
 
-        assertEquals("${tool.termuxFiles()}/usr/bin/sh", intent.getStringExtra(TermuxTool.EXTRA_COMMAND_PATH))
-        assertArrayEquals(arrayOf("-c", "echo hi"), intent.getStringArrayExtra(TermuxTool.EXTRA_ARGUMENTS))
-        assertEquals(tool.termuxHome(), intent.getStringExtra(TermuxTool.EXTRA_WORKDIR))
-        assertTrue("must stay headless", intent.getBooleanExtra(TermuxTool.EXTRA_BACKGROUND, false))
+        assertEquals("${tool.termuxFiles()}/usr/bin/sh", intent.getStringExtra(TermuxShellBackend.EXTRA_COMMAND_PATH))
+        assertArrayEquals(arrayOf("-c", "echo hi"), intent.getStringArrayExtra(TermuxShellBackend.EXTRA_ARGUMENTS))
+        assertEquals(tool.termuxHome(), intent.getStringExtra(TermuxShellBackend.EXTRA_WORKDIR))
+        assertTrue("must stay headless", intent.getBooleanExtra(TermuxShellBackend.EXTRA_BACKGROUND, false))
     }
 
     @Test
@@ -595,7 +598,7 @@ class TermuxToolTest {
 
         val intent = tool.buildCommandIntentForTest("ls", "/data/data/com.termux/files/usr", null)
 
-        assertEquals("/data/data/com.termux/files/usr", intent.getStringExtra(TermuxTool.EXTRA_WORKDIR))
+        assertEquals("/data/data/com.termux/files/usr", intent.getStringExtra(TermuxShellBackend.EXTRA_WORKDIR))
     }
 
     // ---- result-bundle parsing ----
@@ -632,7 +635,7 @@ class TermuxToolTest {
         // successful run. Caught on a Nothing Phone 3a: `uname -a` returned err = -1 and its
         // output was thrown away as "Termux refused or could not run the command".
         val bundle = resultBundle(exitCode = 0, stdout = "Linux localhost 5.15.0 aarch64 Android\n")
-            .apply { putInt(TermuxTool.RESULT_ERR, TermuxTool.ERRNO_SUCCESS) }
+            .apply { putInt(TermuxShellBackend.RESULT_ERR, TermuxShellBackend.ERRNO_SUCCESS) }
 
         val result = tool.formatResult(bundle)
 
@@ -642,7 +645,7 @@ class TermuxToolTest {
 
     @Test
     fun `errno 0 is cancelled, not success`() {
-        val bundle = resultBundle(exitCode = 0).apply { putInt(TermuxTool.RESULT_ERR, 0) }
+        val bundle = resultBundle(exitCode = 0).apply { putInt(TermuxShellBackend.RESULT_ERR, 0) }
 
         val result = tool.formatResult(bundle)
 
@@ -657,9 +660,9 @@ class TermuxToolTest {
         // returns already tells the user precisely what to fix — so it must be passed through
         // rather than flattened into a generic failure.
         val bundle = Bundle().apply {
-            putInt(TermuxTool.RESULT_ERR, 2)
+            putInt(TermuxShellBackend.RESULT_ERR, 2)
             putString(
-                TermuxTool.RESULT_ERRMSG,
+                TermuxShellBackend.RESULT_ERRMSG,
                 "Error Code: `2`\nError Message:\n```\nRunCommandService requires `allow-external-apps` " +
                     "property to be set to `true` in `~/.termux/termux.properties` file.\n```"
             )
@@ -673,15 +676,15 @@ class TermuxToolTest {
         assertTrue(result.message.contains("termux.properties"))
         assertTrue(
             "the fix is handed over as a fenced block, which the chat shows with a Copy button",
-            result.message.contains("```bash\n${TermuxTool.SETUP_COMMANDS}\n```")
+            result.message.contains("```bash\n${TermuxShellBackend.SETUP_COMMANDS}\n```")
         )
     }
 
     @Test
     fun `a termux-side failure surfaces its message and fails`() {
         val bundle = resultBundle(exitCode = 0).apply {
-            putInt(TermuxTool.RESULT_ERR, 2) // ERRNO_FAILED
-            putString(TermuxTool.RESULT_ERRMSG, "allow-external-apps is false")
+            putInt(TermuxShellBackend.RESULT_ERR, 2) // ERRNO_FAILED
+            putString(TermuxShellBackend.RESULT_ERRMSG, "allow-external-apps is false")
         }
 
         val result = tool.formatResult(bundle)
@@ -703,7 +706,7 @@ class TermuxToolTest {
     fun `termux truncating the bundle itself is reported too`() {
         // Termux sends the original lengths as strings, and only ever sends what fits in ~100KB.
         val bundle = resultBundle(exitCode = 0, stdout = "z".repeat(100)).apply {
-            putString(TermuxTool.RESULT_STDOUT_ORIGINAL_LENGTH, "500000")
+            putString(TermuxShellBackend.RESULT_STDOUT_ORIGINAL_LENGTH, "500000")
         }
 
         assertTrue(tool.formatResult(bundle).message.contains("~100KB result limit"))
@@ -711,7 +714,7 @@ class TermuxToolTest {
 
     @Test
     fun `a missing exit code does not read as success`() {
-        val result = tool.formatResult(Bundle().apply { putString(TermuxTool.RESULT_STDOUT, "partial") })
+        val result = tool.formatResult(Bundle().apply { putString(TermuxShellBackend.RESULT_STDOUT, "partial") })
 
         assertFalse(result.success)
         assertTrue(result.message.contains("exit code: -1"))
@@ -722,10 +725,10 @@ class TermuxToolTest {
     @Test
     fun `a success classifies the probe as configured`() {
         val result = tool.formatResult(
-            resultBundle(exitCode = 0).apply { putInt(TermuxTool.RESULT_ERR, TermuxTool.ERRNO_SUCCESS) }
+            resultBundle(exitCode = 0).apply { putInt(TermuxShellBackend.RESULT_ERR, TermuxShellBackend.ERRNO_SUCCESS) }
         )
 
-        assertEquals(TermuxTool.TermuxConfigProbe.CONFIGURED, tool.classifyProbe(result))
+        assertEquals(TermuxShellBackend.TermuxConfigProbe.CONFIGURED, tool.classifyProbe(result))
     }
 
     @Test
@@ -734,15 +737,15 @@ class TermuxToolTest {
         // the probe decision, exactly as it survives formatResult.
         val result = tool.formatResult(
             Bundle().apply {
-                putInt(TermuxTool.RESULT_ERR, 2)
+                putInt(TermuxShellBackend.RESULT_ERR, 2)
                 putString(
-                    TermuxTool.RESULT_ERRMSG,
+                    TermuxShellBackend.RESULT_ERRMSG,
                     "RunCommandService requires `allow-external-apps` property to be set to `true`"
                 )
             }
         )
 
-        assertEquals(TermuxTool.TermuxConfigProbe.NOT_CONFIGURED, tool.classifyProbe(result))
+        assertEquals(TermuxShellBackend.TermuxConfigProbe.NOT_CONFIGURED, tool.classifyProbe(result))
     }
 
     @Test
@@ -750,7 +753,7 @@ class TermuxToolTest {
         // TermuxMessages.permissionNeeded mentions allow-external-apps too, but it is a guard
         // path — we never got a real answer — so it must read as UNKNOWN, not NOT_CONFIGURED.
         assertEquals(
-            TermuxTool.TermuxConfigProbe.UNKNOWN,
+            TermuxShellBackend.TermuxConfigProbe.UNKNOWN,
             tool.classifyProbe(TermuxMessages.permissionNeeded())
         )
     }
@@ -758,21 +761,21 @@ class TermuxToolTest {
     @Test
     fun `a generic failure is unknown`() {
         assertEquals(
-            TermuxTool.TermuxConfigProbe.UNKNOWN,
+            TermuxShellBackend.TermuxConfigProbe.UNKNOWN,
             tool.classifyProbe(ToolResult.error("some unrelated failure"))
         )
     }
 
     @Test
     fun `probe reports unknown when termux is absent`() = runTest {
-        assertEquals(TermuxTool.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
+        assertEquals(TermuxShellBackend.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
     }
 
     @Test
     fun `probe reports unknown before the permission is granted`() = runTest {
         installTermux()
 
-        assertEquals(TermuxTool.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
+        assertEquals(TermuxShellBackend.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
     }
 
     @Test
@@ -780,7 +783,7 @@ class TermuxToolTest {
         installTermux()
         grantRunCommand()
         // No real Termux answers the PendingIntent, so the probe hits its timeout.
-        assertEquals(TermuxTool.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
+        assertEquals(TermuxShellBackend.TermuxConfigProbe.UNKNOWN, tool.probeExternalApps())
     }
 
     // ---- receiver hand-off ----
@@ -789,15 +792,15 @@ class TermuxToolTest {
     fun `the receiver hands a result to the waiting caller and drops unknown ones`() {
         // completeResult clears the entry it completes; an unknown code must be a no-op rather
         // than a crash, since a timed-out caller has already removed itself.
-        assertFalse(TermuxTool.isPending(Int.MAX_VALUE))
-        TermuxTool.completeResult(Int.MAX_VALUE, resultBundle(exitCode = 0))
-        assertFalse(TermuxTool.isPending(Int.MAX_VALUE))
+        assertFalse(TermuxShellBackend.isPending(Int.MAX_VALUE))
+        TermuxShellBackend.completeResult(Int.MAX_VALUE, resultBundle(exitCode = 0))
+        assertFalse(TermuxShellBackend.isPending(Int.MAX_VALUE))
     }
 
     private fun resultBundle(exitCode: Int, stdout: String? = null, stderr: String? = null) =
         Bundle().apply {
-            putInt(TermuxTool.RESULT_EXIT_CODE, exitCode)
-            stdout?.let { putString(TermuxTool.RESULT_STDOUT, it) }
-            stderr?.let { putString(TermuxTool.RESULT_STDERR, it) }
+            putInt(TermuxShellBackend.RESULT_EXIT_CODE, exitCode)
+            stdout?.let { putString(TermuxShellBackend.RESULT_STDOUT, it) }
+            stderr?.let { putString(TermuxShellBackend.RESULT_STDERR, it) }
         }
 }
