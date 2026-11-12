@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
@@ -45,7 +46,14 @@ class TermuxTool(
     private val context: Context,
     private val defaultTimeoutSeconds: Int = 120,
     private val maxOutputBytes: Int = 32 * 1024
-) {
+) : ShellBackend {
+
+    override val id: String get() = "termux"
+
+    override val home: String get() = termuxHome()
+
+    /** One bridge per tool, so its storage-link probe cache lives as long as the tool does. */
+    private val fileBridge by lazy { TermuxFileBridge(context, this) }
 
     /** What the model needs to know about Termux, rendered into the `<env>` block each turn. */
     data class TermuxStatus(
@@ -60,9 +68,26 @@ class TermuxTool(
         val pluginApiAvailable: Boolean,
         val permissionGranted: Boolean,
         val versionName: String?
-    ) {
+    ) : ShellStatus {
         /** Termux can actually run something for us (modulo the grant). */
-        val usable: Boolean get() = installed && pluginApiAvailable
+        override val usable: Boolean get() = installed && pluginApiAvailable
+
+        // run_termux_command is withheld unless Termux is installed, and refuses until its
+        // RUN_COMMAND permission is granted, so this line is how the model knows to say
+        // "install Termux" or "allow the permission" rather than just failing.
+        override val envLine: String
+            get() = when {
+                !installed ->
+                    "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
+                !pluginApiAvailable ->
+                    "  Termux installed: yes (version ${versionName ?: "unknown"}) but this build " +
+                        "has no RUN_COMMAND service — it is the Google Play build, which removes the API. " +
+                        "run_termux_command is unavailable and no permission can fix it; only replacing " +
+                        "Termux with the F-Droid or GitHub build would."
+                else ->
+                    "  Termux installed: yes (version ${versionName ?: "unknown"}, " +
+                        "RUN_COMMAND granted: ${if (permissionGranted) "yes" else "no"})"
+            }
     }
 
     /** How far Termux's `allow-external-apps` setup has been verified. */
@@ -121,40 +146,7 @@ class TermuxTool(
         else -> TermuxConfigProbe.UNKNOWN
     }
 
-    /**
-     * Irreversible, device-destroying operations we refuse even here. Deliberately
-     * [RootTool]'s narrow list rather than [TerminalTool]'s: `rm -r` inside Termux's own
-     * `$HOME` is ordinary housekeeping, and `pkg` needs it.
-     *
-     * **This is a guardrail, not a security boundary.** It matches text, so anything indirect
-     * walks straight through it — a variable, an escape, a here-doc, `base64 -d | sh`. It exists
-     * to stop a plausible-looking mistake from wiping a device, not to contain an attacker who
-     * already controls what the model asks for. The real boundary is the user granting Termux
-     * access at all. Do not add checks here that only make sense against a determined evader:
-     * they would suggest a guarantee this cannot make.
-     */
-    private val denyPatterns = listOf(
-        Regex("""\bmkfs\b"""), // reformat a filesystem
-        Regex("""\bdd\b[^\n]*\bof=/dev/"""), // raw write to a block device
-        // `rm` whose target is the root tree itself: `rm -rf /`, `rm -rf /*`, `rm -r -f /`.
-        Regex("""\brm\s+(?:-\S+\s+)*/\s*\*?\s*$"""),
-        // Defeats coreutils' own refusal to remove `/`, so its presence is intent enough.
-        Regex("""--no-preserve-root"""),
-        Regex("""\bfastboot\b"""),
-        Regex("""\brecovery\b[^\n]*--wipe"""),
-        // Deleting a live package manager's lock files or DB while a dpkg holds the fd does not
-        // release the lock — it lets a second apt write /var/lib/dpkg/status concurrently and
-        // corrupt the package database. The only remedies are to wait or to tap Exit on the
-        // Termux notification, so the mistake is refused rather than explained after the fact.
-        Regex("""\brm\b[^\n]*(?:dpkg/lock(?:-frontend)?|dpkg/status|apt/lists/lock|apt/archives/lock)"""),
-        // SIGKILL on a package manager or a bare PID. The model cannot legitimately kill a
-        // process from another call anyway (see termux_background), and `kill -9` on a live
-        // dpkg mid-transaction leaves a half-configured package that needs dpkg --configure -a.
-        Regex("""\bkill\s+-9\b[^\n]*(?:\b\d+\b|\bdpkg\b|\bapt(?:-get)?\b|\bpkg\b)"""),
-        Regex("""\b(?:pkill|killall)\b[^\n]*(?:\bdpkg\b|\bapt(?:-get)?\b|\bpkg\b)""")
-    )
-
-    fun status(): TermuxStatus {
+    override fun status(): TermuxStatus {
         val info = runCatching { context.packageManager.getPackageInfo(TERMUX_PACKAGE, 0) }.getOrNull()
         val granted = runCatching {
             ContextCompat.checkSelfPermission(context, PERMISSION_RUN_COMMAND) ==
@@ -194,11 +186,11 @@ class TermuxTool(
         ) != null
 
     /** Run [command] through Termux's `sh`, returning stdout/stderr/exit code. */
-    suspend fun runCommand(
+    override suspend fun runCommand(
         command: String,
-        workingDir: String? = null,
-        timeoutSeconds: Int? = null,
-        stdin: String? = null
+        workingDir: String?,
+        timeoutSeconds: Int?,
+        stdin: String?
     ): ToolResult {
         val trimmed = command.trim()
         validate(trimmed, stdin)?.let { return it }
@@ -208,7 +200,7 @@ class TermuxTool(
         if (!status.pluginApiAvailable) return TermuxMessages.pluginApiMissing(status.versionName)
         if (!status.permissionGranted) return TermuxMessages.permissionNeeded()
 
-        val adaptiveDefault = if (timeoutSeconds == null && PKG_LIKE_REGEX.containsMatchIn(trimmed)) {
+        val adaptiveDefault = if (timeoutSeconds == null && PackageManagerCommands.isPackageManager(trimmed)) {
             300
         } else {
             defaultTimeoutSeconds
@@ -288,35 +280,44 @@ class TermuxTool(
         // Deliberately NOT gated on `exit != 0`: a pipeline like `apt-get ... | tail` or
         // `apt list --upgradable` masks apt's failure behind a successful tail/echo, so the lock
         // error appears in the output while the reported exit code is 0. It IS gated on the command
-        // being package-manager-shaped ([PKG_LIKE_REGEX]): a successful diagnostic that merely
+        // being package-manager-shaped ([PackageManagerCommands.isPackageManager]): a successful diagnostic that merely
         // *contains* the phrase (`grep "Could not get lock" build.log`) is a successful command, not
         // a held lock. An empty [command] — the pure test seam — keeps the defensive scan.
-        if ((command.isEmpty() || PKG_LIKE_REGEX.containsMatchIn(command)) &&
-            LOCK_SIGNATURE.containsMatchIn(message)
+        if ((command.isEmpty() || PackageManagerCommands.isPackageManager(command)) &&
+            PackageManagerCommands.reportsLockHeld(message)
         ) {
-            return TermuxMessages.lockHeld(HOLDER_PID.find(message)?.groupValues?.get(1))
+            return TermuxMessages.lockHeld(PackageManagerCommands.lockHolderPid(message))
         }
         return ToolResult(success = exit == 0, message = message)
     }
 
-    /** Cheap checks that need neither Termux nor a permission, so they report the real problem first. */
-    private fun validate(trimmed: String, stdin: String? = null): ToolResult? {
-        if (trimmed.isEmpty()) return TermuxMessages.emptyCommand()
-        // Command and stdin ride in the same binder transaction, so they share the budget.
-        val total = trimmed.length + (stdin?.length ?: 0)
-        if (total > MAX_COMMAND_CHARS) return TermuxMessages.tooLarge(total, MAX_COMMAND_CHARS)
-        // Collapse whitespace first, so `rm  -rf   /` is not a way around the patterns.
-        val normalised = trimmed.replace(Regex("""\s+"""), " ")
-        // Check each shell segment as well as the whole line. The root-tree `rm` pattern is
-        // end-anchored — it has to be, or `rm -rf /home/x` would match — and the schema tells
-        // the model to chain steps with `&&`, so `rm -rf / && echo done` is the single most
-        // likely shape for this mistake to arrive in. Whole-line matching alone would miss it.
-        val candidates = normalised.split(SEGMENT_SEPARATORS) + normalised
-        if (candidates.any { segment -> denyPatterns.any { it.containsMatchIn(segment.trim()) } }) {
-            return TermuxMessages.blocked(trimmed)
+    /** The shared pre-flight checks, reported in Termux's own words. */
+    private fun validate(trimmed: String, stdin: String? = null): ToolResult? =
+        when (val rejection = ShellCommandGuard.check(trimmed, stdin, MAX_COMMAND_CHARS)) {
+            null -> null
+            ShellCommandGuard.Rejection.Empty -> TermuxMessages.emptyCommand()
+            is ShellCommandGuard.Rejection.TooLarge ->
+                TermuxMessages.tooLarge(rejection.total, rejection.limitChars)
+            ShellCommandGuard.Rejection.Blocked -> TermuxMessages.blocked(trimmed)
         }
-        return null
+
+    /**
+     * Termux reaches shared storage only, and only under its own name for it (`/sdcard`), so a
+     * file inside Gotcha's sandbox has no guest path at all.
+     */
+    override fun guestPathFor(hostFile: File): String? {
+        val sharedRoot = runCatching { android.os.Environment.getExternalStorageDirectory().absolutePath }
+            .getOrDefault(FfmpegCommand.DEFAULT_SHARED_STORAGE_ROOT)
+        val canonical = hostFile.canonicalPath
+        return if (FfmpegCommand.isReachableFromTermux(canonical, sharedRoot)) {
+            FfmpegCommand.termuxPath(canonical, sharedRoot)
+        } else {
+            null
+        }
     }
+
+    override suspend fun exportFile(guestPath: String, destination: File): ToolResult =
+        fileBridge.pull(guestPath, destination)
 
     /** Builds the intent without sending it, so the extras can be asserted without Termux. */
     internal fun buildCommandIntentForTest(command: String, workingDir: String?, stdin: String?): Intent =
@@ -351,33 +352,6 @@ class TermuxTool(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) flags = flags or PendingIntent.FLAG_MUTABLE
         return flags
     }
-
-    private fun notInstalled() = ToolResult.error(
-        "Termux is not installed, so there is no Linux user-space to run this in. You may ask the user to install " +
-            "Termux from F-Droid (the Play Store build is unmaintained), or use run_command for the plain " +
-            "unprivileged shell available inside Gotcha's own sandbox."
-    )
-
-    /**
-     * Termux is installed but has no RunCommandService. In practice this means the Google Play
-     * build, which removes the plugin API wholesale to satisfy Play policy — no amount of
-     * permission granting or property setting will make it work.
-     */
-    private fun pluginApiMissing(versionName: String?) = ToolResult.error(
-        "Termux is installed (version ${versionName ?: "unknown"}) but this build has no RUN_COMMAND " +
-            "service, so it cannot run commands for other apps. The Google Play build of Termux removes " +
-            "that API. Tell the user to replace it with the F-Droid or GitHub build of Termux if they want " +
-            "this; nothing can be granted to fix the Play build. Meanwhile use run_command for the plain " +
-            "unprivileged shell. Do not retry."
-    )
-
-    private fun permissionNeeded() = ToolResult.permissionNeeded(
-        ToolResult.TERMUX_ACCESS,
-        "Running commands in Termux needs Termux's \"Run commands\" permission, which has not been granted. " +
-            "I have asked for it — please allow it, then in Termux add the line `allow-external-apps=true` to " +
-            "`~/.termux/termux.properties` and restart Termux, and ask again. (If no permission dialog appeared, " +
-            "Termux was installed after Gotcha — reinstall or update Gotcha so Android can grant it.)"
-    )
 
     private fun cap(text: String): String =
         if (text.length <= maxOutputBytes) text else text.take(maxOutputBytes) + "\n…(output capped)"
@@ -463,43 +437,9 @@ class TermuxTool(
         internal const val ERRNO_MINOR_FAILURES = 1 // Activity.RESULT_FIRST_USER
         internal const val ERRNO_FAILED = 2 // Activity.RESULT_FIRST_USER + 1
 
-        /** Package-manager commands that are inherently slow and benefit from a larger default timeout. */
-        private val PKG_LIKE_REGEX = Regex("""\b(pkg|apt|apt-get|dpkg|pip3?|npm|cargo|proot-distro)\b""")
-
-        /**
-         * The apt/dpkg lock-contention signature: the *failure* phrases apt prints when it cannot
-         * take the lock. Kept to failure text on purpose — bare "lock-frontend" or "cache lock"
-         * would match `ls $PREFIX/var/lib/dpkg/lock*` output and mislead the model. Matched against
-         * the whole result (stdout+stderr), not just the exit code, because pipelines such as
-         * `apt-get ... | tail` report exit 0 while the lock failure is sitting in the output.
-         */
-        private val LOCK_SIGNATURE = Regex(
-            """(?:Could not get lock|Unable to acquire the dpkg frontend lock|dpkg frontend lock was locked by another process)""",
-            RegexOption.IGNORE_CASE
-        )
-
-        /** The holder named by apt's wait message: `It is held by process 24247 (dpkg)`. */
-        private val HOLDER_PID = Regex("""held by process (\d+)""")
-
         /** Termux's wake-lock helpers; required for any task longer than ~30s that Doze would throttle. */
         private const val WAKE_LOCK = "termux-wake-lock"
         private const val WAKE_UNLOCK = "termux-wake-unlock"
-
-        /**
-         * An actual `DEBIAN_FRONTEND=<value>` assignment. A bare substring would match a package
-         * name or a path containing the literal (e.g. `apt-get install lib-DEBIAN_FRONTEND-1`),
-         * silently skipping the non-interactive injection and letting a conffile prompt hang.
-         */
-        private val DEBIAN_FRONTEND_ASSIGNMENT = Regex("""(^|\s)DEBIAN_FRONTEND=\S+""")
-
-        /** The Debian frontend env var that tells dpkg/apt to take default actions instead of asking
-         * conffile questions. It is safe for every package-manager command and skipped when the user
-         * already set it explicitly.
-         */
-        private const val DEBIAN_FRONTEND = "DEBIAN_FRONTEND"
-
-        /** Shell separators the deny-list splits on before matching each part. */
-        private val SEGMENT_SEPARATORS = Regex("""[;&|\n]+""")
 
         /** Termux caps a single command near 128KB; leave headroom for the rest of the intent. */
         private const val MAX_COMMAND_CHARS = 100 * 1024
@@ -525,22 +465,13 @@ class TermuxTool(
          * `openssl.cnf` and a 30-second install turning into a 10-minute hang.
          */
         internal fun commandToRun(trimmed: String): String {
-            if (!PKG_LIKE_REGEX.containsMatchIn(trimmed)) return trimmed
+            if (!PackageManagerCommands.isPackageManager(trimmed)) return trimmed
             return withWakeLock(withNonInteractive(trimmed))
         }
 
-        /**
-         * Prefixes [command] with `DEBIAN_FRONTEND=noninteractive` unless one is already present.
-         * apt/dpkg conffile questions ("Configuration file ... Y/I/N/O/D/Z") have no TTY to read
-         * the answer from and would block until the timeout; the non-interactive frontend takes the
-         * default action (keep the current version), which is what the user's own edit implies.
-         */
+        /** Kept here for callers and tests; the rule itself is shared across backends. */
         internal fun withNonInteractive(command: String): String =
-            if (DEBIAN_FRONTEND_ASSIGNMENT.containsMatchIn(command)) {
-                command
-            } else {
-                "$DEBIAN_FRONTEND=noninteractive $command"
-            }
+            PackageManagerCommands.withNonInteractive(command)
 
         /**
          * Wraps [command] in `termux-wake-lock`/`termux-wake-unlock`, preserving its exit code (a naive

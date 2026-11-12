@@ -1739,7 +1739,7 @@ class AgentEngine(
         val accState = DeviceCapabilities.accessibilityState(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
-        val termux = com.gotcha.tools.TermuxTool(app).status()
+        val shell = com.gotcha.tools.ShellBackends.active(app).status()
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -1776,23 +1776,7 @@ class AgentEngine(
             )
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
-            // run_termux_command is withheld unless Termux is installed, and refuses until its
-            // RUN_COMMAND permission is granted, so this line is how the model knows to say
-            // "install Termux" or "allow the permission" rather than just failing.
-            appendLine(
-                when {
-                    !termux.installed ->
-                        "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
-                    !termux.pluginApiAvailable ->
-                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}) but this build " +
-                            "has no RUN_COMMAND service — it is the Google Play build, which removes the API. " +
-                            "run_termux_command is unavailable and no permission can fix it; only replacing " +
-                            "Termux with the F-Droid or GitHub build would."
-                    else ->
-                        "  Termux installed: yes (version ${termux.versionName ?: "unknown"}, " +
-                            "RUN_COMMAND granted: ${if (termux.permissionGranted) "yes" else "no"})"
-                }
-            )
+            appendLine(shell.envLine)
             // Tools depending on a capability that is "no" here are withheld from
             // the tool list, so these lines are the model's only way to explain
             // what the user should enable.

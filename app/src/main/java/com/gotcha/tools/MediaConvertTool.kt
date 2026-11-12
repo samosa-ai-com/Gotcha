@@ -24,7 +24,7 @@ import java.io.File
  */
 class MediaConvertTool(
     private val context: Context,
-    private val termux: TermuxTool = TermuxTool(context)
+    private val shell: ShellBackend = ShellBackends.active(context)
 ) {
 
     private val resolver = FileResolver(context)
@@ -91,7 +91,7 @@ class MediaConvertTool(
             sharedRoot = sharedRoot
         )
 
-        val result = termux.runCommand(command = command, timeoutSeconds = TIMEOUT_SECONDS)
+        val result = shell.runCommand(command = command, timeoutSeconds = TIMEOUT_SECONDS)
         if (!result.success) return interpretFailure(result, source, destination)
 
         // ffmpeg reports success on some malformed inputs after writing nothing.
@@ -204,7 +204,7 @@ class MediaConvertTool(
      * missing file and send the model hunting for a typo.
      */
     private fun unreachableFromTermux(file: File, role: String): ToolResult? {
-        if (FfmpegCommand.isReachableFromTermux(file.canonicalPath, sharedRoot)) return null
+        if (shell.guestPathFor(file) != null) return null
         return ToolResult.error(
             "$role path '${file.canonicalPath}' is inside Gotcha's private storage, which Termux cannot see — " +
                 "they run as different Android users. Use a shared-storage path instead, under " +

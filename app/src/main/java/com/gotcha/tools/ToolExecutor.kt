@@ -86,7 +86,6 @@ class ToolExecutor(
     private val pdfTool = PdfTool(appContext)
     private val mediaEditTool = MediaEditTool(appContext)
     private val mediaConvertTool = MediaConvertTool(appContext)
-    private val termuxFileBridge = TermuxFileBridge(appContext)
     private val fileResolver = FileResolver(appContext)
     private val podcastTool = PodcastTool(
         appContext,
@@ -105,7 +104,7 @@ class ToolExecutor(
 
     // Tier 4 tools
     private val rootTool = RootTool()
-    private val termuxTool = TermuxTool(appContext)
+    private val shell: ShellBackend = ShellBackends.active(appContext)
     private val healthTool = HealthTool(appContext)
 
     /** The audit log; the engine also writes the answers to its confirmation prompts here. */
@@ -290,8 +289,8 @@ class ToolExecutor(
                 bitrate = args.requireString("bitrate"),
                 overwrite = args.requireBoolean("overwrite") ?: false
             )
-            "pull_from_termux" -> termuxFileBridge.pull(
-                termuxPath = args.requireString("termux_path") ?: return missing("termux_path"),
+            "pull_from_termux" -> shell.exportFile(
+                guestPath = args.requireString("termux_path") ?: return missing("termux_path"),
                 // Resolve relative paths against the session working dir like every other file
                 // tool; a raw string would resolve against the JVM process CWD instead.
                 destination = java.io.File(
@@ -669,7 +668,7 @@ class ToolExecutor(
                 DeviceCapabilities.setRootAvailable(it.message.contains("Root IS available"))
             }
             "run_root_command" -> rootTool.runRootCommand(args.requireString("command") ?: return missing("command"))
-            "run_termux_command" -> termuxTool.runCommand(
+            "run_termux_command" -> shell.runCommand(
                 command = args.requireString("command") ?: return missing("command"),
                 workingDir = args.requireString("working_dir"),
                 timeoutSeconds = args.requireInt("timeout_seconds"),

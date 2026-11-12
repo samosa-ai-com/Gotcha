@@ -171,7 +171,7 @@ object DeviceCapabilities {
      * ever make it work. Needs `<package android:name="com.termux"/>` in the manifest's
      * `<queries>` block to see past targetSdk 30+ package visibility.
      */
-    fun termuxUsable(context: Context): Boolean = TermuxTool(context).status().usable
+    fun termuxUsable(context: Context): Boolean = ShellBackends.active(context).status().usable
 
     /**
      * Presence of a `su` binary, cached for the process.
