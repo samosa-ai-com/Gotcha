@@ -15,7 +15,7 @@ interface ShellStatus {
 /**
  * A full Linux user-space that lives outside Gotcha's own sandbox, under another Android uid.
  *
- * The seam between the tools that need such a shell (`run_termux_command`, `pull_from_termux`,
+ * The seam between the tools that need such a shell (`run_shell`, `pull_from_shell`,
  * `media_convert`) and whatever provides it. Termux is the only provider today; the interface
  * holds just what those tools use, so a second provider adds its own operations when it arrives
  * rather than leaving unimplemented stubs here.
@@ -26,6 +26,12 @@ interface ShellBackend {
 
     /** The guest's `$HOME`: the default working directory, and what a leading `~` expands to. */
     val home: String
+
+    /**
+     * What the model must know about this shell before using `run_shell`: its package manager,
+     * what it can see, its limits. Appended to the tool description, see [ShellTools.describe].
+     */
+    val toolNotes: String
 
     fun status(): ShellStatus
 
@@ -76,6 +82,10 @@ object ShellBackends {
      * The `<env>` lines describing the shell: the active backend's, plus the companion's when it
      * is installed but was passed over, so the model can say what would make it usable.
      */
+    /** The active backend's [ShellBackend.toolNotes], or null when no shell can run anything. */
+    fun toolNotes(context: Context): String? =
+        active(context).takeIf { it.status().usable }?.toolNotes
+
     fun envLines(context: Context): List<String> {
         val active = active(context)
         val lines = mutableListOf(active.status().envLine)

@@ -270,7 +270,7 @@ class MediaExport(private val context: Context) {
             combined.contains("Decoder init", ignoreCase = true) ||
                 combined.contains("Encoder init", ignoreCase = true) ->
                 "This device's codecs could not handle '${input.name}' (${combined.trim()}). The format is " +
-                    "readable but not editable here; ffmpeg via run_termux_command is the fallback."
+                    "readable but not editable here; ffmpeg via run_shell is the fallback."
             else -> "The export failed: ${combined.trim().ifEmpty { "no detail reported" }}."
         }
     }

@@ -61,6 +61,8 @@ class CompanionShellBackend(
 
     override val home: String get() = GUEST_HOME
 
+    override val toolNotes: String get() = CompanionMessages.TOOL_NOTES
+
     override fun status(): CompanionStatus =
         CompanionStatus(link.identity(), CompanionShellState.rootfsReady(context))
 

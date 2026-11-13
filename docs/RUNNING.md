@@ -231,7 +231,7 @@ Type natural-language requests. Examples:
 - **run_command** runs as the unprivileged app user (no root). Many system paths
   are unreadable; destructive commands (`rm -r`, `dd`, `reboot`, `su`, …) are
   blocked, with a 15 s timeout and 32 KB output cap.
-- **run_termux_command** runs inside Termux's user-space, which gives you a
+- **run_shell** runs inside Termux's user-space, which gives you a
   real Linux shell with `pkg`/`apt`, Python, git, compilers and the rest of
   the Unix tail. It is not a server: no root, no systemd, no kernel access,
   no persistence between calls, output capped at 32 KB, hard 600 s timeout,

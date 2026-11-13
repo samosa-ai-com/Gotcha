@@ -52,6 +52,8 @@ class TermuxShellBackend(
 
     override val home: String get() = termuxHome()
 
+    override val toolNotes: String get() = TermuxMessages.TOOL_NOTES
+
     /** One bridge per tool, so its storage-link probe cache lives as long as the tool does. */
     private val fileBridge by lazy { TermuxFileBridge(context, this) }
 
@@ -72,17 +74,17 @@ class TermuxShellBackend(
         /** Termux can actually run something for us (modulo the grant). */
         override val usable: Boolean get() = installed && pluginApiAvailable
 
-        // run_termux_command is withheld unless Termux is installed, and refuses until its
+        // run_shell is withheld unless Termux is installed, and refuses until its
         // RUN_COMMAND permission is granted, so this line is how the model knows to say
         // "install Termux" or "allow the permission" rather than just failing.
         override val envLine: String
             get() = when {
                 !installed ->
-                    "  Termux installed: no (so run_termux_command is unavailable — no Linux user-space)"
+                    "  Termux installed: no (so run_shell is unavailable — no Linux user-space)"
                 !pluginApiAvailable ->
                     "  Termux installed: yes (version ${versionName ?: "unknown"}) but this build " +
                         "has no RUN_COMMAND service — it is the Google Play build, which removes the API. " +
-                        "run_termux_command is unavailable and no permission can fix it; only replacing " +
+                        "run_shell is unavailable and no permission can fix it; only replacing " +
                         "Termux with the F-Droid or GitHub build would."
                 else ->
                     "  Termux installed: yes (version ${versionName ?: "unknown"}, " +

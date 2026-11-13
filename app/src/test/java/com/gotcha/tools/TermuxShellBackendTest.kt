@@ -19,7 +19,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * `run_termux_command`. Real Termux cannot exist on the JVM, so this covers everything up to and
+ * `run_shell`. Real Termux cannot exist on the JVM, so this covers everything up to and
  * after the intent: the {installed, granted} decision table via ShadowPackageManager, the
  * validation guards, and result-bundle parsing — which is why [TermuxShellBackend.formatResult] is a
  * separate function rather than inlined into the coroutine.

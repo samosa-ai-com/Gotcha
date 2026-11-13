@@ -194,7 +194,7 @@ class MediaEditToolTest {
             input = placeholder("a.mp4").path,
             output = File(dir, "out.mp3").path
         )
-        assertTrue(result.message.contains("run_termux_command"))
+        assertTrue(result.message.contains("run_shell"))
     }
 
     // ---- re-encoding operations ----

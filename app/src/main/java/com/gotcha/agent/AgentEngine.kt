@@ -652,7 +652,11 @@ class AgentEngine(
             val response = try {
                 llm.chat(
                     messages,
-                    ToolRegistry.toolsForAgent(agent, hiddenTools()),
+                    ToolRegistry.toolsForAgent(
+                        agent,
+                        hiddenTools(),
+                        com.gotcha.tools.ShellBackends.toolNotes(appContext)
+                    ),
                     sessionId = promptCacheKey ?: sessionId
                 ).also { lastModelRequestFailed = false }
             } catch (e: CancellationException) {
@@ -1559,17 +1563,17 @@ class AgentEngine(
         // Operator-only and suppressed in voice-call brevity mode. The skill
         // local_serve carries the exact recipe; this nudge is the cheap index-0
         // default that causes the agent to fetch it. Most complex/long-running
-        // commands only work reliably with run_termux_command, so prefer Termux
-        // when available — do not waste turns probing run_command toybox when the
-        // task needs python/build/serve and Termux is installed.
+        // commands only work reliably with run_shell, so prefer the Linux
+        // shell when available — do not waste turns probing run_command toybox when the
+        // task needs python/build/serve and a Linux shell is installed.
         val serveDirective = if (agent == AgentMode.OPERATOR && !callMode) {
             "\n\nWhen the user asks you to build, develop, or create an app, game, page, or tool " +
                 "and does not specify how to run it, default to a self-contained HTML page " +
                 "in the Gotcha chats folder and serve it on a free local port so it is " +
                 "immediately usable on this phone — do not wait for a follow-up 'run it'. " +
-                "If Termux is available (check <env> Termux installed: yes), prefer " +
-                "run_termux_command: copy the HTML to \$HOME via stdin and serve with " +
-                "termux-wake-lock + python3 -m http.server; otherwise use run_command " +
+                "If a Linux shell is available (the run_shell tool is offered), prefer " +
+                "run_shell: copy the HTML to \$HOME via stdin and serve with " +
+                "python3 -m http.server (in Termux, take termux-wake-lock first); otherwise use run_command " +
                 "toybox nc loop. If the request is genuinely ambiguous (could be an " +
                 "Android APK vs a web app vs a Python script vs a Termux program), ask one " +
                 "clarifying question whether they want it runnable on this phone as a web app " +

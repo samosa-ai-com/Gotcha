@@ -10,6 +10,47 @@ package com.gotcha.tools
  */
 internal object TermuxMessages {
 
+    /** What is true of `run_shell` only when Termux is the shell. See [ShellBackend.toolNotes]. */
+    const val TOOL_NOTES =
+        "The Linux shell on this phone is Termux. Packages install with `pkg install -y <name>` (or apt).\n" +
+            "Termux runs under its own user id, so Gotcha's working directory and app files are NOT " +
+            "visible here — use run_command for those. Shared storage (/sdcard) is only reachable if " +
+            "the user has run `termux-setup-storage` in Termux; if a /sdcard path fails, say so " +
+            "rather than retrying. Prefer stdin over write_file to /sdcard for payloads <100KB.\n" +
+            "\nRealistic limits to factor in:\n" +
+            "- Termux itself caps output at ~100KB. For larger output, redirect to a file inside Termux " +
+            "(e.g. `... > /sdcard/Download/out.txt`) and read it back via read_file.\n" +
+            "- You cannot kill a command after submitting it. A timed-out command keeps running under " +
+            "Termux's UID. There is no kill from here. To stop a stuck one, open the notifications shade " +
+            "(global_action or press_key 'notifications') and tap the Exit action on the Termux " +
+            "notification, which ends every Termux session. If you cannot reach that, ask the user to tap " +
+            "Exit on the Termux notification.\n" +
+            "- Lock contention: an `exit 100` whose error names `lock-frontend` / `Could not get lock` / " +
+            "`held by process <pid>` means ANOTHER pkg/apt is already running and holds the package lock — " +
+            "this is NOT a mirror problem. Wait for it or tap Exit on the Termux notification to end all " +
+            "sessions; never delete the lock files or kill -9 the process, which corrupts the package " +
+            "database without releasing the lock.\n" +
+            "- Interactive prompts: if output shows `Configuration file '...'` with `Y/I/N/O/D/Z`, a " +
+            "package manager is waiting for an answer no terminal can provide and will block until the " +
+            "timeout. Package operations are run non-interactively by default; if a bare `dpkg " +
+            "--configure` still asks, supply the answer via the stdin param (`echo N | dpkg --configure " +
+            "<pkg>`).\n" +
+            "- Hard ceiling: timeout_seconds <= 600. `pkg install` of ffmpeg, chromium, rust, golang, or " +
+            "texlive can hit this — raise timeout_seconds to 600 and warn the user before starting one.\n" +
+            "- 4 commands in flight, process-wide. Sub-agents share the same semaphore.\n" +
+            "- Android 12+ foreground-service rule: if Gotcha is in the background and the assistive ball " +
+            "is off, this tool fails with 'Not allowed to start service'. Tell the user to bring Gotcha to " +
+            "the foreground (or switch the assistive ball on).\n" +
+            "\nIf `pkg install` hangs at \"0% [Connecting to packages.termux.dev]\" or fails with NO_PUBKEY, " +
+            "the default mirror is slow or blocked on the user's network. Tell the user to open Termux and " +
+            "run `termux-change-repo` once, then retry. The full mirror list and the non-interactive " +
+            "sources.list swap are in the termux_repositories skill.\n" +
+            "\nFor long-running processes (servers, watchers, daemons), the foreground process is orphaned " +
+            "the moment Gotcha returns. The persistence pattern (`nohup ... > log 2>&1 < /dev/null & echo $! " +
+            "> pid; disown`) and the termux-wake-lock requirement are in the termux_background skill. For " +
+            "full Debian/Ubuntu via proot-distro (when Termux's bionic/busybox is not enough), see the " +
+            "termux_proot skill."
+
     fun notInstalled() = ToolResult.error(
         "Termux is not installed, so there is no Linux user-space to run this in. You may ask the user to install " +
             "Termux from F-Droid (the Play Store build is unmaintained), or use run_command for the plain " +
@@ -92,7 +133,7 @@ internal object TermuxMessages {
         return ToolResult.error(
             "Another apt/dpkg package operation is already running in Termux$holder and holds the package " +
                 "lock, so this command could not start. This is NOT a mirror or network problem. " +
-                "A run_termux_command cannot stop that process — a timed-out or still-running pkg/apt keeps " +
+                "A run_shell cannot stop that process — a timed-out or still-running pkg/apt keeps " +
                 "holding the lock under Termux's uid. Do NOT delete the lock files and do NOT kill -9 the " +
                 "process; that corrupts the package database without releasing the lock. Check it with " +
                 "`ps -ef | grep -E '[d]pkg|[a]pt'`. If it never finishes, open the notifications shade " +
@@ -103,7 +144,7 @@ internal object TermuxMessages {
 
     fun tooManyInFlight(limit: Int) = ToolResult.error(
         "$limit Termux commands are already running and none has finished yet. Earlier commands keep running " +
-            "even after they time out — a run_termux_command cannot kill them. To stop them, open the " +
+            "even after they time out — a run_shell cannot kill them. To stop them, open the " +
             "notifications shade (global_action or press_key 'notifications') and tap the Exit action on the " +
             "Termux notification, which ends every Termux session. You have tap/globalAction tools to do " +
             "this yourself; if you cannot reach it, ask the user to tap Exit on the Termux notification. " +
@@ -126,7 +167,7 @@ internal object TermuxMessages {
                 append("here. Retry with a non-interactive flag (e.g. -y) or pass the answer in stdin.")
             }
             append("\n- or it is genuinely slow. Retry with a larger timeout_seconds (the hard ceiling is 600). ")
-            append("Note it keeps running either way — a run_termux_command cannot stop it — so check Termux ")
+            append("Note it keeps running either way — a run_shell cannot stop it — so check Termux ")
             append("before starting again. To stop a stuck one, open the notifications shade (global_action or ")
             append("press_key 'notifications') and tap the Exit action on the Termux notification, which ends ")
             append("every Termux session. You have tap/globalAction tools to do this yourself; if you cannot ")

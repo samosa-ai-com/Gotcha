@@ -16,7 +16,7 @@ import java.io.File
 
 /**
  * The audit log records what every tool was asked to do, in plaintext in the app sandbox. That
- * is the point of it — but `run_termux_command`'s `stdin` exists so the model can answer a
+ * is the point of it — but `run_shell`'s `stdin` exists so the model can answer a
  * prompt, and the prompts worth answering are passwords and tokens. Those must not be written
  * down, while the rest of the line stays intact so the audit trail still shows what ran.
  */
@@ -41,7 +41,7 @@ class ActionLogRedactionTest {
         // Termux is absent here, so the tool fails early — the audit line is written either way,
         // which is exactly the path a secret would leak through.
         executor.execute(
-            "run_termux_command",
+            "run_shell",
             JsonObject(
                 mapOf(
                     "command" to JsonPrimitive("ssh user@host"),
@@ -56,7 +56,7 @@ class ActionLogRedactionTest {
         assertFalse("the secret must not reach disk: $logged", logged.contains("hunter2-super-secret"))
         assertTrue("the redaction should be visible, not silent", logged.contains("(redacted)"))
         assertTrue("the audit trail must still say what ran", logged.contains("ssh user@host"))
-        assertTrue(logged.contains("run_termux_command"))
+        assertTrue(logged.contains("run_shell"))
     }
 
     @Test
@@ -86,7 +86,7 @@ class ActionLogRedactionTest {
     @Test
     fun `arguments without a redacted key are logged unchanged`() = runTest {
         executor.execute(
-            "run_termux_command",
+            "run_shell",
             JsonObject(mapOf("command" to JsonPrimitive("uname -a"))),
             agent = AgentMode.OPERATOR,
             isSubAgent = true

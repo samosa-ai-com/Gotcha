@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Guided Termux setup: a live checklist of the four things that must be true for
- * `run_termux_command` to work, each with the action to fix it. The cheap checks
+ * `run_shell` to work, each with the action to fix it. The cheap checks
  * (installed / build / permission) are re-read on every resume; the
  * `allow-external-apps` probe runs a real command, so it only happens on demand.
  */

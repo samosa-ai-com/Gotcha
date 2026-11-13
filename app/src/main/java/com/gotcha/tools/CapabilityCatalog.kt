@@ -63,17 +63,18 @@ enum class Capability(
 
     TERMUX(
         // Reads as "it needs <label>, which is not available on this device right now."
-        "Termux (the Linux terminal app, installed from F-Droid)",
-        // Gated on Termux being installed, not on the RUN_COMMAND grant: gating on the grant
-        // would hide the only tool that can raise the prompt for it. See DeviceCapabilities.
+        "a Linux shell (Gotcha Shell, set up from Settings ▸ Linux shell, or Termux from F-Droid)",
+        // Gated on a shell backend being usable (Gotcha Shell or Termux installed), not on
+        // Termux's RUN_COMMAND grant: gating on the grant would hide the only tool that can
+        // raise the prompt for it. See DeviceCapabilities.
         //
         // media_convert rides on the same capability because it is ffmpeg run through
-        // run_termux_command. Hiding it without Termux is the point: it is the only route to
+        // run_shell. Hiding it without a shell is the point: it is the only route to
         // MP3, and a model that could see it on a device that cannot run it would promise a
         // conversion it has no way to perform.
-        setOf("run_termux_command", "media_convert", "pull_from_termux"),
-        // Installing Termux is not a grant, so there is no settings screen to
-        // open; the <env> block tells the model to say "install it from F-Droid".
+        setOf("run_shell", "media_convert", "pull_from_shell"),
+        // Installing a shell is not a grant, so there is no permission screen to
+        // open; the <env> block tells the model what the user has to install.
         null
     ),
 

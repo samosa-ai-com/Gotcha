@@ -5,6 +5,29 @@ internal object CompanionMessages {
 
     private const val SETTINGS_PAGE = "Settings ▸ Linux shell"
 
+    /** What is true of `run_shell` only when Gotcha Shell is the shell. See [ShellBackend.toolNotes]. */
+    const val TOOL_NOTES =
+        "The Linux shell on this phone is Gotcha Shell: Ubuntu, running as root, home is /root. " +
+            "Packages install with `apt-get install -y <name>` (run `apt-get update` first on a fresh " +
+            "system); pip and npm work once python3-pip or nodejs is installed. Do not use `pkg` or " +
+            "any termux-* command, they do not exist here.\n" +
+            "It is a separate app with its own storage. It CANNOT see shared storage (/sdcard, " +
+            "/storage/emulated/0), Gotcha's working directory or any other app's files, and nothing " +
+            "will make those paths appear, so never retry one. To get a file out, write it under " +
+            "/root and call pull_from_shell. To put text in, pass it through the stdin param.\n" +
+            "\nRealistic limits to factor in:\n" +
+            "- A command that reaches its timeout is stopped, not left running. Ceiling: " +
+            "timeout_seconds <= 3600. Large installs (ffmpeg, rust, golang, texlive) take minutes, " +
+            "and everything runs slower than on a normal Linux machine: raise timeout_seconds and " +
+            "warn the user before starting one.\n" +
+            "- 4 commands in flight at once, shared with sub-agents.\n" +
+            "- Android may kill a long command when the phone is short of memory; the result says so. " +
+            "If that interrupted a package install, the user can repair it from $SETTINGS_PAGE.\n" +
+            "- Lock contention: an `exit 100` naming `lock-frontend` / `Could not get lock` means " +
+            "another apt/dpkg is still running. Wait and retry; never delete the lock files.\n" +
+            "- Do not count on a process started with `&` or nohup surviving after the command " +
+            "returns. Start a server and test it within one command."
+
     fun unavailable(e: CompanionUnavailable): ToolResult = when (e.reason) {
         CompanionUnavailable.Reason.NOT_INSTALLED -> notInstalled()
         CompanionUnavailable.Reason.UNTRUSTED -> untrusted()

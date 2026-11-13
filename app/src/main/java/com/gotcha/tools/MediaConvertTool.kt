@@ -247,7 +247,7 @@ class MediaConvertTool(
                     "or tap Exit on the Termux notification; never delete the lock files or kill -9 the process. " +
                     "On a slow or blocked network, split it as 'pkg download ffmpeg' then 'dpkg -i " +
                     "\$PREFIX/var/cache/apt/archives/*.deb' (see the termux_repositories skill). You may also run " +
-                    "it yourself with run_termux_command if the user agrees."
+                    "it yourself with run_shell if the user agrees."
             )
             text.contains("No such file or directory", ignoreCase = true) -> ToolResult.error(
                 "ffmpeg could not see '${input.canonicalPath}', although Gotcha can. This almost always means the " +
