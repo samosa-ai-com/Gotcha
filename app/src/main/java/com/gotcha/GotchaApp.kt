@@ -70,6 +70,11 @@ class GotchaApp : Application() {
                 val settings = com.gotcha.data.SettingsRepository(this).load()
                 com.gotcha.data.MemoryStore.ensureDefaults(settings)
             }
+            // Learn whether an installed Gotcha Shell has its Linux system, if that was never
+            // asked, so the choice between it and Termux does not wait for a settings visit.
+            runCatching {
+                kotlinx.coroutines.runBlocking { com.gotcha.tools.ShellBackends.refreshIfUnknown(this@GotchaApp) }
+            }
         }.start()
         setupUncaughtExceptionHandler()
     }

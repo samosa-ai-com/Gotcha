@@ -1739,7 +1739,7 @@ class AgentEngine(
         val accState = DeviceCapabilities.accessibilityState(app)
         val notifEnabled = DeviceCapabilities.notificationListenerEnabled(app)
         val deviceAdmin = DeviceCapabilities.deviceAdminActive(app)
-        val shell = com.gotcha.tools.ShellBackends.active(app).status()
+        val shellLines = com.gotcha.tools.ShellBackends.envLines(app)
 
         val vpnActive = try {
             val cm = app.getSystemService(
@@ -1776,7 +1776,7 @@ class AgentEngine(
             )
             appendLine("  Notification listener enabled: ${if (notifEnabled) "yes" else "no"}")
             appendLine("  Device admin active: ${if (deviceAdmin) "yes" else "no"}")
-            appendLine(shell.envLine)
+            shellLines.forEach { appendLine(it) }
             // Tools depending on a capability that is "no" here are withheld from
             // the tool list, so these lines are the model's only way to explain
             // what the user should enable.
