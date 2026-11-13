@@ -255,14 +255,14 @@ fun TermuxSetupScreen(onBack: () -> Unit) {
 }
 
 /** A named action for a setup step, kept small so the checklist reads top-down. */
-private class SetupAction(val label: String, val onClick: () -> Unit)
+internal class SetupAction(val label: String, val onClick: () -> Unit)
 
 /**
  * One row of the checklist: a ✓/○ status marker, title, detail line, and an
  * optional action button that is only offered while the step is incomplete.
  */
 @Composable
-private fun SetupCheck(
+internal fun SetupCheck(
     title: String,
     done: Boolean,
     detail: String,

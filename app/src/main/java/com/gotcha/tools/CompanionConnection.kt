@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.DeadObjectException
 import android.os.IBinder
+import android.util.Log
 import com.gotcha.shell.IShellService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -124,6 +125,7 @@ class CompanionConnection private constructor(private val appContext: Context) :
         }
         connection = pending
         if (!accepted) {
+            Log.w(TAG, "bind refused")
             unbindLocked()
             throw CompanionUnavailable(CompanionUnavailable.Reason.BIND_REFUSED)
         }
@@ -134,9 +136,11 @@ class CompanionConnection private constructor(private val appContext: Context) :
             throw e
         }
         if (bound == null) {
+            Log.w(TAG, "bind timed out after $BIND_TIMEOUT_MS ms")
             unbindLocked()
             throw CompanionUnavailable(CompanionUnavailable.Reason.BIND_TIMED_OUT)
         }
+        Log.i(TAG, "bound to Gotcha Shell ${identity.versionName}")
         bound
     }
 
@@ -158,6 +162,7 @@ class CompanionConnection private constructor(private val appContext: Context) :
 
     companion object {
         const val PACKAGE = "com.gotcha.shell"
+        private const val TAG = "GotchaShell"
         private const val SERVICE_CLASS = "com.gotcha.shell.ShellService"
 
         /** A bind to a stopped app on a slow phone takes about a second; this is a generous ceiling. */

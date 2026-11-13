@@ -159,6 +159,11 @@ enum class SettingsPage(
         R.string.settings_page_permissions_summary,
         "settings_permissions_row"
     ),
+    LINUX_SHELL(
+        R.string.settings_page_linux_shell,
+        R.string.settings_page_linux_shell_summary,
+        "settings_linux_shell_row"
+    ),
     TERMUX(
         R.string.settings_page_termux,
         R.string.settings_page_termux_summary,

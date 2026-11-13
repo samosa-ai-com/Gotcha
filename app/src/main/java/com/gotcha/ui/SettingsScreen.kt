@@ -255,6 +255,10 @@ fun SettingsScreen(
                     onBack = backToHome,
                     onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
                 )
+                SettingsPage.LINUX_SHELL -> LinuxShellScreen(
+                    onBack = backToHome,
+                    onOpenTermuxSetup = { onPageChange(SettingsPage.TERMUX) }
+                )
                 SettingsPage.TERMUX -> TermuxSetupScreen(onBack = backToHome)
                 SettingsPage.SKILLS -> SkillsScreen(
                     load = load,
