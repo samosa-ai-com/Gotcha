@@ -174,6 +174,8 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        // The Binder interface to the Gotcha Shell companion app (com.gotcha.shell).
+        aidl = true
     }
 
     packaging {

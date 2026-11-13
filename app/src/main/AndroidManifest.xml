@@ -82,6 +82,14 @@
          still needs a runtime grant; Termux additionally requires allow-external-apps=true. -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
+    <!-- The Gotcha Shell companion app (com.gotcha.shell) only serves callers holding this.
+         Both apps declare it, so whichever is installed first defines it; signature level
+         means Android grants it only to apps signed with the same key, with no prompt. -->
+    <permission
+        android:name="com.gotcha.permission.SHELL"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.gotcha.permission.SHELL" />
+
     <!-- Needed on API 30+ so open_app can see other launchable apps. -->
     <!-- Health Connect (read-only). Granted through Health Connect's own permission
          screen, not the standard runtime dialog. -->
@@ -100,6 +108,8 @@
         <!-- Termux RUN_COMMAND: without this, targetSdk 30+ package visibility hides Termux and
              the capability probe reports "not installed" on a device that has it. -->
         <package android:name="com.termux" />
+        <!-- Gotcha Shell: needed to see whether the companion is installed and to bind to it. -->
+        <package android:name="com.gotcha.shell" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
