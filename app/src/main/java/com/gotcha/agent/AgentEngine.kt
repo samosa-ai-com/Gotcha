@@ -227,7 +227,7 @@ class AgentEngine(
                 }
             },
             onUpdateUserProfile = onUpdateUserProfile,
-            onBeforeTool = { name, args -> foregroundControl.check(name, args) },
+            onBeforeTool = { name, args -> foregroundControl.check(name, args) ?: confirmAfterShellOutput(name, args) },
             onNavigateApp = { task ->
                 events.onSubAgentUpdate("App Navigation", "starting…")
                 val steps = mutableListOf<SubAgentStepUi>()
@@ -565,6 +565,7 @@ class AgentEngine(
      */
     suspend fun run(agent: AgentMode) {
         foregroundControl.reset()
+        toolExecutor.shellOutputGuard.reset()
         try {
             runLoop(agent)
         } finally {
@@ -1105,9 +1106,17 @@ class AgentEngine(
     private suspend fun confirmOrSkip(
         toolNames: List<String>,
         description: String,
-        recordSkip: Boolean = true
+        recordSkip: Boolean = true,
+        /**
+         * For changes to Gotcha itself: ask even when the chat skips protections, if this
+         * request has read shell output. See [com.gotcha.tools.ShellOutputGuard].
+         */
+        askAfterShellOutput: Boolean = false
     ): ConfirmOutcome {
-        if (!skipProtections) return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        val mustAsk = askAfterShellOutput && toolExecutor.shellOutputGuard.shellOutputSeen
+        if (!skipProtections || mustAsk) {
+            return ConfirmOutcome(events.awaitConfirmation(toolNames, description), false)
+        }
         if (recordSkip) {
             toolExecutor.actionLog.record(
                 toolNames.joinToString(","),
@@ -1116,6 +1125,21 @@ class AgentEngine(
             )
         }
         return ConfirmOutcome(true, true)
+    }
+
+    /**
+     * Asks before a tool changes Gotcha's memory, profile or own files in a request that has
+     * read shell output; null lets the tool run. Settings and scheduled tasks have their own
+     * prompts, which [confirmOrSkip] keeps on in the same situation. Not skippable: the point
+     * is that the request may no longer be the user's own.
+     */
+    private suspend fun confirmAfterShellOutput(name: String, args: JsonObject): ToolResult? {
+        val what = toolExecutor.shellOutputGuard.gotchaChange(name, args) ?: return null
+        val approved = events.awaitConfirmation(listOf(name), com.gotcha.tools.ShellOutputGuard.question(what))
+        // A refusal is logged by the executor, which records whatever is returned in the tool's place.
+        if (!approved) return com.gotcha.tools.ShellOutputGuard.declined(what)
+        toolExecutor.actionLog.record(name, "(approved) change to $what after shell output", ToolResult.ok("Allowed"))
+        return null
     }
 
     /** An approval decision and whether it was pre-granted by a skip. */
@@ -1218,7 +1242,8 @@ class AgentEngine(
                     val (approved, skipped) = confirmOrSkip(
                         listOf("update_gotcha_settings"),
                         GotchaSettingsUpdate.describe(plan, request.reason),
-                        recordSkip = false
+                        recordSkip = false,
+                        askAfterShellOutput = true
                     )
                     val decided = if (approved) {
                         handler(plan)
@@ -1268,7 +1293,8 @@ class AgentEngine(
             val (approved, skipped) = confirmOrSkip(
                 listOf(call.function.name),
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.describe(request, sessionId, agent) },
-                recordSkip = false
+                recordSkip = false,
+                askAfterShellOutput = true
             )
             val decided = if (approved) {
                 withContext(Dispatchers.IO) { toolExecutor.scheduledTaskTool.apply(request, sessionId, agent) }

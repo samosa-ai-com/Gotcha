@@ -51,6 +51,9 @@ class ToolExecutor(
     }
 
     private val appContext = context.applicationContext
+
+    /** Fences shell output and remembers that this request has read some. See [ShellOutputGuard]. */
+    val shellOutputGuard = ShellOutputGuard(canonicalPath = { fileResolver.canonicalPath(it) })
     private val phoneTool = PhoneTool(appContext)
     private val settingsRouter = SettingsRouter(appContext)
     private val systemTool = SystemTool(appContext, settingsRouter)
@@ -154,7 +157,7 @@ class ToolExecutor(
             return refused
         }
         val result = try {
-            withContext(Dispatchers.IO) { dispatch(tool, args, hiddenTools) }
+            withContext(Dispatchers.IO) { shellOutputGuard.label(tool, dispatch(tool, args, hiddenTools)) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
