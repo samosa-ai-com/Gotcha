@@ -63,7 +63,7 @@ enum class Capability(
 
     TERMUX(
         // Reads as "it needs <label>, which is not available on this device right now."
-        "a Linux shell (Gotcha Shell, set up from Settings ▸ Linux shell, or Termux from F-Droid)",
+        "a Linux shell (Termux from F-Droid, or the Gotcha Shell app where the user has been given it)",
         // Gated on a shell backend being usable (Gotcha Shell or Termux installed), not on
         // Termux's RUN_COMMAND grant: gating on the grant would hide the only tool that can
         // raise the prompt for it. See DeviceCapabilities.

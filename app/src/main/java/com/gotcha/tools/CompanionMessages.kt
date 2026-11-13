@@ -36,15 +36,16 @@ internal object CompanionMessages {
     }
 
     fun notInstalled() = ToolResult.error(
-        "Gotcha Shell is not installed, so there is no Linux user-space to run this in. Tell the user to " +
-            "install it from $SETTINGS_PAGE, or use run_command for the plain unprivileged shell inside " +
-            "Gotcha's own sandbox."
+        "Gotcha Shell is not installed, so there is no Linux user-space to run this in. It is in private " +
+            "testing and cannot be downloaded from Gotcha yet: do not point the user to a download. Use " +
+            "run_command for the plain unprivileged shell inside Gotcha's own sandbox, or Termux if the " +
+            "user has it."
     )
 
     fun untrusted() = ToolResult.error(
         "An app with Gotcha Shell's package name is installed, but it is not signed with Gotcha's key, so " +
             "Gotcha will not send it commands or files. Tell the user to uninstall that app and install " +
-            "Gotcha Shell from $SETTINGS_PAGE. Do not retry."
+            "the Gotcha Shell build they were given for this version of Gotcha. Do not retry."
     )
 
     fun bindFailed(timedOut: Boolean) = ToolResult.error(
@@ -56,14 +57,14 @@ internal object CompanionMessages {
 
     fun refused(detail: String?) = ToolResult.error(
         "Gotcha Shell refused this Gotcha as a caller" + (detail?.let { " ($it)" } ?: "") +
-            ". The two apps must come from the same release. Tell the user to update both from " +
-            "$SETTINGS_PAGE. Do not retry."
+            ". The two apps must come from the same release. Tell the user to install the Gotcha " +
+            "and Gotcha Shell builds that belong together. Do not retry."
     )
 
     fun versionMismatch(found: Int, expected: Int) = ToolResult.error(
         "Gotcha Shell speaks interface version $found but this Gotcha needs version $expected. Tell the user " +
             "to update " + (if (found < expected) "Gotcha Shell" else "Gotcha") +
-            " from $SETTINGS_PAGE. Do not retry."
+            ". Do not retry."
     )
 
     fun rootfsMissing(installing: Boolean) = ToolResult.error(
