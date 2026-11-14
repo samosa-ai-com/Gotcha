@@ -35,6 +35,10 @@ All notable changes to Gotcha are documented here.
   new logo, and the app icon is sharper.
 
 ### Changed
+- **Samosa AI sign-in renews itself.** With a Samosa backend that issues
+  short-lived sessions, Gotcha now renews the session in the background, so
+  you stay signed in as long as you use Gotcha at least once a week. A
+  connection problem during renewal does not sign you out.
 - **A tidier drawer.** The drawer floats over the screen and holds where you
   go: New chat, Recent chats, Scheduled tasks, Second Brain, Connectors and
   Settings. Long-press a chat to delete it. Import and Back up all chats moved
