@@ -31,18 +31,24 @@ class CompanionShellBackend(
     private val context: Context,
     private val link: CompanionLink = CompanionConnection.get(context),
     private val defaultTimeoutSeconds: Int = 120,
-    private val maxOutputBytes: Int = 32 * 1024
+    private val maxOutputBytes: Int = 32 * 1024,
+    private val access: () -> ShellEntitlement.Access = { ShellEntitlement.access(context) }
 ) : ShellBackend {
 
     data class CompanionStatus(
         val identity: CompanionIdentity,
         /** Last known state of the Linux system inside the companion; null when never asked. */
-        val rootfsReady: Boolean?
+        val rootfsReady: Boolean?,
+        /** Whether this account may use the shell at all. See [ShellEntitlement]. */
+        val access: ShellEntitlement.Access = ShellEntitlement.Access.ALLOWED
     ) : ShellStatus {
-        override val usable: Boolean get() = identity.installed && identity.trusted
+        override val usable: Boolean
+            get() = identity.installed && identity.trusted && access == ShellEntitlement.Access.ALLOWED
 
         override val envLine: String
             get() = when {
+                access != ShellEntitlement.Access.ALLOWED ->
+                    "  Gotcha Shell: not available to this account (${access.reason})"
                 !identity.installed ->
                     "  Gotcha Shell installed: no (so run_shell is unavailable — no Linux user-space)"
                 !identity.trusted ->
@@ -64,7 +70,7 @@ class CompanionShellBackend(
     override val toolNotes: String get() = CompanionMessages.TOOL_NOTES
 
     override fun status(): CompanionStatus =
-        CompanionStatus(link.identity(), CompanionShellState.rootfsReady(context))
+        CompanionStatus(link.identity(), CompanionShellState.rootfsReady(context), access())
 
     override fun guestPathFor(hostFile: File): String? = null
 
@@ -299,9 +305,17 @@ class CompanionShellBackend(
         }
     }
 
+    private fun proRequired(access: ShellEntitlement.Access) = ToolResult.error(
+        "Gotcha Shell cannot be used: ${access.reason}. Tell the user; they can see the state in " +
+            "Settings ▸ Linux shell. Do not retry, and do not suggest a workaround that needs the Linux shell."
+    )
+
     /** Turns everything that can go wrong on the way to the companion into a message for the model. */
     private suspend fun guarded(block: suspend () -> ToolResult): ToolResult = try {
-        block()
+        // Checked on every call, not only when the backend is chosen: an executor built while
+        // the account was Pro must stop when it no longer is.
+        val allowed = access()
+        if (allowed == ShellEntitlement.Access.ALLOWED) block() else proRequired(allowed)
     } catch (e: CancellationException) {
         // A CancellationException is an IllegalStateException; it must not be reported as a
         // rejected request, or stopping a turn would look like a shell error.

@@ -46,7 +46,8 @@ class CompanionShellBackendTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val service = FakeShellService()
     private val link = FakeLink(service)
-    private val backend = CompanionShellBackend(context, link)
+    private var access = ShellEntitlement.Access.ALLOWED
+    private val backend = CompanionShellBackend(context, link, access = { access })
 
     @Before
     fun grantAllFilesAccess() {
@@ -56,6 +57,36 @@ class CompanionShellBackendTest {
     @After
     fun resetAllFilesAccess() {
         ShadowExternalStorageManager.resetGranted()
+    }
+
+    // ---- the Pro plan ----
+
+    @Test
+    fun `an account that is not Pro is refused without reaching the companion`() = runTest {
+        access = ShellEntitlement.Access.NOT_PRO
+        val result = backend.runCommand("echo hi")
+        assertFalse(result.success)
+        assertTrue(result.message, "Samosa AI Pro" in result.message)
+        assertEquals(0, link.calls)
+        assertTrue(service.started.isEmpty())
+    }
+
+    @Test
+    fun `losing Pro stops a backend that was built while the account had it`() = runTest {
+        assertTrue(backend.status().usable)
+        access = ShellEntitlement.Access.NEEDS_CHECK
+        val result = backend.runCommand("echo hi")
+        assertFalse(result.success)
+        assertTrue(result.message, "internet connection" in result.message)
+        assertEquals(0, link.calls)
+    }
+
+    @Test
+    fun `without Pro the companion is not usable and the model is told why`() {
+        access = ShellEntitlement.Access.SIGNED_OUT
+        val status = backend.status()
+        assertFalse(status.usable)
+        assertTrue(status.envLine, "not signed in" in status.envLine)
     }
 
     // ---- reaching the companion ----
@@ -140,7 +171,7 @@ class CompanionShellBackendTest {
 
     @Test
     fun `output beyond the cap is dropped and said to be`() = runTest {
-        val small = CompanionShellBackend(context, link, maxOutputBytes = 8)
+        val small = CompanionShellBackend(context, link, maxOutputBytes = 8, access = { access })
         service.script(running(stdout = "0123456789"), exited(0, stdout = "abc"))
         val result = small.runCommand("noisy")
         assertTrue(result.message, result.message.startsWith("exit code: 0\nstdout:\n01234567\n"))
