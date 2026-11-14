@@ -2,6 +2,7 @@ package com.gotcha.notifications
 
 import android.util.Log
 import com.gotcha.BuildConfig
+import com.gotcha.auth.SamosaAuthInterceptor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -49,13 +50,8 @@ open class NotificationApi(
         client = OkHttpClient.Builder()
             .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
             .readTimeout(timeoutSeconds * 2, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                if (bearerToken.isNotBlank()) {
-                    request.addHeader("Authorization", "Bearer $bearerToken")
-                }
-                chain.proceed(request.build())
-            }
+            // No callback here: a 401 that survives a renewal is reported by fetchBlocking.
+            .addInterceptor(SamosaAuthInterceptor(bearerToken))
             .addInterceptor(logging)
             .build()
     }

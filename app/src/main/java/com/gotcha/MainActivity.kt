@@ -866,7 +866,13 @@ class MainActivity : ComponentActivity() {
             return
         }
         settingsRepository.clearSamosaSession()
-        Toast.makeText(this, "Samosa session expired — please sign in again.", Toast.LENGTH_LONG).show()
+        // A banned account cannot sign in again, so "sign in again" would send the user in a circle.
+        val message = when (com.gotcha.auth.SamosaSession.current?.consumeSignOutReason()) {
+            com.gotcha.auth.SignOutReason.BANNED ->
+                getString(R.string.samosa_auth_this_account_is_disabled_contact)
+            else -> "Samosa session expired — please sign in again."
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         chatViewModel.refreshSettings()
     }
 
