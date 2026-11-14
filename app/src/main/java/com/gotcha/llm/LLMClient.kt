@@ -4,6 +4,7 @@ import android.content.Context
 import com.gotcha.BuildConfig
 import com.gotcha.audio.AudioModel
 import com.gotcha.audio.ModelCategory
+import com.gotcha.auth.SamosaAuthInterceptor
 import com.gotcha.data.DEFAULT_API_TIMEOUT_SECONDS
 import com.gotcha.i18n.Language
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -80,15 +81,8 @@ class LLMClient(
             .connectTimeout(timeouts.connectSeconds, TimeUnit.SECONDS)
             .readTimeout(timeouts.readSeconds, TimeUnit.SECONDS)
             .writeTimeout(timeouts.writeSeconds, TimeUnit.SECONDS)
-            .addInterceptor { chain ->
-                val builder = chain.request().newBuilder()
-                    .addHeader("Authorization", "Bearer $apiKey")
-                val response = chain.proceed(builder.build())
-                if (response.code == 401) {
-                    onUnauthorized?.invoke()
-                }
-                response
-            }
+            // Adds the bearer token; for Samosa AI it also keeps the session renewed.
+            .addInterceptor(SamosaAuthInterceptor(apiKey, onUnauthorized))
             .addInterceptor(logging)
             .build()
 

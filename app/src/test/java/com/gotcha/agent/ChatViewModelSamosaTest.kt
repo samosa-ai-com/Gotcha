@@ -41,6 +41,15 @@ class ChatViewModelSamosaTest {
         settingsRepository.saveSamosaSession("", "")
     }
 
+    /**
+     * Settings plus the session they describe. The session has its own writers
+     * and `save` leaves it alone, so a stale copy cannot undo a token renewal.
+     */
+    private fun saveWithSession(settings: Settings) {
+        settingsRepository.save(settings)
+        settingsRepository.saveSamosaSession(settings.samosaSessionToken, settings.samosaEmail)
+    }
+
     private fun samosaSettings(
         provider: LlmProvider,
         token: String,
@@ -91,7 +100,7 @@ class ChatViewModelSamosaTest {
 
     @Test
     fun `samosa session persists across save and load`() = runBlocking {
-        settingsRepository.save(
+        saveWithSession(
             samosaSettings(
                 LlmProvider.SAMOSA_AI,
                 token = "abc.def.ghi",
@@ -107,7 +116,7 @@ class ChatViewModelSamosaTest {
 
     @Test
     fun `clearSamosaSession leaves audio base URL empty so engine stops calling`() = runBlocking {
-        settingsRepository.save(
+        saveWithSession(
             samosaSettings(
                 LlmProvider.SAMOSA_AI,
                 token = "abc.def.ghi",
@@ -125,7 +134,7 @@ class ChatViewModelSamosaTest {
 
     @Test
     fun `samosa session clearing does not affect the LLM OpenAI key`() = runBlocking {
-        settingsRepository.save(
+        saveWithSession(
             samosaSettings(LlmProvider.OPENAI_COMPATIBLE, token = "openai-session-jwt")
         )
         settingsRepository.clearSamosaSession()
@@ -157,7 +166,7 @@ class ChatViewModelSamosaTest {
     @Test
     fun `samosa token is independent of LLM provider`() = runBlocking {
         // LLM is OpenAI but audio uses Samosa — the JWT is still valid for audio.
-        settingsRepository.save(
+        saveWithSession(
             samosaSettings(
                 provider = LlmProvider.OPENAI_COMPATIBLE,
                 token = "audio-jwt",
