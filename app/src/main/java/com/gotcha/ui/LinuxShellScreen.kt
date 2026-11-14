@@ -2,6 +2,7 @@ package com.gotcha.ui
 
 import android.content.Intent
 import android.net.Uri
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,8 +38,10 @@ import com.gotcha.tools.CompanionIdentity
 import com.gotcha.tools.CompanionShellBackend
 import com.gotcha.tools.CompanionShellManager
 import com.gotcha.tools.FileResolver
+import com.gotcha.tools.ShellEntitlement
 import com.gotcha.ui.theme.SkinAlertDialog
 import kotlinx.coroutines.launch
+import java.util.Date
 
 /** What the page is doing right now; one action at a time. */
 private enum class ShellAction { INSTALL, REPAIR, RESET }
@@ -63,6 +66,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
 
     var identity by remember { mutableStateOf(manager.identity()) }
     var info by remember { mutableStateOf<ShellInfo?>(null) }
+    var access by remember { mutableStateOf(ShellEntitlement.access(context)) }
     var running by remember { mutableStateOf<ShellAction?>(null) }
     var progress by remember { mutableStateOf<InstallProgress?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
@@ -79,6 +83,8 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     suspend fun refresh() {
+        // Asked afresh every time the page opens, so subscribing or signing in shows at once.
+        access = ShellEntitlement.refresh(context, force = true)
         identity = manager.identity()
         info = if (identity.installed && identity.trusted) manager.info() else null
     }
@@ -99,6 +105,13 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
     SettingsScaffold(title = stringResource(SettingsPage.LINUX_SHELL.title), onBack = onBack, overlay = overlay) {
         Text(stringResource(R.string.linux_shell_intro), style = MaterialTheme.typography.bodySmall)
 
+        val allowed = access == ShellEntitlement.Access.ALLOWED
+        SetupCheck(
+            title = stringResource(R.string.linux_shell_plan_title),
+            done = allowed,
+            detail = planDetail(access, ShellEntitlement.allowedUntil(context))
+        )
+
         SetupCheck(
             title = stringResource(R.string.linux_shell_app_title),
             done = identity.installed && identity.trusted,
@@ -111,7 +124,9 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
                 title = stringResource(R.string.linux_shell_system_title),
                 done = current?.rootfsReady == true,
                 detail = systemDetail(current, running == ShellAction.INSTALL),
-                action = if (current != null && !current.rootfsReady && running == null && !current.installing) {
+                action = if (
+                    allowed && current != null && !current.rootfsReady && running == null && !current.installing
+                ) {
                     SetupAction(stringResource(R.string.linux_shell_action_install)) {
                         perform(ShellAction.INSTALL, R.string.linux_shell_install_done) {
                             manager.install { phase, done, total -> progress = InstallProgress(phase, done, total) }
@@ -130,7 +145,7 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
                     onClick = {
                         perform(ShellAction.REPAIR, R.string.linux_shell_repair_done) { manager.repair() }
                     },
-                    enabled = running == null,
+                    enabled = running == null && allowed,
                     modifier = Modifier.weight(1f).testTag("linux_shell_repair")
                 ) {
                     Text(
@@ -171,7 +186,10 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
             ) { Text(stringResource(R.string.linux_shell_action_uninstall)) }
         }
 
-        if (current?.rootfsReady == true && current.interfaceVersion == CompanionShellBackend.INTERFACE_VERSION) {
+        if (
+            allowed && current?.rootfsReady == true &&
+            current.interfaceVersion == CompanionShellBackend.INTERFACE_VERSION
+        ) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -217,6 +235,23 @@ fun LinuxShellScreen(onBack: () -> Unit, onOpenTermuxSetup: () -> Unit) {
             }
         )
     }
+}
+
+@Composable
+private fun planDetail(access: ShellEntitlement.Access, allowedUntil: Long?): String = when (access) {
+    ShellEntitlement.Access.ALLOWED ->
+        if (allowedUntil == null) {
+            stringResource(R.string.linux_shell_plan_active)
+        } else {
+            val context = LocalContext.current
+            stringResource(
+                R.string.linux_shell_plan_active_until,
+                DateFormat.getMediumDateFormat(context).format(Date(allowedUntil))
+            )
+        }
+    ShellEntitlement.Access.SIGNED_OUT -> stringResource(R.string.linux_shell_plan_signed_out)
+    ShellEntitlement.Access.NOT_PRO -> stringResource(R.string.linux_shell_plan_not_pro)
+    ShellEntitlement.Access.NEEDS_CHECK -> stringResource(R.string.linux_shell_plan_needs_check)
 }
 
 @Composable

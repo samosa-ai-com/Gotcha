@@ -1897,6 +1897,12 @@
         <item quantity="other">Every %1$d days at %2$s</item>
     </plurals>
     <string name="linux_shell_intro">Gotcha Shell is a separate app that gives the assistant a full Linux system: installing packages, running scripts and tools no phone ships with. It runs apart from Gotcha, so nothing a command does can change Gotcha\'s settings, chats or memory, and it cannot see your files unless Gotcha hands one over.</string>
+    <string name="linux_shell_plan_title">Samosa AI Pro</string>
+    <string name="linux_shell_plan_active">Your Pro plan is active.</string>
+    <string name="linux_shell_plan_active_until">Your Pro plan is active. Without an internet connection, the Linux shell keeps working until %1$s.</string>
+    <string name="linux_shell_plan_signed_out">The Linux shell is part of Samosa AI Pro. Sign in to Samosa AI to use it.</string>
+    <string name="linux_shell_plan_not_pro">The Linux shell is part of Samosa AI Pro, and your account is on another plan. Your Linux system and its files are kept; you can still reset or uninstall it below.</string>
+    <string name="linux_shell_plan_needs_check">Gotcha could not confirm your Pro plan. Connect to the internet and open this page again.</string>
     <string name="linux_shell_app_title">Gotcha Shell app</string>
     <string name="linux_shell_app_not_installed">Gotcha Shell is not installed. It is in private testing and cannot be downloaded from Gotcha yet. If you were given the app, install it and come back to this page: Gotcha finds it by itself.</string>
     <string name="linux_shell_app_untrusted">An app with Gotcha Shell\'s name is installed, but it is not signed by the makers of Gotcha, so Gotcha will not use it. Uninstall it, then install the Gotcha Shell build you were given.</string>
