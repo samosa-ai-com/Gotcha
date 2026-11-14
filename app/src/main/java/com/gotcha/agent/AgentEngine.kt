@@ -650,6 +650,8 @@ class AgentEngine(
                 add(runContextMessage())
                 addAll(activeSkillsMessages(agent))
             }
+            // The daily plan check for the Linux shell. A disk read unless a check is due.
+            com.gotcha.tools.ShellEntitlement.refresh(appContext)
             val response = try {
                 llm.chat(
                     messages,
