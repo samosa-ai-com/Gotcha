@@ -16,7 +16,7 @@ class SamosaAuthApiTest {
 
     @Test
     fun `a null profile picture reads as empty instead of failing the reply`() {
-        // The hub sends null for an account with no avatar (seen on a phone: it crashed sign-in).
+        // The backend sends null for an account with no avatar (seen on a phone: it crashed sign-in).
         val decoded = json.decodeFromString(
             RegisterResponse.serializer(),
             """
