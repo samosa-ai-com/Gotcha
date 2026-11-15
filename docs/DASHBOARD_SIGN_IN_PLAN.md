@@ -1,6 +1,6 @@
 # Plan: Samosa sign-in through the account website
 
-Status: implemented on `feature/dashboard-sign-in` (stacked on PR #177), not yet merged. Gotcha-side work only.
+Status: implemented (see [`samosa-sign-in.md`](samosa-sign-in.md)). Gotcha-side work only.
 
 ## Goal
 
