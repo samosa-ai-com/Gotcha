@@ -104,6 +104,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Needed on API 30+ to find Custom Tabs browsers (Samosa sign-in prefers Chrome). -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
         <!-- Needed on API 30+ so set_alarm / delete_alarm can resolve the system clock app. -->
         <intent>
             <action android:name="android.intent.action.SET_ALARM" />
