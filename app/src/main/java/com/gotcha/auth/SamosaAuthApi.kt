@@ -93,6 +93,18 @@ data class RegisterResponse(
     val user: SamosaUser = SamosaUser()
 )
 
+/**
+ * Request body for POST /oauth/token: trades the one-time code from the
+ * account website, plus the PKCE verifier that only this app holds, for a session.
+ */
+@Serializable
+data class OAuthTokenRequest(
+    val code: String,
+    @SerialName("code_verifier") val codeVerifier: String,
+    @SerialName("redirect_uri") val redirectUri: String,
+    @SerialName("device_label") val deviceLabel: String? = null
+)
+
 /** Request body for POST /auth/refresh. Sent without an Authorization header. */
 @Serializable
 data class RefreshRequest(val refreshToken: String)
@@ -164,6 +176,10 @@ interface SamosaAuthApi {
 
     @POST("logout")
     suspend fun logout(@Header("Authorization") bearer: String)
+
+    /** Same answer as [register]: the session pair and the user. */
+    @POST("oauth/token")
+    suspend fun exchangeCode(@Body body: OAuthTokenRequest): RegisterResponse
 
     companion object {
         /** Auth-manager root (no /v1). Trailing slash required by Retrofit. */

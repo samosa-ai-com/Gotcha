@@ -1579,4 +1579,21 @@
     <plurals name="scheduled_retries">
         <item quantity="other">%1$d回再試行</item>
     </plurals>
+
+    <!-- Samosa sign-in through the account website -->
+    <string name="samosa_auth_no_browser">Samosa のサインインを開けるブラウザがありません。ウェブブラウザをインストールまたは有効にしてから、もう一度お試しください。</string>
+    <string name="samosa_auth_sign_in_timed_out">ブラウザの応答待ちでサインインがタイムアウトしました。もう一度お試しください。</string>
+    <string name="samosa_auth_sign_in_link_mismatch">サインインの応答がこのリクエストと一致しません。もう一度お試しください。</string>
+    <string name="samosa_auth_sign_in_expired">このサインインは期限切れです。もう一度お試しください。</string>
+    <string name="samosa_auth_sign_in_refused">Samosa のサインインが完了しませんでした。もう一度お試しください。</string>
+    <string name="samosa_sign_in_website">Samosa AI にサインイン</string>
+    <string name="samosa_sign_in_google_instead">代わりに Google を使う</string>
+    <string name="samosa_sign_in_hint_website">Samosa AI を使うには Samosa AI のウェブサイトでサインインしてください。OpenAI 互換の設定は別に保存され、影響を受けません。</string>
+    <string name="samosa_opening_sign_in">Samosa のサインインを開いています…</string>
+    <string name="samosa_manage_account">アカウントを管理</string>
+    <string name="samosa_add_credits">クレジットを追加</string>
+    <string name="samosa_sign_in_cancelled">サインインをキャンセルしました。</string>
+    <string name="samosa_session_ended">Samosa AI からサインアウトされました。引き続き使うには、もう一度サインインしてください。</string>
+    <string name="samosa_session_deactivated">この Samosa AI アカウントは無効化されました。</string>
+    <string name="error_out_of_credits_http_402">クレジットがありません (HTTP 402)。続けるにはクレジットを追加してください。Samosa AI の場合: 設定 → AI 設定 → クレジットを追加。</string>
 </resources>
