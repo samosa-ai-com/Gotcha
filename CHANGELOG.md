@@ -67,6 +67,11 @@ All notable changes to Gotcha are documented here.
   home network.
 
 ### Fixed
+- **Signing in on the account website no longer gets stuck when your default
+  browser is not Chrome.** Gotcha now opens the sign-in page in Chrome when it
+  is installed. Some browsers (seen with Aloha) left Google's account chooser
+  on a blank page, so the sign-in never came back to Gotcha. Without Chrome,
+  your default browser is used as before.
 - **Turning on the floating ball no longer crashes Gotcha** (#148) when the
   microphone permission hasn't been granted; it asks for it first.
 - **Screen Lens reads the app underneath again** (#149), so its smart

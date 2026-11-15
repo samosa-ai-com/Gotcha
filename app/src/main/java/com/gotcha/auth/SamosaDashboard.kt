@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
 import com.gotcha.BuildConfig
 import com.gotcha.util.GotchaLog
@@ -19,12 +20,36 @@ fun interface SamosaBrowser {
  * A Custom Tab when the phone has a browser that supports one, otherwise any
  * browser. A Custom Tab shares the browser's cookies, so a user who signed in
  * on the account website stays signed in there when Gotcha opens it again.
+ *
+ * Chrome is preferred over the phone's default browser when it is installed:
+ * Google sign-in on the account website opens Google's account chooser, and
+ * some default browsers (seen with Aloha, 2026-11-15) leave that on a blank
+ * page so the sign-in never returns to Gotcha. Without Chrome, the default
+ * Custom Tabs browser is used as before.
  */
 object CustomTabBrowser : SamosaBrowser {
     private const val TAG = "SamosaBrowser"
 
+    /** Custom Tabs browsers that run Google sign-in correctly, most preferred first. */
+    internal val PREFERRED_BROWSERS = listOf(
+        "com.android.chrome",
+        "com.chrome.beta",
+        "com.chrome.dev",
+        "com.chrome.canary"
+    )
+
+    /** The first installed [PREFERRED_BROWSERS] entry with Custom Tabs, or null. */
+    internal fun preferredBrowser(context: Context): String? = try {
+        CustomTabsClient.getPackageName(context, PREFERRED_BROWSERS, true)
+    } catch (e: SecurityException) {
+        GotchaLog.d(TAG, e) { "Cannot query Custom Tabs browsers, using the default" }
+        null
+    }
+
     override fun open(context: Context, url: Uri): Boolean = try {
-        CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, url)
+        val tab = CustomTabsIntent.Builder().setShowTitle(true).build()
+        preferredBrowser(context)?.let { tab.intent.setPackage(it) }
+        tab.launchUrl(context, url)
         true
     } catch (e: ActivityNotFoundException) {
         GotchaLog.d(TAG, e) { "No Custom Tabs browser, trying a plain browser" }
