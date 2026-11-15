@@ -769,8 +769,6 @@ class SettingsRepository(context: Context) : SettingsStore {
             .putString(KEY_API_KEY, settings.apiKey)
             .putString(KEY_BASE_URL, settings.baseUrl)
             .putString(KEY_MODEL, settings.model)
-            .putString(KEY_SAMOSA_TOKEN, settings.samosaSessionToken)
-            .putString(KEY_SAMOSA_EMAIL, settings.samosaEmail)
             .putString(KEY_SUB_AGENT_MODEL, settings.subAgentModel)
             .putString(KEY_NAVIGATOR_MODEL, settings.navigatorModel)
             .putInt(KEY_MAX_TOOL_ROUNDS, settings.maxToolRounds)
@@ -866,18 +864,47 @@ class SettingsRepository(context: Context) : SettingsStore {
             .apply()
     }
 
-    /** Persist just the Samosa session token + account email after a sign-in. */
-    fun saveSamosaSession(token: String, email: String) {
+    /**
+     * Persist the Samosa session after a sign-in. [refreshToken] is blank when
+     * the backend issues a single long-lived token.
+     *
+     * The session is written only here, in [rotateSamosaTokens] and in
+     * [clearSamosaSession], never by [save]: screens hold a [Settings] copy
+     * for minutes, and saving one must not put back a token that has since
+     * been renewed, which the backend would treat as a stolen session.
+     */
+    fun saveSamosaSession(token: String, email: String, refreshToken: String = "") {
         prefs.edit()
             .putString(KEY_SAMOSA_TOKEN, token)
+            .putString(KEY_SAMOSA_REFRESH_TOKEN, refreshToken)
             .putString(KEY_SAMOSA_EMAIL, email)
             .apply()
+    }
+
+    /** The session's tokens, read on their own: two decrypts where [load] does one per setting. */
+    fun loadSamosaTokens(): com.gotcha.auth.SamosaTokens = com.gotcha.auth.SamosaTokens(
+        accessToken = string(KEY_SAMOSA_TOKEN),
+        refreshToken = string(KEY_SAMOSA_REFRESH_TOKEN)
+    )
+
+    /**
+     * Replace both tokens after a renewal. Written with `commit`: the old
+     * refresh token is already spent, so the new pair has to be on disk before
+     * anything uses it, or a crash would leave a session that cannot be renewed.
+     */
+    @android.annotation.SuppressLint("ApplySharedPref")
+    fun rotateSamosaTokens(token: String, refreshToken: String) {
+        prefs.edit()
+            .putString(KEY_SAMOSA_TOKEN, token)
+            .putString(KEY_SAMOSA_REFRESH_TOKEN, refreshToken)
+            .commit()
     }
 
     /** Clear the Samosa session (logout / 401). Leaves all other settings intact. */
     fun clearSamosaSession() {
         prefs.edit()
             .remove(KEY_SAMOSA_TOKEN)
+            .remove(KEY_SAMOSA_REFRESH_TOKEN)
             .remove(KEY_SAMOSA_EMAIL)
             .apply()
     }
@@ -901,6 +928,7 @@ class SettingsRepository(context: Context) : SettingsStore {
         const val KEY_BASE_URL = "base_url"
         const val KEY_MODEL = "model"
         const val KEY_SAMOSA_TOKEN = "samosa_session_token"
+        const val KEY_SAMOSA_REFRESH_TOKEN = "samosa_refresh_token"
         const val KEY_SAMOSA_EMAIL = "samosa_email"
         const val KEY_SUB_AGENT_MODEL = "sub_agent_model"
         const val KEY_NAVIGATOR_MODEL = "navigator_model"

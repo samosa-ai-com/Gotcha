@@ -22,7 +22,11 @@ const val REFERRAL_CLAIM_WINDOW_HOURS = 72L
 @Serializable
 data class RegisterRequest(
     val idToken: String,
-    @SerialName("referral_code") val referralCode: String? = null
+    @SerialName("referral_code") val referralCode: String? = null,
+    /** Which registered app is signing in. Backends that predate app scoping ignore it. */
+    val app: String? = null,
+    /** Shown to the user in their list of signed-in devices. */
+    @SerialName("device_label") val deviceLabel: String? = null
 )
 
 /** User tier information returned in /me. */
@@ -84,8 +88,31 @@ data class SamosaUser(
 @Serializable
 data class RegisterResponse(
     val token: String = "",
+    /** Renews [token]. Null from a backend that issues one long-lived token. */
+    val refreshToken: String? = null,
     val user: SamosaUser = SamosaUser()
 )
+
+/** Request body for POST /auth/refresh. Sent without an Authorization header. */
+@Serializable
+data class RefreshRequest(val refreshToken: String)
+
+/** Response from POST /auth/refresh: the next access token and the refresh token that renews it. */
+@Serializable
+data class RefreshResponse(
+    val token: String = "",
+    val refreshToken: String = ""
+)
+
+/**
+ * The refresh call on its own, blocking, because it runs inside an OkHttp
+ * interceptor. Kept apart from [SamosaAuthApi] so its client carries no
+ * [SamosaAuthInterceptor]: a renewal must never wait on another renewal.
+ */
+interface SamosaRefreshApi {
+    @POST("auth/refresh")
+    fun refresh(@Body body: RefreshRequest): retrofit2.Call<RefreshResponse>
+}
 
 /** Response from GET /me — the user profile enveloped under `user`. */
 @Serializable
@@ -162,6 +189,9 @@ interface SamosaAuthApi {
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
+                // Calls that carry a session token get the live one and are
+                // retried once after a renewal; sign-in carries none and passes through.
+                .addInterceptor(SamosaAuthInterceptor())
                 .addInterceptor(logging)
                 .build()
             return Retrofit.Builder()

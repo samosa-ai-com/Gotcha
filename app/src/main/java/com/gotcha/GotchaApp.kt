@@ -43,6 +43,8 @@ class GotchaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Before anything can send a Samosa request: every client looks the session up here.
+        com.gotcha.auth.SamosaSession.install(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 startedActivities++

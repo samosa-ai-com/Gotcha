@@ -67,6 +67,7 @@ class CallSessionControllerTest {
                 ttsApiModel = "tts-1"
             )
         )
+        settingsRepository.saveSamosaSession("samosa-jwt-token", "user@example.com")
         var errorMessage: String? = null
         controller.onError = { errorMessage = it }
 
@@ -174,6 +175,7 @@ class CallSessionControllerTest {
                 ttsApiModel = "tts-1"
             )
         )
+        settingsRepository.saveSamosaSession("samosa-jwt-token", "user@example.com")
 
         val started = controller.startWakeWordCall()
 

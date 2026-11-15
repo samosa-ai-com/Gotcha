@@ -98,12 +98,14 @@ class SamosaAuthManager(
         error("Unexpected credential type from Google Sign-In.")
     }
 
-    private suspend fun register(idToken: String): SamosaSignInResult = try {
-        val resp = api.register(RegisterRequest(idToken = idToken))
+    internal suspend fun register(idToken: String): SamosaSignInResult = try {
+        val resp = api.register(
+            RegisterRequest(idToken = idToken, app = APP_ID, deviceLabel = deviceLabel())
+        )
         if (resp.token.isBlank()) {
             SamosaSignInResult.Error(appContext.getString(R.string.samosa_auth_server_did_not_return_a))
         } else {
-            settingsRepository.saveSamosaSession(resp.token, resp.user.email)
+            settingsRepository.saveSamosaSession(resp.token, resp.user.email, resp.refreshToken.orEmpty())
             // Fetch fresh /me to obtain full tier, tags, and referral metadata
             val profile = runCatching { api.me("Bearer ${resp.token}").user }.getOrNull() ?: resp.user
             val isNew = profile.referral.canClaim
@@ -236,6 +238,16 @@ class SamosaAuthManager(
 
     companion object {
         private const val TAG = "SamosaAuth"
+
+        /** This app's id in the backend's app registry. */
+        const val APP_ID = "gotcha-android"
+
+        /** For example "Google Pixel 8": how the user tells their sessions apart. */
+        internal fun deviceLabel(): String =
+            listOf(android.os.Build.MANUFACTURER, android.os.Build.MODEL)
+                .filter { !it.isNullOrBlank() }
+                .joinToString(" ")
+                .replaceFirstChar { it.uppercase() }
 
         /**
          * WEB OAuth client ID. Google mints the ID token with aud = this value,
